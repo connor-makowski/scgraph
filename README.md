@@ -8,7 +8,8 @@ Supply chain graph package for Python
 
 ## Documentation
 
-Getting Started: https://connor-makowski.github.io/scgraph/
+Getting Started: https://github.com/connor-makowski/scgraph
+
 Low Level: https://connor-makowski.github.io/scgraph/core.html
 
 
