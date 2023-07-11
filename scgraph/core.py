@@ -7,61 +7,60 @@ class Graph:
         """
         Function:
 
-            Initialize a Graph object
-
-            Returns `None`
+        - Initialize a Graph object
+        - Returns `None`
 
         Required Arguments:
 
-            - None
+        - None
 
         Optional Arguments:
 
-            - `data`:
-                - Type: dict
-                - What: A dictionary of dictionaries
-                - Structure:
-                    - `graph`
-                        - Type: dict of dicts of ints or floats
-                        - What: A dictionary of dictionaries of integers or floats
-                            - The first level of keys are the origin nodes
-                            - The second level of keys are the destination nodes
-                            - The values are the distances between the origin and destination nodes
-                            - Note: The graph is assumed to be directed
-                    - `nodes`
-                        - Type: dict of dicts of ints or floats
-                        - What: A dictionary of dictionaries of integers or floats
-                            - The first level of keys are the node ids
-                            - The second level of keys are the attributes:
-                                - `latitude`
-                                    - Type: float
-                                    - What: The latitude of the node
-                                - `longitude`
-                                    - Type: float
-                                    - What: The longitude of the node
-                            - The values are the attributes for the nodes
-                - EG: {
-                    "graph": {
-                            "0": {"1": 5, "2": 1},
-                            "1": {"0": 5, "2": 2, "3": 1},
-                            "2": {"0": 1, "1": 2, "3": 4, "4": 8},
-                            "3": {"1": 1, "2": 4, "4": 3, "5": 6},
-                            "4": {"2": 8, "3": 3},
-                            "5": {"3": 6}
-                        }
-                    "nodes": {
-                            "0": {"latitude": 0, "longitude": 0},
-                            "1": {"latitude": 0, "longitude": 1},
-                            "2": {"latitude": 1, "longitude": 0},
-                            "3": {"latitude": 1, "longitude": 1},
-                            "4": {"latitude": 2, "longitude": 0},
-                            "5": {"latitude": 2, "longitude": 1}
-                        }
+        - `data`:
+            - Type: dict
+            - What: A dictionary of dictionaries
+            - Structure:
+                - `graph`
+                    - Type: dict of dicts of ints or floats
+                    - What: A dictionary of dictionaries of integers or floats
+                        - The first level of keys are the origin nodes
+                        - The second level of keys are the destination nodes
+                        - The values are the distances between the origin and destination nodes
+                        - Note: The graph is assumed to be directed
+                - `nodes`
+                    - Type: dict of dicts of ints or floats
+                    - What: A dictionary of dictionaries of integers or floats
+                        - The first level of keys are the node ids
+                        - The second level of keys are the attributes:
+                            - `latitude`
+                                - Type: float
+                                - What: The latitude of the node
+                            - `longitude`
+                                - Type: float
+                                - What: The longitude of the node
+                        - The values are the attributes for the nodes
+            - EG: {
+                "graph": {
+                        "0": {"1": 5, "2": 1},
+                        "1": {"0": 5, "2": 2, "3": 1},
+                        "2": {"0": 1, "1": 2, "3": 4, "4": 8},
+                        "3": {"1": 1, "2": 4, "4": 3, "5": 6},
+                        "4": {"2": 8, "3": 3},
+                        "5": {"3": 6}
                     }
-                - Note: In the example:
-                    - The distance to travel from node "0" to node "1" is 5
-                    - The distance to travel from node "0" to node "2" is 1
-                    - Node "0" is at latitude 0 and longitude 0
+                "nodes": {
+                        "0": {"latitude": 0, "longitude": 0},
+                        "1": {"latitude": 0, "longitude": 1},
+                        "2": {"latitude": 1, "longitude": 0},
+                        "3": {"latitude": 1, "longitude": 1},
+                        "4": {"latitude": 2, "longitude": 0},
+                        "5": {"latitude": 2, "longitude": 1}
+                    }
+                }
+            - Note: In the example:
+                - The distance to travel from node "0" to node "1" is 5
+                - The distance to travel from node "0" to node "2" is 1
+                - Node "0" is at latitude 0 and longitude 0
         """
         self.graph = copy.deepcopy(data.get("graph", {}))
         self.nodes = copy.deepcopy(data.get("nodes", {}))
@@ -70,17 +69,16 @@ class Graph:
         """
         Function:
 
-            Validate that the nodes are a dictionary of dictionaries of floats or integers
-
-            Returns `None`
+        - Validate that the nodes are a dictionary of dictionaries of floats or integers
+        - Returns `None`
 
         Required Arguments:
 
-            - None
+        - None
 
         Optional Arguments:
 
-            - None
+        - None
         """
         assert isinstance(self.nodes, dict), "Your nodes must be a dictionary"
         # Check that the nodes are a dictionary of dictionaries of floats
@@ -101,22 +99,20 @@ class Graph:
         """
         Function:
 
-            Validate that the graph is a dictionary of dictionaries of integers or floats
-
-            If `check_symmetry` is True, also validate that the graph is symmetric
-
-            Returns `None`
+        - Validate that the graph is a dictionary of dictionaries of integers or floats
+        - If `check_symmetry` is True, also validate that the graph is symmetric
+        - Returns `None`
 
         Required Arguments:
 
-            - None
+        - None
 
         Optional Arguments:
 
-            - `check_symmetry`
-                - Type: bool
-                - What: Whether to validate that the graph is symmetric
-                - Default: True
+        - `check_symmetry`
+            - Type: bool
+            - What: Whether to validate that the graph is symmetric
+            - Default: True
         """
         assert isinstance(self.graph, dict), "Your graph must be a dictionary"
         # Check that the graph is a dictionary of dictionaries of integers or floats
@@ -147,22 +143,21 @@ class Graph:
         """
         Function:
 
-            Identify the minimum length route between two nodes in a sparse network graph
-
-            Return that route as a list of node keys in the order they are visited
+        - Identify the minimum length route between two nodes in a sparse network graph
+        - Return that route as a list of node keys in the order they are visited
 
         Required Arguments:
 
-            - `origin`
-                - Type: str
-                - What: The origin node key
-            - `destination`
-                - Type: str
-                - What: The destination node key
+        - `origin`
+            - Type: str
+            - What: The origin node key
+        - `destination`
+            - Type: str
+            - What: The destination node key
 
         Optional Arguments:
 
-            - None
+        - None
         """
         # Create a dictionary to store the distance from the origin to each node
         # Initialize the distance to infinity for all nodes except the origin
@@ -215,19 +210,19 @@ class Graph:
     def get_path_length(self, id_path):
         """
         Function:
-            Calculate the length of a path
 
-            Return the length of the path
+        - Calculate the length of a path
+        - Return the length of the path
 
         Required Arguments:
 
-            - `id_path`
-                - Type: list of strs
-                - What: A list of node ids in the order they are visited
+        - `id_path`
+            - Type: list of strs
+            - What: A list of node ids in the order they are visited
 
         Optional Arguments:
 
-            - None
+        - None
         """
         # Initialize the length to zero
         length = 0
@@ -242,29 +237,30 @@ class Graph:
     ):
         """
         Function:
-            Identify the shortest path between two nodes in a sparse network graph
 
-            Return a dictionary of various path information including:
-                - `id_path`: A list of node ids in the order they are visited
-                - `path`: A list of node dictionaries (lat + long) in the order they are visited
-                - `length`: The length of the path
+        - Identify the shortest path between two nodes in a sparse network graph
+
+        - Return a dictionary of various path information including:
+            - `id_path`: A list of node ids in the order they are visited
+            - `path`: A list of node dictionaries (lat + long) in the order they are visited
+            - `length`: The length of the path
 
          Required Arguments:
 
-            - `origin`
-                - Type: dict
-                - What: A dictionary with the keys 'latitude' and 'longitude'
-            - `destination`
-                - Type: dict
-                - What: A dictionary with the keys 'latitude' and 'longitude'
+        - `origin`
+            - Type: dict
+            - What: A dictionary with the keys 'latitude' and 'longitude'
+        - `destination`
+            - Type: dict
+            - What: A dictionary with the keys 'latitude' and 'longitude'
 
         Optional Arguments:
 
-            - `algorithm`
-                - Type: str
-                - What: The algorithm to use to identify the shortest path
-                - Default: 'dijkstra'
-                - Options: 'dijkstra'
+        - `algorithm`
+            - Type: str
+            - What: The algorithm to use to identify the shortest path
+            - Default: 'dijkstra'
+            - Options: 'dijkstra'
         """
         # Assert that the algorithm is valid
         assert algorithm in [
@@ -296,30 +292,29 @@ class Graph:
         """
         Function:
 
-            Add a node to the network
-
-            Return None
+        - Add a node to the network
+        - Return None
 
         Required Arguments:
 
-            - `node`
-                - Type: dict
-                - What: A dictionary with the keys 'latitude' and 'longitude'
-            - `name`
-                - Type: str
-                - What: The name of the node
+        - `node`
+            - Type: dict
+            - What: A dictionary with the keys 'latitude' and 'longitude'
+        - `name`
+            - Type: str
+            - What: The name of the node
 
         Optional Arguments:
 
-            - `circuity`
-                - Type: float | int
-                - What: The circuity of the network
-                - Default: 2
-            - `distance_calculation`
-                - Type: str
-                - What: The distance calculation to use
-                - Default: 'haversine'
-                - Options: 'haversine'
+        - `circuity`
+            - Type: float | int
+            - What: The circuity of the network
+            - Default: 2
+        - `distance_calculation`
+            - Type: str
+            - What: The distance calculation to use
+            - Default: 'haversine'
+            - Options: 'haversine'
         """
         # Validate the node
         assert isinstance(name, str), f"Your node name ({name}) is not a string"

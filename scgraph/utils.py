@@ -13,28 +13,27 @@ class Distance:
         """
         Function:
 
-            Calculate the great circle distance in kilometers between two points
-            on the earth (specified in decimal degrees)
+        - Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)
 
         Required Arguments:
 
-            - `origin`:
-                - Type: dict
-                - What: is the origin point? (dict with keys "longitude" and "latitude")
-            - `destination`:
-                - Type: dict
-                - What: is the destination point? (dict with keys "longitude" and "latitude")
+        - `origin`:
+            - Type: dict
+            - What: is the origin point? (dict with keys "longitude" and "latitude")
+        - `destination`:
+            - Type: dict
+            - What: is the destination point? (dict with keys "longitude" and "latitude")
 
         Optional Arguments:
 
-            - `units`:
-                - Type: str
-                - What: units to return the distance in? (one of "km", "m", "mi", or "ft")
-                - Default: "km"
-            - `circuity`:
-                - Type: float | int
-                - What: Multiplier to increase the calculated distance (to account for circuity)
-                - Default: 1
+        - `units`:
+            - Type: str
+            - What: units to return the distance in? (one of "km", "m", "mi", or "ft")
+            - Default: "km"
+        - `circuity`:
+            - Type: float | int
+            - What: Multiplier to increase the calculated distance (to account for circuity)
+            - Default: 1
 
         """
         # convert decimal degrees to radians
@@ -70,6 +69,20 @@ class Distance:
 
 
 def hardRound(decimal_places, a):
+    """
+    Function:
+
+    - Round a number to a specified number of decimal places
+
+    Required Arguments:
+
+    - `decimal_places`:
+        - Type: int
+        - What: number of decimal places to round to
+    - `a`:
+        - Type: float | int
+        - What: number to round
+    """
     return int(a * (10**decimal_places) + (0.5 if a > 0 else -0.5)) / (
         10**decimal_places
     )

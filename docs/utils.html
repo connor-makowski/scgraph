@@ -41,28 +41,27 @@ class Distance:
         &#34;&#34;&#34;
         Function:
 
-            Calculate the great circle distance in kilometers between two points
-            on the earth (specified in decimal degrees)
+        - Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)
 
         Required Arguments:
 
-            - `origin`:
-                - Type: dict
-                - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
-            - `destination`:
-                - Type: dict
-                - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+        - `origin`:
+            - Type: dict
+            - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+        - `destination`:
+            - Type: dict
+            - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
 
         Optional Arguments:
 
-            - `units`:
-                - Type: str
-                - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
-                - Default: &#34;km&#34;
-            - `circuity`:
-                - Type: float | int
-                - What: Multiplier to increase the calculated distance (to account for circuity)
-                - Default: 1
+        - `units`:
+            - Type: str
+            - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
+            - Default: &#34;km&#34;
+        - `circuity`:
+            - Type: float | int
+            - What: Multiplier to increase the calculated distance (to account for circuity)
+            - Default: 1
 
         &#34;&#34;&#34;
         # convert decimal degrees to radians
@@ -98,6 +97,20 @@ class Distance:
 
 
 def hardRound(decimal_places, a):
+    &#34;&#34;&#34;
+    Function:
+
+    - Round a number to a specified number of decimal places
+
+    Required Arguments:
+
+    - `decimal_places`:
+        - Type: int
+        - What: number of decimal places to round to
+    - `a`:
+        - Type: float | int
+        - What: number to round
+    &#34;&#34;&#34;
     return int(a * (10**decimal_places) + (0.5 if a &gt; 0 else -0.5)) / (
         10**decimal_places
     )</code></pre>
@@ -114,12 +127,42 @@ def hardRound(decimal_places, a):
 <span>def <span class="ident">hardRound</span></span>(<span>decimal_places, a)</span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Round a number to a specified number of decimal places</li>
+</ul>
+<p>Required Arguments:</p>
+<ul>
+<li><code>decimal_places</code>:<ul>
+<li>Type: int</li>
+<li>What: number of decimal places to round to</li>
+</ul>
+</li>
+<li><code>a</code>:<ul>
+<li>Type: float | int</li>
+<li>What: number to round</li>
+</ul>
+</li>
+</ul></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def hardRound(decimal_places, a):
+    &#34;&#34;&#34;
+    Function:
+
+    - Round a number to a specified number of decimal places
+
+    Required Arguments:
+
+    - `decimal_places`:
+        - Type: int
+        - What: number of decimal places to round to
+    - `a`:
+        - Type: float | int
+        - What: number to round
+    &#34;&#34;&#34;
     return int(a * (10**decimal_places) + (0.5 if a &gt; 0 else -0.5)) / (
         10**decimal_places
     )</code></pre>
@@ -151,28 +194,27 @@ def hardRound(decimal_places, a):
         &#34;&#34;&#34;
         Function:
 
-            Calculate the great circle distance in kilometers between two points
-            on the earth (specified in decimal degrees)
+        - Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)
 
         Required Arguments:
 
-            - `origin`:
-                - Type: dict
-                - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
-            - `destination`:
-                - Type: dict
-                - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+        - `origin`:
+            - Type: dict
+            - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+        - `destination`:
+            - Type: dict
+            - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
 
         Optional Arguments:
 
-            - `units`:
-                - Type: str
-                - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
-                - Default: &#34;km&#34;
-            - `circuity`:
-                - Type: float | int
-                - What: Multiplier to increase the calculated distance (to account for circuity)
-                - Default: 1
+        - `units`:
+            - Type: str
+            - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
+            - Default: &#34;km&#34;
+        - `circuity`:
+            - Type: float | int
+            - What: Multiplier to increase the calculated distance (to account for circuity)
+            - Default: 1
 
         &#34;&#34;&#34;
         # convert decimal degrees to radians
@@ -212,27 +254,38 @@ def hardRound(decimal_places, a):
 <span>def <span class="ident">haversine</span></span>(<span>origin: dict, destination: dict, units: str = 'km', circuity: [<class 'float'>, <class 'int'>] = 1)</span>
 </code></dt>
 <dd>
-<div class="desc"><h2 id="function">Function</h2>
-<p>Calculate the great circle distance in kilometers between two points
-on the earth (specified in decimal degrees)</p>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)</li>
+</ul>
 <p>Required Arguments:</p>
-<pre><code>- &lt;code&gt;origin&lt;/code&gt;:
-    - Type: dict
-    - What: is the origin point? (dict with keys "longitude" and "latitude")
-- &lt;code&gt;destination&lt;/code&gt;:
-    - Type: dict
-    - What: is the destination point? (dict with keys "longitude" and "latitude")
-</code></pre>
+<ul>
+<li><code>origin</code>:<ul>
+<li>Type: dict</li>
+<li>What: is the origin point? (dict with keys "longitude" and "latitude")</li>
+</ul>
+</li>
+<li><code>destination</code>:<ul>
+<li>Type: dict</li>
+<li>What: is the destination point? (dict with keys "longitude" and "latitude")</li>
+</ul>
+</li>
+</ul>
 <p>Optional Arguments:</p>
-<pre><code>- &lt;code&gt;units&lt;/code&gt;:
-    - Type: str
-    - What: units to return the distance in? (one of "km", "m", "mi", or "ft")
-    - Default: "km"
-- &lt;code&gt;circuity&lt;/code&gt;:
-    - Type: float | int
-    - What: Multiplier to increase the calculated distance (to account for circuity)
-    - Default: 1
-</code></pre></div>
+<ul>
+<li><code>units</code>:<ul>
+<li>Type: str</li>
+<li>What: units to return the distance in? (one of "km", "m", "mi", or "ft")</li>
+<li>Default: "km"</li>
+</ul>
+</li>
+<li><code>circuity</code>:<ul>
+<li>Type: float | int</li>
+<li>What: Multiplier to increase the calculated distance (to account for circuity)</li>
+<li>Default: 1</li>
+</ul>
+</li>
+</ul></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -248,28 +301,27 @@ def haversine(
     &#34;&#34;&#34;
     Function:
 
-        Calculate the great circle distance in kilometers between two points
-        on the earth (specified in decimal degrees)
+    - Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)
 
     Required Arguments:
 
-        - `origin`:
-            - Type: dict
-            - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
-        - `destination`:
-            - Type: dict
-            - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+    - `origin`:
+        - Type: dict
+        - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+    - `destination`:
+        - Type: dict
+        - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
 
     Optional Arguments:
 
-        - `units`:
-            - Type: str
-            - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
-            - Default: &#34;km&#34;
-        - `circuity`:
-            - Type: float | int
-            - What: Multiplier to increase the calculated distance (to account for circuity)
-            - Default: 1
+    - `units`:
+        - Type: str
+        - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
+        - Default: &#34;km&#34;
+    - `circuity`:
+        - Type: float | int
+        - What: Multiplier to increase the calculated distance (to account for circuity)
+        - Default: 1
 
     &#34;&#34;&#34;
     # convert decimal degrees to radians
