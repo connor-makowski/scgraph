@@ -5,8 +5,8 @@ this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_text()
 
 setup(
-  name = 'SCgraph',
-  packages = ['SCgraph'],
+  name = 'scgraph',
+  packages = ['scgraph'],
   version = '0.1.0',
   license='MIT',
   description = 'Determine an approximate travel route between two points on earth',
@@ -14,12 +14,10 @@ setup(
   long_description_content_type='text/markdown',
   author = 'Connor Makowski',
   author_email = 'connor.m.makowski@gmail.com',
-  url = 'https://github.com/connor-makowski/SCgraph',
-  download_url = 'https://github.com/connor-makowski/pamda/dist/pamda-2.1.2.tar.gz',
-  keywords = ['SCgraph'],
-  install_requires=[
-        "type_enforced>=0.0.15"
-  ],
+  url = 'https://github.com/connor-makowski/scgraph',
+  download_url = 'https://github.com/connor-makowski/scgraph/dist/scgraph-0.1.0.tar.gz',
+  keywords = ['scgraph'],
+  install_requires=[],
   classifiers=[
     'Development Status :: 3 - Alpha',
     'Intended Audience :: Developers',

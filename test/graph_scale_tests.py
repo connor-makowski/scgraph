@@ -1,5 +1,5 @@
 import time
-from SCgraph import SCgraph
+from scgraph import Graph
 
 print('\n===============\nTime Tests:\n===============')
 
@@ -8,7 +8,7 @@ def gen_graph(size, avg_connections=10):
 
 def test_size(size):
     graph = gen_graph(size)
-    my_graph = SCgraph(data={'graph':graph})
+    my_graph = Graph(data={'graph':graph})
     start = time.time()
     my_graph.dijkstra(origin=0, destination=size-1)
     print (f'({size}) Dijkstra time (seconds):', time.time()-start)

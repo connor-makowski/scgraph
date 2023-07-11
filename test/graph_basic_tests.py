@@ -1,9 +1,10 @@
 import time
-from SCgraph import SCgraph, example_data
+from scgraph import Graph
+from scgraph.data import example_data
 
 print('\n===============\nBasic Tests:\n===============')
 
-print ('\nTest 1: Basic graph')
+print ('\nTest 1: Basic manually passed graph')
 data = {
     "nodes": {},
     "graph": {
@@ -17,7 +18,7 @@ data = {
 }
 
 # Skipping Nodes input for this test
-my_graph = SCgraph(data=data)
+my_graph = Graph(data=data)
 
 my_graph.validate_graph()
 
@@ -40,15 +41,15 @@ else:
     print('Actual:', actual)
 
 
-print ('\nTest 2: Basic graph with example nodes')
-my_graph = SCgraph(data=example_data)
+print ('\nTest 2: Basic graph with example data')
+my_graph = Graph(data=example_data)
 
 my_graph.validate_graph()
 my_graph.validate_nodes()
 
 actual = my_graph.get_shortest_path(
     origin={
-        "latitude": 0.0,
+        "latitude": 1.0,
         "longitude": 0.0
     }, 
     destination={
@@ -57,16 +58,8 @@ actual = my_graph.get_shortest_path(
     }
 )
 
-expected = {
-    'path': [
-        {'latitude': 0.0, 'longitude': 0.0}, 
-        {'latitude': 0.0, 'longitude': 0.0}, 
-        {'latitude': 1.0, 'longitude': 0.0}, 
-        {'latitude': 1.0, 'longitude': 1.0}, 
-        {'latitude': 1.0, 'longitude': 1.0}
-    ], 
-    'length': 2.0
-}
+expected = {'path': [{'latitude': 1.0, 'longitude': 0.0}, {'latitude': 1.0, 'longitude': 0.0}, {'latitude': 1.0, 'longitude': 1.0}, {'latitude': 1.0, 'longitude': 1.0}], 'length': 1.0}
+
 
 if actual == expected:
     print('PASS')

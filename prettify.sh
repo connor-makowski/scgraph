@@ -2,6 +2,6 @@
 cd $(dirname "$0")
 # Lint and Autoformat the code in place
 # Remove unused imports
-autoflake --in-place --remove-all-unused-imports --ignore-init-module-imports -r ./SCgraph
+autoflake --in-place --remove-all-unused-imports --ignore-init-module-imports -r ./scgraph --exclude=data/*
 # Perform all other steps
-black --config pyproject.toml ./SCgraph
+black --config pyproject.toml ./scgraph

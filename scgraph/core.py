@@ -1,12 +1,13 @@
 import copy
-from .utils import Distance
-        
-class SCgraph:
-    def __init__(self, data:dict):
+from .utils import Distance, hardRound
+
+
+class Graph:
+    def __init__(self, data: dict):
         """
         Function:
 
-            Initialize a SCgraph object
+            Initialize a Graph object
 
             Returns `None`
 
@@ -15,6 +16,7 @@ class SCgraph:
             - None
 
         Optional Arguments:
+
             - `data`:
                 - Type: dict
                 - What: A dictionary of dictionaries
@@ -61,8 +63,8 @@ class SCgraph:
                     - The distance to travel from node "0" to node "2" is 1
                     - Node "0" is at latitude 0 and longitude 0
         """
-        self.graph = copy.deepcopy(data.get('graph', {}))
-        self.nodes = copy.deepcopy(data.get('nodes', {}))
+        self.graph = copy.deepcopy(data.get("graph", {}))
+        self.nodes = copy.deepcopy(data.get("nodes", {}))
 
     def validate_nodes(self):
         """
@@ -80,14 +82,22 @@ class SCgraph:
 
             - None
         """
-        assert isinstance(self.nodes, dict), 'Your nodes must be a dictionary'
+        assert isinstance(self.nodes, dict), "Your nodes must be a dictionary"
         # Check that the nodes are a dictionary of dictionaries of floats
         for node, node_dict in self.nodes.items():
-            assert isinstance(node_dict, dict), f'Your nodes must be a dictionary of dictionaries but the value for node {node} is not a dictionary'
+            assert isinstance(
+                node_dict, dict
+            ), f"Your nodes must be a dictionary of dictionaries but the value for node {node} is not a dictionary"
             for key, value in node_dict.items():
-                assert isinstance(value, (float, int,)), f'Your nodes must be a dictionary of dictionaries where the values are floats or ints but the value for node ({node}) and key ({key}) is not a float'
+                assert isinstance(
+                    value,
+                    (
+                        float,
+                        int,
+                    ),
+                ), f"Your nodes must be a dictionary of dictionaries where the values are floats or ints but the value for node ({node}) and key ({key}) is not a float"
 
-    def validate_graph(self, check_symmetry:bool=True):
+    def validate_graph(self, check_symmetry: bool = True):
         """
         Function:
 
@@ -103,27 +113,40 @@ class SCgraph:
 
         Optional Arguments:
 
-            - `check_symmetry` 
+            - `check_symmetry`
                 - Type: bool
                 - What: Whether to validate that the graph is symmetric
                 - Default: True
         """
-        assert isinstance(self.graph, dict), 'Your graph must be a dictionary'
+        assert isinstance(self.graph, dict), "Your graph must be a dictionary"
         # Check that the graph is a dictionary of dictionaries of integers or floats
         for origin, destination_dict in self.graph.items():
-            assert isinstance(destination_dict, dict), f'Your graph must be a dictionary of dictionaries but the value for origin ({origin}) is not a dictionary'
+            assert isinstance(
+                destination_dict, dict
+            ), f"Your graph must be a dictionary of dictionaries but the value for origin ({origin}) is not a dictionary"
             for destination, distance in destination_dict.items():
-                assert isinstance(distance, (int, float,)), f'Your graph must be a dictionary of dictionaries where the keys are integers or floats but the key for origin ({origin}) and destination ({destination}) is not an integer or a float'
+                assert isinstance(
+                    distance,
+                    (
+                        int,
+                        float,
+                    ),
+                ), f"Your graph must be a dictionary of dictionaries where the keys are integers or floats but the key for origin ({origin}) and destination ({destination}) is not an integer or a float"
         # Check that the graph is symmetric
         if check_symmetry:
             for origin, destination_dict in self.graph.items():
                 for destination, distance in destination_dict.items():
-                    if distance != self.graph.get(destination, {}).get(origin, None):
-                        raise ValueError(f'SCgraph is not symmetric for origin ({origin}) and destination ({destination})')
+                    if distance != self.graph.get(destination, {}).get(
+                        origin, None
+                    ):
+                        raise ValueError(
+                            f"Graph is not symmetric for origin ({origin}) and destination ({destination})"
+                        )
 
     def dijkstra(self, origin: str, destination: str):
         """
         Function:
+
             Identify the minimum length route between two nodes in a sparse network graph
 
             Return that route as a list of node keys in the order they are visited
@@ -143,7 +166,7 @@ class SCgraph:
         """
         # Create a dictionary to store the distance from the origin to each node
         # Initialize the distance to infinity for all nodes except the origin
-        distance = {node: float('inf') for node in self.graph.keys()}
+        distance = {node: float("inf") for node in self.graph.keys()}
         distance[origin] = 0
 
         # Create a dictionary to store the predecessor of each node
@@ -176,7 +199,9 @@ class SCgraph:
                 if neighbor in unvisited:
                     # Identify the distance from the origin to the neighbor
                     # through the current node
-                    new_distance = distance[current] + self.graph[current][neighbor]
+                    new_distance = (
+                        distance[current] + self.graph[current][neighbor]
+                    )
                     # If the new_distance is shorter than the current distance
                     if new_distance < distance[neighbor]:
                         # Update the distance
@@ -212,7 +237,9 @@ class SCgraph:
             length += self.graph[origin][destination]
         return length
 
-    def get_shortest_path(self, origin, destination, algorithm:str='dijkstra'):
+    def get_shortest_path(
+        self, origin, destination, algorithm: str = "dijkstra"
+    ):
         """
         Function:
             Identify the shortest path between two nodes in a sparse network graph
@@ -240,24 +267,32 @@ class SCgraph:
                 - Options: 'dijkstra'
         """
         # Assert that the algorithm is valid
-        assert algorithm in ['dijkstra'], f'Invalid algorithm provided ({algorithm}), valid options are: dijkstra'
+        assert algorithm in [
+            "dijkstra"
+        ], f"Invalid algorithm provided ({algorithm}), valid options are: dijkstra"
 
         # Add the origin and destination nodes to the graph
-        self.add_node(node = origin, name = 'origin')
-        self.add_node(node = destination, name = 'destination')
+        self.add_node(node=origin, name="origin")
+        self.add_node(node=destination, name="destination")
 
         # Identify the shortest path
-        if algorithm == 'dijkstra':
-            id_path = self.dijkstra('origin', 'destination')
+        if algorithm == "dijkstra":
+            id_path = self.dijkstra("origin", "destination")
         else:
-            raise ValueError(f'Invalid algorithm: {algorithm}')
+            raise ValueError(f"Invalid algorithm: {algorithm}")
         return {
             # 'id_path': id_path,
-            'path': [self.nodes[node_id] for node_id in id_path],
-            'length': self.get_path_length(id_path)
+            "path": [self.nodes[node_id] for node_id in id_path],
+            "length": hardRound(3, self.get_path_length(id_path)),
         }
 
-    def add_node(self, node:dict, name:str, circuity:[float, int]=4, distance_calculation:str='haversine'):
+    def add_node(
+        self,
+        node: dict,
+        name: str,
+        circuity: [float, int] = 4,
+        distance_calculation: str = "haversine",
+    ):
         """
         Function:
 
@@ -287,23 +322,38 @@ class SCgraph:
                 - Options: 'haversine'
         """
         # Validate the node
-        assert isinstance(name, str), f'Your node name ({name}) is not a string'
-        assert isinstance(node, dict), f'Your node ({name}) must be a dictionary'
-        assert 'latitude' in node.keys(), f'Your node must ({name}) have a key called "latitude"'
-        assert 'longitude' in node.keys(), 'Your node ({name}) must have a key called "longitude"'
-        assert isinstance(node['latitude'], (int, float)), f'Your node ({name}) latitude must be an integer or a float'
-        assert isinstance(node['longitude'], (int, float)), f'Your node ({name}) longitude must be an integer or a float'
+        assert isinstance(name, str), f"Your node name ({name}) is not a string"
+        assert isinstance(
+            node, dict
+        ), f"Your node ({name}) must be a dictionary"
+        assert (
+            "latitude" in node.keys()
+        ), f'Your node must ({name}) have a key called "latitude"'
+        assert (
+            "longitude" in node.keys()
+        ), 'Your node ({name}) must have a key called "longitude"'
+        assert isinstance(
+            node["latitude"], (int, float)
+        ), f"Your node ({name}) latitude must be an integer or a float"
+        assert isinstance(
+            node["longitude"], (int, float)
+        ), f"Your node ({name}) longitude must be an integer or a float"
         # Validate the circuity
-        assert isinstance(circuity, (int, float)), f'Your circuity for node ({name}) must be an integer or a float'
-        assert circuity >= 1, f'Your circuity for node  ({name}) must be greater than or equal to 1'
+        assert isinstance(
+            circuity, (int, float)
+        ), f"Your circuity for node ({name}) must be an integer or a float"
+        assert (
+            circuity >= 1
+        ), f"Your circuity for node  ({name}) must be greater than or equal to 1"
         # Validate the distance calculation
-        assert distance_calculation in ['haversine'], f'Invalid distance calculation provided for node ({name}) with option ({distance_calculation}), valid options are: haversine'
+        assert distance_calculation in [
+            "haversine"
+        ], f"Invalid distance calculation provided for node ({name}) with option ({distance_calculation}), valid options are: haversine"
         # Calculate the distance from the new node to all other nodes
         self.graph[name] = {}
-        for node_i_id, node_i  in self.nodes.items():
+        for node_i_id, node_i in self.nodes.items():
             distance = Distance.haversine(node, node_i, circuity=circuity)
             self.graph[node_i_id][name] = distance
             self.graph[name][node_i_id] = distance
         # Add the node to the nodes dictionary
         self.nodes[name] = node
-    
