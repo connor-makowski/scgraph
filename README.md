@@ -1,8 +1,9 @@
 # scgraph
-Supply chain graph package for Python
-
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Supply chain graph package for Python
+
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
@@ -67,7 +68,7 @@ output = my_graph.get_shortest_path(
 print('Length: ',output['length']) #=> Length:  19596.735
 ```
 
-In the above example, the `path` variable is a dictionary with two keys: `length` and `path`. The `length` key contains the distance in kilometers between the two points. The `path` key contains a list of dictionaries (containing `latitude` and `longitude`) that make up the shortest path between the two points.
+In the above example, the `output` variable is a dictionary with two keys: `length` and `path`. The `length` key contains the distance in kilometers between the two points. The `path` key contains a list of dictionaries (containing `latitude` and `longitude`) that make up the shortest path between the two points.
 
 To get the latitude / longitude pairs that make up the shortest path, as a list of lists, you could do something like the following:
 
