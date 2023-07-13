@@ -67,7 +67,7 @@ output = my_graph.get_shortest_path(
 print('Length: ',output['length']) #=> Length:  19596.735
 ```
 
-In the above example, the `path` variable is a dictionary with two keys: `length` and `path`. The `length` key contains the distance in kilometers between the two points. The `path` key contains a list of dictionaries (containing `latitude` and `longitude`) that make up the shortest path between the two points.
+In the above example, the `output` variable is a dictionary with two keys: `length` and `path`. The `length` key contains the distance in kilometers between the two points. The `path` key contains a list of dictionaries (containing `latitude` and `longitude`) that make up the shortest path between the two points.
 
 To get the latitude / longitude pairs that make up the shortest path, as a list of lists, you could do something like the following:
 
