@@ -4,7 +4,7 @@ from scgraph.data import example_data
 
 print('\n===============\nBasic Tests:\n===============')
 
-print ('\nTest 1: Basic manually passed graph')
+print ('\nTest 1: Basic manually passed graph and raw dijkstra fn')
 data = {
     "nodes": {},
     "graph": {
@@ -27,11 +27,7 @@ expected = {
     'length': 10
 }
 
-path_ids = my_graph.dijkstra(origin="0", destination="5")
-actual = {
-    'path_ids': path_ids,
-    'length': my_graph.get_path_length(path_ids)
-}
+actual = my_graph.dijkstra(origin="0", destination="5")
 
 if actual == expected:
     print('PASS')
@@ -58,7 +54,16 @@ actual = my_graph.get_shortest_path(
     }
 )
 
-expected = {'path': [{'latitude': 1.0, 'longitude': 0.0}, {'latitude': 1.0, 'longitude': 0.0}, {'latitude': 1.0, 'longitude': 1.0}, {'latitude': 1.0, 'longitude': 1.0}], 'length': 1.0}
+expected = {
+    'path_ids': ['origin', '3', '4', 'destination'],
+    'path': [
+        {'latitude': 1.0, 'longitude': 0.0}, 
+        {'latitude': 1.0, 'longitude': 0.0}, 
+        {'latitude': 1.0, 'longitude': 1.0}, 
+        {'latitude': 1.0, 'longitude': 1.0}
+    ],
+    'length': 1.0
+}
 
 
 if actual == expected:
