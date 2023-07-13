@@ -1,5 +1,5 @@
 import copy
-from .utils import Distance, hardRound
+from .utils import Distance
 
 
 class Graph:
@@ -163,14 +163,29 @@ class Graph:
 
         - None
         """
-        ids = list(set([key for key in self.graph.keys()] + [key for subdict in self.graph.values() for key in subdict.keys()]))
+        ids = list(
+            set(
+                [key for key in self.graph.keys()]
+                + [
+                    key
+                    for subdict in self.graph.values()
+                    for key in subdict.keys()
+                ]
+            )
+        )
         id_map = {key: idx for idx, key in enumerate(ids)}
-        id_map_inv = {v:k for k,v in id_map.items()}
+        id_map_inv = {v: k for k, v in id_map.items()}
 
         origin_id = id_map[origin]
         destination_id = id_map[destination]
 
-        id_graph = {id_map[origin]: {id_map[destination]: distance for destination, distance in self.graph[origin].items()} for origin in self.graph.keys()}
+        id_graph = {
+            id_map[origin]: {
+                id_map[destination]: distance
+                for destination, distance in self.graph[origin].items()
+            }
+            for origin in self.graph.keys()
+        }
 
         distance_matrix = [float("inf") for i in id_map]
         branch_tip_distances = [float("inf") for i in id_map]
@@ -193,7 +208,7 @@ class Graph:
                     predecessor[destination] = current
                     branch_tip_distances[destination] = new_distance
             branch_tip_distances[current] = float("inf")
-        
+
         id_path = [current]
         while predecessor[current] is not None:
             current = predecessor[current]
@@ -201,7 +216,7 @@ class Graph:
 
         return {
             "path_ids": [id_map_inv[id] for id in id_path[::-1]],
-            "length": distance_matrix[destination_id]
+            "length": distance_matrix[destination_id],
         }
 
     def dijkstra_v2(self, origin: str, destination: str):
@@ -214,7 +229,7 @@ class Graph:
         Algorithm Notes:
 
         - Runs between O(n) time and O(n^2) time depending on the sparsity of the graph
-        - This algorithm is faster than `dijkstra` for graphs that terminate branches in dead ends 
+        - This algorithm is faster than `dijkstra` for graphs that terminate branches in dead ends
         - In general, this applies to graphs that are more sparse
         - For dense graphs, this algorithm will be slower than `dijkstra` because of the overhead of maintaining the open leaves as a dictionary
 
@@ -231,14 +246,29 @@ class Graph:
 
         - None
         """
-        ids = list(set([key for key in self.graph.keys()] + [key for subdict in self.graph.values() for key in subdict.keys()]))
+        ids = list(
+            set(
+                [key for key in self.graph.keys()]
+                + [
+                    key
+                    for subdict in self.graph.values()
+                    for key in subdict.keys()
+                ]
+            )
+        )
         id_map = {key: idx for idx, key in enumerate(ids)}
-        id_map_inv = {v:k for k,v in id_map.items()}
+        id_map_inv = {v: k for k, v in id_map.items()}
 
         origin_id = id_map[origin]
         destination_id = id_map[destination]
 
-        id_graph = {id_map[origin]: {id_map[destination]: distance for destination, distance in self.graph[origin].items()} for origin in self.graph.keys()}
+        id_graph = {
+            id_map[origin]: {
+                id_map[destination]: distance
+                for destination, distance in self.graph[origin].items()
+            }
+            for origin in self.graph.keys()
+        }
 
         distance_matrix = [float("inf") for i in id_map]
         open_leaves = {}
@@ -260,7 +290,7 @@ class Graph:
                     distance_matrix[destination] = current_distance + distance
                     predecessor[destination] = current
                     open_leaves[destination] = current_distance + distance
-        
+
         id_path = [current]
         while predecessor[current] is not None:
             current = predecessor[current]
@@ -268,11 +298,15 @@ class Graph:
 
         return {
             "path_ids": [id_map_inv[id] for id in id_path[::-1]],
-            "length": distance_matrix[destination_id]
+            "length": distance_matrix[destination_id],
         }
 
     def get_shortest_path(
-        self, origin, destination, algorithm: str = "dijkstra_v2", node_addition_type: str = "quadrant"
+        self,
+        origin,
+        destination,
+        algorithm: str = "dijkstra_v2",
+        node_addition_type: str = "quadrant",
     ):
         """
         Function:
@@ -299,7 +333,7 @@ class Graph:
             - Type: str
             - What: The algorithm to use to identify the shortest path
             - Default: 'dijkstra'
-            - Options: 
+            - Options:
                 - 'dijkstra': A modified dijkstra algorithm that uses a sparse distance matrix to identify the shortest path
                 - 'dijkstra_v2': A modified dijkstra algorithm that uses a sparse distance matrix to identify the shortest path
         - `node_addition_type`
@@ -310,7 +344,7 @@ class Graph:
                 - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
                 - 'closest': Add only the closest node to the distance matrix for this node
                 - 'all': Add all nodes to the distance matrix for this node
-            - Notes: 
+            - Notes:
                 - `dijkstra_v2` will operate substantially faster if the `node_addition_type` is set to 'quadrant' or 'closest'
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_v2` as it will be faster
@@ -318,23 +352,33 @@ class Graph:
         # Assert that the algorithm is valid
         assert algorithm in [
             "dijkstra",
-            "dijkstra_v2"
+            "dijkstra_v2",
         ], f"Invalid algorithm provided ({algorithm}), valid options are: dijkstra or dijkstra_v2"
 
         # Add the origin and destination nodes to the graph
-        self.add_node(node=origin, name="origin", node_addition_type=node_addition_type)
-        self.add_node(node=destination, name="destination", node_addition_type=node_addition_type)
+        self.add_node(
+            node=origin, name="origin", node_addition_type=node_addition_type
+        )
+        self.add_node(
+            node=destination,
+            name="destination",
+            node_addition_type=node_addition_type,
+        )
 
         # Identify the shortest path
         if algorithm == "dijkstra":
             output = self.dijkstra("origin", "destination")
             if output is not None:
-                output["path"] = [self.nodes[node_id] for node_id in output["path_ids"]]
+                output["path"] = [
+                    self.nodes[node_id] for node_id in output["path_ids"]
+                ]
             return output
         elif algorithm == "dijkstra_v2":
             output = self.dijkstra_v2("origin", "destination")
             if output is not None:
-                output["path"] = [self.nodes[node_id] for node_id in output["path_ids"]]
+                output["path"] = [
+                    self.nodes[node_id] for node_id in output["path_ids"]
+                ]
             return output
         else:
             raise ValueError(f"Invalid algorithm: {algorithm}")
@@ -345,7 +389,7 @@ class Graph:
         name: str,
         circuity: [float, int] = 4,
         distance_calculation: str = "haversine",
-        node_addition_type: str = "quadrant"
+        node_addition_type: str = "quadrant",
     ):
         """
         Function:
@@ -381,7 +425,7 @@ class Graph:
                 - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
                 - 'closest': Add only the closest node to the distance matrix for this node
                 - 'all': Add all nodes to the distance matrix for this node
-            - Notes: 
+            - Notes:
                 - `dijkstra_v2` will operate substantially faster if the `node_addition_type` is set to 'quadrant' or 'closest'
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_v2` as it will be faster
@@ -418,29 +462,37 @@ class Graph:
         assert node_addition_type in [
             "quadrant",
             "all",
-            "closest"
+            "closest",
         ], f"Invalid node addition type provided for node ({name}) with option ({node_addition_type}), valid options are: quadrant, all, closest"
-        if node_addition_type=="quadrant":
+        if node_addition_type == "quadrant":
             # Calculate the distance from the new node to all other nodes and add
             # only the closest node in each directional quadrant (ne, nw, se, sw) to the graph
             quadrant_distances = {}
             for node_i_id, node_i in self.nodes.items():
-                direction = 'n' if node['latitude'] > node_i['latitude'] else 's'
-                direction += 'e' if node['longitude'] > node_i['longitude'] else 'w'
-                lowest_distance = quadrant_distances.get(direction,{}).get('distance', float('inf'))
-                node_i_distance = Distance.haversine(node, node_i, circuity=circuity)
+                direction = (
+                    "n" if node["latitude"] > node_i["latitude"] else "s"
+                )
+                direction += (
+                    "e" if node["longitude"] > node_i["longitude"] else "w"
+                )
+                lowest_distance = quadrant_distances.get(direction, {}).get(
+                    "distance", float("inf")
+                )
+                node_i_distance = Distance.haversine(
+                    node, node_i, circuity=circuity
+                )
                 if node_i_distance < lowest_distance:
                     quadrant_distances[direction] = {
-                        'distance': node_i_distance,
-                        'node': node_i_id
+                        "distance": node_i_distance,
+                        "node": node_i_id,
                     }
             self.graph[name] = {}
             for quadrant in quadrant_distances.values():
-                self.graph[quadrant['node']][name] = quadrant['distance']
-                self.graph[name][quadrant['node']] = quadrant['distance']
+                self.graph[quadrant["node"]][name] = quadrant["distance"]
+                self.graph[name][quadrant["node"]] = quadrant["distance"]
             # Add the node to the nodes dictionary
             self.nodes[name] = node
-        elif node_addition_type=="all":
+        elif node_addition_type == "all":
             # Calculate the distance from the new node to all other nodes
             self.graph[name] = {}
             for node_i_id, node_i in self.nodes.items():
@@ -449,11 +501,11 @@ class Graph:
                 self.graph[name][node_i_id] = distance
             # Add the node to the nodes dictionary
             self.nodes[name] = node
-        elif node_addition_type=="closest":
+        elif node_addition_type == "closest":
             # Calculate the distance from the new node to all other nodes and add
             # only the closest node to the graph
             closest_node = None
-            closest_distance = float('inf')
+            closest_distance = float("inf")
             for node_i_id, node_i in self.nodes.items():
                 distance = Distance.haversine(node, node_i, circuity=circuity)
                 if distance < closest_distance:
@@ -464,4 +516,6 @@ class Graph:
             # Add the node to the nodes dictionary
             self.nodes[name] = node
         else:
-            raise ValueError(f"Invalid node addition type: {node_addition_type}")
+            raise ValueError(
+                f"Invalid node addition type: {node_addition_type}"
+            )
