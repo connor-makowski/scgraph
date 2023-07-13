@@ -1,8 +1,9 @@
 # scgraph
-Supply chain graph package for Python
-
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Supply chain graph package for Python
+
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
