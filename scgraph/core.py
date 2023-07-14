@@ -87,6 +87,7 @@ class Graph:
                 node_dict, dict
             ), f"Your nodes must be a dictionary of dictionaries but the value for node {node} is not a dictionary"
             for key, value in node_dict.items():
+                assert key in ['latitude', 'longitude'], f"Your nodes must be a dictionary of dictionaries where the keys are 'latitude' and 'longitude' but the key ({key}) for node ({node}) is not 'latitude' or 'longitude'"
                 assert isinstance(
                     value,
                     (
@@ -121,6 +122,7 @@ class Graph:
                 destination_dict, dict
             ), f"Your graph must be a dictionary of dictionaries but the value for origin ({origin}) is not a dictionary"
             for destination, distance in destination_dict.items():
+                # Assert distance is number
                 assert isinstance(
                     distance,
                     (
@@ -128,6 +130,19 @@ class Graph:
                         float,
                     ),
                 ), f"Your graph must be a dictionary of dictionaries where the keys are integers or floats but the key for origin ({origin}) and destination ({destination}) is not an integer or a float"
+                # Assert distance is positive
+                assert (
+                    distance >= 0
+                ), f"Your graph must be a dictionary of dictionaries where the values are positive but the value for origin ({origin}) and destination ({destination}) is not positive"
+                # Assert origin and destination are in nodes if nodes is provided
+                if self.nodes != {}:
+                    # Assert id is in nodes
+                    assert (
+                        origin in self.nodes
+                    ), f"Your graph must be a dictionary of dictionaries where the origin node is in the nodes but the origin node ({origin}) is not in the nodes dictionary"
+                    assert (
+                        destination in self.nodes
+                    ), f"Your graph must be a dictionary of dictionaries where the destination node is in the nodes but the destination node ({destination}) for origin ({origin}) is not in the nodes dictionary"
         # Check that the graph is symmetric
         if check_symmetry:
             for origin, destination_dict in self.graph.items():
@@ -214,12 +229,15 @@ class Graph:
             current = predecessor[current]
             id_path.append(current)
 
-        return {
+        output = {
             "path_ids": [id_map_inv[id] for id in id_path[::-1]],
             "length": distance_matrix[destination_id],
         }
+        if len(self.nodes)>0:
+            output["path"] = [self.nodes[id] for id in output["path_ids"]]
+        return output
 
-    def dijkstra_v2(self, origin: str, destination: str):
+    def dijkstra_v2(self, origin: str, destination: str, return_length: bool = True, return_id_path: bool = True, return_node_path: bool = True):
         """
         Function:
 
@@ -296,10 +314,13 @@ class Graph:
             current = predecessor[current]
             id_path.append(current)
 
-        return {
+        output = {
             "path_ids": [id_map_inv[id] for id in id_path[::-1]],
             "length": distance_matrix[destination_id],
         }
+        if len(self.nodes)>0:
+            output["path"] = [self.nodes[id] for id in output["path_ids"]]
+        return output
 
     def get_shortest_path(
         self,
@@ -307,6 +328,7 @@ class Graph:
         destination,
         algorithm: str = "dijkstra_v2",
         node_addition_type: str = "quadrant",
+        **kwargs
     ):
         """
         Function:
@@ -348,16 +370,14 @@ class Graph:
                 - `dijkstra_v2` will operate substantially faster if the `node_addition_type` is set to 'quadrant' or 'closest'
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_v2` as it will be faster
+        - `**kwargs`
+            - Any additional keyword arguments to pass to the algorithm
         """
-        # Assert that the algorithm is valid
-        assert algorithm in [
-            "dijkstra",
-            "dijkstra_v2",
-        ], f"Invalid algorithm provided ({algorithm}), valid options are: dijkstra or dijkstra_v2"
-
         # Add the origin and destination nodes to the graph
         self.add_node(
-            node=origin, name="origin", node_addition_type=node_addition_type
+            node=origin, 
+            name="origin", 
+            node_addition_type=node_addition_type
         )
         self.add_node(
             node=destination,
@@ -365,23 +385,88 @@ class Graph:
             node_addition_type=node_addition_type,
         )
 
-        # Identify the shortest path
+        try:
+            output = self.run_algorithm(algorithm=algorithm, origin="origin", destination="destination")
+            self.remove_node(name="origin")
+            self.remove_node(name="destination")
+            return output
+        except Exception as e:
+            self.remove_node(name="origin")
+            self.remove_node(name="destination")
+            raise e
+
+    def run_algorithm(self, origin: str, destination: str, algorithm: str = "dijkstra_v2", **kwargs):
+        """
+        Function:
+
+        - Identify the shortest path between two nodes in a sparse network graph
+
+        - Return a dictionary of various path information including:
+            - `id_path`: A list of node ids in the order they are visited
+            - `path`: A list of node dictionaries (lat + long) in the order they are visited
+            - `length`: The length of the path
+
+         Required Arguments:
+
+        - `algorithm`
+            - Type: str
+            - What: The algorithm to use to identify the shortest path
+            - Default: 'dijkstra'
+            - Options:
+                - 'dijkstra': A modified dijkstra algorithm that uses a sparse distance matrix to identify the shortest path
+                - 'dijkstra_v2': A modified dijkstra algorithm that uses a sparse distance matrix to identify the shortest path
+        - `origin`
+            - Type: str
+            - What: The name of the origin node in the network data
+        - `destination`
+            - Type: str
+            - What: The name of the destination node in the network data
+
+        Optional Arguments:
+
+        - **kwargs:
+            - Any additional keyword arguments to pass to the algorithm
+        """
+        # Assert that the algorithm is valid
+        assert algorithm in [
+            "dijkstra",
+            "dijkstra_v2",
+        ], f"Invalid algorithm provided ({algorithm}), valid options are: dijkstra or dijkstra_v2"
         if algorithm == "dijkstra":
-            output = self.dijkstra("origin", "destination")
-            if output is not None:
-                output["path"] = [
-                    self.nodes[node_id] for node_id in output["path_ids"]
-                ]
-            return output
+            return self.dijkstra(origin, destination, **kwargs)
         elif algorithm == "dijkstra_v2":
-            output = self.dijkstra_v2("origin", "destination")
-            if output is not None:
-                output["path"] = [
-                    self.nodes[node_id] for node_id in output["path_ids"]
-                ]
-            return output
-        else:
-            raise ValueError(f"Invalid algorithm: {algorithm}")
+            return self.dijkstra_v2(origin, destination, **kwargs)
+
+    def remove_node(self, name: str):
+        """
+        Function:
+
+        - Remove a node from the network
+        - Return None
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of the node to remove
+
+        Optional Arguments:
+
+        - None
+        """
+        # Assert that the node exists
+        assert (
+            name in self.nodes.keys()
+        ), f"Node {name} does not exist in the network"
+
+        # Remove the node from the nodes dictionary
+        del self.nodes[name]
+
+        # Remove the node from the graph
+        del self.graph[name]
+        for node in self.graph.keys():
+            if name in self.graph[node].keys():
+                del self.graph[node][name]
 
     def add_node(
         self,
