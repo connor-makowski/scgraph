@@ -8,7 +8,7 @@ long_description = (this_directory / "README.md").read_text()
 setup(
   name = 'scgraph',
   packages = find_packages(),
-  version = '0.2.0',
+  version = '0.3.0',
   license='MIT',
   description = 'Determine an approximate route between two points on earth',
   long_description=long_description,
@@ -16,7 +16,7 @@ setup(
   author = 'Connor Makowski',
   author_email = 'connor.m.makowski@gmail.com',
   url = 'https://github.com/connor-makowski/scgraph',
-  download_url = 'https://github.com/connor-makowski/scgraph/dist/scgraph-0.2.0.tar.gz',
+  download_url = 'https://github.com/connor-makowski/scgraph/dist/scgraph-0.3.0.tar.gz',
   keywords = ['scgraph'],
   install_requires=[],
   classifiers=[

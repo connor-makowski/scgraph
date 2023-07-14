@@ -87,7 +87,10 @@ class Graph:
                 node_dict, dict
             ), f"Your nodes must be a dictionary of dictionaries but the value for node {node} is not a dictionary"
             for key, value in node_dict.items():
-                assert key in ['latitude', 'longitude'], f"Your nodes must be a dictionary of dictionaries where the keys are 'latitude' and 'longitude' but the key ({key}) for node ({node}) is not 'latitude' or 'longitude'"
+                assert key in [
+                    "latitude",
+                    "longitude",
+                ], f"Your nodes must be a dictionary of dictionaries where the keys are 'latitude' and 'longitude' but the key ({key}) for node ({node}) is not 'latitude' or 'longitude'"
                 assert isinstance(
                     value,
                     (
@@ -233,11 +236,18 @@ class Graph:
             "path_ids": [id_map_inv[id] for id in id_path[::-1]],
             "length": distance_matrix[destination_id],
         }
-        if len(self.nodes)>0:
+        if len(self.nodes) > 0:
             output["path"] = [self.nodes[id] for id in output["path_ids"]]
         return output
 
-    def dijkstra_v2(self, origin: str, destination: str, return_length: bool = True, return_id_path: bool = True, return_node_path: bool = True):
+    def dijkstra_v2(
+        self,
+        origin: str,
+        destination: str,
+        return_length: bool = True,
+        return_id_path: bool = True,
+        return_node_path: bool = True,
+    ):
         """
         Function:
 
@@ -318,7 +328,7 @@ class Graph:
             "path_ids": [id_map_inv[id] for id in id_path[::-1]],
             "length": distance_matrix[destination_id],
         }
-        if len(self.nodes)>0:
+        if len(self.nodes) > 0:
             output["path"] = [self.nodes[id] for id in output["path_ids"]]
         return output
 
@@ -328,7 +338,7 @@ class Graph:
         destination,
         algorithm: str = "dijkstra_v2",
         node_addition_type: str = "quadrant",
-        **kwargs
+        **kwargs,
     ):
         """
         Function:
@@ -375,9 +385,7 @@ class Graph:
         """
         # Add the origin and destination nodes to the graph
         self.add_node(
-            node=origin, 
-            name="origin", 
-            node_addition_type=node_addition_type
+            node=origin, name="origin", node_addition_type=node_addition_type
         )
         self.add_node(
             node=destination,
@@ -386,7 +394,9 @@ class Graph:
         )
 
         try:
-            output = self.run_algorithm(algorithm=algorithm, origin="origin", destination="destination")
+            output = self.run_algorithm(
+                algorithm=algorithm, origin="origin", destination="destination"
+            )
             self.remove_node(name="origin")
             self.remove_node(name="destination")
             return output
@@ -395,7 +405,13 @@ class Graph:
             self.remove_node(name="destination")
             raise e
 
-    def run_algorithm(self, origin: str, destination: str, algorithm: str = "dijkstra_v2", **kwargs):
+    def run_algorithm(
+        self,
+        origin: str,
+        destination: str,
+        algorithm: str = "dijkstra_v2",
+        **kwargs,
+    ):
         """
         Function:
 
