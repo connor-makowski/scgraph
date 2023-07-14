@@ -48,6 +48,10 @@ Make sure you have Python 3.6.x (or higher) installed on your system. You can do
 pip install scgraph
 ```
 
+## Use with Google Colab
+
+See the example [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/example.ipynb) 
+
 # Getting Started
 
 ## Basic Usage
