@@ -244,9 +244,6 @@ class Graph:
         self,
         origin: str,
         destination: str,
-        return_length: bool = True,
-        return_id_path: bool = True,
-        return_node_path: bool = True,
     ):
         """
         Function:
