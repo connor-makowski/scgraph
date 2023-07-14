@@ -21,7 +21,6 @@ for i in iterations:
     )
     if len(output['path_ids'])<3:
         failed = True
-    print(output['path_ids'])
 
 if failed:
     print(f"FAIL")
