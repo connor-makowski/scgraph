@@ -16,14 +16,14 @@ def lessThanAbs(threshold, a):
     return abs_a * (1 if a > 0 else -1)
 
 def format_coord_pair(coord_pair):
-    return [lessThanAbs(180,hardRound(3, coord_pair[0])), lessThanAbs(90,hardRound(3, coord_pair[1]))]
+    return [lessThanAbs(180,hardRound(4, coord_pair[0])), lessThanAbs(90,hardRound(4, coord_pair[1]))]
 
 def get_distance(origin_id, destination_id, nodes):
     origin = nodes.get(origin_id)
     destination = nodes.get(destination_id)
     if origin is None or destination is None:
         return None
-    return hardRound(4,Distance.haversine(origin, destination))
+    return hardRound(3,Distance.haversine(origin, destination))
 
 def gen_data(coord_list):
     clean_nodes = [format_coord_pair(coord_pair) for coord_pair in coord_list]
@@ -47,11 +47,6 @@ output = {
     "nodes": {key_mapping[node_id]: node for node_id, node in data["nodes"].items()}
 }
 
-pamda.write_json(out_filename, output)
-
 # add data_name = to the beginning of the .py file's first line
-with open(out_filename, "r") as f:
-    lines = f.readlines()
-    lines[0] = data_name + "=" + lines[0]
 with open(out_filename, "w") as f:
-    f.writelines(lines)
+    f.writelines(data_name + "=" + str(output) + "\n")

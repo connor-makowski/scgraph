@@ -1,8 +1,98 @@
 import copy
 from .utils import Distance
 
-
 class Graph:
+    @staticmethod
+    def validate_graph(graph):
+        ids = []
+        assert isinstance(graph, dict), "Your graph must be a dictionary"
+        for origin_id, origin_dict in graph.items():
+            assert isinstance(origin_id, int), f"Origin and destination ids must be integers but {origin_id} is not an integer"
+            assert isinstance(origin_dict, dict), f"Your graph must be a dictionary of dictionaries but the value for origin {origin_id} is not a dictionary"
+            ids.append(origin_id)
+            for destination_id, distance in origin_dict.items():
+                assert isinstance(destination_id, int), f"Origin and destination ids must be integers but {destination_id} is not an integer"
+                assert isinstance(distance, (int, float)), f"Distances must be integers or floats but {distance} is not an integer or float"
+                ids.append(destination_id)
+        ids = set(ids)
+        assert min(ids) == 0, f"Your graph must have ids starting at 0 but the minimum id is {min(ids)}"
+        assert max(ids) == len(ids) - 1, f"Your graph must have ids that are sequential starting at 0 but the maximum id is {max(ids)}"
+        assert len(graph) == len(ids), f"Your graph must have origin ids for all nodes regardless of if they have any connected destinations"
+
+    @staticmethod
+    def dijkstra(graph, origin_id, destination_id):
+        distance_matrix = [float("inf") for i in graph]
+        branch_tip_distances = [float("inf") for i in graph]
+        predecessor = [None for i in graph]
+
+        distance_matrix[origin_id] = 0
+        branch_tip_distances[origin_id] = 0
+
+        while True:
+            current_distance = min(branch_tip_distances)
+            if current_distance == float("inf"):
+                return None
+            current_id = branch_tip_distances.index(current_distance)
+            branch_tip_distances[current_id] = float("inf")
+            if current_id == destination_id:
+                break
+            for connected_id, connected_distance in graph[current_id].items():
+                possible_distance = current_distance + connected_distance
+                if possible_distance < distance_matrix[connected_id]:
+                    distance_matrix[connected_id] = possible_distance
+                    predecessor[connected_id] = current_id
+                    branch_tip_distances[connected_id] = possible_distance
+
+        output_path = [current_id]
+        while predecessor[current_id] is not None:
+            current_id = predecessor[current_id]
+            output_path.append(current_id)
+
+        output_path.reverse()
+
+        return {
+            "path": output_path,
+            "length": distance_matrix[destination_id],
+        }
+
+    @staticmethod
+    def dijkstra_v2(graph, origin_id, destination_id):
+        distance_matrix = [float("inf") for i in graph]
+        open_leaves = {}
+        predecessor = [None for i in graph]
+
+        distance_matrix[origin_id] = 0
+        open_leaves[origin_id] = 0
+
+        while True:
+            if len(open_leaves) == 0:
+                return None
+            current_id = min(open_leaves, key=open_leaves.get)
+            open_leaves.pop(current_id)
+            if current_id == destination_id:
+                break
+            current_distance = distance_matrix[current_id]
+            for connected_id, connected_distance in graph[current_id].items():
+                possible_distance = current_distance + connected_distance
+                if possible_distance < distance_matrix[connected_id]:
+                    distance_matrix[connected_id] = possible_distance
+                    predecessor[connected_id] = current_id
+                    open_leaves[connected_id] = possible_distance
+
+        output_path = [current_id]
+        while predecessor[current_id] is not None:
+            current_id = predecessor[current_id]
+            output_path.append(current_id)
+
+        output_path.reverse()
+
+        return {
+            "path": output_path,
+            "length": distance_matrix[destination_id],
+        }
+
+
+class GraphOLD:
     def __init__(self, data: dict):
         """
         Function:
