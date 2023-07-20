@@ -38,7 +38,7 @@ validate(
 )
 
 validate(
-    name='Dijkstra_v2',
-    realized = Graph.dijkstra_v2(graph=graph, origin_id=0, destination_id=5),
+    name='Dijkstra-Makowski',
+    realized = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5),
     expected = expected
 )

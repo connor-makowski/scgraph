@@ -29,74 +29,71 @@
 <pre><code class="python">import math
 
 
-class Distance:
-    @classmethod
-    def haversine(
-        self,
-        origin: dict,
-        destination: dict,
-        units: str = &#34;km&#34;,
-        circuity: [float, int] = 1,
-    ):
-        &#34;&#34;&#34;
-        Function:
+def haversine(
+    origin: dict,
+    destination: dict,
+    units: str = &#34;km&#34;,
+    circuity: [float, int] = 1,
+):
+    &#34;&#34;&#34;
+    Function:
 
-        - Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)
+    - Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)
 
-        Required Arguments:
+    Required Arguments:
 
-        - `origin`:
-            - Type: dict
-            - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
-        - `destination`:
-            - Type: dict
-            - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+    - `origin`:
+        - Type: dict
+        - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
+    - `destination`:
+        - Type: dict
+        - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
 
-        Optional Arguments:
+    Optional Arguments:
 
-        - `units`:
-            - Type: str
-            - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
-            - Default: &#34;km&#34;
-        - `circuity`:
-            - Type: float | int
-            - What: Multiplier to increase the calculated distance (to account for circuity)
-            - Default: 1
+    - `units`:
+        - Type: str
+        - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
+        - Default: &#34;km&#34;
+    - `circuity`:
+        - Type: float | int
+        - What: Multiplier to increase the calculated distance (to account for circuity)
+        - Default: 1
 
-        &#34;&#34;&#34;
-        # convert decimal degrees to radians
-        lon1, lat1, lon2, lat2 = map(
-            math.radians,
-            [
-                origin[&#34;longitude&#34;],
-                origin[&#34;latitude&#34;],
-                destination[&#34;longitude&#34;],
-                destination[&#34;latitude&#34;],
-            ],
-        )
-        # haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = (
-            math.sin(dlat / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        )
-        c = 2 * math.asin(a**0.5)
-        # Set the radius of earth based on the units specified
-        if units == &#34;km&#34;:
-            radius = 6371
-        elif units == &#34;m&#34;:
-            radius = 6371000
-        elif units == &#34;mi&#34;:
-            radius = 3959
-        elif units == &#34;ft&#34;:
-            radius = 3959 * 5280
-        else:
-            raise ValueError(&#39;Units must be one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;&#39;)
-        return c * radius * circuity
+    &#34;&#34;&#34;
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(
+        math.radians,
+        [
+            origin[&#34;longitude&#34;],
+            origin[&#34;latitude&#34;],
+            destination[&#34;longitude&#34;],
+            destination[&#34;latitude&#34;],
+        ],
+    )
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(a**0.5)
+    # Set the radius of earth based on the units specified
+    if units == &#34;km&#34;:
+        radius = 6371
+    elif units == &#34;m&#34;:
+        radius = 6371000
+    elif units == &#34;mi&#34;:
+        radius = 3959
+    elif units == &#34;ft&#34;:
+        radius = 3959 * 5280
+    else:
+        raise ValueError(&#39;Units must be one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;&#39;)
+    return c * radius * circuity
 
 
-def hardRound(decimal_places, a):
+def hard_round(decimal_places, a):
     &#34;&#34;&#34;
     Function:
 
@@ -123,8 +120,8 @@ def hardRound(decimal_places, a):
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
-<dt id="scgraph.utils.hardRound"><code class="name flex">
-<span>def <span class="ident">hardRound</span></span>(<span>decimal_places, a)</span>
+<dt id="scgraph.utils.hard_round"><code class="name flex">
+<span>def <span class="ident">hard_round</span></span>(<span>decimal_places, a)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -148,7 +145,7 @@ def hardRound(decimal_places, a):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def hardRound(decimal_places, a):
+<pre><code class="python">def hard_round(decimal_places, a):
     &#34;&#34;&#34;
     Function:
 
@@ -168,89 +165,7 @@ def hardRound(decimal_places, a):
     )</code></pre>
 </details>
 </dd>
-</dl>
-</section>
-<section>
-<h2 class="section-title" id="header-classes">Classes</h2>
-<dl>
-<dt id="scgraph.utils.Distance"><code class="flex name class">
-<span>class <span class="ident">Distance</span></span>
-</code></dt>
-<dd>
-<div class="desc"></div>
-<details class="source">
-<summary>
-<span>Expand source code</span>
-</summary>
-<pre><code class="python">class Distance:
-    @classmethod
-    def haversine(
-        self,
-        origin: dict,
-        destination: dict,
-        units: str = &#34;km&#34;,
-        circuity: [float, int] = 1,
-    ):
-        &#34;&#34;&#34;
-        Function:
-
-        - Calculate the great circle distance in kilometers between two points on the earth (specified in decimal degrees)
-
-        Required Arguments:
-
-        - `origin`:
-            - Type: dict
-            - What: is the origin point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
-        - `destination`:
-            - Type: dict
-            - What: is the destination point? (dict with keys &#34;longitude&#34; and &#34;latitude&#34;)
-
-        Optional Arguments:
-
-        - `units`:
-            - Type: str
-            - What: units to return the distance in? (one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;)
-            - Default: &#34;km&#34;
-        - `circuity`:
-            - Type: float | int
-            - What: Multiplier to increase the calculated distance (to account for circuity)
-            - Default: 1
-
-        &#34;&#34;&#34;
-        # convert decimal degrees to radians
-        lon1, lat1, lon2, lat2 = map(
-            math.radians,
-            [
-                origin[&#34;longitude&#34;],
-                origin[&#34;latitude&#34;],
-                destination[&#34;longitude&#34;],
-                destination[&#34;latitude&#34;],
-            ],
-        )
-        # haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = (
-            math.sin(dlat / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        )
-        c = 2 * math.asin(a**0.5)
-        # Set the radius of earth based on the units specified
-        if units == &#34;km&#34;:
-            radius = 6371
-        elif units == &#34;m&#34;:
-            radius = 6371000
-        elif units == &#34;mi&#34;:
-            radius = 3959
-        elif units == &#34;ft&#34;:
-            radius = 3959 * 5280
-        else:
-            raise ValueError(&#39;Units must be one of &#34;km&#34;, &#34;m&#34;, &#34;mi&#34;, or &#34;ft&#34;&#39;)
-        return c * radius * circuity</code></pre>
-</details>
-<h3>Static methods</h3>
-<dl>
-<dt id="scgraph.utils.Distance.haversine"><code class="name flex">
+<dt id="scgraph.utils.haversine"><code class="name flex">
 <span>def <span class="ident">haversine</span></span>(<span>origin: dict, destination: dict, units: str = 'km', circuity: [<class 'float'>, <class 'int'>] = 1)</span>
 </code></dt>
 <dd>
@@ -290,9 +205,7 @@ def hardRound(decimal_places, a):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">@classmethod
-def haversine(
-    self,
+<pre><code class="python">def haversine(
     origin: dict,
     destination: dict,
     units: str = &#34;km&#34;,
@@ -357,8 +270,8 @@ def haversine(
 </details>
 </dd>
 </dl>
-</dd>
-</dl>
+</section>
+<section>
 </section>
 </article>
 <nav id="sidebar">
@@ -374,17 +287,8 @@ def haversine(
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
-<li><code><a title="scgraph.utils.hardRound" href="#scgraph.utils.hardRound">hardRound</a></code></li>
-</ul>
-</li>
-<li><h3><a href="#header-classes">Classes</a></h3>
-<ul>
-<li>
-<h4><code><a title="scgraph.utils.Distance" href="#scgraph.utils.Distance">Distance</a></code></h4>
-<ul class="">
-<li><code><a title="scgraph.utils.Distance.haversine" href="#scgraph.utils.Distance.haversine">haversine</a></code></li>
-</ul>
-</li>
+<li><code><a title="scgraph.utils.hard_round" href="#scgraph.utils.hard_round">hard_round</a></code></li>
+<li><code><a title="scgraph.utils.haversine" href="#scgraph.utils.haversine">haversine</a></code></li>
 </ul>
 </li>
 </ul>

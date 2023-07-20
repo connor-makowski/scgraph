@@ -1,6 +1,6 @@
 import json
 from pamda import pamda
-from scgraph.utils import Distance, hardRound
+from scgraph.utils import haversine, hard_round
 
 geojson_file = "utils/marnet.geojson"
 out_filename = "scgraph/data/marnet.py"
@@ -16,14 +16,14 @@ def lessThanAbs(threshold, a):
     return abs_a * (1 if a > 0 else -1)
 
 def format_coord_pair(coord_pair):
-    return [lessThanAbs(180,hardRound(4, coord_pair[0])), lessThanAbs(90,hardRound(4, coord_pair[1]))]
+    return [lessThanAbs(180,hard_round(4, coord_pair[0])), lessThanAbs(90,hard_round(4, coord_pair[1]))]
 
 def get_distance(origin_id, destination_id, nodes):
     origin = nodes.get(origin_id)
     destination = nodes.get(destination_id)
     if origin is None or destination is None:
         return None
-    return hardRound(3,Distance.haversine(origin, destination))
+    return hard_round(3,haversine(origin, destination))
 
 def gen_data(coord_list):
     clean_nodes = [format_coord_pair(coord_pair) for coord_pair in coord_list]

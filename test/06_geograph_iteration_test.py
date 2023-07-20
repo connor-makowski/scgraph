@@ -1,10 +1,7 @@
-from scgraph import Graph
-from scgraph.data import marnet_data
+from scgraph import GeoGraph
+from scgraph.marnet import marnet_geograph
 
-print('\n===============\nGraph Iteration Tests:\n===============')
-
-my_graph = Graph(data=marnet_data)
-
+print('\n===============\nGeoGraph Iteration Test:\n===============')
 
 iterations = [
     [{'latitude': 35.1799528, 'longitude': 129.0752365}, {'latitude': 36.0638034, 'longitude': 120.3781372}],
@@ -15,14 +12,14 @@ iterations = [
 
 failed = False
 for i in iterations:
-    output = my_graph.get_shortest_path(
-        origin=i[0],
-        destination=i[1],
+    output = marnet_geograph.get_shortest_path(
+        origin_node=i[0],
+        destination_node=i[1],
     )
-    if len(output['path_ids'])<3:
+    if len(output['path'])<3:
         failed = True
 
 if failed:
-    print(f"FAIL")
+    print(f"Iteration Test: FAIL")
 else:
-    print(f"PASS")
+    print(f"Iteration Test: PASS")

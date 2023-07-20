@@ -14,7 +14,7 @@ def validate(name, realized, expected):
 def time_test(name, thunk):
     start = time.time()
     thunk()
-    print(f"{name}: ({round(time.time()-start, 4)}s)")
+    print(f"{name}: {round(time.time()-start, 4)}s")
 
 print('\n===============\nMarnet Graph Tests:\n===============')
 
@@ -38,17 +38,19 @@ validate(
 )
 
 validate(
-    name='Dijkstra_v2',
-    realized = Graph.dijkstra_v2(graph=graph, origin_id=0, destination_id=604),
+    name='Dijkstra-Makowski',
+    realized = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=604),
     expected = expected
 )
 
 print('\n===============\nMarnet Time Tests:\n===============')
 
+time_test('Graph Validation', pamda.thunkify(Graph.validate_graph)(graph=graph))
+
 time_test('Dijkstra 1', pamda.thunkify(Graph.dijkstra)(graph=graph, origin_id=0, destination_id=5))
 time_test('Dijkstra 2', pamda.thunkify(Graph.dijkstra)(graph=graph, origin_id=100, destination_id=7999))
 time_test('Dijkstra 3', pamda.thunkify(Graph.dijkstra)(graph=graph, origin_id=4022, destination_id=8342))
 
-time_test('Dijkstra_v2 1', pamda.thunkify(Graph.dijkstra_v2)(graph=graph, origin_id=0, destination_id=5))
-time_test('Dijkstra_v2 2', pamda.thunkify(Graph.dijkstra_v2)(graph=graph, origin_id=100, destination_id=7999))
-time_test('Dijkstra_v2 3', pamda.thunkify(Graph.dijkstra_v2)(graph=graph, origin_id=4022, destination_id=8342))
+time_test('Dijkstra-Makowski 1', pamda.thunkify(Graph.dijkstra_makowski)(graph=graph, origin_id=0, destination_id=5))
+time_test('Dijkstra-Makowski 2', pamda.thunkify(Graph.dijkstra_makowski)(graph=graph, origin_id=100, destination_id=7999))
+time_test('Dijkstra-Makowski 3', pamda.thunkify(Graph.dijkstra_makowski)(graph=graph, origin_id=4022, destination_id=8342))
