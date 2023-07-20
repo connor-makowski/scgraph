@@ -1,7 +1,7 @@
 import time
 from pamda import pamda
 from scgraph import Graph
-from scgraph.marnet import marnet_geograph
+from scgraph.geographs.marnet import marnet_geograph
 
 def validate(name, realized, expected):
     if realized == expected:
@@ -20,20 +20,20 @@ print('\n===============\nMarnet GeoGraph Tests:\n===============')
 
 expected = {
     'path': [
-        11065, 
-        4380, 
-        7029, 
-        6101, 
-        9841, 
-        7067,
-        3664,
-        2823,
-        5795,
-        1363,
-        2394,
-        388,
-        953,
-        4193,
+        11065,
+        6109,
+        4240,
+        6968,
+        5077,
+        9745,
+        4761,
+        9018,
+        10088,
+        4390,
+        5662,
+        2352,
+        5203,
+        10107,
         11066
     ], 
     'length': 4477.148, 

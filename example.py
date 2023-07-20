@@ -1,4 +1,4 @@
-from scgraph.marnet import marnet_geograph
+from scgraph.geographs.marnet import marnet_geograph
 
 # Get the shortest path between 
 output = marnet_geograph.get_shortest_path(

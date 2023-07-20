@@ -1,7 +1,6 @@
 import time
 from pamda import pamda
 from scgraph import Graph
-from scgraph.data import marnet_data
 
 def validate(name, realized, expected):
     if realized == expected:

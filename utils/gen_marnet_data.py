@@ -3,8 +3,8 @@ from pamda import pamda
 from scgraph.utils import haversine, hard_round
 
 geojson_file = "utils/marnet.geojson"
-out_filename = "scgraph/data/marnet.py"
-data_name = "marnet_data"
+out_filename = "scgraph/geographs/marnet.py"
+initialized_class_name = "marnet_geograph"
 
 data_geojson = json.load(open(geojson_file, "r"))
 coords = pamda.pluck(["geometry","coordinates"], data_geojson["features"])
@@ -42,11 +42,15 @@ for coord_list in coords:
     data = pamda.mergeDeep(data, gen_data(coord_list))
 
 key_mapping = {node_id:idx for idx, node_id in enumerate(data["nodes"].keys())}
-output = {
-    "graph":{key_mapping[origin_id]: {key_mapping[destination_id]: distance for destination_id, distance in origin.items()} for origin_id, origin in data["graph"].items()},
-    "nodes": {key_mapping[node_id]: node for node_id, node in data["nodes"].items()}
-}
+graph = {key_mapping[origin_id]: {key_mapping[destination_id]: distance for destination_id, distance in origin.items()} for origin_id, origin in data["graph"].items()}
+nodes = {key_mapping[node_id]: node for node_id, node in data["nodes"].items()}
 
-# add data_name = to the beginning of the .py file's first line
+out_string = f"""
+from scgraph.core import GeoGraph
+graph={str(graph)}
+nodes={str(nodes)}
+{initialized_class_name} = GeoGraph(graph=graph, nodes=nodes)
+"""
+
 with open(out_filename, "w") as f:
-    f.writelines(data_name + "=" + str(output) + "\n")
+    f.write(out_string)

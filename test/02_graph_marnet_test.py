@@ -1,7 +1,7 @@
 import time
 from pamda import pamda
 from scgraph import Graph
-from scgraph.data import marnet_data
+from scgraph.geographs.marnet import graph as marnet_graph
 
 def validate(name, realized, expected):
     if realized == expected:
@@ -18,12 +18,9 @@ def time_test(name, thunk):
 
 print('\n===============\nMarnet Graph Tests:\n===============')
 
-graph = marnet_data.get('graph')
+graph = marnet_graph
 
-expected = {
-    'path': [0, 1, 3950, 7790, 9996, 8652, 604], 
-    'length': 1247.1
-}
+expected = {'path': [0,5594,9469,2838,9454,669,8258,2685,7843,1941,7500,9446,1013,2891,7903,2335,1453,8226,9108,5],'length': 4727.879}
 
 validate(
     name='Graph Validation',
@@ -33,13 +30,13 @@ validate(
 
 validate(
     name='Dijkstra', 
-    realized = Graph.dijkstra(graph=graph, origin_id=0, destination_id=604), 
+    realized = Graph.dijkstra(graph=graph, origin_id=0, destination_id=5), 
     expected = expected
 )
 
 validate(
     name='Dijkstra-Makowski',
-    realized = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=604),
+    realized = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5),
     expected = expected
 )
 

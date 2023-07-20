@@ -63,7 +63,7 @@ In this case, calculate the shortest maritime path between Shanghai, China and S
 
 ```py
 # Use a maritime network geograph
-from scgraph.marnet import marnet_geograph
+from scgraph.geographs.marnet import marnet_geograph
 
 # Get the shortest path between 
 output = marnet_geograph.get_shortest_path(
@@ -82,7 +82,7 @@ To get the latitude / longitude pairs that make up the shortest path, as a list 
 
 ```py
 # Use a maritime network geograph
-from scgraph.marnet import marnet_geograph
+from scgraph.geographs.marnet import marnet_geograph
 
 # Get the shortest path between 
 output = marnet_geograph.get_shortest_path(
@@ -182,7 +182,7 @@ output = my_geograph.get_shortest_path(
 
 - marnet_geograph:
     - What: A maritime network data set
-    - Use: `from scgraph.marnet import marnet_geograph`
+    - Use: `from scgraph.geographs.marnet import marnet_geograph`
 - More to follow
 
 ## Attributions and Thanks
