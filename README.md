@@ -181,8 +181,13 @@ output = my_geograph.get_shortest_path(
 ## Included GeoGraphs
 
 - marnet_geograph:
-    - What: A maritime network data set
+    - What: A maritime network data set from searoute
     - Use: `from scgraph.geographs.marnet import marnet_geograph`
+    - Attribution: [searoute](https://github.com/genthalili/searoute-py)
+- oak_ridge_maritime_geograph:
+    - What: A maritime data set from the Oak Ridge National Laboratory campus
+    - Use: `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph`
+    - Attribution: [Oak Ridge National Laboratory](https://www.ornl.gov/) with data from [Geocommons](http://geocommons.com/datasets?id=25)
 - More to follow
 
 ## Attributions and Thanks
