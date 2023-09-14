@@ -110,7 +110,33 @@ def hard_round(decimal_places, a):
     &#34;&#34;&#34;
     return int(a * (10**decimal_places) + (0.5 if a &gt; 0 else -0.5)) / (
         10**decimal_places
-    )</code></pre>
+    )
+
+
+def distance_converter(
+    distance: [int, float], input_units: str, output_units: str
+):
+    &#34;&#34;&#34;
+    Function:
+
+    - Convert a distance from one unit to another
+
+    Required Arguments:
+
+    - `distance`:
+        - Type: int | float
+        - What: distance to convert
+    - `input_units`:
+        - Type: str
+        - What: units of the input distance (one of &#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, or &#34;ft&#34;)
+    - `output_units`:
+        - Type: str
+        - What: units of the output distance (one of &#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, or &#34;ft&#34;)
+    &#34;&#34;&#34;
+    assert input_units in [&#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, &#34;ft&#34;]
+    assert output_units in [&#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, &#34;ft&#34;]
+    km_table = {&#34;mi&#34;: 0.621371, &#34;m&#34;: 1000, &#34;ft&#34;: 3280.84, &#34;km&#34;: 1}
+    return (distance / km_table[input_units]) * km_table[output_units]</code></pre>
 </details>
 </section>
 <section>
@@ -120,6 +146,62 @@ def hard_round(decimal_places, a):
 <section>
 <h2 class="section-title" id="header-functions">Functions</h2>
 <dl>
+<dt id="scgraph.utils.distance_converter"><code class="name flex">
+<span>def <span class="ident">distance_converter</span></span>(<span>distance: [<class 'int'>, <class 'float'>], input_units: str, output_units: str)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Convert a distance from one unit to another</li>
+</ul>
+<p>Required Arguments:</p>
+<ul>
+<li><code>distance</code>:<ul>
+<li>Type: int | float</li>
+<li>What: distance to convert</li>
+</ul>
+</li>
+<li><code>input_units</code>:<ul>
+<li>Type: str</li>
+<li>What: units of the input distance (one of "mi", "km", "m", or "ft")</li>
+</ul>
+</li>
+<li><code>output_units</code>:<ul>
+<li>Type: str</li>
+<li>What: units of the output distance (one of "mi", "km", "m", or "ft")</li>
+</ul>
+</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def distance_converter(
+    distance: [int, float], input_units: str, output_units: str
+):
+    &#34;&#34;&#34;
+    Function:
+
+    - Convert a distance from one unit to another
+
+    Required Arguments:
+
+    - `distance`:
+        - Type: int | float
+        - What: distance to convert
+    - `input_units`:
+        - Type: str
+        - What: units of the input distance (one of &#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, or &#34;ft&#34;)
+    - `output_units`:
+        - Type: str
+        - What: units of the output distance (one of &#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, or &#34;ft&#34;)
+    &#34;&#34;&#34;
+    assert input_units in [&#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, &#34;ft&#34;]
+    assert output_units in [&#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, &#34;ft&#34;]
+    km_table = {&#34;mi&#34;: 0.621371, &#34;m&#34;: 1000, &#34;ft&#34;: 3280.84, &#34;km&#34;: 1}
+    return (distance / km_table[input_units]) * km_table[output_units]</code></pre>
+</details>
+</dd>
 <dt id="scgraph.utils.hard_round"><code class="name flex">
 <span>def <span class="ident">hard_round</span></span>(<span>decimal_places, a)</span>
 </code></dt>
@@ -287,6 +369,7 @@ def hard_round(decimal_places, a):
 </li>
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
+<li><code><a title="scgraph.utils.distance_converter" href="#scgraph.utils.distance_converter">distance_converter</a></code></li>
 <li><code><a title="scgraph.utils.hard_round" href="#scgraph.utils.hard_round">hard_round</a></code></li>
 <li><code><a title="scgraph.utils.haversine" href="#scgraph.utils.haversine">haversine</a></code></li>
 </ul>
