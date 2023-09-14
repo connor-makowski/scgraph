@@ -188,7 +188,10 @@ output = my_geograph.get_shortest_path(
     - What: A maritime data set from the Oak Ridge National Laboratory campus
     - Use: `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph`
     - Attribution: [Oak Ridge National Laboratory](https://www.ornl.gov/) with data from [Geocommons](http://geocommons.com/datasets?id=25)
-- More to follow
+- north_america_rail_geograph:
+    - What: Class 1 Rail network for North America
+    - Use: `from scgraph.geographs.north_america_rail import north_america_rail_geograph`
+    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about)
 
 ## Attributions and Thanks
 Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.

@@ -83,3 +83,29 @@ def hard_round(decimal_places, a):
     return int(a * (10**decimal_places) + (0.5 if a > 0 else -0.5)) / (
         10**decimal_places
     )
+
+
+def distance_converter(
+    distance: [int, float], input_units: str, output_units: str
+):
+    """
+    Function:
+
+    - Convert a distance from one unit to another
+
+    Required Arguments:
+
+    - `distance`:
+        - Type: int | float
+        - What: distance to convert
+    - `input_units`:
+        - Type: str
+        - What: units of the input distance (one of "mi", "km", "m", or "ft")
+    - `output_units`:
+        - Type: str
+        - What: units of the output distance (one of "mi", "km", "m", or "ft")
+    """
+    assert input_units in ["mi", "km", "m", "ft"]
+    assert output_units in ["mi", "km", "m", "ft"]
+    km_table = {"mi": 0.621371, "m": 1000, "ft": 3280.84, "km": 1}
+    return (distance / km_table[input_units]) * km_table[output_units]
