@@ -184,14 +184,38 @@ output = my_geograph.get_shortest_path(
     - What: A maritime network data set from searoute
     - Use: `from scgraph.geographs.marnet import marnet_geograph`
     - Attribution: [searoute](https://github.com/genthalili/searoute-py)
+    - Length Measurement: Kilometers
+    - <details>
+        <summary>Geograph Picture</summary>
+        ![marnet](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png)
+    </details>
 - oak_ridge_maritime_geograph:
     - What: A maritime data set from the Oak Ridge National Laboratory campus
     - Use: `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph`
     - Attribution: [Oak Ridge National Laboratory](https://www.ornl.gov/) with data from [Geocommons](http://geocommons.com/datasets?id=25)
+    - Length Measurement: Kilometers
+    - <details>
+        <summary>Geograph Picture</summary>
+        ![oak_ridge_maritime](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png)
+    </details>
 - north_america_rail_geograph:
     - What: Class 1 Rail network for North America
     - Use: `from scgraph.geographs.north_america_rail import north_america_rail_geograph`
     - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about)
+    - Length Measurement: Kilometers
+    - <details>
+        <summary>Geograph Picture</summary>
+        ![north_america_rail](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png)
+    </details>
+- us_freeway_geograph:
+    - What: Freeway network for the United States
+    - Use: `from scgraph.geographs.us_freeway import us_freeway_geograph`
+    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about)
+    - Length Measurement: Kilometers
+    - <details>
+        <summary>Geograph Picture</summary>
+        ![us_freeway](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png)
+    </details>
 
 ## Attributions and Thanks
 Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.

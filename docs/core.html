@@ -27,6 +27,7 @@
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">from .utils import haversine, hard_round
+import json
 
 
 class Graph:
@@ -298,7 +299,9 @@ class GeoGraph:
         origin_node,
         destination_node,
         algorithm_fn=Graph.dijkstra_makowski,
+        off_graph_circuity: [float, int] = 1,
         node_addition_type: str = &#34;quadrant&#34;,
+        node_addition_circuity: [float, int] = 4,
         **kwargs,
     ):
         &#34;&#34;&#34;
@@ -333,6 +336,13 @@ class GeoGraph:
                     - `graph`: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
+        - `off_graph_circuity`
+            - Type: float | int
+            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
+            - Default: 1
+            - Notes:
+                - For alogrithmic solving purposes, the node_addition_circuity is applied to the origin and destination nodes when they are added to the graph
+                - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
         - `node_addition_type`
             - Type: str
             - What: The type of node addition to use when adding your origin and destination nodes to the distance matrix
@@ -345,16 +355,28 @@ class GeoGraph:
                 - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to &#39;quadrant&#39; or &#39;closest&#39;
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+        - `node_addition_circuity`
+            - Type: float | int
+            - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
+            - Default: 4
+            - Note:
+                - This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
+                - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
+                - This is only relevant if `node_addition_type` is set to &#39;quadrant&#39; or &#39;all&#39; as it affects the choice on where to enter the graph network
+                - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
         - `**kwargs`
             - Any additional keyword arguments to pass to the algorithm
         &#34;&#34;&#34;
         # Add the origin and destination nodes to the graph
         origin_id = self.add_node(
-            node=origin_node, node_addition_type=node_addition_type
+            node=origin_node,
+            node_addition_type=node_addition_type,
+            circuity=node_addition_circuity,
         )
         destination_id = self.add_node(
             node=destination_node,
             node_addition_type=node_addition_type,
+            circuity=node_addition_circuity,
         )
 
         try:
@@ -364,6 +386,11 @@ class GeoGraph:
                 destination_id=destination_id,
             )
             output[&#34;coordinate_path&#34;] = self.get_coordinate_path(output[&#34;path&#34;])
+            output[&#34;length&#34;] = self.adujust_circuity_length(
+                output=output,
+                node_addition_circuity=node_addition_circuity,
+                off_graph_circuity=off_graph_circuity,
+            )
             self.remove_added_node(node_id=origin_id)
             self.remove_added_node(node_id=destination_id)
             return output
@@ -371,6 +398,46 @@ class GeoGraph:
             self.remove_added_node(node_id=origin_id)
             self.remove_added_node(node_id=destination_id)
             raise e
+
+    def adujust_circuity_length(
+        self,
+        output: dict,
+        node_addition_circuity: [float, int],
+        off_graph_circuity: [float, int],
+    ):
+        &#34;&#34;&#34;
+        Function:
+
+        - Adjust the length of the path to account for the circuity factors applied to the origin and destination nodes
+
+        Required Arguments:
+
+        - `output`
+            - Type: dict
+            - What: The output from the algorithm function
+        - `node_addition_circuity`
+            - Type: float | int
+            - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix
+        - `off_graph_circuity`
+            - Type: float | int
+            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
+        &#34;&#34;&#34;
+        coordinate_path = output[&#34;coordinate_path&#34;]
+        # If the path does not enter the graph, undo the node_addition_circuity and apply the off_graph_circuity
+        if len(output[&#34;coordinate_path&#34;]) == 2:
+            return (
+                output[&#34;length&#34;] / node_addition_circuity
+            ) * off_graph_circuity
+        else:
+            direct_off_graph_length = haversine(
+                coordinate_path[0], coordinate_path[1], circuity=1
+            ) + haversine(coordinate_path[-2], coordinate_path[-1], circuity=1)
+            return round(
+                output[&#34;length&#34;]
+                + direct_off_graph_length
+                * (off_graph_circuity - node_addition_circuity),
+                4,
+            )
 
     def get_coordinate_path(self, path):
         &#34;&#34;&#34;
@@ -422,7 +489,7 @@ class GeoGraph:
     def add_node(
         self,
         node: dict,
-        circuity: [float, int] = 4,
+        circuity: [float, int],
         node_addition_type: str = &#34;quadrant&#34;,
     ):
         &#34;&#34;&#34;
@@ -523,7 +590,54 @@ class GeoGraph:
                 self.graph[min_node_id][new_node_id] = distances[min_node_id][
                     &#34;distance&#34;
                 ]
-        return new_node_id</code></pre>
+        return new_node_id
+
+    def save_as_geojson(self, filename):
+        &#34;&#34;&#34;
+        Function:
+
+        - Save the current geograph object as a geojson file
+        - This is useful for understanding the underlying geograph and for debugging purposes
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename to save the geojson file as
+
+        &#34;&#34;&#34;
+        features = []
+        for origin_idx, destinations in self.graph.items():
+            for destination_idx, distance in destinations.items():
+                # Create an undirected graph for geojson purposes
+                if origin_idx &gt; destination_idx:
+                    continue
+                origin = self.nodes.get(origin_idx)
+                destination = self.nodes.get(destination_idx)
+                features.append(
+                    {
+                        &#34;type&#34;: &#34;Feature&#34;,
+                        &#34;properties&#34;: {
+                            &#34;origin_idx&#34;: origin_idx,
+                            &#34;destination_idx&#34;: destination_idx,
+                            &#34;distance&#34;: distance,
+                        },
+                        &#34;geometry&#34;: {
+                            &#34;type&#34;: &#34;LineString&#34;,
+                            &#34;coordinates&#34;: [
+                                [origin[&#34;longitude&#34;], origin[&#34;latitude&#34;]],
+                                [
+                                    destination[&#34;longitude&#34;],
+                                    destination[&#34;latitude&#34;],
+                                ],
+                            ],
+                        },
+                    }
+                )
+
+        out_dict = {&#34;type&#34;: &#34;FeatureCollection&#34;, &#34;features&#34;: features}
+        with open(filename, &#34;w&#34;) as f:
+            json.dump(out_dict, f)</code></pre>
 </details>
 </section>
 <section>
@@ -654,7 +768,9 @@ class GeoGraph:
         origin_node,
         destination_node,
         algorithm_fn=Graph.dijkstra_makowski,
+        off_graph_circuity: [float, int] = 1,
         node_addition_type: str = &#34;quadrant&#34;,
+        node_addition_circuity: [float, int] = 4,
         **kwargs,
     ):
         &#34;&#34;&#34;
@@ -689,6 +805,13 @@ class GeoGraph:
                     - `graph`: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
+        - `off_graph_circuity`
+            - Type: float | int
+            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
+            - Default: 1
+            - Notes:
+                - For alogrithmic solving purposes, the node_addition_circuity is applied to the origin and destination nodes when they are added to the graph
+                - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
         - `node_addition_type`
             - Type: str
             - What: The type of node addition to use when adding your origin and destination nodes to the distance matrix
@@ -701,16 +824,28 @@ class GeoGraph:
                 - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to &#39;quadrant&#39; or &#39;closest&#39;
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+        - `node_addition_circuity`
+            - Type: float | int
+            - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
+            - Default: 4
+            - Note:
+                - This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
+                - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
+                - This is only relevant if `node_addition_type` is set to &#39;quadrant&#39; or &#39;all&#39; as it affects the choice on where to enter the graph network
+                - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
         - `**kwargs`
             - Any additional keyword arguments to pass to the algorithm
         &#34;&#34;&#34;
         # Add the origin and destination nodes to the graph
         origin_id = self.add_node(
-            node=origin_node, node_addition_type=node_addition_type
+            node=origin_node,
+            node_addition_type=node_addition_type,
+            circuity=node_addition_circuity,
         )
         destination_id = self.add_node(
             node=destination_node,
             node_addition_type=node_addition_type,
+            circuity=node_addition_circuity,
         )
 
         try:
@@ -720,6 +855,11 @@ class GeoGraph:
                 destination_id=destination_id,
             )
             output[&#34;coordinate_path&#34;] = self.get_coordinate_path(output[&#34;path&#34;])
+            output[&#34;length&#34;] = self.adujust_circuity_length(
+                output=output,
+                node_addition_circuity=node_addition_circuity,
+                off_graph_circuity=off_graph_circuity,
+            )
             self.remove_added_node(node_id=origin_id)
             self.remove_added_node(node_id=destination_id)
             return output
@@ -727,6 +867,46 @@ class GeoGraph:
             self.remove_added_node(node_id=origin_id)
             self.remove_added_node(node_id=destination_id)
             raise e
+
+    def adujust_circuity_length(
+        self,
+        output: dict,
+        node_addition_circuity: [float, int],
+        off_graph_circuity: [float, int],
+    ):
+        &#34;&#34;&#34;
+        Function:
+
+        - Adjust the length of the path to account for the circuity factors applied to the origin and destination nodes
+
+        Required Arguments:
+
+        - `output`
+            - Type: dict
+            - What: The output from the algorithm function
+        - `node_addition_circuity`
+            - Type: float | int
+            - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix
+        - `off_graph_circuity`
+            - Type: float | int
+            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
+        &#34;&#34;&#34;
+        coordinate_path = output[&#34;coordinate_path&#34;]
+        # If the path does not enter the graph, undo the node_addition_circuity and apply the off_graph_circuity
+        if len(output[&#34;coordinate_path&#34;]) == 2:
+            return (
+                output[&#34;length&#34;] / node_addition_circuity
+            ) * off_graph_circuity
+        else:
+            direct_off_graph_length = haversine(
+                coordinate_path[0], coordinate_path[1], circuity=1
+            ) + haversine(coordinate_path[-2], coordinate_path[-1], circuity=1)
+            return round(
+                output[&#34;length&#34;]
+                + direct_off_graph_length
+                * (off_graph_circuity - node_addition_circuity),
+                4,
+            )
 
     def get_coordinate_path(self, path):
         &#34;&#34;&#34;
@@ -778,7 +958,7 @@ class GeoGraph:
     def add_node(
         self,
         node: dict,
-        circuity: [float, int] = 4,
+        circuity: [float, int],
         node_addition_type: str = &#34;quadrant&#34;,
     ):
         &#34;&#34;&#34;
@@ -879,12 +1059,59 @@ class GeoGraph:
                 self.graph[min_node_id][new_node_id] = distances[min_node_id][
                     &#34;distance&#34;
                 ]
-        return new_node_id</code></pre>
+        return new_node_id
+
+    def save_as_geojson(self, filename):
+        &#34;&#34;&#34;
+        Function:
+
+        - Save the current geograph object as a geojson file
+        - This is useful for understanding the underlying geograph and for debugging purposes
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename to save the geojson file as
+
+        &#34;&#34;&#34;
+        features = []
+        for origin_idx, destinations in self.graph.items():
+            for destination_idx, distance in destinations.items():
+                # Create an undirected graph for geojson purposes
+                if origin_idx &gt; destination_idx:
+                    continue
+                origin = self.nodes.get(origin_idx)
+                destination = self.nodes.get(destination_idx)
+                features.append(
+                    {
+                        &#34;type&#34;: &#34;Feature&#34;,
+                        &#34;properties&#34;: {
+                            &#34;origin_idx&#34;: origin_idx,
+                            &#34;destination_idx&#34;: destination_idx,
+                            &#34;distance&#34;: distance,
+                        },
+                        &#34;geometry&#34;: {
+                            &#34;type&#34;: &#34;LineString&#34;,
+                            &#34;coordinates&#34;: [
+                                [origin[&#34;longitude&#34;], origin[&#34;latitude&#34;]],
+                                [
+                                    destination[&#34;longitude&#34;],
+                                    destination[&#34;latitude&#34;],
+                                ],
+                            ],
+                        },
+                    }
+                )
+
+        out_dict = {&#34;type&#34;: &#34;FeatureCollection&#34;, &#34;features&#34;: features}
+        with open(filename, &#34;w&#34;) as f:
+            json.dump(out_dict, f)</code></pre>
 </details>
 <h3>Methods</h3>
 <dl>
 <dt id="scgraph.core.GeoGraph.add_node"><code class="name flex">
-<span>def <span class="ident">add_node</span></span>(<span>self, node: dict, circuity: [<class 'float'>, <class 'int'>] = 4, node_addition_type: str = 'quadrant')</span>
+<span>def <span class="ident">add_node</span></span>(<span>self, node: dict, circuity: [<class 'float'>, <class 'int'>], node_addition_type: str = 'quadrant')</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -935,7 +1162,7 @@ class GeoGraph:
 <pre><code class="python">def add_node(
     self,
     node: dict,
-    circuity: [float, int] = 4,
+    circuity: [float, int],
     node_addition_type: str = &#34;quadrant&#34;,
 ):
     &#34;&#34;&#34;
@@ -1039,6 +1266,77 @@ class GeoGraph:
     return new_node_id</code></pre>
 </details>
 </dd>
+<dt id="scgraph.core.GeoGraph.adujust_circuity_length"><code class="name flex">
+<span>def <span class="ident">adujust_circuity_length</span></span>(<span>self, output: dict, node_addition_circuity: [<class 'float'>, <class 'int'>], off_graph_circuity: [<class 'float'>, <class 'int'>])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Adjust the length of the path to account for the circuity factors applied to the origin and destination nodes</li>
+</ul>
+<p>Required Arguments:</p>
+<ul>
+<li><code>output</code><ul>
+<li>Type: dict</li>
+<li>What: The output from the algorithm function</li>
+</ul>
+</li>
+<li><code>node_addition_circuity</code><ul>
+<li>Type: float | int</li>
+<li>What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix</li>
+</ul>
+</li>
+<li><code>off_graph_circuity</code><ul>
+<li>Type: float | int</li>
+<li>What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</li>
+</ul>
+</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def adujust_circuity_length(
+    self,
+    output: dict,
+    node_addition_circuity: [float, int],
+    off_graph_circuity: [float, int],
+):
+    &#34;&#34;&#34;
+    Function:
+
+    - Adjust the length of the path to account for the circuity factors applied to the origin and destination nodes
+
+    Required Arguments:
+
+    - `output`
+        - Type: dict
+        - What: The output from the algorithm function
+    - `node_addition_circuity`
+        - Type: float | int
+        - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix
+    - `off_graph_circuity`
+        - Type: float | int
+        - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
+    &#34;&#34;&#34;
+    coordinate_path = output[&#34;coordinate_path&#34;]
+    # If the path does not enter the graph, undo the node_addition_circuity and apply the off_graph_circuity
+    if len(output[&#34;coordinate_path&#34;]) == 2:
+        return (
+            output[&#34;length&#34;] / node_addition_circuity
+        ) * off_graph_circuity
+    else:
+        direct_off_graph_length = haversine(
+            coordinate_path[0], coordinate_path[1], circuity=1
+        ) + haversine(coordinate_path[-2], coordinate_path[-1], circuity=1)
+        return round(
+            output[&#34;length&#34;]
+            + direct_off_graph_length
+            * (off_graph_circuity - node_addition_circuity),
+            4,
+        )</code></pre>
+</details>
+</dd>
 <dt id="scgraph.core.GeoGraph.get_coordinate_path"><code class="name flex">
 <span>def <span class="ident">get_coordinate_path</span></span>(<span>self, path)</span>
 </code></dt>
@@ -1083,7 +1381,7 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.get_shortest_path"><code class="name flex">
-<span>def <span class="ident">get_shortest_path</span></span>(<span>self, origin_node, destination_node, algorithm_fn=&lt;function Graph.dijkstra_makowski&gt;, node_addition_type: str = 'quadrant', **kwargs)</span>
+<span>def <span class="ident">get_shortest_path</span></span>(<span>self, origin_node, destination_node, algorithm_fn=&lt;function Graph.dijkstra_makowski&gt;, off_graph_circuity: [<class 'float'>, <class 'int'>] = 1, node_addition_type: str = 'quadrant', node_addition_circuity: [<class 'float'>, <class 'int'>] = 4, **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -1132,6 +1430,17 @@ class GeoGraph:
 </li>
 </ul>
 </li>
+<li><code>off_graph_circuity</code><ul>
+<li>Type: float | int</li>
+<li>What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</li>
+<li>Default: 1</li>
+<li>Notes:<ul>
+<li>For alogrithmic solving purposes, the node_addition_circuity is applied to the origin and destination nodes when they are added to the graph</li>
+<li>This is only applied after an <code>optimal solution</code> using the <code>node_addition_circuity</code> has been found when it is then adjusted to equal the <code>off_graph_circuity</code></li>
+</ul>
+</li>
+</ul>
+</li>
 <li><code>node_addition_type</code><ul>
 <li>Type: str</li>
 <li>What: The type of node addition to use when adding your origin and destination nodes to the distance matrix</li>
@@ -1150,6 +1459,19 @@ class GeoGraph:
 </li>
 </ul>
 </li>
+<li><code>node_addition_circuity</code><ul>
+<li>Type: float | int</li>
+<li>What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix</li>
+<li>Default: 4</li>
+<li>Note:<ul>
+<li>This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</li>
+<li>A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor</li>
+<li>This is only relevant if <code>node_addition_type</code> is set to 'quadrant' or 'all' as it affects the choice on where to enter the graph network</li>
+<li>This factor is used to calculate the node sequence for the <code>optimal route</code>, however the reported <code>length</code> of the path will be calculated using the <code>off_graph_circuity</code> factor</li>
+</ul>
+</li>
+</ul>
+</li>
 <li><code>**kwargs</code><ul>
 <li>Any additional keyword arguments to pass to the algorithm</li>
 </ul>
@@ -1164,7 +1486,9 @@ class GeoGraph:
     origin_node,
     destination_node,
     algorithm_fn=Graph.dijkstra_makowski,
+    off_graph_circuity: [float, int] = 1,
     node_addition_type: str = &#34;quadrant&#34;,
+    node_addition_circuity: [float, int] = 4,
     **kwargs,
 ):
     &#34;&#34;&#34;
@@ -1199,6 +1523,13 @@ class GeoGraph:
                 - `graph`: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
                 - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                 - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
+    - `off_graph_circuity`
+        - Type: float | int
+        - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
+        - Default: 1
+        - Notes:
+            - For alogrithmic solving purposes, the node_addition_circuity is applied to the origin and destination nodes when they are added to the graph
+            - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
     - `node_addition_type`
         - Type: str
         - What: The type of node addition to use when adding your origin and destination nodes to the distance matrix
@@ -1211,16 +1542,28 @@ class GeoGraph:
             - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to &#39;quadrant&#39; or &#39;closest&#39;
             - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
             - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+    - `node_addition_circuity`
+        - Type: float | int
+        - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
+        - Default: 4
+        - Note:
+            - This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
+            - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
+            - This is only relevant if `node_addition_type` is set to &#39;quadrant&#39; or &#39;all&#39; as it affects the choice on where to enter the graph network
+            - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
     - `**kwargs`
         - Any additional keyword arguments to pass to the algorithm
     &#34;&#34;&#34;
     # Add the origin and destination nodes to the graph
     origin_id = self.add_node(
-        node=origin_node, node_addition_type=node_addition_type
+        node=origin_node,
+        node_addition_type=node_addition_type,
+        circuity=node_addition_circuity,
     )
     destination_id = self.add_node(
         node=destination_node,
         node_addition_type=node_addition_type,
+        circuity=node_addition_circuity,
     )
 
     try:
@@ -1230,6 +1573,11 @@ class GeoGraph:
             destination_id=destination_id,
         )
         output[&#34;coordinate_path&#34;] = self.get_coordinate_path(output[&#34;path&#34;])
+        output[&#34;length&#34;] = self.adujust_circuity_length(
+            output=output,
+            node_addition_circuity=node_addition_circuity,
+            off_graph_circuity=off_graph_circuity,
+        )
         self.remove_added_node(node_id=origin_id)
         self.remove_added_node(node_id=destination_id)
         return output
@@ -1296,6 +1644,75 @@ class GeoGraph:
         del self.graph[reverse_connection][node_id]
     del self.graph[node_id]
     del self.nodes[node_id]</code></pre>
+</details>
+</dd>
+<dt id="scgraph.core.GeoGraph.save_as_geojson"><code class="name flex">
+<span>def <span class="ident">save_as_geojson</span></span>(<span>self, filename)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Save the current geograph object as a geojson file</li>
+<li>This is useful for understanding the underlying geograph and for debugging purposes</li>
+</ul>
+<p>Required Arguments:</p>
+<ul>
+<li><code>filename</code><ul>
+<li>Type: str</li>
+<li>What: The filename to save the geojson file as</li>
+</ul>
+</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def save_as_geojson(self, filename):
+    &#34;&#34;&#34;
+    Function:
+
+    - Save the current geograph object as a geojson file
+    - This is useful for understanding the underlying geograph and for debugging purposes
+
+    Required Arguments:
+
+    - `filename`
+        - Type: str
+        - What: The filename to save the geojson file as
+
+    &#34;&#34;&#34;
+    features = []
+    for origin_idx, destinations in self.graph.items():
+        for destination_idx, distance in destinations.items():
+            # Create an undirected graph for geojson purposes
+            if origin_idx &gt; destination_idx:
+                continue
+            origin = self.nodes.get(origin_idx)
+            destination = self.nodes.get(destination_idx)
+            features.append(
+                {
+                    &#34;type&#34;: &#34;Feature&#34;,
+                    &#34;properties&#34;: {
+                        &#34;origin_idx&#34;: origin_idx,
+                        &#34;destination_idx&#34;: destination_idx,
+                        &#34;distance&#34;: distance,
+                    },
+                    &#34;geometry&#34;: {
+                        &#34;type&#34;: &#34;LineString&#34;,
+                        &#34;coordinates&#34;: [
+                            [origin[&#34;longitude&#34;], origin[&#34;latitude&#34;]],
+                            [
+                                destination[&#34;longitude&#34;],
+                                destination[&#34;latitude&#34;],
+                            ],
+                        ],
+                    },
+                }
+            )
+
+    out_dict = {&#34;type&#34;: &#34;FeatureCollection&#34;, &#34;features&#34;: features}
+    with open(filename, &#34;w&#34;) as f:
+        json.dump(out_dict, f)</code></pre>
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.validate_graph"><code class="name flex">
@@ -1917,11 +2334,13 @@ def validate_graph(graph: dict):
 <ul>
 <li>
 <h4><code><a title="scgraph.core.GeoGraph" href="#scgraph.core.GeoGraph">GeoGraph</a></code></h4>
-<ul class="two-column">
+<ul class="">
 <li><code><a title="scgraph.core.GeoGraph.add_node" href="#scgraph.core.GeoGraph.add_node">add_node</a></code></li>
+<li><code><a title="scgraph.core.GeoGraph.adujust_circuity_length" href="#scgraph.core.GeoGraph.adujust_circuity_length">adujust_circuity_length</a></code></li>
 <li><code><a title="scgraph.core.GeoGraph.get_coordinate_path" href="#scgraph.core.GeoGraph.get_coordinate_path">get_coordinate_path</a></code></li>
 <li><code><a title="scgraph.core.GeoGraph.get_shortest_path" href="#scgraph.core.GeoGraph.get_shortest_path">get_shortest_path</a></code></li>
 <li><code><a title="scgraph.core.GeoGraph.remove_added_node" href="#scgraph.core.GeoGraph.remove_added_node">remove_added_node</a></code></li>
+<li><code><a title="scgraph.core.GeoGraph.save_as_geojson" href="#scgraph.core.GeoGraph.save_as_geojson">save_as_geojson</a></code></li>
 <li><code><a title="scgraph.core.GeoGraph.validate_graph" href="#scgraph.core.GeoGraph.validate_graph">validate_graph</a></code></li>
 <li><code><a title="scgraph.core.GeoGraph.validate_nodes" href="#scgraph.core.GeoGraph.validate_nodes">validate_nodes</a></code></li>
 </ul>

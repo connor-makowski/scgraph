@@ -126,3 +126,5 @@ def dijkstra_makowski():
 
 time_test('Dijkstra', dijkstra)
 time_test('Dijkstra-Makowski', dijkstra_makowski)
+
+# marnet_geograph.save_as_geojson('marnet.geojson')
