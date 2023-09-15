@@ -74,9 +74,11 @@ print('Length: ',output['length']) #=> Length:  19596.4653
 ```
 
 In the above example, the `output` variable is a dictionary with three keys: `length`, `path` and `coordinate_path`. 
-    - `length`: The distance in kilometers between the two points
-    - `path`: A list of keys (from the network data set) that make up the shortest path
-    - `coordinate_path`: A list of dictionaries (`latitude` and `longitude`) that make up the shortest path
+
+- `length`: The distance between the passed origin and destination when traversing the graph along the shortest path
+    - Note: This is normally in in kilometers, but this depends on the [geograph](https://github.com/connor-makowski/scgraph#included-geographs) used
+- `path`: A list of keys (from the network data set) that make up the shortest path
+- `coordinate_path`: A list of dictionaries (`latitude` and `longitude`) that make up the shortest path
 
 To get the latitude / longitude pairs that make up the shortest path, as a list of lists, you could do something like the following:
 
@@ -185,37 +187,25 @@ output = my_geograph.get_shortest_path(
     - Use: `from scgraph.geographs.marnet import marnet_geograph`
     - Attribution: [searoute](https://github.com/genthalili/searoute-py)
     - Length Measurement: Kilometers
-    - <details>
-        <summary>Geograph Picture</summary>
-        ![marnet](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png)
-    </details>
+    - [Marnet Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png)
 - oak_ridge_maritime_geograph:
     - What: A maritime data set from the Oak Ridge National Laboratory campus
     - Use: `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph`
     - Attribution: [Oak Ridge National Laboratory](https://www.ornl.gov/) with data from [Geocommons](http://geocommons.com/datasets?id=25)
     - Length Measurement: Kilometers
-    - <details>
-        <summary>Geograph Picture</summary>
-        ![oak_ridge_maritime](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png)
-    </details>
+    - [Oak Ridge Maritime Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png)
 - north_america_rail_geograph:
     - What: Class 1 Rail network for North America
     - Use: `from scgraph.geographs.north_america_rail import north_america_rail_geograph`
     - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about)
     - Length Measurement: Kilometers
-    - <details>
-        <summary>Geograph Picture</summary>
-        ![north_america_rail](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png)
-    </details>
+    - [North America Rail Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png)
 - us_freeway_geograph:
     - What: Freeway network for the United States
     - Use: `from scgraph.geographs.us_freeway import us_freeway_geograph`
     - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about)
     - Length Measurement: Kilometers
-    - <details>
-        <summary>Geograph Picture</summary>
-        ![us_freeway](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png)
-    </details>
+    - [US Freeway Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png)
 
 ## Attributions and Thanks
 Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.
