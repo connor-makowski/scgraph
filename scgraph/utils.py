@@ -33,36 +33,40 @@ def haversine(
         - Default: 1
 
     """
-    # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(
-        math.radians,
-        [
-            origin["longitude"],
-            origin["latitude"],
-            destination["longitude"],
-            destination["latitude"],
-        ],
-    )
-    # haversine formula
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    )
-    c = 2 * math.asin(a**0.5)
-    # Set the radius of earth based on the units specified
-    if units == "km":
-        radius = 6371
-    elif units == "m":
-        radius = 6371000
-    elif units == "mi":
-        radius = 3959
-    elif units == "ft":
-        radius = 3959 * 5280
-    else:
-        raise ValueError('Units must be one of "km", "m", "mi", or "ft"')
-    return c * radius * circuity
+    try:
+        # convert decimal degrees to radians
+        lon1, lat1, lon2, lat2 = map(
+            math.radians,
+            [
+                origin["longitude"],
+                origin["latitude"],
+                destination["longitude"],
+                destination["latitude"],
+            ],
+        )
+        # haversine formula
+        dlon = lon2 - lon1
+        dlat = lat2 - lat1
+        a = (
+            math.sin(dlat / 2) ** 2
+            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        )
+        c = 2 * math.asin(a**0.5)
+        # Set the radius of earth based on the units specified
+        if units == "km":
+            radius = 6371
+        elif units == "m":
+            radius = 6371000
+        elif units == "mi":
+            radius = 3959
+        elif units == "ft":
+            radius = 3959 * 5280
+        else:
+            raise ValueError('Units must be one of "km", "m", "mi", or "ft"')
+        return c * radius * circuity
+    except:
+        print(origin, destination)
+        raise Exception()
 
 
 def hard_round(decimal_places, a):

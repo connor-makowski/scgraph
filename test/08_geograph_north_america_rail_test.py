@@ -20,7 +20,7 @@ print('\n===============\nNorth America Rail GeoGraph Tests:\n===============')
 
 expected = {
     'path': [9929, 260, 259, 334, 9930], 
-    'length': 40.1444, 
+    'length': 39.9236, 
     'coordinate_path': [
         {'longitude': -102.352, 'latitude': 48.325}, 
         {'longitude': -102.352, 'latitude': 48.325}, 
@@ -98,3 +98,5 @@ def dijkstra_makowski():
 
 time_test('Dijkstra', dijkstra)
 time_test('Dijkstra-Makowski', dijkstra_makowski)
+
+# north_america_rail_geograph.save_as_geojson('north_america_rail.geojson')

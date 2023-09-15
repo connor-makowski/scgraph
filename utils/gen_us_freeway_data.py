@@ -1,14 +1,13 @@
 import json
 from pamda import pamda
-from scgraph.utils import hard_round, distance_converter
-from collections import Counter
+from scgraph.utils import hard_round, haversine
 
 # This `geojson_file` is not comitted in the git repo for size reasons
 # It can be downloaded from: 
-# https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about
-geojson_file = "utils/north_america_rail_network.geojson"
-out_filename = "scgraph/geographs/north_america_rail.py"
-initialized_class_name = "north_america_rail_geograph"
+# https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k
+geojson_file = "utils/us_freeway.geojson"
+out_filename = "scgraph/geographs/us_freeway.py"
+initialized_class_name = "us_freeway_geograph"
 
 data_geojson = json.load(open(geojson_file, "r"))
 
@@ -24,7 +23,14 @@ def format_coord_pair(coord_pair):
     except:
         print(coord_pair)
         raise Exception()
-    
+
+def format_node(coord_pair):
+    coord_pair = format_coord_pair(coord_pair)
+    return {
+        'latitude':coord_pair[1],
+        'longitude':coord_pair[0],
+    }
+
 def get_agg_arc(origin, destination, arcs_dict):
     distance = 0
     current_node = origin
@@ -74,15 +80,27 @@ def agg_arcs(arcs, remove_tips:bool=False, tip_threshold:int=5):
     return agg_arcs
 
 def get_arcs(geojson):
-    arcs = [{
-        'origin':format_coord_pair(arc['geometry']['coordinates'][0][0]),
-        'destination':format_coord_pair(arc['geometry']['coordinates'][0][-1]),
-        'distance':round(distance_converter(distance=pamda.path(["properties","MILES"], arc), input_units='mi', output_units='km'),2),
-    } for arc in geojson["features"]]
-    # Aggregate up arcs then remove arcs with tips that are too short
-    arcs_no_tips = agg_arcs(arcs, remove_tips=True, tip_threshold=5)
-    # After removing tips, aggregate up arcs again to merge arcs on intersections that were previously broken by a tip
-    return agg_arcs(arcs_no_tips, remove_tips=False)
+    data = pamda.pluck(['geometry','coordinates'], geojson['features'])
+    multi_line_arc = []
+    for i in data:
+        if isinstance(i[0][0], list):
+            for j in i:
+                multi_line_arc.append(j)
+        else:
+            multi_line_arc.append(i)
+            
+    arcs = []
+    for line_arc in multi_line_arc:
+        for i in range(len(line_arc)-1):
+            arcs.append({
+                'origin':format_coord_pair(line_arc[i]),
+                'destination':format_coord_pair(line_arc[i+1]),
+                'distance':haversine(
+                    format_node(line_arc[i]),
+                    format_node(line_arc[i+1])
+                ),
+            })
+    return agg_arcs(arcs)
 
 arcs = get_arcs(data_geojson)
 
@@ -110,6 +128,3 @@ nodes={str(nodes)}
 
 with open(out_filename, "w") as f:
     f.write(out_string)
-
-
-
