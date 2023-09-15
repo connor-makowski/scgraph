@@ -1,4 +1,4 @@
-from .utils import haversine, hard_round
+from .utils import haversine, hard_round, distance_converter
 import json
 
 
@@ -270,10 +270,12 @@ class GeoGraph:
         self,
         origin_node,
         destination_node,
+        output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
         off_graph_circuity: [float, int] = 1,
         node_addition_type: str = "quadrant",
         node_addition_circuity: [float, int] = 4,
+        geograph_units: str = "km",
         **kwargs,
     ):
         """
@@ -297,6 +299,15 @@ class GeoGraph:
 
         Optional Arguments:
 
+        - `output_units`
+            - Type: str
+            - What: The units in which to return the length of the path
+            - Default: 'km'
+            - Options:
+                - 'km': Kilometers
+                - 'm': Meters
+                - 'mi': Miles
+                - 'ft': Feet
         - `algorithm_fn`
             - Type: function | method
             - What: The algorithm function to identify the shortest path
@@ -336,8 +347,18 @@ class GeoGraph:
                 - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
                 - This is only relevant if `node_addition_type` is set to 'quadrant' or 'all' as it affects the choice on where to enter the graph network
                 - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
+        - `geograph_units`
+            - Type: str
+            - What: The units of measurement in the geograph data
+            - Default: 'km'
+            - Options:
+                - 'km': Kilometers
+                - 'm': Meters
+                - 'mi': Miles
+                - 'ft': Feet
+            - Note: In general, all scgraph provided geographs be in kilometers
         - `**kwargs`
-            - Any additional keyword arguments to pass to the algorithm
+            - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
         # Add the origin and destination nodes to the graph
         origin_id = self.add_node(
@@ -362,6 +383,11 @@ class GeoGraph:
                 output=output,
                 node_addition_circuity=node_addition_circuity,
                 off_graph_circuity=off_graph_circuity,
+            )
+            output["length"] = distance_converter(
+                output["length"],
+                input_units=geograph_units,
+                output_units=output_units,
             )
             self.remove_added_node(node_id=origin_id)
             self.remove_added_node(node_id=destination_id)

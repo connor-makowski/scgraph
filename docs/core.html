@@ -26,7 +26,7 @@
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">from .utils import haversine, hard_round
+<pre><code class="python">from .utils import haversine, hard_round, distance_converter
 import json
 
 
@@ -298,10 +298,12 @@ class GeoGraph:
         self,
         origin_node,
         destination_node,
+        output_units: str = &#34;km&#34;,
         algorithm_fn=Graph.dijkstra_makowski,
         off_graph_circuity: [float, int] = 1,
         node_addition_type: str = &#34;quadrant&#34;,
         node_addition_circuity: [float, int] = 4,
+        geograph_units: str = &#34;km&#34;,
         **kwargs,
     ):
         &#34;&#34;&#34;
@@ -325,6 +327,15 @@ class GeoGraph:
 
         Optional Arguments:
 
+        - `output_units`
+            - Type: str
+            - What: The units in which to return the length of the path
+            - Default: &#39;km&#39;
+            - Options:
+                - &#39;km&#39;: Kilometers
+                - &#39;m&#39;: Meters
+                - &#39;mi&#39;: Miles
+                - &#39;ft&#39;: Feet
         - `algorithm_fn`
             - Type: function | method
             - What: The algorithm function to identify the shortest path
@@ -364,8 +375,18 @@ class GeoGraph:
                 - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
                 - This is only relevant if `node_addition_type` is set to &#39;quadrant&#39; or &#39;all&#39; as it affects the choice on where to enter the graph network
                 - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
+        - `geograph_units`
+            - Type: str
+            - What: The units of measurement in the geograph data
+            - Default: &#39;km&#39;
+            - Options:
+                - &#39;km&#39;: Kilometers
+                - &#39;m&#39;: Meters
+                - &#39;mi&#39;: Miles
+                - &#39;ft&#39;: Feet
+            - Note: In general, all scgraph provided geographs be in kilometers
         - `**kwargs`
-            - Any additional keyword arguments to pass to the algorithm
+            - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         &#34;&#34;&#34;
         # Add the origin and destination nodes to the graph
         origin_id = self.add_node(
@@ -390,6 +411,11 @@ class GeoGraph:
                 output=output,
                 node_addition_circuity=node_addition_circuity,
                 off_graph_circuity=off_graph_circuity,
+            )
+            output[&#34;length&#34;] = distance_converter(
+                output[&#34;length&#34;],
+                input_units=geograph_units,
+                output_units=output_units,
             )
             self.remove_added_node(node_id=origin_id)
             self.remove_added_node(node_id=destination_id)
@@ -767,10 +793,12 @@ class GeoGraph:
         self,
         origin_node,
         destination_node,
+        output_units: str = &#34;km&#34;,
         algorithm_fn=Graph.dijkstra_makowski,
         off_graph_circuity: [float, int] = 1,
         node_addition_type: str = &#34;quadrant&#34;,
         node_addition_circuity: [float, int] = 4,
+        geograph_units: str = &#34;km&#34;,
         **kwargs,
     ):
         &#34;&#34;&#34;
@@ -794,6 +822,15 @@ class GeoGraph:
 
         Optional Arguments:
 
+        - `output_units`
+            - Type: str
+            - What: The units in which to return the length of the path
+            - Default: &#39;km&#39;
+            - Options:
+                - &#39;km&#39;: Kilometers
+                - &#39;m&#39;: Meters
+                - &#39;mi&#39;: Miles
+                - &#39;ft&#39;: Feet
         - `algorithm_fn`
             - Type: function | method
             - What: The algorithm function to identify the shortest path
@@ -833,8 +870,18 @@ class GeoGraph:
                 - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
                 - This is only relevant if `node_addition_type` is set to &#39;quadrant&#39; or &#39;all&#39; as it affects the choice on where to enter the graph network
                 - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
+        - `geograph_units`
+            - Type: str
+            - What: The units of measurement in the geograph data
+            - Default: &#39;km&#39;
+            - Options:
+                - &#39;km&#39;: Kilometers
+                - &#39;m&#39;: Meters
+                - &#39;mi&#39;: Miles
+                - &#39;ft&#39;: Feet
+            - Note: In general, all scgraph provided geographs be in kilometers
         - `**kwargs`
-            - Any additional keyword arguments to pass to the algorithm
+            - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         &#34;&#34;&#34;
         # Add the origin and destination nodes to the graph
         origin_id = self.add_node(
@@ -859,6 +906,11 @@ class GeoGraph:
                 output=output,
                 node_addition_circuity=node_addition_circuity,
                 off_graph_circuity=off_graph_circuity,
+            )
+            output[&#34;length&#34;] = distance_converter(
+                output[&#34;length&#34;],
+                input_units=geograph_units,
+                output_units=output_units,
             )
             self.remove_added_node(node_id=origin_id)
             self.remove_added_node(node_id=destination_id)
@@ -1381,7 +1433,7 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.get_shortest_path"><code class="name flex">
-<span>def <span class="ident">get_shortest_path</span></span>(<span>self, origin_node, destination_node, algorithm_fn=&lt;function Graph.dijkstra_makowski&gt;, off_graph_circuity: [<class 'float'>, <class 'int'>] = 1, node_addition_type: str = 'quadrant', node_addition_circuity: [<class 'float'>, <class 'int'>] = 4, **kwargs)</span>
+<span>def <span class="ident">get_shortest_path</span></span>(<span>self, origin_node, destination_node, output_units: str = 'km', algorithm_fn=&lt;function Graph.dijkstra_makowski&gt;, off_graph_circuity: [<class 'float'>, <class 'int'>] = 1, node_addition_type: str = 'quadrant', node_addition_circuity: [<class 'float'>, <class 'int'>] = 4, geograph_units: str = 'km', **kwargs)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -1413,6 +1465,19 @@ class GeoGraph:
 </ul>
 <p>Optional Arguments:</p>
 <ul>
+<li><code>output_units</code><ul>
+<li>Type: str</li>
+<li>What: The units in which to return the length of the path</li>
+<li>Default: 'km'</li>
+<li>Options:<ul>
+<li>'km': Kilometers</li>
+<li>'m': Meters</li>
+<li>'mi': Miles</li>
+<li>'ft': Feet</li>
+</ul>
+</li>
+</ul>
+</li>
 <li><code>algorithm_fn</code><ul>
 <li>Type: function | method</li>
 <li>What: The algorithm function to identify the shortest path</li>
@@ -1472,8 +1537,22 @@ class GeoGraph:
 </li>
 </ul>
 </li>
+<li><code>geograph_units</code><ul>
+<li>Type: str</li>
+<li>What: The units of measurement in the geograph data</li>
+<li>Default: 'km'</li>
+<li>Options:<ul>
+<li>'km': Kilometers</li>
+<li>'m': Meters</li>
+<li>'mi': Miles</li>
+<li>'ft': Feet</li>
+</ul>
+</li>
+<li>Note: In general, all scgraph provided geographs be in kilometers</li>
+</ul>
+</li>
 <li><code>**kwargs</code><ul>
-<li>Any additional keyword arguments to pass to the algorithm</li>
+<li>Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.</li>
 </ul>
 </li>
 </ul></div>
@@ -1485,10 +1564,12 @@ class GeoGraph:
     self,
     origin_node,
     destination_node,
+    output_units: str = &#34;km&#34;,
     algorithm_fn=Graph.dijkstra_makowski,
     off_graph_circuity: [float, int] = 1,
     node_addition_type: str = &#34;quadrant&#34;,
     node_addition_circuity: [float, int] = 4,
+    geograph_units: str = &#34;km&#34;,
     **kwargs,
 ):
     &#34;&#34;&#34;
@@ -1512,6 +1593,15 @@ class GeoGraph:
 
     Optional Arguments:
 
+    - `output_units`
+        - Type: str
+        - What: The units in which to return the length of the path
+        - Default: &#39;km&#39;
+        - Options:
+            - &#39;km&#39;: Kilometers
+            - &#39;m&#39;: Meters
+            - &#39;mi&#39;: Miles
+            - &#39;ft&#39;: Feet
     - `algorithm_fn`
         - Type: function | method
         - What: The algorithm function to identify the shortest path
@@ -1551,8 +1641,18 @@ class GeoGraph:
             - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
             - This is only relevant if `node_addition_type` is set to &#39;quadrant&#39; or &#39;all&#39; as it affects the choice on where to enter the graph network
             - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
+    - `geograph_units`
+        - Type: str
+        - What: The units of measurement in the geograph data
+        - Default: &#39;km&#39;
+        - Options:
+            - &#39;km&#39;: Kilometers
+            - &#39;m&#39;: Meters
+            - &#39;mi&#39;: Miles
+            - &#39;ft&#39;: Feet
+        - Note: In general, all scgraph provided geographs be in kilometers
     - `**kwargs`
-        - Any additional keyword arguments to pass to the algorithm
+        - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
     &#34;&#34;&#34;
     # Add the origin and destination nodes to the graph
     origin_id = self.add_node(
@@ -1577,6 +1677,11 @@ class GeoGraph:
             output=output,
             node_addition_circuity=node_addition_circuity,
             off_graph_circuity=off_graph_circuity,
+        )
+        output[&#34;length&#34;] = distance_converter(
+            output[&#34;length&#34;],
+            input_units=geograph_units,
+            output_units=output_units,
         )
         self.remove_added_node(node_id=origin_id)
         self.remove_added_node(node_id=destination_id)
