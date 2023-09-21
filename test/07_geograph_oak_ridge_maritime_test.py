@@ -36,7 +36,7 @@ destination_node = {
 
 validate(
     name='Graph Validation',
-    realized = oak_ridge_maritime_geograph.validate_graph(),
+    realized = oak_ridge_maritime_geograph.validate_graph(check_symmetry=True, check_connected=False),
     expected = None
 )
 validate(
@@ -67,7 +67,7 @@ validate(
 
 print('\n===============\nOak Ridge GeoGraph Time Tests:\n===============')
 
-time_test('Graph Validation', pamda.thunkify(oak_ridge_maritime_geograph.validate_graph))
+time_test('Graph Validation', pamda.thunkify(oak_ridge_maritime_geograph.validate_graph)(check_symmetry=True, check_connected=False))
 time_test('Node Validation', pamda.thunkify(oak_ridge_maritime_geograph.validate_nodes))
 
 origin_node={

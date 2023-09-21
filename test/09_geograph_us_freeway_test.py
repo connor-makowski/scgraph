@@ -56,7 +56,7 @@ destination_node = {"longitude": -84.996, "latitude": 42.297}
 
 validate(
     name='Graph Validation',
-    realized = us_freeway_geograph.validate_graph(),
+    realized = us_freeway_geograph.validate_graph(check_symmetry=True, check_connected=False),
     expected = None
 )
 validate(
@@ -87,7 +87,7 @@ validate(
 
 print('\n===============\nUS Freeway GeoGraph Time Tests:\n===============')
 
-time_test('Graph Validation', pamda.thunkify(us_freeway_geograph.validate_graph))
+time_test('Graph Validation', pamda.thunkify(us_freeway_geograph.validate_graph)(check_symmetry=True, check_connected=False))
 time_test('Node Validation', pamda.thunkify(us_freeway_geograph.validate_nodes))
 
 # Seattle

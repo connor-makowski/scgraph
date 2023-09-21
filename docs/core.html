@@ -32,7 +32,9 @@ import json
 
 class Graph:
     @staticmethod
-    def validate_graph(graph: dict):
+    def validate_graph(
+        graph: dict, check_symmetry: bool = True, check_connected: bool = True
+    ) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
@@ -48,8 +50,19 @@ class Graph:
 
         Optional Arguments:
 
-        - None
+        - `check_symmetry`
+            - Type: bool
+            - What: Whether to check that the graph is symmetric
+            - Default: True
+            - Note: This is forced to True if `check_connected` is True
+        - `check_connected`
+            - Type: bool
+            - What: Whether to check that the graph is fully connected
+            - Default: True
+            - Note: For computational efficiency, only symmetric graphs are checked for connectivity
+            - Note: If this is True, `check_symmetry` is forced to True and the graph will be checked for symmetry prior to checking for connectivity
         &#34;&#34;&#34;
+        check_symmetry = check_symmetry or check_connected
         ids = []
         assert isinstance(graph, dict), &#34;Your graph must be a dictionary&#34;
         for origin_id, origin_dict in graph.items():
@@ -63,11 +76,15 @@ class Graph:
             for destination_id, distance in origin_dict.items():
                 assert isinstance(
                     destination_id, int
-                ), f&#34;Origin and destination ids must be integers but {destination_id} is not an integer&#34;
+                ), f&#34;Origin and destination ids must be integers but {destination_id} at graph[{origin_id}] is not an integer&#34;
                 assert isinstance(
                     distance, (int, float)
-                ), f&#34;Distances must be integers or floats but {distance} is not an integer or float&#34;
+                ), f&#34;Distances must be integers or floats but {distance} at graph[{origin_id}][{destination_id}] is not an integer or float&#34;
                 ids.append(destination_id)
+                if check_symmetry:
+                    assert (
+                        graph.get(destination_id, {}).get(origin_id) == distance
+                    ), f&#34;Your graph is not symmetric, the distance from node {origin_id} to node {destination_id} is {distance} but the distance from node {destination_id} to node {origin_id} is {graph.get(destination_id, {}).get(origin_id)}&#34;
         ids = set(ids)
         assert (
             min(ids) == 0
@@ -78,9 +95,91 @@ class Graph:
         assert len(graph) == len(
             ids
         ), f&#34;Your graph must have origin ids for all nodes regardless of if they have any connected destinations&#34;
+        if check_connected:
+            assert Graph.validate_connected(
+                graph
+            ), &#34;Your graph is not fully connected&#34;
 
     @staticmethod
-    def dijkstra(graph: dict, origin_id: int, destination_id: int):
+    def validate_connected(graph: dict) -&gt; bool:
+        &#34;&#34;&#34;
+        Function:
+
+        - Validate that a graph is fully connected
+            - This means that every node in the graph has a path to every other node in the graph
+            - Note: This assumes that the graph is symmetric
+        - Return True if the graph is fully connected and False if it is not
+
+        Required Arguments:
+
+        - `graph`
+            - Type: dict
+            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph
+            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
+
+        Optional Arguments:
+
+        - None
+        &#34;&#34;&#34;
+        origin_id = 0
+        destination_id = max(graph) + 1
+
+        distance_matrix = [float(&#34;inf&#34;) for i in graph]
+        open_leaves = {}
+        predecessor = [None for i in graph]
+
+        distance_matrix[origin_id] = 0
+        open_leaves[origin_id] = 0
+
+        while True:
+            if len(open_leaves) == 0:
+                return max(distance_matrix) != float(&#34;inf&#34;)
+            current_id = min(open_leaves, key=open_leaves.get)
+            open_leaves.pop(current_id)
+            if current_id == destination_id:
+                break
+            current_distance = distance_matrix[current_id]
+            for connected_id, connected_distance in graph[current_id].items():
+                possible_distance = current_distance + connected_distance
+                if possible_distance &lt; distance_matrix[connected_id]:
+                    distance_matrix[connected_id] = possible_distance
+                    predecessor[connected_id] = current_id
+                    open_leaves[connected_id] = possible_distance
+
+    @staticmethod
+    def input_check(graph: dict, origin_id: int, destination_id: int) -&gt; None:
+        &#34;&#34;&#34;
+        Function:
+
+        - Check that the inputs passed to the shortest path algorithm are valid
+        - Raises an exception if the inputs passed are not valid
+
+        Required Arguments:
+
+        - `graph`
+            - Type: dict
+            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+
+        Optional Arguments:
+
+        - None
+        &#34;&#34;&#34;
+        if origin_id not in graph:
+            raise Exception(f&#34;Origin node ({origin_id}) is not in the graph&#34;)
+        if destination_id not in graph:
+            raise Exception(
+                f&#34;Destination node ({destination_id}) is not in the graph&#34;
+            )
+
+    @staticmethod
+    def dijkstra(graph: dict, origin_id: int, destination_id: int) -&gt; dict:
         &#34;&#34;&#34;
         Function:
 
@@ -108,6 +207,9 @@ class Graph:
 
         - None
         &#34;&#34;&#34;
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
         distance_matrix = [float(&#34;inf&#34;) for i in graph]
         branch_tip_distances = [float(&#34;inf&#34;) for i in graph]
         predecessor = [None for i in graph]
@@ -118,7 +220,9 @@ class Graph:
         while True:
             current_distance = min(branch_tip_distances)
             if current_distance == float(&#34;inf&#34;):
-                return None
+                raise Exception(
+                    &#34;Something went wrong, the origin and destination nodes are not connected.&#34;
+                )
             current_id = branch_tip_distances.index(current_distance)
             branch_tip_distances[current_id] = float(&#34;inf&#34;)
             if current_id == destination_id:
@@ -143,7 +247,9 @@ class Graph:
         }
 
     @staticmethod
-    def dijkstra_makowski(graph: dict, origin_id: int, destination_id: int):
+    def dijkstra_makowski(
+        graph: dict, origin_id: int, destination_id: int
+    ) -&gt; dict:
         &#34;&#34;&#34;
         Function:
 
@@ -176,6 +282,9 @@ class Graph:
 
         - None
         &#34;&#34;&#34;
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
         distance_matrix = [float(&#34;inf&#34;) for i in graph]
         open_leaves = {}
         predecessor = [None for i in graph]
@@ -185,7 +294,9 @@ class Graph:
 
         while True:
             if len(open_leaves) == 0:
-                return None
+                raise Exception(
+                    &#34;Something went wrong, the origin and destination nodes are not connected.&#34;
+                )
             current_id = min(open_leaves, key=open_leaves.get)
             open_leaves.pop(current_id)
             if current_id == destination_id:
@@ -212,7 +323,7 @@ class Graph:
 
 
 class GeoGraph:
-    def __init__(self, graph: dict, nodes: dict):
+    def __init__(self, graph: dict, nodes: dict) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
@@ -237,11 +348,15 @@ class GeoGraph:
         self.graph = graph
         self.nodes = nodes
 
-    def validate_graph(self):
+    def validate_graph(
+        self, check_symmetry: bool = True, check_connected: bool = True
+    ) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
         - Validate that self.graph is properly formatted (see Graph.validate_graph)
+        - Raises an exception if the graph is invalid
+        - Returns None if the graph is valid
 
         Required Arguments:
 
@@ -249,16 +364,31 @@ class GeoGraph:
 
         Optional Arguments:
 
-        - None
+        - `check_symmetry`
+            - Type: bool
+            - What: Whether to check that the graph is symmetric
+            - Default: True
+            - Note: This is forced to True if `check_connected` is True
+        - `check_connected`
+            - Type: bool
+            - What: Whether to check that the graph is fully connected
+            - Default: True
+            - Note: For computational efficiency, graphs are validated for symmetry prior to checking for connectivity
         &#34;&#34;&#34;
-        Graph.validate_graph(self.graph)
+        Graph.validate_graph(
+            self.graph,
+            check_symmetry=check_symmetry,
+            check_connected=check_connected,
+        )
 
-    def validate_nodes(self):
+    def validate_nodes(self) -&gt; None:
         &#34;&#34;&#34;
 
         Function:
 
         - Validate that self.nodes is properly formatted (see GeoGraph.__init__ docs for more details)
+        - Raises an exception if the nodes are invalid
+        - Returns None if the nodes are valid
 
         Required Arguments:
 
@@ -305,7 +435,7 @@ class GeoGraph:
         node_addition_circuity: [float, int] = 4,
         geograph_units: str = &#34;km&#34;,
         **kwargs,
-    ):
+    ) -&gt; dict:
         &#34;&#34;&#34;
         Function:
 
@@ -356,7 +486,7 @@ class GeoGraph:
                 - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
         - `node_addition_type`
             - Type: str
-            - What: The type of node addition to use when adding your origin and destination nodes to the distance matrix
+            - What: The type of node addition to use when adding your origin node to the distance matrix
             - Default: &#39;quadrant&#39;
             - Options:
                 - &#39;quadrant&#39;: Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
@@ -366,6 +496,10 @@ class GeoGraph:
                 - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to &#39;quadrant&#39; or &#39;closest&#39;
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+                - The destination node is always added as &#39;all&#39; regardless of the `node_addition_type` setting
+                    - This guarantees that any destination node will be connected to any origin node regardless of how or where the origin node is added to the graph
+                - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)
+                    - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`
         - `node_addition_circuity`
             - Type: float | int
             - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
@@ -396,7 +530,7 @@ class GeoGraph:
         )
         destination_id = self.add_node(
             node=destination_node,
-            node_addition_type=node_addition_type,
+            node_addition_type=&#34;all&#34;,
             circuity=node_addition_circuity,
         )
 
@@ -430,7 +564,7 @@ class GeoGraph:
         output: dict,
         node_addition_circuity: [float, int],
         off_graph_circuity: [float, int],
-    ):
+    ) -&gt; [float, int]:
         &#34;&#34;&#34;
         Function:
 
@@ -465,7 +599,7 @@ class GeoGraph:
                 4,
             )
 
-    def get_coordinate_path(self, path):
+    def get_coordinate_path(self, path: list) -&gt; list:
         &#34;&#34;&#34;
         Function:
 
@@ -483,7 +617,7 @@ class GeoGraph:
         &#34;&#34;&#34;
         return [self.nodes[node_id] for node_id in path]
 
-    def remove_added_node(self, node_id: int):
+    def remove_added_node(self, node_id: int) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
@@ -517,7 +651,7 @@ class GeoGraph:
         node: dict,
         circuity: [float, int],
         node_addition_type: str = &#34;quadrant&#34;,
-    ):
+    ) -&gt; int:
         &#34;&#34;&#34;
         Function:
 
@@ -618,12 +752,13 @@ class GeoGraph:
                 ]
         return new_node_id
 
-    def save_as_geojson(self, filename):
+    def save_as_geojson(self, filename: str) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
-        - Save the current geograph object as a geojson file
+        - Save the current geograph object as a geojson file specifed by `filename`
         - This is useful for understanding the underlying geograph and for debugging purposes
+        - Returns None
 
         Required Arguments:
 
@@ -707,7 +842,7 @@ class GeoGraph:
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">class GeoGraph:
-    def __init__(self, graph: dict, nodes: dict):
+    def __init__(self, graph: dict, nodes: dict) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
@@ -732,11 +867,15 @@ class GeoGraph:
         self.graph = graph
         self.nodes = nodes
 
-    def validate_graph(self):
+    def validate_graph(
+        self, check_symmetry: bool = True, check_connected: bool = True
+    ) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
         - Validate that self.graph is properly formatted (see Graph.validate_graph)
+        - Raises an exception if the graph is invalid
+        - Returns None if the graph is valid
 
         Required Arguments:
 
@@ -744,16 +883,31 @@ class GeoGraph:
 
         Optional Arguments:
 
-        - None
+        - `check_symmetry`
+            - Type: bool
+            - What: Whether to check that the graph is symmetric
+            - Default: True
+            - Note: This is forced to True if `check_connected` is True
+        - `check_connected`
+            - Type: bool
+            - What: Whether to check that the graph is fully connected
+            - Default: True
+            - Note: For computational efficiency, graphs are validated for symmetry prior to checking for connectivity
         &#34;&#34;&#34;
-        Graph.validate_graph(self.graph)
+        Graph.validate_graph(
+            self.graph,
+            check_symmetry=check_symmetry,
+            check_connected=check_connected,
+        )
 
-    def validate_nodes(self):
+    def validate_nodes(self) -&gt; None:
         &#34;&#34;&#34;
 
         Function:
 
         - Validate that self.nodes is properly formatted (see GeoGraph.__init__ docs for more details)
+        - Raises an exception if the nodes are invalid
+        - Returns None if the nodes are valid
 
         Required Arguments:
 
@@ -800,7 +954,7 @@ class GeoGraph:
         node_addition_circuity: [float, int] = 4,
         geograph_units: str = &#34;km&#34;,
         **kwargs,
-    ):
+    ) -&gt; dict:
         &#34;&#34;&#34;
         Function:
 
@@ -851,7 +1005,7 @@ class GeoGraph:
                 - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
         - `node_addition_type`
             - Type: str
-            - What: The type of node addition to use when adding your origin and destination nodes to the distance matrix
+            - What: The type of node addition to use when adding your origin node to the distance matrix
             - Default: &#39;quadrant&#39;
             - Options:
                 - &#39;quadrant&#39;: Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
@@ -861,6 +1015,10 @@ class GeoGraph:
                 - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to &#39;quadrant&#39; or &#39;closest&#39;
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+                - The destination node is always added as &#39;all&#39; regardless of the `node_addition_type` setting
+                    - This guarantees that any destination node will be connected to any origin node regardless of how or where the origin node is added to the graph
+                - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)
+                    - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`
         - `node_addition_circuity`
             - Type: float | int
             - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
@@ -891,7 +1049,7 @@ class GeoGraph:
         )
         destination_id = self.add_node(
             node=destination_node,
-            node_addition_type=node_addition_type,
+            node_addition_type=&#34;all&#34;,
             circuity=node_addition_circuity,
         )
 
@@ -925,7 +1083,7 @@ class GeoGraph:
         output: dict,
         node_addition_circuity: [float, int],
         off_graph_circuity: [float, int],
-    ):
+    ) -&gt; [float, int]:
         &#34;&#34;&#34;
         Function:
 
@@ -960,7 +1118,7 @@ class GeoGraph:
                 4,
             )
 
-    def get_coordinate_path(self, path):
+    def get_coordinate_path(self, path: list) -&gt; list:
         &#34;&#34;&#34;
         Function:
 
@@ -978,7 +1136,7 @@ class GeoGraph:
         &#34;&#34;&#34;
         return [self.nodes[node_id] for node_id in path]
 
-    def remove_added_node(self, node_id: int):
+    def remove_added_node(self, node_id: int) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
@@ -1012,7 +1170,7 @@ class GeoGraph:
         node: dict,
         circuity: [float, int],
         node_addition_type: str = &#34;quadrant&#34;,
-    ):
+    ) -&gt; int:
         &#34;&#34;&#34;
         Function:
 
@@ -1113,12 +1271,13 @@ class GeoGraph:
                 ]
         return new_node_id
 
-    def save_as_geojson(self, filename):
+    def save_as_geojson(self, filename: str) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
-        - Save the current geograph object as a geojson file
+        - Save the current geograph object as a geojson file specifed by `filename`
         - This is useful for understanding the underlying geograph and for debugging purposes
+        - Returns None
 
         Required Arguments:
 
@@ -1163,7 +1322,7 @@ class GeoGraph:
 <h3>Methods</h3>
 <dl>
 <dt id="scgraph.core.GeoGraph.add_node"><code class="name flex">
-<span>def <span class="ident">add_node</span></span>(<span>self, node: dict, circuity: [<class 'float'>, <class 'int'>], node_addition_type: str = 'quadrant')</span>
+<span>def <span class="ident">add_node</span></span>(<span>self, node: dict, circuity: [<class 'float'>, <class 'int'>], node_addition_type: str = 'quadrant') ‑> int</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -1216,7 +1375,7 @@ class GeoGraph:
     node: dict,
     circuity: [float, int],
     node_addition_type: str = &#34;quadrant&#34;,
-):
+) -&gt; int:
     &#34;&#34;&#34;
     Function:
 
@@ -1319,7 +1478,7 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.adujust_circuity_length"><code class="name flex">
-<span>def <span class="ident">adujust_circuity_length</span></span>(<span>self, output: dict, node_addition_circuity: [<class 'float'>, <class 'int'>], off_graph_circuity: [<class 'float'>, <class 'int'>])</span>
+<span>def <span class="ident">adujust_circuity_length</span></span>(<span>self, output: dict, node_addition_circuity: [<class 'float'>, <class 'int'>], off_graph_circuity: [<class 'float'>, <class 'int'>]) ‑> [<class 'float'>, <class 'int'>]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -1353,7 +1512,7 @@ class GeoGraph:
     output: dict,
     node_addition_circuity: [float, int],
     off_graph_circuity: [float, int],
-):
+) -&gt; [float, int]:
     &#34;&#34;&#34;
     Function:
 
@@ -1390,7 +1549,7 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.get_coordinate_path"><code class="name flex">
-<span>def <span class="ident">get_coordinate_path</span></span>(<span>self, path)</span>
+<span>def <span class="ident">get_coordinate_path</span></span>(<span>self, path: list) ‑> list</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -1413,7 +1572,7 @@ class GeoGraph:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def get_coordinate_path(self, path):
+<pre><code class="python">def get_coordinate_path(self, path: list) -&gt; list:
     &#34;&#34;&#34;
     Function:
 
@@ -1433,7 +1592,7 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.get_shortest_path"><code class="name flex">
-<span>def <span class="ident">get_shortest_path</span></span>(<span>self, origin_node, destination_node, output_units: str = 'km', algorithm_fn=&lt;function Graph.dijkstra_makowski&gt;, off_graph_circuity: [<class 'float'>, <class 'int'>] = 1, node_addition_type: str = 'quadrant', node_addition_circuity: [<class 'float'>, <class 'int'>] = 4, geograph_units: str = 'km', **kwargs)</span>
+<span>def <span class="ident">get_shortest_path</span></span>(<span>self, origin_node, destination_node, output_units: str = 'km', algorithm_fn=&lt;function Graph.dijkstra_makowski&gt;, off_graph_circuity: [<class 'float'>, <class 'int'>] = 1, node_addition_type: str = 'quadrant', node_addition_circuity: [<class 'float'>, <class 'int'>] = 4, geograph_units: str = 'km', **kwargs) ‑> dict</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -1508,7 +1667,7 @@ class GeoGraph:
 </li>
 <li><code>node_addition_type</code><ul>
 <li>Type: str</li>
-<li>What: The type of node addition to use when adding your origin and destination nodes to the distance matrix</li>
+<li>What: The type of node addition to use when adding your origin node to the distance matrix</li>
 <li>Default: 'quadrant'</li>
 <li>Options:<ul>
 <li>'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node</li>
@@ -1520,6 +1679,14 @@ class GeoGraph:
 <li><code>dijkstra_makowski</code> will operate substantially faster if the <code>node_addition_type</code> is set to 'quadrant' or 'closest'</li>
 <li><code>dijkstra</code> will operate at the similar speeds regardless of the <code>node_addition_type</code></li>
 <li>When using <code>all</code>, you should consider using <code>dijkstra</code> instead of <code>dijkstra_makowski</code> as it will be faster</li>
+<li>The destination node is always added as 'all' regardless of the <code>node_addition_type</code> setting<ul>
+<li>This guarantees that any destination node will be connected to any origin node regardless of how or where the origin node is added to the graph</li>
+</ul>
+</li>
+<li>If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)<ul>
+<li>The entrypoints generated using the <code>node_addition_type</code> will determine which disconnected networks will be used to calculate the <code>optimal route</code></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -1571,7 +1738,7 @@ class GeoGraph:
     node_addition_circuity: [float, int] = 4,
     geograph_units: str = &#34;km&#34;,
     **kwargs,
-):
+) -&gt; dict:
     &#34;&#34;&#34;
     Function:
 
@@ -1622,7 +1789,7 @@ class GeoGraph:
             - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
     - `node_addition_type`
         - Type: str
-        - What: The type of node addition to use when adding your origin and destination nodes to the distance matrix
+        - What: The type of node addition to use when adding your origin node to the distance matrix
         - Default: &#39;quadrant&#39;
         - Options:
             - &#39;quadrant&#39;: Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
@@ -1632,6 +1799,10 @@ class GeoGraph:
             - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to &#39;quadrant&#39; or &#39;closest&#39;
             - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
             - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+            - The destination node is always added as &#39;all&#39; regardless of the `node_addition_type` setting
+                - This guarantees that any destination node will be connected to any origin node regardless of how or where the origin node is added to the graph
+            - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)
+                - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`
     - `node_addition_circuity`
         - Type: float | int
         - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
@@ -1662,7 +1833,7 @@ class GeoGraph:
     )
     destination_id = self.add_node(
         node=destination_node,
-        node_addition_type=node_addition_type,
+        node_addition_type=&#34;all&#34;,
         circuity=node_addition_circuity,
     )
 
@@ -1693,7 +1864,7 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.remove_added_node"><code class="name flex">
-<span>def <span class="ident">remove_added_node</span></span>(<span>self, node_id: int)</span>
+<span>def <span class="ident">remove_added_node</span></span>(<span>self, node_id: int) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -1721,7 +1892,7 @@ class GeoGraph:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def remove_added_node(self, node_id: int):
+<pre><code class="python">def remove_added_node(self, node_id: int) -&gt; None:
     &#34;&#34;&#34;
     Function:
 
@@ -1752,13 +1923,14 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.save_as_geojson"><code class="name flex">
-<span>def <span class="ident">save_as_geojson</span></span>(<span>self, filename)</span>
+<span>def <span class="ident">save_as_geojson</span></span>(<span>self, filename: str) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
 <ul>
-<li>Save the current geograph object as a geojson file</li>
+<li>Save the current geograph object as a geojson file specifed by <code>filename</code></li>
 <li>This is useful for understanding the underlying geograph and for debugging purposes</li>
+<li>Returns None</li>
 </ul>
 <p>Required Arguments:</p>
 <ul>
@@ -1772,12 +1944,13 @@ class GeoGraph:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def save_as_geojson(self, filename):
+<pre><code class="python">def save_as_geojson(self, filename: str) -&gt; None:
     &#34;&#34;&#34;
     Function:
 
-    - Save the current geograph object as a geojson file
+    - Save the current geograph object as a geojson file specifed by `filename`
     - This is useful for understanding the underlying geograph and for debugging purposes
+    - Returns None
 
     Required Arguments:
 
@@ -1821,12 +1994,14 @@ class GeoGraph:
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.validate_graph"><code class="name flex">
-<span>def <span class="ident">validate_graph</span></span>(<span>self)</span>
+<span>def <span class="ident">validate_graph</span></span>(<span>self, check_symmetry: bool = True, check_connected: bool = True) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
 <ul>
 <li>Validate that self.graph is properly formatted (see Graph.validate_graph)</li>
+<li>Raises an exception if the graph is invalid</li>
+<li>Returns None if the graph is valid</li>
 </ul>
 <p>Required Arguments:</p>
 <ul>
@@ -1834,17 +2009,34 @@ class GeoGraph:
 </ul>
 <p>Optional Arguments:</p>
 <ul>
-<li>None</li>
+<li><code>check_symmetry</code><ul>
+<li>Type: bool</li>
+<li>What: Whether to check that the graph is symmetric</li>
+<li>Default: True</li>
+<li>Note: This is forced to True if <code>check_connected</code> is True</li>
+</ul>
+</li>
+<li><code>check_connected</code><ul>
+<li>Type: bool</li>
+<li>What: Whether to check that the graph is fully connected</li>
+<li>Default: True</li>
+<li>Note: For computational efficiency, graphs are validated for symmetry prior to checking for connectivity</li>
+</ul>
+</li>
 </ul></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def validate_graph(self):
+<pre><code class="python">def validate_graph(
+    self, check_symmetry: bool = True, check_connected: bool = True
+) -&gt; None:
     &#34;&#34;&#34;
     Function:
 
     - Validate that self.graph is properly formatted (see Graph.validate_graph)
+    - Raises an exception if the graph is invalid
+    - Returns None if the graph is valid
 
     Required Arguments:
 
@@ -1852,18 +2044,33 @@ class GeoGraph:
 
     Optional Arguments:
 
-    - None
+    - `check_symmetry`
+        - Type: bool
+        - What: Whether to check that the graph is symmetric
+        - Default: True
+        - Note: This is forced to True if `check_connected` is True
+    - `check_connected`
+        - Type: bool
+        - What: Whether to check that the graph is fully connected
+        - Default: True
+        - Note: For computational efficiency, graphs are validated for symmetry prior to checking for connectivity
     &#34;&#34;&#34;
-    Graph.validate_graph(self.graph)</code></pre>
+    Graph.validate_graph(
+        self.graph,
+        check_symmetry=check_symmetry,
+        check_connected=check_connected,
+    )</code></pre>
 </details>
 </dd>
 <dt id="scgraph.core.GeoGraph.validate_nodes"><code class="name flex">
-<span>def <span class="ident">validate_nodes</span></span>(<span>self)</span>
+<span>def <span class="ident">validate_nodes</span></span>(<span>self) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
 <ul>
 <li>Validate that self.nodes is properly formatted (see GeoGraph.<strong>init</strong> docs for more details)</li>
+<li>Raises an exception if the nodes are invalid</li>
+<li>Returns None if the nodes are valid</li>
 </ul>
 <p>Required Arguments:</p>
 <ul>
@@ -1877,12 +2084,14 @@ class GeoGraph:
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def validate_nodes(self):
+<pre><code class="python">def validate_nodes(self) -&gt; None:
     &#34;&#34;&#34;
 
     Function:
 
     - Validate that self.nodes is properly formatted (see GeoGraph.__init__ docs for more details)
+    - Raises an exception if the nodes are invalid
+    - Returns None if the nodes are valid
 
     Required Arguments:
 
@@ -1932,7 +2141,9 @@ class GeoGraph:
 </summary>
 <pre><code class="python">class Graph:
     @staticmethod
-    def validate_graph(graph: dict):
+    def validate_graph(
+        graph: dict, check_symmetry: bool = True, check_connected: bool = True
+    ) -&gt; None:
         &#34;&#34;&#34;
         Function:
 
@@ -1948,8 +2159,19 @@ class GeoGraph:
 
         Optional Arguments:
 
-        - None
+        - `check_symmetry`
+            - Type: bool
+            - What: Whether to check that the graph is symmetric
+            - Default: True
+            - Note: This is forced to True if `check_connected` is True
+        - `check_connected`
+            - Type: bool
+            - What: Whether to check that the graph is fully connected
+            - Default: True
+            - Note: For computational efficiency, only symmetric graphs are checked for connectivity
+            - Note: If this is True, `check_symmetry` is forced to True and the graph will be checked for symmetry prior to checking for connectivity
         &#34;&#34;&#34;
+        check_symmetry = check_symmetry or check_connected
         ids = []
         assert isinstance(graph, dict), &#34;Your graph must be a dictionary&#34;
         for origin_id, origin_dict in graph.items():
@@ -1963,11 +2185,15 @@ class GeoGraph:
             for destination_id, distance in origin_dict.items():
                 assert isinstance(
                     destination_id, int
-                ), f&#34;Origin and destination ids must be integers but {destination_id} is not an integer&#34;
+                ), f&#34;Origin and destination ids must be integers but {destination_id} at graph[{origin_id}] is not an integer&#34;
                 assert isinstance(
                     distance, (int, float)
-                ), f&#34;Distances must be integers or floats but {distance} is not an integer or float&#34;
+                ), f&#34;Distances must be integers or floats but {distance} at graph[{origin_id}][{destination_id}] is not an integer or float&#34;
                 ids.append(destination_id)
+                if check_symmetry:
+                    assert (
+                        graph.get(destination_id, {}).get(origin_id) == distance
+                    ), f&#34;Your graph is not symmetric, the distance from node {origin_id} to node {destination_id} is {distance} but the distance from node {destination_id} to node {origin_id} is {graph.get(destination_id, {}).get(origin_id)}&#34;
         ids = set(ids)
         assert (
             min(ids) == 0
@@ -1978,9 +2204,91 @@ class GeoGraph:
         assert len(graph) == len(
             ids
         ), f&#34;Your graph must have origin ids for all nodes regardless of if they have any connected destinations&#34;
+        if check_connected:
+            assert Graph.validate_connected(
+                graph
+            ), &#34;Your graph is not fully connected&#34;
 
     @staticmethod
-    def dijkstra(graph: dict, origin_id: int, destination_id: int):
+    def validate_connected(graph: dict) -&gt; bool:
+        &#34;&#34;&#34;
+        Function:
+
+        - Validate that a graph is fully connected
+            - This means that every node in the graph has a path to every other node in the graph
+            - Note: This assumes that the graph is symmetric
+        - Return True if the graph is fully connected and False if it is not
+
+        Required Arguments:
+
+        - `graph`
+            - Type: dict
+            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph
+            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
+
+        Optional Arguments:
+
+        - None
+        &#34;&#34;&#34;
+        origin_id = 0
+        destination_id = max(graph) + 1
+
+        distance_matrix = [float(&#34;inf&#34;) for i in graph]
+        open_leaves = {}
+        predecessor = [None for i in graph]
+
+        distance_matrix[origin_id] = 0
+        open_leaves[origin_id] = 0
+
+        while True:
+            if len(open_leaves) == 0:
+                return max(distance_matrix) != float(&#34;inf&#34;)
+            current_id = min(open_leaves, key=open_leaves.get)
+            open_leaves.pop(current_id)
+            if current_id == destination_id:
+                break
+            current_distance = distance_matrix[current_id]
+            for connected_id, connected_distance in graph[current_id].items():
+                possible_distance = current_distance + connected_distance
+                if possible_distance &lt; distance_matrix[connected_id]:
+                    distance_matrix[connected_id] = possible_distance
+                    predecessor[connected_id] = current_id
+                    open_leaves[connected_id] = possible_distance
+
+    @staticmethod
+    def input_check(graph: dict, origin_id: int, destination_id: int) -&gt; None:
+        &#34;&#34;&#34;
+        Function:
+
+        - Check that the inputs passed to the shortest path algorithm are valid
+        - Raises an exception if the inputs passed are not valid
+
+        Required Arguments:
+
+        - `graph`
+            - Type: dict
+            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+
+        Optional Arguments:
+
+        - None
+        &#34;&#34;&#34;
+        if origin_id not in graph:
+            raise Exception(f&#34;Origin node ({origin_id}) is not in the graph&#34;)
+        if destination_id not in graph:
+            raise Exception(
+                f&#34;Destination node ({destination_id}) is not in the graph&#34;
+            )
+
+    @staticmethod
+    def dijkstra(graph: dict, origin_id: int, destination_id: int) -&gt; dict:
         &#34;&#34;&#34;
         Function:
 
@@ -2008,6 +2316,9 @@ class GeoGraph:
 
         - None
         &#34;&#34;&#34;
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
         distance_matrix = [float(&#34;inf&#34;) for i in graph]
         branch_tip_distances = [float(&#34;inf&#34;) for i in graph]
         predecessor = [None for i in graph]
@@ -2018,7 +2329,9 @@ class GeoGraph:
         while True:
             current_distance = min(branch_tip_distances)
             if current_distance == float(&#34;inf&#34;):
-                return None
+                raise Exception(
+                    &#34;Something went wrong, the origin and destination nodes are not connected.&#34;
+                )
             current_id = branch_tip_distances.index(current_distance)
             branch_tip_distances[current_id] = float(&#34;inf&#34;)
             if current_id == destination_id:
@@ -2043,7 +2356,9 @@ class GeoGraph:
         }
 
     @staticmethod
-    def dijkstra_makowski(graph: dict, origin_id: int, destination_id: int):
+    def dijkstra_makowski(
+        graph: dict, origin_id: int, destination_id: int
+    ) -&gt; dict:
         &#34;&#34;&#34;
         Function:
 
@@ -2076,6 +2391,9 @@ class GeoGraph:
 
         - None
         &#34;&#34;&#34;
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
         distance_matrix = [float(&#34;inf&#34;) for i in graph]
         open_leaves = {}
         predecessor = [None for i in graph]
@@ -2085,7 +2403,9 @@ class GeoGraph:
 
         while True:
             if len(open_leaves) == 0:
-                return None
+                raise Exception(
+                    &#34;Something went wrong, the origin and destination nodes are not connected.&#34;
+                )
             current_id = min(open_leaves, key=open_leaves.get)
             open_leaves.pop(current_id)
             if current_id == destination_id:
@@ -2113,7 +2433,7 @@ class GeoGraph:
 <h3>Static methods</h3>
 <dl>
 <dt id="scgraph.core.Graph.dijkstra"><code class="name flex">
-<span>def <span class="ident">dijkstra</span></span>(<span>graph: dict, origin_id: int, destination_id: int)</span>
+<span>def <span class="ident">dijkstra</span></span>(<span>graph: dict, origin_id: int, destination_id: int) ‑> dict</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -2157,7 +2477,7 @@ class GeoGraph:
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@staticmethod
-def dijkstra(graph: dict, origin_id: int, destination_id: int):
+def dijkstra(graph: dict, origin_id: int, destination_id: int) -&gt; dict:
     &#34;&#34;&#34;
     Function:
 
@@ -2185,6 +2505,9 @@ def dijkstra(graph: dict, origin_id: int, destination_id: int):
 
     - None
     &#34;&#34;&#34;
+    Graph.input_check(
+        graph=graph, origin_id=origin_id, destination_id=destination_id
+    )
     distance_matrix = [float(&#34;inf&#34;) for i in graph]
     branch_tip_distances = [float(&#34;inf&#34;) for i in graph]
     predecessor = [None for i in graph]
@@ -2195,7 +2518,9 @@ def dijkstra(graph: dict, origin_id: int, destination_id: int):
     while True:
         current_distance = min(branch_tip_distances)
         if current_distance == float(&#34;inf&#34;):
-            return None
+            raise Exception(
+                &#34;Something went wrong, the origin and destination nodes are not connected.&#34;
+            )
         current_id = branch_tip_distances.index(current_distance)
         branch_tip_distances[current_id] = float(&#34;inf&#34;)
         if current_id == destination_id:
@@ -2221,7 +2546,7 @@ def dijkstra(graph: dict, origin_id: int, destination_id: int):
 </details>
 </dd>
 <dt id="scgraph.core.Graph.dijkstra_makowski"><code class="name flex">
-<span>def <span class="ident">dijkstra_makowski</span></span>(<span>graph: dict, origin_id: int, destination_id: int)</span>
+<span>def <span class="ident">dijkstra_makowski</span></span>(<span>graph: dict, origin_id: int, destination_id: int) ‑> dict</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
@@ -2276,7 +2601,9 @@ def dijkstra(graph: dict, origin_id: int, destination_id: int):
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@staticmethod
-def dijkstra_makowski(graph: dict, origin_id: int, destination_id: int):
+def dijkstra_makowski(
+    graph: dict, origin_id: int, destination_id: int
+) -&gt; dict:
     &#34;&#34;&#34;
     Function:
 
@@ -2309,6 +2636,9 @@ def dijkstra_makowski(graph: dict, origin_id: int, destination_id: int):
 
     - None
     &#34;&#34;&#34;
+    Graph.input_check(
+        graph=graph, origin_id=origin_id, destination_id=destination_id
+    )
     distance_matrix = [float(&#34;inf&#34;) for i in graph]
     open_leaves = {}
     predecessor = [None for i in graph]
@@ -2318,7 +2648,9 @@ def dijkstra_makowski(graph: dict, origin_id: int, destination_id: int):
 
     while True:
         if len(open_leaves) == 0:
-            return None
+            raise Exception(
+                &#34;Something went wrong, the origin and destination nodes are not connected.&#34;
+            )
         current_id = min(open_leaves, key=open_leaves.get)
         open_leaves.pop(current_id)
         if current_id == destination_id:
@@ -2344,13 +2676,85 @@ def dijkstra_makowski(graph: dict, origin_id: int, destination_id: int):
     }</code></pre>
 </details>
 </dd>
-<dt id="scgraph.core.Graph.validate_graph"><code class="name flex">
-<span>def <span class="ident">validate_graph</span></span>(<span>graph: dict)</span>
+<dt id="scgraph.core.Graph.input_check"><code class="name flex">
+<span>def <span class="ident">input_check</span></span>(<span>graph: dict, origin_id: int, destination_id: int) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Function:</p>
 <ul>
-<li>Validate that a graph is properly formatted</li>
+<li>Check that the inputs passed to the shortest path algorithm are valid</li>
+<li>Raises an exception if the inputs passed are not valid</li>
+</ul>
+<p>Required Arguments:</p>
+<ul>
+<li><code>graph</code><ul>
+<li>Type: dict</li>
+<li>What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances</li>
+</ul>
+</li>
+<li><code>origin_id</code><ul>
+<li>Type: int</li>
+<li>What: The id of the origin node from the graph dictionary to start the shortest path from</li>
+</ul>
+</li>
+<li><code>destination_id</code><ul>
+<li>Type: int</li>
+<li>What: The id of the destination node from the graph dictionary to end the shortest path at</li>
+</ul>
+</li>
+</ul>
+<p>Optional Arguments:</p>
+<ul>
+<li>None</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def input_check(graph: dict, origin_id: int, destination_id: int) -&gt; None:
+    &#34;&#34;&#34;
+    Function:
+
+    - Check that the inputs passed to the shortest path algorithm are valid
+    - Raises an exception if the inputs passed are not valid
+
+    Required Arguments:
+
+    - `graph`
+        - Type: dict
+        - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+    - `origin_id`
+        - Type: int
+        - What: The id of the origin node from the graph dictionary to start the shortest path from
+    - `destination_id`
+        - Type: int
+        - What: The id of the destination node from the graph dictionary to end the shortest path at
+
+    Optional Arguments:
+
+    - None
+    &#34;&#34;&#34;
+    if origin_id not in graph:
+        raise Exception(f&#34;Origin node ({origin_id}) is not in the graph&#34;)
+    if destination_id not in graph:
+        raise Exception(
+            f&#34;Destination node ({destination_id}) is not in the graph&#34;
+        )</code></pre>
+</details>
+</dd>
+<dt id="scgraph.core.Graph.validate_connected"><code class="name flex">
+<span>def <span class="ident">validate_connected</span></span>(<span>graph: dict) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Validate that a graph is fully connected<ul>
+<li>This means that every node in the graph has a path to every other node in the graph</li>
+<li>Note: This assumes that the graph is symmetric</li>
+</ul>
+</li>
+<li>Return True if the graph is fully connected and False if it is not</li>
 </ul>
 <p>Required Arguments:</p>
 <ul>
@@ -2371,7 +2775,97 @@ def dijkstra_makowski(graph: dict, origin_id: int, destination_id: int):
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@staticmethod
-def validate_graph(graph: dict):
+def validate_connected(graph: dict) -&gt; bool:
+    &#34;&#34;&#34;
+    Function:
+
+    - Validate that a graph is fully connected
+        - This means that every node in the graph has a path to every other node in the graph
+        - Note: This assumes that the graph is symmetric
+    - Return True if the graph is fully connected and False if it is not
+
+    Required Arguments:
+
+    - `graph`
+        - Type: dict
+        - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+        - Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph
+        - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
+
+    Optional Arguments:
+
+    - None
+    &#34;&#34;&#34;
+    origin_id = 0
+    destination_id = max(graph) + 1
+
+    distance_matrix = [float(&#34;inf&#34;) for i in graph]
+    open_leaves = {}
+    predecessor = [None for i in graph]
+
+    distance_matrix[origin_id] = 0
+    open_leaves[origin_id] = 0
+
+    while True:
+        if len(open_leaves) == 0:
+            return max(distance_matrix) != float(&#34;inf&#34;)
+        current_id = min(open_leaves, key=open_leaves.get)
+        open_leaves.pop(current_id)
+        if current_id == destination_id:
+            break
+        current_distance = distance_matrix[current_id]
+        for connected_id, connected_distance in graph[current_id].items():
+            possible_distance = current_distance + connected_distance
+            if possible_distance &lt; distance_matrix[connected_id]:
+                distance_matrix[connected_id] = possible_distance
+                predecessor[connected_id] = current_id
+                open_leaves[connected_id] = possible_distance</code></pre>
+</details>
+</dd>
+<dt id="scgraph.core.Graph.validate_graph"><code class="name flex">
+<span>def <span class="ident">validate_graph</span></span>(<span>graph: dict, check_symmetry: bool = True, check_connected: bool = True) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Validate that a graph is properly formatted</li>
+</ul>
+<p>Required Arguments:</p>
+<ul>
+<li><code>graph</code><ul>
+<li>Type: dict</li>
+<li>What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances</li>
+<li>Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph</li>
+<li>Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations</li>
+</ul>
+</li>
+</ul>
+<p>Optional Arguments:</p>
+<ul>
+<li><code>check_symmetry</code><ul>
+<li>Type: bool</li>
+<li>What: Whether to check that the graph is symmetric</li>
+<li>Default: True</li>
+<li>Note: This is forced to True if <code>check_connected</code> is True</li>
+</ul>
+</li>
+<li><code>check_connected</code><ul>
+<li>Type: bool</li>
+<li>What: Whether to check that the graph is fully connected</li>
+<li>Default: True</li>
+<li>Note: For computational efficiency, only symmetric graphs are checked for connectivity</li>
+<li>Note: If this is True, <code>check_symmetry</code> is forced to True and the graph will be checked for symmetry prior to checking for connectivity</li>
+</ul>
+</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@staticmethod
+def validate_graph(
+    graph: dict, check_symmetry: bool = True, check_connected: bool = True
+) -&gt; None:
     &#34;&#34;&#34;
     Function:
 
@@ -2387,8 +2881,19 @@ def validate_graph(graph: dict):
 
     Optional Arguments:
 
-    - None
+    - `check_symmetry`
+        - Type: bool
+        - What: Whether to check that the graph is symmetric
+        - Default: True
+        - Note: This is forced to True if `check_connected` is True
+    - `check_connected`
+        - Type: bool
+        - What: Whether to check that the graph is fully connected
+        - Default: True
+        - Note: For computational efficiency, only symmetric graphs are checked for connectivity
+        - Note: If this is True, `check_symmetry` is forced to True and the graph will be checked for symmetry prior to checking for connectivity
     &#34;&#34;&#34;
+    check_symmetry = check_symmetry or check_connected
     ids = []
     assert isinstance(graph, dict), &#34;Your graph must be a dictionary&#34;
     for origin_id, origin_dict in graph.items():
@@ -2402,11 +2907,15 @@ def validate_graph(graph: dict):
         for destination_id, distance in origin_dict.items():
             assert isinstance(
                 destination_id, int
-            ), f&#34;Origin and destination ids must be integers but {destination_id} is not an integer&#34;
+            ), f&#34;Origin and destination ids must be integers but {destination_id} at graph[{origin_id}] is not an integer&#34;
             assert isinstance(
                 distance, (int, float)
-            ), f&#34;Distances must be integers or floats but {distance} is not an integer or float&#34;
+            ), f&#34;Distances must be integers or floats but {distance} at graph[{origin_id}][{destination_id}] is not an integer or float&#34;
             ids.append(destination_id)
+            if check_symmetry:
+                assert (
+                    graph.get(destination_id, {}).get(origin_id) == distance
+                ), f&#34;Your graph is not symmetric, the distance from node {origin_id} to node {destination_id} is {distance} but the distance from node {destination_id} to node {origin_id} is {graph.get(destination_id, {}).get(origin_id)}&#34;
     ids = set(ids)
     assert (
         min(ids) == 0
@@ -2416,7 +2925,11 @@ def validate_graph(graph: dict):
     ), f&#34;Your graph must have ids that are sequential starting at 0 but the maximum id is {max(ids)}&#34;
     assert len(graph) == len(
         ids
-    ), f&#34;Your graph must have origin ids for all nodes regardless of if they have any connected destinations&#34;</code></pre>
+    ), f&#34;Your graph must have origin ids for all nodes regardless of if they have any connected destinations&#34;
+    if check_connected:
+        assert Graph.validate_connected(
+            graph
+        ), &#34;Your graph is not fully connected&#34;</code></pre>
 </details>
 </dd>
 </dl>
@@ -2455,6 +2968,8 @@ def validate_graph(graph: dict):
 <ul class="">
 <li><code><a title="scgraph.core.Graph.dijkstra" href="#scgraph.core.Graph.dijkstra">dijkstra</a></code></li>
 <li><code><a title="scgraph.core.Graph.dijkstra_makowski" href="#scgraph.core.Graph.dijkstra_makowski">dijkstra_makowski</a></code></li>
+<li><code><a title="scgraph.core.Graph.input_check" href="#scgraph.core.Graph.input_check">input_check</a></code></li>
+<li><code><a title="scgraph.core.Graph.validate_connected" href="#scgraph.core.Graph.validate_connected">validate_connected</a></code></li>
 <li><code><a title="scgraph.core.Graph.validate_graph" href="#scgraph.core.Graph.validate_graph">validate_graph</a></code></li>
 </ul>
 </li>
