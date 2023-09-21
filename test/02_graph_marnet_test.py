@@ -42,7 +42,7 @@ validate(
 
 print('\n===============\nMarnet Time Tests:\n===============')
 
-time_test('Graph Validation', pamda.thunkify(Graph.validate_graph)(graph=graph))
+time_test('Graph Validation', pamda.thunkify(Graph.validate_graph)(graph=graph, check_symmetry=True, check_connected=True))
 
 time_test('Dijkstra 1', pamda.thunkify(Graph.dijkstra)(graph=graph, origin_id=0, destination_id=5))
 time_test('Dijkstra 2', pamda.thunkify(Graph.dijkstra)(graph=graph, origin_id=100, destination_id=7999))

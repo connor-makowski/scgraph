@@ -23,6 +23,6 @@ print('\n===============\nScale Time Tests:\n===============')
 for size in [100, 1000, 10000]:
     graph = gen_graph(size)
     print(f'\nGraph Size: {size}')
-    time_test(f'Graph Validation ({size})', pamda.thunkify(Graph.validate_graph)(graph=graph))
+    time_test(f'Graph Validation ({size})', pamda.thunkify(Graph.validate_graph)(graph=graph, check_symmetry=False, check_connected=False))
     time_test(f'Dijkstra ({size})', pamda.thunkify(Graph.dijkstra)(graph=graph, origin_id=0, destination_id=size-1))
     time_test(f'Dijkstra-Makowski ({size})', pamda.thunkify(Graph.dijkstra_makowski)(graph=graph, origin_id=0, destination_id=size-1))

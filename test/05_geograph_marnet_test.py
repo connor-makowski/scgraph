@@ -67,7 +67,7 @@ destination_node = {
 
 validate(
     name='Graph Validation',
-    realized = marnet_geograph.validate_graph(),
+    realized = marnet_geograph.validate_graph(check_symmetry=True, check_connected=True),
     expected = None
 )
 validate(
@@ -98,7 +98,7 @@ validate(
 
 print('\n===============\nMarnet GeoGraph Time Tests:\n===============')
 
-time_test('Graph Validation', pamda.thunkify(marnet_geograph.validate_graph))
+time_test('Graph Validation', pamda.thunkify(marnet_geograph.validate_graph)(check_symmetry=True, check_connected=True))
 time_test('Node Validation', pamda.thunkify(marnet_geograph.validate_nodes))
 
 origin_node={
