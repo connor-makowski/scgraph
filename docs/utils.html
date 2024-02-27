@@ -26,7 +26,7 @@
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">import math
+<pre><code class="python">import math, json
 
 
 def haversine(
@@ -140,7 +140,40 @@ def distance_converter(
     assert input_units in [&#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, &#34;ft&#34;]
     assert output_units in [&#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, &#34;ft&#34;]
     km_table = {&#34;mi&#34;: 0.621371, &#34;m&#34;: 1000, &#34;ft&#34;: 3280.84, &#34;km&#34;: 1}
-    return (distance / km_table[input_units]) * km_table[output_units]</code></pre>
+    return (distance / km_table[input_units]) * km_table[output_units]
+
+
+def get_line_path(output, filename=None):
+    &#34;&#34;&#34;
+    Function:
+
+    - Convert a `get_shortest_path` output into a GeoJSON LineString dictionary object
+    - Optionally save the output to a file
+
+    Required Arguments:
+
+    - `output`:
+        - Type: dict
+        - What: output of `get_shortest_path`
+
+    Optional Arguments:
+
+    - `filename`:
+        - Type: str
+        - What: path to save the output to
+        - Default: None
+        - Note: if `filename` is not None, the output will be saved to the specified path
+    &#34;&#34;&#34;
+    linestring = {
+        &#34;type&#34;: &#34;LineString&#34;,
+        &#34;coordinates&#34;: [
+            [i[&#34;longitude&#34;], i[&#34;latitude&#34;]] for i in output[&#34;coordinate_path&#34;]
+        ],
+    }
+    if filename:
+        with open(filename, &#34;w&#34;) as f:
+            f.write(json.dumps(linestring))
+    return linestring</code></pre>
 </details>
 </section>
 <section>
@@ -204,6 +237,70 @@ def distance_converter(
     assert output_units in [&#34;mi&#34;, &#34;km&#34;, &#34;m&#34;, &#34;ft&#34;]
     km_table = {&#34;mi&#34;: 0.621371, &#34;m&#34;: 1000, &#34;ft&#34;: 3280.84, &#34;km&#34;: 1}
     return (distance / km_table[input_units]) * km_table[output_units]</code></pre>
+</details>
+</dd>
+<dt id="scgraph.utils.get_line_path"><code class="name flex">
+<span>def <span class="ident">get_line_path</span></span>(<span>output, filename=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Function:</p>
+<ul>
+<li>Convert a <code>get_shortest_path</code> output into a GeoJSON LineString dictionary object</li>
+<li>Optionally save the output to a file</li>
+</ul>
+<p>Required Arguments:</p>
+<ul>
+<li><code>output</code>:<ul>
+<li>Type: dict</li>
+<li>What: output of <code>get_shortest_path</code></li>
+</ul>
+</li>
+</ul>
+<p>Optional Arguments:</p>
+<ul>
+<li><code>filename</code>:<ul>
+<li>Type: str</li>
+<li>What: path to save the output to</li>
+<li>Default: None</li>
+<li>Note: if <code>filename</code> is not None, the output will be saved to the specified path</li>
+</ul>
+</li>
+</ul></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_line_path(output, filename=None):
+    &#34;&#34;&#34;
+    Function:
+
+    - Convert a `get_shortest_path` output into a GeoJSON LineString dictionary object
+    - Optionally save the output to a file
+
+    Required Arguments:
+
+    - `output`:
+        - Type: dict
+        - What: output of `get_shortest_path`
+
+    Optional Arguments:
+
+    - `filename`:
+        - Type: str
+        - What: path to save the output to
+        - Default: None
+        - Note: if `filename` is not None, the output will be saved to the specified path
+    &#34;&#34;&#34;
+    linestring = {
+        &#34;type&#34;: &#34;LineString&#34;,
+        &#34;coordinates&#34;: [
+            [i[&#34;longitude&#34;], i[&#34;latitude&#34;]] for i in output[&#34;coordinate_path&#34;]
+        ],
+    }
+    if filename:
+        with open(filename, &#34;w&#34;) as f:
+            f.write(json.dumps(linestring))
+    return linestring</code></pre>
 </details>
 </dd>
 <dt id="scgraph.utils.hard_round"><code class="name flex">
@@ -378,6 +475,7 @@ def distance_converter(
 <li><h3><a href="#header-functions">Functions</a></h3>
 <ul class="">
 <li><code><a title="scgraph.utils.distance_converter" href="#scgraph.utils.distance_converter">distance_converter</a></code></li>
+<li><code><a title="scgraph.utils.get_line_path" href="#scgraph.utils.get_line_path">get_line_path</a></code></li>
 <li><code><a title="scgraph.utils.hard_round" href="#scgraph.utils.hard_round">hard_round</a></code></li>
 <li><code><a title="scgraph.utils.haversine" href="#scgraph.utils.haversine">haversine</a></code></li>
 </ul>
