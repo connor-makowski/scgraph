@@ -1,4 +1,4 @@
-import math
+import math, json
 
 
 def haversine(
@@ -113,3 +113,36 @@ def distance_converter(
     assert output_units in ["mi", "km", "m", "ft"]
     km_table = {"mi": 0.621371, "m": 1000, "ft": 3280.84, "km": 1}
     return (distance / km_table[input_units]) * km_table[output_units]
+
+
+def get_line_path(output, filename=None):
+    """
+    Function:
+
+    - Convert a `get_shortest_path` output into a GeoJSON LineString dictionary object
+    - Optionally save the output to a file
+
+    Required Arguments:
+
+    - `output`:
+        - Type: dict
+        - What: output of `get_shortest_path`
+
+    Optional Arguments:
+
+    - `filename`:
+        - Type: str
+        - What: path to save the output to
+        - Default: None
+        - Note: if `filename` is not None, the output will be saved to the specified path
+    """
+    linestring = {
+        "type": "LineString",
+        "coordinates": [
+            [i["longitude"], i["latitude"]] for i in output["coordinate_path"]
+        ],
+    }
+    if filename:
+        with open(filename, "w") as f:
+            f.write(json.dumps(linestring))
+    return linestring

@@ -128,8 +128,42 @@ print(str([[i['latitude'],i['longitude']] for i in output['coordinate_path']]))
     - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about)
     - Length Measurement: Kilometers
     - [US Freeway Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png)
+- `scgraph_data` geographs:
+    - What: Additional geographs are available in the `scgraph_data` package
+        - Note: These include larger geographs like the world highways geograph and world railways geograph.
+    - Installation: `pip install scgraph_data`
+    - Use: `from scgraph_data.world_highways import world_highways_geograph`
+    - See: [scgraph_data](https://github.com/connor-makowski/scgraph_data) for more information and all available geographs.
 
 ## Advanced Usage
+
+Using `scgraph_data` geographs:
+- Note: Make sure to install the `scgraph_data` package before using these geographs
+```py
+from scgraph_data.world_railways import world_railways_geograph
+
+# Get the shortest path between Kalamazoo Michigan and Detroit Michigan by Train
+output = world_railways_geograph.get_shortest_path(
+    origin_node={"latitude": 42.29,"longitude": -85.58}, 
+    destination_node={"latitude": 42.33,"longitude": -83.05}
+)
+```
+
+Get a geojson line path of an output for easy visualization:
+- Note: `mapshaper.org` and `geojson.io` are good tools for visualizing geojson files
+```py
+from scgraph.geographs.marnet import marnet_geograph
+from scgraph.utils import get_line_path
+
+ # Get the shortest sea path between Sri Lanka and Somalia
+output = marnet_geograph.get_shortest_path(
+    origin_node={"latitude": 7.87,"longitude": 80.77}, 
+    destination_node={"latitude": 5.15,"longitude": 46.20}
+)
+# Write the output to a geojson file
+get_line_path(output, filename='output.geojson')
+```
+
 
 You can specify your own custom graphs for direct access to the solving algorithms. This requires the use of the low level `Graph` class
 
