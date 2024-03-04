@@ -14,7 +14,7 @@ data_geojson = json.load(open(geojson_file, "r"))
 def lessThanAbs(threshold, a):
     abs_a = abs(a)
     while abs_a > threshold:
-        abs_a -= threshold
+        abs_a -= 360
     return abs_a * (1 if a > 0 else -1)
 
 def format_coord_pair(coord_pair):

@@ -5,3 +5,5 @@ cd $(dirname "$0")
 autoflake --in-place --remove-all-unused-imports --ignore-init-module-imports -r ./scgraph --exclude=data/*
 # Perform all other steps
 black --config pyproject.toml ./scgraph
+
+black --config pyproject.toml ./test
