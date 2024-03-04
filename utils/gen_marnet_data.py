@@ -12,11 +12,11 @@ coords = pamda.pluck(["geometry","coordinates"], data_geojson["features"])
 def lessThanAbs(threshold, a):
     abs_a = abs(a)
     while abs_a > threshold:
-        abs_a -= threshold
+        abs_a -= 360
     return abs_a * (1 if a > 0 else -1)
 
 def format_coord_pair(coord_pair):
-    return [lessThanAbs(180,hard_round(4, coord_pair[0])), lessThanAbs(90,hard_round(4, coord_pair[1]))]
+    return [lessThanAbs(180,hard_round(4, coord_pair[0])), hard_round(4, coord_pair[1])]
 
 def get_distance(origin_id, destination_id, nodes):
     origin = nodes.get(origin_id)
