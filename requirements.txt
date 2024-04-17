@@ -2,7 +2,7 @@ autoflake==2.2.0
 black==23.7.0
 build>=1.0.3
 jupyter==1.0.0
-pamda==2.1.2
+pamda>=2.5.0
 pdoc3==0.10.0
 twine==4.0.2
 virtualenv>=20.24.6
