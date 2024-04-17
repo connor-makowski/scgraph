@@ -628,6 +628,43 @@ class GeoGraph:
         self.graph = self.graph[:node_id]
         self.nodes = self.nodes[:node_id]
 
+    def get_node_distances(self, node:list, circuity:[int|float], try_close:bool=True, get_quadrant:bool=True):
+        if try_close:
+            output = {
+                node_i_id: {
+                    "distance": round(
+                        haversine(node, node_i, circuity=circuity), 4
+                    ),
+                    "quadrant": ("n" if node[0] > node_i[0] else "s")
+                    + ("e" if node[1] > node_i[1] else "w"),
+                }
+                for node_i_id, node_i in enumerate(self.nodes)
+                if node_i[0] < node[0] + 5 and node_i[0] > node[0] - 5 and node_i[1] < node[1] + 5 and node_i[1] > node[1] - 5
+            }
+            if len(set([i.get('quadrant') for i in output.values()]))==4:
+                return output
+        if get_quadrant:
+            return {
+                node_i_id: {
+                    "distance": round(
+                        haversine(node, node_i, circuity=circuity), 4
+                    ),
+                    "quadrant": ("n" if node[0] > node_i[0] else "s")
+                    + ("e" if node[1] > node_i[1] else "w"),
+                }
+                for node_i_id, node_i in enumerate(self.nodes)
+            }
+        else:
+            return {
+                node_i_id: {
+                    "distance": round(
+                        haversine(node, node_i, circuity=circuity), 4
+                    ),
+                }
+                for node_i_id, node_i in enumerate(self.nodes)
+            }
+
+    
     def add_node(
         self,
         node: dict,
@@ -686,16 +723,12 @@ class GeoGraph:
 
         node = [node["latitude"], node["longitude"]]
         # Get the distances to all other nodes
-        distances = {
-            node_i_id: {
-                "distance": round(
-                    haversine(node, node_i, circuity=circuity), 4
-                ),
-                "quadrant": ("n" if node[0] > node_i[0] else "s")
-                + ("e" if node[1] > node_i[1] else "w"),
-            }
-            for node_i_id, node_i in enumerate(self.nodes)
-        }
+        distances = self.get_node_distances(
+            node=node, 
+            circuity=circuity, 
+            try_close=node_addition_type!='all', 
+            get_quadrant=node_addition_type!='all'
+        )
 
         # Create the node
         new_node_id = len(self.graph)
