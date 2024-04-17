@@ -674,11 +674,7 @@ class GeoGraph:
             "closest",
         ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
 
-        # Create the node
-        new_node_id = max(self.graph) + 1
-        self.nodes[new_node_id] = node
-        self.graph[new_node_id] = {}
-
+        # Get the distances to all other nodes
         distances = {
             node_i_id: {
                 "distance": round(
@@ -692,12 +688,17 @@ class GeoGraph:
             for node_i_id, node_i in self.nodes.items()
         }
 
+        # Create the node
+        new_node_id = max(self.graph) + 1
+        self.nodes[new_node_id] = node
+        self.graph[new_node_id] = {}
+
         if node_addition_type == "all":
-            for node_i_id, node_i in self.nodes.items():
-                self.graph[new_node_id][node_i_id] = distances[node_i_id][
+            for node_i_id, node_i_distnace_dict in distances.items():
+                self.graph[new_node_id][node_i_id] = node_i_distnace_dict[
                     "distance"
                 ]
-                self.graph[node_i_id][new_node_id] = distances[node_i_id][
+                self.graph[node_i_id][new_node_id] = node_i_distnace_dict[
                     "distance"
                 ]
         elif node_addition_type == "closest":
