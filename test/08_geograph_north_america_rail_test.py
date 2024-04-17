@@ -22,16 +22,16 @@ def time_test(name, thunk):
 print("\n===============\nNorth America Rail GeoGraph Tests:\n===============")
 
 expected = {
-    "path": [9929, 260, 259, 334, 9930],
     "length": 39.9236,
     "coordinate_path": [
-        {"longitude": -102.352, "latitude": 48.325},
-        {"longitude": -102.352, "latitude": 48.325},
-        {"longitude": -102.354, "latitude": 48.328},
-        {"longitude": -102.652, "latitude": 48.561},
-        {"longitude": -102.651, "latitude": 48.561},
+        [48.325, -102.352],
+        [48.325, -102.352],
+        [48.328, -102.354],
+        [48.561, -102.652],
+        [48.561, -102.651],
     ],
 }
+
 
 # Stanley ND
 origin_node = {"longitude": -102.352, "latitude": 48.325}

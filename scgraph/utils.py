@@ -2,8 +2,8 @@ import math, json
 
 
 def haversine(
-    origin: dict,
-    destination: dict,
+    origin: list[float, int],
+    destination: list[float, int],
     units: str = "km",
     circuity: [float, int] = 1,
 ):
@@ -15,11 +15,11 @@ def haversine(
     Required Arguments:
 
     - `origin`:
-        - Type: dict
-        - What: is the origin point? (dict with keys "longitude" and "latitude")
+        - Type: list of two floats | ints
+        - What: The origin point as a list of "longitude" and "latitude"
     - `destination`:
-        - Type: dict
-        - What: is the destination point? (dict with keys "longitude" and "latitude")
+        - Type: list of two floats | ints
+        - What: The destination point as a list of "longitude" and "latitude"
 
     Optional Arguments:
 
@@ -38,10 +38,10 @@ def haversine(
         lon1, lat1, lon2, lat2 = map(
             math.radians,
             [
-                origin["longitude"],
-                origin["latitude"],
-                destination["longitude"],
-                destination["latitude"],
+                origin[1],
+                origin[0],
+                destination[1],
+                destination[0],
             ],
         )
         # haversine formula
@@ -125,7 +125,7 @@ def get_line_path(output, filename=None):
     Required Arguments:
 
     - `output`:
-        - Type: dict
+        - Type: list | dict
         - What: output of `get_shortest_path`
 
     Optional Arguments:
@@ -136,12 +136,19 @@ def get_line_path(output, filename=None):
         - Default: None
         - Note: if `filename` is not None, the output will be saved to the specified path
     """
-    linestring = {
-        "type": "LineString",
-        "coordinates": [
-            [i["longitude"], i["latitude"]] for i in output["coordinate_path"]
-        ],
-    }
+    if isinstance(output["coordinate_path"], list):
+        linestring = {
+            "type": "LineString",
+            "coordinates": [[i[1], i[0]] for i in output["coordinate_path"]],
+        }
+    elif isinstance(output["coordinate_path"], dict):
+        linestring = {
+            "type": "LineString",
+            "coordinates": [
+                [i["longitude"], i["latitude"]]
+                for i in output["coordinate_path"]
+            ],
+        }
     if filename:
         with open(filename, "w") as f:
             f.write(json.dumps(linestring))

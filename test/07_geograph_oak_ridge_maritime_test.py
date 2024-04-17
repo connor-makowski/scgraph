@@ -22,22 +22,20 @@ def time_test(name, thunk):
 print("\n===============\nOak Ridge GeoGraph Tests:\n===============")
 
 expected = {
-    "path": [10661, 7415, 2681, 8528, 3611, 8979, 10600, 10135, 8369, 10662],
     "length": 3894.053,
     "coordinate_path": [
-        {"latitude": 30, "longitude": 160},
-        {"longitude": 160.0, "latitude": 30.0},
-        {"longitude": 165.0005, "latitude": 30.0935},
-        {"longitude": 170.0, "latitude": 30.0},
-        {"longitude": -178.5, "latitude": 28.5},
-        {"longitude": -174.2807, "latitude": 29.3168},
-        {"longitude": -170.0, "latitude": 30.0},
-        {"longitude": -164.9995, "latitude": 30.0935},
-        {"longitude": -160.0, "latitude": 30.0},
-        {"latitude": 30, "longitude": -160},
+        [30, 160],
+        [30.0, 160.0],
+        [30.0935, 165.0005],
+        [30.0, 170.0],
+        [28.5, -178.5],
+        [29.3168, -174.2807],
+        [30.0, -170.0],
+        [30.0935, -164.9995],
+        [30.0, -160.0],
+        [30, -160],
     ],
 }
-
 
 origin_node = {"latitude": 30, "longitude": 160}
 destination_node = {"latitude": 30, "longitude": -160}

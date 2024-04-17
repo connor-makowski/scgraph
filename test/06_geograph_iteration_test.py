@@ -28,7 +28,7 @@ for i in iterations:
         origin_node=i[0],
         destination_node=i[1],
     )
-    if len(output["path"]) < 3:
+    if len(output["coordinate_path"]) < 3:
         failed = True
 
 if failed:
