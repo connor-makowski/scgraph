@@ -5,7 +5,9 @@ import json
 class Graph:
     @staticmethod
     def validate_graph(
-        graph: dict, check_symmetry: bool = True, check_connected: bool = True
+        graph: list[dict],
+        check_symmetry: bool = True,
+        check_connected: bool = True,
     ) -> None:
         """
         Function:
@@ -15,9 +17,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
-            - Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph
+            - Type: list of dictionaries
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances
             - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
 
         Optional Arguments:
@@ -35,45 +36,35 @@ class Graph:
             - Note: If this is True, `check_symmetry` is forced to True and the graph will be checked for symmetry prior to checking for connectivity
         """
         check_symmetry = check_symmetry or check_connected
-        ids = []
-        assert isinstance(graph, dict), "Your graph must be a dictionary"
-        for origin_id, origin_dict in graph.items():
-            assert isinstance(
-                origin_id, int
-            ), f"Origin and destination ids must be integers but {origin_id} is not an integer"
+        assert isinstance(graph, list), "Your graph must be a list"
+        len_graph = len(graph)
+        for origin_id, origin_dict in enumerate(graph):
             assert isinstance(
                 origin_dict, dict
             ), f"Your graph must be a dictionary of dictionaries but the value for origin {origin_id} is not a dictionary"
-            ids.append(origin_id)
-            for destination_id, distance in origin_dict.items():
-                assert isinstance(
-                    destination_id, int
-                ), f"Origin and destination ids must be integers but {destination_id} at graph[{origin_id}] is not an integer"
-                assert isinstance(
-                    distance, (int, float)
-                ), f"Distances must be integers or floats but {distance} at graph[{origin_id}][{destination_id}] is not an integer or float"
-                ids.append(destination_id)
-                if check_symmetry:
+            destinations = list(origin_dict.keys())
+            lengths = list(origin_dict.values())
+            assert all(
+                [
+                    (isinstance(i, int) and i >= 0 and i < len_graph)
+                    for i in destinations
+                ]
+            ), f"Destination ids must be non-negative integers and equivalent to an existing index, but graph[{origin_id}] has an error in the destination ids"
+            assert all(
+                [(isinstance(i, (int, float)) and i >= 0) for i in lengths]
+            ), f"Distances must be integers or floats, but graph[{origin_id}] contains a non-integer or non-float distance"
+            if check_symmetry:
+                for destination_id, distance in origin_dict.items():
                     assert (
-                        graph.get(destination_id, {}).get(origin_id) == distance
+                        graph[destination_id].get(origin_id) == distance
                     ), f"Your graph is not symmetric, the distance from node {origin_id} to node {destination_id} is {distance} but the distance from node {destination_id} to node {origin_id} is {graph.get(destination_id, {}).get(origin_id)}"
-        ids = set(ids)
-        assert (
-            min(ids) == 0
-        ), f"Your graph must have ids starting at 0 but the minimum id is {min(ids)}"
-        assert (
-            max(ids) == len(ids) - 1
-        ), f"Your graph must have ids that are sequential starting at 0 but the maximum id is {max(ids)}"
-        assert len(graph) == len(
-            ids
-        ), f"Your graph must have origin ids for all nodes regardless of if they have any connected destinations"
         if check_connected:
             assert Graph.validate_connected(
                 graph
             ), "Your graph is not fully connected"
 
     @staticmethod
-    def validate_connected(graph: dict) -> bool:
+    def validate_connected(graph: list[dict]) -> bool:
         """
         Function:
 
@@ -85,9 +76,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
-            - Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph
+            - Type: list of dictionaries
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
             - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
 
         Optional Arguments:
@@ -95,7 +85,7 @@ class Graph:
         - None
         """
         origin_id = 0
-        destination_id = max(graph) + 1
+        destination_id = len(graph) + 1
 
         distance_matrix = [float("inf") for i in graph]
         open_leaves = {}
@@ -120,7 +110,9 @@ class Graph:
                     open_leaves[connected_id] = possible_distance
 
     @staticmethod
-    def input_check(graph: dict, origin_id: int, destination_id: int) -> None:
+    def input_check(
+        graph: list[dict], origin_id: int, destination_id: int
+    ) -> None:
         """
         Function:
 
@@ -130,8 +122,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Type: list[dict]
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -143,15 +135,25 @@ class Graph:
 
         - None
         """
-        if origin_id not in graph:
+        if (
+            not isinstance(origin_id, int)
+            and origin_id < len(graph)
+            and origin_id >= 0
+        ):
             raise Exception(f"Origin node ({origin_id}) is not in the graph")
-        if destination_id not in graph:
+        if (
+            not isinstance(destination_id, int)
+            and origin_id < len(graph)
+            and origin_id >= 0
+        ):
             raise Exception(
                 f"Destination node ({destination_id}) is not in the graph"
             )
 
     @staticmethod
-    def dijkstra(graph: dict, origin_id: int, destination_id: int) -> dict:
+    def dijkstra(
+        graph: list[dict], origin_id: int, destination_id: int
+    ) -> dict:
         """
         Function:
 
@@ -166,8 +168,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Type: list[dict]
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -220,7 +222,7 @@ class Graph:
 
     @staticmethod
     def dijkstra_makowski(
-        graph: dict, origin_id: int, destination_id: int
+        graph: list[dict], origin_id: int, destination_id: int
     ) -> dict:
         """
         Function:
@@ -241,8 +243,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Type: list[dict]
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -295,7 +297,9 @@ class Graph:
 
 
 class GeoGraph:
-    def __init__(self, graph: dict, nodes: dict) -> None:
+    def __init__(
+        self, graph: list[dict], nodes: list[list[int | float]]
+    ) -> None:
         """
         Function:
 
@@ -304,15 +308,13 @@ class GeoGraph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
-            - Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph
+            - Type: list of dictionaries
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances
             - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
         - `nodes`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are node ids and the values are dictionaries of node coordinates (latitude and longitude)
-            - Note: Ids must be integers starting at 0 and increasing sequentially to the number of nodes in the graph
-            - Note: All nodes must be included in the nodes dictionary
+            - Type: list of lists
+            - What: A list of lists where the values are coordinates (latitude then longitude)
+            - Note: The length of the nodes list must be the same as that of the graph list
 
         Optional Arguments:
 
@@ -370,31 +372,28 @@ class GeoGraph:
 
         - None
         """
-        assert isinstance(self.nodes, dict), "Your nodes must be a dictionary"
-        for node, node_dict in self.nodes.items():
-            assert isinstance(
-                node_dict, dict
-            ), f"Your nodes must be a dictionary of dictionaries but the value for node {node} is not a dictionary"
-            for key, value in node_dict.items():
-                assert key in [
-                    "latitude",
-                    "longitude",
-                ], f"Your nodes must be a dictionary of dictionaries where the keys are 'latitude' and 'longitude' but the key ({key}) for node ({node}) is not 'latitude' or 'longitude'"
-                assert isinstance(
-                    value,
-                    (
-                        float,
-                        int,
-                    ),
-                ), f"Your nodes must be a dictionary of dictionaries where the values are floats or ints but the value for node ({node}) and key ({key}) is not a float"
-            assert (
-                node_dict.get("latitude") >= -90
-                and node_dict.get("latitude") <= 90
-            ), f"Your latitude values must be between -90 and 90 but the latitude value for node {node} is {node_dict.get('latitude')}"
-            assert (
-                node_dict.get("longitude") >= -180
-                and node_dict.get("longitude") <= 180
-            ), f"Your longitude values must be between -180 and 180 but the longitude value for node {node} is {node_dict.get('longitude')}"
+        assert isinstance(self.nodes, list), "Your nodes must be a dictionary"
+        assert all(
+            [isinstance(i, list) for i in self.nodes]
+        ), "Your nodes must be a list of lists"
+        assert all(
+            [len(i) == 2 for i in self.nodes]
+        ), "Your nodes must be a list of lists where each sub list has a length of 2"
+        assert all(
+            [
+                (
+                    isinstance(i[0], (int, float))
+                    and isinstance(i[1], (int, float))
+                )
+                for i in self.nodes
+            ]
+        ), "Your nodes must be a list of lists where each sub list has a numeric latitude and longitude value"
+        assert all(
+            [
+                (i[0] >= -90 and i[0] <= 90 and i[1] >= -180 and i[1] <= 180)
+                for i in self.nodes
+            ]
+        ), "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
 
     def get_shortest_path(
         self,
@@ -406,6 +405,8 @@ class GeoGraph:
         node_addition_type: str = "quadrant",
         node_addition_circuity: [float, int] = 4,
         geograph_units: str = "km",
+        output_coordinate_path: str = "list_of_lists",
+        output_path: bool = False,
         **kwargs,
     ) -> dict:
         """
@@ -491,9 +492,21 @@ class GeoGraph:
                 - 'mi': Miles
                 - 'ft': Feet
             - Note: In general, all scgraph provided geographs be in kilometers
+        - `output_coordinate_path`
+            - Type: str
+            - What: The format of the output coordinate path
+            - Default: 'list_of_lists'
+            - Options:
+                - 'list_of_dicts': A list of dictionaries with keys 'latitude' and 'longitude'
+                - 'list_of_lists': A list of lists with the first value being latitude and the second being longitude
+        - `output_path`
+            - Type: bool
+            - What: Whether to output the path as a list of geograph node ids (for debugging and other advanced uses)
+            - Default: False
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
+        original_graph_length = len(self.graph)
         # Add the origin and destination nodes to the graph
         origin_id = self.add_node(
             node=origin_node,
@@ -523,12 +536,19 @@ class GeoGraph:
                 input_units=geograph_units,
                 output_units=output_units,
             )
-            self.remove_added_node(node_id=origin_id)
-            self.remove_added_node(node_id=destination_id)
+            if output_coordinate_path == "list_of_dicts":
+                output["coordinate_path"] = [
+                    {"latitude": i[0], "longitude": i[1]}
+                    for i in output["coordinate_path"]
+                ]
+            if not output_path:
+                del output["path"]
+            while len(self.graph) > original_graph_length:
+                self.remove_appended_node()
             return output
         except Exception as e:
-            self.remove_added_node(node_id=origin_id)
-            self.remove_added_node(node_id=destination_id)
+            while len(self.graph) > original_graph_length:
+                self.remove_appended_node()
             raise e
 
     def adujust_circuity_length(
@@ -589,40 +609,141 @@ class GeoGraph:
         """
         return [self.nodes[node_id] for node_id in path]
 
-    def remove_added_node(self, node_id: int) -> None:
+    def remove_appended_node(self) -> None:
         """
         Function:
 
-        - Remove a node that has been added to the network from the network
+        - Remove the last node that was appended to the graph
         - Assumes that this node has symmetric flows
             - EG: If node A has a distance of 10 to node B, then node B has a distance of 10 to node A
         - Return None
 
         Required Arguments:
 
-        - `node_id`
-            - Type: str
-            - What: The name of the node to remove
+        - None
 
         Optional Arguments:
 
         - None
         """
-        # Assert that the node exists
-        assert (
-            node_id in self.nodes
-        ), f"Node {node_id} does not exist in the network"
-        reverse_connections = [i for i in self.graph[node_id].keys()]
+        node_id = len(self.graph) - 1
         for reverse_connection in [i for i in self.graph[node_id].keys()]:
             del self.graph[reverse_connection][node_id]
-        del self.graph[node_id]
-        del self.nodes[node_id]
+        self.graph = self.graph[:node_id]
+        self.nodes = self.nodes[:node_id]
+
+    def get_node_distances(
+        self,
+        node: list,
+        circuity: [int, float],
+        node_addition_type: str,
+        node_addition_math: str,
+        lat_lon_bound: [int, float],
+    ):
+        """
+        Function:
+
+        - Get the distances between a node and all other nodes in the graph
+        - This is used to determine the closest node to add to the graph when adding a new node
+
+        Required Arguments:
+
+        - `node`
+            - Type: list
+            - What: A list of the latitude and longitude of the node
+            - EG: [latitude, longitude] -> [31.23, 121.47]
+        - `circuity`
+            - Type: float | int
+            - What: The circuity to apply to any distance calculations
+            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
+        - `node_addition_type`
+            - Type: str
+            - What: The type of node addition to use
+            - Options:
+                - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
+                - 'closest': Add only the closest node to the distance matrix for this node
+                - 'all': Add all nodes to the distance matrix for this node
+            - Notes:
+                - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to 'quadrant' or 'closest'
+                - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
+                - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+        - `node_addition_math`
+            - Type: str
+            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
+            - Default: 'euclidean'
+            - Options:
+                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
+                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
+            - Notes:
+                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
+        - `lat_lon_bound`
+            - Type: float | int
+            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
+        """
+        assert node_addition_type in [
+            "quadrant",
+            "all",
+            "closest",
+        ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
+        assert node_addition_math in [
+            "euclidean",
+            "haversine",
+        ], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+        # Get only bounded nodes
+        nodes = {
+            node_idx: node_i
+            for node_idx, node_i in enumerate(self.nodes)
+            if abs(node_i[0] - node[0]) < lat_lon_bound
+            and abs(node_i[1] - node[1]) < lat_lon_bound
+        }
+        if len(nodes) == 0:
+            # Default to all if the lat_lon_bound fails to find any nodes
+            return self.get_node_distances(
+                node=nodes,
+                circuity=circuity,
+                lat_lon_bound=180,
+                node_addition_type=node_addition_type,
+                node_addition_math=node_addition_math,
+            )
+        if node_addition_type == "all":
+            return {
+                node_idx: round(haversine(node, node_i, circuity=circuity), 4)
+                for node_idx, node_i in nodes.items()
+            }
+        if node_addition_math == "haversine":
+            dist_fn = lambda x: round(haversine(node, x, circuity=circuity), 4)
+        else:
+            dist_fn = lambda x: round(
+                ((node[0] - x[0]) ** 2 + (node[1] - x[1]) ** 2) ** 0.5, 4
+            )
+        if node_addition_type == "closest":
+            quadrant_fn = lambda x, y: "all"
+        else:
+            quadrant_fn = lambda x, y: ("n" if x[0] - y[0] > 0 else "s") + (
+                "e" if x[1] - y[1] > 0 else "w"
+            )
+        min_diffs = {}
+        min_diffs_idx = {}
+        for node_idx, node_i in nodes.items():
+            quadrant = quadrant_fn(node_i, node)
+            dist = dist_fn(node_i)
+            if dist < min_diffs.get(quadrant, 999999999):
+                min_diffs[quadrant] = dist
+                min_diffs_idx[quadrant] = node_idx
+        return {
+            node_idx: round(
+                haversine(node, self.nodes[node_idx], circuity=circuity), 4
+            )
+            for node_idx in min_diffs_idx.values()
+        }
 
     def add_node(
         self,
-        node: dict,
+        node: dict[int, float],
         circuity: [float, int],
         node_addition_type: str = "quadrant",
+        node_addition_math: str = "euclidean",
+        lat_lon_bound: [int, float] = 5,
     ) -> int:
         """
         Function:
@@ -655,6 +776,19 @@ class GeoGraph:
                 - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to 'quadrant' or 'closest'
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+        - `node_addition_math`
+            - Type: str
+            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
+            - Default: 'euclidean'
+            - Options:
+                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
+                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
+            - Notes:
+                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
+        - `lat_lon_bound`
+            - Type: float | int
+            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
+            - Default: 5
 
         """
         # Validate the inputs
@@ -673,56 +807,31 @@ class GeoGraph:
             "all",
             "closest",
         ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
+        assert node_addition_math in [
+            "euclidean",
+            "haversine",
+        ], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+        assert isinstance(
+            lat_lon_bound, (int, float)
+        ), "Lat_lon_bound must be a number"
+        assert lat_lon_bound > 0, "Lat_lon_bound must be greater than 0"
 
+        node = [node["latitude"], node["longitude"]]
         # Get the distances to all other nodes
-        distances = {
-            node_i_id: {
-                "distance": round(
-                    haversine(node, node_i, circuity=circuity), 4
-                ),
-                "quadrant": (
-                    "n" if node["latitude"] > node_i["latitude"] else "s"
-                )
-                + ("e" if node["longitude"] > node_i["longitude"] else "w"),
-            }
-            for node_i_id, node_i in self.nodes.items()
-        }
+        distances = self.get_node_distances(
+            node=node,
+            circuity=circuity,
+            node_addition_type=node_addition_type,
+            node_addition_math=node_addition_math,
+            lat_lon_bound=lat_lon_bound,
+        )
 
         # Create the node
-        new_node_id = max(self.graph) + 1
-        self.nodes[new_node_id] = node
-        self.graph[new_node_id] = {}
-
-        if node_addition_type == "all":
-            for node_i_id, node_i_distnace_dict in distances.items():
-                self.graph[new_node_id][node_i_id] = node_i_distnace_dict[
-                    "distance"
-                ]
-                self.graph[node_i_id][new_node_id] = node_i_distnace_dict[
-                    "distance"
-                ]
-        elif node_addition_type == "closest":
-            min_node_id = min(distances, key=lambda x: distances[x]["distance"])
-            self.graph[new_node_id][min_node_id] = distances[min_node_id][
-                "distance"
-            ]
-            self.graph[min_node_id][new_node_id] = distances[min_node_id][
-                "distance"
-            ]
-        elif node_addition_type == "quadrant":
-            for quadrant in ["ne", "nw", "se", "sw"]:
-                min_node_id = min(
-                    distances,
-                    key=lambda x: distances[x]["distance"]
-                    if distances[x]["quadrant"] == quadrant
-                    else float("inf"),
-                )
-                self.graph[new_node_id][min_node_id] = distances[min_node_id][
-                    "distance"
-                ]
-                self.graph[min_node_id][new_node_id] = distances[min_node_id][
-                    "distance"
-                ]
+        new_node_id = len(self.graph)
+        self.nodes.append(node)
+        self.graph.append(distances)
+        for node_idx, node_distance in distances.items():
+            self.graph[node_idx][new_node_id] = node_distance
         return new_node_id
 
     def save_as_geojson(self, filename: str) -> None:

@@ -19,10 +19,10 @@ def time_test(name, thunk):
 
 
 def gen_graph(size, avg_connections=10):
-    return {
-        i: {i + j: 1 for j in range(1, avg_connections) if i + j < size}
+    return [
+        {i + j: 1 for j in range(1, avg_connections) if i + j < size}
         for i in range(size)
-    }
+    ]
 
 
 print("\n===============\nScale Time Tests:\n===============")
