@@ -628,48 +628,44 @@ class GeoGraph:
         self.graph = self.graph[:node_id]
         self.nodes = self.nodes[:node_id]
 
-    def get_node_distances(self, node:list, circuity:[int|float], try_close:bool=True, get_quadrant:bool=True):
-        if try_close:
-            output = {
-                node_i_id: {
-                    "distance": round(
-                        haversine(node, node_i, circuity=circuity), 4
-                    ),
-                    "quadrant": ("n" if node[0] > node_i[0] else "s")
-                    + ("e" if node[1] > node_i[1] else "w"),
-                }
-                for node_i_id, node_i in enumerate(self.nodes)
-                if node_i[0] < node[0] + 5 and node_i[0] > node[0] - 5 and node_i[1] < node[1] + 5 and node_i[1] > node[1] - 5
-            }
-            if len(set([i.get('quadrant') for i in output.values()]))==4:
-                return output
-        if get_quadrant:
+    def get_node_distances(self, node:list, circuity:[int|float], node_addition_type:str, node_addition_math:str, lat_lon_bound:[int,float]):
+        assert node_addition_type in ['quadrant', 'all', 'closest'], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
+        assert node_addition_math in ['euclidean', 'haversine'], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+        # Get only bounded nodes
+        nodes = {node_idx:node_i for node_idx, node_i in enumerate(self.nodes) if abs(node_i[0]-node[0])<lat_lon_bound and abs(node_i[1]-node[1])<lat_lon_bound}
+        if len(nodes)==0:
+            # Default to all if the lat_lon_bound fails to find any nodes
+            return self.get_node_distances(node=nodes, circuity=circuity, lat_lon_bound=180, node_addition_type=node_addition_type, node_addition_math=node_addition_math)
+        if node_addition_type=='all':
             return {
-                node_i_id: {
-                    "distance": round(
-                        haversine(node, node_i, circuity=circuity), 4
-                    ),
-                    "quadrant": ("n" if node[0] > node_i[0] else "s")
-                    + ("e" if node[1] > node_i[1] else "w"),
-                }
-                for node_i_id, node_i in enumerate(self.nodes)
+                node_idx: round(haversine(node, node_i, circuity=circuity), 4)
+                for node_idx, node_i in nodes.items()
             }
+        if node_addition_math == 'haversine':
+            dist_fn = lambda x: round(haversine(node, x, circuity=circuity), 4)
         else:
-            return {
-                node_i_id: {
-                    "distance": round(
-                        haversine(node, node_i, circuity=circuity), 4
-                    ),
-                }
-                for node_i_id, node_i in enumerate(self.nodes)
-            }
+            dist_fn = lambda x: round(((node[0]-x[0])**2+(node[1]-x[1])**2)**.5, 4)
+        if node_addition_type=='closest':
+            quadrant_fn = lambda x, y: 'all'
+        else:
+            quadrant_fn = lambda x,y: ("n" if x[0]-y[0] > 0 else "s") + ("e" if x[1]-y[1] > 0 else "w")
+        min_diffs = {}
+        min_diffs_idx = {}
+        for node_idx, node_i in nodes.items():
+            quadrant = quadrant_fn(node_i, node)
+            dist = dist_fn(node_i)
+            if dist<min_diffs.get(quadrant, 999999999):
+                min_diffs[quadrant] = dist
+                min_diffs_idx[quadrant] = node_idx
+        return {node_idx:round(haversine(node, self.nodes[node_idx], circuity=circuity), 4) for node_idx in min_diffs_idx.values()}
 
-    
     def add_node(
         self,
-        node: dict,
+        node: dict[int,float],
         circuity: [float, int],
         node_addition_type: str = "quadrant",
+        node_addition_math: str = 'euclidean',
+        lat_lon_bound: [int, float] = 5
     ) -> int:
         """
         Function:
@@ -702,7 +698,20 @@ class GeoGraph:
                 - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to 'quadrant' or 'closest'
                 - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
                 - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
-
+        - `node_addition_math`
+            - Type: str
+            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
+            - Default: 'euclidean'
+            - Options:
+                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
+                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
+            - Notes:
+                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
+        - `lat_lon_bound`
+            - Type: float | int
+            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
+            - Default: 5
+        
         """
         # Validate the inputs
         assert isinstance(node, dict), "Node must be a dictionary"
@@ -720,51 +729,26 @@ class GeoGraph:
             "all",
             "closest",
         ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
+        assert node_addition_math in ['euclidean', 'haversine'], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+        assert isinstance(lat_lon_bound, (int, float)), "Lat_lon_bound must be a number"
+        assert lat_lon_bound > 0, "Lat_lon_bound must be greater than 0"
 
         node = [node["latitude"], node["longitude"]]
         # Get the distances to all other nodes
         distances = self.get_node_distances(
             node=node, 
             circuity=circuity, 
-            try_close=node_addition_type!='all', 
-            get_quadrant=node_addition_type!='all'
+            node_addition_type=node_addition_type,
+            node_addition_math=node_addition_math,
+            lat_lon_bound=lat_lon_bound
         )
 
         # Create the node
         new_node_id = len(self.graph)
         self.nodes.append(node)
-        self.graph.append({})
-
-        if node_addition_type == "all":
-            for node_i_id, node_i_distnace_dict in distances.items():
-                self.graph[new_node_id][node_i_id] = node_i_distnace_dict[
-                    "distance"
-                ]
-                self.graph[node_i_id][new_node_id] = node_i_distnace_dict[
-                    "distance"
-                ]
-        elif node_addition_type == "closest":
-            min_node_id = min(distances, key=lambda x: distances[x]["distance"])
-            self.graph[new_node_id][min_node_id] = distances[min_node_id][
-                "distance"
-            ]
-            self.graph[min_node_id][new_node_id] = distances[min_node_id][
-                "distance"
-            ]
-        elif node_addition_type == "quadrant":
-            for quadrant in ["ne", "nw", "se", "sw"]:
-                min_node_id = min(
-                    distances,
-                    key=lambda x: distances[x]["distance"]
-                    if distances[x]["quadrant"] == quadrant
-                    else float("inf"),
-                )
-                self.graph[new_node_id][min_node_id] = distances[min_node_id][
-                    "distance"
-                ]
-                self.graph[min_node_id][new_node_id] = distances[min_node_id][
-                    "distance"
-                ]
+        self.graph.append(distances)
+        for node_idx, node_distance in distances.items():
+            self.graph[node_idx][new_node_id] = node_distance
         return new_node_id
 
     def save_as_geojson(self, filename: str) -> None:
