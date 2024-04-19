@@ -6,4 +6,4 @@ output = marnet_geograph.get_shortest_path(
     destination_node={"latitude": 32.08,"longitude": -81.09}
 )
 print('Length: ',output['length']) #=> Length:  19596.4653
-# print(str([[i['latitude'],i['longitude']] for i in output['coordinate_path']]))
+print('Path: ', output['coordinate_path'])

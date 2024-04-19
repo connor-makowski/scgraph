@@ -64,7 +64,7 @@ class Graph:
             ), "Your graph is not fully connected"
 
     @staticmethod
-    def validate_connected(graph: list) -> bool:
+    def validate_connected(graph: list[dict]) -> bool:
         """
         Function:
 
@@ -77,7 +77,7 @@ class Graph:
 
         - `graph`
             - Type: list of dictionaries
-            - What: A list of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
             - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
 
         Optional Arguments:
@@ -110,7 +110,9 @@ class Graph:
                     open_leaves[connected_id] = possible_distance
 
     @staticmethod
-    def input_check(graph: dict, origin_id: int, destination_id: int) -> None:
+    def input_check(
+        graph: list[dict], origin_id: int, destination_id: int
+    ) -> None:
         """
         Function:
 
@@ -120,8 +122,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Type: list[dict]
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -149,7 +151,9 @@ class Graph:
             )
 
     @staticmethod
-    def dijkstra(graph: dict, origin_id: int, destination_id: int) -> dict:
+    def dijkstra(
+        graph: list[dict], origin_id: int, destination_id: int
+    ) -> dict:
         """
         Function:
 
@@ -164,8 +168,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Type: list[dict]
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -218,7 +222,7 @@ class Graph:
 
     @staticmethod
     def dijkstra_makowski(
-        graph: dict, origin_id: int, destination_id: int
+        graph: list[dict], origin_id: int, destination_id: int
     ) -> dict:
         """
         Function:
@@ -239,8 +243,8 @@ class Graph:
         Required Arguments:
 
         - `graph`
-            - Type: dict
-            - What: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+            - Type: list[dict]
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -628,44 +632,118 @@ class GeoGraph:
         self.graph = self.graph[:node_id]
         self.nodes = self.nodes[:node_id]
 
-    def get_node_distances(self, node:list, circuity:[int|float], node_addition_type:str, node_addition_math:str, lat_lon_bound:[int,float]):
-        assert node_addition_type in ['quadrant', 'all', 'closest'], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
-        assert node_addition_math in ['euclidean', 'haversine'], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+    def get_node_distances(
+        self,
+        node: list,
+        circuity: [int, float],
+        node_addition_type: str,
+        node_addition_math: str,
+        lat_lon_bound: [int, float],
+    ):
+        """
+        Function:
+
+        - Get the distances between a node and all other nodes in the graph
+        - This is used to determine the closest node to add to the graph when adding a new node
+
+        Required Arguments:
+
+        - `node`
+            - Type: list
+            - What: A list of the latitude and longitude of the node
+            - EG: [latitude, longitude] -> [31.23, 121.47]
+        - `circuity`
+            - Type: float | int
+            - What: The circuity to apply to any distance calculations
+            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
+        - `node_addition_type`
+            - Type: str
+            - What: The type of node addition to use
+            - Options:
+                - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
+                - 'closest': Add only the closest node to the distance matrix for this node
+                - 'all': Add all nodes to the distance matrix for this node
+            - Notes:
+                - `dijkstra_makowski` will operate substantially faster if the `node_addition_type` is set to 'quadrant' or 'closest'
+                - `dijkstra` will operate at the similar speeds regardless of the `node_addition_type`
+                - When using `all`, you should consider using `dijkstra` instead of `dijkstra_makowski` as it will be faster
+        - `node_addition_math`
+            - Type: str
+            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
+            - Default: 'euclidean'
+            - Options:
+                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
+                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
+            - Notes:
+                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
+        - `lat_lon_bound`
+            - Type: float | int
+            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
+        """
+        assert node_addition_type in [
+            "quadrant",
+            "all",
+            "closest",
+        ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
+        assert node_addition_math in [
+            "euclidean",
+            "haversine",
+        ], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
         # Get only bounded nodes
-        nodes = {node_idx:node_i for node_idx, node_i in enumerate(self.nodes) if abs(node_i[0]-node[0])<lat_lon_bound and abs(node_i[1]-node[1])<lat_lon_bound}
-        if len(nodes)==0:
+        nodes = {
+            node_idx: node_i
+            for node_idx, node_i in enumerate(self.nodes)
+            if abs(node_i[0] - node[0]) < lat_lon_bound
+            and abs(node_i[1] - node[1]) < lat_lon_bound
+        }
+        if len(nodes) == 0:
             # Default to all if the lat_lon_bound fails to find any nodes
-            return self.get_node_distances(node=nodes, circuity=circuity, lat_lon_bound=180, node_addition_type=node_addition_type, node_addition_math=node_addition_math)
-        if node_addition_type=='all':
+            return self.get_node_distances(
+                node=nodes,
+                circuity=circuity,
+                lat_lon_bound=180,
+                node_addition_type=node_addition_type,
+                node_addition_math=node_addition_math,
+            )
+        if node_addition_type == "all":
             return {
                 node_idx: round(haversine(node, node_i, circuity=circuity), 4)
                 for node_idx, node_i in nodes.items()
             }
-        if node_addition_math == 'haversine':
+        if node_addition_math == "haversine":
             dist_fn = lambda x: round(haversine(node, x, circuity=circuity), 4)
         else:
-            dist_fn = lambda x: round(((node[0]-x[0])**2+(node[1]-x[1])**2)**.5, 4)
-        if node_addition_type=='closest':
-            quadrant_fn = lambda x, y: 'all'
+            dist_fn = lambda x: round(
+                ((node[0] - x[0]) ** 2 + (node[1] - x[1]) ** 2) ** 0.5, 4
+            )
+        if node_addition_type == "closest":
+            quadrant_fn = lambda x, y: "all"
         else:
-            quadrant_fn = lambda x,y: ("n" if x[0]-y[0] > 0 else "s") + ("e" if x[1]-y[1] > 0 else "w")
+            quadrant_fn = lambda x, y: ("n" if x[0] - y[0] > 0 else "s") + (
+                "e" if x[1] - y[1] > 0 else "w"
+            )
         min_diffs = {}
         min_diffs_idx = {}
         for node_idx, node_i in nodes.items():
             quadrant = quadrant_fn(node_i, node)
             dist = dist_fn(node_i)
-            if dist<min_diffs.get(quadrant, 999999999):
+            if dist < min_diffs.get(quadrant, 999999999):
                 min_diffs[quadrant] = dist
                 min_diffs_idx[quadrant] = node_idx
-        return {node_idx:round(haversine(node, self.nodes[node_idx], circuity=circuity), 4) for node_idx in min_diffs_idx.values()}
+        return {
+            node_idx: round(
+                haversine(node, self.nodes[node_idx], circuity=circuity), 4
+            )
+            for node_idx in min_diffs_idx.values()
+        }
 
     def add_node(
         self,
-        node: dict[int,float],
+        node: dict[int, float],
         circuity: [float, int],
         node_addition_type: str = "quadrant",
-        node_addition_math: str = 'euclidean',
-        lat_lon_bound: [int, float] = 5
+        node_addition_math: str = "euclidean",
+        lat_lon_bound: [int, float] = 5,
     ) -> int:
         """
         Function:
@@ -711,7 +789,7 @@ class GeoGraph:
             - Type: float | int
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
             - Default: 5
-        
+
         """
         # Validate the inputs
         assert isinstance(node, dict), "Node must be a dictionary"
@@ -729,18 +807,23 @@ class GeoGraph:
             "all",
             "closest",
         ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
-        assert node_addition_math in ['euclidean', 'haversine'], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
-        assert isinstance(lat_lon_bound, (int, float)), "Lat_lon_bound must be a number"
+        assert node_addition_math in [
+            "euclidean",
+            "haversine",
+        ], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+        assert isinstance(
+            lat_lon_bound, (int, float)
+        ), "Lat_lon_bound must be a number"
         assert lat_lon_bound > 0, "Lat_lon_bound must be greater than 0"
 
         node = [node["latitude"], node["longitude"]]
         # Get the distances to all other nodes
         distances = self.get_node_distances(
-            node=node, 
-            circuity=circuity, 
+            node=node,
+            circuity=circuity,
             node_addition_type=node_addition_type,
             node_addition_math=node_addition_math,
-            lat_lon_bound=lat_lon_bound
+            lat_lon_bound=lat_lon_bound,
         )
 
         # Create the node

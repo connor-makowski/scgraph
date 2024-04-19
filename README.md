@@ -11,7 +11,7 @@ Supply chain graph package for Python
 
 Getting Started: https://github.com/connor-makowski/scgraph
 
-Low Level: https://connor-makowski.github.io/scgraph/core.html
+Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
 
 
 ## Key Features
@@ -74,7 +74,7 @@ output = marnet_geograph.get_shortest_path(
 print('Length: ',output['length']) #=> Length:  19596.4653
 ```
 
-In the above example, the `output` variable is a dictionary with three keys: `length`, `coordinate_path` and `path`.
+In the above example, the `output` variable is a dictionary with three keys: `length` and `coordinate_path`.
 
 - `length`: The distance between the passed origin and destination when traversing the graph along the shortest path
     - Notes: 
@@ -84,23 +84,7 @@ In the above example, the `output` variable is a dictionary with three keys: `le
             - `m` (meters)
             - `mi` (miles)
             - `ft` (feet)
-- `coordinate_path`: A list of dictionaries (`latitude` and `longitude`) that make up the shortest path
-- `path`: A list of node ids (from the network data set) that make up the shortest path
-    - In general, these are only relevant if you are providing your own custom network data set
-
-To get the latitude / longitude pairs that make up the shortest path, as a list of lists, you could do something like the following:
-
-```py
-# Use a maritime network geograph
-from scgraph.geographs.marnet import marnet_geograph
-
-# Get the shortest path between 
-output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 31.23,"longitude": 121.47}, 
-    destination_node={"latitude": 32.08,"longitude": -81.09}
-)
-print(str([[i['latitude'],i['longitude']] for i in output['coordinate_path']]))
-```
+- `coordinate_path`: A list of lists [`latitude`,`longitude`] that make up the shortest path
 
 ## Included GeoGraphs
 
@@ -172,20 +156,20 @@ from scgraph import Graph
 
 # Define a graph
 # See the graph definitions here: 
-# https://connor-makowski.github.io/scgraph/core.html
-graph = {
-    0:{1: 5, 2: 1},
-    1:{0: 5, 2: 2, 3: 1},
-    2:{0: 1, 1: 2, 3: 4, 4: 8},
-    3:{1: 1, 2: 4, 4: 3, 5: 6},
-    4:{2: 8, 3: 3},
-    5:{3: 6}
-}
+# https://connor-makowski.github.io/scgraph/scgraph/core.html
+graph = [
+    {1: 5, 2: 1},
+    {0: 5, 2: 2, 3: 1},
+    {0: 1, 1: 2, 3: 4, 4: 8},
+    {1: 1, 2: 4, 4: 3, 5: 6},
+    {2: 8, 3: 3},
+    {3: 6}
+]
 
 # Optional: Validate your graph
 Graph.validate_graph(graph=graph)
 
-# Get the shortest path between 0 and 5
+# Get the shortest path between idx 0 and idx 5
 output = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5)
 #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
 ```
@@ -197,26 +181,26 @@ from scgraph import GeoGraph
 
 # Define nodes
 # See the nodes definitions here: 
-# https://connor-makowski.github.io/scgraph/core.html
-nodes = {
-    0: {"latitude": 0, "longitude": 0},
-    1: {"latitude": 0, "longitude": 1},
-    2: {"latitude": 1, "longitude": 0},
-    3: {"latitude": 1, "longitude": 1},
-    4: {"latitude": 1, "longitude": 2},
-    5: {"latitude": 2, "longitude": 1}
-}
+# https://connor-makowski.github.io/scgraph/scgraph/core.html
+nodes = [
+    [0,0],
+    [0,1],
+    [1,0],
+    [1,1],
+    [1,2],
+    [2,1]
+]
 # Define a graph
 # See the graph definitions here: 
-# https://connor-makowski.github.io/scgraph/core.html
-graph = {
-    0:{1: 5, 2: 1},
-    1:{0: 5, 2: 2, 3: 1},
-    2:{0: 1, 1: 2, 3: 4, 4: 8},
-    3:{1: 1, 2: 4, 4: 3, 5: 6},
-    4:{2: 8, 3: 3},
-    5:{3: 6}
-}
+# https://connor-makowski.github.io/scgraph/scgraph/core.html
+graph = [
+    {1: 5, 2: 1},
+    {0: 5, 2: 2, 3: 1},
+    {0: 1, 1: 2, 3: 4, 4: 8},
+    {1: 1, 2: 4, 4: 3, 5: 6},
+    {2: 8, 3: 3},
+    {3: 6}
+]
 
 # Create a GeoGraph object
 my_geograph = GeoGraph(nodes=nodes, graph=graph)
@@ -234,15 +218,14 @@ output = my_geograph.get_shortest_path(
 )
 #=>
 # {
-#     "path": [6, 0, 2, 1, 3, 5, 7],
 #     "coordinate_path": [
-#         {'latitude': 0, 'longitude': 0},
-#         {'latitude': 0, 'longitude': 0},
-#         {'latitude': 1, 'longitude': 0},
-#         {'latitude': 0, 'longitude': 1},
-#         {'latitude': 1, 'longitude': 1},
-#         {'latitude': 2, 'longitude': 1},
-#         {'latitude': 2, 'longitude': 1}
+#         [0,0],
+#         [0,0],
+#         [1,0],
+#         [0,1],
+#         [1,1],
+#         [2,1],
+#         [2,1]
 #     ],
 #     "length": 10
 # }
