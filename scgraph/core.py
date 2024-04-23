@@ -397,16 +397,18 @@ class GeoGraph:
 
     def get_shortest_path(
         self,
-        origin_node,
-        destination_node,
+        origin_node: dict[int | float],
+        destination_node: dict[int | float],
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
-        off_graph_circuity: [float, int] = 1,
+        off_graph_circuity: float | int = 1,
         node_addition_type: str = "quadrant",
-        node_addition_circuity: [float, int] = 4,
+        node_addition_circuity: float | int = 4,
         geograph_units: str = "km",
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
+        node_addition_lat_lon_bound: float | int = 5,
+        node_addition_math: str = "euclidean",
         **kwargs,
     ) -> dict:
         """
@@ -416,16 +418,16 @@ class GeoGraph:
 
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
-            - `path`: A list of node dictionaries (lat + long) in the order they are visited
+            - `path`: A list of nodes  (list of lat then long) in the order they are visited
             - `length`: The length of the path
 
          Required Arguments:
 
         - `origin_node`
-            - Type: dict
+            - Type: dict of int | float
             - What: A dictionary with the keys 'latitude' and 'longitude'
         - `destination_node`
-            - Type: dict
+            - Type: dict of int | float
             - What: A dictionary with the keys 'latitude' and 'longitude'
 
         Optional Arguments:
@@ -499,10 +501,27 @@ class GeoGraph:
             - Options:
                 - 'list_of_dicts': A list of dictionaries with keys 'latitude' and 'longitude'
                 - 'list_of_lists': A list of lists with the first value being latitude and the second being longitude
+                - 'list_of_lists_long_first': A list of lists with the first value being longitude and the second being latitude
         - `output_path`
             - Type: bool
             - What: Whether to output the path as a list of geograph node ids (for debugging and other advanced uses)
             - Default: False
+        - `node_addition_lat_lon_bound`
+            - Type: float | int
+            - What: Forms a bounding box around the origin and destination nodes as they are added to graph
+                - Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes
+            - Default: 5
+            - Note: If no nodes are found within the bounding box, the bounding box is expanded to 180 degrees in all directions (all nodes are considered)
+            - Note: This is only used when adding a new node (the specified origin and destination) to the graph
+        - `node_addition_math`
+            - Type: str
+            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
+            - Default: 'euclidean'
+            - Options:
+                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not as accurate (especially near the poles)
+                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
+            - Notes:
+                - Only used if `node_addition_type` is set to 'quadrant' or 'closest'
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
@@ -512,11 +531,15 @@ class GeoGraph:
             node=origin_node,
             node_addition_type=node_addition_type,
             circuity=node_addition_circuity,
+            lat_lon_bound=node_addition_lat_lon_bound,
+            node_addition_math=node_addition_math,
         )
         destination_id = self.add_node(
             node=destination_node,
             node_addition_type="all",
             circuity=node_addition_circuity,
+            lat_lon_bound=node_addition_lat_lon_bound,
+            node_addition_math=node_addition_math,
         )
 
         try:
@@ -541,6 +564,11 @@ class GeoGraph:
                     {"latitude": i[0], "longitude": i[1]}
                     for i in output["coordinate_path"]
                 ]
+            elif output_coordinate_path == "list_of_lists_long_first":
+                output["coordinate_path"] = [
+                    [i[1], i[0]] for i in output["coordinate_path"]
+                ]
+                output["long_first"] = True
             if not output_path:
                 del output["path"]
             while len(self.graph) > original_graph_length:
@@ -591,7 +619,7 @@ class GeoGraph:
                 4,
             )
 
-    def get_coordinate_path(self, path: list) -> list:
+    def get_coordinate_path(self, path: list[int]) -> list[dict[int | float]]:
         """
         Function:
 
@@ -635,11 +663,11 @@ class GeoGraph:
     def get_node_distances(
         self,
         node: list,
-        circuity: [int, float],
+        circuity: int | float,
         node_addition_type: str,
         node_addition_math: str,
-        lat_lon_bound: [int, float],
-    ):
+        lat_lon_bound: int | float,
+    ) -> dict[int | float]:
         """
         Function:
 
@@ -739,11 +767,11 @@ class GeoGraph:
 
     def add_node(
         self,
-        node: dict[int, float],
-        circuity: [float, int],
+        node: dict[int | float],
+        circuity: int | float,
         node_addition_type: str = "quadrant",
         node_addition_math: str = "euclidean",
-        lat_lon_bound: [int, float] = 5,
+        lat_lon_bound: int | float = 5,
     ) -> int:
         """
         Function:

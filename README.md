@@ -86,6 +86,8 @@ In the above example, the `output` variable is a dictionary with three keys: `le
             - `ft` (feet)
 - `coordinate_path`: A list of lists [`latitude`,`longitude`] that make up the shortest path
 
+For more examples including viewing the output on a map, see the [example notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/example.ipynb).
+
 ## Included GeoGraphs
 
 - marnet_geograph:
