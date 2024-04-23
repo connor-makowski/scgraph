@@ -5,7 +5,7 @@ def haversine(
     origin: list[float, int],
     destination: list[float, int],
     units: str = "km",
-    circuity: [float, int] = 1,
+    circuity: int | float = 1,
 ):
     """
     Function:
@@ -69,7 +69,7 @@ def haversine(
         raise Exception()
 
 
-def hard_round(decimal_places, a):
+def hard_round(decimal_places: int, a: int | float):
     """
     Function:
 
@@ -90,7 +90,7 @@ def hard_round(decimal_places, a):
 
 
 def distance_converter(
-    distance: [int, float], input_units: str, output_units: str
+    distance: int | float, input_units: str, output_units: str
 ):
     """
     Function:
@@ -115,7 +115,7 @@ def distance_converter(
     return (distance / km_table[input_units]) * km_table[output_units]
 
 
-def get_line_path(output, filename=None):
+def get_line_path(output: list | dict, filename=None):
     """
     Function:
 
@@ -137,9 +137,13 @@ def get_line_path(output, filename=None):
         - Note: if `filename` is not None, the output will be saved to the specified path
     """
     if isinstance(output["coordinate_path"], list):
+        if output.get("long_first"):
+            coordinates = output["coordinate_path"]
+        else:
+            coordinates = [[i[1], i[0]] for i in output["coordinate_path"]]
         linestring = {
             "type": "LineString",
-            "coordinates": [[i[1], i[0]] for i in output["coordinate_path"]],
+            "coordinates": coordinates,
         }
     elif isinstance(output["coordinate_path"], dict):
         linestring = {
