@@ -5,7 +5,7 @@ def haversine(
     origin: list[float, int],
     destination: list[float, int],
     units: str = "km",
-    circuity: int | float = 1,
+    circuity: [int, float] = 1,
 ):
     """
     Function:
@@ -28,7 +28,7 @@ def haversine(
         - What: units to return the distance in? (one of "km", "m", "mi", or "ft")
         - Default: "km"
     - `circuity`:
-        - Type: float | int
+        - Type: int | float
         - What: Multiplier to increase the calculated distance (to account for circuity)
         - Default: 1
 
@@ -69,7 +69,7 @@ def haversine(
         raise Exception()
 
 
-def hard_round(decimal_places: int, a: int | float):
+def hard_round(decimal_places: int, a: [int, float]):
     """
     Function:
 
@@ -81,7 +81,7 @@ def hard_round(decimal_places: int, a: int | float):
         - Type: int
         - What: number of decimal places to round to
     - `a`:
-        - Type: float | int
+        - Type: int | float
         - What: number to round
     """
     return int(a * (10**decimal_places) + (0.5 if a > 0 else -0.5)) / (
@@ -90,7 +90,7 @@ def hard_round(decimal_places: int, a: int | float):
 
 
 def distance_converter(
-    distance: int | float, input_units: str, output_units: str
+    distance: [int, float], input_units: str, output_units: str
 ):
     """
     Function:
@@ -115,7 +115,7 @@ def distance_converter(
     return (distance / km_table[input_units]) * km_table[output_units]
 
 
-def get_line_path(output: list | dict, filename=None):
+def get_line_path(output: [list, dict], filename=None):
     """
     Function:
 

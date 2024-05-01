@@ -298,7 +298,7 @@ class Graph:
 
 class GeoGraph:
     def __init__(
-        self, graph: list[dict], nodes: list[list[int | float]]
+        self, graph: list[dict], nodes: list[list[int, float]]
     ) -> None:
         """
         Function:
@@ -397,17 +397,17 @@ class GeoGraph:
 
     def get_shortest_path(
         self,
-        origin_node: dict[int | float],
-        destination_node: dict[int | float],
+        origin_node: dict[int, float],
+        destination_node: dict[int, float],
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
-        off_graph_circuity: float | int = 1,
+        off_graph_circuity: [int, float] = 1,
         node_addition_type: str = "quadrant",
-        node_addition_circuity: float | int = 4,
+        node_addition_circuity: [int, float] = 4,
         geograph_units: str = "km",
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
-        node_addition_lat_lon_bound: float | int = 5,
+        node_addition_lat_lon_bound: [int, float] = 5,
         node_addition_math: str = "euclidean",
         **kwargs,
     ) -> dict:
@@ -453,7 +453,7 @@ class GeoGraph:
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
         - `off_graph_circuity`
-            - Type: float | int
+            - Type: int | float
             - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
             - Default: 1
             - Notes:
@@ -476,7 +476,7 @@ class GeoGraph:
                 - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)
                     - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`
         - `node_addition_circuity`
-            - Type: float | int
+            - Type: int | float
             - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
             - Default: 4
             - Note:
@@ -507,7 +507,7 @@ class GeoGraph:
             - What: Whether to output the path as a list of geograph node ids (for debugging and other advanced uses)
             - Default: False
         - `node_addition_lat_lon_bound`
-            - Type: float | int
+            - Type: int | float
             - What: Forms a bounding box around the origin and destination nodes as they are added to graph
                 - Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes
             - Default: 5
@@ -596,10 +596,10 @@ class GeoGraph:
             - Type: dict
             - What: The output from the algorithm function
         - `node_addition_circuity`
-            - Type: float | int
+            - Type: int | float
             - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix
         - `off_graph_circuity`
-            - Type: float | int
+            - Type: int | float
             - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
         """
         coordinate_path = output["coordinate_path"]
@@ -619,7 +619,7 @@ class GeoGraph:
                 4,
             )
 
-    def get_coordinate_path(self, path: list[int]) -> list[dict[int | float]]:
+    def get_coordinate_path(self, path: list[int]) -> list[dict[int, float]]:
         """
         Function:
 
@@ -663,11 +663,11 @@ class GeoGraph:
     def get_node_distances(
         self,
         node: list,
-        circuity: int | float,
+        circuity: [int, float],
         node_addition_type: str,
         node_addition_math: str,
-        lat_lon_bound: int | float,
-    ) -> dict[int | float]:
+        lat_lon_bound: [int, float],
+    ) -> dict[int, float]:
         """
         Function:
 
@@ -681,7 +681,7 @@ class GeoGraph:
             - What: A list of the latitude and longitude of the node
             - EG: [latitude, longitude] -> [31.23, 121.47]
         - `circuity`
-            - Type: float | int
+            - Type: int | float
             - What: The circuity to apply to any distance calculations
             - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
         - `node_addition_type`
@@ -705,7 +705,7 @@ class GeoGraph:
             - Notes:
                 - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
         - `lat_lon_bound`
-            - Type: float | int
+            - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
         """
         assert node_addition_type in [
@@ -767,11 +767,11 @@ class GeoGraph:
 
     def add_node(
         self,
-        node: dict[int | float],
-        circuity: int | float,
+        node: dict[int, float],
+        circuity: [int, float],
         node_addition_type: str = "quadrant",
         node_addition_math: str = "euclidean",
-        lat_lon_bound: int | float = 5,
+        lat_lon_bound: [int, float] = 5,
     ) -> int:
         """
         Function:
@@ -788,7 +788,7 @@ class GeoGraph:
         Optional Arguments:
 
         - `circuity`
-            - Type: float | int
+            - Type: int | float
             - What: The circuity to apply to any distance calculations
             - Default: 4
             - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
@@ -814,7 +814,7 @@ class GeoGraph:
             - Notes:
                 - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
         - `lat_lon_bound`
-            - Type: float | int
+            - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
             - Default: 5
 

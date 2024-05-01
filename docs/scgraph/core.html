@@ -414,7 +414,7 @@
 </span><span id="L-298"><a href="#L-298"><span class="linenos">298</span></a>
 </span><span id="L-299"><a href="#L-299"><span class="linenos">299</span></a><span class="k">class</span> <span class="nc">GeoGraph</span><span class="p">:</span>
 </span><span id="L-300"><a href="#L-300"><span class="linenos">300</span></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-</span><span id="L-301"><a href="#L-301"><span class="linenos">301</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]</span>
+</span><span id="L-301"><a href="#L-301"><span class="linenos">301</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>
 </span><span id="L-302"><a href="#L-302"><span class="linenos">302</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-303"><a href="#L-303"><span class="linenos">303</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-304"><a href="#L-304"><span class="linenos">304</span></a><span class="sd">        Function:</span>
@@ -513,17 +513,17 @@
 </span><span id="L-397"><a href="#L-397"><span class="linenos">397</span></a>
 </span><span id="L-398"><a href="#L-398"><span class="linenos">398</span></a>    <span class="k">def</span> <span class="nf">get_shortest_path</span><span class="p">(</span>
 </span><span id="L-399"><a href="#L-399"><span class="linenos">399</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="L-400"><a href="#L-400"><span class="linenos">400</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
-</span><span id="L-401"><a href="#L-401"><span class="linenos">401</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="L-400"><a href="#L-400"><span class="linenos">400</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="L-401"><a href="#L-401"><span class="linenos">401</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-402"><a href="#L-402"><span class="linenos">402</span></a>        <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="L-403"><a href="#L-403"><span class="linenos">403</span></a>        <span class="n">algorithm_fn</span><span class="o">=</span><span class="n">Graph</span><span class="o">.</span><span class="n">dijkstra_makowski</span><span class="p">,</span>
-</span><span id="L-404"><a href="#L-404"><span class="linenos">404</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="L-404"><a href="#L-404"><span class="linenos">404</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="L-405"><a href="#L-405"><span class="linenos">405</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
-</span><span id="L-406"><a href="#L-406"><span class="linenos">406</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="L-406"><a href="#L-406"><span class="linenos">406</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="L-407"><a href="#L-407"><span class="linenos">407</span></a>        <span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="L-408"><a href="#L-408"><span class="linenos">408</span></a>        <span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;list_of_lists&quot;</span><span class="p">,</span>
 </span><span id="L-409"><a href="#L-409"><span class="linenos">409</span></a>        <span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="L-410"><a href="#L-410"><span class="linenos">410</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="L-410"><a href="#L-410"><span class="linenos">410</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="L-411"><a href="#L-411"><span class="linenos">411</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
 </span><span id="L-412"><a href="#L-412"><span class="linenos">412</span></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
 </span><span id="L-413"><a href="#L-413"><span class="linenos">413</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
@@ -569,7 +569,7 @@
 </span><span id="L-453"><a href="#L-453"><span class="linenos">453</span></a><span class="sd">                    - `origin`: The id of the origin node from the graph dictionary to start the shortest path from</span>
 </span><span id="L-454"><a href="#L-454"><span class="linenos">454</span></a><span class="sd">                    - `destination`: The id of the destination node from the graph dictionary to end the shortest path at</span>
 </span><span id="L-455"><a href="#L-455"><span class="linenos">455</span></a><span class="sd">        - `off_graph_circuity`</span>
-</span><span id="L-456"><a href="#L-456"><span class="linenos">456</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-456"><a href="#L-456"><span class="linenos">456</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-457"><a href="#L-457"><span class="linenos">457</span></a><span class="sd">            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</span>
 </span><span id="L-458"><a href="#L-458"><span class="linenos">458</span></a><span class="sd">            - Default: 1</span>
 </span><span id="L-459"><a href="#L-459"><span class="linenos">459</span></a><span class="sd">            - Notes:</span>
@@ -592,7 +592,7 @@
 </span><span id="L-476"><a href="#L-476"><span class="linenos">476</span></a><span class="sd">                - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)</span>
 </span><span id="L-477"><a href="#L-477"><span class="linenos">477</span></a><span class="sd">                    - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`</span>
 </span><span id="L-478"><a href="#L-478"><span class="linenos">478</span></a><span class="sd">        - `node_addition_circuity`</span>
-</span><span id="L-479"><a href="#L-479"><span class="linenos">479</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-479"><a href="#L-479"><span class="linenos">479</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-480"><a href="#L-480"><span class="linenos">480</span></a><span class="sd">            - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix</span>
 </span><span id="L-481"><a href="#L-481"><span class="linenos">481</span></a><span class="sd">            - Default: 4</span>
 </span><span id="L-482"><a href="#L-482"><span class="linenos">482</span></a><span class="sd">            - Note:</span>
@@ -623,7 +623,7 @@
 </span><span id="L-507"><a href="#L-507"><span class="linenos">507</span></a><span class="sd">            - What: Whether to output the path as a list of geograph node ids (for debugging and other advanced uses)</span>
 </span><span id="L-508"><a href="#L-508"><span class="linenos">508</span></a><span class="sd">            - Default: False</span>
 </span><span id="L-509"><a href="#L-509"><span class="linenos">509</span></a><span class="sd">        - `node_addition_lat_lon_bound`</span>
-</span><span id="L-510"><a href="#L-510"><span class="linenos">510</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-510"><a href="#L-510"><span class="linenos">510</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-511"><a href="#L-511"><span class="linenos">511</span></a><span class="sd">            - What: Forms a bounding box around the origin and destination nodes as they are added to graph</span>
 </span><span id="L-512"><a href="#L-512"><span class="linenos">512</span></a><span class="sd">                - Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes</span>
 </span><span id="L-513"><a href="#L-513"><span class="linenos">513</span></a><span class="sd">            - Default: 5</span>
@@ -712,10 +712,10 @@
 </span><span id="L-596"><a href="#L-596"><span class="linenos">596</span></a><span class="sd">            - Type: dict</span>
 </span><span id="L-597"><a href="#L-597"><span class="linenos">597</span></a><span class="sd">            - What: The output from the algorithm function</span>
 </span><span id="L-598"><a href="#L-598"><span class="linenos">598</span></a><span class="sd">        - `node_addition_circuity`</span>
-</span><span id="L-599"><a href="#L-599"><span class="linenos">599</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-599"><a href="#L-599"><span class="linenos">599</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-600"><a href="#L-600"><span class="linenos">600</span></a><span class="sd">            - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix</span>
 </span><span id="L-601"><a href="#L-601"><span class="linenos">601</span></a><span class="sd">        - `off_graph_circuity`</span>
-</span><span id="L-602"><a href="#L-602"><span class="linenos">602</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-602"><a href="#L-602"><span class="linenos">602</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-603"><a href="#L-603"><span class="linenos">603</span></a><span class="sd">            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</span>
 </span><span id="L-604"><a href="#L-604"><span class="linenos">604</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="L-605"><a href="#L-605"><span class="linenos">605</span></a>        <span class="n">coordinate_path</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">&quot;coordinate_path&quot;</span><span class="p">]</span>
@@ -735,7 +735,7 @@
 </span><span id="L-619"><a href="#L-619"><span class="linenos">619</span></a>                <span class="mi">4</span><span class="p">,</span>
 </span><span id="L-620"><a href="#L-620"><span class="linenos">620</span></a>            <span class="p">)</span>
 </span><span id="L-621"><a href="#L-621"><span class="linenos">621</span></a>
-</span><span id="L-622"><a href="#L-622"><span class="linenos">622</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]:</span>
+</span><span id="L-622"><a href="#L-622"><span class="linenos">622</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
 </span><span id="L-623"><a href="#L-623"><span class="linenos">623</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-624"><a href="#L-624"><span class="linenos">624</span></a><span class="sd">        Function:</span>
 </span><span id="L-625"><a href="#L-625"><span class="linenos">625</span></a>
@@ -779,11 +779,11 @@
 </span><span id="L-663"><a href="#L-663"><span class="linenos">663</span></a>    <span class="k">def</span> <span class="nf">get_node_distances</span><span class="p">(</span>
 </span><span id="L-664"><a href="#L-664"><span class="linenos">664</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="L-665"><a href="#L-665"><span class="linenos">665</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
-</span><span id="L-666"><a href="#L-666"><span class="linenos">666</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="L-666"><a href="#L-666"><span class="linenos">666</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-667"><a href="#L-667"><span class="linenos">667</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="L-668"><a href="#L-668"><span class="linenos">668</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="L-669"><a href="#L-669"><span class="linenos">669</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="L-670"><a href="#L-670"><span class="linenos">670</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]:</span>
+</span><span id="L-669"><a href="#L-669"><span class="linenos">669</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="L-670"><a href="#L-670"><span class="linenos">670</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
 </span><span id="L-671"><a href="#L-671"><span class="linenos">671</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-672"><a href="#L-672"><span class="linenos">672</span></a><span class="sd">        Function:</span>
 </span><span id="L-673"><a href="#L-673"><span class="linenos">673</span></a>
@@ -797,7 +797,7 @@
 </span><span id="L-681"><a href="#L-681"><span class="linenos">681</span></a><span class="sd">            - What: A list of the latitude and longitude of the node</span>
 </span><span id="L-682"><a href="#L-682"><span class="linenos">682</span></a><span class="sd">            - EG: [latitude, longitude] -&gt; [31.23, 121.47]</span>
 </span><span id="L-683"><a href="#L-683"><span class="linenos">683</span></a><span class="sd">        - `circuity`</span>
-</span><span id="L-684"><a href="#L-684"><span class="linenos">684</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-684"><a href="#L-684"><span class="linenos">684</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-685"><a href="#L-685"><span class="linenos">685</span></a><span class="sd">            - What: The circuity to apply to any distance calculations</span>
 </span><span id="L-686"><a href="#L-686"><span class="linenos">686</span></a><span class="sd">            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</span>
 </span><span id="L-687"><a href="#L-687"><span class="linenos">687</span></a><span class="sd">        - `node_addition_type`</span>
@@ -821,7 +821,7 @@
 </span><span id="L-705"><a href="#L-705"><span class="linenos">705</span></a><span class="sd">            - Notes:</span>
 </span><span id="L-706"><a href="#L-706"><span class="linenos">706</span></a><span class="sd">                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.</span>
 </span><span id="L-707"><a href="#L-707"><span class="linenos">707</span></a><span class="sd">        - `lat_lon_bound`</span>
-</span><span id="L-708"><a href="#L-708"><span class="linenos">708</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-708"><a href="#L-708"><span class="linenos">708</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-709"><a href="#L-709"><span class="linenos">709</span></a><span class="sd">            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</span>
 </span><span id="L-710"><a href="#L-710"><span class="linenos">710</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="L-711"><a href="#L-711"><span class="linenos">711</span></a>        <span class="k">assert</span> <span class="n">node_addition_type</span> <span class="ow">in</span> <span class="p">[</span>
@@ -883,11 +883,11 @@
 </span><span id="L-767"><a href="#L-767"><span class="linenos">767</span></a>
 </span><span id="L-768"><a href="#L-768"><span class="linenos">768</span></a>    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span>
 </span><span id="L-769"><a href="#L-769"><span class="linenos">769</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="L-770"><a href="#L-770"><span class="linenos">770</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
-</span><span id="L-771"><a href="#L-771"><span class="linenos">771</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="L-770"><a href="#L-770"><span class="linenos">770</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="L-771"><a href="#L-771"><span class="linenos">771</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-772"><a href="#L-772"><span class="linenos">772</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
 </span><span id="L-773"><a href="#L-773"><span class="linenos">773</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
-</span><span id="L-774"><a href="#L-774"><span class="linenos">774</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="L-774"><a href="#L-774"><span class="linenos">774</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="L-775"><a href="#L-775"><span class="linenos">775</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="L-776"><a href="#L-776"><span class="linenos">776</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-777"><a href="#L-777"><span class="linenos">777</span></a><span class="sd">        Function:</span>
@@ -904,7 +904,7 @@
 </span><span id="L-788"><a href="#L-788"><span class="linenos">788</span></a><span class="sd">        Optional Arguments:</span>
 </span><span id="L-789"><a href="#L-789"><span class="linenos">789</span></a>
 </span><span id="L-790"><a href="#L-790"><span class="linenos">790</span></a><span class="sd">        - `circuity`</span>
-</span><span id="L-791"><a href="#L-791"><span class="linenos">791</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-791"><a href="#L-791"><span class="linenos">791</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-792"><a href="#L-792"><span class="linenos">792</span></a><span class="sd">            - What: The circuity to apply to any distance calculations</span>
 </span><span id="L-793"><a href="#L-793"><span class="linenos">793</span></a><span class="sd">            - Default: 4</span>
 </span><span id="L-794"><a href="#L-794"><span class="linenos">794</span></a><span class="sd">            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</span>
@@ -930,7 +930,7 @@
 </span><span id="L-814"><a href="#L-814"><span class="linenos">814</span></a><span class="sd">            - Notes:</span>
 </span><span id="L-815"><a href="#L-815"><span class="linenos">815</span></a><span class="sd">                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.</span>
 </span><span id="L-816"><a href="#L-816"><span class="linenos">816</span></a><span class="sd">        - `lat_lon_bound`</span>
-</span><span id="L-817"><a href="#L-817"><span class="linenos">817</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="L-817"><a href="#L-817"><span class="linenos">817</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="L-818"><a href="#L-818"><span class="linenos">818</span></a><span class="sd">            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</span>
 </span><span id="L-819"><a href="#L-819"><span class="linenos">819</span></a><span class="sd">            - Default: 5</span>
 </span><span id="L-820"><a href="#L-820"><span class="linenos">820</span></a>
@@ -1921,7 +1921,7 @@
     <a class="headerlink" href="#GeoGraph"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph-300"><a href="#GeoGraph-300"><span class="linenos">300</span></a><span class="k">class</span> <span class="nc">GeoGraph</span><span class="p">:</span>
 </span><span id="GeoGraph-301"><a href="#GeoGraph-301"><span class="linenos">301</span></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-</span><span id="GeoGraph-302"><a href="#GeoGraph-302"><span class="linenos">302</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]</span>
+</span><span id="GeoGraph-302"><a href="#GeoGraph-302"><span class="linenos">302</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>
 </span><span id="GeoGraph-303"><a href="#GeoGraph-303"><span class="linenos">303</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-304"><a href="#GeoGraph-304"><span class="linenos">304</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-305"><a href="#GeoGraph-305"><span class="linenos">305</span></a><span class="sd">        Function:</span>
@@ -2020,17 +2020,17 @@
 </span><span id="GeoGraph-398"><a href="#GeoGraph-398"><span class="linenos">398</span></a>
 </span><span id="GeoGraph-399"><a href="#GeoGraph-399"><span class="linenos">399</span></a>    <span class="k">def</span> <span class="nf">get_shortest_path</span><span class="p">(</span>
 </span><span id="GeoGraph-400"><a href="#GeoGraph-400"><span class="linenos">400</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph-401"><a href="#GeoGraph-401"><span class="linenos">401</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
-</span><span id="GeoGraph-402"><a href="#GeoGraph-402"><span class="linenos">402</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph-401"><a href="#GeoGraph-401"><span class="linenos">401</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph-402"><a href="#GeoGraph-402"><span class="linenos">402</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="GeoGraph-403"><a href="#GeoGraph-403"><span class="linenos">403</span></a>        <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-404"><a href="#GeoGraph-404"><span class="linenos">404</span></a>        <span class="n">algorithm_fn</span><span class="o">=</span><span class="n">Graph</span><span class="o">.</span><span class="n">dijkstra_makowski</span><span class="p">,</span>
-</span><span id="GeoGraph-405"><a href="#GeoGraph-405"><span class="linenos">405</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="GeoGraph-405"><a href="#GeoGraph-405"><span class="linenos">405</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="GeoGraph-406"><a href="#GeoGraph-406"><span class="linenos">406</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph-407"><a href="#GeoGraph-407"><span class="linenos">407</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="GeoGraph-407"><a href="#GeoGraph-407"><span class="linenos">407</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="GeoGraph-408"><a href="#GeoGraph-408"><span class="linenos">408</span></a>        <span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-409"><a href="#GeoGraph-409"><span class="linenos">409</span></a>        <span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;list_of_lists&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-410"><a href="#GeoGraph-410"><span class="linenos">410</span></a>        <span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="GeoGraph-411"><a href="#GeoGraph-411"><span class="linenos">411</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph-411"><a href="#GeoGraph-411"><span class="linenos">411</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph-412"><a href="#GeoGraph-412"><span class="linenos">412</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-413"><a href="#GeoGraph-413"><span class="linenos">413</span></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
 </span><span id="GeoGraph-414"><a href="#GeoGraph-414"><span class="linenos">414</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
@@ -2076,7 +2076,7 @@
 </span><span id="GeoGraph-454"><a href="#GeoGraph-454"><span class="linenos">454</span></a><span class="sd">                    - `origin`: The id of the origin node from the graph dictionary to start the shortest path from</span>
 </span><span id="GeoGraph-455"><a href="#GeoGraph-455"><span class="linenos">455</span></a><span class="sd">                    - `destination`: The id of the destination node from the graph dictionary to end the shortest path at</span>
 </span><span id="GeoGraph-456"><a href="#GeoGraph-456"><span class="linenos">456</span></a><span class="sd">        - `off_graph_circuity`</span>
-</span><span id="GeoGraph-457"><a href="#GeoGraph-457"><span class="linenos">457</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-457"><a href="#GeoGraph-457"><span class="linenos">457</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-458"><a href="#GeoGraph-458"><span class="linenos">458</span></a><span class="sd">            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</span>
 </span><span id="GeoGraph-459"><a href="#GeoGraph-459"><span class="linenos">459</span></a><span class="sd">            - Default: 1</span>
 </span><span id="GeoGraph-460"><a href="#GeoGraph-460"><span class="linenos">460</span></a><span class="sd">            - Notes:</span>
@@ -2099,7 +2099,7 @@
 </span><span id="GeoGraph-477"><a href="#GeoGraph-477"><span class="linenos">477</span></a><span class="sd">                - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)</span>
 </span><span id="GeoGraph-478"><a href="#GeoGraph-478"><span class="linenos">478</span></a><span class="sd">                    - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`</span>
 </span><span id="GeoGraph-479"><a href="#GeoGraph-479"><span class="linenos">479</span></a><span class="sd">        - `node_addition_circuity`</span>
-</span><span id="GeoGraph-480"><a href="#GeoGraph-480"><span class="linenos">480</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-480"><a href="#GeoGraph-480"><span class="linenos">480</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-481"><a href="#GeoGraph-481"><span class="linenos">481</span></a><span class="sd">            - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix</span>
 </span><span id="GeoGraph-482"><a href="#GeoGraph-482"><span class="linenos">482</span></a><span class="sd">            - Default: 4</span>
 </span><span id="GeoGraph-483"><a href="#GeoGraph-483"><span class="linenos">483</span></a><span class="sd">            - Note:</span>
@@ -2130,7 +2130,7 @@
 </span><span id="GeoGraph-508"><a href="#GeoGraph-508"><span class="linenos">508</span></a><span class="sd">            - What: Whether to output the path as a list of geograph node ids (for debugging and other advanced uses)</span>
 </span><span id="GeoGraph-509"><a href="#GeoGraph-509"><span class="linenos">509</span></a><span class="sd">            - Default: False</span>
 </span><span id="GeoGraph-510"><a href="#GeoGraph-510"><span class="linenos">510</span></a><span class="sd">        - `node_addition_lat_lon_bound`</span>
-</span><span id="GeoGraph-511"><a href="#GeoGraph-511"><span class="linenos">511</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-511"><a href="#GeoGraph-511"><span class="linenos">511</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-512"><a href="#GeoGraph-512"><span class="linenos">512</span></a><span class="sd">            - What: Forms a bounding box around the origin and destination nodes as they are added to graph</span>
 </span><span id="GeoGraph-513"><a href="#GeoGraph-513"><span class="linenos">513</span></a><span class="sd">                - Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes</span>
 </span><span id="GeoGraph-514"><a href="#GeoGraph-514"><span class="linenos">514</span></a><span class="sd">            - Default: 5</span>
@@ -2219,10 +2219,10 @@
 </span><span id="GeoGraph-597"><a href="#GeoGraph-597"><span class="linenos">597</span></a><span class="sd">            - Type: dict</span>
 </span><span id="GeoGraph-598"><a href="#GeoGraph-598"><span class="linenos">598</span></a><span class="sd">            - What: The output from the algorithm function</span>
 </span><span id="GeoGraph-599"><a href="#GeoGraph-599"><span class="linenos">599</span></a><span class="sd">        - `node_addition_circuity`</span>
-</span><span id="GeoGraph-600"><a href="#GeoGraph-600"><span class="linenos">600</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-600"><a href="#GeoGraph-600"><span class="linenos">600</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-601"><a href="#GeoGraph-601"><span class="linenos">601</span></a><span class="sd">            - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix</span>
 </span><span id="GeoGraph-602"><a href="#GeoGraph-602"><span class="linenos">602</span></a><span class="sd">        - `off_graph_circuity`</span>
-</span><span id="GeoGraph-603"><a href="#GeoGraph-603"><span class="linenos">603</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-603"><a href="#GeoGraph-603"><span class="linenos">603</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-604"><a href="#GeoGraph-604"><span class="linenos">604</span></a><span class="sd">            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</span>
 </span><span id="GeoGraph-605"><a href="#GeoGraph-605"><span class="linenos">605</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="GeoGraph-606"><a href="#GeoGraph-606"><span class="linenos">606</span></a>        <span class="n">coordinate_path</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">&quot;coordinate_path&quot;</span><span class="p">]</span>
@@ -2242,7 +2242,7 @@
 </span><span id="GeoGraph-620"><a href="#GeoGraph-620"><span class="linenos">620</span></a>                <span class="mi">4</span><span class="p">,</span>
 </span><span id="GeoGraph-621"><a href="#GeoGraph-621"><span class="linenos">621</span></a>            <span class="p">)</span>
 </span><span id="GeoGraph-622"><a href="#GeoGraph-622"><span class="linenos">622</span></a>
-</span><span id="GeoGraph-623"><a href="#GeoGraph-623"><span class="linenos">623</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]:</span>
+</span><span id="GeoGraph-623"><a href="#GeoGraph-623"><span class="linenos">623</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
 </span><span id="GeoGraph-624"><a href="#GeoGraph-624"><span class="linenos">624</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-625"><a href="#GeoGraph-625"><span class="linenos">625</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-626"><a href="#GeoGraph-626"><span class="linenos">626</span></a>
@@ -2286,11 +2286,11 @@
 </span><span id="GeoGraph-664"><a href="#GeoGraph-664"><span class="linenos">664</span></a>    <span class="k">def</span> <span class="nf">get_node_distances</span><span class="p">(</span>
 </span><span id="GeoGraph-665"><a href="#GeoGraph-665"><span class="linenos">665</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph-666"><a href="#GeoGraph-666"><span class="linenos">666</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
-</span><span id="GeoGraph-667"><a href="#GeoGraph-667"><span class="linenos">667</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="GeoGraph-667"><a href="#GeoGraph-667"><span class="linenos">667</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="GeoGraph-668"><a href="#GeoGraph-668"><span class="linenos">668</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="GeoGraph-669"><a href="#GeoGraph-669"><span class="linenos">669</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="GeoGraph-670"><a href="#GeoGraph-670"><span class="linenos">670</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="GeoGraph-671"><a href="#GeoGraph-671"><span class="linenos">671</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]:</span>
+</span><span id="GeoGraph-670"><a href="#GeoGraph-670"><span class="linenos">670</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph-671"><a href="#GeoGraph-671"><span class="linenos">671</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
 </span><span id="GeoGraph-672"><a href="#GeoGraph-672"><span class="linenos">672</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-673"><a href="#GeoGraph-673"><span class="linenos">673</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-674"><a href="#GeoGraph-674"><span class="linenos">674</span></a>
@@ -2304,7 +2304,7 @@
 </span><span id="GeoGraph-682"><a href="#GeoGraph-682"><span class="linenos">682</span></a><span class="sd">            - What: A list of the latitude and longitude of the node</span>
 </span><span id="GeoGraph-683"><a href="#GeoGraph-683"><span class="linenos">683</span></a><span class="sd">            - EG: [latitude, longitude] -&gt; [31.23, 121.47]</span>
 </span><span id="GeoGraph-684"><a href="#GeoGraph-684"><span class="linenos">684</span></a><span class="sd">        - `circuity`</span>
-</span><span id="GeoGraph-685"><a href="#GeoGraph-685"><span class="linenos">685</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-685"><a href="#GeoGraph-685"><span class="linenos">685</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-686"><a href="#GeoGraph-686"><span class="linenos">686</span></a><span class="sd">            - What: The circuity to apply to any distance calculations</span>
 </span><span id="GeoGraph-687"><a href="#GeoGraph-687"><span class="linenos">687</span></a><span class="sd">            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</span>
 </span><span id="GeoGraph-688"><a href="#GeoGraph-688"><span class="linenos">688</span></a><span class="sd">        - `node_addition_type`</span>
@@ -2328,7 +2328,7 @@
 </span><span id="GeoGraph-706"><a href="#GeoGraph-706"><span class="linenos">706</span></a><span class="sd">            - Notes:</span>
 </span><span id="GeoGraph-707"><a href="#GeoGraph-707"><span class="linenos">707</span></a><span class="sd">                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.</span>
 </span><span id="GeoGraph-708"><a href="#GeoGraph-708"><span class="linenos">708</span></a><span class="sd">        - `lat_lon_bound`</span>
-</span><span id="GeoGraph-709"><a href="#GeoGraph-709"><span class="linenos">709</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-709"><a href="#GeoGraph-709"><span class="linenos">709</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-710"><a href="#GeoGraph-710"><span class="linenos">710</span></a><span class="sd">            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</span>
 </span><span id="GeoGraph-711"><a href="#GeoGraph-711"><span class="linenos">711</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="GeoGraph-712"><a href="#GeoGraph-712"><span class="linenos">712</span></a>        <span class="k">assert</span> <span class="n">node_addition_type</span> <span class="ow">in</span> <span class="p">[</span>
@@ -2390,11 +2390,11 @@
 </span><span id="GeoGraph-768"><a href="#GeoGraph-768"><span class="linenos">768</span></a>
 </span><span id="GeoGraph-769"><a href="#GeoGraph-769"><span class="linenos">769</span></a>    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span>
 </span><span id="GeoGraph-770"><a href="#GeoGraph-770"><span class="linenos">770</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph-771"><a href="#GeoGraph-771"><span class="linenos">771</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
-</span><span id="GeoGraph-772"><a href="#GeoGraph-772"><span class="linenos">772</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="GeoGraph-771"><a href="#GeoGraph-771"><span class="linenos">771</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph-772"><a href="#GeoGraph-772"><span class="linenos">772</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="GeoGraph-773"><a href="#GeoGraph-773"><span class="linenos">773</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-774"><a href="#GeoGraph-774"><span class="linenos">774</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph-775"><a href="#GeoGraph-775"><span class="linenos">775</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph-775"><a href="#GeoGraph-775"><span class="linenos">775</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph-776"><a href="#GeoGraph-776"><span class="linenos">776</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="GeoGraph-777"><a href="#GeoGraph-777"><span class="linenos">777</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-778"><a href="#GeoGraph-778"><span class="linenos">778</span></a><span class="sd">        Function:</span>
@@ -2411,7 +2411,7 @@
 </span><span id="GeoGraph-789"><a href="#GeoGraph-789"><span class="linenos">789</span></a><span class="sd">        Optional Arguments:</span>
 </span><span id="GeoGraph-790"><a href="#GeoGraph-790"><span class="linenos">790</span></a>
 </span><span id="GeoGraph-791"><a href="#GeoGraph-791"><span class="linenos">791</span></a><span class="sd">        - `circuity`</span>
-</span><span id="GeoGraph-792"><a href="#GeoGraph-792"><span class="linenos">792</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-792"><a href="#GeoGraph-792"><span class="linenos">792</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-793"><a href="#GeoGraph-793"><span class="linenos">793</span></a><span class="sd">            - What: The circuity to apply to any distance calculations</span>
 </span><span id="GeoGraph-794"><a href="#GeoGraph-794"><span class="linenos">794</span></a><span class="sd">            - Default: 4</span>
 </span><span id="GeoGraph-795"><a href="#GeoGraph-795"><span class="linenos">795</span></a><span class="sd">            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</span>
@@ -2437,7 +2437,7 @@
 </span><span id="GeoGraph-815"><a href="#GeoGraph-815"><span class="linenos">815</span></a><span class="sd">            - Notes:</span>
 </span><span id="GeoGraph-816"><a href="#GeoGraph-816"><span class="linenos">816</span></a><span class="sd">                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.</span>
 </span><span id="GeoGraph-817"><a href="#GeoGraph-817"><span class="linenos">817</span></a><span class="sd">        - `lat_lon_bound`</span>
-</span><span id="GeoGraph-818"><a href="#GeoGraph-818"><span class="linenos">818</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph-818"><a href="#GeoGraph-818"><span class="linenos">818</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph-819"><a href="#GeoGraph-819"><span class="linenos">819</span></a><span class="sd">            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</span>
 </span><span id="GeoGraph-820"><a href="#GeoGraph-820"><span class="linenos">820</span></a><span class="sd">            - Default: 5</span>
 </span><span id="GeoGraph-821"><a href="#GeoGraph-821"><span class="linenos">821</span></a>
@@ -2541,14 +2541,14 @@
                                         <input id="GeoGraph.__init__-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr function">
             
-        <span class="name">GeoGraph</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span>, </span><span class="param"><span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]</span></span>)</span>
+        <span class="name">GeoGraph</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]</span>, </span><span class="param"><span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span></span>)</span>
 
                 <label class="view-source-button" for="GeoGraph.__init__-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#GeoGraph.__init__"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.__init__-301"><a href="#GeoGraph.__init__-301"><span class="linenos">301</span></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-</span><span id="GeoGraph.__init__-302"><a href="#GeoGraph.__init__-302"><span class="linenos">302</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]</span>
+</span><span id="GeoGraph.__init__-302"><a href="#GeoGraph.__init__-302"><span class="linenos">302</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>
 </span><span id="GeoGraph.__init__-303"><a href="#GeoGraph.__init__-303"><span class="linenos">303</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.__init__-304"><a href="#GeoGraph.__init__-304"><span class="linenos">304</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.__init__-305"><a href="#GeoGraph.__init__-305"><span class="linenos">305</span></a><span class="sd">        Function:</span>
@@ -2787,7 +2787,7 @@
 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">get_shortest_path</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>,</span><span class="param">	<span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>,</span><span class="param">	<span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;km&#39;</span>,</span><span class="param">	<span class="n">algorithm_fn</span><span class="o">=&lt;</span><span class="n">function</span> <span class="n"><a href="#Graph.dijkstra_makowski">Graph.dijkstra_makowski</a></span><span class="o">&gt;</span>,</span><span class="param">	<span class="n">off_graph_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>,</span><span class="param">	<span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;quadrant&#39;</span>,</span><span class="param">	<span class="n">node_addition_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>,</span><span class="param">	<span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;km&#39;</span>,</span><span class="param">	<span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;list_of_lists&#39;</span>,</span><span class="param">	<span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span>,</span><span class="param">	<span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;euclidean&#39;</span>,</span><span class="param">	<span class="o">**</span><span class="n">kwargs</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+        <span class="name">get_shortest_path</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>,</span><span class="param">	<span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>,</span><span class="param">	<span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;km&#39;</span>,</span><span class="param">	<span class="n">algorithm_fn</span><span class="o">=&lt;</span><span class="n">function</span> <span class="n"><a href="#Graph.dijkstra_makowski">Graph.dijkstra_makowski</a></span><span class="o">&gt;</span>,</span><span class="param">	off_graph_circuity: [&lt;class &#x27;int&#x27;&gt;, &lt;class &#x27;float&#x27;&gt;] = 1,</span><span class="param">	<span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;quadrant&#39;</span>,</span><span class="param">	node_addition_circuity: [&lt;class &#x27;int&#x27;&gt;, &lt;class &#x27;float&#x27;&gt;] = 4,</span><span class="param">	<span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;km&#39;</span>,</span><span class="param">	<span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;list_of_lists&#39;</span>,</span><span class="param">	<span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	node_addition_lat_lon_bound: [&lt;class &#x27;int&#x27;&gt;, &lt;class &#x27;float&#x27;&gt;] = 5,</span><span class="param">	<span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;euclidean&#39;</span>,</span><span class="param">	<span class="o">**</span><span class="n">kwargs</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
 
                 <label class="view-source-button" for="GeoGraph.get_shortest_path-view-source"><span>View Source</span></label>
 
@@ -2795,17 +2795,17 @@
     <a class="headerlink" href="#GeoGraph.get_shortest_path"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_shortest_path-399"><a href="#GeoGraph.get_shortest_path-399"><span class="linenos">399</span></a>    <span class="k">def</span> <span class="nf">get_shortest_path</span><span class="p">(</span>
 </span><span id="GeoGraph.get_shortest_path-400"><a href="#GeoGraph.get_shortest_path-400"><span class="linenos">400</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-401"><a href="#GeoGraph.get_shortest_path-401"><span class="linenos">401</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
-</span><span id="GeoGraph.get_shortest_path-402"><a href="#GeoGraph.get_shortest_path-402"><span class="linenos">402</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph.get_shortest_path-401"><a href="#GeoGraph.get_shortest_path-401"><span class="linenos">401</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph.get_shortest_path-402"><a href="#GeoGraph.get_shortest_path-402"><span class="linenos">402</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="GeoGraph.get_shortest_path-403"><a href="#GeoGraph.get_shortest_path-403"><span class="linenos">403</span></a>        <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-404"><a href="#GeoGraph.get_shortest_path-404"><span class="linenos">404</span></a>        <span class="n">algorithm_fn</span><span class="o">=</span><span class="n">Graph</span><span class="o">.</span><span class="n">dijkstra_makowski</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-405"><a href="#GeoGraph.get_shortest_path-405"><span class="linenos">405</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="GeoGraph.get_shortest_path-405"><a href="#GeoGraph.get_shortest_path-405"><span class="linenos">405</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-406"><a href="#GeoGraph.get_shortest_path-406"><span class="linenos">406</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-407"><a href="#GeoGraph.get_shortest_path-407"><span class="linenos">407</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="GeoGraph.get_shortest_path-407"><a href="#GeoGraph.get_shortest_path-407"><span class="linenos">407</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-408"><a href="#GeoGraph.get_shortest_path-408"><span class="linenos">408</span></a>        <span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-409"><a href="#GeoGraph.get_shortest_path-409"><span class="linenos">409</span></a>        <span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;list_of_lists&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-410"><a href="#GeoGraph.get_shortest_path-410"><span class="linenos">410</span></a>        <span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-411"><a href="#GeoGraph.get_shortest_path-411"><span class="linenos">411</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph.get_shortest_path-411"><a href="#GeoGraph.get_shortest_path-411"><span class="linenos">411</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-412"><a href="#GeoGraph.get_shortest_path-412"><span class="linenos">412</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-413"><a href="#GeoGraph.get_shortest_path-413"><span class="linenos">413</span></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-414"><a href="#GeoGraph.get_shortest_path-414"><span class="linenos">414</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
@@ -2851,7 +2851,7 @@
 </span><span id="GeoGraph.get_shortest_path-454"><a href="#GeoGraph.get_shortest_path-454"><span class="linenos">454</span></a><span class="sd">                    - `origin`: The id of the origin node from the graph dictionary to start the shortest path from</span>
 </span><span id="GeoGraph.get_shortest_path-455"><a href="#GeoGraph.get_shortest_path-455"><span class="linenos">455</span></a><span class="sd">                    - `destination`: The id of the destination node from the graph dictionary to end the shortest path at</span>
 </span><span id="GeoGraph.get_shortest_path-456"><a href="#GeoGraph.get_shortest_path-456"><span class="linenos">456</span></a><span class="sd">        - `off_graph_circuity`</span>
-</span><span id="GeoGraph.get_shortest_path-457"><a href="#GeoGraph.get_shortest_path-457"><span class="linenos">457</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.get_shortest_path-457"><a href="#GeoGraph.get_shortest_path-457"><span class="linenos">457</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.get_shortest_path-458"><a href="#GeoGraph.get_shortest_path-458"><span class="linenos">458</span></a><span class="sd">            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</span>
 </span><span id="GeoGraph.get_shortest_path-459"><a href="#GeoGraph.get_shortest_path-459"><span class="linenos">459</span></a><span class="sd">            - Default: 1</span>
 </span><span id="GeoGraph.get_shortest_path-460"><a href="#GeoGraph.get_shortest_path-460"><span class="linenos">460</span></a><span class="sd">            - Notes:</span>
@@ -2874,7 +2874,7 @@
 </span><span id="GeoGraph.get_shortest_path-477"><a href="#GeoGraph.get_shortest_path-477"><span class="linenos">477</span></a><span class="sd">                - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)</span>
 </span><span id="GeoGraph.get_shortest_path-478"><a href="#GeoGraph.get_shortest_path-478"><span class="linenos">478</span></a><span class="sd">                    - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`</span>
 </span><span id="GeoGraph.get_shortest_path-479"><a href="#GeoGraph.get_shortest_path-479"><span class="linenos">479</span></a><span class="sd">        - `node_addition_circuity`</span>
-</span><span id="GeoGraph.get_shortest_path-480"><a href="#GeoGraph.get_shortest_path-480"><span class="linenos">480</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.get_shortest_path-480"><a href="#GeoGraph.get_shortest_path-480"><span class="linenos">480</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.get_shortest_path-481"><a href="#GeoGraph.get_shortest_path-481"><span class="linenos">481</span></a><span class="sd">            - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix</span>
 </span><span id="GeoGraph.get_shortest_path-482"><a href="#GeoGraph.get_shortest_path-482"><span class="linenos">482</span></a><span class="sd">            - Default: 4</span>
 </span><span id="GeoGraph.get_shortest_path-483"><a href="#GeoGraph.get_shortest_path-483"><span class="linenos">483</span></a><span class="sd">            - Note:</span>
@@ -2905,7 +2905,7 @@
 </span><span id="GeoGraph.get_shortest_path-508"><a href="#GeoGraph.get_shortest_path-508"><span class="linenos">508</span></a><span class="sd">            - What: Whether to output the path as a list of geograph node ids (for debugging and other advanced uses)</span>
 </span><span id="GeoGraph.get_shortest_path-509"><a href="#GeoGraph.get_shortest_path-509"><span class="linenos">509</span></a><span class="sd">            - Default: False</span>
 </span><span id="GeoGraph.get_shortest_path-510"><a href="#GeoGraph.get_shortest_path-510"><span class="linenos">510</span></a><span class="sd">        - `node_addition_lat_lon_bound`</span>
-</span><span id="GeoGraph.get_shortest_path-511"><a href="#GeoGraph.get_shortest_path-511"><span class="linenos">511</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.get_shortest_path-511"><a href="#GeoGraph.get_shortest_path-511"><span class="linenos">511</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.get_shortest_path-512"><a href="#GeoGraph.get_shortest_path-512"><span class="linenos">512</span></a><span class="sd">            - What: Forms a bounding box around the origin and destination nodes as they are added to graph</span>
 </span><span id="GeoGraph.get_shortest_path-513"><a href="#GeoGraph.get_shortest_path-513"><span class="linenos">513</span></a><span class="sd">                - Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes</span>
 </span><span id="GeoGraph.get_shortest_path-514"><a href="#GeoGraph.get_shortest_path-514"><span class="linenos">514</span></a><span class="sd">            - Default: 5</span>
@@ -3040,7 +3040,7 @@
 </ul></li>
 <li><code>off_graph_circuity</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</li>
 <li>Default: 1</li>
 <li>Notes:
@@ -3077,7 +3077,7 @@
 </ul></li>
 <li><code>node_addition_circuity</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix</li>
 <li>Default: 4</li>
 <li>Note:
@@ -3122,7 +3122,7 @@
 </ul></li>
 <li><code>node_addition_lat_lon_bound</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: Forms a bounding box around the origin and destination nodes as they are added to graph
 <ul>
 <li>Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes</li>
@@ -3183,10 +3183,10 @@
 </span><span id="GeoGraph.adujust_circuity_length-597"><a href="#GeoGraph.adujust_circuity_length-597"><span class="linenos">597</span></a><span class="sd">            - Type: dict</span>
 </span><span id="GeoGraph.adujust_circuity_length-598"><a href="#GeoGraph.adujust_circuity_length-598"><span class="linenos">598</span></a><span class="sd">            - What: The output from the algorithm function</span>
 </span><span id="GeoGraph.adujust_circuity_length-599"><a href="#GeoGraph.adujust_circuity_length-599"><span class="linenos">599</span></a><span class="sd">        - `node_addition_circuity`</span>
-</span><span id="GeoGraph.adujust_circuity_length-600"><a href="#GeoGraph.adujust_circuity_length-600"><span class="linenos">600</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.adujust_circuity_length-600"><a href="#GeoGraph.adujust_circuity_length-600"><span class="linenos">600</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.adujust_circuity_length-601"><a href="#GeoGraph.adujust_circuity_length-601"><span class="linenos">601</span></a><span class="sd">            - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix</span>
 </span><span id="GeoGraph.adujust_circuity_length-602"><a href="#GeoGraph.adujust_circuity_length-602"><span class="linenos">602</span></a><span class="sd">        - `off_graph_circuity`</span>
-</span><span id="GeoGraph.adujust_circuity_length-603"><a href="#GeoGraph.adujust_circuity_length-603"><span class="linenos">603</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.adujust_circuity_length-603"><a href="#GeoGraph.adujust_circuity_length-603"><span class="linenos">603</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.adujust_circuity_length-604"><a href="#GeoGraph.adujust_circuity_length-604"><span class="linenos">604</span></a><span class="sd">            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</span>
 </span><span id="GeoGraph.adujust_circuity_length-605"><a href="#GeoGraph.adujust_circuity_length-605"><span class="linenos">605</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="GeoGraph.adujust_circuity_length-606"><a href="#GeoGraph.adujust_circuity_length-606"><span class="linenos">606</span></a>        <span class="n">coordinate_path</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">&quot;coordinate_path&quot;</span><span class="p">]</span>
@@ -3224,12 +3224,12 @@
 </ul></li>
 <li><code>node_addition_circuity</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix</li>
 </ul></li>
 <li><code>off_graph_circuity</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph</li>
 </ul></li>
 </ul>
@@ -3242,13 +3242,13 @@
 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">get_coordinate_path</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]</span>:</span></span>
+        <span class="name">get_coordinate_path</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>:</span></span>
 
                 <label class="view-source-button" for="GeoGraph.get_coordinate_path-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#GeoGraph.get_coordinate_path"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_coordinate_path-623"><a href="#GeoGraph.get_coordinate_path-623"><span class="linenos">623</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_coordinate_path-623"><a href="#GeoGraph.get_coordinate_path-623"><span class="linenos">623</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
 </span><span id="GeoGraph.get_coordinate_path-624"><a href="#GeoGraph.get_coordinate_path-624"><span class="linenos">624</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.get_coordinate_path-625"><a href="#GeoGraph.get_coordinate_path-625"><span class="linenos">625</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.get_coordinate_path-626"><a href="#GeoGraph.get_coordinate_path-626"><span class="linenos">626</span></a>
@@ -3360,7 +3360,7 @@
 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">get_node_distances</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">node</span><span class="p">:</span> <span class="nb">list</span>,</span><span class="param">	<span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span></span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>:</span></span>
+        <span class="name">get_node_distances</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">node</span><span class="p">:</span> <span class="nb">list</span>,</span><span class="param">	circuity: [&lt;class &#x27;int&#x27;&gt;, &lt;class &#x27;float&#x27;&gt;],</span><span class="param">	<span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	<span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span>,</span><span class="param">	lat_lon_bound: [&lt;class &#x27;int&#x27;&gt;, &lt;class &#x27;float&#x27;&gt;]</span><span class="return-annotation">) -> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>:</span></span>
 
                 <label class="view-source-button" for="GeoGraph.get_node_distances-view-source"><span>View Source</span></label>
 
@@ -3369,11 +3369,11 @@
             <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_node_distances-664"><a href="#GeoGraph.get_node_distances-664"><span class="linenos">664</span></a>    <span class="k">def</span> <span class="nf">get_node_distances</span><span class="p">(</span>
 </span><span id="GeoGraph.get_node_distances-665"><a href="#GeoGraph.get_node_distances-665"><span class="linenos">665</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph.get_node_distances-666"><a href="#GeoGraph.get_node_distances-666"><span class="linenos">666</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
-</span><span id="GeoGraph.get_node_distances-667"><a href="#GeoGraph.get_node_distances-667"><span class="linenos">667</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="GeoGraph.get_node_distances-667"><a href="#GeoGraph.get_node_distances-667"><span class="linenos">667</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="GeoGraph.get_node_distances-668"><a href="#GeoGraph.get_node_distances-668"><span class="linenos">668</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="GeoGraph.get_node_distances-669"><a href="#GeoGraph.get_node_distances-669"><span class="linenos">669</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="GeoGraph.get_node_distances-670"><a href="#GeoGraph.get_node_distances-670"><span class="linenos">670</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
-</span><span id="GeoGraph.get_node_distances-671"><a href="#GeoGraph.get_node_distances-671"><span class="linenos">671</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]:</span>
+</span><span id="GeoGraph.get_node_distances-670"><a href="#GeoGraph.get_node_distances-670"><span class="linenos">670</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph.get_node_distances-671"><a href="#GeoGraph.get_node_distances-671"><span class="linenos">671</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
 </span><span id="GeoGraph.get_node_distances-672"><a href="#GeoGraph.get_node_distances-672"><span class="linenos">672</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.get_node_distances-673"><a href="#GeoGraph.get_node_distances-673"><span class="linenos">673</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.get_node_distances-674"><a href="#GeoGraph.get_node_distances-674"><span class="linenos">674</span></a>
@@ -3387,7 +3387,7 @@
 </span><span id="GeoGraph.get_node_distances-682"><a href="#GeoGraph.get_node_distances-682"><span class="linenos">682</span></a><span class="sd">            - What: A list of the latitude and longitude of the node</span>
 </span><span id="GeoGraph.get_node_distances-683"><a href="#GeoGraph.get_node_distances-683"><span class="linenos">683</span></a><span class="sd">            - EG: [latitude, longitude] -&gt; [31.23, 121.47]</span>
 </span><span id="GeoGraph.get_node_distances-684"><a href="#GeoGraph.get_node_distances-684"><span class="linenos">684</span></a><span class="sd">        - `circuity`</span>
-</span><span id="GeoGraph.get_node_distances-685"><a href="#GeoGraph.get_node_distances-685"><span class="linenos">685</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.get_node_distances-685"><a href="#GeoGraph.get_node_distances-685"><span class="linenos">685</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.get_node_distances-686"><a href="#GeoGraph.get_node_distances-686"><span class="linenos">686</span></a><span class="sd">            - What: The circuity to apply to any distance calculations</span>
 </span><span id="GeoGraph.get_node_distances-687"><a href="#GeoGraph.get_node_distances-687"><span class="linenos">687</span></a><span class="sd">            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</span>
 </span><span id="GeoGraph.get_node_distances-688"><a href="#GeoGraph.get_node_distances-688"><span class="linenos">688</span></a><span class="sd">        - `node_addition_type`</span>
@@ -3411,7 +3411,7 @@
 </span><span id="GeoGraph.get_node_distances-706"><a href="#GeoGraph.get_node_distances-706"><span class="linenos">706</span></a><span class="sd">            - Notes:</span>
 </span><span id="GeoGraph.get_node_distances-707"><a href="#GeoGraph.get_node_distances-707"><span class="linenos">707</span></a><span class="sd">                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.</span>
 </span><span id="GeoGraph.get_node_distances-708"><a href="#GeoGraph.get_node_distances-708"><span class="linenos">708</span></a><span class="sd">        - `lat_lon_bound`</span>
-</span><span id="GeoGraph.get_node_distances-709"><a href="#GeoGraph.get_node_distances-709"><span class="linenos">709</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.get_node_distances-709"><a href="#GeoGraph.get_node_distances-709"><span class="linenos">709</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.get_node_distances-710"><a href="#GeoGraph.get_node_distances-710"><span class="linenos">710</span></a><span class="sd">            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</span>
 </span><span id="GeoGraph.get_node_distances-711"><a href="#GeoGraph.get_node_distances-711"><span class="linenos">711</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="GeoGraph.get_node_distances-712"><a href="#GeoGraph.get_node_distances-712"><span class="linenos">712</span></a>        <span class="k">assert</span> <span class="n">node_addition_type</span> <span class="ow">in</span> <span class="p">[</span>
@@ -3491,7 +3491,7 @@
 </ul></li>
 <li><code>circuity</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: The circuity to apply to any distance calculations</li>
 <li>Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</li>
 </ul></li>
@@ -3529,7 +3529,7 @@
 </ul></li>
 <li><code>lat_lon_bound</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</li>
 </ul></li>
 </ul>
@@ -3542,7 +3542,7 @@
 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">add_node</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>,</span><span class="param">	<span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;quadrant&#39;</span>,</span><span class="param">	<span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;euclidean&#39;</span>,</span><span class="param">	<span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">5</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+        <span class="name">add_node</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>,</span><span class="param">	circuity: [&lt;class &#x27;int&#x27;&gt;, &lt;class &#x27;float&#x27;&gt;],</span><span class="param">	<span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;quadrant&#39;</span>,</span><span class="param">	<span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;euclidean&#39;</span>,</span><span class="param">	lat_lon_bound: [&lt;class &#x27;int&#x27;&gt;, &lt;class &#x27;float&#x27;&gt;] = 5</span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
 
                 <label class="view-source-button" for="GeoGraph.add_node-view-source"><span>View Source</span></label>
 
@@ -3550,11 +3550,11 @@
     <a class="headerlink" href="#GeoGraph.add_node"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.add_node-769"><a href="#GeoGraph.add_node-769"><span class="linenos">769</span></a>    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span>
 </span><span id="GeoGraph.add_node-770"><a href="#GeoGraph.add_node-770"><span class="linenos">770</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph.add_node-771"><a href="#GeoGraph.add_node-771"><span class="linenos">771</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
-</span><span id="GeoGraph.add_node-772"><a href="#GeoGraph.add_node-772"><span class="linenos">772</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span>
+</span><span id="GeoGraph.add_node-771"><a href="#GeoGraph.add_node-771"><span class="linenos">771</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
+</span><span id="GeoGraph.add_node-772"><a href="#GeoGraph.add_node-772"><span class="linenos">772</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="GeoGraph.add_node-773"><a href="#GeoGraph.add_node-773"><span class="linenos">773</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.add_node-774"><a href="#GeoGraph.add_node-774"><span class="linenos">774</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph.add_node-775"><a href="#GeoGraph.add_node-775"><span class="linenos">775</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph.add_node-775"><a href="#GeoGraph.add_node-775"><span class="linenos">775</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph.add_node-776"><a href="#GeoGraph.add_node-776"><span class="linenos">776</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="GeoGraph.add_node-777"><a href="#GeoGraph.add_node-777"><span class="linenos">777</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.add_node-778"><a href="#GeoGraph.add_node-778"><span class="linenos">778</span></a><span class="sd">        Function:</span>
@@ -3571,7 +3571,7 @@
 </span><span id="GeoGraph.add_node-789"><a href="#GeoGraph.add_node-789"><span class="linenos">789</span></a><span class="sd">        Optional Arguments:</span>
 </span><span id="GeoGraph.add_node-790"><a href="#GeoGraph.add_node-790"><span class="linenos">790</span></a>
 </span><span id="GeoGraph.add_node-791"><a href="#GeoGraph.add_node-791"><span class="linenos">791</span></a><span class="sd">        - `circuity`</span>
-</span><span id="GeoGraph.add_node-792"><a href="#GeoGraph.add_node-792"><span class="linenos">792</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.add_node-792"><a href="#GeoGraph.add_node-792"><span class="linenos">792</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.add_node-793"><a href="#GeoGraph.add_node-793"><span class="linenos">793</span></a><span class="sd">            - What: The circuity to apply to any distance calculations</span>
 </span><span id="GeoGraph.add_node-794"><a href="#GeoGraph.add_node-794"><span class="linenos">794</span></a><span class="sd">            - Default: 4</span>
 </span><span id="GeoGraph.add_node-795"><a href="#GeoGraph.add_node-795"><span class="linenos">795</span></a><span class="sd">            - Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</span>
@@ -3597,7 +3597,7 @@
 </span><span id="GeoGraph.add_node-815"><a href="#GeoGraph.add_node-815"><span class="linenos">815</span></a><span class="sd">            - Notes:</span>
 </span><span id="GeoGraph.add_node-816"><a href="#GeoGraph.add_node-816"><span class="linenos">816</span></a><span class="sd">                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.</span>
 </span><span id="GeoGraph.add_node-817"><a href="#GeoGraph.add_node-817"><span class="linenos">817</span></a><span class="sd">        - `lat_lon_bound`</span>
-</span><span id="GeoGraph.add_node-818"><a href="#GeoGraph.add_node-818"><span class="linenos">818</span></a><span class="sd">            - Type: float | int</span>
+</span><span id="GeoGraph.add_node-818"><a href="#GeoGraph.add_node-818"><span class="linenos">818</span></a><span class="sd">            - Type: int | float</span>
 </span><span id="GeoGraph.add_node-819"><a href="#GeoGraph.add_node-819"><span class="linenos">819</span></a><span class="sd">            - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</span>
 </span><span id="GeoGraph.add_node-820"><a href="#GeoGraph.add_node-820"><span class="linenos">820</span></a><span class="sd">            - Default: 5</span>
 </span><span id="GeoGraph.add_node-821"><a href="#GeoGraph.add_node-821"><span class="linenos">821</span></a>
@@ -3669,7 +3669,7 @@
 <ul>
 <li><code>circuity</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: The circuity to apply to any distance calculations</li>
 <li>Default: 4</li>
 <li>Note: This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)</li>
@@ -3709,7 +3709,7 @@
 </ul></li>
 <li><code>lat_lon_bound</code>
 <ul>
-<li>Type: float | int</li>
+<li>Type: int | float</li>
 <li>What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.</li>
 <li>Default: 5</li>
 </ul></li>
