@@ -727,7 +727,7 @@ class GeoGraph:
         if len(nodes) == 0:
             # Default to all if the lat_lon_bound fails to find any nodes
             return self.get_node_distances(
-                node=nodes,
+                node=node,
                 circuity=circuity,
                 lat_lon_bound=180,
                 node_addition_type=node_addition_type,
@@ -843,7 +843,6 @@ class GeoGraph:
             lat_lon_bound, (int, float)
         ), "Lat_lon_bound must be a number"
         assert lat_lon_bound > 0, "Lat_lon_bound must be greater than 0"
-
         node = [node["latitude"], node["longitude"]]
         # Get the distances to all other nodes
         distances = self.get_node_distances(

@@ -1,6 +1,6 @@
 [tool.black]
 line-length = 80
-target-version = ['py39']
+target-version = ['py312']
 exclude = '/.*(migrations|__pycache__|geographs).*/'
 
 [tool.setuptools]
@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scgraph"
-version = "2.1.1"
+version = "2.1.2"
 description = "Determine an approximate route between two points on earth."
 authors = [
     {name="Connor Makowski", email="conmak@mit.edu"}
