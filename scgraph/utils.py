@@ -16,10 +16,10 @@ def haversine(
 
     - `origin`:
         - Type: list of two floats | ints
-        - What: The origin point as a list of "longitude" and "latitude"
+        - What: The origin point as a list of "latitude" and "longitude"
     - `destination`:
         - Type: list of two floats | ints
-        - What: The destination point as a list of "longitude" and "latitude"
+        - What: The destination point as a list of "latitude" and "longitude"
 
     Optional Arguments:
 

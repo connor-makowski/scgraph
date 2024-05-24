@@ -150,6 +150,8 @@ output = marnet_geograph.get_shortest_path(
 get_line_path(output, filename='output.geojson')
 ```
 
+Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/example_making_modifications.ipynb)
+
 
 You can specify your own custom graphs for direct access to the solving algorithms. This requires the use of the low level `Graph` class
 
