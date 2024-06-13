@@ -1,4 +1,4 @@
-from .utils import haversine, hard_round, distance_converter
+from .utils import haversine, hard_round, distance_converter, get_line_path
 import json
 
 
@@ -16,11 +16,10 @@ class Graph:
 
         Required Arguments:
 
-        - `graph`
+        - `graph`:
             - Type: list of dictionaries
-            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances
-            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
-
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+        
         Optional Arguments:
 
         - `check_symmetry`
@@ -75,10 +74,9 @@ class Graph:
 
         Required Arguments:
 
-        - `graph`
+        - `graph`:
             - Type: list of dictionaries
-            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
-            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
 
         Optional Arguments:
 
@@ -121,9 +119,9 @@ class Graph:
 
         Required Arguments:
 
-        - `graph`
-            - Type: list[dict]
-            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
+        - `graph`:
+            - Type: list of dictionaries
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -167,9 +165,9 @@ class Graph:
 
         Required Arguments:
 
-        - `graph`
-            - Type: list[dict]
-            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
+        - `graph`:
+            - Type: list of dictionaries
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -242,9 +240,9 @@ class Graph:
 
         Required Arguments:
 
-        - `graph`
-            - Type: list[dict]
-            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node ids and distances
+        - `graph`:
+            - Type: list of dictionaries
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -298,7 +296,7 @@ class Graph:
 
 class GeoGraph:
     def __init__(
-        self, graph: list[dict], nodes: list[list[int, float]]
+        self, graph: list[dict], nodes: list[list[float|int]]
     ) -> None:
         """
         Function:
@@ -311,10 +309,74 @@ class GeoGraph:
             - Type: list of dictionaries
             - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances
             - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
+            - EG: 
+            ```
+                [
+                    # From London
+                    {
+                        # To Paris
+                        1: 311,
+                    },
+                    # From Paris
+                    {
+                        # To London
+                        0: 311, 
+                        # To Berlin
+                        2: 878, 
+                        # To Rome
+                        3: 1439,
+                        # To Madrid
+                        4: 1053
+                    },
+                    # From Berlin
+                    {
+                        # To Paris 
+                        1: 878,
+                        # To Rome
+                        3: 1181,
+                    },
+                    # From Rome
+                    {
+                        # To Paris
+                        1: 1439,
+                        # To Berlin
+                        2: 1181,
+                    },
+                    # From Madrid
+                    {
+                        # To Paris
+                        1: 1053,
+                        # To Lisbon
+                        5: 623
+                    },
+                    # From Lisbon
+                    {
+                        # To Madrid
+                        4: 623
+                    }
+                ]
+            ```
         - `nodes`
-            - Type: list of lists
+            - Type: list of lists of ints or floats
             - What: A list of lists where the values are coordinates (latitude then longitude)
             - Note: The length of the nodes list must be the same as that of the graph list
+            - EG: 
+            ```
+                [
+                    # London
+                    [51.5074, 0.1278],
+                    # Paris
+                    [48.8566, 2.3522],
+                    # Berlin
+                    [52.5200, 13.4050],
+                    # Rome
+                    [41.9028, 12.4964],
+                    # Madrid
+                    [40.4168, 3.7038],
+                    # Lisbon
+                    [38.7223, 9.1393]
+                ]
+            ```
         """
         self.graph = graph
         self.nodes = nodes
@@ -394,17 +456,17 @@ class GeoGraph:
 
     def get_shortest_path(
         self,
-        origin_node: dict[int, float],
-        destination_node: dict[int, float],
+        origin_node: dict[float|int],
+        destination_node: dict[float|int],
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
-        off_graph_circuity: [int, float] = 1,
+        off_graph_circuity: [float|int] = 1,
         node_addition_type: str = "quadrant",
-        node_addition_circuity: [int, float] = 4,
+        node_addition_circuity: [float|int] = 4,
         geograph_units: str = "km",
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
-        node_addition_lat_lon_bound: [int, float] = 5,
+        node_addition_lat_lon_bound: [float|int] = 5,
         node_addition_math: str = "euclidean",
         **kwargs,
     ) -> dict:
@@ -447,6 +509,7 @@ class GeoGraph:
                 - 'Graph.dijkstra_makowski': A modified dijkstra algorithm that uses a sparse distance matrix to identify the shortest path
                 - Any user defined algorithm that takes the arguments:
                     - `graph`: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
+                        - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
         - `off_graph_circuity`
@@ -579,9 +642,9 @@ class GeoGraph:
     def adujust_circuity_length(
         self,
         output: dict,
-        node_addition_circuity: [float, int],
-        off_graph_circuity: [float, int],
-    ) -> [float, int]:
+        node_addition_circuity: [float|int],
+        off_graph_circuity: [float|int],
+    ) -> [float|int]:
         """
         Function:
 
@@ -616,7 +679,7 @@ class GeoGraph:
                 4,
             )
 
-    def get_coordinate_path(self, path: list[int]) -> list[dict[int, float]]:
+    def get_coordinate_path(self, path: list[int]) -> list[dict[float|int]]:
         """
         Function:
 
@@ -660,11 +723,11 @@ class GeoGraph:
     def get_node_distances(
         self,
         node: list,
-        circuity: [int, float],
+        circuity: [float|int],
         node_addition_type: str,
         node_addition_math: str,
-        lat_lon_bound: [int, float],
-    ) -> dict[int, float]:
+        lat_lon_bound: [float|int],
+    ) -> dict[float|int]:
         """
         Function:
 
@@ -764,11 +827,11 @@ class GeoGraph:
 
     def add_node(
         self,
-        node: dict[int, float],
-        circuity: [int, float],
+        node: dict[float|int],
+        circuity: [float|int],
         node_addition_type: str = "quadrant",
         node_addition_math: str = "euclidean",
-        lat_lon_bound: [int, float] = 5,
+        lat_lon_bound: [float|int] = 5,
     ) -> int:
         """
         Function:
@@ -923,14 +986,14 @@ class GeoGraph:
                 - Import as: 'from .custom import custom_geograph'
         """
         self.validate_nodes()
-        self.validate_graph(
-            check_symmetry=True, check_connected=False
-        )
+        self.validate_graph(check_symmetry=True, check_connected=False)
         out_string = f"""from scgraph.core import GeoGraph\ngraph={str(self.graph)}\nnodes={str(self.nodes)}\n{name}_geograph = GeoGraph(graph=graph, nodes=nodes)"""
-        with open(name+".py", "w") as f:
+        with open(name + ".py", "w") as f:
             f.write(out_string)
-    
-    def mod_remove_arc(self, origin_idx: int, destination_idx: int, undirected: bool = True) -> None:
+
+    def mod_remove_arc(
+        self, origin_idx: int, destination_idx: int, undirected: bool = True
+    ) -> None:
         """
         Function:
 
@@ -953,14 +1016,18 @@ class GeoGraph:
             - Default: True
         """
         assert origin_idx < len(self.graph), "Origin node does not exist"
-        assert destination_idx < len(self.graph), "Destination node does not exist"
+        assert destination_idx < len(
+            self.graph
+        ), "Destination node does not exist"
         assert destination_idx in self.graph[origin_idx], "Arc does not exist"
         del self.graph[origin_idx][destination_idx]
         if undirected:
             if origin_idx in self.graph[destination_idx]:
                 del self.graph[destination_idx][origin_idx]
 
-    def mod_add_node(self, latitude: [float, int], longitude: [float, int]) -> int:
+    def mod_add_node(
+        self, latitude: [float|int], longitude: [float|int]
+    ) -> int:
         """
         Function:
 
@@ -982,8 +1049,15 @@ class GeoGraph:
         self.nodes.append([latitude, longitude])
         self.graph.append({})
         return len(self.graph) - 1
-    
-    def mod_add_arc(self, origin_idx: int, destination_idx: int, distance: [int, float]=0, use_haversine_distance=True, undirected: bool = True) -> None:
+
+    def mod_add_arc(
+        self,
+        origin_idx: int,
+        destination_idx: int,
+        distance: [float|int] = 0,
+        use_haversine_distance=True,
+        undirected: bool = True,
+    ) -> None:
         """
         Function:
 
@@ -1015,12 +1089,17 @@ class GeoGraph:
             - Default: True
         """
         assert origin_idx < len(self.graph), "Origin node does not exist"
-        assert destination_idx < len(self.graph), "Destination node does not exist"
+        assert destination_idx < len(
+            self.graph
+        ), "Destination node does not exist"
         if use_haversine_distance:
-            distance = haversine(self.nodes[origin_idx], self.nodes[destination_idx])
+            distance = haversine(
+                self.nodes[origin_idx], self.nodes[destination_idx]
+            )
         self.graph[origin_idx][destination_idx] = distance
         if undirected:
             self.graph[destination_idx][origin_idx] = distance
+
 
 def load_geojson_as_geograph(geojson_filename: str) -> GeoGraph:
     """
@@ -1066,9 +1145,9 @@ def load_geojson_as_geograph(geojson_filename: str) -> GeoGraph:
             }
             ```
     """
-    with open (geojson_filename, "r") as f:
+    with open(geojson_filename, "r") as f:
         geojson_features = json.load(f).get("features", [])
-    
+
     nodes_dict = {}
     graph_dict = {}
     for feature in geojson_features:
@@ -1080,14 +1159,30 @@ def load_geojson_as_geograph(geojson_filename: str) -> GeoGraph:
         coordinates = geometry.get("coordinates", [])
 
         # Validations
-        assert feature.get("type") == "Feature", "All features must be of type 'Feature'"
-        assert geometry.get("type") == "LineString", "All geometries must be of type 'LineString'"
-        assert len(coordinates) == 2, "All LineStrings must have exactly 2 coordinates"
-        assert isinstance(origin_idx, int), "All features must have an 'origin_idx' property that is an integer"
-        assert isinstance(destination_idx, int), "All features must have a 'destination_idx' property that is an integer"
-        assert isinstance(distance, (int, float)), "All features must have a 'distance' property that is a number"
-        assert origin_idx >= 0, "All origin_idxs must be greater than or equal to 0"
-        assert destination_idx >= 0, "All destination_idxs must be greater than or equal to 0"
+        assert (
+            feature.get("type") == "Feature"
+        ), "All features must be of type 'Feature'"
+        assert (
+            geometry.get("type") == "LineString"
+        ), "All geometries must be of type 'LineString'"
+        assert (
+            len(coordinates) == 2
+        ), "All LineStrings must have exactly 2 coordinates"
+        assert isinstance(
+            origin_idx, int
+        ), "All features must have an 'origin_idx' property that is an integer"
+        assert isinstance(
+            destination_idx, int
+        ), "All features must have a 'destination_idx' property that is an integer"
+        assert isinstance(
+            distance, (int, float)
+        ), "All features must have a 'distance' property that is a number"
+        assert (
+            origin_idx >= 0
+        ), "All origin_idxs must be greater than or equal to 0"
+        assert (
+            destination_idx >= 0
+        ), "All destination_idxs must be greater than or equal to 0"
         assert distance >= 0, "All distances must be greater than or equal to 0"
         origin = coordinates[0]
         destination = coordinates[1]
@@ -1095,24 +1190,173 @@ def load_geojson_as_geograph(geojson_filename: str) -> GeoGraph:
         assert isinstance(destination, list), "All coordinates must be lists"
         assert len(origin) == 2, "All coordinates must have a length of 2"
         assert len(destination) == 2, "All coordinates must have a length of 2"
-        assert all([isinstance(i, (int, float)) for i in origin]), "All coordinates must be numeric"
-        assert all([isinstance(i, (int, float)) for i in destination]), "All coordinates must be numeric"
+        assert all(
+            [isinstance(i, (int, float)) for i in origin]
+        ), "All coordinates must be numeric"
+        assert all(
+            [isinstance(i, (int, float)) for i in destination]
+        ), "All coordinates must be numeric"
         # assert all([origin[0] >= -90, origin[0] <= 90, origin[1] >= -180, origin[1] <= 180]), "All coordinates must be valid latitudes and longitudes"
         # assert all([destination[0] >= -90, destination[0] <= 90, destination[1] >= -180, destination[1] <= 180]), "All coordinates must be valid latitudes and longitudes"
-        
+
         # Update the data
         nodes_dict[origin_idx] = origin
         nodes_dict[destination_idx] = destination
-        graph_dict[origin_idx] = {**graph_dict.get(origin_idx, {}), destination_idx: distance}
-        graph_dict[destination_idx] = {**graph_dict.get(destination_idx, {}), origin_idx: distance}
-    assert len(nodes_dict) == len(graph_dict), "All nodes must be included as origins in the graph dictionary"
-    nodes = [[i[1][1],i[1][0]] for i in sorted(nodes_dict.items(), key=lambda x: x[0])]
+        graph_dict[origin_idx] = {
+            **graph_dict.get(origin_idx, {}),
+            destination_idx: distance,
+        }
+        graph_dict[destination_idx] = {
+            **graph_dict.get(destination_idx, {}),
+            origin_idx: distance,
+        }
+    assert len(nodes_dict) == len(
+        graph_dict
+    ), "All nodes must be included as origins in the graph dictionary"
+    nodes = [
+        [i[1][1], i[1][0]]
+        for i in sorted(nodes_dict.items(), key=lambda x: x[0])
+    ]
     ordered_graph_tuple = sorted(graph_dict.items(), key=lambda x: x[0])
     graph_map = {i[0]: idx for idx, i in enumerate(ordered_graph_tuple)}
     graph = [
         {graph_map[k]: v for k, v in i[1].items()} for i in ordered_graph_tuple
     ]
-    return GeoGraph(
-        graph=graph,
-        nodes=nodes
-    )
+    return GeoGraph(graph=graph, nodes=nodes)
+
+
+def get_multi_path_geojson(
+    routes: list[dict],
+    filename: [str, None] = None,
+    show_progress: bool = False,
+) -> dict:
+    """
+    Creates a GeoJSON file with the shortest path between the origin and destination of each route.
+
+    Required Parameters:
+
+    - `routes`: list[dict]
+        - List of dictionaries with the following keys:
+            - geograph: GeoGraph
+                - Geograph object to use for the shortest path calculation.
+            - origin: dict[float|float]
+                - Origin coordinates
+                - EG: {"latitude":39.2904, "longitude":-76.6122}
+            - destination: dict[float|int]
+                - Destination coordinates
+                - EG: {"latitude":39.2904, "longitude":-76.6122}
+            - properties: dict
+                - Dictionary with the properties of the route
+                - Everything in this dictionary will be included in the output GeoJSON file as properties of the route.
+                - EG: {"id":"route_1", "name":"Route 1", "color":"#ff0000"}
+
+    Optional Parameters:
+
+    - `filename`: str | None
+        - Name of the output GeoJSON file.
+        - If None, the function will not save the file
+        - Default: None
+    - `show_progress`: bool
+        - Whether to show basic progress information
+        - Default: False
+
+    Returns
+
+    - `output`: dict
+        - Dictionary with the GeoJSON file content.
+    """
+    assert isinstance(routes, list), "Routes must be a list"
+    assert all(
+        [isinstance(i, dict) for i in routes]
+    ), "Routes must be a list of dictionaries"
+    assert all(
+        [isinstance(i.get("geograph"), GeoGraph) for i in routes]
+    ), "All routes must have a 'geograph' key with a GeoGraph object"
+    assert all(
+        [isinstance(i.get("origin"), dict) for i in routes]
+    ), "All routes must have an 'origin' key with a dictionary"
+    assert all(
+        [isinstance(i.get("destination"), dict) for i in routes]
+    ), "All routes must have a 'destination' key with a dictionary"
+    assert all(
+        [isinstance(i.get("properties"), dict) for i in routes]
+    ), "All routes must have a 'properties' key with a dictionary"
+    assert all(
+        [isinstance(i["origin"].get("latitude"), (int, float)) for i in routes]
+    ), "All origins must have a 'latitude' key with a number"
+    assert all(
+        [isinstance(i["origin"].get("longitude"), (int, float)) for i in routes]
+    ), "All origins must have a 'longitude' key with a number"
+    assert all(
+        [
+            isinstance(i["destination"].get("latitude"), (int, float))
+            for i in routes
+        ]
+    ), "All destinations must have a 'latitude' key with a number"
+    assert all(
+        [
+            isinstance(i["destination"].get("longitude"), (int, float))
+            for i in routes
+        ]
+    ), "All destinations must have a 'longitude' key with a number"
+    assert all(
+        [
+            (
+                i["origin"].get("latitude") >= -90
+                and i["origin"].get("latitude") <= 90
+            )
+            for i in routes
+        ]
+    ), "All origin latitudes must be between -90 and 90"
+    assert all(
+        [
+            (
+                i["origin"].get("longitude") >= -180
+                and i["origin"].get("longitude") <= 180
+            )
+            for i in routes
+        ]
+    ), "All origin longitudes must be between -180 and 180"
+    assert all(
+        [
+            (
+                i["destination"].get("latitude") >= -90
+                and i["destination"].get("latitude") <= 90
+            )
+            for i in routes
+        ]
+    ), "All destination latitudes must be between -90 and 90"
+    assert all(
+        [
+            (
+                i["destination"].get("longitude") >= -180
+                and i["destination"].get("longitude") <= 180
+            )
+            for i in routes
+        ]
+    ), "All destination longitudes must be between -180 and 180"
+
+    output = {"type": "FeatureCollection", "features": []}
+    len_routes = len(routes)
+    for idx, route in enumerate(routes):
+        shortest_path = route["geograph"].get_shortest_path(
+            route["origin"], route["destination"]
+        )
+        shortest_line_path = get_line_path(shortest_path)
+        output["features"].append(
+            {
+                "type": "Feature",
+                "properties": route["properties"],
+                "geometry": shortest_line_path,
+            }
+        )
+        if show_progress:
+            print(
+                f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
+                end="\r",
+            )
+    if show_progress:
+        print()
+    if filename is not None:
+        json.dump(output, open(filename, "w"))
+    return output

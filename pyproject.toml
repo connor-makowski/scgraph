@@ -12,13 +12,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scgraph"
-version = "2.2.0"
+version = "2.3.0"
 description = "Determine an approximate route between two points on earth."
 authors = [
     {name="Connor Makowski", email="conmak@mit.edu"}
 ]
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     'License :: OSI Approved :: MIT License',

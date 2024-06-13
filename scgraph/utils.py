@@ -2,10 +2,10 @@ import math, json
 
 
 def haversine(
-    origin: list[float, int],
-    destination: list[float, int],
+    origin: list[float|int],
+    destination: list[float|int],
     units: str = "km",
-    circuity: [int, float] = 1,
+    circuity: [float|int] = 1,
 ):
     """
     Function:
@@ -69,7 +69,7 @@ def haversine(
         raise Exception()
 
 
-def hard_round(decimal_places: int, a: [int, float]):
+def hard_round(decimal_places: int, a: [float|int]):
     """
     Function:
 
@@ -90,7 +90,7 @@ def hard_round(decimal_places: int, a: [int, float]):
 
 
 def distance_converter(
-    distance: [int, float], input_units: str, output_units: str
+    distance: [float|int], input_units: str, output_units: str
 ):
     """
     Function:

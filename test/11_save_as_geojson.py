@@ -19,7 +19,9 @@ graph = [
     {3: 6},
 ]
 
-print("\n===============\nExternal Saving, Modification and Loading Tests:\n===============")
+print(
+    "\n===============\nExternal Saving, Modification and Loading Tests:\n==============="
+)
 
 
 my_graph = GeoGraph(nodes=nodes, graph=graph)
@@ -37,11 +39,8 @@ except:
 
 # Cleanup
 import os
+
 os.remove("11_save_as_geojson_test.geojson")
 os.remove("11_save_as_geojson_test.py")
 
 print("PASS")
-
-
-
-

@@ -42,7 +42,9 @@ Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
 
 ## Setup
 
-Make sure you have Python 3.6.x (or higher) installed on your system. You can download it [here](https://www.python.org/downloads/).
+Make sure you have Python 3.10.x (or higher) installed on your system. You can download it [here](https://www.python.org/downloads/).
+
+Note: Support for python3.6-python3.9 is available up to version 2.2.0.
 
 ## Installation
 
@@ -52,7 +54,10 @@ pip install scgraph
 
 ## Use with Google Colab
 
-See the example [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/example.ipynb) 
+- [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb) 
+- [Creating A Multi Path Geojson](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb)
+- [Modifying A Geograph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
+
 
 # Getting Started
 
@@ -86,7 +91,7 @@ In the above example, the `output` variable is a dictionary with three keys: `le
             - `ft` (feet)
 - `coordinate_path`: A list of lists [`latitude`,`longitude`] that make up the shortest path
 
-For more examples including viewing the output on a map, see the [example notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/example.ipynb).
+For more examples including viewing the output on a map, see the [example notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb).
 
 ## Included GeoGraphs
 
@@ -150,7 +155,7 @@ output = marnet_geograph.get_shortest_path(
 get_line_path(output, filename='output.geojson')
 ```
 
-Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/example_making_modifications.ipynb)
+Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
 
 
 You can specify your own custom graphs for direct access to the solving algorithms. This requires the use of the low level `Graph` class
@@ -158,9 +163,9 @@ You can specify your own custom graphs for direct access to the solving algorith
 ```py
 from scgraph import Graph
 
-# Define a graph
+# Define an arbitrary graph
 # See the graph definitions here: 
-# https://connor-makowski.github.io/scgraph/scgraph/core.html
+# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
 graph = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
@@ -185,25 +190,67 @@ from scgraph import GeoGraph
 
 # Define nodes
 # See the nodes definitions here: 
-# https://connor-makowski.github.io/scgraph/scgraph/core.html
+# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
 nodes = [
-    [0,0],
-    [0,1],
-    [1,0],
-    [1,1],
-    [1,2],
-    [2,1]
+    # London
+    [51.5074, -0.1278],
+    # Paris
+    [48.8566, 2.3522],
+    # Berlin
+    [52.5200, 13.4050],
+    # Rome
+    [41.9028, 12.4964],
+    # Madrid
+    [40.4168, -3.7038],
+    # Lisbon
+    [38.7223, -9.1393]
 ]
 # Define a graph
 # See the graph definitions here: 
-# https://connor-makowski.github.io/scgraph/scgraph/core.html
+# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
 graph = [
-    {1: 5, 2: 1},
-    {0: 5, 2: 2, 3: 1},
-    {0: 1, 1: 2, 3: 4, 4: 8},
-    {1: 1, 2: 4, 4: 3, 5: 6},
-    {2: 8, 3: 3},
-    {3: 6}
+    # From London
+    {
+        # To Paris
+        1: 311,
+    },
+    # From Paris
+    {
+        # To London
+        0: 311, 
+        # To Berlin
+        2: 878, 
+        # To Rome
+        3: 1439,
+        # To Madrid
+        4: 1053
+    },
+    # From Berlin
+    {
+        # To Paris 
+        1: 878,
+        # To Rome
+        3: 1181,
+    },
+    # From Rome
+    {
+        # To Paris
+        1: 1439,
+        # To Berlin
+        2: 1181,
+    },
+    # From Madrid
+    {
+        # To Paris
+        1: 1053,
+        # To Lisbon
+        5: 623
+    },
+    # From Lisbon
+    {
+        # To Madrid
+        4: 623
+    }
 ]
 
 # Create a GeoGraph object
@@ -216,23 +263,31 @@ my_geograph.validate_graph()
 my_geograph.validate_nodes()
 
 # Get the shortest path between two points
+# In this case, Birmingham England and Zaragoza Spain
+# Since Birmingham and Zaragoza are not in the graph,
+# the algorithm will add them into the graph.
+# See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph.get_shortest_path
+# Expected output would be to go from
+# Birmingham -> London -> Paris -> Madrid -> Zaragoza
+
 output = my_geograph.get_shortest_path(
-    origin_node = {'latitude': 0, 'longitude': 0},
-    destination_node = {'latitude': 2, 'longitude': 1}
+    # Birmingham England
+    origin_node = {'latitude': 52.4862, 'longitude': -1.8904},
+    # Zaragoza Spain
+    destination_node = {'latitude': 41.6488, 'longitude': -0.8891}
 )
-#=>
+print(output)
 # {
-#     "coordinate_path": [
-#         [0,0],
-#         [0,0],
-#         [1,0],
-#         [0,1],
-#         [1,1],
-#         [2,1],
-#         [2,1]
-#     ],
-#     "length": 10
+#     'length': 1799.4323, 
+#     'coordinate_path': [
+#         [52.4862, -1.8904], 
+#         [51.5074, -0.1278], 
+#         [48.8566, 2.3522], 
+#         [40.4168, -3.7038], 
+#         [41.6488, -0.8891]
+#     ]
 # }
+
 ```
 
 ## Attributions and Thanks
