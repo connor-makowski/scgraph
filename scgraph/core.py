@@ -230,9 +230,9 @@ class Graph:
             - Improvements include only computing future potential nodes based on the open leaves for each branch
                 - Open leaves are nodes that have not been visited yet but are adjacent to other visited nodes
             - This can dramatically reduce the memory and compute requirements of the algorithm
-            - For particularly sparse graphs, this algorithm runs close to O(n) time
+            - For particularly sparse graphs, this algorithm runs close to O(n log n) time
                 - Where n is the number of nodes in the graph
-            - For dense graphs, this algorithm runs in O(n^2) time
+            - For dense graphs, this algorithm runs closer to O(n^2) time (similar to the standard Dijkstra algorithm)
                 - Where n is the number of nodes in the graph
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
