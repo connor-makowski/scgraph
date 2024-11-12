@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: >-
+  Scgraph
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Connor
+    family-names: Makowski
+    email: conmak@mit.edu
+    affiliation: MIT
+    orcid: 'https://orcid.org/0009-0005-1522-022X'
+repository-code: 'https://github.com/connor-makowski/scgraph'
+url: >-
+  https://connor-makowski.github.io/scgraph/scgraph/core.html
+abstract: >-
+  A python package for generating shortest paths in
+  geographic networks.
+license: MIT
