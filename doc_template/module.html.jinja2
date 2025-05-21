@@ -1,0 +1,40 @@
+{% extends "default/module.html.jinja2" %}
+
+{% block nav_footer %}
+<footer>
+<select id="version-selector">
+    <option value="latest">latest</option>
+    {% set version_options = env['version_options'].split(' ') %}
+    {% for version in version_options %}
+        <option value="{{ version }}">{{ version }}</option>
+    {% endfor %}
+</select>
+<script>
+    var split_at = "/docs/";
+    if (window.location.href.includes('github.io')) {
+        split_at = "github.io/fizgrid/";
+    }
+    // Set the currently selected option to be equivalent to that of the url version.
+    var version = 'latest';
+    var version_path = window.location.href.split(split_at)[1];
+    if (version_path.includes('/')) {
+        if (version_path.split('/')[0].match(/^\d+\.\d+\.\d+$/)) {
+            version = version_path.split('/')[0];
+        }
+    }
+    document.getElementById('version-selector').value = version;
+
+    document.getElementById('version-selector').onchange = function() {
+        var version = this.value;
+        if (version == 'latest') {
+            var new_url = '';
+        } else {
+            var new_url = version + '/';
+        }
+        var url = window.location.href.split(split_at)[0] + split_at + new_url + 'index.html';
+        console.log(url);
+        window.location.href = url;
+    }
+</script>
+</footer>
+{% endblock %}

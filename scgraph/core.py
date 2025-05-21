@@ -19,7 +19,7 @@ class Graph:
         - `graph`:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
-        
+
         Optional Arguments:
 
         - `check_symmetry`
@@ -296,7 +296,7 @@ class Graph:
 
 class GeoGraph:
     def __init__(
-        self, graph: list[dict], nodes: list[list[float|int]]
+        self, graph: list[dict], nodes: list[list[float | int]]
     ) -> None:
         """
         Function:
@@ -309,7 +309,7 @@ class GeoGraph:
             - Type: list of dictionaries
             - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances
             - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
-            - EG: 
+            - EG:
             ```
                 [
                     # From London
@@ -320,9 +320,9 @@ class GeoGraph:
                     # From Paris
                     {
                         # To London
-                        0: 311, 
+                        0: 311,
                         # To Berlin
-                        2: 878, 
+                        2: 878,
                         # To Rome
                         3: 1439,
                         # To Madrid
@@ -330,7 +330,7 @@ class GeoGraph:
                     },
                     # From Berlin
                     {
-                        # To Paris 
+                        # To Paris
                         1: 878,
                         # To Rome
                         3: 1181,
@@ -360,7 +360,7 @@ class GeoGraph:
             - Type: list of lists of ints or floats
             - What: A list of lists where the values are coordinates (latitude then longitude)
             - Note: The length of the nodes list must be the same as that of the graph list
-            - EG: 
+            - EG:
             ```
                 [
                     # London
@@ -456,17 +456,17 @@ class GeoGraph:
 
     def get_shortest_path(
         self,
-        origin_node: dict[float|int],
-        destination_node: dict[float|int],
+        origin_node: dict[float | int],
+        destination_node: dict[float | int],
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
-        off_graph_circuity: [float|int] = 1,
+        off_graph_circuity: [float | int] = 1,
         node_addition_type: str = "quadrant",
-        node_addition_circuity: [float|int] = 4,
+        node_addition_circuity: [float | int] = 4,
         geograph_units: str = "km",
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
-        node_addition_lat_lon_bound: [float|int] = 5,
+        node_addition_lat_lon_bound: [float | int] = 5,
         node_addition_math: str = "euclidean",
         **kwargs,
     ) -> dict:
@@ -642,9 +642,9 @@ class GeoGraph:
     def adujust_circuity_length(
         self,
         output: dict,
-        node_addition_circuity: [float|int],
-        off_graph_circuity: [float|int],
-    ) -> [float|int]:
+        node_addition_circuity: [float | int],
+        off_graph_circuity: [float | int],
+    ) -> [float | int]:
         """
         Function:
 
@@ -679,7 +679,7 @@ class GeoGraph:
                 4,
             )
 
-    def get_coordinate_path(self, path: list[int]) -> list[dict[float|int]]:
+    def get_coordinate_path(self, path: list[int]) -> list[dict[float | int]]:
         """
         Function:
 
@@ -723,11 +723,11 @@ class GeoGraph:
     def get_node_distances(
         self,
         node: list,
-        circuity: [float|int],
+        circuity: [float | int],
         node_addition_type: str,
         node_addition_math: str,
-        lat_lon_bound: [float|int],
-    ) -> dict[float|int]:
+        lat_lon_bound: [float | int],
+    ) -> dict[float | int]:
         """
         Function:
 
@@ -827,11 +827,11 @@ class GeoGraph:
 
     def add_node(
         self,
-        node: dict[float|int],
-        circuity: [float|int],
+        node: dict[float | int],
+        circuity: [float | int],
         node_addition_type: str = "quadrant",
         node_addition_math: str = "euclidean",
-        lat_lon_bound: [float|int] = 5,
+        lat_lon_bound: [float | int] = 5,
     ) -> int:
         """
         Function:
@@ -1026,7 +1026,7 @@ class GeoGraph:
                 del self.graph[destination_idx][origin_idx]
 
     def mod_add_node(
-        self, latitude: [float|int], longitude: [float|int]
+        self, latitude: [float | int], longitude: [float | int]
     ) -> int:
         """
         Function:
@@ -1054,7 +1054,7 @@ class GeoGraph:
         self,
         origin_idx: int,
         destination_idx: int,
-        distance: [float|int] = 0,
+        distance: [float | int] = 0,
         use_haversine_distance=True,
         undirected: bool = True,
     ) -> None:
