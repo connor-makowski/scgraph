@@ -10,7 +10,7 @@ echo "\"\"\"" >> scgraph/__init__.py
 
 # Specify versions for documentation purposes
 VERSION="2.4.0"
-OLD_DOC_VERSIONS="2.3.0 2.2.0 2.1.2 2.0.0 1.5.2 1.4.0 1.3.0 1.2.0 1.1.0 1.0.1 0.3.0 0.2.0 0.1.0"
+OLD_DOC_VERSIONS="2.3.0 2.2.0 2.1.2 2.0.0 1.5.2 0.3.0"
 export version_options="$VERSION $OLD_DOC_VERSIONS"
 
 # generate the docs for a version function:
@@ -21,7 +21,7 @@ function generate_docs() {
             pip install "./dist/scgraph-$INPUT_VERSION.tar.gz"
         fi
     fi
-    pdoc -o ./docs/$INPUT_VERSION -t ./doc_template scgraph
+    pdoc -o ./docs/$INPUT_VERSION -t ./doc_template scgraph !scgraph.geographs
 }
 
 # Generate the docs for the current version

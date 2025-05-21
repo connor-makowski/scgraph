@@ -45,6 +45,45 @@
     </ul>
 
 
+<footer>
+<select id="version-selector">
+    <option value="latest">latest</option>
+        <option value="2.4.0">2.4.0</option>
+        <option value="2.3.0">2.3.0</option>
+        <option value="2.2.0">2.2.0</option>
+        <option value="2.1.2">2.1.2</option>
+        <option value="2.0.0">2.0.0</option>
+        <option value="1.5.2">1.5.2</option>
+        <option value="0.3.0">0.3.0</option>
+</select>
+<script>
+    var split_at = "/docs/";
+    if (window.location.href.includes('github.io')) {
+        split_at = "github.io/fizgrid/";
+    }
+    // Set the currently selected option to be equivalent to that of the url version.
+    var version = 'latest';
+    var version_path = window.location.href.split(split_at)[1];
+    if (version_path.includes('/')) {
+        if (version_path.split('/')[0].match(/^\d+\.\d+\.\d+$/)) {
+            version = version_path.split('/')[0];
+        }
+    }
+    document.getElementById('version-selector').value = version;
+
+    document.getElementById('version-selector').onchange = function() {
+        var version = this.value;
+        if (version == 'latest') {
+            var new_url = '';
+        } else {
+            var new_url = version + '/';
+        }
+        var url = window.location.href.split(split_at)[0] + split_at + new_url + 'index.html';
+        console.log(url);
+        window.location.href = url;
+    }
+</script>
+</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -63,14 +102,14 @@
 
                         <label class="view-source-button" for="mod-utils-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">import</span> <span class="nn">math</span><span class="o">,</span> <span class="nn">json</span>
+                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">math</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span>
 </span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a>
 </span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a>
-</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="k">def</span> <span class="nf">haversine</span><span class="p">(</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a>    <span class="n">origin</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a>    <span class="n">destination</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="k">def</span><span class="w"> </span><span class="nf">haversine</span><span class="p">(</span>
+</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a>    <span class="n">origin</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a>    <span class="n">destination</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a>    <span class="n">units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a>    <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a>    <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a><span class="p">):</span>
 </span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a><span class="sd">    Function:</span>
@@ -134,7 +173,7 @@
 </span><span id="L-69"><a href="#L-69"><span class="linenos"> 69</span></a>        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">()</span>
 </span><span id="L-70"><a href="#L-70"><span class="linenos"> 70</span></a>
 </span><span id="L-71"><a href="#L-71"><span class="linenos"> 71</span></a>
-</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a><span class="k">def</span> <span class="nf">hard_round</span><span class="p">(</span><span class="n">decimal_places</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]):</span>
+</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a><span class="k">def</span><span class="w"> </span><span class="nf">hard_round</span><span class="p">(</span><span class="n">decimal_places</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]):</span>
 </span><span id="L-73"><a href="#L-73"><span class="linenos"> 73</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a><span class="sd">    Function:</span>
 </span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a>
@@ -154,8 +193,8 @@
 </span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a>    <span class="p">)</span>
 </span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a>
 </span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a>
-</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a><span class="k">def</span> <span class="nf">distance_converter</span><span class="p">(</span>
-</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a>    <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span> <span class="n">input_units</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a><span class="k">def</span><span class="w"> </span><span class="nf">distance_converter</span><span class="p">(</span>
+</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a>    <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span> <span class="n">input_units</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a><span class="p">):</span>
 </span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a><span class="sd">    Function:</span>
@@ -180,7 +219,7 @@
 </span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a>    <span class="k">return</span> <span class="p">(</span><span class="n">distance</span> <span class="o">/</span> <span class="n">km_table</span><span class="p">[</span><span class="n">input_units</span><span class="p">])</span> <span class="o">*</span> <span class="n">km_table</span><span class="p">[</span><span class="n">output_units</span><span class="p">]</span>
 </span><span id="L-116"><a href="#L-116"><span class="linenos">116</span></a>
 </span><span id="L-117"><a href="#L-117"><span class="linenos">117</span></a>
-</span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a><span class="k">def</span> <span class="nf">get_line_path</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+</span><span id="L-118"><a href="#L-118"><span class="linenos">118</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_line_path</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 </span><span id="L-119"><a href="#L-119"><span class="linenos">119</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-120"><a href="#L-120"><span class="linenos">120</span></a><span class="sd">    Function:</span>
 </span><span id="L-121"><a href="#L-121"><span class="linenos">121</span></a>
@@ -237,11 +276,11 @@
 
     </div>
     <a class="headerlink" href="#haversine"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="haversine-5"><a href="#haversine-5"><span class="linenos"> 5</span></a><span class="k">def</span> <span class="nf">haversine</span><span class="p">(</span>
-</span><span id="haversine-6"><a href="#haversine-6"><span class="linenos"> 6</span></a>    <span class="n">origin</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="haversine-7"><a href="#haversine-7"><span class="linenos"> 7</span></a>    <span class="n">destination</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="haversine-5"><a href="#haversine-5"><span class="linenos"> 5</span></a><span class="k">def</span><span class="w"> </span><span class="nf">haversine</span><span class="p">(</span>
+</span><span id="haversine-6"><a href="#haversine-6"><span class="linenos"> 6</span></a>    <span class="n">origin</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="haversine-7"><a href="#haversine-7"><span class="linenos"> 7</span></a>    <span class="n">destination</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="haversine-8"><a href="#haversine-8"><span class="linenos"> 8</span></a>    <span class="n">units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
-</span><span id="haversine-9"><a href="#haversine-9"><span class="linenos"> 9</span></a>    <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="haversine-9"><a href="#haversine-9"><span class="linenos"> 9</span></a>    <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="haversine-10"><a href="#haversine-10"><span class="linenos">10</span></a><span class="p">):</span>
 </span><span id="haversine-11"><a href="#haversine-11"><span class="linenos">11</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="haversine-12"><a href="#haversine-12"><span class="linenos">12</span></a><span class="sd">    Function:</span>
@@ -358,7 +397,7 @@
 
     </div>
     <a class="headerlink" href="#hard_round"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="hard_round-73"><a href="#hard_round-73"><span class="linenos">73</span></a><span class="k">def</span> <span class="nf">hard_round</span><span class="p">(</span><span class="n">decimal_places</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="hard_round-73"><a href="#hard_round-73"><span class="linenos">73</span></a><span class="k">def</span><span class="w"> </span><span class="nf">hard_round</span><span class="p">(</span><span class="n">decimal_places</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]):</span>
 </span><span id="hard_round-74"><a href="#hard_round-74"><span class="linenos">74</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="hard_round-75"><a href="#hard_round-75"><span class="linenos">75</span></a><span class="sd">    Function:</span>
 </span><span id="hard_round-76"><a href="#hard_round-76"><span class="linenos">76</span></a>
@@ -414,8 +453,8 @@
 
     </div>
     <a class="headerlink" href="#distance_converter"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="distance_converter-93"><a href="#distance_converter-93"><span class="linenos"> 93</span></a><span class="k">def</span> <span class="nf">distance_converter</span><span class="p">(</span>
-</span><span id="distance_converter-94"><a href="#distance_converter-94"><span class="linenos"> 94</span></a>    <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span> <span class="n">input_units</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="distance_converter-93"><a href="#distance_converter-93"><span class="linenos"> 93</span></a><span class="k">def</span><span class="w"> </span><span class="nf">distance_converter</span><span class="p">(</span>
+</span><span id="distance_converter-94"><a href="#distance_converter-94"><span class="linenos"> 94</span></a>    <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span> <span class="n">input_units</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span>
 </span><span id="distance_converter-95"><a href="#distance_converter-95"><span class="linenos"> 95</span></a><span class="p">):</span>
 </span><span id="distance_converter-96"><a href="#distance_converter-96"><span class="linenos"> 96</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="distance_converter-97"><a href="#distance_converter-97"><span class="linenos"> 97</span></a><span class="sd">    Function:</span>
@@ -481,7 +520,7 @@
 
     </div>
     <a class="headerlink" href="#get_line_path"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_line_path-119"><a href="#get_line_path-119"><span class="linenos">119</span></a><span class="k">def</span> <span class="nf">get_line_path</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_line_path-119"><a href="#get_line_path-119"><span class="linenos">119</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_line_path</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">],</span> <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
 </span><span id="get_line_path-120"><a href="#get_line_path-120"><span class="linenos">120</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="get_line_path-121"><a href="#get_line_path-121"><span class="linenos">121</span></a><span class="sd">    Function:</span>
 </span><span id="get_line_path-122"><a href="#get_line_path-122"><span class="linenos">122</span></a>

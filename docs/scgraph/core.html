@@ -114,6 +114,45 @@
     </ul>
 
 
+<footer>
+<select id="version-selector">
+    <option value="latest">latest</option>
+        <option value="2.4.0">2.4.0</option>
+        <option value="2.3.0">2.3.0</option>
+        <option value="2.2.0">2.2.0</option>
+        <option value="2.1.2">2.1.2</option>
+        <option value="2.0.0">2.0.0</option>
+        <option value="1.5.2">1.5.2</option>
+        <option value="0.3.0">0.3.0</option>
+</select>
+<script>
+    var split_at = "/docs/";
+    if (window.location.href.includes('github.io')) {
+        split_at = "github.io/fizgrid/";
+    }
+    // Set the currently selected option to be equivalent to that of the url version.
+    var version = 'latest';
+    var version_path = window.location.href.split(split_at)[1];
+    if (version_path.includes('/')) {
+        if (version_path.split('/')[0].match(/^\d+\.\d+\.\d+$/)) {
+            version = version_path.split('/')[0];
+        }
+    }
+    document.getElementById('version-selector').value = version;
+
+    document.getElementById('version-selector').onchange = function() {
+        var version = this.value;
+        if (version == 'latest') {
+            var new_url = '';
+        } else {
+            var new_url = version + '/';
+        }
+        var url = window.location.href.split(split_at)[0] + split_at + new_url + 'index.html';
+        console.log(url);
+        window.location.href = url;
+    }
+</script>
+</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -132,13 +171,13 @@
 
                         <label class="view-source-button" for="mod-core-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">   1</span></a><span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">haversine</span><span class="p">,</span> <span class="n">hard_round</span><span class="p">,</span> <span class="n">distance_converter</span><span class="p">,</span> <span class="n">get_line_path</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos">   2</span></a><span class="kn">import</span> <span class="nn">json</span>
+                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">   1</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">haversine</span><span class="p">,</span> <span class="n">hard_round</span><span class="p">,</span> <span class="n">distance_converter</span><span class="p">,</span> <span class="n">get_line_path</span>
+</span><span id="L-2"><a href="#L-2"><span class="linenos">   2</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 </span><span id="L-3"><a href="#L-3"><span class="linenos">   3</span></a>
 </span><span id="L-4"><a href="#L-4"><span class="linenos">   4</span></a>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">   5</span></a><span class="k">class</span> <span class="nc">Graph</span><span class="p">:</span>
+</span><span id="L-5"><a href="#L-5"><span class="linenos">   5</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Graph</span><span class="p">:</span>
 </span><span id="L-6"><a href="#L-6"><span class="linenos">   6</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="L-7"><a href="#L-7"><span class="linenos">   7</span></a>    <span class="k">def</span> <span class="nf">validate_graph</span><span class="p">(</span>
+</span><span id="L-7"><a href="#L-7"><span class="linenos">   7</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_graph</span><span class="p">(</span>
 </span><span id="L-8"><a href="#L-8"><span class="linenos">   8</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
 </span><span id="L-9"><a href="#L-9"><span class="linenos">   9</span></a>        <span class="n">check_symmetry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="L-10"><a href="#L-10"><span class="linenos">  10</span></a>        <span class="n">check_connected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
@@ -153,7 +192,7 @@
 </span><span id="L-19"><a href="#L-19"><span class="linenos">  19</span></a><span class="sd">        - `graph`:</span>
 </span><span id="L-20"><a href="#L-20"><span class="linenos">  20</span></a><span class="sd">            - Type: list of dictionaries</span>
 </span><span id="L-21"><a href="#L-21"><span class="linenos">  21</span></a><span class="sd">            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
-</span><span id="L-22"><a href="#L-22"><span class="linenos">  22</span></a><span class="sd">        </span>
+</span><span id="L-22"><a href="#L-22"><span class="linenos">  22</span></a>
 </span><span id="L-23"><a href="#L-23"><span class="linenos">  23</span></a><span class="sd">        Optional Arguments:</span>
 </span><span id="L-24"><a href="#L-24"><span class="linenos">  24</span></a>
 </span><span id="L-25"><a href="#L-25"><span class="linenos">  25</span></a><span class="sd">        - `check_symmetry`</span>
@@ -197,7 +236,7 @@
 </span><span id="L-63"><a href="#L-63"><span class="linenos">  63</span></a>            <span class="p">),</span> <span class="s2">&quot;Your graph is not fully connected&quot;</span>
 </span><span id="L-64"><a href="#L-64"><span class="linenos">  64</span></a>
 </span><span id="L-65"><a href="#L-65"><span class="linenos">  65</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="L-66"><a href="#L-66"><span class="linenos">  66</span></a>    <span class="k">def</span> <span class="nf">validate_connected</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="L-66"><a href="#L-66"><span class="linenos">  66</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_connected</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 </span><span id="L-67"><a href="#L-67"><span class="linenos">  67</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-68"><a href="#L-68"><span class="linenos">  68</span></a><span class="sd">        Function:</span>
 </span><span id="L-69"><a href="#L-69"><span class="linenos">  69</span></a>
@@ -242,7 +281,7 @@
 </span><span id="L-108"><a href="#L-108"><span class="linenos"> 108</span></a>                    <span class="n">open_leaves</span><span class="p">[</span><span class="n">connected_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">possible_distance</span>
 </span><span id="L-109"><a href="#L-109"><span class="linenos"> 109</span></a>
 </span><span id="L-110"><a href="#L-110"><span class="linenos"> 110</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="L-111"><a href="#L-111"><span class="linenos"> 111</span></a>    <span class="k">def</span> <span class="nf">input_check</span><span class="p">(</span>
+</span><span id="L-111"><a href="#L-111"><span class="linenos"> 111</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">input_check</span><span class="p">(</span>
 </span><span id="L-112"><a href="#L-112"><span class="linenos"> 112</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="L-113"><a href="#L-113"><span class="linenos"> 113</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-114"><a href="#L-114"><span class="linenos"> 114</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -283,7 +322,7 @@
 </span><span id="L-149"><a href="#L-149"><span class="linenos"> 149</span></a>            <span class="p">)</span>
 </span><span id="L-150"><a href="#L-150"><span class="linenos"> 150</span></a>
 </span><span id="L-151"><a href="#L-151"><span class="linenos"> 151</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="L-152"><a href="#L-152"><span class="linenos"> 152</span></a>    <span class="k">def</span> <span class="nf">dijkstra</span><span class="p">(</span>
+</span><span id="L-152"><a href="#L-152"><span class="linenos"> 152</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dijkstra</span><span class="p">(</span>
 </span><span id="L-153"><a href="#L-153"><span class="linenos"> 153</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="L-154"><a href="#L-154"><span class="linenos"> 154</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 </span><span id="L-155"><a href="#L-155"><span class="linenos"> 155</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -353,7 +392,7 @@
 </span><span id="L-219"><a href="#L-219"><span class="linenos"> 219</span></a>        <span class="p">}</span>
 </span><span id="L-220"><a href="#L-220"><span class="linenos"> 220</span></a>
 </span><span id="L-221"><a href="#L-221"><span class="linenos"> 221</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="L-222"><a href="#L-222"><span class="linenos"> 222</span></a>    <span class="k">def</span> <span class="nf">dijkstra_makowski</span><span class="p">(</span>
+</span><span id="L-222"><a href="#L-222"><span class="linenos"> 222</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dijkstra_makowski</span><span class="p">(</span>
 </span><span id="L-223"><a href="#L-223"><span class="linenos"> 223</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="L-224"><a href="#L-224"><span class="linenos"> 224</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 </span><span id="L-225"><a href="#L-225"><span class="linenos"> 225</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -364,9 +403,9 @@
 </span><span id="L-230"><a href="#L-230"><span class="linenos"> 230</span></a><span class="sd">            - Improvements include only computing future potential nodes based on the open leaves for each branch</span>
 </span><span id="L-231"><a href="#L-231"><span class="linenos"> 231</span></a><span class="sd">                - Open leaves are nodes that have not been visited yet but are adjacent to other visited nodes</span>
 </span><span id="L-232"><a href="#L-232"><span class="linenos"> 232</span></a><span class="sd">            - This can dramatically reduce the memory and compute requirements of the algorithm</span>
-</span><span id="L-233"><a href="#L-233"><span class="linenos"> 233</span></a><span class="sd">            - For particularly sparse graphs, this algorithm runs close to O(n) time</span>
+</span><span id="L-233"><a href="#L-233"><span class="linenos"> 233</span></a><span class="sd">            - For particularly sparse graphs, this algorithm runs close to O(n log n) time</span>
 </span><span id="L-234"><a href="#L-234"><span class="linenos"> 234</span></a><span class="sd">                - Where n is the number of nodes in the graph</span>
-</span><span id="L-235"><a href="#L-235"><span class="linenos"> 235</span></a><span class="sd">            - For dense graphs, this algorithm runs in O(n^2) time</span>
+</span><span id="L-235"><a href="#L-235"><span class="linenos"> 235</span></a><span class="sd">            - For dense graphs, this algorithm runs closer to O(n^2) time (similar to the standard Dijkstra algorithm)</span>
 </span><span id="L-236"><a href="#L-236"><span class="linenos"> 236</span></a><span class="sd">                - Where n is the number of nodes in the graph</span>
 </span><span id="L-237"><a href="#L-237"><span class="linenos"> 237</span></a><span class="sd">        - Return a dictionary of various path information including:</span>
 </span><span id="L-238"><a href="#L-238"><span class="linenos"> 238</span></a><span class="sd">            - `id_path`: A list of node ids in the order they are visited</span>
@@ -428,9 +467,9 @@
 </span><span id="L-294"><a href="#L-294"><span class="linenos"> 294</span></a>        <span class="p">}</span>
 </span><span id="L-295"><a href="#L-295"><span class="linenos"> 295</span></a>
 </span><span id="L-296"><a href="#L-296"><span class="linenos"> 296</span></a>
-</span><span id="L-297"><a href="#L-297"><span class="linenos"> 297</span></a><span class="k">class</span> <span class="nc">GeoGraph</span><span class="p">:</span>
-</span><span id="L-298"><a href="#L-298"><span class="linenos"> 298</span></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-</span><span id="L-299"><a href="#L-299"><span class="linenos"> 299</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]]</span>
+</span><span id="L-297"><a href="#L-297"><span class="linenos"> 297</span></a><span class="k">class</span><span class="w"> </span><span class="nc">GeoGraph</span><span class="p">:</span>
+</span><span id="L-298"><a href="#L-298"><span class="linenos"> 298</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span id="L-299"><a href="#L-299"><span class="linenos"> 299</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]]</span>
 </span><span id="L-300"><a href="#L-300"><span class="linenos"> 300</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-301"><a href="#L-301"><span class="linenos"> 301</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-302"><a href="#L-302"><span class="linenos"> 302</span></a><span class="sd">        Function:</span>
@@ -443,7 +482,7 @@
 </span><span id="L-309"><a href="#L-309"><span class="linenos"> 309</span></a><span class="sd">            - Type: list of dictionaries</span>
 </span><span id="L-310"><a href="#L-310"><span class="linenos"> 310</span></a><span class="sd">            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances</span>
 </span><span id="L-311"><a href="#L-311"><span class="linenos"> 311</span></a><span class="sd">            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations</span>
-</span><span id="L-312"><a href="#L-312"><span class="linenos"> 312</span></a><span class="sd">            - EG: </span>
+</span><span id="L-312"><a href="#L-312"><span class="linenos"> 312</span></a><span class="sd">            - EG:</span>
 </span><span id="L-313"><a href="#L-313"><span class="linenos"> 313</span></a><span class="sd">            ```</span>
 </span><span id="L-314"><a href="#L-314"><span class="linenos"> 314</span></a><span class="sd">                [</span>
 </span><span id="L-315"><a href="#L-315"><span class="linenos"> 315</span></a><span class="sd">                    # From London</span>
@@ -454,9 +493,9 @@
 </span><span id="L-320"><a href="#L-320"><span class="linenos"> 320</span></a><span class="sd">                    # From Paris</span>
 </span><span id="L-321"><a href="#L-321"><span class="linenos"> 321</span></a><span class="sd">                    {</span>
 </span><span id="L-322"><a href="#L-322"><span class="linenos"> 322</span></a><span class="sd">                        # To London</span>
-</span><span id="L-323"><a href="#L-323"><span class="linenos"> 323</span></a><span class="sd">                        0: 311, </span>
+</span><span id="L-323"><a href="#L-323"><span class="linenos"> 323</span></a><span class="sd">                        0: 311,</span>
 </span><span id="L-324"><a href="#L-324"><span class="linenos"> 324</span></a><span class="sd">                        # To Berlin</span>
-</span><span id="L-325"><a href="#L-325"><span class="linenos"> 325</span></a><span class="sd">                        2: 878, </span>
+</span><span id="L-325"><a href="#L-325"><span class="linenos"> 325</span></a><span class="sd">                        2: 878,</span>
 </span><span id="L-326"><a href="#L-326"><span class="linenos"> 326</span></a><span class="sd">                        # To Rome</span>
 </span><span id="L-327"><a href="#L-327"><span class="linenos"> 327</span></a><span class="sd">                        3: 1439,</span>
 </span><span id="L-328"><a href="#L-328"><span class="linenos"> 328</span></a><span class="sd">                        # To Madrid</span>
@@ -464,7 +503,7 @@
 </span><span id="L-330"><a href="#L-330"><span class="linenos"> 330</span></a><span class="sd">                    },</span>
 </span><span id="L-331"><a href="#L-331"><span class="linenos"> 331</span></a><span class="sd">                    # From Berlin</span>
 </span><span id="L-332"><a href="#L-332"><span class="linenos"> 332</span></a><span class="sd">                    {</span>
-</span><span id="L-333"><a href="#L-333"><span class="linenos"> 333</span></a><span class="sd">                        # To Paris </span>
+</span><span id="L-333"><a href="#L-333"><span class="linenos"> 333</span></a><span class="sd">                        # To Paris</span>
 </span><span id="L-334"><a href="#L-334"><span class="linenos"> 334</span></a><span class="sd">                        1: 878,</span>
 </span><span id="L-335"><a href="#L-335"><span class="linenos"> 335</span></a><span class="sd">                        # To Rome</span>
 </span><span id="L-336"><a href="#L-336"><span class="linenos"> 336</span></a><span class="sd">                        3: 1181,</span>
@@ -494,7 +533,7 @@
 </span><span id="L-360"><a href="#L-360"><span class="linenos"> 360</span></a><span class="sd">            - Type: list of lists of ints or floats</span>
 </span><span id="L-361"><a href="#L-361"><span class="linenos"> 361</span></a><span class="sd">            - What: A list of lists where the values are coordinates (latitude then longitude)</span>
 </span><span id="L-362"><a href="#L-362"><span class="linenos"> 362</span></a><span class="sd">            - Note: The length of the nodes list must be the same as that of the graph list</span>
-</span><span id="L-363"><a href="#L-363"><span class="linenos"> 363</span></a><span class="sd">            - EG: </span>
+</span><span id="L-363"><a href="#L-363"><span class="linenos"> 363</span></a><span class="sd">            - EG:</span>
 </span><span id="L-364"><a href="#L-364"><span class="linenos"> 364</span></a><span class="sd">            ```</span>
 </span><span id="L-365"><a href="#L-365"><span class="linenos"> 365</span></a><span class="sd">                [</span>
 </span><span id="L-366"><a href="#L-366"><span class="linenos"> 366</span></a><span class="sd">                    # London</span>
@@ -515,7 +554,7 @@
 </span><span id="L-381"><a href="#L-381"><span class="linenos"> 381</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">graph</span>
 </span><span id="L-382"><a href="#L-382"><span class="linenos"> 382</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="n">nodes</span>
 </span><span id="L-383"><a href="#L-383"><span class="linenos"> 383</span></a>
-</span><span id="L-384"><a href="#L-384"><span class="linenos"> 384</span></a>    <span class="k">def</span> <span class="nf">validate_graph</span><span class="p">(</span>
+</span><span id="L-384"><a href="#L-384"><span class="linenos"> 384</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_graph</span><span class="p">(</span>
 </span><span id="L-385"><a href="#L-385"><span class="linenos"> 385</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">check_symmetry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">check_connected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="L-386"><a href="#L-386"><span class="linenos"> 386</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-387"><a href="#L-387"><span class="linenos"> 387</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -548,7 +587,7 @@
 </span><span id="L-414"><a href="#L-414"><span class="linenos"> 414</span></a>            <span class="n">check_connected</span><span class="o">=</span><span class="n">check_connected</span><span class="p">,</span>
 </span><span id="L-415"><a href="#L-415"><span class="linenos"> 415</span></a>        <span class="p">)</span>
 </span><span id="L-416"><a href="#L-416"><span class="linenos"> 416</span></a>
-</span><span id="L-417"><a href="#L-417"><span class="linenos"> 417</span></a>    <span class="k">def</span> <span class="nf">validate_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="L-417"><a href="#L-417"><span class="linenos"> 417</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-418"><a href="#L-418"><span class="linenos"> 418</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-419"><a href="#L-419"><span class="linenos"> 419</span></a>
 </span><span id="L-420"><a href="#L-420"><span class="linenos"> 420</span></a><span class="sd">        Function:</span>
@@ -588,19 +627,19 @@
 </span><span id="L-454"><a href="#L-454"><span class="linenos"> 454</span></a>            <span class="p">]</span>
 </span><span id="L-455"><a href="#L-455"><span class="linenos"> 455</span></a>        <span class="p">),</span> <span class="s2">&quot;Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value&quot;</span>
 </span><span id="L-456"><a href="#L-456"><span class="linenos"> 456</span></a>
-</span><span id="L-457"><a href="#L-457"><span class="linenos"> 457</span></a>    <span class="k">def</span> <span class="nf">get_shortest_path</span><span class="p">(</span>
+</span><span id="L-457"><a href="#L-457"><span class="linenos"> 457</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_shortest_path</span><span class="p">(</span>
 </span><span id="L-458"><a href="#L-458"><span class="linenos"> 458</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="L-459"><a href="#L-459"><span class="linenos"> 459</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="L-460"><a href="#L-460"><span class="linenos"> 460</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="L-459"><a href="#L-459"><span class="linenos"> 459</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="L-460"><a href="#L-460"><span class="linenos"> 460</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="L-461"><a href="#L-461"><span class="linenos"> 461</span></a>        <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="L-462"><a href="#L-462"><span class="linenos"> 462</span></a>        <span class="n">algorithm_fn</span><span class="o">=</span><span class="n">Graph</span><span class="o">.</span><span class="n">dijkstra_makowski</span><span class="p">,</span>
-</span><span id="L-463"><a href="#L-463"><span class="linenos"> 463</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="L-463"><a href="#L-463"><span class="linenos"> 463</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="L-464"><a href="#L-464"><span class="linenos"> 464</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
-</span><span id="L-465"><a href="#L-465"><span class="linenos"> 465</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="L-465"><a href="#L-465"><span class="linenos"> 465</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="L-466"><a href="#L-466"><span class="linenos"> 466</span></a>        <span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="L-467"><a href="#L-467"><span class="linenos"> 467</span></a>        <span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;list_of_lists&quot;</span><span class="p">,</span>
 </span><span id="L-468"><a href="#L-468"><span class="linenos"> 468</span></a>        <span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="L-469"><a href="#L-469"><span class="linenos"> 469</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="L-469"><a href="#L-469"><span class="linenos"> 469</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="L-470"><a href="#L-470"><span class="linenos"> 470</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
 </span><span id="L-471"><a href="#L-471"><span class="linenos"> 471</span></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
 </span><span id="L-472"><a href="#L-472"><span class="linenos"> 472</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
@@ -773,12 +812,12 @@
 </span><span id="L-639"><a href="#L-639"><span class="linenos"> 639</span></a>                <span class="bp">self</span><span class="o">.</span><span class="n">remove_appended_node</span><span class="p">()</span>
 </span><span id="L-640"><a href="#L-640"><span class="linenos"> 640</span></a>            <span class="k">raise</span> <span class="n">e</span>
 </span><span id="L-641"><a href="#L-641"><span class="linenos"> 641</span></a>
-</span><span id="L-642"><a href="#L-642"><span class="linenos"> 642</span></a>    <span class="k">def</span> <span class="nf">adujust_circuity_length</span><span class="p">(</span>
+</span><span id="L-642"><a href="#L-642"><span class="linenos"> 642</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">adujust_circuity_length</span><span class="p">(</span>
 </span><span id="L-643"><a href="#L-643"><span class="linenos"> 643</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="L-644"><a href="#L-644"><span class="linenos"> 644</span></a>        <span class="n">output</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
-</span><span id="L-645"><a href="#L-645"><span class="linenos"> 645</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="L-646"><a href="#L-646"><span class="linenos"> 646</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="L-647"><a href="#L-647"><span class="linenos"> 647</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]:</span>
+</span><span id="L-645"><a href="#L-645"><span class="linenos"> 645</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="L-646"><a href="#L-646"><span class="linenos"> 646</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="L-647"><a href="#L-647"><span class="linenos"> 647</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
 </span><span id="L-648"><a href="#L-648"><span class="linenos"> 648</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-649"><a href="#L-649"><span class="linenos"> 649</span></a><span class="sd">        Function:</span>
 </span><span id="L-650"><a href="#L-650"><span class="linenos"> 650</span></a>
@@ -813,7 +852,7 @@
 </span><span id="L-679"><a href="#L-679"><span class="linenos"> 679</span></a>                <span class="mi">4</span><span class="p">,</span>
 </span><span id="L-680"><a href="#L-680"><span class="linenos"> 680</span></a>            <span class="p">)</span>
 </span><span id="L-681"><a href="#L-681"><span class="linenos"> 681</span></a>
-</span><span id="L-682"><a href="#L-682"><span class="linenos"> 682</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]]:</span>
+</span><span id="L-682"><a href="#L-682"><span class="linenos"> 682</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]]:</span>
 </span><span id="L-683"><a href="#L-683"><span class="linenos"> 683</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-684"><a href="#L-684"><span class="linenos"> 684</span></a><span class="sd">        Function:</span>
 </span><span id="L-685"><a href="#L-685"><span class="linenos"> 685</span></a>
@@ -831,7 +870,7 @@
 </span><span id="L-697"><a href="#L-697"><span class="linenos"> 697</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="L-698"><a href="#L-698"><span class="linenos"> 698</span></a>        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">path</span><span class="p">]</span>
 </span><span id="L-699"><a href="#L-699"><span class="linenos"> 699</span></a>
-</span><span id="L-700"><a href="#L-700"><span class="linenos"> 700</span></a>    <span class="k">def</span> <span class="nf">remove_appended_node</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="L-700"><a href="#L-700"><span class="linenos"> 700</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">remove_appended_node</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-701"><a href="#L-701"><span class="linenos"> 701</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-702"><a href="#L-702"><span class="linenos"> 702</span></a><span class="sd">        Function:</span>
 </span><span id="L-703"><a href="#L-703"><span class="linenos"> 703</span></a>
@@ -854,14 +893,14 @@
 </span><span id="L-720"><a href="#L-720"><span class="linenos"> 720</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[:</span><span class="n">node_id</span><span class="p">]</span>
 </span><span id="L-721"><a href="#L-721"><span class="linenos"> 721</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">[:</span><span class="n">node_id</span><span class="p">]</span>
 </span><span id="L-722"><a href="#L-722"><span class="linenos"> 722</span></a>
-</span><span id="L-723"><a href="#L-723"><span class="linenos"> 723</span></a>    <span class="k">def</span> <span class="nf">get_node_distances</span><span class="p">(</span>
+</span><span id="L-723"><a href="#L-723"><span class="linenos"> 723</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_node_distances</span><span class="p">(</span>
 </span><span id="L-724"><a href="#L-724"><span class="linenos"> 724</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="L-725"><a href="#L-725"><span class="linenos"> 725</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
-</span><span id="L-726"><a href="#L-726"><span class="linenos"> 726</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="L-726"><a href="#L-726"><span class="linenos"> 726</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="L-727"><a href="#L-727"><span class="linenos"> 727</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="L-728"><a href="#L-728"><span class="linenos"> 728</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="L-729"><a href="#L-729"><span class="linenos"> 729</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="L-730"><a href="#L-730"><span class="linenos"> 730</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]:</span>
+</span><span id="L-729"><a href="#L-729"><span class="linenos"> 729</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="L-730"><a href="#L-730"><span class="linenos"> 730</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
 </span><span id="L-731"><a href="#L-731"><span class="linenos"> 731</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-732"><a href="#L-732"><span class="linenos"> 732</span></a><span class="sd">        Function:</span>
 </span><span id="L-733"><a href="#L-733"><span class="linenos"> 733</span></a>
@@ -959,13 +998,13 @@
 </span><span id="L-825"><a href="#L-825"><span class="linenos"> 825</span></a>            <span class="k">for</span> <span class="n">node_idx</span> <span class="ow">in</span> <span class="n">min_diffs_idx</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
 </span><span id="L-826"><a href="#L-826"><span class="linenos"> 826</span></a>        <span class="p">}</span>
 </span><span id="L-827"><a href="#L-827"><span class="linenos"> 827</span></a>
-</span><span id="L-828"><a href="#L-828"><span class="linenos"> 828</span></a>    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span>
+</span><span id="L-828"><a href="#L-828"><span class="linenos"> 828</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_node</span><span class="p">(</span>
 </span><span id="L-829"><a href="#L-829"><span class="linenos"> 829</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="L-830"><a href="#L-830"><span class="linenos"> 830</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="L-831"><a href="#L-831"><span class="linenos"> 831</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="L-830"><a href="#L-830"><span class="linenos"> 830</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="L-831"><a href="#L-831"><span class="linenos"> 831</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="L-832"><a href="#L-832"><span class="linenos"> 832</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
 </span><span id="L-833"><a href="#L-833"><span class="linenos"> 833</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
-</span><span id="L-834"><a href="#L-834"><span class="linenos"> 834</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="L-834"><a href="#L-834"><span class="linenos"> 834</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="L-835"><a href="#L-835"><span class="linenos"> 835</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="L-836"><a href="#L-836"><span class="linenos"> 836</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-837"><a href="#L-837"><span class="linenos"> 837</span></a><span class="sd">        Function:</span>
@@ -1055,7 +1094,7 @@
 </span><span id="L-921"><a href="#L-921"><span class="linenos"> 921</span></a>            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">node_idx</span><span class="p">][</span><span class="n">new_node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">node_distance</span>
 </span><span id="L-922"><a href="#L-922"><span class="linenos"> 922</span></a>        <span class="k">return</span> <span class="n">new_node_id</span>
 </span><span id="L-923"><a href="#L-923"><span class="linenos"> 923</span></a>
-</span><span id="L-924"><a href="#L-924"><span class="linenos"> 924</span></a>    <span class="k">def</span> <span class="nf">save_as_geojson</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="L-924"><a href="#L-924"><span class="linenos"> 924</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save_as_geojson</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-925"><a href="#L-925"><span class="linenos"> 925</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-926"><a href="#L-926"><span class="linenos"> 926</span></a><span class="sd">        Function:</span>
 </span><span id="L-927"><a href="#L-927"><span class="linenos"> 927</span></a>
@@ -1103,7 +1142,7 @@
 </span><span id="L-969"><a href="#L-969"><span class="linenos"> 969</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 </span><span id="L-970"><a href="#L-970"><span class="linenos"> 970</span></a>            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">out_dict</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
 </span><span id="L-971"><a href="#L-971"><span class="linenos"> 971</span></a>
-</span><span id="L-972"><a href="#L-972"><span class="linenos"> 972</span></a>    <span class="k">def</span> <span class="nf">save_as_geograph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="L-972"><a href="#L-972"><span class="linenos"> 972</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save_as_geograph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-973"><a href="#L-973"><span class="linenos"> 973</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-974"><a href="#L-974"><span class="linenos"> 974</span></a><span class="sd">        Function:</span>
 </span><span id="L-975"><a href="#L-975"><span class="linenos"> 975</span></a>
@@ -1125,7 +1164,7 @@
 </span><span id="L-991"><a href="#L-991"><span class="linenos"> 991</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;.py&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 </span><span id="L-992"><a href="#L-992"><span class="linenos"> 992</span></a>            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">out_string</span><span class="p">)</span>
 </span><span id="L-993"><a href="#L-993"><span class="linenos"> 993</span></a>
-</span><span id="L-994"><a href="#L-994"><span class="linenos"> 994</span></a>    <span class="k">def</span> <span class="nf">mod_remove_arc</span><span class="p">(</span>
+</span><span id="L-994"><a href="#L-994"><span class="linenos"> 994</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_remove_arc</span><span class="p">(</span>
 </span><span id="L-995"><a href="#L-995"><span class="linenos"> 995</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">origin_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">undirected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="L-996"><a href="#L-996"><span class="linenos"> 996</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="L-997"><a href="#L-997"><span class="linenos"> 997</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1159,8 +1198,8 @@
 </span><span id="L-1025"><a href="#L-1025"><span class="linenos">1025</span></a>            <span class="k">if</span> <span class="n">origin_idx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">destination_idx</span><span class="p">]:</span>
 </span><span id="L-1026"><a href="#L-1026"><span class="linenos">1026</span></a>                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">destination_idx</span><span class="p">][</span><span class="n">origin_idx</span><span class="p">]</span>
 </span><span id="L-1027"><a href="#L-1027"><span class="linenos">1027</span></a>
-</span><span id="L-1028"><a href="#L-1028"><span class="linenos">1028</span></a>    <span class="k">def</span> <span class="nf">mod_add_node</span><span class="p">(</span>
-</span><span id="L-1029"><a href="#L-1029"><span class="linenos">1029</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">latitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span> <span class="n">longitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span>
+</span><span id="L-1028"><a href="#L-1028"><span class="linenos">1028</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_add_node</span><span class="p">(</span>
+</span><span id="L-1029"><a href="#L-1029"><span class="linenos">1029</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">latitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span> <span class="n">longitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span>
 </span><span id="L-1030"><a href="#L-1030"><span class="linenos">1030</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="L-1031"><a href="#L-1031"><span class="linenos">1031</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-1032"><a href="#L-1032"><span class="linenos">1032</span></a><span class="sd">        Function:</span>
@@ -1184,11 +1223,11 @@
 </span><span id="L-1050"><a href="#L-1050"><span class="linenos">1050</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">append</span><span class="p">({})</span>
 </span><span id="L-1051"><a href="#L-1051"><span class="linenos">1051</span></a>        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
 </span><span id="L-1052"><a href="#L-1052"><span class="linenos">1052</span></a>
-</span><span id="L-1053"><a href="#L-1053"><span class="linenos">1053</span></a>    <span class="k">def</span> <span class="nf">mod_add_arc</span><span class="p">(</span>
+</span><span id="L-1053"><a href="#L-1053"><span class="linenos">1053</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_add_arc</span><span class="p">(</span>
 </span><span id="L-1054"><a href="#L-1054"><span class="linenos">1054</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="L-1055"><a href="#L-1055"><span class="linenos">1055</span></a>        <span class="n">origin_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
 </span><span id="L-1056"><a href="#L-1056"><span class="linenos">1056</span></a>        <span class="n">destination_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-</span><span id="L-1057"><a href="#L-1057"><span class="linenos">1057</span></a>        <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="L-1057"><a href="#L-1057"><span class="linenos">1057</span></a>        <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
 </span><span id="L-1058"><a href="#L-1058"><span class="linenos">1058</span></a>        <span class="n">use_haversine_distance</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 </span><span id="L-1059"><a href="#L-1059"><span class="linenos">1059</span></a>        <span class="n">undirected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="L-1060"><a href="#L-1060"><span class="linenos">1060</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -1235,7 +1274,7 @@
 </span><span id="L-1101"><a href="#L-1101"><span class="linenos">1101</span></a>            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">destination_idx</span><span class="p">][</span><span class="n">origin_idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">distance</span>
 </span><span id="L-1102"><a href="#L-1102"><span class="linenos">1102</span></a>
 </span><span id="L-1103"><a href="#L-1103"><span class="linenos">1103</span></a>
-</span><span id="L-1104"><a href="#L-1104"><span class="linenos">1104</span></a><span class="k">def</span> <span class="nf">load_geojson_as_geograph</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GeoGraph</span><span class="p">:</span>
+</span><span id="L-1104"><a href="#L-1104"><span class="linenos">1104</span></a><span class="k">def</span><span class="w"> </span><span class="nf">load_geojson_as_geograph</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GeoGraph</span><span class="p">:</span>
 </span><span id="L-1105"><a href="#L-1105"><span class="linenos">1105</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-1106"><a href="#L-1106"><span class="linenos">1106</span></a><span class="sd">    Function:</span>
 </span><span id="L-1107"><a href="#L-1107"><span class="linenos">1107</span></a>
@@ -1359,7 +1398,7 @@
 </span><span id="L-1225"><a href="#L-1225"><span class="linenos">1225</span></a>    <span class="k">return</span> <span class="n">GeoGraph</span><span class="p">(</span><span class="n">graph</span><span class="o">=</span><span class="n">graph</span><span class="p">,</span> <span class="n">nodes</span><span class="o">=</span><span class="n">nodes</span><span class="p">)</span>
 </span><span id="L-1226"><a href="#L-1226"><span class="linenos">1226</span></a>
 </span><span id="L-1227"><a href="#L-1227"><span class="linenos">1227</span></a>
-</span><span id="L-1228"><a href="#L-1228"><span class="linenos">1228</span></a><span class="k">def</span> <span class="nf">get_multi_path_geojson</span><span class="p">(</span>
+</span><span id="L-1228"><a href="#L-1228"><span class="linenos">1228</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_multi_path_geojson</span><span class="p">(</span>
 </span><span id="L-1229"><a href="#L-1229"><span class="linenos">1229</span></a>    <span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
 </span><span id="L-1230"><a href="#L-1230"><span class="linenos">1230</span></a>    <span class="n">filename</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="L-1231"><a href="#L-1231"><span class="linenos">1231</span></a>    <span class="n">show_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -1509,9 +1548,9 @@
 
     </div>
     <a class="headerlink" href="#Graph"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Graph-6"><a href="#Graph-6"><span class="linenos">  6</span></a><span class="k">class</span> <span class="nc">Graph</span><span class="p">:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Graph-6"><a href="#Graph-6"><span class="linenos">  6</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Graph</span><span class="p">:</span>
 </span><span id="Graph-7"><a href="#Graph-7"><span class="linenos">  7</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph-8"><a href="#Graph-8"><span class="linenos">  8</span></a>    <span class="k">def</span> <span class="nf">validate_graph</span><span class="p">(</span>
+</span><span id="Graph-8"><a href="#Graph-8"><span class="linenos">  8</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_graph</span><span class="p">(</span>
 </span><span id="Graph-9"><a href="#Graph-9"><span class="linenos">  9</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
 </span><span id="Graph-10"><a href="#Graph-10"><span class="linenos"> 10</span></a>        <span class="n">check_symmetry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="Graph-11"><a href="#Graph-11"><span class="linenos"> 11</span></a>        <span class="n">check_connected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
@@ -1526,7 +1565,7 @@
 </span><span id="Graph-20"><a href="#Graph-20"><span class="linenos"> 20</span></a><span class="sd">        - `graph`:</span>
 </span><span id="Graph-21"><a href="#Graph-21"><span class="linenos"> 21</span></a><span class="sd">            - Type: list of dictionaries</span>
 </span><span id="Graph-22"><a href="#Graph-22"><span class="linenos"> 22</span></a><span class="sd">            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
-</span><span id="Graph-23"><a href="#Graph-23"><span class="linenos"> 23</span></a><span class="sd">        </span>
+</span><span id="Graph-23"><a href="#Graph-23"><span class="linenos"> 23</span></a>
 </span><span id="Graph-24"><a href="#Graph-24"><span class="linenos"> 24</span></a><span class="sd">        Optional Arguments:</span>
 </span><span id="Graph-25"><a href="#Graph-25"><span class="linenos"> 25</span></a>
 </span><span id="Graph-26"><a href="#Graph-26"><span class="linenos"> 26</span></a><span class="sd">        - `check_symmetry`</span>
@@ -1570,7 +1609,7 @@
 </span><span id="Graph-64"><a href="#Graph-64"><span class="linenos"> 64</span></a>            <span class="p">),</span> <span class="s2">&quot;Your graph is not fully connected&quot;</span>
 </span><span id="Graph-65"><a href="#Graph-65"><span class="linenos"> 65</span></a>
 </span><span id="Graph-66"><a href="#Graph-66"><span class="linenos"> 66</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph-67"><a href="#Graph-67"><span class="linenos"> 67</span></a>    <span class="k">def</span> <span class="nf">validate_connected</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="Graph-67"><a href="#Graph-67"><span class="linenos"> 67</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_connected</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 </span><span id="Graph-68"><a href="#Graph-68"><span class="linenos"> 68</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="Graph-69"><a href="#Graph-69"><span class="linenos"> 69</span></a><span class="sd">        Function:</span>
 </span><span id="Graph-70"><a href="#Graph-70"><span class="linenos"> 70</span></a>
@@ -1615,7 +1654,7 @@
 </span><span id="Graph-109"><a href="#Graph-109"><span class="linenos">109</span></a>                    <span class="n">open_leaves</span><span class="p">[</span><span class="n">connected_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">possible_distance</span>
 </span><span id="Graph-110"><a href="#Graph-110"><span class="linenos">110</span></a>
 </span><span id="Graph-111"><a href="#Graph-111"><span class="linenos">111</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph-112"><a href="#Graph-112"><span class="linenos">112</span></a>    <span class="k">def</span> <span class="nf">input_check</span><span class="p">(</span>
+</span><span id="Graph-112"><a href="#Graph-112"><span class="linenos">112</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">input_check</span><span class="p">(</span>
 </span><span id="Graph-113"><a href="#Graph-113"><span class="linenos">113</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="Graph-114"><a href="#Graph-114"><span class="linenos">114</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="Graph-115"><a href="#Graph-115"><span class="linenos">115</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1656,7 +1695,7 @@
 </span><span id="Graph-150"><a href="#Graph-150"><span class="linenos">150</span></a>            <span class="p">)</span>
 </span><span id="Graph-151"><a href="#Graph-151"><span class="linenos">151</span></a>
 </span><span id="Graph-152"><a href="#Graph-152"><span class="linenos">152</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph-153"><a href="#Graph-153"><span class="linenos">153</span></a>    <span class="k">def</span> <span class="nf">dijkstra</span><span class="p">(</span>
+</span><span id="Graph-153"><a href="#Graph-153"><span class="linenos">153</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dijkstra</span><span class="p">(</span>
 </span><span id="Graph-154"><a href="#Graph-154"><span class="linenos">154</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="Graph-155"><a href="#Graph-155"><span class="linenos">155</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 </span><span id="Graph-156"><a href="#Graph-156"><span class="linenos">156</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1726,7 +1765,7 @@
 </span><span id="Graph-220"><a href="#Graph-220"><span class="linenos">220</span></a>        <span class="p">}</span>
 </span><span id="Graph-221"><a href="#Graph-221"><span class="linenos">221</span></a>
 </span><span id="Graph-222"><a href="#Graph-222"><span class="linenos">222</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph-223"><a href="#Graph-223"><span class="linenos">223</span></a>    <span class="k">def</span> <span class="nf">dijkstra_makowski</span><span class="p">(</span>
+</span><span id="Graph-223"><a href="#Graph-223"><span class="linenos">223</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dijkstra_makowski</span><span class="p">(</span>
 </span><span id="Graph-224"><a href="#Graph-224"><span class="linenos">224</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="Graph-225"><a href="#Graph-225"><span class="linenos">225</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 </span><span id="Graph-226"><a href="#Graph-226"><span class="linenos">226</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -1737,9 +1776,9 @@
 </span><span id="Graph-231"><a href="#Graph-231"><span class="linenos">231</span></a><span class="sd">            - Improvements include only computing future potential nodes based on the open leaves for each branch</span>
 </span><span id="Graph-232"><a href="#Graph-232"><span class="linenos">232</span></a><span class="sd">                - Open leaves are nodes that have not been visited yet but are adjacent to other visited nodes</span>
 </span><span id="Graph-233"><a href="#Graph-233"><span class="linenos">233</span></a><span class="sd">            - This can dramatically reduce the memory and compute requirements of the algorithm</span>
-</span><span id="Graph-234"><a href="#Graph-234"><span class="linenos">234</span></a><span class="sd">            - For particularly sparse graphs, this algorithm runs close to O(n) time</span>
+</span><span id="Graph-234"><a href="#Graph-234"><span class="linenos">234</span></a><span class="sd">            - For particularly sparse graphs, this algorithm runs close to O(n log n) time</span>
 </span><span id="Graph-235"><a href="#Graph-235"><span class="linenos">235</span></a><span class="sd">                - Where n is the number of nodes in the graph</span>
-</span><span id="Graph-236"><a href="#Graph-236"><span class="linenos">236</span></a><span class="sd">            - For dense graphs, this algorithm runs in O(n^2) time</span>
+</span><span id="Graph-236"><a href="#Graph-236"><span class="linenos">236</span></a><span class="sd">            - For dense graphs, this algorithm runs closer to O(n^2) time (similar to the standard Dijkstra algorithm)</span>
 </span><span id="Graph-237"><a href="#Graph-237"><span class="linenos">237</span></a><span class="sd">                - Where n is the number of nodes in the graph</span>
 </span><span id="Graph-238"><a href="#Graph-238"><span class="linenos">238</span></a><span class="sd">        - Return a dictionary of various path information including:</span>
 </span><span id="Graph-239"><a href="#Graph-239"><span class="linenos">239</span></a><span class="sd">            - `id_path`: A list of node ids in the order they are visited</span>
@@ -1817,7 +1856,7 @@
     </div>
     <a class="headerlink" href="#Graph.validate_graph"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="Graph.validate_graph-7"><a href="#Graph.validate_graph-7"><span class="linenos"> 7</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph.validate_graph-8"><a href="#Graph.validate_graph-8"><span class="linenos"> 8</span></a>    <span class="k">def</span> <span class="nf">validate_graph</span><span class="p">(</span>
+</span><span id="Graph.validate_graph-8"><a href="#Graph.validate_graph-8"><span class="linenos"> 8</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_graph</span><span class="p">(</span>
 </span><span id="Graph.validate_graph-9"><a href="#Graph.validate_graph-9"><span class="linenos"> 9</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
 </span><span id="Graph.validate_graph-10"><a href="#Graph.validate_graph-10"><span class="linenos">10</span></a>        <span class="n">check_symmetry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="Graph.validate_graph-11"><a href="#Graph.validate_graph-11"><span class="linenos">11</span></a>        <span class="n">check_connected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
@@ -1832,7 +1871,7 @@
 </span><span id="Graph.validate_graph-20"><a href="#Graph.validate_graph-20"><span class="linenos">20</span></a><span class="sd">        - `graph`:</span>
 </span><span id="Graph.validate_graph-21"><a href="#Graph.validate_graph-21"><span class="linenos">21</span></a><span class="sd">            - Type: list of dictionaries</span>
 </span><span id="Graph.validate_graph-22"><a href="#Graph.validate_graph-22"><span class="linenos">22</span></a><span class="sd">            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
-</span><span id="Graph.validate_graph-23"><a href="#Graph.validate_graph-23"><span class="linenos">23</span></a><span class="sd">        </span>
+</span><span id="Graph.validate_graph-23"><a href="#Graph.validate_graph-23"><span class="linenos">23</span></a>
 </span><span id="Graph.validate_graph-24"><a href="#Graph.validate_graph-24"><span class="linenos">24</span></a><span class="sd">        Optional Arguments:</span>
 </span><span id="Graph.validate_graph-25"><a href="#Graph.validate_graph-25"><span class="linenos">25</span></a>
 </span><span id="Graph.validate_graph-26"><a href="#Graph.validate_graph-26"><span class="linenos">26</span></a><span class="sd">        - `check_symmetry`</span>
@@ -1929,7 +1968,7 @@
     </div>
     <a class="headerlink" href="#Graph.validate_connected"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="Graph.validate_connected-66"><a href="#Graph.validate_connected-66"><span class="linenos"> 66</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph.validate_connected-67"><a href="#Graph.validate_connected-67"><span class="linenos"> 67</span></a>    <span class="k">def</span> <span class="nf">validate_connected</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+</span><span id="Graph.validate_connected-67"><a href="#Graph.validate_connected-67"><span class="linenos"> 67</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_connected</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 </span><span id="Graph.validate_connected-68"><a href="#Graph.validate_connected-68"><span class="linenos"> 68</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="Graph.validate_connected-69"><a href="#Graph.validate_connected-69"><span class="linenos"> 69</span></a><span class="sd">        Function:</span>
 </span><span id="Graph.validate_connected-70"><a href="#Graph.validate_connected-70"><span class="linenos"> 70</span></a>
@@ -2018,7 +2057,7 @@
     </div>
     <a class="headerlink" href="#Graph.input_check"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="Graph.input_check-111"><a href="#Graph.input_check-111"><span class="linenos">111</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph.input_check-112"><a href="#Graph.input_check-112"><span class="linenos">112</span></a>    <span class="k">def</span> <span class="nf">input_check</span><span class="p">(</span>
+</span><span id="Graph.input_check-112"><a href="#Graph.input_check-112"><span class="linenos">112</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">input_check</span><span class="p">(</span>
 </span><span id="Graph.input_check-113"><a href="#Graph.input_check-113"><span class="linenos">113</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="Graph.input_check-114"><a href="#Graph.input_check-114"><span class="linenos">114</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="Graph.input_check-115"><a href="#Graph.input_check-115"><span class="linenos">115</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -2109,7 +2148,7 @@
     </div>
     <a class="headerlink" href="#Graph.dijkstra"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="Graph.dijkstra-152"><a href="#Graph.dijkstra-152"><span class="linenos">152</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph.dijkstra-153"><a href="#Graph.dijkstra-153"><span class="linenos">153</span></a>    <span class="k">def</span> <span class="nf">dijkstra</span><span class="p">(</span>
+</span><span id="Graph.dijkstra-153"><a href="#Graph.dijkstra-153"><span class="linenos">153</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dijkstra</span><span class="p">(</span>
 </span><span id="Graph.dijkstra-154"><a href="#Graph.dijkstra-154"><span class="linenos">154</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="Graph.dijkstra-155"><a href="#Graph.dijkstra-155"><span class="linenos">155</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 </span><span id="Graph.dijkstra-156"><a href="#Graph.dijkstra-156"><span class="linenos">156</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -2238,7 +2277,7 @@
     </div>
     <a class="headerlink" href="#Graph.dijkstra_makowski"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="Graph.dijkstra_makowski-222"><a href="#Graph.dijkstra_makowski-222"><span class="linenos">222</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="Graph.dijkstra_makowski-223"><a href="#Graph.dijkstra_makowski-223"><span class="linenos">223</span></a>    <span class="k">def</span> <span class="nf">dijkstra_makowski</span><span class="p">(</span>
+</span><span id="Graph.dijkstra_makowski-223"><a href="#Graph.dijkstra_makowski-223"><span class="linenos">223</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">dijkstra_makowski</span><span class="p">(</span>
 </span><span id="Graph.dijkstra_makowski-224"><a href="#Graph.dijkstra_makowski-224"><span class="linenos">224</span></a>        <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">origin_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_id</span><span class="p">:</span> <span class="nb">int</span>
 </span><span id="Graph.dijkstra_makowski-225"><a href="#Graph.dijkstra_makowski-225"><span class="linenos">225</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 </span><span id="Graph.dijkstra_makowski-226"><a href="#Graph.dijkstra_makowski-226"><span class="linenos">226</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -2249,9 +2288,9 @@
 </span><span id="Graph.dijkstra_makowski-231"><a href="#Graph.dijkstra_makowski-231"><span class="linenos">231</span></a><span class="sd">            - Improvements include only computing future potential nodes based on the open leaves for each branch</span>
 </span><span id="Graph.dijkstra_makowski-232"><a href="#Graph.dijkstra_makowski-232"><span class="linenos">232</span></a><span class="sd">                - Open leaves are nodes that have not been visited yet but are adjacent to other visited nodes</span>
 </span><span id="Graph.dijkstra_makowski-233"><a href="#Graph.dijkstra_makowski-233"><span class="linenos">233</span></a><span class="sd">            - This can dramatically reduce the memory and compute requirements of the algorithm</span>
-</span><span id="Graph.dijkstra_makowski-234"><a href="#Graph.dijkstra_makowski-234"><span class="linenos">234</span></a><span class="sd">            - For particularly sparse graphs, this algorithm runs close to O(n) time</span>
+</span><span id="Graph.dijkstra_makowski-234"><a href="#Graph.dijkstra_makowski-234"><span class="linenos">234</span></a><span class="sd">            - For particularly sparse graphs, this algorithm runs close to O(n log n) time</span>
 </span><span id="Graph.dijkstra_makowski-235"><a href="#Graph.dijkstra_makowski-235"><span class="linenos">235</span></a><span class="sd">                - Where n is the number of nodes in the graph</span>
-</span><span id="Graph.dijkstra_makowski-236"><a href="#Graph.dijkstra_makowski-236"><span class="linenos">236</span></a><span class="sd">            - For dense graphs, this algorithm runs in O(n^2) time</span>
+</span><span id="Graph.dijkstra_makowski-236"><a href="#Graph.dijkstra_makowski-236"><span class="linenos">236</span></a><span class="sd">            - For dense graphs, this algorithm runs closer to O(n^2) time (similar to the standard Dijkstra algorithm)</span>
 </span><span id="Graph.dijkstra_makowski-237"><a href="#Graph.dijkstra_makowski-237"><span class="linenos">237</span></a><span class="sd">                - Where n is the number of nodes in the graph</span>
 </span><span id="Graph.dijkstra_makowski-238"><a href="#Graph.dijkstra_makowski-238"><span class="linenos">238</span></a><span class="sd">        - Return a dictionary of various path information including:</span>
 </span><span id="Graph.dijkstra_makowski-239"><a href="#Graph.dijkstra_makowski-239"><span class="linenos">239</span></a><span class="sd">            - `id_path`: A list of node ids in the order they are visited</span>
@@ -2325,11 +2364,11 @@
 <li>Open leaves are nodes that have not been visited yet but are adjacent to other visited nodes</li>
 </ul></li>
 <li>This can dramatically reduce the memory and compute requirements of the algorithm</li>
-<li>For particularly sparse graphs, this algorithm runs close to O(n) time
+<li>For particularly sparse graphs, this algorithm runs close to O(n log n) time
 <ul>
 <li>Where n is the number of nodes in the graph</li>
 </ul></li>
-<li>For dense graphs, this algorithm runs in O(n^2) time
+<li>For dense graphs, this algorithm runs closer to O(n^2) time (similar to the standard Dijkstra algorithm)
 <ul>
 <li>Where n is the number of nodes in the graph</li>
 </ul></li>
@@ -2382,9 +2421,9 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph-298"><a href="#GeoGraph-298"><span class="linenos"> 298</span></a><span class="k">class</span> <span class="nc">GeoGraph</span><span class="p">:</span>
-</span><span id="GeoGraph-299"><a href="#GeoGraph-299"><span class="linenos"> 299</span></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-</span><span id="GeoGraph-300"><a href="#GeoGraph-300"><span class="linenos"> 300</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]]</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph-298"><a href="#GeoGraph-298"><span class="linenos"> 298</span></a><span class="k">class</span><span class="w"> </span><span class="nc">GeoGraph</span><span class="p">:</span>
+</span><span id="GeoGraph-299"><a href="#GeoGraph-299"><span class="linenos"> 299</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span id="GeoGraph-300"><a href="#GeoGraph-300"><span class="linenos"> 300</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]]</span>
 </span><span id="GeoGraph-301"><a href="#GeoGraph-301"><span class="linenos"> 301</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-302"><a href="#GeoGraph-302"><span class="linenos"> 302</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-303"><a href="#GeoGraph-303"><span class="linenos"> 303</span></a><span class="sd">        Function:</span>
@@ -2397,7 +2436,7 @@
 </span><span id="GeoGraph-310"><a href="#GeoGraph-310"><span class="linenos"> 310</span></a><span class="sd">            - Type: list of dictionaries</span>
 </span><span id="GeoGraph-311"><a href="#GeoGraph-311"><span class="linenos"> 311</span></a><span class="sd">            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances</span>
 </span><span id="GeoGraph-312"><a href="#GeoGraph-312"><span class="linenos"> 312</span></a><span class="sd">            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations</span>
-</span><span id="GeoGraph-313"><a href="#GeoGraph-313"><span class="linenos"> 313</span></a><span class="sd">            - EG: </span>
+</span><span id="GeoGraph-313"><a href="#GeoGraph-313"><span class="linenos"> 313</span></a><span class="sd">            - EG:</span>
 </span><span id="GeoGraph-314"><a href="#GeoGraph-314"><span class="linenos"> 314</span></a><span class="sd">            ```</span>
 </span><span id="GeoGraph-315"><a href="#GeoGraph-315"><span class="linenos"> 315</span></a><span class="sd">                [</span>
 </span><span id="GeoGraph-316"><a href="#GeoGraph-316"><span class="linenos"> 316</span></a><span class="sd">                    # From London</span>
@@ -2408,9 +2447,9 @@
 </span><span id="GeoGraph-321"><a href="#GeoGraph-321"><span class="linenos"> 321</span></a><span class="sd">                    # From Paris</span>
 </span><span id="GeoGraph-322"><a href="#GeoGraph-322"><span class="linenos"> 322</span></a><span class="sd">                    {</span>
 </span><span id="GeoGraph-323"><a href="#GeoGraph-323"><span class="linenos"> 323</span></a><span class="sd">                        # To London</span>
-</span><span id="GeoGraph-324"><a href="#GeoGraph-324"><span class="linenos"> 324</span></a><span class="sd">                        0: 311, </span>
+</span><span id="GeoGraph-324"><a href="#GeoGraph-324"><span class="linenos"> 324</span></a><span class="sd">                        0: 311,</span>
 </span><span id="GeoGraph-325"><a href="#GeoGraph-325"><span class="linenos"> 325</span></a><span class="sd">                        # To Berlin</span>
-</span><span id="GeoGraph-326"><a href="#GeoGraph-326"><span class="linenos"> 326</span></a><span class="sd">                        2: 878, </span>
+</span><span id="GeoGraph-326"><a href="#GeoGraph-326"><span class="linenos"> 326</span></a><span class="sd">                        2: 878,</span>
 </span><span id="GeoGraph-327"><a href="#GeoGraph-327"><span class="linenos"> 327</span></a><span class="sd">                        # To Rome</span>
 </span><span id="GeoGraph-328"><a href="#GeoGraph-328"><span class="linenos"> 328</span></a><span class="sd">                        3: 1439,</span>
 </span><span id="GeoGraph-329"><a href="#GeoGraph-329"><span class="linenos"> 329</span></a><span class="sd">                        # To Madrid</span>
@@ -2418,7 +2457,7 @@
 </span><span id="GeoGraph-331"><a href="#GeoGraph-331"><span class="linenos"> 331</span></a><span class="sd">                    },</span>
 </span><span id="GeoGraph-332"><a href="#GeoGraph-332"><span class="linenos"> 332</span></a><span class="sd">                    # From Berlin</span>
 </span><span id="GeoGraph-333"><a href="#GeoGraph-333"><span class="linenos"> 333</span></a><span class="sd">                    {</span>
-</span><span id="GeoGraph-334"><a href="#GeoGraph-334"><span class="linenos"> 334</span></a><span class="sd">                        # To Paris </span>
+</span><span id="GeoGraph-334"><a href="#GeoGraph-334"><span class="linenos"> 334</span></a><span class="sd">                        # To Paris</span>
 </span><span id="GeoGraph-335"><a href="#GeoGraph-335"><span class="linenos"> 335</span></a><span class="sd">                        1: 878,</span>
 </span><span id="GeoGraph-336"><a href="#GeoGraph-336"><span class="linenos"> 336</span></a><span class="sd">                        # To Rome</span>
 </span><span id="GeoGraph-337"><a href="#GeoGraph-337"><span class="linenos"> 337</span></a><span class="sd">                        3: 1181,</span>
@@ -2448,7 +2487,7 @@
 </span><span id="GeoGraph-361"><a href="#GeoGraph-361"><span class="linenos"> 361</span></a><span class="sd">            - Type: list of lists of ints or floats</span>
 </span><span id="GeoGraph-362"><a href="#GeoGraph-362"><span class="linenos"> 362</span></a><span class="sd">            - What: A list of lists where the values are coordinates (latitude then longitude)</span>
 </span><span id="GeoGraph-363"><a href="#GeoGraph-363"><span class="linenos"> 363</span></a><span class="sd">            - Note: The length of the nodes list must be the same as that of the graph list</span>
-</span><span id="GeoGraph-364"><a href="#GeoGraph-364"><span class="linenos"> 364</span></a><span class="sd">            - EG: </span>
+</span><span id="GeoGraph-364"><a href="#GeoGraph-364"><span class="linenos"> 364</span></a><span class="sd">            - EG:</span>
 </span><span id="GeoGraph-365"><a href="#GeoGraph-365"><span class="linenos"> 365</span></a><span class="sd">            ```</span>
 </span><span id="GeoGraph-366"><a href="#GeoGraph-366"><span class="linenos"> 366</span></a><span class="sd">                [</span>
 </span><span id="GeoGraph-367"><a href="#GeoGraph-367"><span class="linenos"> 367</span></a><span class="sd">                    # London</span>
@@ -2469,7 +2508,7 @@
 </span><span id="GeoGraph-382"><a href="#GeoGraph-382"><span class="linenos"> 382</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">graph</span>
 </span><span id="GeoGraph-383"><a href="#GeoGraph-383"><span class="linenos"> 383</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="n">nodes</span>
 </span><span id="GeoGraph-384"><a href="#GeoGraph-384"><span class="linenos"> 384</span></a>
-</span><span id="GeoGraph-385"><a href="#GeoGraph-385"><span class="linenos"> 385</span></a>    <span class="k">def</span> <span class="nf">validate_graph</span><span class="p">(</span>
+</span><span id="GeoGraph-385"><a href="#GeoGraph-385"><span class="linenos"> 385</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_graph</span><span class="p">(</span>
 </span><span id="GeoGraph-386"><a href="#GeoGraph-386"><span class="linenos"> 386</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">check_symmetry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">check_connected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="GeoGraph-387"><a href="#GeoGraph-387"><span class="linenos"> 387</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-388"><a href="#GeoGraph-388"><span class="linenos"> 388</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -2502,7 +2541,7 @@
 </span><span id="GeoGraph-415"><a href="#GeoGraph-415"><span class="linenos"> 415</span></a>            <span class="n">check_connected</span><span class="o">=</span><span class="n">check_connected</span><span class="p">,</span>
 </span><span id="GeoGraph-416"><a href="#GeoGraph-416"><span class="linenos"> 416</span></a>        <span class="p">)</span>
 </span><span id="GeoGraph-417"><a href="#GeoGraph-417"><span class="linenos"> 417</span></a>
-</span><span id="GeoGraph-418"><a href="#GeoGraph-418"><span class="linenos"> 418</span></a>    <span class="k">def</span> <span class="nf">validate_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="GeoGraph-418"><a href="#GeoGraph-418"><span class="linenos"> 418</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-419"><a href="#GeoGraph-419"><span class="linenos"> 419</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-420"><a href="#GeoGraph-420"><span class="linenos"> 420</span></a>
 </span><span id="GeoGraph-421"><a href="#GeoGraph-421"><span class="linenos"> 421</span></a><span class="sd">        Function:</span>
@@ -2542,19 +2581,19 @@
 </span><span id="GeoGraph-455"><a href="#GeoGraph-455"><span class="linenos"> 455</span></a>            <span class="p">]</span>
 </span><span id="GeoGraph-456"><a href="#GeoGraph-456"><span class="linenos"> 456</span></a>        <span class="p">),</span> <span class="s2">&quot;Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value&quot;</span>
 </span><span id="GeoGraph-457"><a href="#GeoGraph-457"><span class="linenos"> 457</span></a>
-</span><span id="GeoGraph-458"><a href="#GeoGraph-458"><span class="linenos"> 458</span></a>    <span class="k">def</span> <span class="nf">get_shortest_path</span><span class="p">(</span>
+</span><span id="GeoGraph-458"><a href="#GeoGraph-458"><span class="linenos"> 458</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_shortest_path</span><span class="p">(</span>
 </span><span id="GeoGraph-459"><a href="#GeoGraph-459"><span class="linenos"> 459</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph-460"><a href="#GeoGraph-460"><span class="linenos"> 460</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph-461"><a href="#GeoGraph-461"><span class="linenos"> 461</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-460"><a href="#GeoGraph-460"><span class="linenos"> 460</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-461"><a href="#GeoGraph-461"><span class="linenos"> 461</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="GeoGraph-462"><a href="#GeoGraph-462"><span class="linenos"> 462</span></a>        <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-463"><a href="#GeoGraph-463"><span class="linenos"> 463</span></a>        <span class="n">algorithm_fn</span><span class="o">=</span><span class="n">Graph</span><span class="o">.</span><span class="n">dijkstra_makowski</span><span class="p">,</span>
-</span><span id="GeoGraph-464"><a href="#GeoGraph-464"><span class="linenos"> 464</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="GeoGraph-464"><a href="#GeoGraph-464"><span class="linenos"> 464</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="GeoGraph-465"><a href="#GeoGraph-465"><span class="linenos"> 465</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph-466"><a href="#GeoGraph-466"><span class="linenos"> 466</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="GeoGraph-466"><a href="#GeoGraph-466"><span class="linenos"> 466</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="GeoGraph-467"><a href="#GeoGraph-467"><span class="linenos"> 467</span></a>        <span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-468"><a href="#GeoGraph-468"><span class="linenos"> 468</span></a>        <span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;list_of_lists&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-469"><a href="#GeoGraph-469"><span class="linenos"> 469</span></a>        <span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="GeoGraph-470"><a href="#GeoGraph-470"><span class="linenos"> 470</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph-470"><a href="#GeoGraph-470"><span class="linenos"> 470</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph-471"><a href="#GeoGraph-471"><span class="linenos"> 471</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-472"><a href="#GeoGraph-472"><span class="linenos"> 472</span></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
 </span><span id="GeoGraph-473"><a href="#GeoGraph-473"><span class="linenos"> 473</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
@@ -2727,12 +2766,12 @@
 </span><span id="GeoGraph-640"><a href="#GeoGraph-640"><span class="linenos"> 640</span></a>                <span class="bp">self</span><span class="o">.</span><span class="n">remove_appended_node</span><span class="p">()</span>
 </span><span id="GeoGraph-641"><a href="#GeoGraph-641"><span class="linenos"> 641</span></a>            <span class="k">raise</span> <span class="n">e</span>
 </span><span id="GeoGraph-642"><a href="#GeoGraph-642"><span class="linenos"> 642</span></a>
-</span><span id="GeoGraph-643"><a href="#GeoGraph-643"><span class="linenos"> 643</span></a>    <span class="k">def</span> <span class="nf">adujust_circuity_length</span><span class="p">(</span>
+</span><span id="GeoGraph-643"><a href="#GeoGraph-643"><span class="linenos"> 643</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">adujust_circuity_length</span><span class="p">(</span>
 </span><span id="GeoGraph-644"><a href="#GeoGraph-644"><span class="linenos"> 644</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph-645"><a href="#GeoGraph-645"><span class="linenos"> 645</span></a>        <span class="n">output</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
-</span><span id="GeoGraph-646"><a href="#GeoGraph-646"><span class="linenos"> 646</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph-647"><a href="#GeoGraph-647"><span class="linenos"> 647</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph-648"><a href="#GeoGraph-648"><span class="linenos"> 648</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]:</span>
+</span><span id="GeoGraph-646"><a href="#GeoGraph-646"><span class="linenos"> 646</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-647"><a href="#GeoGraph-647"><span class="linenos"> 647</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-648"><a href="#GeoGraph-648"><span class="linenos"> 648</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
 </span><span id="GeoGraph-649"><a href="#GeoGraph-649"><span class="linenos"> 649</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-650"><a href="#GeoGraph-650"><span class="linenos"> 650</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-651"><a href="#GeoGraph-651"><span class="linenos"> 651</span></a>
@@ -2767,7 +2806,7 @@
 </span><span id="GeoGraph-680"><a href="#GeoGraph-680"><span class="linenos"> 680</span></a>                <span class="mi">4</span><span class="p">,</span>
 </span><span id="GeoGraph-681"><a href="#GeoGraph-681"><span class="linenos"> 681</span></a>            <span class="p">)</span>
 </span><span id="GeoGraph-682"><a href="#GeoGraph-682"><span class="linenos"> 682</span></a>
-</span><span id="GeoGraph-683"><a href="#GeoGraph-683"><span class="linenos"> 683</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]]:</span>
+</span><span id="GeoGraph-683"><a href="#GeoGraph-683"><span class="linenos"> 683</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]]:</span>
 </span><span id="GeoGraph-684"><a href="#GeoGraph-684"><span class="linenos"> 684</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-685"><a href="#GeoGraph-685"><span class="linenos"> 685</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-686"><a href="#GeoGraph-686"><span class="linenos"> 686</span></a>
@@ -2785,7 +2824,7 @@
 </span><span id="GeoGraph-698"><a href="#GeoGraph-698"><span class="linenos"> 698</span></a><span class="sd">        &quot;&quot;&quot;</span>
 </span><span id="GeoGraph-699"><a href="#GeoGraph-699"><span class="linenos"> 699</span></a>        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="k">for</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">path</span><span class="p">]</span>
 </span><span id="GeoGraph-700"><a href="#GeoGraph-700"><span class="linenos"> 700</span></a>
-</span><span id="GeoGraph-701"><a href="#GeoGraph-701"><span class="linenos"> 701</span></a>    <span class="k">def</span> <span class="nf">remove_appended_node</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="GeoGraph-701"><a href="#GeoGraph-701"><span class="linenos"> 701</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">remove_appended_node</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-702"><a href="#GeoGraph-702"><span class="linenos"> 702</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-703"><a href="#GeoGraph-703"><span class="linenos"> 703</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-704"><a href="#GeoGraph-704"><span class="linenos"> 704</span></a>
@@ -2808,14 +2847,14 @@
 </span><span id="GeoGraph-721"><a href="#GeoGraph-721"><span class="linenos"> 721</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[:</span><span class="n">node_id</span><span class="p">]</span>
 </span><span id="GeoGraph-722"><a href="#GeoGraph-722"><span class="linenos"> 722</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">[:</span><span class="n">node_id</span><span class="p">]</span>
 </span><span id="GeoGraph-723"><a href="#GeoGraph-723"><span class="linenos"> 723</span></a>
-</span><span id="GeoGraph-724"><a href="#GeoGraph-724"><span class="linenos"> 724</span></a>    <span class="k">def</span> <span class="nf">get_node_distances</span><span class="p">(</span>
+</span><span id="GeoGraph-724"><a href="#GeoGraph-724"><span class="linenos"> 724</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_node_distances</span><span class="p">(</span>
 </span><span id="GeoGraph-725"><a href="#GeoGraph-725"><span class="linenos"> 725</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph-726"><a href="#GeoGraph-726"><span class="linenos"> 726</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
-</span><span id="GeoGraph-727"><a href="#GeoGraph-727"><span class="linenos"> 727</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-727"><a href="#GeoGraph-727"><span class="linenos"> 727</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="GeoGraph-728"><a href="#GeoGraph-728"><span class="linenos"> 728</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="GeoGraph-729"><a href="#GeoGraph-729"><span class="linenos"> 729</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="GeoGraph-730"><a href="#GeoGraph-730"><span class="linenos"> 730</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph-731"><a href="#GeoGraph-731"><span class="linenos"> 731</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]:</span>
+</span><span id="GeoGraph-730"><a href="#GeoGraph-730"><span class="linenos"> 730</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-731"><a href="#GeoGraph-731"><span class="linenos"> 731</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
 </span><span id="GeoGraph-732"><a href="#GeoGraph-732"><span class="linenos"> 732</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-733"><a href="#GeoGraph-733"><span class="linenos"> 733</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-734"><a href="#GeoGraph-734"><span class="linenos"> 734</span></a>
@@ -2913,13 +2952,13 @@
 </span><span id="GeoGraph-826"><a href="#GeoGraph-826"><span class="linenos"> 826</span></a>            <span class="k">for</span> <span class="n">node_idx</span> <span class="ow">in</span> <span class="n">min_diffs_idx</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
 </span><span id="GeoGraph-827"><a href="#GeoGraph-827"><span class="linenos"> 827</span></a>        <span class="p">}</span>
 </span><span id="GeoGraph-828"><a href="#GeoGraph-828"><span class="linenos"> 828</span></a>
-</span><span id="GeoGraph-829"><a href="#GeoGraph-829"><span class="linenos"> 829</span></a>    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span>
+</span><span id="GeoGraph-829"><a href="#GeoGraph-829"><span class="linenos"> 829</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_node</span><span class="p">(</span>
 </span><span id="GeoGraph-830"><a href="#GeoGraph-830"><span class="linenos"> 830</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph-831"><a href="#GeoGraph-831"><span class="linenos"> 831</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph-832"><a href="#GeoGraph-832"><span class="linenos"> 832</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-831"><a href="#GeoGraph-831"><span class="linenos"> 831</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph-832"><a href="#GeoGraph-832"><span class="linenos"> 832</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="GeoGraph-833"><a href="#GeoGraph-833"><span class="linenos"> 833</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph-834"><a href="#GeoGraph-834"><span class="linenos"> 834</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph-835"><a href="#GeoGraph-835"><span class="linenos"> 835</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph-835"><a href="#GeoGraph-835"><span class="linenos"> 835</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph-836"><a href="#GeoGraph-836"><span class="linenos"> 836</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="GeoGraph-837"><a href="#GeoGraph-837"><span class="linenos"> 837</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-838"><a href="#GeoGraph-838"><span class="linenos"> 838</span></a><span class="sd">        Function:</span>
@@ -3009,7 +3048,7 @@
 </span><span id="GeoGraph-922"><a href="#GeoGraph-922"><span class="linenos"> 922</span></a>            <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">node_idx</span><span class="p">][</span><span class="n">new_node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">node_distance</span>
 </span><span id="GeoGraph-923"><a href="#GeoGraph-923"><span class="linenos"> 923</span></a>        <span class="k">return</span> <span class="n">new_node_id</span>
 </span><span id="GeoGraph-924"><a href="#GeoGraph-924"><span class="linenos"> 924</span></a>
-</span><span id="GeoGraph-925"><a href="#GeoGraph-925"><span class="linenos"> 925</span></a>    <span class="k">def</span> <span class="nf">save_as_geojson</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="GeoGraph-925"><a href="#GeoGraph-925"><span class="linenos"> 925</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save_as_geojson</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-926"><a href="#GeoGraph-926"><span class="linenos"> 926</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-927"><a href="#GeoGraph-927"><span class="linenos"> 927</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-928"><a href="#GeoGraph-928"><span class="linenos"> 928</span></a>
@@ -3057,7 +3096,7 @@
 </span><span id="GeoGraph-970"><a href="#GeoGraph-970"><span class="linenos"> 970</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 </span><span id="GeoGraph-971"><a href="#GeoGraph-971"><span class="linenos"> 971</span></a>            <span class="n">json</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">out_dict</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
 </span><span id="GeoGraph-972"><a href="#GeoGraph-972"><span class="linenos"> 972</span></a>
-</span><span id="GeoGraph-973"><a href="#GeoGraph-973"><span class="linenos"> 973</span></a>    <span class="k">def</span> <span class="nf">save_as_geograph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="GeoGraph-973"><a href="#GeoGraph-973"><span class="linenos"> 973</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save_as_geograph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-974"><a href="#GeoGraph-974"><span class="linenos"> 974</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-975"><a href="#GeoGraph-975"><span class="linenos"> 975</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph-976"><a href="#GeoGraph-976"><span class="linenos"> 976</span></a>
@@ -3079,7 +3118,7 @@
 </span><span id="GeoGraph-992"><a href="#GeoGraph-992"><span class="linenos"> 992</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;.py&quot;</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 </span><span id="GeoGraph-993"><a href="#GeoGraph-993"><span class="linenos"> 993</span></a>            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">out_string</span><span class="p">)</span>
 </span><span id="GeoGraph-994"><a href="#GeoGraph-994"><span class="linenos"> 994</span></a>
-</span><span id="GeoGraph-995"><a href="#GeoGraph-995"><span class="linenos"> 995</span></a>    <span class="k">def</span> <span class="nf">mod_remove_arc</span><span class="p">(</span>
+</span><span id="GeoGraph-995"><a href="#GeoGraph-995"><span class="linenos"> 995</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_remove_arc</span><span class="p">(</span>
 </span><span id="GeoGraph-996"><a href="#GeoGraph-996"><span class="linenos"> 996</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">origin_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">undirected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="GeoGraph-997"><a href="#GeoGraph-997"><span class="linenos"> 997</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph-998"><a href="#GeoGraph-998"><span class="linenos"> 998</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -3113,8 +3152,8 @@
 </span><span id="GeoGraph-1026"><a href="#GeoGraph-1026"><span class="linenos">1026</span></a>            <span class="k">if</span> <span class="n">origin_idx</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">destination_idx</span><span class="p">]:</span>
 </span><span id="GeoGraph-1027"><a href="#GeoGraph-1027"><span class="linenos">1027</span></a>                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">[</span><span class="n">destination_idx</span><span class="p">][</span><span class="n">origin_idx</span><span class="p">]</span>
 </span><span id="GeoGraph-1028"><a href="#GeoGraph-1028"><span class="linenos">1028</span></a>
-</span><span id="GeoGraph-1029"><a href="#GeoGraph-1029"><span class="linenos">1029</span></a>    <span class="k">def</span> <span class="nf">mod_add_node</span><span class="p">(</span>
-</span><span id="GeoGraph-1030"><a href="#GeoGraph-1030"><span class="linenos">1030</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">latitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span> <span class="n">longitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span>
+</span><span id="GeoGraph-1029"><a href="#GeoGraph-1029"><span class="linenos">1029</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_add_node</span><span class="p">(</span>
+</span><span id="GeoGraph-1030"><a href="#GeoGraph-1030"><span class="linenos">1030</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">latitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span> <span class="n">longitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span>
 </span><span id="GeoGraph-1031"><a href="#GeoGraph-1031"><span class="linenos">1031</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="GeoGraph-1032"><a href="#GeoGraph-1032"><span class="linenos">1032</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph-1033"><a href="#GeoGraph-1033"><span class="linenos">1033</span></a><span class="sd">        Function:</span>
@@ -3138,11 +3177,11 @@
 </span><span id="GeoGraph-1051"><a href="#GeoGraph-1051"><span class="linenos">1051</span></a>        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">append</span><span class="p">({})</span>
 </span><span id="GeoGraph-1052"><a href="#GeoGraph-1052"><span class="linenos">1052</span></a>        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
 </span><span id="GeoGraph-1053"><a href="#GeoGraph-1053"><span class="linenos">1053</span></a>
-</span><span id="GeoGraph-1054"><a href="#GeoGraph-1054"><span class="linenos">1054</span></a>    <span class="k">def</span> <span class="nf">mod_add_arc</span><span class="p">(</span>
+</span><span id="GeoGraph-1054"><a href="#GeoGraph-1054"><span class="linenos">1054</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_add_arc</span><span class="p">(</span>
 </span><span id="GeoGraph-1055"><a href="#GeoGraph-1055"><span class="linenos">1055</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph-1056"><a href="#GeoGraph-1056"><span class="linenos">1056</span></a>        <span class="n">origin_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
 </span><span id="GeoGraph-1057"><a href="#GeoGraph-1057"><span class="linenos">1057</span></a>        <span class="n">destination_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-</span><span id="GeoGraph-1058"><a href="#GeoGraph-1058"><span class="linenos">1058</span></a>        <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="GeoGraph-1058"><a href="#GeoGraph-1058"><span class="linenos">1058</span></a>        <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
 </span><span id="GeoGraph-1059"><a href="#GeoGraph-1059"><span class="linenos">1059</span></a>        <span class="n">use_haversine_distance</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 </span><span id="GeoGraph-1060"><a href="#GeoGraph-1060"><span class="linenos">1060</span></a>        <span class="n">undirected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="GeoGraph-1061"><a href="#GeoGraph-1061"><span class="linenos">1061</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -3202,8 +3241,8 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.__init__"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.__init__-299"><a href="#GeoGraph.__init__-299"><span class="linenos">299</span></a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
-</span><span id="GeoGraph.__init__-300"><a href="#GeoGraph.__init__-300"><span class="linenos">300</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]]</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.__init__-299"><a href="#GeoGraph.__init__-299"><span class="linenos">299</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+</span><span id="GeoGraph.__init__-300"><a href="#GeoGraph.__init__-300"><span class="linenos">300</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">nodes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]]</span>
 </span><span id="GeoGraph.__init__-301"><a href="#GeoGraph.__init__-301"><span class="linenos">301</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.__init__-302"><a href="#GeoGraph.__init__-302"><span class="linenos">302</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.__init__-303"><a href="#GeoGraph.__init__-303"><span class="linenos">303</span></a><span class="sd">        Function:</span>
@@ -3216,7 +3255,7 @@
 </span><span id="GeoGraph.__init__-310"><a href="#GeoGraph.__init__-310"><span class="linenos">310</span></a><span class="sd">            - Type: list of dictionaries</span>
 </span><span id="GeoGraph.__init__-311"><a href="#GeoGraph.__init__-311"><span class="linenos">311</span></a><span class="sd">            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances</span>
 </span><span id="GeoGraph.__init__-312"><a href="#GeoGraph.__init__-312"><span class="linenos">312</span></a><span class="sd">            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations</span>
-</span><span id="GeoGraph.__init__-313"><a href="#GeoGraph.__init__-313"><span class="linenos">313</span></a><span class="sd">            - EG: </span>
+</span><span id="GeoGraph.__init__-313"><a href="#GeoGraph.__init__-313"><span class="linenos">313</span></a><span class="sd">            - EG:</span>
 </span><span id="GeoGraph.__init__-314"><a href="#GeoGraph.__init__-314"><span class="linenos">314</span></a><span class="sd">            ```</span>
 </span><span id="GeoGraph.__init__-315"><a href="#GeoGraph.__init__-315"><span class="linenos">315</span></a><span class="sd">                [</span>
 </span><span id="GeoGraph.__init__-316"><a href="#GeoGraph.__init__-316"><span class="linenos">316</span></a><span class="sd">                    # From London</span>
@@ -3227,9 +3266,9 @@
 </span><span id="GeoGraph.__init__-321"><a href="#GeoGraph.__init__-321"><span class="linenos">321</span></a><span class="sd">                    # From Paris</span>
 </span><span id="GeoGraph.__init__-322"><a href="#GeoGraph.__init__-322"><span class="linenos">322</span></a><span class="sd">                    {</span>
 </span><span id="GeoGraph.__init__-323"><a href="#GeoGraph.__init__-323"><span class="linenos">323</span></a><span class="sd">                        # To London</span>
-</span><span id="GeoGraph.__init__-324"><a href="#GeoGraph.__init__-324"><span class="linenos">324</span></a><span class="sd">                        0: 311, </span>
+</span><span id="GeoGraph.__init__-324"><a href="#GeoGraph.__init__-324"><span class="linenos">324</span></a><span class="sd">                        0: 311,</span>
 </span><span id="GeoGraph.__init__-325"><a href="#GeoGraph.__init__-325"><span class="linenos">325</span></a><span class="sd">                        # To Berlin</span>
-</span><span id="GeoGraph.__init__-326"><a href="#GeoGraph.__init__-326"><span class="linenos">326</span></a><span class="sd">                        2: 878, </span>
+</span><span id="GeoGraph.__init__-326"><a href="#GeoGraph.__init__-326"><span class="linenos">326</span></a><span class="sd">                        2: 878,</span>
 </span><span id="GeoGraph.__init__-327"><a href="#GeoGraph.__init__-327"><span class="linenos">327</span></a><span class="sd">                        # To Rome</span>
 </span><span id="GeoGraph.__init__-328"><a href="#GeoGraph.__init__-328"><span class="linenos">328</span></a><span class="sd">                        3: 1439,</span>
 </span><span id="GeoGraph.__init__-329"><a href="#GeoGraph.__init__-329"><span class="linenos">329</span></a><span class="sd">                        # To Madrid</span>
@@ -3237,7 +3276,7 @@
 </span><span id="GeoGraph.__init__-331"><a href="#GeoGraph.__init__-331"><span class="linenos">331</span></a><span class="sd">                    },</span>
 </span><span id="GeoGraph.__init__-332"><a href="#GeoGraph.__init__-332"><span class="linenos">332</span></a><span class="sd">                    # From Berlin</span>
 </span><span id="GeoGraph.__init__-333"><a href="#GeoGraph.__init__-333"><span class="linenos">333</span></a><span class="sd">                    {</span>
-</span><span id="GeoGraph.__init__-334"><a href="#GeoGraph.__init__-334"><span class="linenos">334</span></a><span class="sd">                        # To Paris </span>
+</span><span id="GeoGraph.__init__-334"><a href="#GeoGraph.__init__-334"><span class="linenos">334</span></a><span class="sd">                        # To Paris</span>
 </span><span id="GeoGraph.__init__-335"><a href="#GeoGraph.__init__-335"><span class="linenos">335</span></a><span class="sd">                        1: 878,</span>
 </span><span id="GeoGraph.__init__-336"><a href="#GeoGraph.__init__-336"><span class="linenos">336</span></a><span class="sd">                        # To Rome</span>
 </span><span id="GeoGraph.__init__-337"><a href="#GeoGraph.__init__-337"><span class="linenos">337</span></a><span class="sd">                        3: 1181,</span>
@@ -3267,7 +3306,7 @@
 </span><span id="GeoGraph.__init__-361"><a href="#GeoGraph.__init__-361"><span class="linenos">361</span></a><span class="sd">            - Type: list of lists of ints or floats</span>
 </span><span id="GeoGraph.__init__-362"><a href="#GeoGraph.__init__-362"><span class="linenos">362</span></a><span class="sd">            - What: A list of lists where the values are coordinates (latitude then longitude)</span>
 </span><span id="GeoGraph.__init__-363"><a href="#GeoGraph.__init__-363"><span class="linenos">363</span></a><span class="sd">            - Note: The length of the nodes list must be the same as that of the graph list</span>
-</span><span id="GeoGraph.__init__-364"><a href="#GeoGraph.__init__-364"><span class="linenos">364</span></a><span class="sd">            - EG: </span>
+</span><span id="GeoGraph.__init__-364"><a href="#GeoGraph.__init__-364"><span class="linenos">364</span></a><span class="sd">            - EG:</span>
 </span><span id="GeoGraph.__init__-365"><a href="#GeoGraph.__init__-365"><span class="linenos">365</span></a><span class="sd">            ```</span>
 </span><span id="GeoGraph.__init__-366"><a href="#GeoGraph.__init__-366"><span class="linenos">366</span></a><span class="sd">                [</span>
 </span><span id="GeoGraph.__init__-367"><a href="#GeoGraph.__init__-367"><span class="linenos">367</span></a><span class="sd">                    # London</span>
@@ -3304,7 +3343,7 @@
 <li>Type: list of dictionaries</li>
 <li>What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances</li>
 <li>Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations</li>
-<li>EG: 
+<li>EG:
 <pre><code>    [
         # From London
         {
@@ -3314,9 +3353,9 @@
         # From Paris
         {
             # To London
-            0: 311, 
+            0: 311,
             # To Berlin
-            2: 878, 
+            2: 878,
             # To Rome
             3: 1439,
             # To Madrid
@@ -3324,7 +3363,7 @@
         },
         # From Berlin
         {
-            # To Paris 
+            # To Paris
             1: 878,
             # To Rome
             3: 1181,
@@ -3356,7 +3395,7 @@
 <li>Type: list of lists of ints or floats</li>
 <li>What: A list of lists where the values are coordinates (latitude then longitude)</li>
 <li>Note: The length of the nodes list must be the same as that of the graph list</li>
-<li>EG: 
+<li>EG:
 <pre><code>    [
         # London
         [51.5074, 0.1278],
@@ -3411,7 +3450,7 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.validate_graph"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.validate_graph-385"><a href="#GeoGraph.validate_graph-385"><span class="linenos">385</span></a>    <span class="k">def</span> <span class="nf">validate_graph</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.validate_graph-385"><a href="#GeoGraph.validate_graph-385"><span class="linenos">385</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_graph</span><span class="p">(</span>
 </span><span id="GeoGraph.validate_graph-386"><a href="#GeoGraph.validate_graph-386"><span class="linenos">386</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">check_symmetry</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">check_connected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="GeoGraph.validate_graph-387"><a href="#GeoGraph.validate_graph-387"><span class="linenos">387</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.validate_graph-388"><a href="#GeoGraph.validate_graph-388"><span class="linenos">388</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -3493,7 +3532,7 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.validate_nodes"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.validate_nodes-418"><a href="#GeoGraph.validate_nodes-418"><span class="linenos">418</span></a>    <span class="k">def</span> <span class="nf">validate_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.validate_nodes-418"><a href="#GeoGraph.validate_nodes-418"><span class="linenos">418</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">validate_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.validate_nodes-419"><a href="#GeoGraph.validate_nodes-419"><span class="linenos">419</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.validate_nodes-420"><a href="#GeoGraph.validate_nodes-420"><span class="linenos">420</span></a>
 </span><span id="GeoGraph.validate_nodes-421"><a href="#GeoGraph.validate_nodes-421"><span class="linenos">421</span></a><span class="sd">        Function:</span>
@@ -3569,19 +3608,19 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.get_shortest_path"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_shortest_path-458"><a href="#GeoGraph.get_shortest_path-458"><span class="linenos">458</span></a>    <span class="k">def</span> <span class="nf">get_shortest_path</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_shortest_path-458"><a href="#GeoGraph.get_shortest_path-458"><span class="linenos">458</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_shortest_path</span><span class="p">(</span>
 </span><span id="GeoGraph.get_shortest_path-459"><a href="#GeoGraph.get_shortest_path-459"><span class="linenos">459</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-460"><a href="#GeoGraph.get_shortest_path-460"><span class="linenos">460</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph.get_shortest_path-461"><a href="#GeoGraph.get_shortest_path-461"><span class="linenos">461</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.get_shortest_path-460"><a href="#GeoGraph.get_shortest_path-460"><span class="linenos">460</span></a>        <span class="n">origin_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.get_shortest_path-461"><a href="#GeoGraph.get_shortest_path-461"><span class="linenos">461</span></a>        <span class="n">destination_node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="GeoGraph.get_shortest_path-462"><a href="#GeoGraph.get_shortest_path-462"><span class="linenos">462</span></a>        <span class="n">output_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-463"><a href="#GeoGraph.get_shortest_path-463"><span class="linenos">463</span></a>        <span class="n">algorithm_fn</span><span class="o">=</span><span class="n">Graph</span><span class="o">.</span><span class="n">dijkstra_makowski</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-464"><a href="#GeoGraph.get_shortest_path-464"><span class="linenos">464</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="GeoGraph.get_shortest_path-464"><a href="#GeoGraph.get_shortest_path-464"><span class="linenos">464</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-465"><a href="#GeoGraph.get_shortest_path-465"><span class="linenos">465</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-466"><a href="#GeoGraph.get_shortest_path-466"><span class="linenos">466</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="GeoGraph.get_shortest_path-466"><a href="#GeoGraph.get_shortest_path-466"><span class="linenos">466</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-467"><a href="#GeoGraph.get_shortest_path-467"><span class="linenos">467</span></a>        <span class="n">geograph_units</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;km&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-468"><a href="#GeoGraph.get_shortest_path-468"><span class="linenos">468</span></a>        <span class="n">output_coordinate_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;list_of_lists&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-469"><a href="#GeoGraph.get_shortest_path-469"><span class="linenos">469</span></a>        <span class="n">output_path</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-</span><span id="GeoGraph.get_shortest_path-470"><a href="#GeoGraph.get_shortest_path-470"><span class="linenos">470</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph.get_shortest_path-470"><a href="#GeoGraph.get_shortest_path-470"><span class="linenos">470</span></a>        <span class="n">node_addition_lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-471"><a href="#GeoGraph.get_shortest_path-471"><span class="linenos">471</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-472"><a href="#GeoGraph.get_shortest_path-472"><span class="linenos">472</span></a>        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
 </span><span id="GeoGraph.get_shortest_path-473"><a href="#GeoGraph.get_shortest_path-473"><span class="linenos">473</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
@@ -3946,12 +3985,12 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.adujust_circuity_length"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.adujust_circuity_length-643"><a href="#GeoGraph.adujust_circuity_length-643"><span class="linenos">643</span></a>    <span class="k">def</span> <span class="nf">adujust_circuity_length</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.adujust_circuity_length-643"><a href="#GeoGraph.adujust_circuity_length-643"><span class="linenos">643</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">adujust_circuity_length</span><span class="p">(</span>
 </span><span id="GeoGraph.adujust_circuity_length-644"><a href="#GeoGraph.adujust_circuity_length-644"><span class="linenos">644</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph.adujust_circuity_length-645"><a href="#GeoGraph.adujust_circuity_length-645"><span class="linenos">645</span></a>        <span class="n">output</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
-</span><span id="GeoGraph.adujust_circuity_length-646"><a href="#GeoGraph.adujust_circuity_length-646"><span class="linenos">646</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph.adujust_circuity_length-647"><a href="#GeoGraph.adujust_circuity_length-647"><span class="linenos">647</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph.adujust_circuity_length-648"><a href="#GeoGraph.adujust_circuity_length-648"><span class="linenos">648</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]:</span>
+</span><span id="GeoGraph.adujust_circuity_length-646"><a href="#GeoGraph.adujust_circuity_length-646"><span class="linenos">646</span></a>        <span class="n">node_addition_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.adujust_circuity_length-647"><a href="#GeoGraph.adujust_circuity_length-647"><span class="linenos">647</span></a>        <span class="n">off_graph_circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.adujust_circuity_length-648"><a href="#GeoGraph.adujust_circuity_length-648"><span class="linenos">648</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
 </span><span id="GeoGraph.adujust_circuity_length-649"><a href="#GeoGraph.adujust_circuity_length-649"><span class="linenos">649</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.adujust_circuity_length-650"><a href="#GeoGraph.adujust_circuity_length-650"><span class="linenos">650</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.adujust_circuity_length-651"><a href="#GeoGraph.adujust_circuity_length-651"><span class="linenos">651</span></a>
@@ -4028,7 +4067,7 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.get_coordinate_path"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_coordinate_path-683"><a href="#GeoGraph.get_coordinate_path-683"><span class="linenos">683</span></a>    <span class="k">def</span> <span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]]:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_coordinate_path-683"><a href="#GeoGraph.get_coordinate_path-683"><span class="linenos">683</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_coordinate_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]]:</span>
 </span><span id="GeoGraph.get_coordinate_path-684"><a href="#GeoGraph.get_coordinate_path-684"><span class="linenos">684</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.get_coordinate_path-685"><a href="#GeoGraph.get_coordinate_path-685"><span class="linenos">685</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.get_coordinate_path-686"><a href="#GeoGraph.get_coordinate_path-686"><span class="linenos">686</span></a>
@@ -4084,7 +4123,7 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.remove_appended_node"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.remove_appended_node-701"><a href="#GeoGraph.remove_appended_node-701"><span class="linenos">701</span></a>    <span class="k">def</span> <span class="nf">remove_appended_node</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.remove_appended_node-701"><a href="#GeoGraph.remove_appended_node-701"><span class="linenos">701</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">remove_appended_node</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.remove_appended_node-702"><a href="#GeoGraph.remove_appended_node-702"><span class="linenos">702</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.remove_appended_node-703"><a href="#GeoGraph.remove_appended_node-703"><span class="linenos">703</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.remove_appended_node-704"><a href="#GeoGraph.remove_appended_node-704"><span class="linenos">704</span></a>
@@ -4146,14 +4185,14 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.get_node_distances"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_node_distances-724"><a href="#GeoGraph.get_node_distances-724"><span class="linenos">724</span></a>    <span class="k">def</span> <span class="nf">get_node_distances</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.get_node_distances-724"><a href="#GeoGraph.get_node_distances-724"><span class="linenos">724</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_node_distances</span><span class="p">(</span>
 </span><span id="GeoGraph.get_node_distances-725"><a href="#GeoGraph.get_node_distances-725"><span class="linenos">725</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph.get_node_distances-726"><a href="#GeoGraph.get_node_distances-726"><span class="linenos">726</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
-</span><span id="GeoGraph.get_node_distances-727"><a href="#GeoGraph.get_node_distances-727"><span class="linenos">727</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.get_node_distances-727"><a href="#GeoGraph.get_node_distances-727"><span class="linenos">727</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="GeoGraph.get_node_distances-728"><a href="#GeoGraph.get_node_distances-728"><span class="linenos">728</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
 </span><span id="GeoGraph.get_node_distances-729"><a href="#GeoGraph.get_node_distances-729"><span class="linenos">729</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-</span><span id="GeoGraph.get_node_distances-730"><a href="#GeoGraph.get_node_distances-730"><span class="linenos">730</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph.get_node_distances-731"><a href="#GeoGraph.get_node_distances-731"><span class="linenos">731</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]:</span>
+</span><span id="GeoGraph.get_node_distances-730"><a href="#GeoGraph.get_node_distances-730"><span class="linenos">730</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.get_node_distances-731"><a href="#GeoGraph.get_node_distances-731"><span class="linenos">731</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]:</span>
 </span><span id="GeoGraph.get_node_distances-732"><a href="#GeoGraph.get_node_distances-732"><span class="linenos">732</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.get_node_distances-733"><a href="#GeoGraph.get_node_distances-733"><span class="linenos">733</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.get_node_distances-734"><a href="#GeoGraph.get_node_distances-734"><span class="linenos">734</span></a>
@@ -4328,13 +4367,13 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.add_node"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.add_node-829"><a href="#GeoGraph.add_node-829"><span class="linenos">829</span></a>    <span class="k">def</span> <span class="nf">add_node</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.add_node-829"><a href="#GeoGraph.add_node-829"><span class="linenos">829</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">add_node</span><span class="p">(</span>
 </span><span id="GeoGraph.add_node-830"><a href="#GeoGraph.add_node-830"><span class="linenos">830</span></a>        <span class="bp">self</span><span class="p">,</span>
-</span><span id="GeoGraph.add_node-831"><a href="#GeoGraph.add_node-831"><span class="linenos">831</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
-</span><span id="GeoGraph.add_node-832"><a href="#GeoGraph.add_node-832"><span class="linenos">832</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.add_node-831"><a href="#GeoGraph.add_node-831"><span class="linenos">831</span></a>        <span class="n">node</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
+</span><span id="GeoGraph.add_node-832"><a href="#GeoGraph.add_node-832"><span class="linenos">832</span></a>        <span class="n">circuity</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span>
 </span><span id="GeoGraph.add_node-833"><a href="#GeoGraph.add_node-833"><span class="linenos">833</span></a>        <span class="n">node_addition_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;quadrant&quot;</span><span class="p">,</span>
 </span><span id="GeoGraph.add_node-834"><a href="#GeoGraph.add_node-834"><span class="linenos">834</span></a>        <span class="n">node_addition_math</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;euclidean&quot;</span><span class="p">,</span>
-</span><span id="GeoGraph.add_node-835"><a href="#GeoGraph.add_node-835"><span class="linenos">835</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="GeoGraph.add_node-835"><a href="#GeoGraph.add_node-835"><span class="linenos">835</span></a>        <span class="n">lat_lon_bound</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
 </span><span id="GeoGraph.add_node-836"><a href="#GeoGraph.add_node-836"><span class="linenos">836</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="GeoGraph.add_node-837"><a href="#GeoGraph.add_node-837"><span class="linenos">837</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.add_node-838"><a href="#GeoGraph.add_node-838"><span class="linenos">838</span></a><span class="sd">        Function:</span>
@@ -4508,7 +4547,7 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.save_as_geojson"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.save_as_geojson-925"><a href="#GeoGraph.save_as_geojson-925"><span class="linenos">925</span></a>    <span class="k">def</span> <span class="nf">save_as_geojson</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.save_as_geojson-925"><a href="#GeoGraph.save_as_geojson-925"><span class="linenos">925</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save_as_geojson</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.save_as_geojson-926"><a href="#GeoGraph.save_as_geojson-926"><span class="linenos">926</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.save_as_geojson-927"><a href="#GeoGraph.save_as_geojson-927"><span class="linenos">927</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.save_as_geojson-928"><a href="#GeoGraph.save_as_geojson-928"><span class="linenos">928</span></a>
@@ -4590,7 +4629,7 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.save_as_geograph"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.save_as_geograph-973"><a href="#GeoGraph.save_as_geograph-973"><span class="linenos">973</span></a>    <span class="k">def</span> <span class="nf">save_as_geograph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.save_as_geograph-973"><a href="#GeoGraph.save_as_geograph-973"><span class="linenos">973</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">save_as_geograph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.save_as_geograph-974"><a href="#GeoGraph.save_as_geograph-974"><span class="linenos">974</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.save_as_geograph-975"><a href="#GeoGraph.save_as_geograph-975"><span class="linenos">975</span></a><span class="sd">        Function:</span>
 </span><span id="GeoGraph.save_as_geograph-976"><a href="#GeoGraph.save_as_geograph-976"><span class="linenos">976</span></a>
@@ -4652,7 +4691,7 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.mod_remove_arc"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.mod_remove_arc-995"><a href="#GeoGraph.mod_remove_arc-995"><span class="linenos"> 995</span></a>    <span class="k">def</span> <span class="nf">mod_remove_arc</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.mod_remove_arc-995"><a href="#GeoGraph.mod_remove_arc-995"><span class="linenos"> 995</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_remove_arc</span><span class="p">(</span>
 </span><span id="GeoGraph.mod_remove_arc-996"><a href="#GeoGraph.mod_remove_arc-996"><span class="linenos"> 996</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">origin_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">destination_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">undirected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 </span><span id="GeoGraph.mod_remove_arc-997"><a href="#GeoGraph.mod_remove_arc-997"><span class="linenos"> 997</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </span><span id="GeoGraph.mod_remove_arc-998"><a href="#GeoGraph.mod_remove_arc-998"><span class="linenos"> 998</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
@@ -4734,8 +4773,8 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.mod_add_node"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.mod_add_node-1029"><a href="#GeoGraph.mod_add_node-1029"><span class="linenos">1029</span></a>    <span class="k">def</span> <span class="nf">mod_add_node</span><span class="p">(</span>
-</span><span id="GeoGraph.mod_add_node-1030"><a href="#GeoGraph.mod_add_node-1030"><span class="linenos">1030</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">latitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">],</span> <span class="n">longitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.mod_add_node-1029"><a href="#GeoGraph.mod_add_node-1029"><span class="linenos">1029</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_add_node</span><span class="p">(</span>
+</span><span id="GeoGraph.mod_add_node-1030"><a href="#GeoGraph.mod_add_node-1030"><span class="linenos">1030</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">latitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">],</span> <span class="n">longitude</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span>
 </span><span id="GeoGraph.mod_add_node-1031"><a href="#GeoGraph.mod_add_node-1031"><span class="linenos">1031</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 </span><span id="GeoGraph.mod_add_node-1032"><a href="#GeoGraph.mod_add_node-1032"><span class="linenos">1032</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="GeoGraph.mod_add_node-1033"><a href="#GeoGraph.mod_add_node-1033"><span class="linenos">1033</span></a><span class="sd">        Function:</span>
@@ -4802,11 +4841,11 @@
 
     </div>
     <a class="headerlink" href="#GeoGraph.mod_add_arc"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.mod_add_arc-1054"><a href="#GeoGraph.mod_add_arc-1054"><span class="linenos">1054</span></a>    <span class="k">def</span> <span class="nf">mod_add_arc</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GeoGraph.mod_add_arc-1054"><a href="#GeoGraph.mod_add_arc-1054"><span class="linenos">1054</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">mod_add_arc</span><span class="p">(</span>
 </span><span id="GeoGraph.mod_add_arc-1055"><a href="#GeoGraph.mod_add_arc-1055"><span class="linenos">1055</span></a>        <span class="bp">self</span><span class="p">,</span>
 </span><span id="GeoGraph.mod_add_arc-1056"><a href="#GeoGraph.mod_add_arc-1056"><span class="linenos">1056</span></a>        <span class="n">origin_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
 </span><span id="GeoGraph.mod_add_arc-1057"><a href="#GeoGraph.mod_add_arc-1057"><span class="linenos">1057</span></a>        <span class="n">destination_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-</span><span id="GeoGraph.mod_add_arc-1058"><a href="#GeoGraph.mod_add_arc-1058"><span class="linenos">1058</span></a>        <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span><span class="o">|</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="GeoGraph.mod_add_arc-1058"><a href="#GeoGraph.mod_add_arc-1058"><span class="linenos">1058</span></a>        <span class="n">distance</span><span class="p">:</span> <span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
 </span><span id="GeoGraph.mod_add_arc-1059"><a href="#GeoGraph.mod_add_arc-1059"><span class="linenos">1059</span></a>        <span class="n">use_haversine_distance</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 </span><span id="GeoGraph.mod_add_arc-1060"><a href="#GeoGraph.mod_add_arc-1060"><span class="linenos">1060</span></a>        <span class="n">undirected</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 </span><span id="GeoGraph.mod_add_arc-1061"><a href="#GeoGraph.mod_add_arc-1061"><span class="linenos">1061</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -4914,7 +4953,7 @@
 
     </div>
     <a class="headerlink" href="#load_geojson_as_geograph"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="load_geojson_as_geograph-1105"><a href="#load_geojson_as_geograph-1105"><span class="linenos">1105</span></a><span class="k">def</span> <span class="nf">load_geojson_as_geograph</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GeoGraph</span><span class="p">:</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="load_geojson_as_geograph-1105"><a href="#load_geojson_as_geograph-1105"><span class="linenos">1105</span></a><span class="k">def</span><span class="w"> </span><span class="nf">load_geojson_as_geograph</span><span class="p">(</span><span class="n">geojson_filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GeoGraph</span><span class="p">:</span>
 </span><span id="load_geojson_as_geograph-1106"><a href="#load_geojson_as_geograph-1106"><span class="linenos">1106</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="load_geojson_as_geograph-1107"><a href="#load_geojson_as_geograph-1107"><span class="linenos">1107</span></a><span class="sd">    Function:</span>
 </span><span id="load_geojson_as_geograph-1108"><a href="#load_geojson_as_geograph-1108"><span class="linenos">1108</span></a>
@@ -5104,7 +5143,7 @@
 
     </div>
     <a class="headerlink" href="#get_multi_path_geojson"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_multi_path_geojson-1229"><a href="#get_multi_path_geojson-1229"><span class="linenos">1229</span></a><span class="k">def</span> <span class="nf">get_multi_path_geojson</span><span class="p">(</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_multi_path_geojson-1229"><a href="#get_multi_path_geojson-1229"><span class="linenos">1229</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_multi_path_geojson</span><span class="p">(</span>
 </span><span id="get_multi_path_geojson-1230"><a href="#get_multi_path_geojson-1230"><span class="linenos">1230</span></a>    <span class="n">routes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span>
 </span><span id="get_multi_path_geojson-1231"><a href="#get_multi_path_geojson-1231"><span class="linenos">1231</span></a>    <span class="n">filename</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 </span><span id="get_multi_path_geojson-1232"><a href="#get_multi_path_geojson-1232"><span class="linenos">1232</span></a>    <span class="n">show_progress</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
