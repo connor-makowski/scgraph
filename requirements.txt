@@ -1,9 +1,9 @@
-autoflake==2.2.0
-black==23.7.0
-build>=1.0.3
+autoflake>=2.3.1
+black>=25.1.0
+build>=1.2.2
 jupyter==1.0.0
-pamda>=2.5.0
-pdoc==14.4.0
-twine==4.0.2
-virtualenv>=20.24.6
+pamda>=2.6.1
+pdoc>=15.0.1
+twine>=6.1.0
+virtualenv>=20.29.2
 -e .
