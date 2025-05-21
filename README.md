@@ -41,7 +41,7 @@ Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
 - Grid based graphs
 - Cached shortest path calculations for very fast repetative calculations to or from the same point in a graph.
     - Note: Geographs are not yet supported for this feature
-    
+
 
 ## Setup
 
@@ -57,7 +57,7 @@ pip install scgraph
 
 ## Use with Google Colab
 
-- [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb) 
+- [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb)
 - [Creating A Multi Path Geojson](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb)
 - [Modifying A Geograph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
 
@@ -73,9 +73,9 @@ In this case, calculate the shortest maritime path between Shanghai, China and S
 # Use a maritime network geograph
 from scgraph.geographs.marnet import marnet_geograph
 
-# Get the shortest path between 
+# Get the shortest path between
 output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 31.23,"longitude": 121.47}, 
+    origin_node={"latitude": 31.23,"longitude": 121.47},
     destination_node={"latitude": 32.08,"longitude": -81.09},
     output_units='km'
 )
@@ -85,8 +85,8 @@ print('Length: ',output['length']) #=> Length:  19596.4653
 In the above example, the `output` variable is a dictionary with three keys: `length` and `coordinate_path`.
 
 - `length`: The distance between the passed origin and destination when traversing the graph along the shortest path
-    - Notes: 
-        - This will be in the units specified by the `output_units` parameter. 
+    - Notes:
+        - This will be in the units specified by the `output_units` parameter.
         - `output_units` options:
             - `km` (kilometers - default)
             - `m` (meters)
@@ -133,7 +133,7 @@ For more examples including viewing the output on a map, see the [example notebo
 
 Example:
 - Create a grid of 20x100 cells.
-    - This creates a grid based graph with connections to all 8 neighbors for each grid item. 
+    - This creates a grid based graph with connections to all 8 neighbors for each grid item.
     - Each grid item has 4 cardinal connections at length 1 and 4 diagonal connections at length sqrt(2)
 - Create a wall from (10,5) to (10,99).
     - This would foce any path to go to the bottom of the graph to get around the wall.
@@ -161,7 +161,7 @@ output = gridGraph.get_shortest_path(
     destination_node={"x": 18, "y": 10},
     # Optional: Specify the output coodinate format (default is 'list_of_dicts)
     output_coordinate_path="list_of_lists",
-    # Optional: Cache the origin point spanning_tree for faster calculations on future calls 
+    # Optional: Cache the origin point spanning_tree for faster calculations on future calls
     cache=True,
     # Optional: Specify the node to cache the spanning tree for (default is the origin node)
     # Note: This first call will be slower, but future calls using this origin node will be substantially faster
@@ -181,7 +181,7 @@ from scgraph_data.world_railways import world_railways_geograph
 
 # Get the shortest path between Kalamazoo Michigan and Detroit Michigan by Train
 output = world_railways_geograph.get_shortest_path(
-    origin_node={"latitude": 42.29,"longitude": -85.58}, 
+    origin_node={"latitude": 42.29,"longitude": -85.58},
     destination_node={"latitude": 42.33,"longitude": -83.05}
 )
 ```
@@ -194,7 +194,7 @@ from scgraph.utils import get_line_path
 
  # Get the shortest sea path between Sri Lanka and Somalia
 output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 7.87,"longitude": 80.77}, 
+    origin_node={"latitude": 7.87,"longitude": 80.77},
     destination_node={"latitude": 5.15,"longitude": 46.20}
 )
 # Write the output to a geojson file
@@ -210,7 +210,7 @@ You can specify your own custom graphs for direct access to the solving algorith
 from scgraph import Graph
 
 # Define an arbitrary graph
-# See the graph definitions here: 
+# See the graph definitions here:
 # https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
 graph = [
     {1: 5, 2: 1},
@@ -235,7 +235,7 @@ You can also use a slightly higher level `GeoGraph` class to work with latitude 
 from scgraph import GeoGraph
 
 # Define nodes
-# See the nodes definitions here: 
+# See the nodes definitions here:
 # https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
 nodes = [
     # London
@@ -252,7 +252,7 @@ nodes = [
     [38.7223, -9.1393]
 ]
 # Define a graph
-# See the graph definitions here: 
+# See the graph definitions here:
 # https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
 graph = [
     # From London
@@ -263,9 +263,9 @@ graph = [
     # From Paris
     {
         # To London
-        0: 311, 
+        0: 311,
         # To Berlin
-        2: 878, 
+        2: 878,
         # To Rome
         3: 1439,
         # To Madrid
@@ -273,7 +273,7 @@ graph = [
     },
     # From Berlin
     {
-        # To Paris 
+        # To Paris
         1: 878,
         # To Rome
         3: 1181,
@@ -324,12 +324,12 @@ output = my_geograph.get_shortest_path(
 )
 print(output)
 # {
-#     'length': 1799.4323, 
+#     'length': 1799.4323,
 #     'coordinate_path': [
-#         [52.4862, -1.8904], 
-#         [51.5074, -0.1278], 
-#         [48.8566, 2.3522], 
-#         [40.4168, -3.7038], 
+#         [52.4862, -1.8904],
+#         [51.5074, -0.1278],
+#         [48.8566, 2.3522],
+#         [40.4168, -3.7038],
 #         [41.6488, -0.8891]
 #     ]
 # }
