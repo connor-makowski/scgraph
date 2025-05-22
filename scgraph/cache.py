@@ -59,7 +59,6 @@ class CacheGraph:
         # and cache is True, otherwise using dijkstra_makowski is faster since it
         # terminates the spanning tree calculation when the destination is reached
         if spanning_tree is None and cache:
-            print("Calculating spanning tree and caching it")
             spanning_id = origin_id if cache_for == "origin" else destination_id
             spanning_tree = SpanningTree.makowskis_spanning_tree(
                 graph=self.graph, node_id=spanning_id

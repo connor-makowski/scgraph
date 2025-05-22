@@ -419,3 +419,113 @@ class GridGraph:
             raise ValueError(
                 "output_coordinate_path must be 'list_of_dicts' or 'list_of_lists' or 'list_of_tuples'"
             )
+
+    def export_object(
+        self, filename: str = "", include_blocks: bool = False
+    ) -> dict:
+        """
+        Function:
+
+        - Export the graph as a list of dictionaries
+
+        Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The name of the file to export the graph to.
+            - An extension of .gridgraph will be added to the file name if not already present
+
+        Optional Arguments:
+
+        - `include_blocks`
+            - Type: bool
+            - What: Whether to include the blocks in the export
+            - Default: False
+            - Note: This is not needed as the graph is already created
+            - Note: You can include blocks in the export if you need them for some reason
+                - This will be set as the blocks attribute in the imported object
+                - This will increase the size of the export file
+        """
+        if filename == "":
+            raise ValueError("filename must be specified to export the graph")
+        filename = (
+            filename
+            if filename.endswith(".gridgraph")
+            else filename + ".gridgraph"
+        )
+        try:
+            import pickle, zlib
+        except ImportError:
+            raise ImportError(
+                "pickle and zlib are required to export the graph"
+            )
+        export_data = {
+            "graph_attributes": {
+                "graph": self.graph,
+                "x_size": self.x_size,
+                "y_size": self.y_size,
+                "shape": self.shape,
+                "add_exterior_walls": self.add_exterior_walls,
+                "conn_data": self.conn_data,
+            },
+            "graph_cache": self.cacheGraph.cache,
+            "export_version": 1,
+        }
+        if include_blocks:
+            export_data["graph_attributes"]["blocks"] = self.blocks
+
+        with open(filename, "wb") as f:
+            f.write(zlib.compress(pickle.dumps(export_data)))
+
+    @staticmethod
+    def import_object(filename: str = "") -> None:
+        """
+        Function:
+
+        - A staticmethod to import the graph from a file
+
+        Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The name of the file to import the graph from.
+            - An extension of .gridgraph will be added to the file name if not already present
+
+        Returns:
+
+        - `GridGraph`
+            - Type: GridGraph
+            - What: The imported graph object
+        """
+        if filename == "":
+            raise ValueError("filename must be specified to import the graph")
+        filename = (
+            filename
+            if filename.endswith(".gridgraph")
+            else filename + ".gridgraph"
+        )
+        try:
+            import pickle, zlib
+        except ImportError:
+            raise ImportError(
+                "pickle and zlib are required to import the graph"
+            )
+        with open(filename, "rb") as f:
+            import_data = pickle.loads(zlib.decompress(f.read()))
+
+        # Check the version of the export
+        if import_data["export_version"] != 1:
+            raise ValueError(
+                f"Incompatible export version {import_data['export_version']}. The current version is 1"
+            )
+        # Create a new basic GridGraph object and overwrite the attributes with the imported data
+        # This is done as the init method calls the __create_graph__ method which is not needed here
+        GridGraph_object = GridGraph(
+            x_size=1, y_size=1, blocks=[], add_exterior_walls=False
+        )
+        for key, value in import_data["graph_attributes"].items():
+            GridGraph_object.__setattr__(key, value)
+
+        GridGraph_object.cacheGraph = CacheGraph(GridGraph_object.graph)
+        GridGraph_object.cacheGraph.cache = import_data["graph_cache"]
+        return GridGraph_object

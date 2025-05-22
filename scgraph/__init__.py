@@ -355,7 +355,8 @@ Make sure Docker is installed and running on a Unix system (Linux, MacOS, WSL2).
 
 
 ## Attributions and Thanks
-Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package."""
+Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.
+"""
 
 from .core import Graph, GeoGraph
 from .grid import GridGraph
