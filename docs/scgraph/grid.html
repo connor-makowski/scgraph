@@ -66,6 +66,12 @@
                         <li>
                                 <a class="function" href="#GridGraph.get_coordinate_path">get_coordinate_path</a>
                         </li>
+                        <li>
+                                <a class="function" href="#GridGraph.export_object">export_object</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#GridGraph.import_object">import_object</a>
+                        </li>
                 </ul>
 
             </li>
@@ -75,6 +81,7 @@
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
+        <option value="2.5.0">2.5.0</option>
         <option value="2.4.1">2.4.1</option>
         <option value="2.3.0">2.3.0</option>
         <option value="2.2.0">2.2.0</option>
@@ -550,6 +557,116 @@
 </span><span id="L-419"><a href="#L-419"><span class="linenos">419</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
 </span><span id="L-420"><a href="#L-420"><span class="linenos">420</span></a>                <span class="s2">&quot;output_coordinate_path must be &#39;list_of_dicts&#39; or &#39;list_of_lists&#39; or &#39;list_of_tuples&#39;&quot;</span>
 </span><span id="L-421"><a href="#L-421"><span class="linenos">421</span></a>            <span class="p">)</span>
+</span><span id="L-422"><a href="#L-422"><span class="linenos">422</span></a>
+</span><span id="L-423"><a href="#L-423"><span class="linenos">423</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">export_object</span><span class="p">(</span>
+</span><span id="L-424"><a href="#L-424"><span class="linenos">424</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">include_blocks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="L-425"><a href="#L-425"><span class="linenos">425</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="L-426"><a href="#L-426"><span class="linenos">426</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-427"><a href="#L-427"><span class="linenos">427</span></a><span class="sd">        Function:</span>
+</span><span id="L-428"><a href="#L-428"><span class="linenos">428</span></a>
+</span><span id="L-429"><a href="#L-429"><span class="linenos">429</span></a><span class="sd">        - Export the graph as a list of dictionaries</span>
+</span><span id="L-430"><a href="#L-430"><span class="linenos">430</span></a>
+</span><span id="L-431"><a href="#L-431"><span class="linenos">431</span></a><span class="sd">        Arguments:</span>
+</span><span id="L-432"><a href="#L-432"><span class="linenos">432</span></a>
+</span><span id="L-433"><a href="#L-433"><span class="linenos">433</span></a><span class="sd">        - `filename`</span>
+</span><span id="L-434"><a href="#L-434"><span class="linenos">434</span></a><span class="sd">            - Type: str</span>
+</span><span id="L-435"><a href="#L-435"><span class="linenos">435</span></a><span class="sd">            - What: The name of the file to export the graph to.</span>
+</span><span id="L-436"><a href="#L-436"><span class="linenos">436</span></a><span class="sd">            - An extension of .gridgraph will be added to the file name if not already present</span>
+</span><span id="L-437"><a href="#L-437"><span class="linenos">437</span></a>
+</span><span id="L-438"><a href="#L-438"><span class="linenos">438</span></a><span class="sd">        Optional Arguments:</span>
+</span><span id="L-439"><a href="#L-439"><span class="linenos">439</span></a>
+</span><span id="L-440"><a href="#L-440"><span class="linenos">440</span></a><span class="sd">        - `include_blocks`</span>
+</span><span id="L-441"><a href="#L-441"><span class="linenos">441</span></a><span class="sd">            - Type: bool</span>
+</span><span id="L-442"><a href="#L-442"><span class="linenos">442</span></a><span class="sd">            - What: Whether to include the blocks in the export</span>
+</span><span id="L-443"><a href="#L-443"><span class="linenos">443</span></a><span class="sd">            - Default: False</span>
+</span><span id="L-444"><a href="#L-444"><span class="linenos">444</span></a><span class="sd">            - Note: This is not needed as the graph is already created</span>
+</span><span id="L-445"><a href="#L-445"><span class="linenos">445</span></a><span class="sd">            - Note: You can include blocks in the export if you need them for some reason</span>
+</span><span id="L-446"><a href="#L-446"><span class="linenos">446</span></a><span class="sd">                - This will be set as the blocks attribute in the imported object</span>
+</span><span id="L-447"><a href="#L-447"><span class="linenos">447</span></a><span class="sd">                - This will increase the size of the export file</span>
+</span><span id="L-448"><a href="#L-448"><span class="linenos">448</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="L-449"><a href="#L-449"><span class="linenos">449</span></a>        <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+</span><span id="L-450"><a href="#L-450"><span class="linenos">450</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;filename must be specified to export the graph&quot;</span><span class="p">)</span>
+</span><span id="L-451"><a href="#L-451"><span class="linenos">451</span></a>        <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="L-452"><a href="#L-452"><span class="linenos">452</span></a>            <span class="n">filename</span>
+</span><span id="L-453"><a href="#L-453"><span class="linenos">453</span></a>            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.gridgraph&quot;</span><span class="p">)</span>
+</span><span id="L-454"><a href="#L-454"><span class="linenos">454</span></a>            <span class="k">else</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.gridgraph&quot;</span>
+</span><span id="L-455"><a href="#L-455"><span class="linenos">455</span></a>        <span class="p">)</span>
+</span><span id="L-456"><a href="#L-456"><span class="linenos">456</span></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="L-457"><a href="#L-457"><span class="linenos">457</span></a>            <span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span><span class="o">,</span><span class="w"> </span><span class="nn">zlib</span>
+</span><span id="L-458"><a href="#L-458"><span class="linenos">458</span></a>        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="L-459"><a href="#L-459"><span class="linenos">459</span></a>            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="L-460"><a href="#L-460"><span class="linenos">460</span></a>                <span class="s2">&quot;pickle and zlib are required to export the graph&quot;</span>
+</span><span id="L-461"><a href="#L-461"><span class="linenos">461</span></a>            <span class="p">)</span>
+</span><span id="L-462"><a href="#L-462"><span class="linenos">462</span></a>        <span class="n">export_data</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="L-463"><a href="#L-463"><span class="linenos">463</span></a>            <span class="s2">&quot;graph_attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="L-464"><a href="#L-464"><span class="linenos">464</span></a>                <span class="s2">&quot;graph&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span>
+</span><span id="L-465"><a href="#L-465"><span class="linenos">465</span></a>                <span class="s2">&quot;x_size&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_size</span><span class="p">,</span>
+</span><span id="L-466"><a href="#L-466"><span class="linenos">466</span></a>                <span class="s2">&quot;y_size&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_size</span><span class="p">,</span>
+</span><span id="L-467"><a href="#L-467"><span class="linenos">467</span></a>                <span class="s2">&quot;shape&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+</span><span id="L-468"><a href="#L-468"><span class="linenos">468</span></a>                <span class="s2">&quot;add_exterior_walls&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_exterior_walls</span><span class="p">,</span>
+</span><span id="L-469"><a href="#L-469"><span class="linenos">469</span></a>                <span class="s2">&quot;conn_data&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">conn_data</span><span class="p">,</span>
+</span><span id="L-470"><a href="#L-470"><span class="linenos">470</span></a>            <span class="p">},</span>
+</span><span id="L-471"><a href="#L-471"><span class="linenos">471</span></a>            <span class="s2">&quot;graph_cache&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cacheGraph</span><span class="o">.</span><span class="n">cache</span><span class="p">,</span>
+</span><span id="L-472"><a href="#L-472"><span class="linenos">472</span></a>            <span class="s2">&quot;export_version&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="L-473"><a href="#L-473"><span class="linenos">473</span></a>        <span class="p">}</span>
+</span><span id="L-474"><a href="#L-474"><span class="linenos">474</span></a>        <span class="k">if</span> <span class="n">include_blocks</span><span class="p">:</span>
+</span><span id="L-475"><a href="#L-475"><span class="linenos">475</span></a>            <span class="n">export_data</span><span class="p">[</span><span class="s2">&quot;graph_attributes&quot;</span><span class="p">][</span><span class="s2">&quot;blocks&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span>
+</span><span id="L-476"><a href="#L-476"><span class="linenos">476</span></a>
+</span><span id="L-477"><a href="#L-477"><span class="linenos">477</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+</span><span id="L-478"><a href="#L-478"><span class="linenos">478</span></a>            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">zlib</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">export_data</span><span class="p">)))</span>
+</span><span id="L-479"><a href="#L-479"><span class="linenos">479</span></a>
+</span><span id="L-480"><a href="#L-480"><span class="linenos">480</span></a>    <span class="nd">@staticmethod</span>
+</span><span id="L-481"><a href="#L-481"><span class="linenos">481</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_object</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="L-482"><a href="#L-482"><span class="linenos">482</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-483"><a href="#L-483"><span class="linenos">483</span></a><span class="sd">        Function:</span>
+</span><span id="L-484"><a href="#L-484"><span class="linenos">484</span></a>
+</span><span id="L-485"><a href="#L-485"><span class="linenos">485</span></a><span class="sd">        - A staticmethod to import the graph from a file</span>
+</span><span id="L-486"><a href="#L-486"><span class="linenos">486</span></a>
+</span><span id="L-487"><a href="#L-487"><span class="linenos">487</span></a><span class="sd">        Arguments:</span>
+</span><span id="L-488"><a href="#L-488"><span class="linenos">488</span></a>
+</span><span id="L-489"><a href="#L-489"><span class="linenos">489</span></a><span class="sd">        - `filename`</span>
+</span><span id="L-490"><a href="#L-490"><span class="linenos">490</span></a><span class="sd">            - Type: str</span>
+</span><span id="L-491"><a href="#L-491"><span class="linenos">491</span></a><span class="sd">            - What: The name of the file to import the graph from.</span>
+</span><span id="L-492"><a href="#L-492"><span class="linenos">492</span></a><span class="sd">            - An extension of .gridgraph will be added to the file name if not already present</span>
+</span><span id="L-493"><a href="#L-493"><span class="linenos">493</span></a>
+</span><span id="L-494"><a href="#L-494"><span class="linenos">494</span></a><span class="sd">        Returns:</span>
+</span><span id="L-495"><a href="#L-495"><span class="linenos">495</span></a>
+</span><span id="L-496"><a href="#L-496"><span class="linenos">496</span></a><span class="sd">        - `GridGraph`</span>
+</span><span id="L-497"><a href="#L-497"><span class="linenos">497</span></a><span class="sd">            - Type: GridGraph</span>
+</span><span id="L-498"><a href="#L-498"><span class="linenos">498</span></a><span class="sd">            - What: The imported graph object</span>
+</span><span id="L-499"><a href="#L-499"><span class="linenos">499</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="L-500"><a href="#L-500"><span class="linenos">500</span></a>        <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+</span><span id="L-501"><a href="#L-501"><span class="linenos">501</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;filename must be specified to import the graph&quot;</span><span class="p">)</span>
+</span><span id="L-502"><a href="#L-502"><span class="linenos">502</span></a>        <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="L-503"><a href="#L-503"><span class="linenos">503</span></a>            <span class="n">filename</span>
+</span><span id="L-504"><a href="#L-504"><span class="linenos">504</span></a>            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.gridgraph&quot;</span><span class="p">)</span>
+</span><span id="L-505"><a href="#L-505"><span class="linenos">505</span></a>            <span class="k">else</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.gridgraph&quot;</span>
+</span><span id="L-506"><a href="#L-506"><span class="linenos">506</span></a>        <span class="p">)</span>
+</span><span id="L-507"><a href="#L-507"><span class="linenos">507</span></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="L-508"><a href="#L-508"><span class="linenos">508</span></a>            <span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span><span class="o">,</span><span class="w"> </span><span class="nn">zlib</span>
+</span><span id="L-509"><a href="#L-509"><span class="linenos">509</span></a>        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="L-510"><a href="#L-510"><span class="linenos">510</span></a>            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="L-511"><a href="#L-511"><span class="linenos">511</span></a>                <span class="s2">&quot;pickle and zlib are required to import the graph&quot;</span>
+</span><span id="L-512"><a href="#L-512"><span class="linenos">512</span></a>            <span class="p">)</span>
+</span><span id="L-513"><a href="#L-513"><span class="linenos">513</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+</span><span id="L-514"><a href="#L-514"><span class="linenos">514</span></a>            <span class="n">import_data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">zlib</span><span class="o">.</span><span class="n">decompress</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()))</span>
+</span><span id="L-515"><a href="#L-515"><span class="linenos">515</span></a>
+</span><span id="L-516"><a href="#L-516"><span class="linenos">516</span></a>        <span class="c1"># Check the version of the export</span>
+</span><span id="L-517"><a href="#L-517"><span class="linenos">517</span></a>        <span class="k">if</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;export_version&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+</span><span id="L-518"><a href="#L-518"><span class="linenos">518</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="L-519"><a href="#L-519"><span class="linenos">519</span></a>                <span class="sa">f</span><span class="s2">&quot;Incompatible export version </span><span class="si">{</span><span class="n">import_data</span><span class="p">[</span><span class="s1">&#39;export_version&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">. The current version is 1&quot;</span>
+</span><span id="L-520"><a href="#L-520"><span class="linenos">520</span></a>            <span class="p">)</span>
+</span><span id="L-521"><a href="#L-521"><span class="linenos">521</span></a>        <span class="c1"># Create a new basic GridGraph object and overwrite the attributes with the imported data</span>
+</span><span id="L-522"><a href="#L-522"><span class="linenos">522</span></a>        <span class="c1"># This is done as the init method calls the __create_graph__ method which is not needed here</span>
+</span><span id="L-523"><a href="#L-523"><span class="linenos">523</span></a>        <span class="n">GridGraph_object</span> <span class="o">=</span> <span class="n">GridGraph</span><span class="p">(</span>
+</span><span id="L-524"><a href="#L-524"><span class="linenos">524</span></a>            <span class="n">x_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">blocks</span><span class="o">=</span><span class="p">[],</span> <span class="n">add_exterior_walls</span><span class="o">=</span><span class="kc">False</span>
+</span><span id="L-525"><a href="#L-525"><span class="linenos">525</span></a>        <span class="p">)</span>
+</span><span id="L-526"><a href="#L-526"><span class="linenos">526</span></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;graph_attributes&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="L-527"><a href="#L-527"><span class="linenos">527</span></a>            <span class="n">GridGraph_object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+</span><span id="L-528"><a href="#L-528"><span class="linenos">528</span></a>
+</span><span id="L-529"><a href="#L-529"><span class="linenos">529</span></a>        <span class="n">GridGraph_object</span><span class="o">.</span><span class="n">cacheGraph</span> <span class="o">=</span> <span class="n">CacheGraph</span><span class="p">(</span><span class="n">GridGraph_object</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span>
+</span><span id="L-530"><a href="#L-530"><span class="linenos">530</span></a>        <span class="n">GridGraph_object</span><span class="o">.</span><span class="n">cacheGraph</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;graph_cache&quot;</span><span class="p">]</span>
+</span><span id="L-531"><a href="#L-531"><span class="linenos">531</span></a>        <span class="k">return</span> <span class="n">GridGraph_object</span>
 </span></pre></div>
 
 
@@ -982,6 +1099,116 @@
 </span><span id="GridGraph-420"><a href="#GridGraph-420"><span class="linenos">420</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
 </span><span id="GridGraph-421"><a href="#GridGraph-421"><span class="linenos">421</span></a>                <span class="s2">&quot;output_coordinate_path must be &#39;list_of_dicts&#39; or &#39;list_of_lists&#39; or &#39;list_of_tuples&#39;&quot;</span>
 </span><span id="GridGraph-422"><a href="#GridGraph-422"><span class="linenos">422</span></a>            <span class="p">)</span>
+</span><span id="GridGraph-423"><a href="#GridGraph-423"><span class="linenos">423</span></a>
+</span><span id="GridGraph-424"><a href="#GridGraph-424"><span class="linenos">424</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">export_object</span><span class="p">(</span>
+</span><span id="GridGraph-425"><a href="#GridGraph-425"><span class="linenos">425</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">include_blocks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="GridGraph-426"><a href="#GridGraph-426"><span class="linenos">426</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="GridGraph-427"><a href="#GridGraph-427"><span class="linenos">427</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="GridGraph-428"><a href="#GridGraph-428"><span class="linenos">428</span></a><span class="sd">        Function:</span>
+</span><span id="GridGraph-429"><a href="#GridGraph-429"><span class="linenos">429</span></a>
+</span><span id="GridGraph-430"><a href="#GridGraph-430"><span class="linenos">430</span></a><span class="sd">        - Export the graph as a list of dictionaries</span>
+</span><span id="GridGraph-431"><a href="#GridGraph-431"><span class="linenos">431</span></a>
+</span><span id="GridGraph-432"><a href="#GridGraph-432"><span class="linenos">432</span></a><span class="sd">        Arguments:</span>
+</span><span id="GridGraph-433"><a href="#GridGraph-433"><span class="linenos">433</span></a>
+</span><span id="GridGraph-434"><a href="#GridGraph-434"><span class="linenos">434</span></a><span class="sd">        - `filename`</span>
+</span><span id="GridGraph-435"><a href="#GridGraph-435"><span class="linenos">435</span></a><span class="sd">            - Type: str</span>
+</span><span id="GridGraph-436"><a href="#GridGraph-436"><span class="linenos">436</span></a><span class="sd">            - What: The name of the file to export the graph to.</span>
+</span><span id="GridGraph-437"><a href="#GridGraph-437"><span class="linenos">437</span></a><span class="sd">            - An extension of .gridgraph will be added to the file name if not already present</span>
+</span><span id="GridGraph-438"><a href="#GridGraph-438"><span class="linenos">438</span></a>
+</span><span id="GridGraph-439"><a href="#GridGraph-439"><span class="linenos">439</span></a><span class="sd">        Optional Arguments:</span>
+</span><span id="GridGraph-440"><a href="#GridGraph-440"><span class="linenos">440</span></a>
+</span><span id="GridGraph-441"><a href="#GridGraph-441"><span class="linenos">441</span></a><span class="sd">        - `include_blocks`</span>
+</span><span id="GridGraph-442"><a href="#GridGraph-442"><span class="linenos">442</span></a><span class="sd">            - Type: bool</span>
+</span><span id="GridGraph-443"><a href="#GridGraph-443"><span class="linenos">443</span></a><span class="sd">            - What: Whether to include the blocks in the export</span>
+</span><span id="GridGraph-444"><a href="#GridGraph-444"><span class="linenos">444</span></a><span class="sd">            - Default: False</span>
+</span><span id="GridGraph-445"><a href="#GridGraph-445"><span class="linenos">445</span></a><span class="sd">            - Note: This is not needed as the graph is already created</span>
+</span><span id="GridGraph-446"><a href="#GridGraph-446"><span class="linenos">446</span></a><span class="sd">            - Note: You can include blocks in the export if you need them for some reason</span>
+</span><span id="GridGraph-447"><a href="#GridGraph-447"><span class="linenos">447</span></a><span class="sd">                - This will be set as the blocks attribute in the imported object</span>
+</span><span id="GridGraph-448"><a href="#GridGraph-448"><span class="linenos">448</span></a><span class="sd">                - This will increase the size of the export file</span>
+</span><span id="GridGraph-449"><a href="#GridGraph-449"><span class="linenos">449</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="GridGraph-450"><a href="#GridGraph-450"><span class="linenos">450</span></a>        <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+</span><span id="GridGraph-451"><a href="#GridGraph-451"><span class="linenos">451</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;filename must be specified to export the graph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph-452"><a href="#GridGraph-452"><span class="linenos">452</span></a>        <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="GridGraph-453"><a href="#GridGraph-453"><span class="linenos">453</span></a>            <span class="n">filename</span>
+</span><span id="GridGraph-454"><a href="#GridGraph-454"><span class="linenos">454</span></a>            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.gridgraph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph-455"><a href="#GridGraph-455"><span class="linenos">455</span></a>            <span class="k">else</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.gridgraph&quot;</span>
+</span><span id="GridGraph-456"><a href="#GridGraph-456"><span class="linenos">456</span></a>        <span class="p">)</span>
+</span><span id="GridGraph-457"><a href="#GridGraph-457"><span class="linenos">457</span></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="GridGraph-458"><a href="#GridGraph-458"><span class="linenos">458</span></a>            <span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span><span class="o">,</span><span class="w"> </span><span class="nn">zlib</span>
+</span><span id="GridGraph-459"><a href="#GridGraph-459"><span class="linenos">459</span></a>        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="GridGraph-460"><a href="#GridGraph-460"><span class="linenos">460</span></a>            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="GridGraph-461"><a href="#GridGraph-461"><span class="linenos">461</span></a>                <span class="s2">&quot;pickle and zlib are required to export the graph&quot;</span>
+</span><span id="GridGraph-462"><a href="#GridGraph-462"><span class="linenos">462</span></a>            <span class="p">)</span>
+</span><span id="GridGraph-463"><a href="#GridGraph-463"><span class="linenos">463</span></a>        <span class="n">export_data</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="GridGraph-464"><a href="#GridGraph-464"><span class="linenos">464</span></a>            <span class="s2">&quot;graph_attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="GridGraph-465"><a href="#GridGraph-465"><span class="linenos">465</span></a>                <span class="s2">&quot;graph&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span>
+</span><span id="GridGraph-466"><a href="#GridGraph-466"><span class="linenos">466</span></a>                <span class="s2">&quot;x_size&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_size</span><span class="p">,</span>
+</span><span id="GridGraph-467"><a href="#GridGraph-467"><span class="linenos">467</span></a>                <span class="s2">&quot;y_size&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_size</span><span class="p">,</span>
+</span><span id="GridGraph-468"><a href="#GridGraph-468"><span class="linenos">468</span></a>                <span class="s2">&quot;shape&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+</span><span id="GridGraph-469"><a href="#GridGraph-469"><span class="linenos">469</span></a>                <span class="s2">&quot;add_exterior_walls&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_exterior_walls</span><span class="p">,</span>
+</span><span id="GridGraph-470"><a href="#GridGraph-470"><span class="linenos">470</span></a>                <span class="s2">&quot;conn_data&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">conn_data</span><span class="p">,</span>
+</span><span id="GridGraph-471"><a href="#GridGraph-471"><span class="linenos">471</span></a>            <span class="p">},</span>
+</span><span id="GridGraph-472"><a href="#GridGraph-472"><span class="linenos">472</span></a>            <span class="s2">&quot;graph_cache&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cacheGraph</span><span class="o">.</span><span class="n">cache</span><span class="p">,</span>
+</span><span id="GridGraph-473"><a href="#GridGraph-473"><span class="linenos">473</span></a>            <span class="s2">&quot;export_version&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="GridGraph-474"><a href="#GridGraph-474"><span class="linenos">474</span></a>        <span class="p">}</span>
+</span><span id="GridGraph-475"><a href="#GridGraph-475"><span class="linenos">475</span></a>        <span class="k">if</span> <span class="n">include_blocks</span><span class="p">:</span>
+</span><span id="GridGraph-476"><a href="#GridGraph-476"><span class="linenos">476</span></a>            <span class="n">export_data</span><span class="p">[</span><span class="s2">&quot;graph_attributes&quot;</span><span class="p">][</span><span class="s2">&quot;blocks&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span>
+</span><span id="GridGraph-477"><a href="#GridGraph-477"><span class="linenos">477</span></a>
+</span><span id="GridGraph-478"><a href="#GridGraph-478"><span class="linenos">478</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+</span><span id="GridGraph-479"><a href="#GridGraph-479"><span class="linenos">479</span></a>            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">zlib</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">export_data</span><span class="p">)))</span>
+</span><span id="GridGraph-480"><a href="#GridGraph-480"><span class="linenos">480</span></a>
+</span><span id="GridGraph-481"><a href="#GridGraph-481"><span class="linenos">481</span></a>    <span class="nd">@staticmethod</span>
+</span><span id="GridGraph-482"><a href="#GridGraph-482"><span class="linenos">482</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_object</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="GridGraph-483"><a href="#GridGraph-483"><span class="linenos">483</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="GridGraph-484"><a href="#GridGraph-484"><span class="linenos">484</span></a><span class="sd">        Function:</span>
+</span><span id="GridGraph-485"><a href="#GridGraph-485"><span class="linenos">485</span></a>
+</span><span id="GridGraph-486"><a href="#GridGraph-486"><span class="linenos">486</span></a><span class="sd">        - A staticmethod to import the graph from a file</span>
+</span><span id="GridGraph-487"><a href="#GridGraph-487"><span class="linenos">487</span></a>
+</span><span id="GridGraph-488"><a href="#GridGraph-488"><span class="linenos">488</span></a><span class="sd">        Arguments:</span>
+</span><span id="GridGraph-489"><a href="#GridGraph-489"><span class="linenos">489</span></a>
+</span><span id="GridGraph-490"><a href="#GridGraph-490"><span class="linenos">490</span></a><span class="sd">        - `filename`</span>
+</span><span id="GridGraph-491"><a href="#GridGraph-491"><span class="linenos">491</span></a><span class="sd">            - Type: str</span>
+</span><span id="GridGraph-492"><a href="#GridGraph-492"><span class="linenos">492</span></a><span class="sd">            - What: The name of the file to import the graph from.</span>
+</span><span id="GridGraph-493"><a href="#GridGraph-493"><span class="linenos">493</span></a><span class="sd">            - An extension of .gridgraph will be added to the file name if not already present</span>
+</span><span id="GridGraph-494"><a href="#GridGraph-494"><span class="linenos">494</span></a>
+</span><span id="GridGraph-495"><a href="#GridGraph-495"><span class="linenos">495</span></a><span class="sd">        Returns:</span>
+</span><span id="GridGraph-496"><a href="#GridGraph-496"><span class="linenos">496</span></a>
+</span><span id="GridGraph-497"><a href="#GridGraph-497"><span class="linenos">497</span></a><span class="sd">        - `GridGraph`</span>
+</span><span id="GridGraph-498"><a href="#GridGraph-498"><span class="linenos">498</span></a><span class="sd">            - Type: GridGraph</span>
+</span><span id="GridGraph-499"><a href="#GridGraph-499"><span class="linenos">499</span></a><span class="sd">            - What: The imported graph object</span>
+</span><span id="GridGraph-500"><a href="#GridGraph-500"><span class="linenos">500</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="GridGraph-501"><a href="#GridGraph-501"><span class="linenos">501</span></a>        <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+</span><span id="GridGraph-502"><a href="#GridGraph-502"><span class="linenos">502</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;filename must be specified to import the graph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph-503"><a href="#GridGraph-503"><span class="linenos">503</span></a>        <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="GridGraph-504"><a href="#GridGraph-504"><span class="linenos">504</span></a>            <span class="n">filename</span>
+</span><span id="GridGraph-505"><a href="#GridGraph-505"><span class="linenos">505</span></a>            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.gridgraph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph-506"><a href="#GridGraph-506"><span class="linenos">506</span></a>            <span class="k">else</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.gridgraph&quot;</span>
+</span><span id="GridGraph-507"><a href="#GridGraph-507"><span class="linenos">507</span></a>        <span class="p">)</span>
+</span><span id="GridGraph-508"><a href="#GridGraph-508"><span class="linenos">508</span></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="GridGraph-509"><a href="#GridGraph-509"><span class="linenos">509</span></a>            <span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span><span class="o">,</span><span class="w"> </span><span class="nn">zlib</span>
+</span><span id="GridGraph-510"><a href="#GridGraph-510"><span class="linenos">510</span></a>        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="GridGraph-511"><a href="#GridGraph-511"><span class="linenos">511</span></a>            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="GridGraph-512"><a href="#GridGraph-512"><span class="linenos">512</span></a>                <span class="s2">&quot;pickle and zlib are required to import the graph&quot;</span>
+</span><span id="GridGraph-513"><a href="#GridGraph-513"><span class="linenos">513</span></a>            <span class="p">)</span>
+</span><span id="GridGraph-514"><a href="#GridGraph-514"><span class="linenos">514</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+</span><span id="GridGraph-515"><a href="#GridGraph-515"><span class="linenos">515</span></a>            <span class="n">import_data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">zlib</span><span class="o">.</span><span class="n">decompress</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()))</span>
+</span><span id="GridGraph-516"><a href="#GridGraph-516"><span class="linenos">516</span></a>
+</span><span id="GridGraph-517"><a href="#GridGraph-517"><span class="linenos">517</span></a>        <span class="c1"># Check the version of the export</span>
+</span><span id="GridGraph-518"><a href="#GridGraph-518"><span class="linenos">518</span></a>        <span class="k">if</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;export_version&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+</span><span id="GridGraph-519"><a href="#GridGraph-519"><span class="linenos">519</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="GridGraph-520"><a href="#GridGraph-520"><span class="linenos">520</span></a>                <span class="sa">f</span><span class="s2">&quot;Incompatible export version </span><span class="si">{</span><span class="n">import_data</span><span class="p">[</span><span class="s1">&#39;export_version&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">. The current version is 1&quot;</span>
+</span><span id="GridGraph-521"><a href="#GridGraph-521"><span class="linenos">521</span></a>            <span class="p">)</span>
+</span><span id="GridGraph-522"><a href="#GridGraph-522"><span class="linenos">522</span></a>        <span class="c1"># Create a new basic GridGraph object and overwrite the attributes with the imported data</span>
+</span><span id="GridGraph-523"><a href="#GridGraph-523"><span class="linenos">523</span></a>        <span class="c1"># This is done as the init method calls the __create_graph__ method which is not needed here</span>
+</span><span id="GridGraph-524"><a href="#GridGraph-524"><span class="linenos">524</span></a>        <span class="n">GridGraph_object</span> <span class="o">=</span> <span class="n">GridGraph</span><span class="p">(</span>
+</span><span id="GridGraph-525"><a href="#GridGraph-525"><span class="linenos">525</span></a>            <span class="n">x_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">blocks</span><span class="o">=</span><span class="p">[],</span> <span class="n">add_exterior_walls</span><span class="o">=</span><span class="kc">False</span>
+</span><span id="GridGraph-526"><a href="#GridGraph-526"><span class="linenos">526</span></a>        <span class="p">)</span>
+</span><span id="GridGraph-527"><a href="#GridGraph-527"><span class="linenos">527</span></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;graph_attributes&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="GridGraph-528"><a href="#GridGraph-528"><span class="linenos">528</span></a>            <span class="n">GridGraph_object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+</span><span id="GridGraph-529"><a href="#GridGraph-529"><span class="linenos">529</span></a>
+</span><span id="GridGraph-530"><a href="#GridGraph-530"><span class="linenos">530</span></a>        <span class="n">GridGraph_object</span><span class="o">.</span><span class="n">cacheGraph</span> <span class="o">=</span> <span class="n">CacheGraph</span><span class="p">(</span><span class="n">GridGraph_object</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span>
+</span><span id="GridGraph-531"><a href="#GridGraph-531"><span class="linenos">531</span></a>        <span class="n">GridGraph_object</span><span class="o">.</span><span class="n">cacheGraph</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;graph_cache&quot;</span><span class="p">]</span>
+</span><span id="GridGraph-532"><a href="#GridGraph-532"><span class="linenos">532</span></a>        <span class="k">return</span> <span class="n">GridGraph_object</span>
 </span></pre></div>
 
 
@@ -1659,6 +1886,210 @@
 <ul>
 <li>Type: list</li>
 <li>What: A list of dictionaries with keys 'x' and 'y' in the order they are visited</li>
+</ul></li>
+</ul>
+</div>
+
+
+                            </div>
+                            <div id="GridGraph.export_object" class="classattr">
+                                        <input id="GridGraph.export_object-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">export_object</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>, </span><span class="param"><span class="n">include_blocks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">dict</span>:</span></span>
+
+                <label class="view-source-button" for="GridGraph.export_object-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#GridGraph.export_object"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GridGraph.export_object-424"><a href="#GridGraph.export_object-424"><span class="linenos">424</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">export_object</span><span class="p">(</span>
+</span><span id="GridGraph.export_object-425"><a href="#GridGraph.export_object-425"><span class="linenos">425</span></a>        <span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">include_blocks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="GridGraph.export_object-426"><a href="#GridGraph.export_object-426"><span class="linenos">426</span></a>    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="GridGraph.export_object-427"><a href="#GridGraph.export_object-427"><span class="linenos">427</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="GridGraph.export_object-428"><a href="#GridGraph.export_object-428"><span class="linenos">428</span></a><span class="sd">        Function:</span>
+</span><span id="GridGraph.export_object-429"><a href="#GridGraph.export_object-429"><span class="linenos">429</span></a>
+</span><span id="GridGraph.export_object-430"><a href="#GridGraph.export_object-430"><span class="linenos">430</span></a><span class="sd">        - Export the graph as a list of dictionaries</span>
+</span><span id="GridGraph.export_object-431"><a href="#GridGraph.export_object-431"><span class="linenos">431</span></a>
+</span><span id="GridGraph.export_object-432"><a href="#GridGraph.export_object-432"><span class="linenos">432</span></a><span class="sd">        Arguments:</span>
+</span><span id="GridGraph.export_object-433"><a href="#GridGraph.export_object-433"><span class="linenos">433</span></a>
+</span><span id="GridGraph.export_object-434"><a href="#GridGraph.export_object-434"><span class="linenos">434</span></a><span class="sd">        - `filename`</span>
+</span><span id="GridGraph.export_object-435"><a href="#GridGraph.export_object-435"><span class="linenos">435</span></a><span class="sd">            - Type: str</span>
+</span><span id="GridGraph.export_object-436"><a href="#GridGraph.export_object-436"><span class="linenos">436</span></a><span class="sd">            - What: The name of the file to export the graph to.</span>
+</span><span id="GridGraph.export_object-437"><a href="#GridGraph.export_object-437"><span class="linenos">437</span></a><span class="sd">            - An extension of .gridgraph will be added to the file name if not already present</span>
+</span><span id="GridGraph.export_object-438"><a href="#GridGraph.export_object-438"><span class="linenos">438</span></a>
+</span><span id="GridGraph.export_object-439"><a href="#GridGraph.export_object-439"><span class="linenos">439</span></a><span class="sd">        Optional Arguments:</span>
+</span><span id="GridGraph.export_object-440"><a href="#GridGraph.export_object-440"><span class="linenos">440</span></a>
+</span><span id="GridGraph.export_object-441"><a href="#GridGraph.export_object-441"><span class="linenos">441</span></a><span class="sd">        - `include_blocks`</span>
+</span><span id="GridGraph.export_object-442"><a href="#GridGraph.export_object-442"><span class="linenos">442</span></a><span class="sd">            - Type: bool</span>
+</span><span id="GridGraph.export_object-443"><a href="#GridGraph.export_object-443"><span class="linenos">443</span></a><span class="sd">            - What: Whether to include the blocks in the export</span>
+</span><span id="GridGraph.export_object-444"><a href="#GridGraph.export_object-444"><span class="linenos">444</span></a><span class="sd">            - Default: False</span>
+</span><span id="GridGraph.export_object-445"><a href="#GridGraph.export_object-445"><span class="linenos">445</span></a><span class="sd">            - Note: This is not needed as the graph is already created</span>
+</span><span id="GridGraph.export_object-446"><a href="#GridGraph.export_object-446"><span class="linenos">446</span></a><span class="sd">            - Note: You can include blocks in the export if you need them for some reason</span>
+</span><span id="GridGraph.export_object-447"><a href="#GridGraph.export_object-447"><span class="linenos">447</span></a><span class="sd">                - This will be set as the blocks attribute in the imported object</span>
+</span><span id="GridGraph.export_object-448"><a href="#GridGraph.export_object-448"><span class="linenos">448</span></a><span class="sd">                - This will increase the size of the export file</span>
+</span><span id="GridGraph.export_object-449"><a href="#GridGraph.export_object-449"><span class="linenos">449</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="GridGraph.export_object-450"><a href="#GridGraph.export_object-450"><span class="linenos">450</span></a>        <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+</span><span id="GridGraph.export_object-451"><a href="#GridGraph.export_object-451"><span class="linenos">451</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;filename must be specified to export the graph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph.export_object-452"><a href="#GridGraph.export_object-452"><span class="linenos">452</span></a>        <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="GridGraph.export_object-453"><a href="#GridGraph.export_object-453"><span class="linenos">453</span></a>            <span class="n">filename</span>
+</span><span id="GridGraph.export_object-454"><a href="#GridGraph.export_object-454"><span class="linenos">454</span></a>            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.gridgraph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph.export_object-455"><a href="#GridGraph.export_object-455"><span class="linenos">455</span></a>            <span class="k">else</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.gridgraph&quot;</span>
+</span><span id="GridGraph.export_object-456"><a href="#GridGraph.export_object-456"><span class="linenos">456</span></a>        <span class="p">)</span>
+</span><span id="GridGraph.export_object-457"><a href="#GridGraph.export_object-457"><span class="linenos">457</span></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="GridGraph.export_object-458"><a href="#GridGraph.export_object-458"><span class="linenos">458</span></a>            <span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span><span class="o">,</span><span class="w"> </span><span class="nn">zlib</span>
+</span><span id="GridGraph.export_object-459"><a href="#GridGraph.export_object-459"><span class="linenos">459</span></a>        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="GridGraph.export_object-460"><a href="#GridGraph.export_object-460"><span class="linenos">460</span></a>            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="GridGraph.export_object-461"><a href="#GridGraph.export_object-461"><span class="linenos">461</span></a>                <span class="s2">&quot;pickle and zlib are required to export the graph&quot;</span>
+</span><span id="GridGraph.export_object-462"><a href="#GridGraph.export_object-462"><span class="linenos">462</span></a>            <span class="p">)</span>
+</span><span id="GridGraph.export_object-463"><a href="#GridGraph.export_object-463"><span class="linenos">463</span></a>        <span class="n">export_data</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="GridGraph.export_object-464"><a href="#GridGraph.export_object-464"><span class="linenos">464</span></a>            <span class="s2">&quot;graph_attributes&quot;</span><span class="p">:</span> <span class="p">{</span>
+</span><span id="GridGraph.export_object-465"><a href="#GridGraph.export_object-465"><span class="linenos">465</span></a>                <span class="s2">&quot;graph&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-466"><a href="#GridGraph.export_object-466"><span class="linenos">466</span></a>                <span class="s2">&quot;x_size&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_size</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-467"><a href="#GridGraph.export_object-467"><span class="linenos">467</span></a>                <span class="s2">&quot;y_size&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_size</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-468"><a href="#GridGraph.export_object-468"><span class="linenos">468</span></a>                <span class="s2">&quot;shape&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-469"><a href="#GridGraph.export_object-469"><span class="linenos">469</span></a>                <span class="s2">&quot;add_exterior_walls&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_exterior_walls</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-470"><a href="#GridGraph.export_object-470"><span class="linenos">470</span></a>                <span class="s2">&quot;conn_data&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">conn_data</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-471"><a href="#GridGraph.export_object-471"><span class="linenos">471</span></a>            <span class="p">},</span>
+</span><span id="GridGraph.export_object-472"><a href="#GridGraph.export_object-472"><span class="linenos">472</span></a>            <span class="s2">&quot;graph_cache&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cacheGraph</span><span class="o">.</span><span class="n">cache</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-473"><a href="#GridGraph.export_object-473"><span class="linenos">473</span></a>            <span class="s2">&quot;export_version&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="GridGraph.export_object-474"><a href="#GridGraph.export_object-474"><span class="linenos">474</span></a>        <span class="p">}</span>
+</span><span id="GridGraph.export_object-475"><a href="#GridGraph.export_object-475"><span class="linenos">475</span></a>        <span class="k">if</span> <span class="n">include_blocks</span><span class="p">:</span>
+</span><span id="GridGraph.export_object-476"><a href="#GridGraph.export_object-476"><span class="linenos">476</span></a>            <span class="n">export_data</span><span class="p">[</span><span class="s2">&quot;graph_attributes&quot;</span><span class="p">][</span><span class="s2">&quot;blocks&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocks</span>
+</span><span id="GridGraph.export_object-477"><a href="#GridGraph.export_object-477"><span class="linenos">477</span></a>
+</span><span id="GridGraph.export_object-478"><a href="#GridGraph.export_object-478"><span class="linenos">478</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+</span><span id="GridGraph.export_object-479"><a href="#GridGraph.export_object-479"><span class="linenos">479</span></a>            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">zlib</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">export_data</span><span class="p">)))</span>
+</span></pre></div>
+
+
+            <div class="docstring"><p>Function:</p>
+
+<ul>
+<li>Export the graph as a list of dictionaries</li>
+</ul>
+
+<p>Arguments:</p>
+
+<ul>
+<li><code>filename</code>
+<ul>
+<li>Type: str</li>
+<li>What: The name of the file to export the graph to.</li>
+<li>An extension of .gridgraph will be added to the file name if not already present</li>
+</ul></li>
+</ul>
+
+<p>Optional Arguments:</p>
+
+<ul>
+<li><code>include_blocks</code>
+<ul>
+<li>Type: bool</li>
+<li>What: Whether to include the blocks in the export</li>
+<li>Default: False</li>
+<li>Note: This is not needed as the graph is already created</li>
+<li>Note: You can include blocks in the export if you need them for some reason
+<ul>
+<li>This will be set as the blocks attribute in the imported object</li>
+<li>This will increase the size of the export file</li>
+</ul></li>
+</ul></li>
+</ul>
+</div>
+
+
+                            </div>
+                            <div id="GridGraph.import_object" class="classattr">
+                                        <input id="GridGraph.import_object-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">import_object</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+                <label class="view-source-button" for="GridGraph.import_object-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#GridGraph.import_object"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="GridGraph.import_object-481"><a href="#GridGraph.import_object-481"><span class="linenos">481</span></a>    <span class="nd">@staticmethod</span>
+</span><span id="GridGraph.import_object-482"><a href="#GridGraph.import_object-482"><span class="linenos">482</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">import_object</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="GridGraph.import_object-483"><a href="#GridGraph.import_object-483"><span class="linenos">483</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="GridGraph.import_object-484"><a href="#GridGraph.import_object-484"><span class="linenos">484</span></a><span class="sd">        Function:</span>
+</span><span id="GridGraph.import_object-485"><a href="#GridGraph.import_object-485"><span class="linenos">485</span></a>
+</span><span id="GridGraph.import_object-486"><a href="#GridGraph.import_object-486"><span class="linenos">486</span></a><span class="sd">        - A staticmethod to import the graph from a file</span>
+</span><span id="GridGraph.import_object-487"><a href="#GridGraph.import_object-487"><span class="linenos">487</span></a>
+</span><span id="GridGraph.import_object-488"><a href="#GridGraph.import_object-488"><span class="linenos">488</span></a><span class="sd">        Arguments:</span>
+</span><span id="GridGraph.import_object-489"><a href="#GridGraph.import_object-489"><span class="linenos">489</span></a>
+</span><span id="GridGraph.import_object-490"><a href="#GridGraph.import_object-490"><span class="linenos">490</span></a><span class="sd">        - `filename`</span>
+</span><span id="GridGraph.import_object-491"><a href="#GridGraph.import_object-491"><span class="linenos">491</span></a><span class="sd">            - Type: str</span>
+</span><span id="GridGraph.import_object-492"><a href="#GridGraph.import_object-492"><span class="linenos">492</span></a><span class="sd">            - What: The name of the file to import the graph from.</span>
+</span><span id="GridGraph.import_object-493"><a href="#GridGraph.import_object-493"><span class="linenos">493</span></a><span class="sd">            - An extension of .gridgraph will be added to the file name if not already present</span>
+</span><span id="GridGraph.import_object-494"><a href="#GridGraph.import_object-494"><span class="linenos">494</span></a>
+</span><span id="GridGraph.import_object-495"><a href="#GridGraph.import_object-495"><span class="linenos">495</span></a><span class="sd">        Returns:</span>
+</span><span id="GridGraph.import_object-496"><a href="#GridGraph.import_object-496"><span class="linenos">496</span></a>
+</span><span id="GridGraph.import_object-497"><a href="#GridGraph.import_object-497"><span class="linenos">497</span></a><span class="sd">        - `GridGraph`</span>
+</span><span id="GridGraph.import_object-498"><a href="#GridGraph.import_object-498"><span class="linenos">498</span></a><span class="sd">            - Type: GridGraph</span>
+</span><span id="GridGraph.import_object-499"><a href="#GridGraph.import_object-499"><span class="linenos">499</span></a><span class="sd">            - What: The imported graph object</span>
+</span><span id="GridGraph.import_object-500"><a href="#GridGraph.import_object-500"><span class="linenos">500</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="GridGraph.import_object-501"><a href="#GridGraph.import_object-501"><span class="linenos">501</span></a>        <span class="k">if</span> <span class="n">filename</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+</span><span id="GridGraph.import_object-502"><a href="#GridGraph.import_object-502"><span class="linenos">502</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;filename must be specified to import the graph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph.import_object-503"><a href="#GridGraph.import_object-503"><span class="linenos">503</span></a>        <span class="n">filename</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="GridGraph.import_object-504"><a href="#GridGraph.import_object-504"><span class="linenos">504</span></a>            <span class="n">filename</span>
+</span><span id="GridGraph.import_object-505"><a href="#GridGraph.import_object-505"><span class="linenos">505</span></a>            <span class="k">if</span> <span class="n">filename</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;.gridgraph&quot;</span><span class="p">)</span>
+</span><span id="GridGraph.import_object-506"><a href="#GridGraph.import_object-506"><span class="linenos">506</span></a>            <span class="k">else</span> <span class="n">filename</span> <span class="o">+</span> <span class="s2">&quot;.gridgraph&quot;</span>
+</span><span id="GridGraph.import_object-507"><a href="#GridGraph.import_object-507"><span class="linenos">507</span></a>        <span class="p">)</span>
+</span><span id="GridGraph.import_object-508"><a href="#GridGraph.import_object-508"><span class="linenos">508</span></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="GridGraph.import_object-509"><a href="#GridGraph.import_object-509"><span class="linenos">509</span></a>            <span class="kn">import</span><span class="w"> </span><span class="nn">pickle</span><span class="o">,</span><span class="w"> </span><span class="nn">zlib</span>
+</span><span id="GridGraph.import_object-510"><a href="#GridGraph.import_object-510"><span class="linenos">510</span></a>        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="GridGraph.import_object-511"><a href="#GridGraph.import_object-511"><span class="linenos">511</span></a>            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+</span><span id="GridGraph.import_object-512"><a href="#GridGraph.import_object-512"><span class="linenos">512</span></a>                <span class="s2">&quot;pickle and zlib are required to import the graph&quot;</span>
+</span><span id="GridGraph.import_object-513"><a href="#GridGraph.import_object-513"><span class="linenos">513</span></a>            <span class="p">)</span>
+</span><span id="GridGraph.import_object-514"><a href="#GridGraph.import_object-514"><span class="linenos">514</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+</span><span id="GridGraph.import_object-515"><a href="#GridGraph.import_object-515"><span class="linenos">515</span></a>            <span class="n">import_data</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">zlib</span><span class="o">.</span><span class="n">decompress</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()))</span>
+</span><span id="GridGraph.import_object-516"><a href="#GridGraph.import_object-516"><span class="linenos">516</span></a>
+</span><span id="GridGraph.import_object-517"><a href="#GridGraph.import_object-517"><span class="linenos">517</span></a>        <span class="c1"># Check the version of the export</span>
+</span><span id="GridGraph.import_object-518"><a href="#GridGraph.import_object-518"><span class="linenos">518</span></a>        <span class="k">if</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;export_version&quot;</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+</span><span id="GridGraph.import_object-519"><a href="#GridGraph.import_object-519"><span class="linenos">519</span></a>            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="GridGraph.import_object-520"><a href="#GridGraph.import_object-520"><span class="linenos">520</span></a>                <span class="sa">f</span><span class="s2">&quot;Incompatible export version </span><span class="si">{</span><span class="n">import_data</span><span class="p">[</span><span class="s1">&#39;export_version&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">. The current version is 1&quot;</span>
+</span><span id="GridGraph.import_object-521"><a href="#GridGraph.import_object-521"><span class="linenos">521</span></a>            <span class="p">)</span>
+</span><span id="GridGraph.import_object-522"><a href="#GridGraph.import_object-522"><span class="linenos">522</span></a>        <span class="c1"># Create a new basic GridGraph object and overwrite the attributes with the imported data</span>
+</span><span id="GridGraph.import_object-523"><a href="#GridGraph.import_object-523"><span class="linenos">523</span></a>        <span class="c1"># This is done as the init method calls the __create_graph__ method which is not needed here</span>
+</span><span id="GridGraph.import_object-524"><a href="#GridGraph.import_object-524"><span class="linenos">524</span></a>        <span class="n">GridGraph_object</span> <span class="o">=</span> <span class="n">GridGraph</span><span class="p">(</span>
+</span><span id="GridGraph.import_object-525"><a href="#GridGraph.import_object-525"><span class="linenos">525</span></a>            <span class="n">x_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">y_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">blocks</span><span class="o">=</span><span class="p">[],</span> <span class="n">add_exterior_walls</span><span class="o">=</span><span class="kc">False</span>
+</span><span id="GridGraph.import_object-526"><a href="#GridGraph.import_object-526"><span class="linenos">526</span></a>        <span class="p">)</span>
+</span><span id="GridGraph.import_object-527"><a href="#GridGraph.import_object-527"><span class="linenos">527</span></a>        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;graph_attributes&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="GridGraph.import_object-528"><a href="#GridGraph.import_object-528"><span class="linenos">528</span></a>            <span class="n">GridGraph_object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+</span><span id="GridGraph.import_object-529"><a href="#GridGraph.import_object-529"><span class="linenos">529</span></a>
+</span><span id="GridGraph.import_object-530"><a href="#GridGraph.import_object-530"><span class="linenos">530</span></a>        <span class="n">GridGraph_object</span><span class="o">.</span><span class="n">cacheGraph</span> <span class="o">=</span> <span class="n">CacheGraph</span><span class="p">(</span><span class="n">GridGraph_object</span><span class="o">.</span><span class="n">graph</span><span class="p">)</span>
+</span><span id="GridGraph.import_object-531"><a href="#GridGraph.import_object-531"><span class="linenos">531</span></a>        <span class="n">GridGraph_object</span><span class="o">.</span><span class="n">cacheGraph</span><span class="o">.</span><span class="n">cache</span> <span class="o">=</span> <span class="n">import_data</span><span class="p">[</span><span class="s2">&quot;graph_cache&quot;</span><span class="p">]</span>
+</span><span id="GridGraph.import_object-532"><a href="#GridGraph.import_object-532"><span class="linenos">532</span></a>        <span class="k">return</span> <span class="n">GridGraph_object</span>
+</span></pre></div>
+
+
+            <div class="docstring"><p>Function:</p>
+
+<ul>
+<li>A staticmethod to import the graph from a file</li>
+</ul>
+
+<p>Arguments:</p>
+
+<ul>
+<li><code>filename</code>
+<ul>
+<li>Type: str</li>
+<li>What: The name of the file to import the graph from.</li>
+<li>An extension of .gridgraph will be added to the file name if not already present</li>
+</ul></li>
+</ul>
+
+<p>Returns:</p>
+
+<ul>
+<li><code><a href="#GridGraph">GridGraph</a></code>
+<ul>
+<li>Type: GridGraph</li>
+<li>What: The imported graph object</li>
 </ul></li>
 </ul>
 </div>
