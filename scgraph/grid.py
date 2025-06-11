@@ -454,10 +454,10 @@ class GridGraph:
             else filename + ".gridgraph"
         )
         try:
-            import pickle, zlib
+            import pickle, zlib, os
         except ImportError:
             raise ImportError(
-                "pickle and zlib are required to export the graph"
+                "os, pickle and zlib are required to export the graph"
             )
         export_data = {
             "graph_attributes": {
@@ -474,6 +474,8 @@ class GridGraph:
         if include_blocks:
             export_data["graph_attributes"]["blocks"] = self.blocks
 
+        if not os.path.exists(os.path.dirname(filename)):
+            os.makedirs(os.path.dirname(filename))
         with open(filename, "wb") as f:
             f.write(zlib.compress(pickle.dumps(export_data)))
 
