@@ -6,7 +6,7 @@ from heapq import heappop, heappush
 class Graph:
     @staticmethod
     def validate_graph(
-        graph: list[dict[int, int|float]],
+        graph: list[dict[int, int | float]],
         check_symmetry: bool = True,
         check_connected: bool = True,
     ) -> None:
@@ -112,7 +112,9 @@ class Graph:
             ), "Your graph is not fully connected"
 
     @staticmethod
-    def validate_connected(graph: list[dict[int, int|float]], origin_id:int=0) -> bool:
+    def validate_connected(
+        graph: list[dict[int, int | float]], origin_id: int = 0
+    ) -> bool:
         """
         Function:
 
@@ -147,7 +149,7 @@ class Graph:
 
     @staticmethod
     def input_check(
-        graph: list[dict[int, int|float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
     ) -> None:
         """
         Function:
@@ -188,7 +190,7 @@ class Graph:
 
     @staticmethod
     def dijkstra(
-        graph: list[dict[int, int|float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
     ) -> dict:
         """
         Function:
@@ -258,7 +260,7 @@ class Graph:
 
     @staticmethod
     def dijkstra_makowski(
-        graph: list[dict[int, int|float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
     ) -> dict:
         """
         Function:
@@ -333,7 +335,9 @@ class Graph:
 
 class GeoGraph:
     def __init__(
-        self, graph: list[dict[int, int | float]], nodes: list[list[float | int]]
+        self,
+        graph: list[dict[int, int | float]],
+        nodes: list[list[float | int]],
     ) -> None:
         """
         Function:

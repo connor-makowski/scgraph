@@ -40,13 +40,13 @@ class SpanningTree:
         # Input Validation
         assert isinstance(node_id, int), "node_id must be an integer"
         assert 0 <= node_id < len(graph), "node_id must be a valid node id"
-        distance_matrix =[float("inf")] * len(graph)
+        distance_matrix = [float("inf")] * len(graph)
         open_leaves = {}
         predecessor = [-1] * len(graph)
         visited = [0] * len(graph)
 
         distance_matrix[node_id] = 0
-        open_leaves=[]
+        open_leaves = []
         heappush(open_leaves, (0, node_id))
 
         while open_leaves:
