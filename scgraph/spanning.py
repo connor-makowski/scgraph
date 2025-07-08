@@ -1,4 +1,5 @@
 from .utils import hard_round
+from heapq import heappush, heappop
 
 
 class SpanningTree:
@@ -39,25 +40,26 @@ class SpanningTree:
         # Input Validation
         assert isinstance(node_id, int), "node_id must be an integer"
         assert 0 <= node_id < len(graph), "node_id must be a valid node id"
-        distance_matrix = [float("inf") for i in graph]
+        distance_matrix =[float("inf")] * len(graph)
         open_leaves = {}
-        predecessor = [None for i in graph]
+        predecessor = [-1] * len(graph)
+        visited = [0] * len(graph)
 
         distance_matrix[node_id] = 0
-        open_leaves[node_id] = 0
+        open_leaves=[]
+        heappush(open_leaves, (0, node_id))
 
-        while True:
-            if len(open_leaves) == 0:
-                break
-            current_id = min(open_leaves, key=open_leaves.get)
-            open_leaves.pop(current_id)
-            current_distance = distance_matrix[current_id]
+        while open_leaves:
+            current_distance, current_id = heappop(open_leaves)
+            if visited[current_id]:
+                continue
+            visited[current_id] = True
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
                     predecessor[connected_id] = current_id
-                    open_leaves[connected_id] = possible_distance
+                    heappush(open_leaves, (possible_distance, connected_id))
 
         return {
             "node_id": node_id,

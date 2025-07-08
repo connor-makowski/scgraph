@@ -1,11 +1,12 @@
 from .utils import haversine, hard_round, distance_converter, get_line_path
 import json
+from heapq import heappop, heappush
 
 
 class Graph:
     @staticmethod
     def validate_graph(
-        graph: list[dict],
+        graph: list[dict[int, int|float]],
         check_symmetry: bool = True,
         check_connected: bool = True,
     ) -> None:
@@ -17,8 +18,56 @@ class Graph:
         Required Arguments:
 
         - `graph`:
-            - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - Type: list of dictionaries with integer keys and integer or float values
+            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and graph weights
+            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
+            - EG:
+            ```
+                [
+                    # From London (index 0)
+                    {
+                        # To Paris (index 1)
+                        1: 311,
+                    },
+                    # From Paris (index 1)
+                    {
+                        # To London (index 0)
+                        0: 311,
+                        # To Berlin (index 2)
+                        2: 878,
+                        # To Rome (index 3)
+                        3: 1439,
+                        # To Madrid (index 4)
+                        4: 1053
+                    },
+                    # From Berlin (index 2)
+                    {
+                        # To Paris (index 1)
+                        1: 878,
+                        # To Rome (index 3)
+                        3: 1181,
+                    },
+                    # From Rome (index 3)
+                    {
+                        # To Paris (index 1)
+                        1: 1439,
+                        # To Berlin (index 2)
+                        2: 1181,
+                    },
+                    # From Madrid (index 4)
+                    {
+                        # To Paris (index 1)
+                        1: 1053,
+                        # To Lisbon (index 5)
+                        5: 623
+                    },
+                    # From Lisbon (index 5)
+                    {
+                        # To Madrid (index 4)
+                        4: 623
+                    }
+                ]
+            ```
 
         Optional Arguments:
 
@@ -40,7 +89,7 @@ class Graph:
         for origin_id, origin_dict in enumerate(graph):
             assert isinstance(
                 origin_dict, dict
-            ), f"Your graph must be a dictionary of dictionaries but the value for origin {origin_id} is not a dictionary"
+            ), f"Your graph must be a list of dictionaries but the value for origin {origin_id} is not a dictionary"
             destinations = list(origin_dict.keys())
             lengths = list(origin_dict.values())
             assert all(
@@ -63,7 +112,7 @@ class Graph:
             ), "Your graph is not fully connected"
 
     @staticmethod
-    def validate_connected(graph: list[dict]) -> bool:
+    def validate_connected(graph: list[dict[int, int|float]], origin_id:int=0) -> bool:
         """
         Function:
 
@@ -76,40 +125,29 @@ class Graph:
 
         - `graph`:
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
 
         Optional Arguments:
 
-        - None
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from which to start the connectivity check
+            - Default: 0
         """
-        origin_id = 0
-        destination_id = len(graph) + 1
+        visited = [0] * len(graph)
+        open_leaves = [origin_id]
 
-        distance_matrix = [float("inf") for i in graph]
-        open_leaves = {}
-        predecessor = [None for i in graph]
-
-        distance_matrix[origin_id] = 0
-        open_leaves[origin_id] = 0
-
-        while True:
-            if len(open_leaves) == 0:
-                return max(distance_matrix) != float("inf")
-            current_id = min(open_leaves, key=open_leaves.get)
-            open_leaves.pop(current_id)
-            if current_id == destination_id:
-                break
-            current_distance = distance_matrix[current_id]
+        while open_leaves:
+            current_id = open_leaves.pop()
+            visited[current_id] = 1
             for connected_id, connected_distance in graph[current_id].items():
-                possible_distance = current_distance + connected_distance
-                if possible_distance < distance_matrix[connected_id]:
-                    distance_matrix[connected_id] = possible_distance
-                    predecessor[connected_id] = current_id
-                    open_leaves[connected_id] = possible_distance
+                if visited[connected_id] == 0:
+                    open_leaves.append(connected_id)
+        return min(visited) == 1
 
     @staticmethod
     def input_check(
-        graph: list[dict], origin_id: int, destination_id: int
+        graph: list[dict[int, int|float]], origin_id: int, destination_id: int
     ) -> None:
         """
         Function:
@@ -121,7 +159,7 @@ class Graph:
 
         - `graph`:
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -150,7 +188,7 @@ class Graph:
 
     @staticmethod
     def dijkstra(
-        graph: list[dict], origin_id: int, destination_id: int
+        graph: list[dict[int, int|float]], origin_id: int, destination_id: int
     ) -> dict:
         """
         Function:
@@ -167,7 +205,7 @@ class Graph:
 
         - `graph`:
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -182,9 +220,9 @@ class Graph:
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
-        distance_matrix = [float("inf") for i in graph]
-        branch_tip_distances = [float("inf") for i in graph]
-        predecessor = [None for i in graph]
+        distance_matrix = [float("inf")] * len(graph)
+        branch_tip_distances = [float("inf")] * len(graph)
+        predecessor = [-1] * len(graph)
 
         distance_matrix[origin_id] = 0
         branch_tip_distances[origin_id] = 0
@@ -207,7 +245,7 @@ class Graph:
                     branch_tip_distances[connected_id] = possible_distance
 
         output_path = [current_id]
-        while predecessor[current_id] is not None:
+        while predecessor[current_id] != -1:
             current_id = predecessor[current_id]
             output_path.append(current_id)
 
@@ -220,7 +258,7 @@ class Graph:
 
     @staticmethod
     def dijkstra_makowski(
-        graph: list[dict], origin_id: int, destination_id: int
+        graph: list[dict[int, int|float]], origin_id: int, destination_id: int
     ) -> dict:
         """
         Function:
@@ -242,7 +280,7 @@ class Graph:
 
         - `graph`:
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
@@ -257,20 +295,19 @@ class Graph:
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
-        distance_matrix = [float("inf") for i in graph]
-        open_leaves = {}
-        predecessor = [None for i in graph]
+        distance_matrix = [float("inf")] * len(graph)
+        open_leaves = []
+        predecessor = [-1] * len(graph)
 
         distance_matrix[origin_id] = 0
-        open_leaves[origin_id] = 0
+        heappush(open_leaves, (0, origin_id))
 
         while True:
             if len(open_leaves) == 0:
                 raise Exception(
                     "Something went wrong, the origin and destination nodes are not connected."
                 )
-            current_id = min(open_leaves, key=open_leaves.get)
-            open_leaves.pop(current_id)
+            current_distance, current_id = heappop(open_leaves)
             if current_id == destination_id:
                 break
             current_distance = distance_matrix[current_id]
@@ -279,10 +316,10 @@ class Graph:
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
                     predecessor[connected_id] = current_id
-                    open_leaves[connected_id] = possible_distance
+                    heappush(open_leaves, (possible_distance, connected_id))
 
         output_path = [current_id]
-        while predecessor[current_id] is not None:
+        while predecessor[current_id] != -1:
             current_id = predecessor[current_id]
             output_path.append(current_id)
 
@@ -296,7 +333,7 @@ class Graph:
 
 class GeoGraph:
     def __init__(
-        self, graph: list[dict], nodes: list[list[float | int]]
+        self, graph: list[dict[int, int | float]], nodes: list[list[float | int]]
     ) -> None:
         """
         Function:
@@ -307,73 +344,25 @@ class GeoGraph:
 
         - `graph`
             - Type: list of dictionaries
-            - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and distances
-            - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
-            - EG:
-            ```
-                [
-                    # From London
-                    {
-                        # To Paris
-                        1: 311,
-                    },
-                    # From Paris
-                    {
-                        # To London
-                        0: 311,
-                        # To Berlin
-                        2: 878,
-                        # To Rome
-                        3: 1439,
-                        # To Madrid
-                        4: 1053
-                    },
-                    # From Berlin
-                    {
-                        # To Paris
-                        1: 878,
-                        # To Rome
-                        3: 1181,
-                    },
-                    # From Rome
-                    {
-                        # To Paris
-                        1: 1439,
-                        # To Berlin
-                        2: 1181,
-                    },
-                    # From Madrid
-                    {
-                        # To Paris
-                        1: 1053,
-                        # To Lisbon
-                        5: 623
-                    },
-                    # From Lisbon
-                    {
-                        # To Madrid
-                        4: 623
-                    }
-                ]
-            ```
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
         - `nodes`
             - Type: list of lists of ints or floats
             - What: A list of lists where the values are coordinates (latitude then longitude)
             - Note: The length of the nodes list must be the same as that of the graph list
-            - EG:
+            - EG Continuing off the example from https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
             ```
                 [
-                    # London
+                    # London (index 0)
                     [51.5074, 0.1278],
-                    # Paris
+                    # Paris (index 1)
                     [48.8566, 2.3522],
-                    # Berlin
+                    # Berlin (index 2)
                     [52.5200, 13.4050],
-                    # Rome
+                    # Rome (index 3)
                     [41.9028, 12.4964],
-                    # Madrid
+                    # Madrid (index 4)
                     [40.4168, 3.7038],
-                    # Lisbon
+                    # Lisbon (index 5)
                     [38.7223, 9.1393]
                 ]
             ```
@@ -509,7 +498,7 @@ class GeoGraph:
                 - 'Graph.dijkstra_makowski': A modified dijkstra algorithm that uses a sparse distance matrix to identify the shortest path
                 - Any user defined algorithm that takes the arguments:
                     - `graph`: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
-                        - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+                        - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
         - `off_graph_circuity`
