@@ -20,7 +20,7 @@ gridGraph = GridGraph(
 )
 if print_timings:
     print(
-        f"GridGraph Creation Time: {time() - graph_creating_start_time:.6f} seconds"
+        f"GridGraph Creation Time: {(time() - graph_creating_start_time)*1000:.6f} ms"
     )
 
 first_shortest_path_start_time = time()
@@ -33,7 +33,7 @@ output = gridGraph.get_shortest_path(
 )
 if print_timings:
     print(
-        f"GridGraph First Shortest Path Time: {time() - first_shortest_path_start_time:.6f} seconds"
+        f"GridGraph First Shortest Path Time: {(time() - first_shortest_path_start_time)*1000:.6f} ms"
     )
 
 # Export the graph to a file
@@ -42,14 +42,14 @@ gridGraph.export_object(
     filename="/tmp/export",
 )
 if print_timings:
-    print(f"GridGraph Export Time: {time() - export_start_time:.6f} seconds")
+    print(f"GridGraph Export Time: {(time() - export_start_time)*1000:.6f} ms")
 
 import_start_time = time()
 new_gridGraph = GridGraph.import_object(
     filename="/tmp/export",
 )
 if print_timings:
-    print(f"GridGraph Import Time: {time() - import_start_time:.6f} seconds")
+    print(f"GridGraph Import Time: {(time() - import_start_time)*1000:.6f} ms")
 
 imported_shortest_path_start_time = time()
 output = new_gridGraph.get_shortest_path(
@@ -60,7 +60,7 @@ output = new_gridGraph.get_shortest_path(
 imported_shortest_path_time = time() - imported_shortest_path_start_time
 if print_timings:
     print(
-        f"GridGraph Imported Shortest Path Time: {imported_shortest_path_time:.6f} seconds"
+        f"GridGraph Imported Shortest Path Time: {(imported_shortest_path_time)*1000:.6f} ms"
     )
 
 success = True

@@ -40,20 +40,15 @@ class SpanningTree:
         # Input Validation
         assert isinstance(node_id, int), "node_id must be an integer"
         assert 0 <= node_id < len(graph), "node_id must be a valid node id"
+        # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
-        open_leaves = {}
-        predecessor = [-1] * len(graph)
-        visited = [0] * len(graph)
-
         distance_matrix[node_id] = 0
         open_leaves = []
         heappush(open_leaves, (0, node_id))
+        predecessor = [-1] * len(graph)
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
-            if visited[current_id]:
-                continue
-            visited[current_id] = True
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
@@ -68,7 +63,7 @@ class SpanningTree:
         }
 
     @staticmethod
-    def get_path(origin_id: int, destionation_id: int, spanning_tree: dict):
+    def get_path(origin_id: int, destination_id: int, spanning_tree: dict):
         """
         Function:
 
@@ -78,10 +73,10 @@ class SpanningTree:
 
         Required Arguments:
 
-        - `origin_idx`
+        - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
-        - `destination_idx`
+        - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
         - `spanning_tree`
@@ -93,7 +88,7 @@ class SpanningTree:
         - None
         """
         spanning_id = spanning_tree["node_id"]
-        destination_distance = spanning_tree["distance_matrix"][destionation_id]
+        destination_distance = spanning_tree["distance_matrix"][destination_id]
         origin_distance = spanning_tree["distance_matrix"][origin_id]
 
         if destination_distance == float("inf") or origin_distance == float(
@@ -102,24 +97,24 @@ class SpanningTree:
             raise Exception(
                 "Something went wrong: One or both of the origin and destination nodes are not connected to this spanning tree."
             )
-
-        origin_to_spanning_id = []
-        current_id = origin_id
+        
+        if spanning_id != origin_id and spanning_id != destination_id:
+            raise Exception(
+                "Something went wrong: Neither the origin nor the destination node is the same as the spanning node."
+            )
+        
+        current_id = origin_id if spanning_id != origin_id else destination_id
+        current_path = []
         while current_id != spanning_id:
-            origin_to_spanning_id.append(current_id)
+            current_path.append(current_id)
             current_id = spanning_tree["predecessors"][current_id]
-
-        destination_to_spanning_id = []
-        current_id = destionation_id
-        while current_id != spanning_id:
-            destination_to_spanning_id.append(current_id)
-            current_id = spanning_tree["predecessors"][current_id]
-        # Reverse the destination path to get the correct order
-        destination_to_spanning_id.reverse()
-
+        current_path.append(spanning_id)
+        if spanning_id == origin_id:
+            current_path.reverse()
+            current_length = spanning_tree["distance_matrix"][destination_id]
+        else:
+            current_length = spanning_tree["distance_matrix"][origin_id]
         return {
-            "path": origin_to_spanning_id
-            + [spanning_id]
-            + destination_to_spanning_id,
-            "length": hard_round(4, origin_distance + destination_distance),
+            "path": current_path,
+            "length": hard_round(4, current_length),
         }

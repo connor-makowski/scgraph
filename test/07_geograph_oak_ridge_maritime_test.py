@@ -16,7 +16,7 @@ def validate(name, realized, expected):
 def time_test(name, thunk):
     start = time.time()
     thunk()
-    print(f"{name}: {round(time.time()-start, 4)}s")
+    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
 
 
 print("\n===============\nOak Ridge GeoGraph Tests:\n===============")

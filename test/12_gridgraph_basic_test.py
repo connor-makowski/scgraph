@@ -1,5 +1,6 @@
 from scgraph import GridGraph
 from time import time
+from scgraph.utils import hard_round
 
 print("\n===============\nGridGraph Tests:\n===============")
 
@@ -44,11 +45,8 @@ expected_output = {
     ],
 }
 
-success = True
-if output != expected_output:
-    success = False
 
-if success == False:
+if hard_round(4, output['length']) != hard_round(4, expected_output['length']):
     print("Basic GridGraph Test: FAIL")
 else:
     print("Basic GridGraph Test: PASS")

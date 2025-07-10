@@ -1,5 +1,6 @@
 import time
 from scgraph import Graph
+from scgraph.spanning import SpanningTree
 
 
 def validate(name, realized, expected):
@@ -42,4 +43,19 @@ validate(
         graph=graph, origin_id=0, destination_id=5
     ),
     expected=expected,
+)
+
+validate(
+    name="A*-Makowski",
+    realized=Graph.a_star_makowski(graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0),
+    expected=expected,
+)
+
+spanning_tree = SpanningTree.makowskis_spanning_tree(graph=graph, node_id=0)
+validate(
+    name="Spanning Tree",
+    realized = SpanningTree.get_path(
+        origin_id=0, destination_id=5, spanning_tree=spanning_tree
+    ),
+    expected=expected
 )

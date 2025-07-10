@@ -31,6 +31,7 @@ class CacheGraph:
         destination_id: int,
         cache: bool = True,
         cache_for: str = "origin",
+        heuristic_fn = None,
     ):
         """
         Function:
@@ -50,6 +51,13 @@ class CacheGraph:
         - cache_for: Whether to cache the spanning tree for the origin or destination node
             - Default: 'origin'
             - Options: 'origin', 'destination'
+        - heuristic_fn: A heuristic function to use for the A* algorithm if cache is False and the origin or destination node is not in the cache
+            - Type: callable | None
+            - If None, the A* function will compute with Dijkstra's algorithm instead
+            - If a callable is provided, it should take two arguments: origin_id and destination_id
+              and return a float representing the heuristic distance between the two nodes
+              - Note: This distance should never be greater than the actual distance between the two nodes or you may get suboptimal paths
+
 
         """
         spanning_tree = self.cache.get(
@@ -68,11 +76,12 @@ class CacheGraph:
         if spanning_tree is not None:
             return SpanningTree.get_path(
                 origin_id=origin_id,
-                destionation_id=destination_id,
+                destination_id=destination_id,
                 spanning_tree=spanning_tree,
             )
-        return Graph.dijkstra_makowski(
+        return Graph.a_star_makowski(
             graph=self.graph,
             origin_id=origin_id,
             destination_id=destination_id,
+            heuristic_fn=heuristic_fn,
         )

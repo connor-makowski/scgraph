@@ -15,7 +15,7 @@ def validate(name, realized, expected):
 def time_test(name, thunk):
     start = time.time()
     thunk()
-    print(f"{name}: {round(time.time()-start, 4)}s")
+    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
 
 
 def gen_graph(size, avg_connections=10):
@@ -46,5 +46,11 @@ for size in [100, 1000, 10000]:
         f"Dijkstra-Makowski ({size})",
         pamda.thunkify(Graph.dijkstra_makowski)(
             graph=graph, origin_id=0, destination_id=size - 1
+        ),
+    )
+    time_test(
+        f"A*-Makowski ({size})",
+        pamda.thunkify(Graph.a_star_makowski)(
+            graph=graph, origin_id=0, destination_id=size - 1, heuristic_fn=lambda x, y: 0
         ),
     )
