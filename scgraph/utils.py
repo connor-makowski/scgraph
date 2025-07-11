@@ -1,5 +1,15 @@
 import math, json
 
+# Constants for haversine and cheap ruler calculations
+earth_radius = {
+    "km": 6371,
+    "m": 6371000,
+    "mi": 3959,
+    "ft": 3959 * 5280,
+}
+radians_per_degree = math.pi / 180  # radians per degree
+cheap_e2 = (1 / 298.257223563) * (2 - (1 / 298.257223563))
+
 
 def haversine(
     origin: list[float | int],
@@ -33,40 +43,91 @@ def haversine(
         - Default: 1
 
     """
-    try:
-        # convert decimal degrees to radians
-        lon1, lat1, lon2, lat2 = map(
-            math.radians,
-            [
-                origin[1],
-                origin[0],
-                destination[1],
-                destination[0],
-            ],
-        )
-        # haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = (
-            math.sin(dlat / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        )
-        c = 2 * math.asin(a**0.5)
-        # Set the radius of earth based on the units specified
-        if units == "km":
-            radius = 6371
-        elif units == "m":
-            radius = 6371000
-        elif units == "mi":
-            radius = 3959
-        elif units == "ft":
-            radius = 3959 * 5280
-        else:
-            raise ValueError('Units must be one of "km", "m", "mi", or "ft"')
-        return c * radius * circuity
-    except:
-        print(origin, destination)
-        raise Exception()
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(
+        math.radians,
+        [
+            origin[1],
+            origin[0],
+            destination[1],
+            destination[0],
+        ],
+    )
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    )
+    c = 2 * math.asin(a**0.5)
+    # Set the radius of earth based on the units specified
+    radius = earth_radius.get(units, 6371)  # Default to kilometers if not specified or invalid
+    return c * radius * circuity
+    
+def cheap_ruler(origin, destination, units='km', circuity=1):
+    """
+    Function:
+
+    Calculates a fast approximate distance between two lat/lon points using Mapbox's "cheap ruler" method.
+
+    Note: In general, this method is considered faster than the haversine formula, but less accurate, especially near the poles and for long distances.
+    For this implementation, it tests slower than haversine, but it seems like there might be some room for optimization.
+
+    Required Arguments
+    - `origin`
+        - Type: list of two floats | ints
+        - What: The origin point as a list of "latitude" and "longitude"
+    - `destination`
+        - Type: list of two floats | ints
+        - What: The destination point as a list of "latitude" and "longitude"
+        
+    Optional Arguments
+
+    - `units`
+        - Type: str
+        - What: units to return the distance in? (one of "km", "m", "mi", or "ft")
+        - Default: "km"
+        origin: [lat, lon] in degrees
+        destination: [lat, lon] in degrees
+        units: 'km', 'm', 'mi', or 'ft'
+    - `circuity`
+        - Type: int | float
+        - What: Multiplier to increase the calculated distance (to account for circuity)
+        - Default: 1
+        - Note: Consider using this as less than 1 when you are writing a heuristic function for 
+            A* as this method can overestimate distances, especially near the Earth's poles.
+
+    Returns:
+        Distance in the specified units
+    """
+
+    # Constants
+    radius = earth_radius.get(units, 6371)  # Default to kilometers if not specified
+    lat1, lon1 = origin
+    lat2, lon2 = destination
+    # Get the adjusted longitude difference
+    lon_diff = abs(lon2 - lon1)
+    lon_diff = min(360-lon_diff, lon_diff)
+        
+
+    # Midpoint latitude in radians
+    mid_lat = (lat1 + lat2) / 2 * radians_per_degree
+    cos_lat = math.cos(mid_lat)
+
+    # Radius adjustments
+    w_squared = 1 / (1 - cheap_e2 * (1 - cos_lat ** 2))
+    w = w_squared ** 0.5
+
+    # Meters per degree at this latitude (scaled for km)
+    m = radians_per_degree * radius
+    kx = m * w * cos_lat
+    ky = m * w * w_squared * (1 - cheap_e2)
+
+    dx = (lon_diff) * kx
+    dy = (lat2 - lat1) * ky
+
+    return (dx**2 + dy**2)**0.5 * circuity
 
 
 def hard_round(decimal_places: int, a: [float | int]):

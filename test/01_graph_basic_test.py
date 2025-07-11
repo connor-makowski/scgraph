@@ -47,7 +47,7 @@ validate(
 
 validate(
     name="A*-Makowski",
-    realized=Graph.a_star_makowski(graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0),
+    realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0),
     expected=expected,
 )
 

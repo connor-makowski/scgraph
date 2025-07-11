@@ -102,7 +102,7 @@ class GridGraph:
             self.conn_data = conn_data
 
         self.graph = self.__create_graph__()
-        self.locations = [self.__get_x_y__(idx) for idx in range(len(self.graph))]
+        self.nodes = [self.__get_x_y__(idx) for idx in range(len(self.graph))]
         self.cacheGraph = CacheGraph(self.graph)
 
     def __get_idx__(self, x: int, y: int):
@@ -315,8 +315,8 @@ class GridGraph:
             - Type: float
             - What: The Euclidean distance between the two nodes
         """
-        origin_location = self.locations[origin_id]
-        destination_location = self.locations[destination_id]
+        origin_location = self.nodes[origin_id]
+        destination_location = self.nodes[destination_id]
         return ((origin_location[0] - destination_location[0]) ** 2 + (origin_location[1] - destination_location[1]) ** 2) ** 0.5
 
     def get_shortest_path(

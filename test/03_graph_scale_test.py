@@ -50,7 +50,7 @@ for size in [100, 1000, 10000]:
     )
     time_test(
         f"A*-Makowski ({size})",
-        pamda.thunkify(Graph.a_star_makowski)(
+        pamda.thunkify(Graph.a_star)(
             graph=graph, origin_id=0, destination_id=size - 1, heuristic_fn=lambda x, y: 0
         ),
     )

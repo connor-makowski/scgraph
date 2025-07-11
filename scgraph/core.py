@@ -1,4 +1,4 @@
-from .utils import haversine, distance_converter, get_line_path
+from .utils import haversine, distance_converter, get_line_path, cheap_ruler
 import json
 from heapq import heappop, heappush
 
@@ -332,9 +332,8 @@ class Graph:
             "length": distance_matrix[destination_id],
         }
     
-
     @staticmethod
-    def a_star_makowski(
+    def a_star(
         graph: list[dict[int, int | float]], origin_id: int, destination_id: int, heuristic_fn = None
     ) -> dict:
         """
@@ -527,12 +526,38 @@ class GeoGraph:
             ]
         ), "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
 
+    def haversine(
+            self,
+            origin_id: int,
+            destination_id: int,
+    ):
+        return haversine(
+            origin = self.nodes[origin_id],
+            destination= self.nodes[destination_id],
+            units="km",
+            circuity=1,
+        )
+    
+    def cheap_ruler(
+            self,
+            origin_id: int,
+            destination_id: int,
+    ):
+        return cheap_ruler(
+            origin=self.nodes[origin_id],
+            destination=self.nodes[destination_id],
+            units="km",
+            # Use a circuity factor of 0.95 to account for the fact that cheap_ruler can overestimate distances
+            circuity=.9,
+        )
+
     def get_shortest_path(
         self,
         origin_node: dict[float | int],
         destination_node: dict[float | int],
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
+        algorithm_kwargs: dict = dict(),
         off_graph_circuity: [float | int] = 1,
         node_addition_type: str = "quadrant",
         node_addition_circuity: [float | int] = 4,
@@ -585,6 +610,9 @@ class GeoGraph:
                         - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
+        - `algorithm_kwargs`
+            - Type: dict
+            - What: Additional keyword arguments to pass to the algorithm function assuming it accepts them
         - `off_graph_circuity`
             - Type: int | float
             - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
@@ -674,12 +702,12 @@ class GeoGraph:
             lat_lon_bound=node_addition_lat_lon_bound,
             node_addition_math=node_addition_math,
         )
-
         try:
             output = algorithm_fn(
                 graph=self.graph,
                 origin_id=origin_id,
                 destination_id=destination_id,
+                **algorithm_kwargs,
             )
             output["coordinate_path"] = self.get_coordinate_path(output["path"])
             output["length"] = self.adujust_circuity_length(

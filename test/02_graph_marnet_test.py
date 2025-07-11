@@ -6,10 +6,11 @@ from scgraph.geographs.marnet import graph as marnet_graph
 
 
 def validate(name, realized, expected):
+    # Custom lenth rounding for floating point precision issues
+    if isinstance(realized, dict):
+        if "length" in realized:
+            realized["length"] = hard_round(4, realized["length"])
     if realized == expected:
-        if isinstance(realized, dict):
-            if "length" in realized:
-                realized["length"] = hard_round(4, realized["length"])
         print(f"{name}: PASS")
     else:
         print(f"{name}: FAIL")
@@ -51,7 +52,7 @@ validate(
 
 validate(
     name="A*-Makowski",
-    realized=Graph.a_star_makowski(graph=graph, origin_id=0, destination_id=5),
+    realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5),
     expected=expected,
 )
 
@@ -102,19 +103,19 @@ time_test(
 
 time_test(
     "A*-Makowski 1",
-    pamda.thunkify(Graph.a_star_makowski)(
+    pamda.thunkify(Graph.a_star)(
         graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
     ),
 )
 time_test(
     "A*-Makowski 2",
-    pamda.thunkify(Graph.a_star_makowski)(
+    pamda.thunkify(Graph.a_star)(
         graph=graph, origin_id=100, destination_id=7999, heuristic_fn=lambda x, y: 0
     ),
 )
 time_test(
     "A*-Makowski 3",
-    pamda.thunkify(Graph.a_star_makowski)(
+    pamda.thunkify(Graph.a_star)(
         graph=graph, origin_id=4022, destination_id=8342, heuristic_fn=lambda x, y: 0
     ),
 )

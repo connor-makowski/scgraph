@@ -79,7 +79,7 @@ class CacheGraph:
                 destination_id=destination_id,
                 spanning_tree=spanning_tree,
             )
-        return Graph.a_star_makowski(
+        return Graph.a_star(
             graph=self.graph,
             origin_id=origin_id,
             destination_id=destination_id,

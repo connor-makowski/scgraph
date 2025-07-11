@@ -18,35 +18,30 @@ gridGraph = GridGraph(
     add_exterior_walls=True,
 )
 
+# Since heuristic_fn is not specified, the gridGraph will default to using Dijkstra-Makowski
 output = gridGraph.get_shortest_path(
     origin_node={"x": 1, "y": 8},
     destination_node={"x": 8, "y": 8},
     output_coordinate_path="list_of_lists",
 )
 
-expected_output = {
-    "length": 16.071,
-    "coordinate_path": [
-        [1, 8],
-        [2, 7],
-        [3, 6],
-        [3, 5],
-        [4, 4],
-        [4, 3],
-        [4, 2],
-        [5, 2],
-        [6, 2],
-        [6, 3],
-        [6, 4],
-        [6, 5],
-        [6, 6],
-        [7, 7],
-        [8, 8],
-    ],
-}
+# Specify a euclidean heuristic function to use the A*-Makowski algorithm
+output_a_star = gridGraph.get_shortest_path(
+    origin_node={"x": 1, "y": 8},
+    destination_node={"x": 8, "y": 8},
+    output_coordinate_path="list_of_lists",
+    heuristic_fn='euclidean',
+)
 
+expected_output = 16.071
 
-if hard_round(4, output['length']) != hard_round(4, expected_output['length']):
-    print("Basic GridGraph Test: FAIL")
-else:
+success = True
+if hard_round(4, output['length']) != expected_output:
+    success = False
+if hard_round(4, output_a_star['length']) != expected_output:
+    success = False
+
+if success:
     print("Basic GridGraph Test: PASS")
+else:
+    print("Basic GridGraph Test: FAIL")

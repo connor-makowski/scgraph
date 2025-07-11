@@ -73,6 +73,28 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="A*-Makowski-haversine",
+    realized=oak_ridge_maritime_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.haversine},
+    ),
+    expected=expected,
+)
+
+validate(
+    name="A*-Makowski-cheap_ruler",
+    realized=oak_ridge_maritime_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler},
+    ),
+    expected=expected,
+)
+
 print("\n===============\nOak Ridge GeoGraph Time Tests:\n===============")
 
 time_test(
@@ -105,7 +127,25 @@ def dijkstra_makowski():
         algorithm_fn=Graph.dijkstra_makowski,
     )
 
+def a_star_haversine():
+    oak_ridge_maritime_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.haversine},
+    )
+
+def a_star_cheap_ruler():
+    oak_ridge_maritime_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler},
+    )
+
 
 time_test("Dijkstra", dijkstra)
 time_test("Dijkstra-Makowski", dijkstra_makowski)
+time_test("A*-Makowski-haversine", a_star_haversine)
+time_test("A*-Makowski-cheap_ruler", a_star_cheap_ruler)
 # oak_ridge_maritime_geograph.save_as_geojson('oak_ridge_maritime.geojson')
