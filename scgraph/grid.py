@@ -1,5 +1,6 @@
 from scgraph.helpers.shape_mover_utils import ShapeMoverUtils
 from scgraph.cache import CacheGraph
+from typing import Literal
 
 
 class GridGraph:
@@ -101,6 +102,7 @@ class GridGraph:
             self.conn_data = conn_data
 
         self.graph = self.__create_graph__()
+        self.nodes = [self.__get_x_y__(idx) for idx in range(len(self.graph))]
         self.cacheGraph = CacheGraph(self.graph)
 
     def __get_idx__(self, x: int, y: int):
@@ -217,6 +219,12 @@ class GridGraph:
         Function:
 
         - Create a graph from the grid specifications
+
+        Returns:
+
+        - `graph`
+            - Type: list
+            - What: The adjacency list representation of the graph
         """
         ####################
         # Create a list of lists to hold all the possible connections in an easy to access/understand format
@@ -282,6 +290,34 @@ class GridGraph:
 
         return graph
 
+    def euclidean_heuristic(self, origin_id: int, destination_id: int) -> float:
+        """
+        Function:
+
+        - Calculate the Euclidean distance between two nodes in the grid graph
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node
+
+        Returns:
+
+        - `distance`
+            - Type: float
+            - What: The Euclidean distance between the two nodes
+        """
+        origin_location = self.nodes[origin_id]
+        destination_location = self.nodes[destination_id]
+        return (
+            (origin_location[0] - destination_location[0]) ** 2
+            + (origin_location[1] - destination_location[1]) ** 2
+        ) ** 0.5
+
     def get_shortest_path(
         self,
         origin_node: dict[str, int] | tuple[int, int] | list[int],
@@ -290,6 +326,7 @@ class GridGraph:
         cache: bool = False,
         cache_for: str = "origin",
         output_path: bool = False,
+        heuristic_fn: callable | Literal["euclidean"] | None = "euclidean",
         **kwargs,
     ) -> dict:
         """
@@ -336,6 +373,13 @@ class GridGraph:
             - Type: bool
             - What: Whether to output the path as a list of graph idxs (mostly for debugging purposes)
             - Default: False
+        - `heuristic_fn`
+            - Type: callable | Literal['euclidean'] | None
+            - What: A heuristic function to use for the A* algorithm if caching is False
+            - Default: 'euclidean' (A predefined heuristic function that calculates the Euclidean distance for this grid graph)
+            - If None, the A* algorithm will not be used and the Dijkstra's algorithm will be used instead
+            - If a callable is provided, it should take two arguments: origin_id and destination_id and return a float representing the heuristic distance between the two nodes
+                - Note: This distance should never be greater than the actual distance between the two nodes or you may get suboptimal paths
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
@@ -369,6 +413,11 @@ class GridGraph:
             destination_id=destination_id,
             cache=cache,
             cache_for=cache_for,
+            heuristic_fn=(
+                self.euclidean_heuristic
+                if heuristic_fn == "euclidean"
+                else heuristic_fn
+            ),
         )
         output["coordinate_path"] = self.get_coordinate_path(
             output["path"], output_coordinate_path

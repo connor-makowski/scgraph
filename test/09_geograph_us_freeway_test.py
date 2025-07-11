@@ -16,7 +16,7 @@ def validate(name, realized, expected):
 def time_test(name, thunk):
     start = time.time()
     thunk()
-    print(f"{name}: {round(time.time()-start, 4)}s")
+    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
 
 
 print("\n===============\nUS Freeway GeoGraph Tests:\n===============")
@@ -89,6 +89,28 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="A*-Makowski-haversine",
+    realized=us_freeway_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.haversine},
+    ),
+    expected=expected,
+)
+
+validate(
+    name="A*-Makowski-cheap_ruler",
+    realized=us_freeway_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.cheap_ruler},
+    ),
+    expected=expected,
+)
+
 print("\n===============\nUS Freeway GeoGraph Time Tests:\n===============")
 
 time_test(
@@ -121,7 +143,28 @@ def dijkstra_makowski():
     )
 
 
+def a_star_haversine():
+    us_freeway_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.haversine},
+    )
+
+
+def a_star_cheap_ruler():
+    us_freeway_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.a_star,
+        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.cheap_ruler},
+    )
+
+
 time_test("Dijkstra", dijkstra)
 time_test("Dijkstra-Makowski", dijkstra_makowski)
+time_test("A*-Makowski-haversine", a_star_haversine)
+time_test("A*-Makowski-cheap_ruler", a_star_cheap_ruler)
+
 
 # us_freeway_geograph.save_as_geojson('us_freeway_geograph.geojson')

@@ -27,6 +27,9 @@ Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
                 - Modified to support sparse network data structures
             - Makowski's Modified Sparse Dijkstra algorithm
                 - Modified for O(n) performance on particularly sparse networks
+            - A* algorithm (Extension of Makowski's Modified Sparse Dijkstra)
+                - Uses a heuristic function to improve performance on large graphs
+                    - Note: The heuristic function is optional and defaults to Dijkstra's algorithm
             - Possible future support for other algorithms
         - Distances:
             - Uses the [haversine formula](https://en.wikipedia.org/wiki/Haversine_formula) to calculate the distance between two points on earth
@@ -73,7 +76,8 @@ In this case, calculate the shortest maritime path between Shanghai, China and S
 # Use a maritime network geograph
 from scgraph.geographs.marnet import marnet_geograph
 
-# Get the shortest path between
+# Get the shortest maritime path between Shanghai, China and Savannah, Georgia, USA
+# Note: The origin and destination nodes can be any latitude / longitude pair
 output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23,"longitude": 121.47},
     destination_node={"latitude": 32.08,"longitude": -81.09},
@@ -178,11 +182,16 @@ Using `scgraph_data` geographs:
 - Note: Make sure to install the `scgraph_data` package before using these geographs
 ```py
 from scgraph_data.world_railways import world_railways_geograph
+from scgraph import Graph
 
 # Get the shortest path between Kalamazoo Michigan and Detroit Michigan by Train
 output = world_railways_geograph.get_shortest_path(
     origin_node={"latitude": 42.29,"longitude": -85.58},
-    destination_node={"latitude": 42.33,"longitude": -83.05}
+    destination_node={"latitude": 42.33,"longitude": -83.05},
+    # Optional: Use the A* algorithm
+    algorithm_fn=Graph.a_star,
+    # Optional: Pass the haversine function as the heuristic function to the A* algorithm
+    algorithm_kwargs={"heuristic_fn": world_railways_geograph.haversine},
 )
 ```
 

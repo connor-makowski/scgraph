@@ -1,4 +1,4 @@
-from .utils import haversine, hard_round, distance_converter, get_line_path
+from .utils import haversine, distance_converter, get_line_path, cheap_ruler
 import json
 from heapq import heappop, heappush
 
@@ -255,7 +255,7 @@ class Graph:
 
         return {
             "path": output_path,
-            "length": hard_round(4, distance_matrix[destination_id]),
+            "length": distance_matrix[destination_id],
         }
 
     @staticmethod
@@ -294,31 +294,31 @@ class Graph:
 
         - None
         """
+        # Input Validation
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
+        # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
+        distance_matrix[origin_id] = 0
         open_leaves = []
+        heappush(open_leaves, (0, origin_id))
         predecessor = [-1] * len(graph)
 
-        distance_matrix[origin_id] = 0
-        heappush(open_leaves, (0, origin_id))
-
-        while True:
-            if len(open_leaves) == 0:
-                raise Exception(
-                    "Something went wrong, the origin and destination nodes are not connected."
-                )
+        while open_leaves:
             current_distance, current_id = heappop(open_leaves)
             if current_id == destination_id:
                 break
-            current_distance = distance_matrix[current_id]
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
                     predecessor[connected_id] = current_id
                     heappush(open_leaves, (possible_distance, connected_id))
+        if current_id != destination_id:
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
 
         output_path = [current_id]
         while predecessor[current_id] != -1:
@@ -329,7 +329,95 @@ class Graph:
 
         return {
             "path": output_path,
-            "length": hard_round(4, distance_matrix[destination_id]),
+            "length": distance_matrix[destination_id],
+        }
+
+    @staticmethod
+    def a_star(
+        graph: list[dict[int, int | float]],
+        origin_id: int,
+        destination_id: int,
+        heuristic_fn=None,
+    ) -> dict:
+        """
+        Function:
+
+        - Identify the shortest path between two nodes in a sparse network graph using an A* extension of Makowski's modified Dijkstra algorithm
+        - Return a dictionary of various path information including:
+            - `id_path`: A list of node ids in the order they are visited
+            - `path`: A list of node dictionaries (lat + long) in the order they are visited
+
+        Required Arguments:
+
+        - `graph`:
+            - Type: list of dictionaries
+            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+        - `heuristic_fn`
+            - Type: function
+            - What: A heuristic function that takes two node ids and returns an estimated distance between them
+            - Note: If None, returns the shortest path using Makowski's modified Dijkstra algorithm
+            - Default: None
+
+        Optional Arguments:
+
+        - None
+        """
+        if heuristic_fn is None:
+            return Graph.dijkstra_makowski(
+                graph=graph,
+                origin_id=origin_id,
+                destination_id=destination_id,
+            )
+        # Input Validation
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
+        # Variable Initialization
+        distance_matrix = [float("inf")] * len(graph)
+        distance_matrix[origin_id] = 0
+        open_leaves = []
+        heappush(open_leaves, (0, origin_id))
+        predecessor = [-1] * len(graph)
+
+        while open_leaves:
+            current_id = heappop(open_leaves)[1]
+            if current_id == destination_id:
+                break
+            current_distance = distance_matrix[current_id]
+            for connected_id, connected_distance in graph[current_id].items():
+                possible_distance = current_distance + connected_distance
+                if possible_distance < distance_matrix[connected_id]:
+                    distance_matrix[connected_id] = possible_distance
+                    predecessor[connected_id] = current_id
+                    heappush(
+                        open_leaves,
+                        (
+                            possible_distance
+                            + heuristic_fn(connected_id, destination_id),
+                            connected_id,
+                        ),
+                    )
+        if current_id != destination_id:
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        output_path = [current_id]
+        while predecessor[current_id] != -1:
+            current_id = predecessor[current_id]
+            output_path.append(current_id)
+
+        output_path.reverse()
+
+        return {
+            "path": output_path,
+            "length": distance_matrix[destination_id],
         }
 
 
@@ -447,12 +535,38 @@ class GeoGraph:
             ]
         ), "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
 
+    def haversine(
+        self,
+        origin_id: int,
+        destination_id: int,
+    ):
+        return haversine(
+            origin=self.nodes[origin_id],
+            destination=self.nodes[destination_id],
+            units="km",
+            circuity=1,
+        )
+
+    def cheap_ruler(
+        self,
+        origin_id: int,
+        destination_id: int,
+    ):
+        return cheap_ruler(
+            origin=self.nodes[origin_id],
+            destination=self.nodes[destination_id],
+            units="km",
+            # Use a circuity factor of 0.95 to account for the fact that cheap_ruler can overestimate distances
+            circuity=0.9,
+        )
+
     def get_shortest_path(
         self,
         origin_node: dict[float | int],
         destination_node: dict[float | int],
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
+        algorithm_kwargs: dict = dict(),
         off_graph_circuity: [float | int] = 1,
         node_addition_type: str = "quadrant",
         node_addition_circuity: [float | int] = 4,
@@ -505,6 +619,9 @@ class GeoGraph:
                         - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
+        - `algorithm_kwargs`
+            - Type: dict
+            - What: Additional keyword arguments to pass to the algorithm function assuming it accepts them
         - `off_graph_circuity`
             - Type: int | float
             - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
@@ -594,12 +711,12 @@ class GeoGraph:
             lat_lon_bound=node_addition_lat_lon_bound,
             node_addition_math=node_addition_math,
         )
-
         try:
             output = algorithm_fn(
                 graph=self.graph,
                 origin_id=origin_id,
                 destination_id=destination_id,
+                **algorithm_kwargs,
             )
             output["coordinate_path"] = self.get_coordinate_path(output["path"])
             output["length"] = self.adujust_circuity_length(

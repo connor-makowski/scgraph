@@ -1,10 +1,15 @@
 import time
 from pamda import pamda
 from scgraph import Graph
+from scgraph.utils import hard_round
 from scgraph.geographs.marnet import graph as marnet_graph
 
 
 def validate(name, realized, expected):
+    # Custom lenth rounding for floating point precision issues
+    if isinstance(realized, dict):
+        if "length" in realized:
+            realized["length"] = hard_round(4, realized["length"])
     if realized == expected:
         print(f"{name}: PASS")
     else:
@@ -16,7 +21,7 @@ def validate(name, realized, expected):
 def time_test(name, thunk):
     start = time.time()
     thunk()
-    print(f"{name}: {round(time.time()-start, 4)}s")
+    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
 
 
 print("\n===============\nMarnet Graph Tests:\n===============")
@@ -42,6 +47,12 @@ validate(
     realized=Graph.dijkstra_makowski(
         graph=graph, origin_id=0, destination_id=5
     ),
+    expected=expected,
+)
+
+validate(
+    name="A*-Makowski",
+    realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5),
     expected=expected,
 )
 
@@ -87,5 +98,30 @@ time_test(
     "Dijkstra-Makowski 3",
     pamda.thunkify(Graph.dijkstra_makowski)(
         graph=graph, origin_id=4022, destination_id=8342
+    ),
+)
+
+time_test(
+    "A*-Makowski 1",
+    pamda.thunkify(Graph.a_star)(
+        graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
+    ),
+)
+time_test(
+    "A*-Makowski 2",
+    pamda.thunkify(Graph.a_star)(
+        graph=graph,
+        origin_id=100,
+        destination_id=7999,
+        heuristic_fn=lambda x, y: 0,
+    ),
+)
+time_test(
+    "A*-Makowski 3",
+    pamda.thunkify(Graph.a_star)(
+        graph=graph,
+        origin_id=4022,
+        destination_id=8342,
+        heuristic_fn=lambda x, y: 0,
     ),
 )
