@@ -339,7 +339,7 @@ class Graph:
         """
         Function:
 
-        - Identify the shortest path between two nodes in a sparse network graph using Makowski's modified A* algorithm
+        - Identify the shortest path between two nodes in a sparse network graph using an A* extension of Makowski's modified Dijkstra algorithm
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
             - `path`: A list of node dictionaries (lat + long) in the order they are visited
