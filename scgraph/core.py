@@ -331,10 +331,13 @@ class Graph:
             "path": output_path,
             "length": distance_matrix[destination_id],
         }
-    
+
     @staticmethod
     def a_star(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int, heuristic_fn = None
+        graph: list[dict[int, int | float]],
+        origin_id: int,
+        destination_id: int,
+        heuristic_fn=None,
     ) -> dict:
         """
         Function:
@@ -392,7 +395,14 @@ class Graph:
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
                     predecessor[connected_id] = current_id
-                    heappush(open_leaves, (possible_distance+heuristic_fn(connected_id, destination_id), connected_id))
+                    heappush(
+                        open_leaves,
+                        (
+                            possible_distance
+                            + heuristic_fn(connected_id, destination_id),
+                            connected_id,
+                        ),
+                    )
         if current_id != destination_id:
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -409,7 +419,6 @@ class Graph:
             "path": output_path,
             "length": distance_matrix[destination_id],
         }
-
 
 
 class GeoGraph:
@@ -527,28 +536,28 @@ class GeoGraph:
         ), "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
 
     def haversine(
-            self,
-            origin_id: int,
-            destination_id: int,
+        self,
+        origin_id: int,
+        destination_id: int,
     ):
         return haversine(
-            origin = self.nodes[origin_id],
-            destination= self.nodes[destination_id],
+            origin=self.nodes[origin_id],
+            destination=self.nodes[destination_id],
             units="km",
             circuity=1,
         )
-    
+
     def cheap_ruler(
-            self,
-            origin_id: int,
-            destination_id: int,
+        self,
+        origin_id: int,
+        destination_id: int,
     ):
         return cheap_ruler(
             origin=self.nodes[origin_id],
             destination=self.nodes[destination_id],
             units="km",
             # Use a circuity factor of 0.95 to account for the fact that cheap_ruler can overestimate distances
-            circuity=.9,
+            circuity=0.9,
         )
 
     def get_shortest_path(

@@ -79,7 +79,9 @@ validate(
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn=Graph.a_star,
-        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.haversine},
+        algorithm_kwargs={
+            "heuristic_fn": oak_ridge_maritime_geograph.haversine
+        },
     ),
     expected=expected,
 )
@@ -90,7 +92,9 @@ validate(
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn=Graph.a_star,
-        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler},
+        algorithm_kwargs={
+            "heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler
+        },
     ),
     expected=expected,
 )
@@ -127,20 +131,26 @@ def dijkstra_makowski():
         algorithm_fn=Graph.dijkstra_makowski,
     )
 
+
 def a_star_haversine():
     oak_ridge_maritime_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn=Graph.a_star,
-        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.haversine},
+        algorithm_kwargs={
+            "heuristic_fn": oak_ridge_maritime_geograph.haversine
+        },
     )
+
 
 def a_star_cheap_ruler():
     oak_ridge_maritime_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn=Graph.a_star,
-        algorithm_kwargs={"heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler},
+        algorithm_kwargs={
+            "heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler
+        },
     )
 
 

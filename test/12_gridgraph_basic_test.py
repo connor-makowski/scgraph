@@ -30,15 +30,15 @@ output_a_star = gridGraph.get_shortest_path(
     origin_node={"x": 1, "y": 8},
     destination_node={"x": 8, "y": 8},
     output_coordinate_path="list_of_lists",
-    heuristic_fn='euclidean',
+    heuristic_fn="euclidean",
 )
 
 expected_output = 16.071
 
 success = True
-if hard_round(4, output['length']) != expected_output:
+if hard_round(4, output["length"]) != expected_output:
     success = False
-if hard_round(4, output_a_star['length']) != expected_output:
+if hard_round(4, output_a_star["length"]) != expected_output:
     success = False
 
 if success:

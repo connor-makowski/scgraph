@@ -97,12 +97,12 @@ class SpanningTree:
             raise Exception(
                 "Something went wrong: One or both of the origin and destination nodes are not connected to this spanning tree."
             )
-        
+
         if spanning_id != origin_id and spanning_id != destination_id:
             raise Exception(
                 "Something went wrong: Neither the origin nor the destination node is the same as the spanning node."
             )
-        
+
         current_id = origin_id if spanning_id != origin_id else destination_id
         current_path = []
         while current_id != spanning_id:

@@ -62,10 +62,13 @@ def haversine(
     )
     c = 2 * math.asin(a**0.5)
     # Set the radius of earth based on the units specified
-    radius = earth_radius.get(units, 6371)  # Default to kilometers if not specified or invalid
+    radius = earth_radius.get(
+        units, 6371
+    )  # Default to kilometers if not specified or invalid
     return c * radius * circuity
-    
-def cheap_ruler(origin, destination, units='km', circuity=1):
+
+
+def cheap_ruler(origin, destination, units="km", circuity=1):
     """
     Function:
 
@@ -81,7 +84,7 @@ def cheap_ruler(origin, destination, units='km', circuity=1):
     - `destination`
         - Type: list of two floats | ints
         - What: The destination point as a list of "latitude" and "longitude"
-        
+
     Optional Arguments
 
     - `units`
@@ -95,7 +98,7 @@ def cheap_ruler(origin, destination, units='km', circuity=1):
         - Type: int | float
         - What: Multiplier to increase the calculated distance (to account for circuity)
         - Default: 1
-        - Note: Consider using this as less than 1 when you are writing a heuristic function for 
+        - Note: Consider using this as less than 1 when you are writing a heuristic function for
             A* as this method can overestimate distances, especially near the Earth's poles.
 
     Returns:
@@ -103,21 +106,22 @@ def cheap_ruler(origin, destination, units='km', circuity=1):
     """
 
     # Constants
-    radius = earth_radius.get(units, 6371)  # Default to kilometers if not specified
+    radius = earth_radius.get(
+        units, 6371
+    )  # Default to kilometers if not specified
     lat1, lon1 = origin
     lat2, lon2 = destination
     # Get the adjusted longitude difference
     lon_diff = abs(lon2 - lon1)
-    lon_diff = min(360-lon_diff, lon_diff)
-        
+    lon_diff = min(360 - lon_diff, lon_diff)
 
     # Midpoint latitude in radians
     mid_lat = (lat1 + lat2) / 2 * radians_per_degree
     cos_lat = math.cos(mid_lat)
 
     # Radius adjustments
-    w_squared = 1 / (1 - cheap_e2 * (1 - cos_lat ** 2))
-    w = w_squared ** 0.5
+    w_squared = 1 / (1 - cheap_e2 * (1 - cos_lat**2))
+    w = w_squared**0.5
 
     # Meters per degree at this latitude (scaled for km)
     m = radians_per_degree * radius
@@ -127,7 +131,7 @@ def cheap_ruler(origin, destination, units='km', circuity=1):
     dx = (lon_diff) * kx
     dy = (lat2 - lat1) * ky
 
-    return (dx**2 + dy**2)**0.5 * circuity
+    return (dx**2 + dy**2) ** 0.5 * circuity
 
 
 def hard_round(decimal_places: int, a: [float | int]):

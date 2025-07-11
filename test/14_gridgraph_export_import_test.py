@@ -64,7 +64,9 @@ if print_timings:
     )
 
 success = True
-if imported_shortest_path_time > 0.001:  # liberal 1ms threshold - It normally clocks around 40µs
+if (
+    imported_shortest_path_time > 0.001
+):  # liberal 1ms threshold - It normally clocks around 40µs
     print(
         "Imported shortest path time is too long - Check if the graph was cached / imported correctly"
     )

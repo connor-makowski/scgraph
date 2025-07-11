@@ -142,6 +142,7 @@ def dijkstra_makowski():
         algorithm_fn=Graph.dijkstra_makowski,
     )
 
+
 def a_star_haversine():
     us_freeway_geograph.get_shortest_path(
         origin_node=origin_node,
@@ -149,6 +150,7 @@ def a_star_haversine():
         algorithm_fn=Graph.a_star,
         algorithm_kwargs={"heuristic_fn": us_freeway_geograph.haversine},
     )
+
 
 def a_star_cheap_ruler():
     us_freeway_geograph.get_shortest_path(

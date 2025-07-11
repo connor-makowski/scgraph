@@ -31,7 +31,7 @@ class CacheGraph:
         destination_id: int,
         cache: bool = True,
         cache_for: str = "origin",
-        heuristic_fn = None,
+        heuristic_fn=None,
     ):
         """
         Function:

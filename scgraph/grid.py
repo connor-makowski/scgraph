@@ -289,12 +289,8 @@ class GridGraph:
                 )
 
         return graph
-    
-    def euclidean_heuristic(
-        self,
-        origin_id: int,
-        destination_id: int
-    ) -> float:
+
+    def euclidean_heuristic(self, origin_id: int, destination_id: int) -> float:
         """
         Function:
 
@@ -317,7 +313,10 @@ class GridGraph:
         """
         origin_location = self.nodes[origin_id]
         destination_location = self.nodes[destination_id]
-        return ((origin_location[0] - destination_location[0]) ** 2 + (origin_location[1] - destination_location[1]) ** 2) ** 0.5
+        return (
+            (origin_location[0] - destination_location[0]) ** 2
+            + (origin_location[1] - destination_location[1]) ** 2
+        ) ** 0.5
 
     def get_shortest_path(
         self,
@@ -327,7 +326,7 @@ class GridGraph:
         cache: bool = False,
         cache_for: str = "origin",
         output_path: bool = False,
-        heuristic_fn: callable | Literal['euclidean'] | None = 'euclidean',
+        heuristic_fn: callable | Literal["euclidean"] | None = "euclidean",
         **kwargs,
     ) -> dict:
         """
@@ -414,7 +413,11 @@ class GridGraph:
             destination_id=destination_id,
             cache=cache,
             cache_for=cache_for,
-            heuristic_fn= self.euclidean_heuristic if heuristic_fn == "euclidean" else heuristic_fn,
+            heuristic_fn=(
+                self.euclidean_heuristic
+                if heuristic_fn == "euclidean"
+                else heuristic_fn
+            ),
         )
         output["coordinate_path"] = self.get_coordinate_path(
             output["path"], output_coordinate_path
