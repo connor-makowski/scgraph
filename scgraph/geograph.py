@@ -122,6 +122,24 @@ class GeoGraph:
         origin_id: int,
         destination_id: int,
     ):
+        """
+        Function:
+
+        - Calculate the haversine distance between two points on the Earth.
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node in the graph
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node in the graph
+        
+        Optional Arguments:
+
+        - None
+        """
         return haversine(
             origin=self.nodes[origin_id],
             destination=self.nodes[destination_id],
@@ -134,6 +152,26 @@ class GeoGraph:
         origin_id: int,
         destination_id: int,
     ):
+        """
+        Function:
+
+        - Calculate the distance between two points on the Earth using the cheap ruler algorithm.
+        - This is based off of Mapbox's cheap ruler algorithm which is a fast approximation of the haversine distance
+        - It has modifications to support distances across the antimeridian
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node in the graph
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node in the graph
+
+        Optional Arguments:
+
+        - None
+        """
         return cheap_ruler(
             origin=self.nodes[origin_id],
             destination=self.nodes[destination_id],
