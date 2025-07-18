@@ -35,10 +35,21 @@ output_a_star = gridGraph.get_shortest_path(
 
 expected_output = 16.071
 
+output_off_graph = gridGraph.get_shortest_path(
+    origin_node={"x": 1, "y": 1.1},
+    destination_node={"x": 1, "y": 2.3},
+    output_coordinate_path="list_of_lists",
+)
+# This is the distance to the closest adjacent node with connections from each off-graph node
+# So the expected path is [(1, 1.1),(1,1),(1,2),(1, 2.3)]
+expected_off_graph_output = 1.4
+
 success = True
 if hard_round(4, output["length"]) != expected_output:
     success = False
 if hard_round(4, output_a_star["length"]) != expected_output:
+    success = False
+if hard_round(4, output_off_graph["length"]) != 1.4:
     success = False
 
 if success:
