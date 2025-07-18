@@ -487,13 +487,15 @@ class GridGraph:
             output["path"], output_coordinate_path
         )
         if origin_distance > 0:
-            output["coordinate_path"] = [origin_node] + output[
-                "coordinate_path"
-            ]
+            output["coordinate_path"] = [
+                [origin_node["x"], origin_node["y"]]
+            ] + output["coordinate_path"]
             output["path"] = [-1] + output["path"]
             output["length"] += origin_distance
         if destination_distance > 0:
-            output["coordinate_path"].append(destination_node)
+            output["coordinate_path"].append(
+                [destination_node["x"], destination_node["y"]]
+            )
             output["path"].append(-1)
             output["length"] += destination_distance
         if not output_path:
