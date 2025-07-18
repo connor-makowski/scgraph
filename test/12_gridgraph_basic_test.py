@@ -42,16 +42,25 @@ output_off_graph = gridGraph.get_shortest_path(
 )
 # This is the distance to the closest adjacent node with connections from each off-graph node
 # So the expected path is [(1, 1.1),(1,1),(1,2),(1, 2.3)]
-expected_off_graph_output = {'length': 1.4, 'coordinate_path': [[1, 1.1], [1, 1], [1, 2], [1, 2.3]]}
+expected_off_graph_output = {
+    "length": 1.4,
+    "coordinate_path": [[1, 1.1], [1, 1], [1, 2], [1, 2.3]],
+}
 
 success = True
 if hard_round(4, output["length"]) != expected_output:
     success = False
 if hard_round(4, output_a_star["length"]) != expected_output:
     success = False
-if hard_round(4, output_off_graph["length"]) != expected_off_graph_output["length"]:
+if (
+    hard_round(4, output_off_graph["length"])
+    != expected_off_graph_output["length"]
+):
     success = False
-if output_off_graph["coordinate_path"] != expected_off_graph_output["coordinate_path"]:
+if (
+    output_off_graph["coordinate_path"]
+    != expected_off_graph_output["coordinate_path"]
+):
     success = False
 
 if success:
