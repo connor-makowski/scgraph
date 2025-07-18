@@ -339,7 +339,7 @@ class GeoGraph:
                 **algorithm_kwargs,
             )
             output["coordinate_path"] = self.get_coordinate_path(output["path"])
-            output["length"] = self.adujust_circuity_length(
+            output["length"] = self.adjust_circuity_length(
                 output=output,
                 node_addition_circuity=node_addition_circuity,
                 off_graph_circuity=off_graph_circuity,
@@ -369,7 +369,7 @@ class GeoGraph:
                 self.remove_appended_node()
             raise e
 
-    def adujust_circuity_length(
+    def adjust_circuity_length(
         self,
         output: dict,
         node_addition_circuity: [float | int],
