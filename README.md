@@ -25,9 +25,10 @@ Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
         - Algorithms:
             - Dijkstra's algorithm (Modified for sparse networks)
                 - Modified to support sparse network data structures
-            - Makowski's Modified Sparse Dijkstra algorithm
-                - Modified for O(n) performance on particularly sparse networks
-            - A* algorithm (Extension of Makowski's Modified Sparse Dijkstra)
+            - Modified Sparse Dijkstra algorithm
+                - Modified for O((n+m)log(n)) performance where n is the number of nodes and m is the number of edges
+                - Uses a priority queue to improve performance on large graphs
+            - A* algorithm (Extension of the Modified Sparse Dijkstra)
                 - Uses a heuristic function to improve performance on large graphs
                     - Note: The heuristic function is optional and defaults to Dijkstra's algorithm
             - Possible future support for other algorithms
