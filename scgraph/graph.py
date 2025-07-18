@@ -268,7 +268,7 @@ class Graph:
             - Improvements include only computing future potential nodes based on the open leaves for each branch
                 - Open leaves are nodes that have not been visited yet but are adjacent to other visited nodes
             - This can dramatically reduce the memory and compute requirements of the algorithm
-            - This algorithm should run close to O((n+m) log n) time 
+            - This algorithm should run close to O((n+m) log n) time
                 - Where n is the number of nodes in the graph and m is the number of edges in the graph
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
@@ -307,7 +307,9 @@ class Graph:
                 break
             # Technically, the next line is not necessary but can help with performance
             if current_distance == distance_matrix[current_id]:
-                for connected_id, connected_distance in graph[current_id].items():
+                for connected_id, connected_distance in graph[
+                    current_id
+                ].items():
                     possible_distance = current_distance + connected_distance
                     if possible_distance < distance_matrix[connected_id]:
                         distance_matrix[connected_id] = possible_distance
@@ -329,6 +331,7 @@ class Graph:
             "path": output_path,
             "length": distance_matrix[destination_id],
         }
+
     @staticmethod
     def cycle_check(predecessor_matrix, node_id):
         """
@@ -357,11 +360,16 @@ class Graph:
             if cycle_id == -1:
                 return
             if cycle_id == node_id:
-                raise Exception(f"Cycle detected in the graph at node {node_id}")
-    
+                raise Exception(
+                    f"Cycle detected in the graph at node {node_id}"
+                )
+
     @staticmethod
     def dijkstra_negative(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int, cycle_check_iterations: int | None = None
+        graph: list[dict[int, int | float]],
+        origin_id: int,
+        destination_id: int,
+        cycle_check_iterations: int | None = None,
     ) -> dict:
         """
         Function:
@@ -418,9 +426,13 @@ class Graph:
                 # Increment the cycle iteration counter and check for negative cycles if the iteration limit is reached
                 cycle_iteration += 1
                 if cycle_iteration >= cycle_check_iterations:
-                    cycle_iteration = 0 # Reset the cycle iteration counter
-                    Graph.cycle_check(predecessor_matrix=predecessor, node_id=current_id)
-                for connected_id, connected_distance in graph[current_id].items():
+                    cycle_iteration = 0  # Reset the cycle iteration counter
+                    Graph.cycle_check(
+                        predecessor_matrix=predecessor, node_id=current_id
+                    )
+                for connected_id, connected_distance in graph[
+                    current_id
+                ].items():
                     possible_distance = current_distance + connected_distance
                     if possible_distance < distance_matrix[connected_id]:
                         distance_matrix[connected_id] = possible_distance
@@ -493,7 +505,7 @@ class Graph:
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
         distance_matrix[origin_id] = 0
-        # Using a visited matrix does add a tad bit of overhead but avoids revisiting nodes 
+        # Using a visited matrix does add a tad bit of overhead but avoids revisiting nodes
         # and does not require anything extra to be stored in the heap
         visited = [0] * len(graph)
         open_leaves = []

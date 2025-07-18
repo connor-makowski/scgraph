@@ -3,6 +3,7 @@ import json
 
 from scgraph.graph import Graph
 
+
 class GeoGraph:
     def __init__(
         self,
@@ -135,7 +136,7 @@ class GeoGraph:
         - `destination_id`
             - Type: int
             - What: The id of the destination node in the graph
-        
+
         Optional Arguments:
 
         - None
@@ -408,6 +409,15 @@ class GeoGraph:
                 * (off_graph_circuity - node_addition_circuity),
                 4,
             )
+
+    def adujust_circuity_length(self, *args, **kwargs):
+        """
+        Maintain backwards compatibility with the old method that had a typo.
+
+        This is now just an alias for `adjust_circuity_length`.
+        """
+        # TODO: Remove in next major release
+        return self.adjust_circuity_length(*args, **kwargs)
 
     def get_coordinate_path(self, path: list[int]) -> list[dict[float | int]]:
         """

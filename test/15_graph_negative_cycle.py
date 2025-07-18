@@ -19,10 +19,7 @@ success = True
 
 try:
     Graph.dijkstra_negative(
-        graph=graph,
-        origin_id=0,
-        destination_id=1,
-        cycle_check_iterations=10
+        graph=graph, origin_id=0, destination_id=1, cycle_check_iterations=10
     )
 except:
     # print("An exception was raised when no negative cycle was expected.")
@@ -34,13 +31,12 @@ try:
         graph=graph_negative_cycle,
         origin_id=0,
         destination_id=1,
-        cycle_check_iterations=10
+        cycle_check_iterations=10,
     )
     # print("No exception was raised when a negative cycle was expected.")
     success = False
 except:
     pass
-
 
 
 if success == False:
