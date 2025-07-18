@@ -493,6 +493,9 @@ class Graph:
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
         distance_matrix[origin_id] = 0
+        # Using a visited matrix does add a tad bit of overhead but avoids revisiting nodes 
+        # and does not require anything extra to be stored in the heap
+        visited = [0] * len(graph)
         open_leaves = []
         heappush(open_leaves, (0, origin_id))
         predecessor = [-1] * len(graph)
@@ -501,6 +504,9 @@ class Graph:
             current_id = heappop(open_leaves)[1]
             if current_id == destination_id:
                 break
+            if visited[current_id] == 1:
+                continue
+            visited[current_id] = 1
             current_distance = distance_matrix[current_id]
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
