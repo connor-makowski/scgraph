@@ -318,10 +318,71 @@ class GridGraph:
             + (origin_location[1] - destination_location[1]) ** 2
         ) ** 0.5
 
+    def __get_closest_node_with_connections__(
+        self,
+        x: int | float,
+        y: int | float,
+    ):
+        """
+        Function:
+
+        - Get the closest node in the graph that has connections
+
+        Required Arguments:
+
+        - `x`
+            - Type: int | float
+            - What: The x coordinate of the node
+        - `y`
+            - Type: int | float
+            - What: The y coordinate of the node
+
+        Returns:
+
+        - `closest_node_id`
+            - Type: int
+            - What: The id of the closest node with connections
+        - `closest_distance`
+            - Type: float
+            - What: The distance to the closest node with connections
+        """
+        x = int(x) if int(x) == x else x
+        y = int(y) if int(y) == y else y
+        if isinstance(x, int) and isinstance(y, int):
+            return self.get_idx(x, y), 0.0
+        closest_node_id = None
+        closest_distance = float("inf")
+        for x_off, y_off in [(0, 0), (1, 0), (0, 1), (1, 1)]:
+            node_x = int(x) + x_off
+            node_y = int(y) + y_off
+            try:
+                node_id = self.get_idx(node_x, node_y)
+            except AssertionError:
+                continue
+            if self.graph[node_id] == {}:
+                continue
+            distance = ((node_x - x) ** 2 + (node_y - y) ** 2) ** 0.5
+            if distance < closest_distance:
+                closest_distance = distance
+                closest_node_id = node_id
+        if closest_node_id is None:
+            raise ValueError(
+                "No valid adjacent node with connections found for the given coordinates"
+            )
+        return closest_node_id, closest_distance
+
     def get_shortest_path(
         self,
-        origin_node: dict[str, int] | tuple[int, int] | list[int],
-        destination_node: dict[str, int] | tuple[int, int] | list[int],
+        origin_node: (
+            dict[Literal["x", "y"], int | float]
+            | tuple[int | float, int | float]
+            | list[int | float]
+        ),
+        destination_node: (
+            dict[Literal["x", "y"], int | float]
+            | tuple[int | float, int | float]
+            | list[int | float]
+        ),
         output_coordinate_path: str = "list_of_dicts",
         cache: bool = False,
         cache_for: str = "origin",
@@ -333,10 +394,14 @@ class GridGraph:
         Function:
 
         - Identify the shortest path between two nodes in a sparse network graph
+        - If an off graph origin and/or destination node is provided, it will find the closest adjacent node with connections
+          as the origin and/or destination node
+            - This is done to increase the likelihood that the pathfinding algorithm can find a valid path
+            - If no valid adjacent node is found, an error will be raised
 
         - Return a dictionary of various path information including:
-            - `id_path`: A list of graph ids in the order they are visited
-            - `path`: A list of dicts (x, y) in the order they are visited
+            - `path`: A list of graph ids in the order they are visited
+            - `coordinate_path`: A list of dicts (x, y) in the order they are visited
             - `length`: The length of the path
 
          Required Arguments:
@@ -391,13 +456,11 @@ class GridGraph:
                 "y": destination_node[1],
             }
 
-        origin_id = self.get_idx(
-            x=origin_node["x"],
-            y=origin_node["y"],
+        origin_id, origin_distance = self.__get_closest_node_with_connections__(
+            **origin_node
         )
-        destination_id = self.get_idx(
-            x=destination_node["x"],
-            y=destination_node["y"],
+        destination_id, destination_distance = (
+            self.__get_closest_node_with_connections__(**destination_node)
         )
 
         if self.graph[origin_id] == {}:
@@ -408,6 +471,7 @@ class GridGraph:
             raise ValueError(
                 "Destination node is not connected to any other nodes. This is likely caused by the destination node not being possible given a blocked cell or nearby blocked cell"
             )
+
         output = self.cacheGraph.get_shortest_path(
             origin_id=origin_id,
             destination_id=destination_id,
@@ -422,6 +486,16 @@ class GridGraph:
         output["coordinate_path"] = self.get_coordinate_path(
             output["path"], output_coordinate_path
         )
+        if origin_distance > 0:
+            output["coordinate_path"] = [origin_node] + output[
+                "coordinate_path"
+            ]
+            output["path"] = [-1] + output["path"]
+            output["length"] += origin_distance
+        if destination_distance > 0:
+            output["coordinate_path"].append(destination_node)
+            output["path"].append(-1)
+            output["length"] += destination_distance
         if not output_path:
             del output["path"]
         return output

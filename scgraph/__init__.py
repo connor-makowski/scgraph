@@ -26,9 +26,10 @@ Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
         - Algorithms:
             - Dijkstra's algorithm (Modified for sparse networks)
                 - Modified to support sparse network data structures
-            - Makowski's Modified Sparse Dijkstra algorithm
-                - Modified for O(n) performance on particularly sparse networks
-            - A* algorithm (Extension of Makowski's Modified Sparse Dijkstra)
+            - Modified Sparse Dijkstra algorithm
+                - Modified for O((n+m)log(n)) performance where n is the number of nodes and m is the number of edges
+                - Uses a priority queue to improve performance on large graphs
+            - A* algorithm (Extension of the Modified Sparse Dijkstra)
                 - Uses a heuristic function to improve performance on large graphs
                     - Note: The heuristic function is optional and defaults to Dijkstra's algorithm
             - Possible future support for other algorithms
@@ -364,7 +365,9 @@ Make sure Docker is installed and running on a Unix system (Linux, MacOS, WSL2).
 
 
 ## Attributions and Thanks
-Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package."""
+Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.
+"""
 
-from .core import Graph, GeoGraph
+from .graph import Graph
+from .geograph import GeoGraph
 from .grid import GridGraph

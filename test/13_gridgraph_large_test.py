@@ -22,7 +22,7 @@ print(
     f"{x_size}x{y_size} Graph Creation Time: ", graph_creation_time * 1000, "ms"
 )
 
-# Gridgraph test for A*-Makowski
+# Gridgraph test for A*
 a_star_output_start_time = time()
 a_star_output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": 10},
@@ -31,9 +31,9 @@ a_star_output = gridGraph.get_shortest_path(
     heuristic_fn="euclidean",
 )
 a_star_output_time = time() - a_star_output_start_time
-print("A*-Makowski Output Time: ", a_star_output_time * 1000, "ms")
+print("A* Output Time: ", a_star_output_time * 1000, "ms")
 
-# Gridgraph test for Dijkstra-Makowski
+# Gridgraph test for Dijkstra-Modified
 dijkstra_output_start_time = time()
 dijkstra_output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": 10},
@@ -42,7 +42,7 @@ dijkstra_output = gridGraph.get_shortest_path(
     heuristic_fn=None,
 )
 dijkstra_output_time = time() - dijkstra_output_start_time
-print("Dijkstra-Makowski Output Time: ", dijkstra_output_time * 1000, "ms")
+print("Dijkstra-Modified Output Time: ", dijkstra_output_time * 1000, "ms")
 
 # Standard GridGraph test poplating the initial cache for the origin node
 output_start_time = time()

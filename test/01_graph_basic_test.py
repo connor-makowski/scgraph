@@ -38,7 +38,7 @@ validate(
 )
 
 validate(
-    name="Dijkstra-Makowski",
+    name="Dijkstra-Modified",
     realized=Graph.dijkstra_makowski(
         graph=graph, origin_id=0, destination_id=5
     ),
@@ -46,7 +46,7 @@ validate(
 )
 
 validate(
-    name="A*-Makowski",
+    name="A*",
     realized=Graph.a_star(
         graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
     ),
