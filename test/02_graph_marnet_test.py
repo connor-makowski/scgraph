@@ -43,7 +43,7 @@ validate(
 )
 
 validate(
-    name="Dijkstra-Makowski",
+    name="Dijkstra-Modified",
     realized=Graph.dijkstra_makowski(
         graph=graph, origin_id=0, destination_id=5
     ),
@@ -51,7 +51,7 @@ validate(
 )
 
 validate(
-    name="A*-Makowski",
+    name="A*",
     realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5),
     expected=expected,
 )
@@ -83,32 +83,32 @@ time_test(
 )
 
 time_test(
-    "Dijkstra-Makowski 1",
+    "Dijkstra-Modified 1",
     pamda.thunkify(Graph.dijkstra_makowski)(
         graph=graph, origin_id=0, destination_id=5
     ),
 )
 time_test(
-    "Dijkstra-Makowski 2",
+    "Dijkstra-Modified 2",
     pamda.thunkify(Graph.dijkstra_makowski)(
         graph=graph, origin_id=100, destination_id=7999
     ),
 )
 time_test(
-    "Dijkstra-Makowski 3",
+    "Dijkstra-Modified 3",
     pamda.thunkify(Graph.dijkstra_makowski)(
         graph=graph, origin_id=4022, destination_id=8342
     ),
 )
 
 time_test(
-    "A*-Makowski 1",
+    "A* 1",
     pamda.thunkify(Graph.a_star)(
         graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
     ),
 )
 time_test(
-    "A*-Makowski 2",
+    "A* 2",
     pamda.thunkify(Graph.a_star)(
         graph=graph,
         origin_id=100,
@@ -117,7 +117,7 @@ time_test(
     ),
 )
 time_test(
-    "A*-Makowski 3",
+    "A* 3",
     pamda.thunkify(Graph.a_star)(
         graph=graph,
         origin_id=4022,

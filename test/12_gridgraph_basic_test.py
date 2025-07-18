@@ -18,14 +18,14 @@ gridGraph = GridGraph(
     add_exterior_walls=True,
 )
 
-# Since heuristic_fn is not specified, the gridGraph will default to using Dijkstra-Makowski
+# Since heuristic_fn is not specified, the gridGraph will default to using Dijkstra-Modified
 output = gridGraph.get_shortest_path(
     origin_node={"x": 1, "y": 8},
     destination_node={"x": 8, "y": 8},
     output_coordinate_path="list_of_lists",
 )
 
-# Specify a euclidean heuristic function to use the A*-Makowski algorithm
+# Specify a euclidean heuristic function to use the A* algorithm
 output_a_star = gridGraph.get_shortest_path(
     origin_node={"x": 1, "y": 8},
     destination_node={"x": 8, "y": 8},

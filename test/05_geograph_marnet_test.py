@@ -69,7 +69,7 @@ validate(
 )
 
 validate(
-    name="Dijkstra-Makowski",
+    name="Dijkstra-Modified",
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
@@ -79,7 +79,7 @@ validate(
 )
 
 validate(
-    name="A*-Makowski-haversine",
+    name="A*-haversine",
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
@@ -90,7 +90,7 @@ validate(
 )
 
 validate(
-    name="A*-Makowski-cheap_ruler",
+    name="A*-cheap_ruler",
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
@@ -149,8 +149,8 @@ def a_star_cheap_ruler():
 
 
 time_test("Dijkstra", dijkstra)
-time_test("Dijkstra-Makowski", dijkstra_makowski)
-time_test("A*-Makowski-haversine", a_star_haversine)
-time_test("A*-Makowski-cheap_ruler", a_star_cheap_ruler)
+time_test("Dijkstra-Modified", dijkstra_makowski)
+time_test("A*-haversine", a_star_haversine)
+time_test("A*-cheap_ruler", a_star_cheap_ruler)
 
 # marnet_geograph.save_as_geojson('marnet.geojson')
