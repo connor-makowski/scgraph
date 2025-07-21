@@ -370,6 +370,16 @@ class GridGraph:
                 "No valid adjacent node with connections found for the given coordinates"
             )
         return closest_node_id, closest_distance
+    
+    def format_coordinate(self, cooinate_dict, output_coorinate_path):
+        if output_coorinate_path == "list_of_tuples":
+            return (cooinate_dict["x"], cooinate_dict["y"])
+        elif output_coorinate_path == "list_of_lists":
+            return [cooinate_dict["x"], cooinate_dict["y"]]
+        elif output_coordinate_path == "list_of_dicts":
+            return {"x": cooinate_dict["x"], "y": cooinate_dict["y"]}
+        else:
+            raise ValueError("Invalid output_coordinate_path format")
 
     def get_shortest_path(
         self,
@@ -487,15 +497,11 @@ class GridGraph:
             output["path"], output_coordinate_path
         )
         if origin_distance > 0:
-            output["coordinate_path"] = [
-                [origin_node["x"], origin_node["y"]]
-            ] + output["coordinate_path"]
+            output["coordinate_path"] = [self.format_coordinate(origin_node, output_coordinate_path)] + output["coordinate_path"]
             output["path"] = [-1] + output["path"]
             output["length"] += origin_distance
         if destination_distance > 0:
-            output["coordinate_path"].append(
-                [destination_node["x"], destination_node["y"]]
-            )
+            output["coordinate_path"].append(self.format_coordinate(destination_node, output_coordinate_path))
             output["path"].append(-1)
             output["length"] += destination_distance
         if not output_path:
