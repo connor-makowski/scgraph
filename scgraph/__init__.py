@@ -18,34 +18,62 @@ Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
 
 ## Key Features
 
-- Calculate the shortest path between two points on earth using a latitude / longitude pair
-    - Inputs:
-        - A latitude / longitude pair for the origin
-        - A latitude / longitude pair for the destination
-    - Calculation:
-        - Algorithms:
-            - Dijkstra's algorithm (Modified for sparse networks)
-                - Modified to support sparse network data structures
-            - Modified Sparse Dijkstra algorithm
-                - Modified for O((n+m)log(n)) performance where n is the number of nodes and m is the number of edges
-                - Uses a priority queue to improve performance on large graphs
-            - A* algorithm (Extension of the Modified Sparse Dijkstra)
-                - Uses a heuristic function to improve performance on large graphs
-                    - Note: The heuristic function is optional and defaults to Dijkstra's algorithm
-            - Possible future support for other algorithms
-        - Distances:
-            - Uses the [haversine formula](https://en.wikipedia.org/wiki/Haversine_formula) to calculate the distance between two points on earth
-    - Returns:
-        - `path`:
-            - A list of dictionaries (`latitude` and `longitude`) that make up the shortest path
-        - `length`:
-            - The distance in kilometers between the two points
-- Antimeridian support
-- Arbitrary start and end points
-- Arbitrary network data sets
-- Grid based graphs
-- Cached shortest path calculations for very fast repetative calculations to or from the same point in a graph.
-    - Note: Geographs are not yet supported for this feature
+- `GeoGraph`s:
+    - A geographic graph data structure that allows for the calculation of shortest paths between two points on earth
+    - Uses latitude / longitude pairs to represent points on earth
+    - Supports maritime, rail, road and other geographic networks
+    - Uses a sparse network data structure to represent the graph
+    - How to use it - Calculate the shortest path between two points on earth
+        - Inputs:
+            - A latitude / longitude pair for the origin
+            - A latitude / longitude pair for the destination
+        - Calculation:
+            - Algorithms:
+                - Dijkstra's algorithm
+                    - Modified to support sparse network data structures
+                - Modified Dijkstra algorithm
+                    - Modified for O((n+m)log(n)) performance where n is the number of nodes and m is the number of edges
+                    - Uses a priority queue and other improvements to run fast on large graphs
+                - A* algorithm (Extension of the Modified Dijkstra)
+                    - Uses a heuristic function to improve performance on large graphs
+                - Possible future support for other algorithms
+        - Returns:
+            - `path`:
+                - A list of lists `[latitude, longitude]` that make up the shortest path
+            - `length`:
+                - The distance (in the units requested) between the two points
+    - Precompiled Geographs offer Antimeridian support
+    - Arbitrary start and end points are supported
+        - Start and end points do not need to be in the graph
+- `GridGraph`s:
+    - A grid based graph data structure that allows for the calculation of shortest paths between two points on a grid
+    - Supports arbitrary grid sizes and blockages
+    - Uses a sparse network data structure to represent the graph
+    - How to use it - Calculate the shortest path between two points on a grid
+        - Inputs:
+            - A (x,y) coordinate on the grid for the origin
+            - A (x,y) coordinate on the grid for the destination
+        - Calculation:
+            - Algorithms:
+                - Dijkstra's algorithm
+                - Modified Dijkstra algorithm
+                - A* algorithm (Extension of the Modified Dijkstra)
+        - Returns:
+            - `length`:
+                - The distance between the two points on the grid
+            - `coordinate_path`:
+                - A list of dicts `{"x": x, "y": y}` representing the path taken through the grid
+    - Arbitrary start and end points are supported
+        - Start and end points do not need to be in the graph
+    - Arbitrary connection matricies are supported
+        - Cardinal connections (up, down, left, right) and diagonal connections (up-left, up-right, down-left, down-right) are used by default
+        - Custom connection matricies can be used to change the connections between grid items
+    - Cached shortest path calculations can be used for very fast repetative calculations to or from the same point in a GridGraph.
+- Other Useful Features:
+    - Graph
+        - A low level graph object that has methods for validating graphs, calculating shortest paths, and more
+    - CacheGraphs
+        - A graph extension that caches spanning trees for fast shortest path calculations on repeat calls from the same origin node
 
 
 ## Setup
@@ -69,7 +97,7 @@ pip install scgraph
 
 # Getting Started
 
-## Basic Usage
+## Basic Geograph Usage
 
 Get the shortest path between two points on earth using a latitude / longitude pair
 In this case, calculate the shortest maritime path between Shanghai, China and Savannah, Georgia, USA.
@@ -88,7 +116,7 @@ output = marnet_geograph.get_shortest_path(
 print('Length: ',output['length']) #=> Length:  19596.4653
 ```
 
-In the above example, the `output` variable is a dictionary with three keys: `length` and `coordinate_path`.
+In the above example, the `output` variable is a dictionary with two keys: `length` and `coordinate_path`.
 
 - `length`: The distance between the passed origin and destination when traversing the graph along the shortest path
     - Notes:
@@ -138,10 +166,10 @@ For more examples including viewing the output on a map, see the [example notebo
 ## GridGraph usage
 
 Example:
-- Create a grid of 20x100 cells.
+- Create a grid of 20x20 cells.
     - This creates a grid based graph with connections to all 8 neighbors for each grid item.
     - Each grid item has 4 cardinal connections at length 1 and 4 diagonal connections at length sqrt(2)
-- Create a wall from (10,5) to (10,99).
+- Create a wall from (10,5) to (10,19).
     - This would foce any path to go to the bottom of the graph to get around the wall.
 - Get the shortest path between (2,10) and (18,10)
     - Note: The length of this path should be 16 without the wall and 20.9704 with the wall.
@@ -180,6 +208,8 @@ print(output)
 
 ## Advanced Usage
 
+### Using scgraph_data geographs
+
 Using `scgraph_data` geographs:
 - Note: Make sure to install the `scgraph_data` package before using these geographs
 ```py
@@ -197,6 +227,7 @@ output = world_railways_geograph.get_shortest_path(
 )
 ```
 
+### Using Geographs for Visualization
 Get a geojson line path of an output for easy visualization:
 - Note: `mapshaper.org` and `geojson.io` are good tools for visualizing geojson files
 ```py
@@ -212,6 +243,7 @@ output = marnet_geograph.get_shortest_path(
 get_line_path(output, filename='output.geojson')
 ```
 
+### Custom Graphs and Geographs
 Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
 
 
