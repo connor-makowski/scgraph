@@ -222,3 +222,22 @@ def get_line_path(output: [list, dict], filename=None):
         with open(filename, "w") as f:
             f.write(json.dumps(linestring))
     return linestring
+
+
+def print_console(*args, silent:bool=False, **kwargs):
+    """
+    Function:
+
+    - Print messages to the console if `silent` is False
+    - This is a utility function to standardize printing behavior across the codebase
+
+    Args:
+
+    - `*args`: Args to pass to the print function
+    - `silent`: Whether to suppress printing
+        - Default: False
+    - `**kwargs`: Additional keyword arguments to pass to the print function
+
+    """
+    if not silent:
+        print(*args, **kwargs)
