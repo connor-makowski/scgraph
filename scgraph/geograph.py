@@ -1,5 +1,6 @@
 from .utils import haversine, distance_converter, get_line_path, cheap_ruler
 import json
+from copy import deepcopy
 
 from scgraph.graph import Graph
 
@@ -188,13 +189,13 @@ class GeoGraph:
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
         algorithm_kwargs: dict = dict(),
-        off_graph_circuity: [float | int] = 1,
+        off_graph_circuity: float | int = 1,
         node_addition_type: str = "quadrant",
-        node_addition_circuity: [float | int] = 4,
+        node_addition_circuity: float | int = 4,
         geograph_units: str = "km",
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
-        node_addition_lat_lon_bound: [float | int] = 5,
+        node_addition_lat_lon_bound: float | int = 5,
         node_addition_math: str = "euclidean",
         **kwargs,
     ) -> dict:
@@ -373,9 +374,9 @@ class GeoGraph:
     def adjust_circuity_length(
         self,
         output: dict,
-        node_addition_circuity: [float | int],
-        off_graph_circuity: [float | int],
-    ) -> [float | int]:
+        node_addition_circuity: float | int,
+        off_graph_circuity: float | int,
+    ) -> float | int:
         """
         Function:
 
@@ -419,7 +420,7 @@ class GeoGraph:
         # TODO: Remove in next major release
         return self.adjust_circuity_length(*args, **kwargs)
 
-    def get_coordinate_path(self, path: list[int]) -> list[dict[float | int]]:
+    def get_coordinate_path(self, path: list[int]) -> list[list[float | int]]:
         """
         Function:
 
@@ -463,11 +464,11 @@ class GeoGraph:
     def get_node_distances(
         self,
         node: list,
-        circuity: [float | int],
+        circuity: float | int,
         node_addition_type: str,
         node_addition_math: str,
-        lat_lon_bound: [float | int],
-    ) -> dict[float | int]:
+        lat_lon_bound: float | int,
+    ) -> dict[int, float]:
         """
         Function:
 
@@ -567,11 +568,11 @@ class GeoGraph:
 
     def add_node(
         self,
-        node: dict[float | int],
-        circuity: [float | int],
+        node: dict[str, float | int],
+        circuity: float | int,
         node_addition_type: str = "quadrant",
         node_addition_math: str = "euclidean",
-        lat_lon_bound: [float | int] = 5,
+        lat_lon_bound: float | int = 5,
     ) -> int:
         """
         Function:
@@ -709,6 +710,113 @@ class GeoGraph:
         with open(filename, "w") as f:
             json.dump(out_dict, f)
 
+    def merge_with_other_geograph(
+        self,
+        other_geograph,
+        connection_nodes: list[list[int|float]],
+        circuity_to_current_geograph: float | int = 1.2,
+        circuity_to_other_geograph: float | int = 1.2,
+        node_addition_type_current_geograph: str = "closest",
+        node_addition_type_other_geograph: str = "closest",
+        node_addition_math: str = "euclidean",
+    ) -> None:
+        """
+        Function:
+
+        - Merge the current geograph with another geograph
+        - This is useful for combining multiple geographs into one
+        - This modifies the current geograph in place
+
+        Required Arguments:
+
+        - `other_geograph`
+            - Type: GeoGraph
+            - What: The other geograph to merge with
+        - `connection_nodes`
+            - Type: list of tuples
+            - What: A list of [latitude, longitude] pairs that represent the nodes to connect between the two geographs
+            - The only connections between the two graphs will be those specified in this list
+
+        Optional Arguments:
+
+        - `circuity_to_current_geograph`
+            - Type: int | float
+            - What: The circuity factor to apply to the distance calculations between the connection nodes and the current geograph
+            - Default: 1.2
+        - `circuity_to_other_geograph`
+            - Type: int | float
+            - What: The circuity factor to apply to the distance calculations between the connection nodes and the other geograph
+            - Default: 1.2
+        - `node_addition_type_current_geograph`
+            - Type: str
+            - What: The type of node addition to use when adding the connection nodes to the current geograph
+            - Default: 'closest'
+            - Options:
+                - 'closest': Add the closest node to the connection node in the current geograph
+                - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the connection node in the current geograph
+        - `node_addition_type_other_geograph`
+            - Type: str
+            - What: The type of node addition to use when adding the connection nodes to the other geograph
+            - Default: 'closest'
+            - Options:
+                - 'closest': Add the closest node to the connection node in the other geograph
+                - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the connection node in the other geograph
+        - `node_addition_math`
+            - Type: str
+            - What: The math to use when calculating the distance between nodes in determining which nodes to connect into when applying node addition
+            - Note: Haversine distance is used to calculate the distance between the added connection nodes and the existing nodes in the geographs once they are chosen
+            - Default: 'euclidean'
+            - Options:
+                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
+                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points
+        """
+        node_connection_mapper = {}
+        original_other_graph_length = len(other_geograph.graph)
+        for idx, node in enumerate(connection_nodes):
+            node_dict = {
+                "latitude": node[0],
+                "longitude": node[1],
+            }
+            # Add the connection node to the current geograph
+            new_node_id = self.add_node(
+                node=node_dict,
+                circuity=circuity_to_current_geograph,
+                node_addition_type=node_addition_type_current_geograph,
+                node_addition_math=node_addition_math,
+            )
+            # Add the connection node to the other geograph
+            other_node_id = other_geograph.add_node(
+                node=node_dict,
+                circuity=circuity_to_other_geograph,
+                node_addition_type=node_addition_type_other_geograph,
+                node_addition_math=node_addition_math,
+            )
+            node_connection_mapper[other_node_id] = new_node_id
+
+        # Store the modified other geograph graph that include the connection nodes
+        other_graph = deepcopy(other_geograph.graph)
+        # Add the other graph nodes to the current geograph (removing the connection nodes since they are already added to the current geograph)
+        self.nodes += deepcopy(other_geograph.nodes)[:original_other_graph_length]
+        
+        # Clean up the other geograph to remove any appended nodes
+        while len(other_geograph.graph) > original_other_graph_length:
+            other_geograph.remove_appended_node()
+
+        graph_length = len(self.graph)
+
+        # Create a list based connection map to map the merging nodes into the current graph
+        node_connection_map = [i + graph_length for i in range(len(other_graph))]
+        # Adjust the added nodes to match the nodes added to the current graph
+        for idx, node in node_connection_mapper.items():
+            node_connection_map[idx] = node
+
+        # Fill the current graph with empty dictionaries to match the length of the other graph
+        self.graph.extend([{} for _ in range(len(other_graph)-len(connection_nodes))])
+        # Populate the new connections
+        for origin_idx, destinations in enumerate(other_graph):
+            for destination_idx, distance in destinations.items():
+                self.graph[node_connection_map[origin_idx]][node_connection_map[destination_idx]] = distance
+
     def save_as_geograph(self, name: str) -> None:
         """
         Function:
@@ -766,7 +874,7 @@ class GeoGraph:
                 del self.graph[destination_idx][origin_idx]
 
     def mod_add_node(
-        self, latitude: [float | int], longitude: [float | int]
+        self, latitude: float | int, longitude: float | int
     ) -> int:
         """
         Function:
@@ -967,7 +1075,7 @@ def load_geojson_as_geograph(geojson_filename: str) -> GeoGraph:
 
 def get_multi_path_geojson(
     routes: list[dict],
-    filename: [str, None] = None,
+    filename: str | None = None,
     show_progress: bool = False,
 ) -> dict:
     """
