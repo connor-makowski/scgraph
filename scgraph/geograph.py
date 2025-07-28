@@ -1,4 +1,5 @@
-from .utils import haversine, distance_converter, get_line_path, cheap_ruler
+from .utils import haversine, distance_converter, get_line_path, cheap_ruler, print_console
+from scgraph.helpers.geojson import parse_geojson
 import json
 from copy import deepcopy
 
@@ -838,6 +839,127 @@ class GeoGraph:
         out_string = f"""from scgraph.core import GeoGraph\ngraph={str(self.graph)}\nnodes={str(self.nodes)}\n{name}_geograph = GeoGraph(graph=graph, nodes=nodes)"""
         with open(name + ".py", "w") as f:
             f.write(out_string)
+    
+    def save_as_graphjson(self, filename: str) -> None:
+        """
+        Function:
+
+        - Save the current geograph as a JSON file that can be used to recreate the geograph later
+        - This is particularly useful for larger geographs that you want to save and load later without having to recreate them from scratch
+        - Only the graph and nodes are saved, not the methods or any other attributes of the GeoGraph class
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename to save the JSON file as
+            - EG: 'custom.graphjson'
+                - Stored as: 'custom.graphjson'
+                    - In your current directory
+            - Note: The filename must end with .graphjson
+        """
+        if not filename.endswith(".graphjson"):
+            raise ValueError(
+                "Filename must end with .graphjson"
+            )
+        with open(filename, "w") as f:
+            json.dump(
+                {
+                    "type": "GeoGraph",
+                    "graph": self.graph,
+                    "nodes": self.nodes,
+                },
+                f
+            )
+
+    @staticmethod
+    def load_from_graphjson(filename: str) -> "GeoGraph":
+        """
+        Function:
+
+        - Load a GeoGraph from a JSON file that was saved using the `save_as_graphjson` method
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename of the JSON file to load
+            - EG: 'custom.json'
+                - Stored as: 'custom.json'
+                    - In your current directory
+
+        Returns:
+
+        - A GeoGraph object with the graph and nodes loaded from the JSON file
+        """
+        if not filename.endswith(".graphjson"):
+            raise ValueError(
+                "Filename must end with .graphjson"
+            )
+        with open(filename, "r") as f:
+            data = json.load(f)
+        if data.pop("type", None) != "GeoGraph":
+            raise ValueError(
+                "JSON file is not a valid GeoGraph. Ensure it was saved using the save_as_graphjson method."
+            )
+        return GeoGraph(**data)
+    
+    @staticmethod
+    def load_from_geojson(filename: str, precision:int=3, pct_to_keep:int|float=100, min_points=3, silent:bool=False):
+        """
+        Function:
+
+        - Load a GeoGraph from an arbitrary geojson file (GeometryCollection or FeatureCollection)
+        - This function 
+            - Merges all LineStrings and MultiLineStrings into a single MultiLineString
+            - Simplifies the MultiLineString to reduce the number of points using a percentage based Visvalengam simplification algorithm
+            - Rounds the coordinates to the specified precision
+            - Merges lines that start and end at the same location after rounding
+            - Converts the MultiLineString into a GeoGraph object
+        - Note:
+            - All arcs read in will be undirected
+
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename of the geojson file to load
+            - EG: 'custom.geojson'
+                - Stored as: 'custom.geojson'
+                    - In your current directory
+
+        Optional Arguments:
+
+        - `precision`
+            - Type: int
+            - What: Decimal places to round coordinates when loading and simplifying the lines
+            - Default: 4
+        - `pct_to_keep`
+            - Type: int|float
+            - What: Percentage of the interior line points to keep (note the ends are always kept)
+            - Default: 100
+        - `min_points`
+            - Type: int
+            - What: Minimum number of points to keep in the simplified line (The ends are always kept but should be included in this count)
+            - Default: 3
+        - `silent`
+            - Type: bool
+            - What: Whether to suppress progress output to the console when loading the geojson
+            - Default: False
+        """
+        data = parse_geojson(
+            filename_in=filename,
+            precision=precision,
+            pct_to_keep=pct_to_keep,
+            min_points=min_points,
+            silent=silent,
+        )
+        return GeoGraph(
+            graph=data["graph"],
+            nodes=data["nodes"],
+        )
+
 
     def mod_remove_arc(
         self, origin_idx: int, destination_idx: int, undirected: bool = True
@@ -948,8 +1070,148 @@ class GeoGraph:
         if undirected:
             self.graph[destination_idx][origin_idx] = distance
 
+    @staticmethod
+    def get_multi_path_geojson(
+        routes: list[dict],
+        filename: str | None = None,
+        show_progress: bool = False,
+    ) -> dict:
+        """
+        Creates a GeoJSON file with the shortest path between the origin and destination of each route.
 
-def load_geojson_as_geograph(geojson_filename: str) -> GeoGraph:
+        Required Parameters:
+
+        - `routes`: list[dict]
+            - List of dictionaries with the following keys:
+                - geograph: GeoGraph
+                    - Geograph object to use for the shortest path calculation.
+                - origin: dict[float|float]
+                    - Origin coordinates
+                    - EG: {"latitude":39.2904, "longitude":-76.6122}
+                - destination: dict[float|int]
+                    - Destination coordinates
+                    - EG: {"latitude":39.2904, "longitude":-76.6122}
+                - properties: dict
+                    - Dictionary with the properties of the route
+                    - Everything in this dictionary will be included in the output GeoJSON file as properties of the route.
+                    - EG: {"id":"route_1", "name":"Route 1", "color":"#ff0000"}
+
+        Optional Parameters:
+
+        - `filename`: str | None
+            - Name of the output GeoJSON file.
+            - If None, the function will not save the file
+            - Default: None
+        - `show_progress`: bool
+            - Whether to show basic progress information
+            - Default: False
+        - `silent`: bool
+            - Whether to suppress console output
+            - Default: False
+
+        Returns
+
+        - `output`: dict
+            - Dictionary with the GeoJSON file content.
+        """
+        assert isinstance(routes, list), "Routes must be a list"
+        assert all(
+            [isinstance(i, dict) for i in routes]
+        ), "Routes must be a list of dictionaries"
+        assert all(
+            [isinstance(i.get("geograph"), GeoGraph) for i in routes]
+        ), "All routes must have a 'geograph' key with a GeoGraph object"
+        assert all(
+            [isinstance(i.get("origin"), dict) for i in routes]
+        ), "All routes must have an 'origin' key with a dictionary"
+        assert all(
+            [isinstance(i.get("destination"), dict) for i in routes]
+        ), "All routes must have a 'destination' key with a dictionary"
+        assert all(
+            [isinstance(i.get("properties"), dict) for i in routes]
+        ), "All routes must have a 'properties' key with a dictionary"
+        assert all(
+            [isinstance(i["origin"].get("latitude"), (int, float)) for i in routes]
+        ), "All origins must have a 'latitude' key with a number"
+        assert all(
+            [isinstance(i["origin"].get("longitude"), (int, float)) for i in routes]
+        ), "All origins must have a 'longitude' key with a number"
+        assert all(
+            [
+                isinstance(i["destination"].get("latitude"), (int, float))
+                for i in routes
+            ]
+        ), "All destinations must have a 'latitude' key with a number"
+        assert all(
+            [
+                isinstance(i["destination"].get("longitude"), (int, float))
+                for i in routes
+            ]
+        ), "All destinations must have a 'longitude' key with a number"
+        assert all(
+            [
+                (
+                    i["origin"].get("latitude") >= -90
+                    and i["origin"].get("latitude") <= 90
+                )
+                for i in routes
+            ]
+        ), "All origin latitudes must be between -90 and 90"
+        assert all(
+            [
+                (
+                    i["origin"].get("longitude") >= -180
+                    and i["origin"].get("longitude") <= 180
+                )
+                for i in routes
+            ]
+        ), "All origin longitudes must be between -180 and 180"
+        assert all(
+            [
+                (
+                    i["destination"].get("latitude") >= -90
+                    and i["destination"].get("latitude") <= 90
+                )
+                for i in routes
+            ]
+        ), "All destination latitudes must be between -90 and 90"
+        assert all(
+            [
+                (
+                    i["destination"].get("longitude") >= -180
+                    and i["destination"].get("longitude") <= 180
+                )
+                for i in routes
+            ]
+        ), "All destination longitudes must be between -180 and 180"
+
+        output = {"type": "FeatureCollection", "features": []}
+        len_routes = len(routes)
+        for idx, route in enumerate(routes):
+            shortest_path = route["geograph"].get_shortest_path(
+                route["origin"], route["destination"]
+            )
+            shortest_line_path = get_line_path(shortest_path)
+            output["features"].append(
+                {
+                    "type": "Feature",
+                    "properties": route["properties"],
+                    "geometry": shortest_line_path,
+                }
+            )
+            if show_progress:
+                print(
+                    f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
+                    end="\r",
+                )
+        if show_progress:
+            print()
+        if filename is not None:
+            json.dump(output, open(filename, "w"))
+        return output
+
+
+def load_geojson_as_geograph(geojson_filename: str, silent=False) -> GeoGraph:
     """
     Function:
 
@@ -992,7 +1254,18 @@ def load_geojson_as_geograph(geojson_filename: str) -> GeoGraph:
                 ]
             }
             ```
+    
+    Optional Arguments:
+
+    - `silent`
+        - Type: bool
+        - What: Whether to suppress output to the console when loading the geojson
+        - Default: False
     """
+    #TODO: Remove this function in a future release
+    print_console("This function is deprecated and will be removed in a future release. Please use `GeoGraph.load_from_geojson` instead.", silent=silent)
+    print_console("Note: `GeoGraph.load_from_geojson` is not an equivalent function so see the documentation there for details.", silent=silent)
+    print_console("Note: Use silent when calling this function to suppress this message.", silent=silent)
     with open(geojson_filename, "r") as f:
         geojson_features = json.load(f).get("features", [])
 
@@ -1079,132 +1352,11 @@ def get_multi_path_geojson(
     show_progress: bool = False,
 ) -> dict:
     """
-    Creates a GeoJSON file with the shortest path between the origin and destination of each route.
-
-    Required Parameters:
-
-    - `routes`: list[dict]
-        - List of dictionaries with the following keys:
-            - geograph: GeoGraph
-                - Geograph object to use for the shortest path calculation.
-            - origin: dict[float|float]
-                - Origin coordinates
-                - EG: {"latitude":39.2904, "longitude":-76.6122}
-            - destination: dict[float|int]
-                - Destination coordinates
-                - EG: {"latitude":39.2904, "longitude":-76.6122}
-            - properties: dict
-                - Dictionary with the properties of the route
-                - Everything in this dictionary will be included in the output GeoJSON file as properties of the route.
-                - EG: {"id":"route_1", "name":"Route 1", "color":"#ff0000"}
-
-    Optional Parameters:
-
-    - `filename`: str | None
-        - Name of the output GeoJSON file.
-        - If None, the function will not save the file
-        - Default: None
-    - `show_progress`: bool
-        - Whether to show basic progress information
-        - Default: False
-
-    Returns
-
-    - `output`: dict
-        - Dictionary with the GeoJSON file content.
+    This function is deprecated and will be removed in a future release.
+    See `GeoGraph.get_multi_path_geojson` instead.
     """
-    assert isinstance(routes, list), "Routes must be a list"
-    assert all(
-        [isinstance(i, dict) for i in routes]
-    ), "Routes must be a list of dictionaries"
-    assert all(
-        [isinstance(i.get("geograph"), GeoGraph) for i in routes]
-    ), "All routes must have a 'geograph' key with a GeoGraph object"
-    assert all(
-        [isinstance(i.get("origin"), dict) for i in routes]
-    ), "All routes must have an 'origin' key with a dictionary"
-    assert all(
-        [isinstance(i.get("destination"), dict) for i in routes]
-    ), "All routes must have a 'destination' key with a dictionary"
-    assert all(
-        [isinstance(i.get("properties"), dict) for i in routes]
-    ), "All routes must have a 'properties' key with a dictionary"
-    assert all(
-        [isinstance(i["origin"].get("latitude"), (int, float)) for i in routes]
-    ), "All origins must have a 'latitude' key with a number"
-    assert all(
-        [isinstance(i["origin"].get("longitude"), (int, float)) for i in routes]
-    ), "All origins must have a 'longitude' key with a number"
-    assert all(
-        [
-            isinstance(i["destination"].get("latitude"), (int, float))
-            for i in routes
-        ]
-    ), "All destinations must have a 'latitude' key with a number"
-    assert all(
-        [
-            isinstance(i["destination"].get("longitude"), (int, float))
-            for i in routes
-        ]
-    ), "All destinations must have a 'longitude' key with a number"
-    assert all(
-        [
-            (
-                i["origin"].get("latitude") >= -90
-                and i["origin"].get("latitude") <= 90
-            )
-            for i in routes
-        ]
-    ), "All origin latitudes must be between -90 and 90"
-    assert all(
-        [
-            (
-                i["origin"].get("longitude") >= -180
-                and i["origin"].get("longitude") <= 180
-            )
-            for i in routes
-        ]
-    ), "All origin longitudes must be between -180 and 180"
-    assert all(
-        [
-            (
-                i["destination"].get("latitude") >= -90
-                and i["destination"].get("latitude") <= 90
-            )
-            for i in routes
-        ]
-    ), "All destination latitudes must be between -90 and 90"
-    assert all(
-        [
-            (
-                i["destination"].get("longitude") >= -180
-                and i["destination"].get("longitude") <= 180
-            )
-            for i in routes
-        ]
-    ), "All destination longitudes must be between -180 and 180"
-
-    output = {"type": "FeatureCollection", "features": []}
-    len_routes = len(routes)
-    for idx, route in enumerate(routes):
-        shortest_path = route["geograph"].get_shortest_path(
-            route["origin"], route["destination"]
-        )
-        shortest_line_path = get_line_path(shortest_path)
-        output["features"].append(
-            {
-                "type": "Feature",
-                "properties": route["properties"],
-                "geometry": shortest_line_path,
-            }
-        )
-        if show_progress:
-            print(
-                f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
-                end="\r",
-            )
-    if show_progress:
-        print()
-    if filename is not None:
-        json.dump(output, open(filename, "w"))
-    return output
+    return GeoGraph.get_multi_path_geojson(
+        routes=routes,
+        filename=filename,
+        show_progress=show_progress,
+    )
