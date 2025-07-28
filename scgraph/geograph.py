@@ -898,11 +898,14 @@ class GeoGraph:
             )
         with open(filename, "r") as f:
             data = json.load(f)
-        if data.pop("type", None) != "GeoGraph":
+        if data.get("type", None) != "GeoGraph":
             raise ValueError(
                 "JSON file is not a valid GeoGraph. Ensure it was saved using the save_as_graphjson method."
             )
-        return GeoGraph(**data)
+        return GeoGraph(
+            graph=[{int(k):v for k, v in item.items()} for item in data["graph"]],
+            nodes=data["nodes"],
+        )
     
     @staticmethod
     def load_from_geojson(filename: str, precision:int=3, pct_to_keep:int|float=100, min_points=3, silent:bool=False):
