@@ -54,12 +54,16 @@
             <li>
                     <a class="function" href="#get_line_path">get_line_path</a>
             </li>
+            <li>
+                    <a class="function" href="#print_console">print_console</a>
+            </li>
     </ul>
 
 
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
+        <option value="2.9.0">2.9.0</option>
         <option value="2.8.2">2.8.2</option>
         <option value="2.7.0">2.7.0</option>
         <option value="2.6.0">2.6.0</option>
@@ -342,6 +346,25 @@
 </span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
 </span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">linestring</span><span class="p">))</span>
 </span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>    <span class="k">return</span> <span class="n">linestring</span>
+</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>
+</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>
+</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a><span class="k">def</span><span class="w"> </span><span class="nf">print_console</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">silent</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a><span class="sd">    Function:</span>
+</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>
+</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a><span class="sd">    - Print messages to the console if `silent` is False</span>
+</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a><span class="sd">    - This is a utility function to standardize printing behavior across the codebase</span>
+</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>
+</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a><span class="sd">    Args:</span>
+</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>
+</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a><span class="sd">    - `*args`: Args to pass to the print function</span>
+</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a><span class="sd">    - `silent`: Whether to suppress printing</span>
+</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a><span class="sd">        - Default: False</span>
+</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a><span class="sd">    - `**kwargs`: Additional keyword arguments to pass to the print function</span>
+</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>
+</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">silent</span><span class="p">:</span>
+</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>        <span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </span></pre></div>
 
 
@@ -826,6 +849,58 @@ A* as this method can overestimate distances, especially near the Earth's poles.
 <li>Default: None</li>
 <li>Note: if <code>filename</code> is not None, the output will be saved to the specified path</li>
 </ul></li>
+</ul>
+</div>
+
+
+                </section>
+                <section id="print_console">
+                            <input id="print_console-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">print_console</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span><span class="n">args</span>, </span><span class="param"><span class="n">silent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>, </span><span class="param"><span class="o">**</span><span class="n">kwargs</span></span><span class="return-annotation">):</span></span>
+
+                <label class="view-source-button" for="print_console-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#print_console"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="print_console-228"><a href="#print_console-228"><span class="linenos">228</span></a><span class="k">def</span><span class="w"> </span><span class="nf">print_console</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">silent</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="print_console-229"><a href="#print_console-229"><span class="linenos">229</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="print_console-230"><a href="#print_console-230"><span class="linenos">230</span></a><span class="sd">    Function:</span>
+</span><span id="print_console-231"><a href="#print_console-231"><span class="linenos">231</span></a>
+</span><span id="print_console-232"><a href="#print_console-232"><span class="linenos">232</span></a><span class="sd">    - Print messages to the console if `silent` is False</span>
+</span><span id="print_console-233"><a href="#print_console-233"><span class="linenos">233</span></a><span class="sd">    - This is a utility function to standardize printing behavior across the codebase</span>
+</span><span id="print_console-234"><a href="#print_console-234"><span class="linenos">234</span></a>
+</span><span id="print_console-235"><a href="#print_console-235"><span class="linenos">235</span></a><span class="sd">    Args:</span>
+</span><span id="print_console-236"><a href="#print_console-236"><span class="linenos">236</span></a>
+</span><span id="print_console-237"><a href="#print_console-237"><span class="linenos">237</span></a><span class="sd">    - `*args`: Args to pass to the print function</span>
+</span><span id="print_console-238"><a href="#print_console-238"><span class="linenos">238</span></a><span class="sd">    - `silent`: Whether to suppress printing</span>
+</span><span id="print_console-239"><a href="#print_console-239"><span class="linenos">239</span></a><span class="sd">        - Default: False</span>
+</span><span id="print_console-240"><a href="#print_console-240"><span class="linenos">240</span></a><span class="sd">    - `**kwargs`: Additional keyword arguments to pass to the print function</span>
+</span><span id="print_console-241"><a href="#print_console-241"><span class="linenos">241</span></a>
+</span><span id="print_console-242"><a href="#print_console-242"><span class="linenos">242</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="print_console-243"><a href="#print_console-243"><span class="linenos">243</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">silent</span><span class="p">:</span>
+</span><span id="print_console-244"><a href="#print_console-244"><span class="linenos">244</span></a>        <span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span></pre></div>
+
+
+            <div class="docstring"><p>Function:</p>
+
+<ul>
+<li>Print messages to the console if <code>silent</code> is False</li>
+<li>This is a utility function to standardize printing behavior across the codebase</li>
+</ul>
+
+<p>Args:</p>
+
+<ul>
+<li><code>*args</code>: Args to pass to the print function</li>
+<li><code>silent</code>: Whether to suppress printing
+<ul>
+<li>Default: False</li>
+</ul></li>
+<li><code>**kwargs</code>: Additional keyword arguments to pass to the print function</li>
 </ul>
 </div>
 

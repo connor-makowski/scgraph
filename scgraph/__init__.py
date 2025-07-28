@@ -243,6 +243,74 @@ output = marnet_geograph.get_shortest_path(
 get_line_path(output, filename='output.geojson')
 ```
 
+### Building your own Geographs from Open Source Data
+You can build your own geographs using various tools and data sources. For example, you can use OpenStreetMap data to create a high fidelity geograph for a specific area.
+
+Expand the secion below for a step by step guide on how to create a geograph from OpenStreetMap data.
+<details>
+<summary>Click to see an example for Michigan, USA</summary>
+
+For this example, we will use some various tools to create a geograph for highways (including seconday highways) in Michigan, USA.
+
+Download an OSM PBF file using the AWS CLI:
+- Geofabrik is a good source for smaller OSM PBF files. See: https://download.geofabrik.de/
+- To keep things generalizable, you can also download the entire planet OSM PBF file using AWS. But you should consider downloading a smaller region if you are only interested in a specific area. 
+    - Note: For this, you will need to install the AWS CLI.
+    - Note: The planet OSM PBF file is very large (About 100GB)
+        ```
+        aws s3 cp s3://osm-pds/planet-latest.osm.pbf .
+        ```
+- Use Osmium to filter and extract the highways from the OSM PBF file.
+    - Install osmium on macOS:
+        ```
+        brew install osmium-tool
+        ```
+    - Install osmium on Ubuntu:
+        ```
+        sudo apt-get install osmium-tool
+        ```
+- Download a Poly file for the area you are interested in. This is a polygon file that defines the area you want to extract from the OSM PBF file.
+    - For Michigan, you can download the poly file from Geofabrik:
+        ```
+        curl https://download.geofabrik.de/north-america/us/michigan.poly > michigan.poly
+        ```
+    - Google around to find an appropriate poly file for your area of interest.
+- Filter and extract as GeoJSON (EG: Michigan) substituting the poly and pbf file names as needed:
+    ```
+    osmium extract -p michigan.poly --overwrite -o michigan.osm.pbf planet-latest.osm.pbf
+    ```
+- Filter the OSM PBF file to only areas of interest and export to GeoJSON:
+    - See: https://wiki.openstreetmap.org/wiki/
+    - EG For Highways, see: https://wiki.openstreetmap.org/wiki/Key:highway
+    ```
+    osmium tags-filter michigan.osm.pbf w/highway=motorway,trunk,primary,motorway_link,trunk_link,primary_link,secondary,secondary_link,tertiary,tertiary_link -t --overwrite -o michigan_roads.osm.pbf
+    osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.geojson
+    ``` 
+
+- Simplify the geojson
+    - This uses some tools in the SCGraph library as well as Mapshaper to simplify the geojson files.
+    - Mapshaper is a CLI and web tool for simplifying and editing geojson files.
+    - To install Mapshaper for CLI use, use NPM:
+        ```
+        npm install -g mapshaper
+        ```
+    - Mapshaper is particularly helpful since it repairs intersections in the lines which is crutial for geographs to work properly.
+    - Mapshaper, however, does not handle larger files very well, so it is recommended to simplify the geojson file first using the `scgraph.helpers.geojson.simplify_geojson` function first to reduce the size of the file.
+    - Make sure to tailor the parameters to your needs.
+    ```
+    python -c "from scgraph.helpers.geojson import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3, silent=False)"
+    mapshaper michigan_roads_simple.geojson -simplify 10% -filter-fields -o force michigan_roads_simple.geojson
+    mapshaper michigan_roads_simple.geojson -snap -clean -o force michigan_roads_simple.geojson
+    ```
+- Load the newly created geojson file as a geograph:
+    - Note: The `GeoGraph.load_from_geojson` function is used to load the geojson file as a geograph.
+    - This will create a geograph that can be used to calculate shortest paths between points on the graph.
+    ```
+    from scgraph import GeoGraph
+    michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geojson')
+    ```
+</details>
+
 ### Custom Graphs and Geographs
 Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
 

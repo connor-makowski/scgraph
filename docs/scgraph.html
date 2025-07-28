@@ -62,6 +62,7 @@
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
+        <option value="2.9.0">2.9.0</option>
         <option value="2.8.2">2.8.2</option>
         <option value="2.7.0">2.7.0</option>
         <option value="2.6.0">2.6.0</option>
@@ -452,6 +453,99 @@ In this case, calculate the shortest maritime path between Shanghai, China and S
 <span class="n">get_line_path</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;output.geojson&#39;</span><span class="p">)</span>
 </code></pre>
 </div>
+
+<h3 id="building-your-own-geographs-from-open-source-data">Building your own Geographs from Open Source Data</h3>
+
+<p>You can build your own geographs using various tools and data sources. For example, you can use OpenStreetMap data to create a high fidelity geograph for a specific area.</p>
+
+<p>Expand the secion below for a step by step guide on how to create a geograph from OpenStreetMap data.
+<details>
+<summary>Click to see an example for Michigan, USA</summary></p>
+
+<p>For this example, we will use some various tools to create a geograph for highways (including seconday highways) in Michigan, USA.</p>
+
+<p>Download an OSM PBF file using the AWS CLI:</p>
+
+<ul>
+<li>Geofabrik is a good source for smaller OSM PBF files. See: <a href="https://download.geofabrik.de/">https://download.geofabrik.de/</a></li>
+<li>To keep things generalizable, you can also download the entire planet OSM PBF file using AWS. But you should consider downloading a smaller region if you are only interested in a specific area. 
+<ul>
+<li>Note: For this, you will need to install the AWS CLI.</li>
+<li>Note: The planet OSM PBF file is very large (About 100GB)</li>
+</ul></li>
+</ul>
+
+<pre><code>    <pre><code>aws s3 cp s3://osm-pds/planet-latest.osm.pbf .
+</code></pre>
+</code></pre>
+
+<ul>
+<li><p>Use Osmium to filter and extract the highways from the OSM PBF file.</p>
+
+<ul>
+<li><p>Install osmium on macOS:</p>
+
+<pre><code>brew install osmium-tool
+</code></pre></li>
+<li><p>Install osmium on Ubuntu:</p>
+
+<pre><code>sudo apt-get install osmium-tool
+</code></pre></li>
+</ul></li>
+<li><p>Download a Poly file for the area you are interested in. This is a polygon file that defines the area you want to extract from the OSM PBF file.</p>
+
+<ul>
+<li><p>For Michigan, you can download the poly file from Geofabrik:</p>
+
+<pre><code>curl https://download.geofabrik.de/north-america/us/michigan.poly &gt; michigan.poly
+</code></pre></li>
+<li><p>Google around to find an appropriate poly file for your area of interest.</p></li>
+</ul></li>
+<li><p>Filter and extract as GeoJSON (EG: Michigan) substituting the poly and pbf file names as needed:</p>
+
+<pre><code>osmium extract -p michigan.poly --overwrite -o michigan.osm.pbf planet-latest.osm.pbf
+</code></pre></li>
+<li><p>Filter the OSM PBF file to only areas of interest and export to GeoJSON:</p>
+
+<ul>
+<li>See: <a href="https://wiki.openstreetmap.org/wiki/">https://wiki.openstreetmap.org/wiki/</a></li>
+<li>EG For Highways, see: <a href="https://wiki.openstreetmap.org/wiki/Key:highway">https://wiki.openstreetmap.org/wiki/Key:highway</a></li>
+</ul>
+
+<pre><code>osmium tags-filter michigan.osm.pbf w/highway=motorway,trunk,primary,motorway_link,trunk_link,primary_link,secondary,secondary_link,tertiary,tertiary_link -t --overwrite -o michigan_roads.osm.pbf
+osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.geojson
+</code></pre></li>
+<li><p>Simplify the geojson</p>
+
+<ul>
+<li>This uses some tools in the SCGraph library as well as Mapshaper to simplify the geojson files.</li>
+<li>Mapshaper is a CLI and web tool for simplifying and editing geojson files.</li>
+<li><p>To install Mapshaper for CLI use, use NPM:</p>
+
+<pre><code>npm install -g mapshaper
+</code></pre></li>
+<li><p>Mapshaper is particularly helpful since it repairs intersections in the lines which is crutial for geographs to work properly.</p></li>
+<li>Mapshaper, however, does not handle larger files very well, so it is recommended to simplify the geojson file first using the <code><a href="scgraph/helpers/geojson.html#simplify_geojson">scgraph.helpers.geojson.simplify_geojson</a></code> function first to reduce the size of the file.</li>
+<li>Make sure to tailor the parameters to your needs.</li>
+</ul>
+
+<pre><code>python -c "from <a href="scgraph/helpers/geojson.html">scgraph.helpers.geojson</a> import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3, silent=False)"
+mapshaper michigan_roads_simple.geojson -simplify 10% -filter-fields -o force michigan_roads_simple.geojson
+mapshaper michigan_roads_simple.geojson -snap -clean -o force michigan_roads_simple.geojson
+</code></pre></li>
+<li><p>Load the newly created geojson file as a geograph:</p>
+
+<ul>
+<li>Note: The <code>GeoGraph.load_from_geojson</code> function is used to load the geojson file as a geograph.</li>
+<li>This will create a geograph that can be used to calculate shortest paths between points on the graph.</li>
+</ul>
+
+<pre><code>from scgraph import GeoGraph
+michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geojson')
+</code></pre></li>
+</ul>
+
+<p></details></p>
 
 <h3 id="custom-graphs-and-geographs">Custom Graphs and Geographs</h3>
 
@@ -871,166 +965,234 @@ In this case, calculate the shortest maritime path between Shanghai, China and S
 </span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a><span class="sd">get_line_path(output, filename=&#39;output.geojson&#39;)</span>
 </span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a><span class="sd">```</span>
 </span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a>
-</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="sd">### Custom Graphs and Geographs</span>
-</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a><span class="sd">Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)</span>
+</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="sd">### Building your own Geographs from Open Source Data</span>
+</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a><span class="sd">You can build your own geographs using various tools and data sources. For example, you can use OpenStreetMap data to create a high fidelity geograph for a specific area.</span>
 </span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a>
-</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a>
-</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a><span class="sd">You can specify your own custom graphs for direct access to the solving algorithms. This requires the use of the low level `Graph` class</span>
-</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a>
-</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a><span class="sd">```py</span>
-</span><span id="L-253"><a href="#L-253"><span class="linenos">253</span></a><span class="sd">from scgraph import Graph</span>
+</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="sd">Expand the secion below for a step by step guide on how to create a geograph from OpenStreetMap data.</span>
+</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a><span class="sd">&lt;details&gt;</span>
+</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a><span class="sd">&lt;summary&gt;Click to see an example for Michigan, USA&lt;/summary&gt;</span>
+</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a>
+</span><span id="L-253"><a href="#L-253"><span class="linenos">253</span></a><span class="sd">For this example, we will use some various tools to create a geograph for highways (including seconday highways) in Michigan, USA.</span>
 </span><span id="L-254"><a href="#L-254"><span class="linenos">254</span></a>
-</span><span id="L-255"><a href="#L-255"><span class="linenos">255</span></a><span class="sd"># Define an arbitrary graph</span>
-</span><span id="L-256"><a href="#L-256"><span class="linenos">256</span></a><span class="sd"># See the graph definitions here:</span>
-</span><span id="L-257"><a href="#L-257"><span class="linenos">257</span></a><span class="sd"># https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
-</span><span id="L-258"><a href="#L-258"><span class="linenos">258</span></a><span class="sd">graph = [</span>
-</span><span id="L-259"><a href="#L-259"><span class="linenos">259</span></a><span class="sd">    {1: 5, 2: 1},</span>
-</span><span id="L-260"><a href="#L-260"><span class="linenos">260</span></a><span class="sd">    {0: 5, 2: 2, 3: 1},</span>
-</span><span id="L-261"><a href="#L-261"><span class="linenos">261</span></a><span class="sd">    {0: 1, 1: 2, 3: 4, 4: 8},</span>
-</span><span id="L-262"><a href="#L-262"><span class="linenos">262</span></a><span class="sd">    {1: 1, 2: 4, 4: 3, 5: 6},</span>
-</span><span id="L-263"><a href="#L-263"><span class="linenos">263</span></a><span class="sd">    {2: 8, 3: 3},</span>
-</span><span id="L-264"><a href="#L-264"><span class="linenos">264</span></a><span class="sd">    {3: 6}</span>
-</span><span id="L-265"><a href="#L-265"><span class="linenos">265</span></a><span class="sd">]</span>
-</span><span id="L-266"><a href="#L-266"><span class="linenos">266</span></a>
-</span><span id="L-267"><a href="#L-267"><span class="linenos">267</span></a><span class="sd"># Optional: Validate your graph</span>
-</span><span id="L-268"><a href="#L-268"><span class="linenos">268</span></a><span class="sd">Graph.validate_graph(graph=graph)</span>
-</span><span id="L-269"><a href="#L-269"><span class="linenos">269</span></a>
-</span><span id="L-270"><a href="#L-270"><span class="linenos">270</span></a><span class="sd"># Get the shortest path between idx 0 and idx 5</span>
-</span><span id="L-271"><a href="#L-271"><span class="linenos">271</span></a><span class="sd">output = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5)</span>
-</span><span id="L-272"><a href="#L-272"><span class="linenos">272</span></a><span class="sd">#=&gt; {&#39;path&#39;: [0, 2, 1, 3, 5], &#39;length&#39;: 10}</span>
-</span><span id="L-273"><a href="#L-273"><span class="linenos">273</span></a><span class="sd">```</span>
-</span><span id="L-274"><a href="#L-274"><span class="linenos">274</span></a>
-</span><span id="L-275"><a href="#L-275"><span class="linenos">275</span></a><span class="sd">You can also use a slightly higher level `GeoGraph` class to work with latitude / longitude pairs</span>
-</span><span id="L-276"><a href="#L-276"><span class="linenos">276</span></a>
-</span><span id="L-277"><a href="#L-277"><span class="linenos">277</span></a><span class="sd">```py</span>
-</span><span id="L-278"><a href="#L-278"><span class="linenos">278</span></a><span class="sd">from scgraph import GeoGraph</span>
-</span><span id="L-279"><a href="#L-279"><span class="linenos">279</span></a>
-</span><span id="L-280"><a href="#L-280"><span class="linenos">280</span></a><span class="sd"># Define nodes</span>
-</span><span id="L-281"><a href="#L-281"><span class="linenos">281</span></a><span class="sd"># See the nodes definitions here:</span>
-</span><span id="L-282"><a href="#L-282"><span class="linenos">282</span></a><span class="sd"># https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
-</span><span id="L-283"><a href="#L-283"><span class="linenos">283</span></a><span class="sd">nodes = [</span>
-</span><span id="L-284"><a href="#L-284"><span class="linenos">284</span></a><span class="sd">    # London</span>
-</span><span id="L-285"><a href="#L-285"><span class="linenos">285</span></a><span class="sd">    [51.5074, -0.1278],</span>
-</span><span id="L-286"><a href="#L-286"><span class="linenos">286</span></a><span class="sd">    # Paris</span>
-</span><span id="L-287"><a href="#L-287"><span class="linenos">287</span></a><span class="sd">    [48.8566, 2.3522],</span>
-</span><span id="L-288"><a href="#L-288"><span class="linenos">288</span></a><span class="sd">    # Berlin</span>
-</span><span id="L-289"><a href="#L-289"><span class="linenos">289</span></a><span class="sd">    [52.5200, 13.4050],</span>
-</span><span id="L-290"><a href="#L-290"><span class="linenos">290</span></a><span class="sd">    # Rome</span>
-</span><span id="L-291"><a href="#L-291"><span class="linenos">291</span></a><span class="sd">    [41.9028, 12.4964],</span>
-</span><span id="L-292"><a href="#L-292"><span class="linenos">292</span></a><span class="sd">    # Madrid</span>
-</span><span id="L-293"><a href="#L-293"><span class="linenos">293</span></a><span class="sd">    [40.4168, -3.7038],</span>
-</span><span id="L-294"><a href="#L-294"><span class="linenos">294</span></a><span class="sd">    # Lisbon</span>
-</span><span id="L-295"><a href="#L-295"><span class="linenos">295</span></a><span class="sd">    [38.7223, -9.1393]</span>
-</span><span id="L-296"><a href="#L-296"><span class="linenos">296</span></a><span class="sd">]</span>
-</span><span id="L-297"><a href="#L-297"><span class="linenos">297</span></a><span class="sd"># Define a graph</span>
-</span><span id="L-298"><a href="#L-298"><span class="linenos">298</span></a><span class="sd"># See the graph definitions here:</span>
-</span><span id="L-299"><a href="#L-299"><span class="linenos">299</span></a><span class="sd"># https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
-</span><span id="L-300"><a href="#L-300"><span class="linenos">300</span></a><span class="sd">graph = [</span>
-</span><span id="L-301"><a href="#L-301"><span class="linenos">301</span></a><span class="sd">    # From London</span>
-</span><span id="L-302"><a href="#L-302"><span class="linenos">302</span></a><span class="sd">    {</span>
-</span><span id="L-303"><a href="#L-303"><span class="linenos">303</span></a><span class="sd">        # To Paris</span>
-</span><span id="L-304"><a href="#L-304"><span class="linenos">304</span></a><span class="sd">        1: 311,</span>
-</span><span id="L-305"><a href="#L-305"><span class="linenos">305</span></a><span class="sd">    },</span>
-</span><span id="L-306"><a href="#L-306"><span class="linenos">306</span></a><span class="sd">    # From Paris</span>
-</span><span id="L-307"><a href="#L-307"><span class="linenos">307</span></a><span class="sd">    {</span>
-</span><span id="L-308"><a href="#L-308"><span class="linenos">308</span></a><span class="sd">        # To London</span>
-</span><span id="L-309"><a href="#L-309"><span class="linenos">309</span></a><span class="sd">        0: 311,</span>
-</span><span id="L-310"><a href="#L-310"><span class="linenos">310</span></a><span class="sd">        # To Berlin</span>
-</span><span id="L-311"><a href="#L-311"><span class="linenos">311</span></a><span class="sd">        2: 878,</span>
-</span><span id="L-312"><a href="#L-312"><span class="linenos">312</span></a><span class="sd">        # To Rome</span>
-</span><span id="L-313"><a href="#L-313"><span class="linenos">313</span></a><span class="sd">        3: 1439,</span>
-</span><span id="L-314"><a href="#L-314"><span class="linenos">314</span></a><span class="sd">        # To Madrid</span>
-</span><span id="L-315"><a href="#L-315"><span class="linenos">315</span></a><span class="sd">        4: 1053</span>
-</span><span id="L-316"><a href="#L-316"><span class="linenos">316</span></a><span class="sd">    },</span>
-</span><span id="L-317"><a href="#L-317"><span class="linenos">317</span></a><span class="sd">    # From Berlin</span>
-</span><span id="L-318"><a href="#L-318"><span class="linenos">318</span></a><span class="sd">    {</span>
-</span><span id="L-319"><a href="#L-319"><span class="linenos">319</span></a><span class="sd">        # To Paris</span>
-</span><span id="L-320"><a href="#L-320"><span class="linenos">320</span></a><span class="sd">        1: 878,</span>
-</span><span id="L-321"><a href="#L-321"><span class="linenos">321</span></a><span class="sd">        # To Rome</span>
-</span><span id="L-322"><a href="#L-322"><span class="linenos">322</span></a><span class="sd">        3: 1181,</span>
-</span><span id="L-323"><a href="#L-323"><span class="linenos">323</span></a><span class="sd">    },</span>
-</span><span id="L-324"><a href="#L-324"><span class="linenos">324</span></a><span class="sd">    # From Rome</span>
-</span><span id="L-325"><a href="#L-325"><span class="linenos">325</span></a><span class="sd">    {</span>
-</span><span id="L-326"><a href="#L-326"><span class="linenos">326</span></a><span class="sd">        # To Paris</span>
-</span><span id="L-327"><a href="#L-327"><span class="linenos">327</span></a><span class="sd">        1: 1439,</span>
-</span><span id="L-328"><a href="#L-328"><span class="linenos">328</span></a><span class="sd">        # To Berlin</span>
-</span><span id="L-329"><a href="#L-329"><span class="linenos">329</span></a><span class="sd">        2: 1181,</span>
-</span><span id="L-330"><a href="#L-330"><span class="linenos">330</span></a><span class="sd">    },</span>
-</span><span id="L-331"><a href="#L-331"><span class="linenos">331</span></a><span class="sd">    # From Madrid</span>
-</span><span id="L-332"><a href="#L-332"><span class="linenos">332</span></a><span class="sd">    {</span>
-</span><span id="L-333"><a href="#L-333"><span class="linenos">333</span></a><span class="sd">        # To Paris</span>
-</span><span id="L-334"><a href="#L-334"><span class="linenos">334</span></a><span class="sd">        1: 1053,</span>
-</span><span id="L-335"><a href="#L-335"><span class="linenos">335</span></a><span class="sd">        # To Lisbon</span>
-</span><span id="L-336"><a href="#L-336"><span class="linenos">336</span></a><span class="sd">        5: 623</span>
-</span><span id="L-337"><a href="#L-337"><span class="linenos">337</span></a><span class="sd">    },</span>
-</span><span id="L-338"><a href="#L-338"><span class="linenos">338</span></a><span class="sd">    # From Lisbon</span>
-</span><span id="L-339"><a href="#L-339"><span class="linenos">339</span></a><span class="sd">    {</span>
-</span><span id="L-340"><a href="#L-340"><span class="linenos">340</span></a><span class="sd">        # To Madrid</span>
-</span><span id="L-341"><a href="#L-341"><span class="linenos">341</span></a><span class="sd">        4: 623</span>
-</span><span id="L-342"><a href="#L-342"><span class="linenos">342</span></a><span class="sd">    }</span>
-</span><span id="L-343"><a href="#L-343"><span class="linenos">343</span></a><span class="sd">]</span>
+</span><span id="L-255"><a href="#L-255"><span class="linenos">255</span></a><span class="sd">Download an OSM PBF file using the AWS CLI:</span>
+</span><span id="L-256"><a href="#L-256"><span class="linenos">256</span></a><span class="sd">- Geofabrik is a good source for smaller OSM PBF files. See: https://download.geofabrik.de/</span>
+</span><span id="L-257"><a href="#L-257"><span class="linenos">257</span></a><span class="sd">- To keep things generalizable, you can also download the entire planet OSM PBF file using AWS. But you should consider downloading a smaller region if you are only interested in a specific area. </span>
+</span><span id="L-258"><a href="#L-258"><span class="linenos">258</span></a><span class="sd">    - Note: For this, you will need to install the AWS CLI.</span>
+</span><span id="L-259"><a href="#L-259"><span class="linenos">259</span></a><span class="sd">    - Note: The planet OSM PBF file is very large (About 100GB)</span>
+</span><span id="L-260"><a href="#L-260"><span class="linenos">260</span></a><span class="sd">        ```</span>
+</span><span id="L-261"><a href="#L-261"><span class="linenos">261</span></a><span class="sd">        aws s3 cp s3://osm-pds/planet-latest.osm.pbf .</span>
+</span><span id="L-262"><a href="#L-262"><span class="linenos">262</span></a><span class="sd">        ```</span>
+</span><span id="L-263"><a href="#L-263"><span class="linenos">263</span></a><span class="sd">- Use Osmium to filter and extract the highways from the OSM PBF file.</span>
+</span><span id="L-264"><a href="#L-264"><span class="linenos">264</span></a><span class="sd">    - Install osmium on macOS:</span>
+</span><span id="L-265"><a href="#L-265"><span class="linenos">265</span></a><span class="sd">        ```</span>
+</span><span id="L-266"><a href="#L-266"><span class="linenos">266</span></a><span class="sd">        brew install osmium-tool</span>
+</span><span id="L-267"><a href="#L-267"><span class="linenos">267</span></a><span class="sd">        ```</span>
+</span><span id="L-268"><a href="#L-268"><span class="linenos">268</span></a><span class="sd">    - Install osmium on Ubuntu:</span>
+</span><span id="L-269"><a href="#L-269"><span class="linenos">269</span></a><span class="sd">        ```</span>
+</span><span id="L-270"><a href="#L-270"><span class="linenos">270</span></a><span class="sd">        sudo apt-get install osmium-tool</span>
+</span><span id="L-271"><a href="#L-271"><span class="linenos">271</span></a><span class="sd">        ```</span>
+</span><span id="L-272"><a href="#L-272"><span class="linenos">272</span></a><span class="sd">- Download a Poly file for the area you are interested in. This is a polygon file that defines the area you want to extract from the OSM PBF file.</span>
+</span><span id="L-273"><a href="#L-273"><span class="linenos">273</span></a><span class="sd">    - For Michigan, you can download the poly file from Geofabrik:</span>
+</span><span id="L-274"><a href="#L-274"><span class="linenos">274</span></a><span class="sd">        ```</span>
+</span><span id="L-275"><a href="#L-275"><span class="linenos">275</span></a><span class="sd">        curl https://download.geofabrik.de/north-america/us/michigan.poly &gt; michigan.poly</span>
+</span><span id="L-276"><a href="#L-276"><span class="linenos">276</span></a><span class="sd">        ```</span>
+</span><span id="L-277"><a href="#L-277"><span class="linenos">277</span></a><span class="sd">    - Google around to find an appropriate poly file for your area of interest.</span>
+</span><span id="L-278"><a href="#L-278"><span class="linenos">278</span></a><span class="sd">- Filter and extract as GeoJSON (EG: Michigan) substituting the poly and pbf file names as needed:</span>
+</span><span id="L-279"><a href="#L-279"><span class="linenos">279</span></a><span class="sd">    ```</span>
+</span><span id="L-280"><a href="#L-280"><span class="linenos">280</span></a><span class="sd">    osmium extract -p michigan.poly --overwrite -o michigan.osm.pbf planet-latest.osm.pbf</span>
+</span><span id="L-281"><a href="#L-281"><span class="linenos">281</span></a><span class="sd">    ```</span>
+</span><span id="L-282"><a href="#L-282"><span class="linenos">282</span></a><span class="sd">- Filter the OSM PBF file to only areas of interest and export to GeoJSON:</span>
+</span><span id="L-283"><a href="#L-283"><span class="linenos">283</span></a><span class="sd">    - See: https://wiki.openstreetmap.org/wiki/</span>
+</span><span id="L-284"><a href="#L-284"><span class="linenos">284</span></a><span class="sd">    - EG For Highways, see: https://wiki.openstreetmap.org/wiki/Key:highway</span>
+</span><span id="L-285"><a href="#L-285"><span class="linenos">285</span></a><span class="sd">    ```</span>
+</span><span id="L-286"><a href="#L-286"><span class="linenos">286</span></a><span class="sd">    osmium tags-filter michigan.osm.pbf w/highway=motorway,trunk,primary,motorway_link,trunk_link,primary_link,secondary,secondary_link,tertiary,tertiary_link -t --overwrite -o michigan_roads.osm.pbf</span>
+</span><span id="L-287"><a href="#L-287"><span class="linenos">287</span></a><span class="sd">    osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.geojson</span>
+</span><span id="L-288"><a href="#L-288"><span class="linenos">288</span></a><span class="sd">    ``` </span>
+</span><span id="L-289"><a href="#L-289"><span class="linenos">289</span></a>
+</span><span id="L-290"><a href="#L-290"><span class="linenos">290</span></a><span class="sd">- Simplify the geojson</span>
+</span><span id="L-291"><a href="#L-291"><span class="linenos">291</span></a><span class="sd">    - This uses some tools in the SCGraph library as well as Mapshaper to simplify the geojson files.</span>
+</span><span id="L-292"><a href="#L-292"><span class="linenos">292</span></a><span class="sd">    - Mapshaper is a CLI and web tool for simplifying and editing geojson files.</span>
+</span><span id="L-293"><a href="#L-293"><span class="linenos">293</span></a><span class="sd">    - To install Mapshaper for CLI use, use NPM:</span>
+</span><span id="L-294"><a href="#L-294"><span class="linenos">294</span></a><span class="sd">        ```</span>
+</span><span id="L-295"><a href="#L-295"><span class="linenos">295</span></a><span class="sd">        npm install -g mapshaper</span>
+</span><span id="L-296"><a href="#L-296"><span class="linenos">296</span></a><span class="sd">        ```</span>
+</span><span id="L-297"><a href="#L-297"><span class="linenos">297</span></a><span class="sd">    - Mapshaper is particularly helpful since it repairs intersections in the lines which is crutial for geographs to work properly.</span>
+</span><span id="L-298"><a href="#L-298"><span class="linenos">298</span></a><span class="sd">    - Mapshaper, however, does not handle larger files very well, so it is recommended to simplify the geojson file first using the `scgraph.helpers.geojson.simplify_geojson` function first to reduce the size of the file.</span>
+</span><span id="L-299"><a href="#L-299"><span class="linenos">299</span></a><span class="sd">    - Make sure to tailor the parameters to your needs.</span>
+</span><span id="L-300"><a href="#L-300"><span class="linenos">300</span></a><span class="sd">    ```</span>
+</span><span id="L-301"><a href="#L-301"><span class="linenos">301</span></a><span class="sd">    python -c &quot;from scgraph.helpers.geojson import simplify_geojson; simplify_geojson(&#39;michigan_roads.geojson&#39;, &#39;michigan_roads_simple.geojson&#39;, precision=4, pct_to_keep=100, min_points=3, silent=False)&quot;</span>
+</span><span id="L-302"><a href="#L-302"><span class="linenos">302</span></a><span class="sd">    mapshaper michigan_roads_simple.geojson -simplify 10% -filter-fields -o force michigan_roads_simple.geojson</span>
+</span><span id="L-303"><a href="#L-303"><span class="linenos">303</span></a><span class="sd">    mapshaper michigan_roads_simple.geojson -snap -clean -o force michigan_roads_simple.geojson</span>
+</span><span id="L-304"><a href="#L-304"><span class="linenos">304</span></a><span class="sd">    ```</span>
+</span><span id="L-305"><a href="#L-305"><span class="linenos">305</span></a><span class="sd">- Load the newly created geojson file as a geograph:</span>
+</span><span id="L-306"><a href="#L-306"><span class="linenos">306</span></a><span class="sd">    - Note: The `GeoGraph.load_from_geojson` function is used to load the geojson file as a geograph.</span>
+</span><span id="L-307"><a href="#L-307"><span class="linenos">307</span></a><span class="sd">    - This will create a geograph that can be used to calculate shortest paths between points on the graph.</span>
+</span><span id="L-308"><a href="#L-308"><span class="linenos">308</span></a><span class="sd">    ```</span>
+</span><span id="L-309"><a href="#L-309"><span class="linenos">309</span></a><span class="sd">    from scgraph import GeoGraph</span>
+</span><span id="L-310"><a href="#L-310"><span class="linenos">310</span></a><span class="sd">    michigan_roads_geograph = GeoGraph.load_from_geojson(&#39;michigan_roads_simple.geojson&#39;)</span>
+</span><span id="L-311"><a href="#L-311"><span class="linenos">311</span></a><span class="sd">    ```</span>
+</span><span id="L-312"><a href="#L-312"><span class="linenos">312</span></a><span class="sd">&lt;/details&gt;</span>
+</span><span id="L-313"><a href="#L-313"><span class="linenos">313</span></a>
+</span><span id="L-314"><a href="#L-314"><span class="linenos">314</span></a><span class="sd">### Custom Graphs and Geographs</span>
+</span><span id="L-315"><a href="#L-315"><span class="linenos">315</span></a><span class="sd">Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)</span>
+</span><span id="L-316"><a href="#L-316"><span class="linenos">316</span></a>
+</span><span id="L-317"><a href="#L-317"><span class="linenos">317</span></a>
+</span><span id="L-318"><a href="#L-318"><span class="linenos">318</span></a><span class="sd">You can specify your own custom graphs for direct access to the solving algorithms. This requires the use of the low level `Graph` class</span>
+</span><span id="L-319"><a href="#L-319"><span class="linenos">319</span></a>
+</span><span id="L-320"><a href="#L-320"><span class="linenos">320</span></a><span class="sd">```py</span>
+</span><span id="L-321"><a href="#L-321"><span class="linenos">321</span></a><span class="sd">from scgraph import Graph</span>
+</span><span id="L-322"><a href="#L-322"><span class="linenos">322</span></a>
+</span><span id="L-323"><a href="#L-323"><span class="linenos">323</span></a><span class="sd"># Define an arbitrary graph</span>
+</span><span id="L-324"><a href="#L-324"><span class="linenos">324</span></a><span class="sd"># See the graph definitions here:</span>
+</span><span id="L-325"><a href="#L-325"><span class="linenos">325</span></a><span class="sd"># https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
+</span><span id="L-326"><a href="#L-326"><span class="linenos">326</span></a><span class="sd">graph = [</span>
+</span><span id="L-327"><a href="#L-327"><span class="linenos">327</span></a><span class="sd">    {1: 5, 2: 1},</span>
+</span><span id="L-328"><a href="#L-328"><span class="linenos">328</span></a><span class="sd">    {0: 5, 2: 2, 3: 1},</span>
+</span><span id="L-329"><a href="#L-329"><span class="linenos">329</span></a><span class="sd">    {0: 1, 1: 2, 3: 4, 4: 8},</span>
+</span><span id="L-330"><a href="#L-330"><span class="linenos">330</span></a><span class="sd">    {1: 1, 2: 4, 4: 3, 5: 6},</span>
+</span><span id="L-331"><a href="#L-331"><span class="linenos">331</span></a><span class="sd">    {2: 8, 3: 3},</span>
+</span><span id="L-332"><a href="#L-332"><span class="linenos">332</span></a><span class="sd">    {3: 6}</span>
+</span><span id="L-333"><a href="#L-333"><span class="linenos">333</span></a><span class="sd">]</span>
+</span><span id="L-334"><a href="#L-334"><span class="linenos">334</span></a>
+</span><span id="L-335"><a href="#L-335"><span class="linenos">335</span></a><span class="sd"># Optional: Validate your graph</span>
+</span><span id="L-336"><a href="#L-336"><span class="linenos">336</span></a><span class="sd">Graph.validate_graph(graph=graph)</span>
+</span><span id="L-337"><a href="#L-337"><span class="linenos">337</span></a>
+</span><span id="L-338"><a href="#L-338"><span class="linenos">338</span></a><span class="sd"># Get the shortest path between idx 0 and idx 5</span>
+</span><span id="L-339"><a href="#L-339"><span class="linenos">339</span></a><span class="sd">output = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5)</span>
+</span><span id="L-340"><a href="#L-340"><span class="linenos">340</span></a><span class="sd">#=&gt; {&#39;path&#39;: [0, 2, 1, 3, 5], &#39;length&#39;: 10}</span>
+</span><span id="L-341"><a href="#L-341"><span class="linenos">341</span></a><span class="sd">```</span>
+</span><span id="L-342"><a href="#L-342"><span class="linenos">342</span></a>
+</span><span id="L-343"><a href="#L-343"><span class="linenos">343</span></a><span class="sd">You can also use a slightly higher level `GeoGraph` class to work with latitude / longitude pairs</span>
 </span><span id="L-344"><a href="#L-344"><span class="linenos">344</span></a>
-</span><span id="L-345"><a href="#L-345"><span class="linenos">345</span></a><span class="sd"># Create a GeoGraph object</span>
-</span><span id="L-346"><a href="#L-346"><span class="linenos">346</span></a><span class="sd">my_geograph = GeoGraph(nodes=nodes, graph=graph)</span>
+</span><span id="L-345"><a href="#L-345"><span class="linenos">345</span></a><span class="sd">```py</span>
+</span><span id="L-346"><a href="#L-346"><span class="linenos">346</span></a><span class="sd">from scgraph import GeoGraph</span>
 </span><span id="L-347"><a href="#L-347"><span class="linenos">347</span></a>
-</span><span id="L-348"><a href="#L-348"><span class="linenos">348</span></a><span class="sd"># Optional: Validate your graph</span>
-</span><span id="L-349"><a href="#L-349"><span class="linenos">349</span></a><span class="sd">my_geograph.validate_graph()</span>
-</span><span id="L-350"><a href="#L-350"><span class="linenos">350</span></a>
-</span><span id="L-351"><a href="#L-351"><span class="linenos">351</span></a><span class="sd"># Optional: Validate your nodes</span>
-</span><span id="L-352"><a href="#L-352"><span class="linenos">352</span></a><span class="sd">my_geograph.validate_nodes()</span>
-</span><span id="L-353"><a href="#L-353"><span class="linenos">353</span></a>
-</span><span id="L-354"><a href="#L-354"><span class="linenos">354</span></a><span class="sd"># Get the shortest path between two points</span>
-</span><span id="L-355"><a href="#L-355"><span class="linenos">355</span></a><span class="sd"># In this case, Birmingham England and Zaragoza Spain</span>
-</span><span id="L-356"><a href="#L-356"><span class="linenos">356</span></a><span class="sd"># Since Birmingham and Zaragoza are not in the graph,</span>
-</span><span id="L-357"><a href="#L-357"><span class="linenos">357</span></a><span class="sd"># the algorithm will add them into the graph.</span>
-</span><span id="L-358"><a href="#L-358"><span class="linenos">358</span></a><span class="sd"># See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph.get_shortest_path</span>
-</span><span id="L-359"><a href="#L-359"><span class="linenos">359</span></a><span class="sd"># Expected output would be to go from</span>
-</span><span id="L-360"><a href="#L-360"><span class="linenos">360</span></a><span class="sd"># Birmingham -&gt; London -&gt; Paris -&gt; Madrid -&gt; Zaragoza</span>
-</span><span id="L-361"><a href="#L-361"><span class="linenos">361</span></a>
-</span><span id="L-362"><a href="#L-362"><span class="linenos">362</span></a><span class="sd">output = my_geograph.get_shortest_path(</span>
-</span><span id="L-363"><a href="#L-363"><span class="linenos">363</span></a><span class="sd">    # Birmingham England</span>
-</span><span id="L-364"><a href="#L-364"><span class="linenos">364</span></a><span class="sd">    origin_node = {&#39;latitude&#39;: 52.4862, &#39;longitude&#39;: -1.8904},</span>
-</span><span id="L-365"><a href="#L-365"><span class="linenos">365</span></a><span class="sd">    # Zaragoza Spain</span>
-</span><span id="L-366"><a href="#L-366"><span class="linenos">366</span></a><span class="sd">    destination_node = {&#39;latitude&#39;: 41.6488, &#39;longitude&#39;: -0.8891}</span>
-</span><span id="L-367"><a href="#L-367"><span class="linenos">367</span></a><span class="sd">)</span>
-</span><span id="L-368"><a href="#L-368"><span class="linenos">368</span></a><span class="sd">print(output)</span>
-</span><span id="L-369"><a href="#L-369"><span class="linenos">369</span></a><span class="sd"># {</span>
-</span><span id="L-370"><a href="#L-370"><span class="linenos">370</span></a><span class="sd">#     &#39;length&#39;: 1799.4323,</span>
-</span><span id="L-371"><a href="#L-371"><span class="linenos">371</span></a><span class="sd">#     &#39;coordinate_path&#39;: [</span>
-</span><span id="L-372"><a href="#L-372"><span class="linenos">372</span></a><span class="sd">#         [52.4862, -1.8904],</span>
-</span><span id="L-373"><a href="#L-373"><span class="linenos">373</span></a><span class="sd">#         [51.5074, -0.1278],</span>
-</span><span id="L-374"><a href="#L-374"><span class="linenos">374</span></a><span class="sd">#         [48.8566, 2.3522],</span>
-</span><span id="L-375"><a href="#L-375"><span class="linenos">375</span></a><span class="sd">#         [40.4168, -3.7038],</span>
-</span><span id="L-376"><a href="#L-376"><span class="linenos">376</span></a><span class="sd">#         [41.6488, -0.8891]</span>
-</span><span id="L-377"><a href="#L-377"><span class="linenos">377</span></a><span class="sd">#     ]</span>
-</span><span id="L-378"><a href="#L-378"><span class="linenos">378</span></a><span class="sd"># }</span>
-</span><span id="L-379"><a href="#L-379"><span class="linenos">379</span></a>
-</span><span id="L-380"><a href="#L-380"><span class="linenos">380</span></a><span class="sd">```</span>
-</span><span id="L-381"><a href="#L-381"><span class="linenos">381</span></a>
-</span><span id="L-382"><a href="#L-382"><span class="linenos">382</span></a><span class="sd"># Development</span>
-</span><span id="L-383"><a href="#L-383"><span class="linenos">383</span></a><span class="sd">## Running Tests, Prettifying Code, and Updating Docs</span>
-</span><span id="L-384"><a href="#L-384"><span class="linenos">384</span></a>
-</span><span id="L-385"><a href="#L-385"><span class="linenos">385</span></a><span class="sd">Make sure Docker is installed and running on a Unix system (Linux, MacOS, WSL2).</span>
-</span><span id="L-386"><a href="#L-386"><span class="linenos">386</span></a>
-</span><span id="L-387"><a href="#L-387"><span class="linenos">387</span></a><span class="sd">- Create a docker container and drop into a shell</span>
-</span><span id="L-388"><a href="#L-388"><span class="linenos">388</span></a><span class="sd">    - `./run.sh`</span>
-</span><span id="L-389"><a href="#L-389"><span class="linenos">389</span></a><span class="sd">- Run all tests (see ./utils/test.sh)</span>
-</span><span id="L-390"><a href="#L-390"><span class="linenos">390</span></a><span class="sd">    - `./run.sh test`</span>
-</span><span id="L-391"><a href="#L-391"><span class="linenos">391</span></a><span class="sd">- Prettify the code (see ./utils/prettify.sh)</span>
-</span><span id="L-392"><a href="#L-392"><span class="linenos">392</span></a><span class="sd">    - `./run.sh prettify`</span>
-</span><span id="L-393"><a href="#L-393"><span class="linenos">393</span></a><span class="sd">- Update the docs (see ./utils/docs.sh)</span>
-</span><span id="L-394"><a href="#L-394"><span class="linenos">394</span></a><span class="sd">    - `./run.sh docs`</span>
-</span><span id="L-395"><a href="#L-395"><span class="linenos">395</span></a>
-</span><span id="L-396"><a href="#L-396"><span class="linenos">396</span></a><span class="sd">- Note: You can and should modify the `Dockerfile` to test different python versions.</span>
-</span><span id="L-397"><a href="#L-397"><span class="linenos">397</span></a>
-</span><span id="L-398"><a href="#L-398"><span class="linenos">398</span></a>
-</span><span id="L-399"><a href="#L-399"><span class="linenos">399</span></a><span class="sd">## Attributions and Thanks</span>
-</span><span id="L-400"><a href="#L-400"><span class="linenos">400</span></a><span class="sd">Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.</span>
-</span><span id="L-401"><a href="#L-401"><span class="linenos">401</span></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-402"><a href="#L-402"><span class="linenos">402</span></a>
-</span><span id="L-403"><a href="#L-403"><span class="linenos">403</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.graph</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>
-</span><span id="L-404"><a href="#L-404"><span class="linenos">404</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.geograph</span><span class="w"> </span><span class="kn">import</span> <span class="n">GeoGraph</span>
-</span><span id="L-405"><a href="#L-405"><span class="linenos">405</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridGraph</span>
+</span><span id="L-348"><a href="#L-348"><span class="linenos">348</span></a><span class="sd"># Define nodes</span>
+</span><span id="L-349"><a href="#L-349"><span class="linenos">349</span></a><span class="sd"># See the nodes definitions here:</span>
+</span><span id="L-350"><a href="#L-350"><span class="linenos">350</span></a><span class="sd"># https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
+</span><span id="L-351"><a href="#L-351"><span class="linenos">351</span></a><span class="sd">nodes = [</span>
+</span><span id="L-352"><a href="#L-352"><span class="linenos">352</span></a><span class="sd">    # London</span>
+</span><span id="L-353"><a href="#L-353"><span class="linenos">353</span></a><span class="sd">    [51.5074, -0.1278],</span>
+</span><span id="L-354"><a href="#L-354"><span class="linenos">354</span></a><span class="sd">    # Paris</span>
+</span><span id="L-355"><a href="#L-355"><span class="linenos">355</span></a><span class="sd">    [48.8566, 2.3522],</span>
+</span><span id="L-356"><a href="#L-356"><span class="linenos">356</span></a><span class="sd">    # Berlin</span>
+</span><span id="L-357"><a href="#L-357"><span class="linenos">357</span></a><span class="sd">    [52.5200, 13.4050],</span>
+</span><span id="L-358"><a href="#L-358"><span class="linenos">358</span></a><span class="sd">    # Rome</span>
+</span><span id="L-359"><a href="#L-359"><span class="linenos">359</span></a><span class="sd">    [41.9028, 12.4964],</span>
+</span><span id="L-360"><a href="#L-360"><span class="linenos">360</span></a><span class="sd">    # Madrid</span>
+</span><span id="L-361"><a href="#L-361"><span class="linenos">361</span></a><span class="sd">    [40.4168, -3.7038],</span>
+</span><span id="L-362"><a href="#L-362"><span class="linenos">362</span></a><span class="sd">    # Lisbon</span>
+</span><span id="L-363"><a href="#L-363"><span class="linenos">363</span></a><span class="sd">    [38.7223, -9.1393]</span>
+</span><span id="L-364"><a href="#L-364"><span class="linenos">364</span></a><span class="sd">]</span>
+</span><span id="L-365"><a href="#L-365"><span class="linenos">365</span></a><span class="sd"># Define a graph</span>
+</span><span id="L-366"><a href="#L-366"><span class="linenos">366</span></a><span class="sd"># See the graph definitions here:</span>
+</span><span id="L-367"><a href="#L-367"><span class="linenos">367</span></a><span class="sd"># https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph</span>
+</span><span id="L-368"><a href="#L-368"><span class="linenos">368</span></a><span class="sd">graph = [</span>
+</span><span id="L-369"><a href="#L-369"><span class="linenos">369</span></a><span class="sd">    # From London</span>
+</span><span id="L-370"><a href="#L-370"><span class="linenos">370</span></a><span class="sd">    {</span>
+</span><span id="L-371"><a href="#L-371"><span class="linenos">371</span></a><span class="sd">        # To Paris</span>
+</span><span id="L-372"><a href="#L-372"><span class="linenos">372</span></a><span class="sd">        1: 311,</span>
+</span><span id="L-373"><a href="#L-373"><span class="linenos">373</span></a><span class="sd">    },</span>
+</span><span id="L-374"><a href="#L-374"><span class="linenos">374</span></a><span class="sd">    # From Paris</span>
+</span><span id="L-375"><a href="#L-375"><span class="linenos">375</span></a><span class="sd">    {</span>
+</span><span id="L-376"><a href="#L-376"><span class="linenos">376</span></a><span class="sd">        # To London</span>
+</span><span id="L-377"><a href="#L-377"><span class="linenos">377</span></a><span class="sd">        0: 311,</span>
+</span><span id="L-378"><a href="#L-378"><span class="linenos">378</span></a><span class="sd">        # To Berlin</span>
+</span><span id="L-379"><a href="#L-379"><span class="linenos">379</span></a><span class="sd">        2: 878,</span>
+</span><span id="L-380"><a href="#L-380"><span class="linenos">380</span></a><span class="sd">        # To Rome</span>
+</span><span id="L-381"><a href="#L-381"><span class="linenos">381</span></a><span class="sd">        3: 1439,</span>
+</span><span id="L-382"><a href="#L-382"><span class="linenos">382</span></a><span class="sd">        # To Madrid</span>
+</span><span id="L-383"><a href="#L-383"><span class="linenos">383</span></a><span class="sd">        4: 1053</span>
+</span><span id="L-384"><a href="#L-384"><span class="linenos">384</span></a><span class="sd">    },</span>
+</span><span id="L-385"><a href="#L-385"><span class="linenos">385</span></a><span class="sd">    # From Berlin</span>
+</span><span id="L-386"><a href="#L-386"><span class="linenos">386</span></a><span class="sd">    {</span>
+</span><span id="L-387"><a href="#L-387"><span class="linenos">387</span></a><span class="sd">        # To Paris</span>
+</span><span id="L-388"><a href="#L-388"><span class="linenos">388</span></a><span class="sd">        1: 878,</span>
+</span><span id="L-389"><a href="#L-389"><span class="linenos">389</span></a><span class="sd">        # To Rome</span>
+</span><span id="L-390"><a href="#L-390"><span class="linenos">390</span></a><span class="sd">        3: 1181,</span>
+</span><span id="L-391"><a href="#L-391"><span class="linenos">391</span></a><span class="sd">    },</span>
+</span><span id="L-392"><a href="#L-392"><span class="linenos">392</span></a><span class="sd">    # From Rome</span>
+</span><span id="L-393"><a href="#L-393"><span class="linenos">393</span></a><span class="sd">    {</span>
+</span><span id="L-394"><a href="#L-394"><span class="linenos">394</span></a><span class="sd">        # To Paris</span>
+</span><span id="L-395"><a href="#L-395"><span class="linenos">395</span></a><span class="sd">        1: 1439,</span>
+</span><span id="L-396"><a href="#L-396"><span class="linenos">396</span></a><span class="sd">        # To Berlin</span>
+</span><span id="L-397"><a href="#L-397"><span class="linenos">397</span></a><span class="sd">        2: 1181,</span>
+</span><span id="L-398"><a href="#L-398"><span class="linenos">398</span></a><span class="sd">    },</span>
+</span><span id="L-399"><a href="#L-399"><span class="linenos">399</span></a><span class="sd">    # From Madrid</span>
+</span><span id="L-400"><a href="#L-400"><span class="linenos">400</span></a><span class="sd">    {</span>
+</span><span id="L-401"><a href="#L-401"><span class="linenos">401</span></a><span class="sd">        # To Paris</span>
+</span><span id="L-402"><a href="#L-402"><span class="linenos">402</span></a><span class="sd">        1: 1053,</span>
+</span><span id="L-403"><a href="#L-403"><span class="linenos">403</span></a><span class="sd">        # To Lisbon</span>
+</span><span id="L-404"><a href="#L-404"><span class="linenos">404</span></a><span class="sd">        5: 623</span>
+</span><span id="L-405"><a href="#L-405"><span class="linenos">405</span></a><span class="sd">    },</span>
+</span><span id="L-406"><a href="#L-406"><span class="linenos">406</span></a><span class="sd">    # From Lisbon</span>
+</span><span id="L-407"><a href="#L-407"><span class="linenos">407</span></a><span class="sd">    {</span>
+</span><span id="L-408"><a href="#L-408"><span class="linenos">408</span></a><span class="sd">        # To Madrid</span>
+</span><span id="L-409"><a href="#L-409"><span class="linenos">409</span></a><span class="sd">        4: 623</span>
+</span><span id="L-410"><a href="#L-410"><span class="linenos">410</span></a><span class="sd">    }</span>
+</span><span id="L-411"><a href="#L-411"><span class="linenos">411</span></a><span class="sd">]</span>
+</span><span id="L-412"><a href="#L-412"><span class="linenos">412</span></a>
+</span><span id="L-413"><a href="#L-413"><span class="linenos">413</span></a><span class="sd"># Create a GeoGraph object</span>
+</span><span id="L-414"><a href="#L-414"><span class="linenos">414</span></a><span class="sd">my_geograph = GeoGraph(nodes=nodes, graph=graph)</span>
+</span><span id="L-415"><a href="#L-415"><span class="linenos">415</span></a>
+</span><span id="L-416"><a href="#L-416"><span class="linenos">416</span></a><span class="sd"># Optional: Validate your graph</span>
+</span><span id="L-417"><a href="#L-417"><span class="linenos">417</span></a><span class="sd">my_geograph.validate_graph()</span>
+</span><span id="L-418"><a href="#L-418"><span class="linenos">418</span></a>
+</span><span id="L-419"><a href="#L-419"><span class="linenos">419</span></a><span class="sd"># Optional: Validate your nodes</span>
+</span><span id="L-420"><a href="#L-420"><span class="linenos">420</span></a><span class="sd">my_geograph.validate_nodes()</span>
+</span><span id="L-421"><a href="#L-421"><span class="linenos">421</span></a>
+</span><span id="L-422"><a href="#L-422"><span class="linenos">422</span></a><span class="sd"># Get the shortest path between two points</span>
+</span><span id="L-423"><a href="#L-423"><span class="linenos">423</span></a><span class="sd"># In this case, Birmingham England and Zaragoza Spain</span>
+</span><span id="L-424"><a href="#L-424"><span class="linenos">424</span></a><span class="sd"># Since Birmingham and Zaragoza are not in the graph,</span>
+</span><span id="L-425"><a href="#L-425"><span class="linenos">425</span></a><span class="sd"># the algorithm will add them into the graph.</span>
+</span><span id="L-426"><a href="#L-426"><span class="linenos">426</span></a><span class="sd"># See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph.get_shortest_path</span>
+</span><span id="L-427"><a href="#L-427"><span class="linenos">427</span></a><span class="sd"># Expected output would be to go from</span>
+</span><span id="L-428"><a href="#L-428"><span class="linenos">428</span></a><span class="sd"># Birmingham -&gt; London -&gt; Paris -&gt; Madrid -&gt; Zaragoza</span>
+</span><span id="L-429"><a href="#L-429"><span class="linenos">429</span></a>
+</span><span id="L-430"><a href="#L-430"><span class="linenos">430</span></a><span class="sd">output = my_geograph.get_shortest_path(</span>
+</span><span id="L-431"><a href="#L-431"><span class="linenos">431</span></a><span class="sd">    # Birmingham England</span>
+</span><span id="L-432"><a href="#L-432"><span class="linenos">432</span></a><span class="sd">    origin_node = {&#39;latitude&#39;: 52.4862, &#39;longitude&#39;: -1.8904},</span>
+</span><span id="L-433"><a href="#L-433"><span class="linenos">433</span></a><span class="sd">    # Zaragoza Spain</span>
+</span><span id="L-434"><a href="#L-434"><span class="linenos">434</span></a><span class="sd">    destination_node = {&#39;latitude&#39;: 41.6488, &#39;longitude&#39;: -0.8891}</span>
+</span><span id="L-435"><a href="#L-435"><span class="linenos">435</span></a><span class="sd">)</span>
+</span><span id="L-436"><a href="#L-436"><span class="linenos">436</span></a><span class="sd">print(output)</span>
+</span><span id="L-437"><a href="#L-437"><span class="linenos">437</span></a><span class="sd"># {</span>
+</span><span id="L-438"><a href="#L-438"><span class="linenos">438</span></a><span class="sd">#     &#39;length&#39;: 1799.4323,</span>
+</span><span id="L-439"><a href="#L-439"><span class="linenos">439</span></a><span class="sd">#     &#39;coordinate_path&#39;: [</span>
+</span><span id="L-440"><a href="#L-440"><span class="linenos">440</span></a><span class="sd">#         [52.4862, -1.8904],</span>
+</span><span id="L-441"><a href="#L-441"><span class="linenos">441</span></a><span class="sd">#         [51.5074, -0.1278],</span>
+</span><span id="L-442"><a href="#L-442"><span class="linenos">442</span></a><span class="sd">#         [48.8566, 2.3522],</span>
+</span><span id="L-443"><a href="#L-443"><span class="linenos">443</span></a><span class="sd">#         [40.4168, -3.7038],</span>
+</span><span id="L-444"><a href="#L-444"><span class="linenos">444</span></a><span class="sd">#         [41.6488, -0.8891]</span>
+</span><span id="L-445"><a href="#L-445"><span class="linenos">445</span></a><span class="sd">#     ]</span>
+</span><span id="L-446"><a href="#L-446"><span class="linenos">446</span></a><span class="sd"># }</span>
+</span><span id="L-447"><a href="#L-447"><span class="linenos">447</span></a>
+</span><span id="L-448"><a href="#L-448"><span class="linenos">448</span></a><span class="sd">```</span>
+</span><span id="L-449"><a href="#L-449"><span class="linenos">449</span></a>
+</span><span id="L-450"><a href="#L-450"><span class="linenos">450</span></a><span class="sd"># Development</span>
+</span><span id="L-451"><a href="#L-451"><span class="linenos">451</span></a><span class="sd">## Running Tests, Prettifying Code, and Updating Docs</span>
+</span><span id="L-452"><a href="#L-452"><span class="linenos">452</span></a>
+</span><span id="L-453"><a href="#L-453"><span class="linenos">453</span></a><span class="sd">Make sure Docker is installed and running on a Unix system (Linux, MacOS, WSL2).</span>
+</span><span id="L-454"><a href="#L-454"><span class="linenos">454</span></a>
+</span><span id="L-455"><a href="#L-455"><span class="linenos">455</span></a><span class="sd">- Create a docker container and drop into a shell</span>
+</span><span id="L-456"><a href="#L-456"><span class="linenos">456</span></a><span class="sd">    - `./run.sh`</span>
+</span><span id="L-457"><a href="#L-457"><span class="linenos">457</span></a><span class="sd">- Run all tests (see ./utils/test.sh)</span>
+</span><span id="L-458"><a href="#L-458"><span class="linenos">458</span></a><span class="sd">    - `./run.sh test`</span>
+</span><span id="L-459"><a href="#L-459"><span class="linenos">459</span></a><span class="sd">- Prettify the code (see ./utils/prettify.sh)</span>
+</span><span id="L-460"><a href="#L-460"><span class="linenos">460</span></a><span class="sd">    - `./run.sh prettify`</span>
+</span><span id="L-461"><a href="#L-461"><span class="linenos">461</span></a><span class="sd">- Update the docs (see ./utils/docs.sh)</span>
+</span><span id="L-462"><a href="#L-462"><span class="linenos">462</span></a><span class="sd">    - `./run.sh docs`</span>
+</span><span id="L-463"><a href="#L-463"><span class="linenos">463</span></a>
+</span><span id="L-464"><a href="#L-464"><span class="linenos">464</span></a><span class="sd">- Note: You can and should modify the `Dockerfile` to test different python versions.</span>
+</span><span id="L-465"><a href="#L-465"><span class="linenos">465</span></a>
+</span><span id="L-466"><a href="#L-466"><span class="linenos">466</span></a>
+</span><span id="L-467"><a href="#L-467"><span class="linenos">467</span></a><span class="sd">## Attributions and Thanks</span>
+</span><span id="L-468"><a href="#L-468"><span class="linenos">468</span></a><span class="sd">Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.</span>
+</span><span id="L-469"><a href="#L-469"><span class="linenos">469</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-470"><a href="#L-470"><span class="linenos">470</span></a>
+</span><span id="L-471"><a href="#L-471"><span class="linenos">471</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.graph</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>
+</span><span id="L-472"><a href="#L-472"><span class="linenos">472</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.geograph</span><span class="w"> </span><span class="kn">import</span> <span class="n">GeoGraph</span>
+</span><span id="L-473"><a href="#L-473"><span class="linenos">473</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridGraph</span>
 </span></pre></div>
 
 
