@@ -22,6 +22,8 @@ def simplify_geojson(filename_in, filename_out:str|None=None, precision:int=4, p
     Args:
 
     - filename_in: Input GeoJSON file path
+        - Type: str
+        - Note: Must be either a FeatureCollection or GeometryCollection.
 
     Optional Args:
 
@@ -41,28 +43,39 @@ def simplify_geojson(filename_in, filename_out:str|None=None, precision:int=4, p
 
     - All cleaned coordinates as a single MultiLineString.
         - If `filename_out` is provided, this will be written into a GeoJSON file.
+        - Note: Always returns a GeometryCollection with a single MultiLineString containing all cleaned coordinates.
     """
 
     print_console(f"Loading {filename_in}...", silent=silent)
-    features = json.load(open(filename_in, "r"))['features']
-    print_console(f"Loaded {len(features)} features from {filename_in}", silent=silent)
+    data = json.load(open(filename_in, "r"))
+    if data['type'] == 'FeatureCollection':
+        features = data['features']
+        geometries = [feature.get('geometry', {}) for feature in features]
+    elif data['type'] == 'GeometryCollection':
+        geometries = data['geometries']
+    else:
+        raise ValueError(f"Unsupported GeoJSON type: {data['type']}")
+
+    print_console(f"Loaded {len(geometries)} geometries from {filename_in}", silent=silent)
 
 
     # Clean the features
     # Round all coordinates to {precision} decimal places
-    print_console("Cleaning features and creating a single multi line object...", silent=silent)
+    print_console("Cleaning geometries and creating a single multi line object...", silent=silent)
     single_multi_line = []
-    for idx, feature in enumerate(features):
-        geometry = feature.get("geometry", {})
+    idx = 0
+    for geometry in geometries:
         geom_type = geometry.get("type")
-        
+        # Get all coordinates as multi line strings
         if geom_type == "LineString":
-            geometry["coordinates"] = [geometry["coordinates"]]
-        elif geom_type != "MultiLineString":
-            continue
+            coordinates = [geometry.get("coordinates", [])]
+        elif geom_type == "MultiLineString":
+            coordinates = geometry.get("coordinates", [])
+        else:
+            continue # Skip non-line geometries
 
-        coords = geometry.get("coordinates", [])
-        for line in coords:
+        for line in coordinates:
+            idx += 1
             new_line = []
             prev_coord = None
             for coord in line:
@@ -72,10 +85,10 @@ def simplify_geojson(filename_in, filename_out:str|None=None, precision:int=4, p
                     prev_coord = new_coord
             if len(new_line)>1:
                 single_multi_line.append(visvalingam(new_line, pct_to_keep=pct_to_keep, min_points=min_points))
-        if idx % 10000 == 0:
-            print_console(f"Cleaned {idx} of {len(features)} features", silent=silent)
-    print_console(f"Cleaned {len(features)} of {len(features)} features", silent=silent)
-    print_console(f"Kept features: {len(single_multi_line)}", silent=silent)
+            if idx % 10000 == 0:
+                print_console(f"Cleaned {idx} line geometries", end='\r', silent=silent)
+    print_console(f"Cleaned {idx} of {idx} line geometries", silent=silent)
+    print_console(f"Kept geometries: {len(single_multi_line)}", silent=silent)
 
     if isinstance(filename_out, str):
         print_console(f"Writing {filename_out}...", silent=silent)
