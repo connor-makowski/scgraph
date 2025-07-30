@@ -1,6 +1,7 @@
-import math 
+import math
 
-def lat_lon_idx_to_xyz_idx(lat:float|int, lon:float|int, idx:int):
+
+def lat_lon_idx_to_xyz_idx(lat: float | int, lon: float | int, idx: int):
     """
     Function:
 
@@ -25,6 +26,7 @@ def lat_lon_idx_to_xyz_idx(lat:float|int, lon:float|int, idx:int):
     y = math.cos(lat_rad) * math.sin(lon_rad)
     z = math.sin(lat_rad)
     return (x, y, z, idx)
+
 
 def xyz_distance_squared(p1, p2):
     """

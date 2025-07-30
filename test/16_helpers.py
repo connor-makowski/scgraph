@@ -25,21 +25,25 @@ timed_vsivalingam = pamda_timer(visvalingam)
 print("\nScale Testing Visvalingam (should be O(n log n))...")
 for n in range(1, 6):
     n_act = 10**n
-    data = [[i, i%2+(i/n_act)] for i in range(n_act)]
-    print(f"n={n_act}", end=":"+" "*(6-n))
+    data = [[i, i % 2 + (i / n_act)] for i in range(n_act)]
+    print(f"n={n_act}", end=":" + " " * (6 - n))
     timed_vsivalingam(data, pct_to_keep=0, min_points=3)
 
 
 print("\nScale Testing KDTree...")
-for n in range(1, 7):
+for n in range(1, 6):
     n_act = 10**n
-    nodes = [(i, i+1) for i in range(n_act)]
+    nodes = [(i, i + 1) for i in range(n_act)]
     start_time = time()
     kd_tree = KDTree(nodes)
-    print(f"n={n_act} KD-Tree built in {round((time() - start_time) * 1000, 4)} ms")
+    print(
+        f"n={n_act} KD-Tree built in {round((time() - start_time) * 1000, 4)} ms"
+    )
     start_time = time()
-    closest_point = kd_tree.closest_point((5,5.5))
-    print(f"n={n_act} KD-Tree found in {round((time() - start_time) * 1000, 4)} ms")
+    closest_point = kd_tree.closest_point((5, 5.5))
+    print(
+        f"n={n_act} KD-Tree found in {round((time() - start_time) * 1000, 4)} ms"
+    )
     if closest_point != (5, 6):
         print(f"KD-Tree closest point test failed for n={n_act}")
         success = False

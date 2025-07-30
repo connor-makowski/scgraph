@@ -1,4 +1,11 @@
-from .utils import haversine, distance_converter, get_line_path, cheap_ruler, print_console, get_lat_lon_bound_between_pts
+from .utils import (
+    haversine,
+    distance_converter,
+    get_line_path,
+    cheap_ruler,
+    print_console,
+    get_lat_lon_bound_between_pts,
+)
 from scgraph.helpers.geojson import parse_geojson
 from scgraph.helpers.kd_tree import GeoKDTree
 import json
@@ -199,7 +206,7 @@ class GeoGraph:
         geograph_units: str = "km",
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
-        node_addition_lat_lon_bound: float | int | Literal["auto"] = 'auto',
+        node_addition_lat_lon_bound: float | int | Literal["auto"] = "auto",
         node_addition_math: str = "euclidean",
         destination_node_addition_type: str = "kdclosest",
         auto_lat_lon_bound_max: float | int = 2,
@@ -350,11 +357,13 @@ class GeoGraph:
         """
         original_graph_length = len(self.graph)
         if node_addition_lat_lon_bound == "auto":
-            node_addition_lat_lon_bound_destination = get_lat_lon_bound_between_pts(origin_node, destination_node)*1.01
+            node_addition_lat_lon_bound_destination = (
+                get_lat_lon_bound_between_pts(origin_node, destination_node)
+                * 1.01
+            )
             node_addition_lat_lon_bound_origin = min(
-                node_addition_lat_lon_bound_destination,
-                auto_lat_lon_bound_max
-            ) 
+                node_addition_lat_lon_bound_destination, auto_lat_lon_bound_max
+            )
 
         # Add the origin and destination nodes to the graph
         origin_id = self.add_node(
@@ -363,7 +372,7 @@ class GeoGraph:
             circuity=node_addition_circuity,
             lat_lon_bound=node_addition_lat_lon_bound_origin,
             node_addition_math=node_addition_math,
-            silent=silent
+            silent=silent,
         )
         destination_id = self.add_node(
             node=destination_node,
@@ -411,8 +420,12 @@ class GeoGraph:
                 self.remove_appended_node()
             print("An error occurred while calculating the shortest path:")
             print("This is likely caused by a disconnect in the graph.")
-            print("You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180.")
-            print("This will, however, result in a much longer runtime per shortest path query.")
+            print(
+                "You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180."
+            )
+            print(
+                "This will, however, result in a much longer runtime per shortest path query."
+            )
             print("See the stacktrace below for more details:")
             raise e
 
@@ -513,7 +526,7 @@ class GeoGraph:
         node_addition_type: str,
         node_addition_math: str,
         lat_lon_bound: float | int,
-        silent:bool=False,
+        silent: bool = False,
     ) -> dict[int, float]:
         """
         Function:
@@ -577,21 +590,27 @@ class GeoGraph:
                 )
             }
         # Get only bounded nodes
-        # Find the only keep nodes that are within the bounding latitude 
+        # Find the only keep nodes that are within the bounding latitude
         top_lat = node[0] + lat_lon_bound
         bottom_lat = node[0] - lat_lon_bound
         top_lon = node[1] + lat_lon_bound
         bottom_lon = node[1] - lat_lon_bound
         nodes = {
-            node_idx: node_i for node_idx, node_i in enumerate(self.nodes) 
-            if  node_i[0] >= bottom_lat
+            node_idx: node_i
+            for node_idx, node_i in enumerate(self.nodes)
+            if node_i[0] >= bottom_lat
             and node_i[0] <= top_lat
             and node_i[1] >= bottom_lon
             and node_i[1] <= top_lon
         }
         if len(nodes) == 0:
-            print_console(f"When adding your origin or destination node to the graph, no nodes found within the bounding box of {lat_lon_bound} degrees around the node {node}.", silent=silent)
-            print_console("Using KD-Tree to find closest node instead.", silent=silent)
+            print_console(
+                f"When adding your origin or destination node to the graph, no nodes found within the bounding box of {lat_lon_bound} degrees around the node {node}.",
+                silent=silent,
+            )
+            print_console(
+                "Using KD-Tree to find closest node instead.", silent=silent
+            )
             closest_idx = self.geokdtree.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
@@ -781,7 +800,7 @@ class GeoGraph:
     def merge_with_other_geograph(
         self,
         other_geograph,
-        connection_nodes: list[list[int|float]],
+        connection_nodes: list[list[int | float]],
         circuity_to_current_geograph: float | int = 1.2,
         circuity_to_other_geograph: float | int = 1.2,
         node_addition_type_current_geograph: str = "closest",
@@ -864,8 +883,10 @@ class GeoGraph:
         # Store the modified other geograph graph that include the connection nodes
         other_graph = deepcopy(other_geograph.graph)
         # Add the other graph nodes to the current geograph (removing the connection nodes since they are already added to the current geograph)
-        self.nodes += deepcopy(other_geograph.nodes)[:original_other_graph_length]
-        
+        self.nodes += deepcopy(other_geograph.nodes)[
+            :original_other_graph_length
+        ]
+
         # Clean up the other geograph to remove any appended nodes
         while len(other_geograph.graph) > original_other_graph_length:
             other_geograph.remove_appended_node()
@@ -873,17 +894,23 @@ class GeoGraph:
         graph_length = len(self.graph)
 
         # Create a list based connection map to map the merging nodes into the current graph
-        node_connection_map = [i + graph_length for i in range(len(other_graph))]
+        node_connection_map = [
+            i + graph_length for i in range(len(other_graph))
+        ]
         # Adjust the added nodes to match the nodes added to the current graph
         for idx, node in node_connection_mapper.items():
             node_connection_map[idx] = node
 
         # Fill the current graph with empty dictionaries to match the length of the other graph
-        self.graph.extend([{} for _ in range(len(other_graph)-len(connection_nodes))])
+        self.graph.extend(
+            [{} for _ in range(len(other_graph) - len(connection_nodes))]
+        )
         # Populate the new connections
         for origin_idx, destinations in enumerate(other_graph):
             for destination_idx, distance in destinations.items():
-                self.graph[node_connection_map[origin_idx]][node_connection_map[destination_idx]] = distance
+                self.graph[node_connection_map[origin_idx]][
+                    node_connection_map[destination_idx]
+                ] = distance
 
     def save_as_geograph(self, name: str) -> None:
         """
@@ -906,7 +933,7 @@ class GeoGraph:
         out_string = f"""from scgraph.core import GeoGraph\ngraph={str(self.graph)}\nnodes={str(self.nodes)}\n{name}_geograph = GeoGraph(graph=graph, nodes=nodes)"""
         with open(name + ".py", "w") as f:
             f.write(out_string)
-    
+
     def save_as_graphjson(self, filename: str) -> None:
         """
         Function:
@@ -926,9 +953,7 @@ class GeoGraph:
             - Note: The filename must end with .graphjson
         """
         if not filename.endswith(".graphjson"):
-            raise ValueError(
-                "Filename must end with .graphjson"
-            )
+            raise ValueError("Filename must end with .graphjson")
         with open(filename, "w") as f:
             json.dump(
                 {
@@ -936,7 +961,7 @@ class GeoGraph:
                     "graph": self.graph,
                     "nodes": self.nodes,
                 },
-                f
+                f,
             )
 
     @staticmethod
@@ -960,9 +985,7 @@ class GeoGraph:
         - A GeoGraph object with the graph and nodes loaded from the JSON file
         """
         if not filename.endswith(".graphjson"):
-            raise ValueError(
-                "Filename must end with .graphjson"
-            )
+            raise ValueError("Filename must end with .graphjson")
         with open(filename, "r") as f:
             data = json.load(f)
         if data.get("type", None) != "GeoGraph":
@@ -970,17 +993,25 @@ class GeoGraph:
                 "JSON file is not a valid GeoGraph. Ensure it was saved using the save_as_graphjson method."
             )
         return GeoGraph(
-            graph=[{int(k):v for k, v in item.items()} for item in data["graph"]],
+            graph=[
+                {int(k): v for k, v in item.items()} for item in data["graph"]
+            ],
             nodes=data["nodes"],
         )
-    
+
     @staticmethod
-    def load_from_geojson(filename: str, precision:int=3, pct_to_keep:int|float=100, min_points=3, silent:bool=False):
+    def load_from_geojson(
+        filename: str,
+        precision: int = 3,
+        pct_to_keep: int | float = 100,
+        min_points=3,
+        silent: bool = False,
+    ):
         """
         Function:
 
         - Load a GeoGraph from an arbitrary geojson file (GeometryCollection or FeatureCollection)
-        - This function 
+        - This function
             - Merges all LineStrings and MultiLineStrings into a single MultiLineString
             - Simplifies the MultiLineString to reduce the number of points using a percentage based Visvalengam simplification algorithm
             - Rounds the coordinates to the specified precision
@@ -1029,7 +1060,6 @@ class GeoGraph:
             graph=data["graph"],
             nodes=data["nodes"],
         )
-
 
     def mod_remove_arc(
         self, origin_idx: int, destination_idx: int, undirected: bool = True
@@ -1201,10 +1231,16 @@ class GeoGraph:
             [isinstance(i.get("properties"), dict) for i in routes]
         ), "All routes must have a 'properties' key with a dictionary"
         assert all(
-            [isinstance(i["origin"].get("latitude"), (int, float)) for i in routes]
+            [
+                isinstance(i["origin"].get("latitude"), (int, float))
+                for i in routes
+            ]
         ), "All origins must have a 'latitude' key with a number"
         assert all(
-            [isinstance(i["origin"].get("longitude"), (int, float)) for i in routes]
+            [
+                isinstance(i["origin"].get("longitude"), (int, float))
+                for i in routes
+            ]
         ), "All origins must have a 'longitude' key with a number"
         assert all(
             [
@@ -1324,7 +1360,7 @@ def load_geojson_as_geograph(geojson_filename: str, silent=False) -> GeoGraph:
                 ]
             }
             ```
-    
+
     Optional Arguments:
 
     - `silent`
@@ -1332,10 +1368,19 @@ def load_geojson_as_geograph(geojson_filename: str, silent=False) -> GeoGraph:
         - What: Whether to suppress output to the console when loading the geojson
         - Default: False
     """
-    #TODO: Remove this function in a future release
-    print_console("This function is deprecated and will be removed in a future release. Please use `GeoGraph.load_from_geojson` instead.", silent=silent)
-    print_console("Note: `GeoGraph.load_from_geojson` is not an equivalent function so see the documentation there for details.", silent=silent)
-    print_console("Note: Use silent when calling this function to suppress this message.", silent=silent)
+    # TODO: Remove this function in a future release
+    print_console(
+        "This function is deprecated and will be removed in a future release. Please use `GeoGraph.load_from_geojson` instead.",
+        silent=silent,
+    )
+    print_console(
+        "Note: `GeoGraph.load_from_geojson` is not an equivalent function so see the documentation there for details.",
+        silent=silent,
+    )
+    print_console(
+        "Note: Use silent when calling this function to suppress this message.",
+        silent=silent,
+    )
     with open(geojson_filename, "r") as f:
         geojson_features = json.load(f).get("features", [])
 

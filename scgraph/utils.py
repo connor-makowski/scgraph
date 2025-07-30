@@ -224,7 +224,7 @@ def get_line_path(output: [list, dict], filename=None):
     return linestring
 
 
-def print_console(*args, silent:bool=False, **kwargs):
+def print_console(*args, silent: bool = False, **kwargs):
     """
     Function:
 
@@ -243,7 +243,9 @@ def print_console(*args, silent:bool=False, **kwargs):
         print(*args, **kwargs)
 
 
-def get_lat_lon_bound_between_pts(origin:dict[str,int|float], destination:dict[str,int|float]):
+def get_lat_lon_bound_between_pts(
+    origin: dict[str, int | float], destination: dict[str, int | float]
+):
     """
     Function:
 
@@ -259,8 +261,11 @@ def get_lat_lon_bound_between_pts(origin:dict[str,int|float], destination:dict[s
         - Type: dict
         - What: Destination point with "latitude" and "longitude" keys
     """
-    return haversine(
-        (origin["latitude"], origin["longitude"]),
-        (destination["latitude"], destination["longitude"]),
-        units="km",
-    ) / 111
+    return (
+        haversine(
+            (origin["latitude"], origin["longitude"]),
+            (destination["latitude"], destination["longitude"]),
+            units="km",
+        )
+        / 111
+    )

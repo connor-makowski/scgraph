@@ -129,6 +129,7 @@ def a_star_cheap_ruler():
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     )
 
+
 time_test("Dijkstra-Modified", dijkstra_makowski)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
