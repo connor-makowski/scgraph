@@ -116,6 +116,24 @@ output = marnet_geograph.get_shortest_path(
 print('Length: ',output['length']) #=> Length:  19596.4653
 ```
 
+Adding in a few additional parameters to the `get_shortest_path` function can change the output format and performance of the calculation.
+```py
+# Use a maritime network geograph
+from scgraph.geographs.marnet import marnet_geograph
+
+# Get the shortest maritime path between Shanghai, China and Savannah, Georgia, USA
+output = marnet_geograph.get_shortest_path(
+    origin_node={"latitude": 31.23,"longitude": 121.47},
+    destination_node={"latitude": 32.08,"longitude": -81.09},
+    output_units='km',
+    node_addition_lat_lon_bound=180, # Optional: The maximum distance in degrees to consider nodes when attempting to add the origin and destination nodes to the graph
+    node_addition_type='quadrant', # Optional: Instead of connecting the origin node to the graph by the closest node, connect it to the closest node in each direction (NE, NW, SE, SW) if found within the node_addition_lat_lon_bound
+    destination_node_addition_type='all', # Optional: Instead of connecting the destination node to the graph by the closest node, connect it to all nodes found within the node_addition_lat_lon_bound
+    # When destination_node_addition_type='all' is set with a node_addition_lat_lon_bound=180, this will guarantee a solution can be found since the destination node will also connect to the origin node
+)
+print('Length: ',output['length']) #=> Length:  19596.4653
+```
+
 In the above example, the `output` variable is a dictionary with two keys: `length` and `coordinate_path`.
 
 - `length`: The distance between the passed origin and destination when traversing the graph along the shortest path

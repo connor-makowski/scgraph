@@ -57,12 +57,16 @@
             <li>
                     <a class="function" href="#print_console">print_console</a>
             </li>
+            <li>
+                    <a class="function" href="#get_lat_lon_bound_between_pts">get_lat_lon_bound_between_pts</a>
+            </li>
     </ul>
 
 
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
+        <option value="2.10.0">2.10.0</option>
         <option value="2.9.0">2.9.0</option>
         <option value="2.8.2">2.8.2</option>
         <option value="2.7.0">2.7.0</option>
@@ -348,7 +352,7 @@
 </span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>    <span class="k">return</span> <span class="n">linestring</span>
 </span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>
 </span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>
-</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a><span class="k">def</span><span class="w"> </span><span class="nf">print_console</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">silent</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a><span class="k">def</span><span class="w"> </span><span class="nf">print_console</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">silent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 </span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a><span class="sd">    Function:</span>
 </span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>
@@ -365,6 +369,34 @@
 </span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a><span class="sd">    &quot;&quot;&quot;</span>
 </span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">silent</span><span class="p">:</span>
 </span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>        <span class="nb">print</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a>
+</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a>
+</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_lat_lon_bound_between_pts</span><span class="p">(</span>
+</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a>    <span class="n">origin</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span> <span class="n">destination</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>
+</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a><span class="p">):</span>
+</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a><span class="sd">    Function:</span>
+</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a>
+</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a><span class="sd">    - Calculate a rough bounding latitude and longitude difference given two points</span>
+</span><span id="L-253"><a href="#L-253"><span class="linenos">253</span></a><span class="sd">    - This is the haversine distance divided by 111, which is roughly the number of kilometers per degree of latitude and longitude at the equator</span>
+</span><span id="L-254"><a href="#L-254"><span class="linenos">254</span></a>
+</span><span id="L-255"><a href="#L-255"><span class="linenos">255</span></a><span class="sd">    Required Arguments:</span>
+</span><span id="L-256"><a href="#L-256"><span class="linenos">256</span></a>
+</span><span id="L-257"><a href="#L-257"><span class="linenos">257</span></a><span class="sd">    - `origin`:</span>
+</span><span id="L-258"><a href="#L-258"><span class="linenos">258</span></a><span class="sd">        - Type: dict</span>
+</span><span id="L-259"><a href="#L-259"><span class="linenos">259</span></a><span class="sd">        - What: Origin point with &quot;latitude&quot; and &quot;longitude&quot; keys</span>
+</span><span id="L-260"><a href="#L-260"><span class="linenos">260</span></a><span class="sd">    - `destination`:</span>
+</span><span id="L-261"><a href="#L-261"><span class="linenos">261</span></a><span class="sd">        - Type: dict</span>
+</span><span id="L-262"><a href="#L-262"><span class="linenos">262</span></a><span class="sd">        - What: Destination point with &quot;latitude&quot; and &quot;longitude&quot; keys</span>
+</span><span id="L-263"><a href="#L-263"><span class="linenos">263</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-264"><a href="#L-264"><span class="linenos">264</span></a>    <span class="k">return</span> <span class="p">(</span>
+</span><span id="L-265"><a href="#L-265"><span class="linenos">265</span></a>        <span class="n">haversine</span><span class="p">(</span>
+</span><span id="L-266"><a href="#L-266"><span class="linenos">266</span></a>            <span class="p">(</span><span class="n">origin</span><span class="p">[</span><span class="s2">&quot;latitude&quot;</span><span class="p">],</span> <span class="n">origin</span><span class="p">[</span><span class="s2">&quot;longitude&quot;</span><span class="p">]),</span>
+</span><span id="L-267"><a href="#L-267"><span class="linenos">267</span></a>            <span class="p">(</span><span class="n">destination</span><span class="p">[</span><span class="s2">&quot;latitude&quot;</span><span class="p">],</span> <span class="n">destination</span><span class="p">[</span><span class="s2">&quot;longitude&quot;</span><span class="p">]),</span>
+</span><span id="L-268"><a href="#L-268"><span class="linenos">268</span></a>            <span class="n">units</span><span class="o">=</span><span class="s2">&quot;km&quot;</span><span class="p">,</span>
+</span><span id="L-269"><a href="#L-269"><span class="linenos">269</span></a>        <span class="p">)</span>
+</span><span id="L-270"><a href="#L-270"><span class="linenos">270</span></a>        <span class="o">/</span> <span class="mi">111</span>
+</span><span id="L-271"><a href="#L-271"><span class="linenos">271</span></a>    <span class="p">)</span>
 </span></pre></div>
 
 
@@ -865,7 +897,7 @@ A* as this method can overestimate distances, especially near the Earth's poles.
 
     </div>
     <a class="headerlink" href="#print_console"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="print_console-228"><a href="#print_console-228"><span class="linenos">228</span></a><span class="k">def</span><span class="w"> </span><span class="nf">print_console</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">silent</span><span class="p">:</span><span class="nb">bool</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="print_console-228"><a href="#print_console-228"><span class="linenos">228</span></a><span class="k">def</span><span class="w"> </span><span class="nf">print_console</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">silent</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
 </span><span id="print_console-229"><a href="#print_console-229"><span class="linenos">229</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="print_console-230"><a href="#print_console-230"><span class="linenos">230</span></a><span class="sd">    Function:</span>
 </span><span id="print_console-231"><a href="#print_console-231"><span class="linenos">231</span></a>
@@ -901,6 +933,71 @@ A* as this method can overestimate distances, especially near the Earth's poles.
 <li>Default: False</li>
 </ul></li>
 <li><code>**kwargs</code>: Additional keyword arguments to pass to the print function</li>
+</ul>
+</div>
+
+
+                </section>
+                <section id="get_lat_lon_bound_between_pts">
+                            <input id="get_lat_lon_bound_between_pts-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_lat_lon_bound_between_pts</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">origin</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>, </span><span class="param"><span class="n">destination</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span></span><span class="return-annotation">):</span></span>
+
+                <label class="view-source-button" for="get_lat_lon_bound_between_pts-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#get_lat_lon_bound_between_pts"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_lat_lon_bound_between_pts-247"><a href="#get_lat_lon_bound_between_pts-247"><span class="linenos">247</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_lat_lon_bound_between_pts</span><span class="p">(</span>
+</span><span id="get_lat_lon_bound_between_pts-248"><a href="#get_lat_lon_bound_between_pts-248"><span class="linenos">248</span></a>    <span class="n">origin</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span> <span class="n">destination</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]</span>
+</span><span id="get_lat_lon_bound_between_pts-249"><a href="#get_lat_lon_bound_between_pts-249"><span class="linenos">249</span></a><span class="p">):</span>
+</span><span id="get_lat_lon_bound_between_pts-250"><a href="#get_lat_lon_bound_between_pts-250"><span class="linenos">250</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="get_lat_lon_bound_between_pts-251"><a href="#get_lat_lon_bound_between_pts-251"><span class="linenos">251</span></a><span class="sd">    Function:</span>
+</span><span id="get_lat_lon_bound_between_pts-252"><a href="#get_lat_lon_bound_between_pts-252"><span class="linenos">252</span></a>
+</span><span id="get_lat_lon_bound_between_pts-253"><a href="#get_lat_lon_bound_between_pts-253"><span class="linenos">253</span></a><span class="sd">    - Calculate a rough bounding latitude and longitude difference given two points</span>
+</span><span id="get_lat_lon_bound_between_pts-254"><a href="#get_lat_lon_bound_between_pts-254"><span class="linenos">254</span></a><span class="sd">    - This is the haversine distance divided by 111, which is roughly the number of kilometers per degree of latitude and longitude at the equator</span>
+</span><span id="get_lat_lon_bound_between_pts-255"><a href="#get_lat_lon_bound_between_pts-255"><span class="linenos">255</span></a>
+</span><span id="get_lat_lon_bound_between_pts-256"><a href="#get_lat_lon_bound_between_pts-256"><span class="linenos">256</span></a><span class="sd">    Required Arguments:</span>
+</span><span id="get_lat_lon_bound_between_pts-257"><a href="#get_lat_lon_bound_between_pts-257"><span class="linenos">257</span></a>
+</span><span id="get_lat_lon_bound_between_pts-258"><a href="#get_lat_lon_bound_between_pts-258"><span class="linenos">258</span></a><span class="sd">    - `origin`:</span>
+</span><span id="get_lat_lon_bound_between_pts-259"><a href="#get_lat_lon_bound_between_pts-259"><span class="linenos">259</span></a><span class="sd">        - Type: dict</span>
+</span><span id="get_lat_lon_bound_between_pts-260"><a href="#get_lat_lon_bound_between_pts-260"><span class="linenos">260</span></a><span class="sd">        - What: Origin point with &quot;latitude&quot; and &quot;longitude&quot; keys</span>
+</span><span id="get_lat_lon_bound_between_pts-261"><a href="#get_lat_lon_bound_between_pts-261"><span class="linenos">261</span></a><span class="sd">    - `destination`:</span>
+</span><span id="get_lat_lon_bound_between_pts-262"><a href="#get_lat_lon_bound_between_pts-262"><span class="linenos">262</span></a><span class="sd">        - Type: dict</span>
+</span><span id="get_lat_lon_bound_between_pts-263"><a href="#get_lat_lon_bound_between_pts-263"><span class="linenos">263</span></a><span class="sd">        - What: Destination point with &quot;latitude&quot; and &quot;longitude&quot; keys</span>
+</span><span id="get_lat_lon_bound_between_pts-264"><a href="#get_lat_lon_bound_between_pts-264"><span class="linenos">264</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="get_lat_lon_bound_between_pts-265"><a href="#get_lat_lon_bound_between_pts-265"><span class="linenos">265</span></a>    <span class="k">return</span> <span class="p">(</span>
+</span><span id="get_lat_lon_bound_between_pts-266"><a href="#get_lat_lon_bound_between_pts-266"><span class="linenos">266</span></a>        <span class="n">haversine</span><span class="p">(</span>
+</span><span id="get_lat_lon_bound_between_pts-267"><a href="#get_lat_lon_bound_between_pts-267"><span class="linenos">267</span></a>            <span class="p">(</span><span class="n">origin</span><span class="p">[</span><span class="s2">&quot;latitude&quot;</span><span class="p">],</span> <span class="n">origin</span><span class="p">[</span><span class="s2">&quot;longitude&quot;</span><span class="p">]),</span>
+</span><span id="get_lat_lon_bound_between_pts-268"><a href="#get_lat_lon_bound_between_pts-268"><span class="linenos">268</span></a>            <span class="p">(</span><span class="n">destination</span><span class="p">[</span><span class="s2">&quot;latitude&quot;</span><span class="p">],</span> <span class="n">destination</span><span class="p">[</span><span class="s2">&quot;longitude&quot;</span><span class="p">]),</span>
+</span><span id="get_lat_lon_bound_between_pts-269"><a href="#get_lat_lon_bound_between_pts-269"><span class="linenos">269</span></a>            <span class="n">units</span><span class="o">=</span><span class="s2">&quot;km&quot;</span><span class="p">,</span>
+</span><span id="get_lat_lon_bound_between_pts-270"><a href="#get_lat_lon_bound_between_pts-270"><span class="linenos">270</span></a>        <span class="p">)</span>
+</span><span id="get_lat_lon_bound_between_pts-271"><a href="#get_lat_lon_bound_between_pts-271"><span class="linenos">271</span></a>        <span class="o">/</span> <span class="mi">111</span>
+</span><span id="get_lat_lon_bound_between_pts-272"><a href="#get_lat_lon_bound_between_pts-272"><span class="linenos">272</span></a>    <span class="p">)</span>
+</span></pre></div>
+
+
+            <div class="docstring"><p>Function:</p>
+
+<ul>
+<li>Calculate a rough bounding latitude and longitude difference given two points</li>
+<li>This is the haversine distance divided by 111, which is roughly the number of kilometers per degree of latitude and longitude at the equator</li>
+</ul>
+
+<p>Required Arguments:</p>
+
+<ul>
+<li><code>origin</code>:
+<ul>
+<li>Type: dict</li>
+<li>What: Origin point with "latitude" and "longitude" keys</li>
+</ul></li>
+<li><code>destination</code>:
+<ul>
+<li>Type: dict</li>
+<li>What: Destination point with "latitude" and "longitude" keys</li>
+</ul></li>
 </ul>
 </div>
 
