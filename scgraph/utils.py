@@ -241,3 +241,26 @@ def print_console(*args, silent:bool=False, **kwargs):
     """
     if not silent:
         print(*args, **kwargs)
+
+
+def get_lat_lon_bound_between_pts(origin:dict[str,int|float], destination:dict[str,int|float]):
+    """
+    Function:
+
+    - Calculate a rough bounding latitude and longitude difference given two points
+    - This is the haversine distance divided by 111, which is roughly the number of kilometers per degree of latitude and longitude at the equator
+
+    Required Arguments:
+
+    - `origin`:
+        - Type: dict
+        - What: Origin point with "latitude" and "longitude" keys
+    - `destination`:
+        - Type: dict
+        - What: Destination point with "latitude" and "longitude" keys
+    """
+    return haversine(
+        (origin["latitude"], origin["longitude"]),
+        (destination["latitude"], destination["longitude"]),
+        units="km",
+    ) / 111
