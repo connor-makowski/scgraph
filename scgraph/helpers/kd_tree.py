@@ -4,7 +4,7 @@ from time import time
 # A node in the KDTree has this format: (point, axis, left, right)
 def kdtree(points, depth=0, axis_count=2):
     if not points:
-        return None
+        return 0
     axis = depth % axis_count
     points.sort(key=lambda p: p[axis])
     median = len(points) // 2
@@ -19,7 +19,7 @@ def squared_distance(p1, p2, axis_count=2):
     return sum([(p1[i] - p2[i])**2 for i in range(axis_count)])
 
 def closest_point(root, point, depth=0, best=None, axis_count=2):
-    if root is None:
+    if root == 0:
         return best
     if best is None or squared_distance(point, root[0], axis_count) < squared_distance(point, best, axis_count):
         best = root[0]

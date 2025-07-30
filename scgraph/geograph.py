@@ -13,7 +13,6 @@ class GeoGraph:
         self,
         graph: list[dict[int, int | float]],
         nodes: list[list[float | int]],
-        geokdtree: tuple | None = None,
     ) -> None:
         """
         Function:
@@ -49,10 +48,7 @@ class GeoGraph:
         """
         self.graph = graph
         self.nodes = nodes
-        if geokdtree is None:
-            self.geokdtree = GeoKDTree(points = self.nodes)
-        else:
-            self.geokdtree = GeoKDTree(tree = geokdtree)
+        self.geokdtree = GeoKDTree(points=self.nodes)
 
     def validate_graph(
         self, check_symmetry: bool = True, check_connected: bool = True
