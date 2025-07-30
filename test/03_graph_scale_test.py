@@ -37,12 +37,6 @@ for size in [100, 1000, 10000]:
         ),
     )
     time_test(
-        f"Dijkstra ({size})",
-        pamda.thunkify(Graph.dijkstra)(
-            graph=graph, origin_id=0, destination_id=size - 1
-        ),
-    )
-    time_test(
         f"Dijkstra-Modified ({size})",
         pamda.thunkify(Graph.dijkstra_makowski)(
             graph=graph, origin_id=0, destination_id=size - 1

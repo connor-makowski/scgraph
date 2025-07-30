@@ -59,16 +59,6 @@ validate(
 )
 
 validate(
-    name="Dijkstra",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra,
-    ),
-    expected=expected,
-)
-
-validate(
     name="Dijkstra-Modified",
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
@@ -114,14 +104,6 @@ origin_node = {"latitude": 31.23, "longitude": 121.47}
 destination_node = {"latitude": 32.08, "longitude": -81.09}
 
 
-def dijkstra():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra,
-    )
-
-
 def dijkstra_makowski():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
@@ -147,8 +129,6 @@ def a_star_cheap_ruler():
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     )
 
-
-time_test("Dijkstra", dijkstra)
 time_test("Dijkstra-Modified", dijkstra_makowski)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)

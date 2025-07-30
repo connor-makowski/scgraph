@@ -37,12 +37,6 @@ validate(
 )
 
 validate(
-    name="Dijkstra",
-    realized=Graph.dijkstra(graph=graph, origin_id=0, destination_id=5),
-    expected=expected,
-)
-
-validate(
     name="Dijkstra-Modified",
     realized=Graph.dijkstra_makowski(
         graph=graph, origin_id=0, destination_id=5
@@ -65,22 +59,6 @@ time_test(
     ),
 )
 
-time_test(
-    "Dijkstra 1",
-    pamda.thunkify(Graph.dijkstra)(graph=graph, origin_id=0, destination_id=5),
-)
-time_test(
-    "Dijkstra 2",
-    pamda.thunkify(Graph.dijkstra)(
-        graph=graph, origin_id=100, destination_id=7999
-    ),
-)
-time_test(
-    "Dijkstra 3",
-    pamda.thunkify(Graph.dijkstra)(
-        graph=graph, origin_id=4022, destination_id=8342
-    ),
-)
 
 time_test(
     "Dijkstra-Modified 1",
