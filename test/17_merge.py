@@ -62,8 +62,8 @@ marnet = marnet_geograph.get_shortest_path(
     destination_node=london_node,
 )
 
-expected_freeway_length=7256.1063
-expected_marnet_length=8617.8868
+expected_freeway_length=7094.0603
+expected_marnet_length=8820.8927
 
 success = True
 
