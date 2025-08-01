@@ -778,7 +778,18 @@ class GeoGraph:
             multiline = []
             for origin_idx, destinations in enumerate(self.graph):
                 for destination_idx, distance in destinations.items():
-                    multiline.append([[self.nodes[origin_idx][1], self.nodes[origin_idx][0]], [self.nodes[destination_idx][1], self.nodes[destination_idx][0]]])
+                    multiline.append(
+                        [
+                            [
+                                self.nodes[origin_idx][1],
+                                self.nodes[origin_idx][0],
+                            ],
+                            [
+                                self.nodes[destination_idx][1],
+                                self.nodes[destination_idx][0],
+                            ],
+                        ]
+                    )
             out_dict = {
                 "type": "GeometryCollection",
                 "geometries": [

@@ -271,7 +271,7 @@ For this example, we will use some various tools to create a geograph for highwa
 
 Download an OSM PBF file using the AWS CLI:
 - Geofabrik is a good source for smaller OSM PBF files. See: https://download.geofabrik.de/
-- To keep things generalizable, you can also download the entire planet OSM PBF file using AWS. But you should consider downloading a smaller region if you are only interested in a specific area. 
+- To keep things generalizable, you can also download the entire planet OSM PBF file using AWS. But you should consider downloading a smaller region if you are only interested in a specific area.
     - Note: For this, you will need to install the AWS CLI.
     - Note: The planet OSM PBF file is very large (About 100GB)
         ```
@@ -302,7 +302,7 @@ Download an OSM PBF file using the AWS CLI:
     ```
     osmium tags-filter michigan.osm.pbf w/highway=motorway,trunk,primary,motorway_link,trunk_link,primary_link,secondary,secondary_link,tertiary,tertiary_link -t --overwrite -o michigan_roads.osm.pbf
     osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.geojson
-    ``` 
+    ```
 
 - Simplify the geojson
     - This uses some tools in the SCGraph library as well as Mapshaper to simplify the geojson files.

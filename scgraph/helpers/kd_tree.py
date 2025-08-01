@@ -79,11 +79,11 @@ def closest_point(node, point, depth=0, best=None, axis_count=2):
 
     - `node`
         - Type: tuple
-        - What: The node of the KDTree 
+        - What: The node of the KDTree
     - `point`
         - Type: tuple
         - What: The point to find the closest point to
-    
+
     Optional Arguments:
 
     - `depth`
@@ -212,7 +212,9 @@ class GeoKDTree:
         )[3]
 
     @staticmethod
-    def lat_lon_idx_to_xyz_idx(lat:int|float, lon:int|float, idx:int=0):
+    def lat_lon_idx_to_xyz_idx(
+        lat: int | float, lon: int | float, idx: int = 0
+    ):
         """
         Function:
 
@@ -228,7 +230,7 @@ class GeoKDTree:
             - What: The longitude in degrees
 
         Optional Arguments:
-        
+
         - `idx`
             - Type: int
             - What: An index to include with the coordinates (default is 0)
