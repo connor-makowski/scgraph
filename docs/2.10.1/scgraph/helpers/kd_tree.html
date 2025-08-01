@@ -78,7 +78,7 @@
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
-        <option value="2.10.0">2.10.0</option>
+        <option value="2.10.1">2.10.1</option>
         <option value="2.9.0">2.9.0</option>
         <option value="2.8.2">2.8.2</option>
         <option value="2.7.0">2.7.0</option>
@@ -219,11 +219,11 @@
 </span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>
 </span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a><span class="sd">    - `node`</span>
 </span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a><span class="sd">        - Type: tuple</span>
-</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a><span class="sd">        - What: The node of the KDTree </span>
+</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a><span class="sd">        - What: The node of the KDTree</span>
 </span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a><span class="sd">    - `point`</span>
 </span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a><span class="sd">        - Type: tuple</span>
 </span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a><span class="sd">        - What: The point to find the closest point to</span>
-</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a><span class="sd">    </span>
+</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a>
 </span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a><span class="sd">    Optional Arguments:</span>
 </span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a>
 </span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a><span class="sd">    - `depth`</span>
@@ -352,33 +352,35 @@
 </span><span id="L-212"><a href="#L-212"><span class="linenos">212</span></a>        <span class="p">)[</span><span class="mi">3</span><span class="p">]</span>
 </span><span id="L-213"><a href="#L-213"><span class="linenos">213</span></a>
 </span><span id="L-214"><a href="#L-214"><span class="linenos">214</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="L-215"><a href="#L-215"><span class="linenos">215</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">lat_lon_idx_to_xyz_idx</span><span class="p">(</span><span class="n">lat</span><span class="p">:</span><span class="nb">int</span><span class="o">|</span><span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span><span class="nb">int</span><span class="o">|</span><span class="nb">float</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-</span><span id="L-216"><a href="#L-216"><span class="linenos">216</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-217"><a href="#L-217"><span class="linenos">217</span></a><span class="sd">        Function:</span>
-</span><span id="L-218"><a href="#L-218"><span class="linenos">218</span></a>
-</span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a><span class="sd">        - Convert latitude and longitude to Cartesian coordinates (x, y, z) and include an index.</span>
+</span><span id="L-215"><a href="#L-215"><span class="linenos">215</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">lat_lon_idx_to_xyz_idx</span><span class="p">(</span>
+</span><span id="L-216"><a href="#L-216"><span class="linenos">216</span></a>        <span class="n">lat</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="L-217"><a href="#L-217"><span class="linenos">217</span></a>    <span class="p">):</span>
+</span><span id="L-218"><a href="#L-218"><span class="linenos">218</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a><span class="sd">        Function:</span>
 </span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a>
-</span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a><span class="sd">        Required Arguments:</span>
+</span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a><span class="sd">        - Convert latitude and longitude to Cartesian coordinates (x, y, z) and include an index.</span>
 </span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>
-</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a><span class="sd">        - `lat`</span>
-</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a><span class="sd">            - Type: int or float</span>
-</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a><span class="sd">            - What: The latitude in degrees</span>
-</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a><span class="sd">        - `lon`</span>
-</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a><span class="sd">            - Type: int or float</span>
-</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a><span class="sd">            - What: The longitude in degrees</span>
-</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>
-</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a><span class="sd">        Optional Arguments:</span>
-</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a><span class="sd">        </span>
-</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a><span class="sd">        - `idx`</span>
-</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a><span class="sd">            - Type: int</span>
-</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a><span class="sd">            - What: An index to include with the coordinates (default is 0)</span>
-</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a><span class="sd">        &quot;&quot;&quot;</span>
-</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a>        <span class="n">lat_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
-</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a>        <span class="n">lon_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
-</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>        <span class="n">x</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
-</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a>        <span class="n">y</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
-</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>        <span class="n">z</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span>
-</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>        <span class="k">return</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a><span class="sd">        Required Arguments:</span>
+</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>
+</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a><span class="sd">        - `lat`</span>
+</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a><span class="sd">            - Type: int or float</span>
+</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a><span class="sd">            - What: The latitude in degrees</span>
+</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a><span class="sd">        - `lon`</span>
+</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a><span class="sd">            - Type: int or float</span>
+</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a><span class="sd">            - What: The longitude in degrees</span>
+</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>
+</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a><span class="sd">        Optional Arguments:</span>
+</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>
+</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a><span class="sd">        - `idx`</span>
+</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a><span class="sd">            - Type: int</span>
+</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a><span class="sd">            - What: An index to include with the coordinates (default is 0)</span>
+</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>        <span class="n">lat_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a>        <span class="n">lon_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
+</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a>        <span class="n">x</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
+</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a>        <span class="n">y</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
+</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a>        <span class="n">z</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span>
+</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a>        <span class="k">return</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
 </span></pre></div>
 
 
@@ -578,11 +580,11 @@
 </span><span id="closest_point-80"><a href="#closest_point-80"><span class="linenos"> 80</span></a>
 </span><span id="closest_point-81"><a href="#closest_point-81"><span class="linenos"> 81</span></a><span class="sd">    - `node`</span>
 </span><span id="closest_point-82"><a href="#closest_point-82"><span class="linenos"> 82</span></a><span class="sd">        - Type: tuple</span>
-</span><span id="closest_point-83"><a href="#closest_point-83"><span class="linenos"> 83</span></a><span class="sd">        - What: The node of the KDTree </span>
+</span><span id="closest_point-83"><a href="#closest_point-83"><span class="linenos"> 83</span></a><span class="sd">        - What: The node of the KDTree</span>
 </span><span id="closest_point-84"><a href="#closest_point-84"><span class="linenos"> 84</span></a><span class="sd">    - `point`</span>
 </span><span id="closest_point-85"><a href="#closest_point-85"><span class="linenos"> 85</span></a><span class="sd">        - Type: tuple</span>
 </span><span id="closest_point-86"><a href="#closest_point-86"><span class="linenos"> 86</span></a><span class="sd">        - What: The point to find the closest point to</span>
-</span><span id="closest_point-87"><a href="#closest_point-87"><span class="linenos"> 87</span></a><span class="sd">    </span>
+</span><span id="closest_point-87"><a href="#closest_point-87"><span class="linenos"> 87</span></a>
 </span><span id="closest_point-88"><a href="#closest_point-88"><span class="linenos"> 88</span></a><span class="sd">    Optional Arguments:</span>
 </span><span id="closest_point-89"><a href="#closest_point-89"><span class="linenos"> 89</span></a>
 </span><span id="closest_point-90"><a href="#closest_point-90"><span class="linenos"> 90</span></a><span class="sd">    - `depth`</span>
@@ -636,7 +638,7 @@
 <li><code>node</code>
 <ul>
 <li>Type: tuple</li>
-<li>What: The node of the KDTree </li>
+<li>What: The node of the KDTree</li>
 </ul></li>
 <li><code>point</code>
 <ul>
@@ -910,33 +912,35 @@
 </span><span id="GeoKDTree-213"><a href="#GeoKDTree-213"><span class="linenos">213</span></a>        <span class="p">)[</span><span class="mi">3</span><span class="p">]</span>
 </span><span id="GeoKDTree-214"><a href="#GeoKDTree-214"><span class="linenos">214</span></a>
 </span><span id="GeoKDTree-215"><a href="#GeoKDTree-215"><span class="linenos">215</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="GeoKDTree-216"><a href="#GeoKDTree-216"><span class="linenos">216</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">lat_lon_idx_to_xyz_idx</span><span class="p">(</span><span class="n">lat</span><span class="p">:</span><span class="nb">int</span><span class="o">|</span><span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span><span class="nb">int</span><span class="o">|</span><span class="nb">float</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-</span><span id="GeoKDTree-217"><a href="#GeoKDTree-217"><span class="linenos">217</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="GeoKDTree-218"><a href="#GeoKDTree-218"><span class="linenos">218</span></a><span class="sd">        Function:</span>
-</span><span id="GeoKDTree-219"><a href="#GeoKDTree-219"><span class="linenos">219</span></a>
-</span><span id="GeoKDTree-220"><a href="#GeoKDTree-220"><span class="linenos">220</span></a><span class="sd">        - Convert latitude and longitude to Cartesian coordinates (x, y, z) and include an index.</span>
+</span><span id="GeoKDTree-216"><a href="#GeoKDTree-216"><span class="linenos">216</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">lat_lon_idx_to_xyz_idx</span><span class="p">(</span>
+</span><span id="GeoKDTree-217"><a href="#GeoKDTree-217"><span class="linenos">217</span></a>        <span class="n">lat</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="GeoKDTree-218"><a href="#GeoKDTree-218"><span class="linenos">218</span></a>    <span class="p">):</span>
+</span><span id="GeoKDTree-219"><a href="#GeoKDTree-219"><span class="linenos">219</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="GeoKDTree-220"><a href="#GeoKDTree-220"><span class="linenos">220</span></a><span class="sd">        Function:</span>
 </span><span id="GeoKDTree-221"><a href="#GeoKDTree-221"><span class="linenos">221</span></a>
-</span><span id="GeoKDTree-222"><a href="#GeoKDTree-222"><span class="linenos">222</span></a><span class="sd">        Required Arguments:</span>
+</span><span id="GeoKDTree-222"><a href="#GeoKDTree-222"><span class="linenos">222</span></a><span class="sd">        - Convert latitude and longitude to Cartesian coordinates (x, y, z) and include an index.</span>
 </span><span id="GeoKDTree-223"><a href="#GeoKDTree-223"><span class="linenos">223</span></a>
-</span><span id="GeoKDTree-224"><a href="#GeoKDTree-224"><span class="linenos">224</span></a><span class="sd">        - `lat`</span>
-</span><span id="GeoKDTree-225"><a href="#GeoKDTree-225"><span class="linenos">225</span></a><span class="sd">            - Type: int or float</span>
-</span><span id="GeoKDTree-226"><a href="#GeoKDTree-226"><span class="linenos">226</span></a><span class="sd">            - What: The latitude in degrees</span>
-</span><span id="GeoKDTree-227"><a href="#GeoKDTree-227"><span class="linenos">227</span></a><span class="sd">        - `lon`</span>
-</span><span id="GeoKDTree-228"><a href="#GeoKDTree-228"><span class="linenos">228</span></a><span class="sd">            - Type: int or float</span>
-</span><span id="GeoKDTree-229"><a href="#GeoKDTree-229"><span class="linenos">229</span></a><span class="sd">            - What: The longitude in degrees</span>
-</span><span id="GeoKDTree-230"><a href="#GeoKDTree-230"><span class="linenos">230</span></a>
-</span><span id="GeoKDTree-231"><a href="#GeoKDTree-231"><span class="linenos">231</span></a><span class="sd">        Optional Arguments:</span>
-</span><span id="GeoKDTree-232"><a href="#GeoKDTree-232"><span class="linenos">232</span></a><span class="sd">        </span>
-</span><span id="GeoKDTree-233"><a href="#GeoKDTree-233"><span class="linenos">233</span></a><span class="sd">        - `idx`</span>
-</span><span id="GeoKDTree-234"><a href="#GeoKDTree-234"><span class="linenos">234</span></a><span class="sd">            - Type: int</span>
-</span><span id="GeoKDTree-235"><a href="#GeoKDTree-235"><span class="linenos">235</span></a><span class="sd">            - What: An index to include with the coordinates (default is 0)</span>
-</span><span id="GeoKDTree-236"><a href="#GeoKDTree-236"><span class="linenos">236</span></a><span class="sd">        &quot;&quot;&quot;</span>
-</span><span id="GeoKDTree-237"><a href="#GeoKDTree-237"><span class="linenos">237</span></a>        <span class="n">lat_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
-</span><span id="GeoKDTree-238"><a href="#GeoKDTree-238"><span class="linenos">238</span></a>        <span class="n">lon_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
-</span><span id="GeoKDTree-239"><a href="#GeoKDTree-239"><span class="linenos">239</span></a>        <span class="n">x</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
-</span><span id="GeoKDTree-240"><a href="#GeoKDTree-240"><span class="linenos">240</span></a>        <span class="n">y</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
-</span><span id="GeoKDTree-241"><a href="#GeoKDTree-241"><span class="linenos">241</span></a>        <span class="n">z</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span>
-</span><span id="GeoKDTree-242"><a href="#GeoKDTree-242"><span class="linenos">242</span></a>        <span class="k">return</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+</span><span id="GeoKDTree-224"><a href="#GeoKDTree-224"><span class="linenos">224</span></a><span class="sd">        Required Arguments:</span>
+</span><span id="GeoKDTree-225"><a href="#GeoKDTree-225"><span class="linenos">225</span></a>
+</span><span id="GeoKDTree-226"><a href="#GeoKDTree-226"><span class="linenos">226</span></a><span class="sd">        - `lat`</span>
+</span><span id="GeoKDTree-227"><a href="#GeoKDTree-227"><span class="linenos">227</span></a><span class="sd">            - Type: int or float</span>
+</span><span id="GeoKDTree-228"><a href="#GeoKDTree-228"><span class="linenos">228</span></a><span class="sd">            - What: The latitude in degrees</span>
+</span><span id="GeoKDTree-229"><a href="#GeoKDTree-229"><span class="linenos">229</span></a><span class="sd">        - `lon`</span>
+</span><span id="GeoKDTree-230"><a href="#GeoKDTree-230"><span class="linenos">230</span></a><span class="sd">            - Type: int or float</span>
+</span><span id="GeoKDTree-231"><a href="#GeoKDTree-231"><span class="linenos">231</span></a><span class="sd">            - What: The longitude in degrees</span>
+</span><span id="GeoKDTree-232"><a href="#GeoKDTree-232"><span class="linenos">232</span></a>
+</span><span id="GeoKDTree-233"><a href="#GeoKDTree-233"><span class="linenos">233</span></a><span class="sd">        Optional Arguments:</span>
+</span><span id="GeoKDTree-234"><a href="#GeoKDTree-234"><span class="linenos">234</span></a>
+</span><span id="GeoKDTree-235"><a href="#GeoKDTree-235"><span class="linenos">235</span></a><span class="sd">        - `idx`</span>
+</span><span id="GeoKDTree-236"><a href="#GeoKDTree-236"><span class="linenos">236</span></a><span class="sd">            - Type: int</span>
+</span><span id="GeoKDTree-237"><a href="#GeoKDTree-237"><span class="linenos">237</span></a><span class="sd">            - What: An index to include with the coordinates (default is 0)</span>
+</span><span id="GeoKDTree-238"><a href="#GeoKDTree-238"><span class="linenos">238</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="GeoKDTree-239"><a href="#GeoKDTree-239"><span class="linenos">239</span></a>        <span class="n">lat_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+</span><span id="GeoKDTree-240"><a href="#GeoKDTree-240"><span class="linenos">240</span></a>        <span class="n">lon_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
+</span><span id="GeoKDTree-241"><a href="#GeoKDTree-241"><span class="linenos">241</span></a>        <span class="n">x</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
+</span><span id="GeoKDTree-242"><a href="#GeoKDTree-242"><span class="linenos">242</span></a>        <span class="n">y</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
+</span><span id="GeoKDTree-243"><a href="#GeoKDTree-243"><span class="linenos">243</span></a>        <span class="n">z</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span>
+</span><span id="GeoKDTree-244"><a href="#GeoKDTree-244"><span class="linenos">244</span></a>        <span class="k">return</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
 </span></pre></div>
 
 
@@ -1091,33 +1095,35 @@
     </div>
     <a class="headerlink" href="#GeoKDTree.lat_lon_idx_to_xyz_idx"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-215"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-215"><span class="linenos">215</span></a>    <span class="nd">@staticmethod</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-216"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-216"><span class="linenos">216</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">lat_lon_idx_to_xyz_idx</span><span class="p">(</span><span class="n">lat</span><span class="p">:</span><span class="nb">int</span><span class="o">|</span><span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span><span class="nb">int</span><span class="o">|</span><span class="nb">float</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span><span class="nb">int</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-217"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-217"><span class="linenos">217</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-218"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-218"><span class="linenos">218</span></a><span class="sd">        Function:</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-219"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-219"><span class="linenos">219</span></a>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-220"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-220"><span class="linenos">220</span></a><span class="sd">        - Convert latitude and longitude to Cartesian coordinates (x, y, z) and include an index.</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-216"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-216"><span class="linenos">216</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">lat_lon_idx_to_xyz_idx</span><span class="p">(</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-217"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-217"><span class="linenos">217</span></a>        <span class="n">lat</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-218"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-218"><span class="linenos">218</span></a>    <span class="p">):</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-219"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-219"><span class="linenos">219</span></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-220"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-220"><span class="linenos">220</span></a><span class="sd">        Function:</span>
 </span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-221"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-221"><span class="linenos">221</span></a>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-222"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-222"><span class="linenos">222</span></a><span class="sd">        Required Arguments:</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-222"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-222"><span class="linenos">222</span></a><span class="sd">        - Convert latitude and longitude to Cartesian coordinates (x, y, z) and include an index.</span>
 </span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-223"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-223"><span class="linenos">223</span></a>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-224"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-224"><span class="linenos">224</span></a><span class="sd">        - `lat`</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-225"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-225"><span class="linenos">225</span></a><span class="sd">            - Type: int or float</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-226"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-226"><span class="linenos">226</span></a><span class="sd">            - What: The latitude in degrees</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-227"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-227"><span class="linenos">227</span></a><span class="sd">        - `lon`</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-228"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-228"><span class="linenos">228</span></a><span class="sd">            - Type: int or float</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-229"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-229"><span class="linenos">229</span></a><span class="sd">            - What: The longitude in degrees</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-230"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-230"><span class="linenos">230</span></a>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-231"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-231"><span class="linenos">231</span></a><span class="sd">        Optional Arguments:</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-232"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-232"><span class="linenos">232</span></a><span class="sd">        </span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-233"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-233"><span class="linenos">233</span></a><span class="sd">        - `idx`</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-234"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-234"><span class="linenos">234</span></a><span class="sd">            - Type: int</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-235"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-235"><span class="linenos">235</span></a><span class="sd">            - What: An index to include with the coordinates (default is 0)</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-236"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-236"><span class="linenos">236</span></a><span class="sd">        &quot;&quot;&quot;</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-237"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-237"><span class="linenos">237</span></a>        <span class="n">lat_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-238"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-238"><span class="linenos">238</span></a>        <span class="n">lon_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-239"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-239"><span class="linenos">239</span></a>        <span class="n">x</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-240"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-240"><span class="linenos">240</span></a>        <span class="n">y</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-241"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-241"><span class="linenos">241</span></a>        <span class="n">z</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span>
-</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-242"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-242"><span class="linenos">242</span></a>        <span class="k">return</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-224"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-224"><span class="linenos">224</span></a><span class="sd">        Required Arguments:</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-225"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-225"><span class="linenos">225</span></a>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-226"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-226"><span class="linenos">226</span></a><span class="sd">        - `lat`</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-227"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-227"><span class="linenos">227</span></a><span class="sd">            - Type: int or float</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-228"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-228"><span class="linenos">228</span></a><span class="sd">            - What: The latitude in degrees</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-229"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-229"><span class="linenos">229</span></a><span class="sd">        - `lon`</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-230"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-230"><span class="linenos">230</span></a><span class="sd">            - Type: int or float</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-231"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-231"><span class="linenos">231</span></a><span class="sd">            - What: The longitude in degrees</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-232"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-232"><span class="linenos">232</span></a>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-233"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-233"><span class="linenos">233</span></a><span class="sd">        Optional Arguments:</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-234"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-234"><span class="linenos">234</span></a>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-235"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-235"><span class="linenos">235</span></a><span class="sd">        - `idx`</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-236"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-236"><span class="linenos">236</span></a><span class="sd">            - Type: int</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-237"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-237"><span class="linenos">237</span></a><span class="sd">            - What: An index to include with the coordinates (default is 0)</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-238"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-238"><span class="linenos">238</span></a><span class="sd">        &quot;&quot;&quot;</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-239"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-239"><span class="linenos">239</span></a>        <span class="n">lat_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lat</span><span class="p">)</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-240"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-240"><span class="linenos">240</span></a>        <span class="n">lon_rad</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lon</span><span class="p">)</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-241"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-241"><span class="linenos">241</span></a>        <span class="n">x</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-242"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-242"><span class="linenos">242</span></a>        <span class="n">y</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lon_rad</span><span class="p">)</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-243"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-243"><span class="linenos">243</span></a>        <span class="n">z</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">lat_rad</span><span class="p">)</span>
+</span><span id="GeoKDTree.lat_lon_idx_to_xyz_idx-244"><a href="#GeoKDTree.lat_lon_idx_to_xyz_idx-244"><span class="linenos">244</span></a>        <span class="k">return</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
 </span></pre></div>
 
 
