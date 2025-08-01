@@ -268,7 +268,7 @@ class GeoGraph:
         - `node_addition_type`
             - Type: str
             - What: The type of node addition to use when adding your origin node to the distance matrix
-            - Default: 'kdclosest' (was 'quadrant' prior to v2.10.0)
+            - Default: 'kdclosest' (was 'quadrant' prior to v2.10.1)
             - Options:
                 - 'kdclosest': Add the closest node using a KD-Tree
                 - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
@@ -339,7 +339,7 @@ class GeoGraph:
         - `destination_node_addition_type`
             - Type: str
             - What: The method to use when adding the destination node to the graph
-            - Default: 'kdclosest' (was 'all' in functionality prior to v2.10.0)
+            - Default: 'kdclosest' (was 'all' in functionality prior to v2.10.1)
             - Options:
                 - 'kdclosest': Add the closest node using a KD-Tree
                 - 'closest': Add the node to the closest point in the graph
