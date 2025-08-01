@@ -749,7 +749,7 @@ class GeoGraph:
             self.graph[node_idx][new_node_id] = node_distance
         return new_node_id
 
-    def save_as_geojson(self, filename: str) -> None:
+    def save_as_geojson(self, filename: str, compact: bool = False) -> None:
         """
         Function:
 
@@ -763,37 +763,62 @@ class GeoGraph:
             - Type: str
             - What: The filename to save the geojson file as
 
-        """
-        features = []
-        for origin_idx, destinations in enumerate(self.graph):
-            for destination_idx, distance in destinations.items():
-                # Create an undirected graph for geojson purposes
-                if origin_idx > destination_idx:
-                    continue
-                origin = self.nodes[origin_idx]
-                destination = self.nodes[destination_idx]
-                features.append(
-                    {
-                        "type": "Feature",
-                        "properties": {
-                            "origin_idx": origin_idx,
-                            "destination_idx": destination_idx,
-                            "distance": distance,
-                        },
-                        "geometry": {
-                            "type": "LineString",
-                            "coordinates": [
-                                [origin[1], origin[0]],
-                                [
-                                    destination[1],
-                                    destination[0],
-                                ],
-                            ],
-                        },
-                    }
-                )
+        Optional Arguments:
 
-        out_dict = {"type": "FeatureCollection", "features": features}
+        - `compact`
+            - Type: bool
+            - What:
+                - If True, saves the geojson as a compact multiline string without distances or properties
+                - If False, saves the geojson as a feature collection with each line as a separate feature
+                    - Note: If False, the resulting file can be loaded with the legacy load_geojson_as_geograph function
+            - Default: False
+
+        """
+        if compact:
+            multiline = []
+            for origin_idx, destinations in enumerate(self.graph):
+                for destination_idx, distance in destinations.items():
+                    multiline.append([[self.nodes[origin_idx][1], self.nodes[origin_idx][0]], [self.nodes[destination_idx][1], self.nodes[destination_idx][0]]])
+            out_dict = {
+                "type": "GeometryCollection",
+                "geometries": [
+                    {
+                        "type": "MultiLineString",
+                        "coordinates": multiline,
+                    }
+                ],
+            }
+
+        else:
+            features = []
+            for origin_idx, destinations in enumerate(self.graph):
+                for destination_idx, distance in destinations.items():
+                    # Create an undirected graph for geojson purposes
+                    if origin_idx > destination_idx:
+                        continue
+                    origin = self.nodes[origin_idx]
+                    destination = self.nodes[destination_idx]
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "properties": {
+                                "origin_idx": origin_idx,
+                                "destination_idx": destination_idx,
+                                "distance": distance,
+                            },
+                            "geometry": {
+                                "type": "LineString",
+                                "coordinates": [
+                                    [origin[1], origin[0]],
+                                    [
+                                        destination[1],
+                                        destination[0],
+                                    ],
+                                ],
+                            },
+                        }
+                    )
+            out_dict = {"type": "FeatureCollection", "features": features}
         with open(filename, "w") as f:
             json.dump(out_dict, f)
 
