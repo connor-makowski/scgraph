@@ -378,41 +378,55 @@ class GeoGraph:
         try:
             # Handle Cache based shortest path calculations
             if cache:
-                assert (node_addition_type in ["kdclosest", "closest"]), (
-                    "When caching, origin_node_addition_type must be 'kdclosest' or 'closest'"
-                )
-                assert (destination_node_addition_type in ["kdclosest", "closest"]), (
-                    "When caching, destination_node_addition_type must be 'kdclosest' or 'closest'"
-                )
-                origin = [origin_node.get("latitude"), origin_node.get("longitude")]
-                destination = [destination_node.get("latitude"), destination_node.get("longitude")]
-                entry_id, entry_length = list(self.get_node_distances(
-                    node=origin,
-                    circuity=off_graph_circuity,
-                    node_addition_type=node_addition_type,
-                    node_addition_math=node_addition_math,
-                    lat_lon_bound=node_addition_lat_lon_bound_origin,
-                    silent=silent,
-                ).items())[0]
-                exit_id, exit_length = list(self.get_node_distances(
-                    node=destination,
-                    circuity=off_graph_circuity,
-                    node_addition_type=destination_node_addition_type,
-                    node_addition_math=node_addition_math,
-                    lat_lon_bound=node_addition_lat_lon_bound_destination,
-                    silent=silent,
-                ).items())[0]
+                assert node_addition_type in [
+                    "kdclosest",
+                    "closest",
+                ], "When caching, origin_node_addition_type must be 'kdclosest' or 'closest'"
+                assert destination_node_addition_type in [
+                    "kdclosest",
+                    "closest",
+                ], "When caching, destination_node_addition_type must be 'kdclosest' or 'closest'"
+                origin = [
+                    origin_node.get("latitude"),
+                    origin_node.get("longitude"),
+                ]
+                destination = [
+                    destination_node.get("latitude"),
+                    destination_node.get("longitude"),
+                ]
+                entry_id, entry_length = list(
+                    self.get_node_distances(
+                        node=origin,
+                        circuity=off_graph_circuity,
+                        node_addition_type=node_addition_type,
+                        node_addition_math=node_addition_math,
+                        lat_lon_bound=node_addition_lat_lon_bound_origin,
+                        silent=silent,
+                    ).items()
+                )[0]
+                exit_id, exit_length = list(
+                    self.get_node_distances(
+                        node=destination,
+                        circuity=off_graph_circuity,
+                        node_addition_type=destination_node_addition_type,
+                        node_addition_math=node_addition_math,
+                        lat_lon_bound=node_addition_lat_lon_bound_destination,
+                        silent=silent,
+                    ).items()
+                )[0]
                 output = self.cacheGraph.get_shortest_path(
                     origin_id=entry_id,
                     destination_id=exit_id,
                 )
                 # Modify the output to include the origin and destination nodes
-                output['length'] += entry_length + exit_length
-                output["coordinate_path"] = self.get_coordinate_path(output["path"])
+                output["length"] += entry_length + exit_length
+                output["coordinate_path"] = self.get_coordinate_path(
+                    output["path"]
+                )
                 # Add the origin and destination nodes to the id path
                 output["path"] = [entry_id] + output["path"] + [exit_id]
                 # Add the coordinates of the origin and destination nodes to the coordinate path
-                output['coordinate_path'] = (
+                output["coordinate_path"] = (
                     [origin] + output["coordinate_path"] + [destination]
                 )
             # Handle non-cache based shortest path calculations
@@ -440,7 +454,9 @@ class GeoGraph:
                     **algorithm_kwargs,
                 )
                 # Handle output formatting
-                output["coordinate_path"] = self.get_coordinate_path(output["path"])
+                output["coordinate_path"] = self.get_coordinate_path(
+                    output["path"]
+                )
                 # Adjust the length of the path to account for circuity factors
                 output["length"] = self.adjust_circuity_length(
                     output=output,

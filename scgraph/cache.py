@@ -30,9 +30,11 @@ class CacheGraph:
         - Note: Take care when caching spanning trees to avoid memory issues. It is recommend to only cache for nodes that will be used often.
         """
         if validate_graph:
-            Graph.validate_graph(graph, check_connected=False, check_symmetry=True)
+            Graph.validate_graph(
+                graph, check_connected=False, check_symmetry=True
+            )
         self.graph = graph
-        self.cache = [0]*len(graph)
+        self.cache = [0] * len(graph)
 
     def get_shortest_path(
         self,
@@ -51,7 +53,7 @@ class CacheGraph:
         - destination_id: The id of the destination node
         """
         spanning_tree = self.cache[origin_id]
-        if spanning_tree==0:
+        if spanning_tree == 0:
             spanning_tree = SpanningTree.makowskis_spanning_tree(
                 graph=self.graph, node_id=origin_id
             )

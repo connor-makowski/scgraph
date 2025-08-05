@@ -7,7 +7,7 @@ from scgraph.utils import hard_round
 
 def validate(name, realized, expected):
     if isinstance(realized, dict) and "length" in realized:
-        realized['length'] = hard_round(3, realized['length'])
+        realized["length"] = hard_round(3, realized["length"])
     if realized == expected:
         print(f"{name}: PASS")
     else:
@@ -153,6 +153,7 @@ def a_star_cheap_ruler():
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     )
 
+
 def cached_spanning_tree_first_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
@@ -160,13 +161,13 @@ def cached_spanning_tree_first_call():
         cache=True,
     )
 
+
 def cached_spanning_tree_second_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
         cache=True,
     )
-
 
 
 time_test("Dijkstra-Modified", dijkstra_makowski)

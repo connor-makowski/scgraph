@@ -503,7 +503,11 @@ class GridGraph:
                 graph=self.graph,
                 origin_id=origin_id,
                 destination_id=destination_id,
-                heuristic_fn=self.euclidean_heuristic if heuristic_fn == "euclidean" else heuristic_fn,
+                heuristic_fn=(
+                    self.euclidean_heuristic
+                    if heuristic_fn == "euclidean"
+                    else heuristic_fn
+                ),
             )
         output["coordinate_path"] = self.get_coordinate_path(
             output["path"], output_coordinate_path
