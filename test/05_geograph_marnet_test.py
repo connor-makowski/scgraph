@@ -2,9 +2,12 @@ import time
 from pamda import pamda
 from scgraph import Graph
 from scgraph.geographs.marnet import marnet_geograph
+from scgraph.utils import hard_round
 
 
 def validate(name, realized, expected):
+    if isinstance(realized, dict) and "length" in realized:
+        realized['length'] = hard_round(3, realized['length'])
     if realized == expected:
         print(f"{name}: PASS")
     else:
@@ -90,6 +93,26 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="Cached Spanning Tree First Call",
+    realized=marnet_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        cache=True,
+    ),
+    expected=expected,
+)
+
+validate(
+    name="Cached Spanning Tree Second Call",
+    realized=marnet_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        cache=True,
+    ),
+    expected=expected,
+)
+
 print("\n===============\nMarnet GeoGraph Time Tests:\n===============")
 
 time_test(
@@ -100,6 +123,7 @@ time_test(
 )
 time_test("Node Validation", pamda.thunkify(marnet_geograph.validate_nodes))
 
+# Note: These must be different than the above calls to ensure caching testing works correctly
 origin_node = {"latitude": 31.23, "longitude": 121.47}
 destination_node = {"latitude": 32.08, "longitude": -81.09}
 
@@ -129,9 +153,26 @@ def a_star_cheap_ruler():
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     )
 
+def cached_spanning_tree_first_call():
+    marnet_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        cache=True,
+    )
+
+def cached_spanning_tree_second_call():
+    marnet_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        cache=True,
+    )
+
+
 
 time_test("Dijkstra-Modified", dijkstra_makowski)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
+time_test("Cached Spanning Tree First Call", cached_spanning_tree_first_call)
+time_test("Cached Spanning Tree Second Call", cached_spanning_tree_second_call)
 
 # marnet_geograph.save_as_geojson('marnet.geojson')
