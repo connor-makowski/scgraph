@@ -1,4 +1,3 @@
-from .utils import hard_round
 from heapq import heappush, heappop
 
 
@@ -22,7 +21,7 @@ class SpanningTree:
 
         - `graph`:
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `node_id`
             - Type: int
             - What: The id of the node from which to calculate the spanning tree
@@ -68,8 +67,7 @@ class SpanningTree:
         Function:
 
         - Get the path from the origin node to the destination node using the provided spanning tree
-            - Note: This will only guarantee an optimal path if either the origin or destination node is the same as the node_id in the spanning tree and that the graph is symmetric
-        - Return a list of node ids in the order they are visited
+        - Return a list of node ids in the order they are visited as well as the length of the path
 
         Required Arguments:
 
@@ -87,34 +85,22 @@ class SpanningTree:
 
         - None
         """
-        spanning_id = spanning_tree["node_id"]
+        if spanning_tree["node_id"] != origin_id:
+            raise Exception(
+                "The origin node must be the same as the spanning node for this function to work."
+            )
         destination_distance = spanning_tree["distance_matrix"][destination_id]
-        origin_distance = spanning_tree["distance_matrix"][origin_id]
-
-        if destination_distance == float("inf") or origin_distance == float(
-            "inf"
-        ):
+        if destination_distance == float("inf"):
             raise Exception(
-                "Something went wrong: One or both of the origin and destination nodes are not connected to this spanning tree."
+                "Something went wrong: The destination node is not reachable from the origin node."
             )
-
-        if spanning_id != origin_id and spanning_id != destination_id:
-            raise Exception(
-                "Something went wrong: Neither the origin nor the destination node is the same as the spanning node."
-            )
-
-        current_id = origin_id if spanning_id != origin_id else destination_id
-        current_path = []
-        while current_id != spanning_id:
-            current_path.append(current_id)
+        current_id = destination_id
+        current_path = [destination_id]
+        while current_id != origin_id:
             current_id = spanning_tree["predecessors"][current_id]
-        current_path.append(spanning_id)
-        if spanning_id == origin_id:
-            current_path.reverse()
-            current_length = spanning_tree["distance_matrix"][destination_id]
-        else:
-            current_length = spanning_tree["distance_matrix"][origin_id]
+            current_path.append(current_id)
+        current_path.reverse()
         return {
             "path": current_path,
-            "length": hard_round(4, current_length),
+            "length": destination_distance,
         }

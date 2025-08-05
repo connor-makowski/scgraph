@@ -2,7 +2,9 @@
 # scgraph
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/)
+[![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pepy.tech/project/scgraph)
+<!-- [![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/) -->
+
 
 Supply chain graph package for Python
 
@@ -13,7 +15,7 @@ Supply chain graph package for Python
 
 Getting Started: https://github.com/connor-makowski/scgraph
 
-Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
+Low Level: https://connor-makowski.github.io/scgraph/scgraph.html
 
 
 ## Key Features
@@ -45,6 +47,9 @@ Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
     - Precompiled Geographs offer Antimeridian support
     - Arbitrary start and end points are supported
         - Start and end points do not need to be in the graph
+    - Cached shortest path calculations can be used for very fast repetative calculations from the same origin node in a GeoGraph.
+        - This is done by caching the origin node's spanning tree
+        - The first call will be slower, but future calls using this origin node will be substantially faster.
 - `GridGraph`s:
     - A grid based graph data structure that allows for the calculation of shortest paths between two points on a grid
     - Supports arbitrary grid sizes and blockages
@@ -111,7 +116,10 @@ from scgraph.geographs.marnet import marnet_geograph
 output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23,"longitude": 121.47},
     destination_node={"latitude": 32.08,"longitude": -81.09},
-    output_units='km'
+    output_units='km',
+    # Optional: Cache the origin node's spanning tree for faster calculations on future calls from the same origin node when cache=True
+    # Note: This will make the first call slower, but future calls using this origin node will be substantially faster.
+    cache=True,
 )
 print('Length: ',output['length']) #=> Length:  19596.4653
 ```
@@ -215,9 +223,6 @@ output = gridGraph.get_shortest_path(
     output_coordinate_path="list_of_lists",
     # Optional: Cache the origin point spanning_tree for faster calculations on future calls
     cache=True,
-    # Optional: Specify the node to cache the spanning tree for (default is the origin node)
-    # Note: This first call will be slower, but future calls using this origin node will be substantially faster
-    cache_for="origin",
 )
 
 print(output)
@@ -340,7 +345,7 @@ from scgraph import Graph
 
 # Define an arbitrary graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
 graph = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
@@ -365,7 +370,7 @@ from scgraph import GeoGraph
 
 # Define nodes
 # See the nodes definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+# https://connor-makowski.github.io/scgraph/scgraph/geograph.html#GeoGraph.__init__
 nodes = [
     # London
     [51.5074, -0.1278],
@@ -382,7 +387,7 @@ nodes = [
 ]
 # Define a graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
 graph = [
     # From London
     {
@@ -441,7 +446,7 @@ my_geograph.validate_nodes()
 # In this case, Birmingham England and Zaragoza Spain
 # Since Birmingham and Zaragoza are not in the graph,
 # the algorithm will add them into the graph.
-# See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph.get_shortest_path
+# See: https://connor-makowski.github.io/scgraph/scgraph/geograph.html#GeoGraph.get_shortest_path
 # Expected output would be to go from
 # Birmingham -> London -> Paris -> Madrid -> Zaragoza
 

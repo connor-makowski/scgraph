@@ -39,14 +39,14 @@ if print_timings:
 # Export the graph to a file
 export_start_time = time()
 gridGraph.export_object(
-    filename="/tmp/export",
+    filename="/tmp/export.gridgraph",
 )
 if print_timings:
     print(f"GridGraph Export Time: {(time() - export_start_time)*1000:.6f} ms")
 
 import_start_time = time()
 new_gridGraph = GridGraph.import_object(
-    filename="/tmp/export",
+    filename="/tmp/export.gridgraph",
 )
 if print_timings:
     print(f"GridGraph Import Time: {(time() - import_start_time)*1000:.6f} ms")
@@ -56,16 +56,32 @@ output = new_gridGraph.get_shortest_path(
     origin_node={"x": 1, "y": 8},
     destination_node={"x": 8, "y": 8},
     output_coordinate_path="list_of_lists",
+    cache=True,
 )
 imported_shortest_path_time = time() - imported_shortest_path_start_time
 if print_timings:
     print(
-        f"GridGraph Imported Shortest Path Time: {(imported_shortest_path_time)*1000:.6f} ms"
+        f"GridGraph Imported Cached Shortest Path Time: {(imported_shortest_path_time)*1000:.6f} ms"
     )
+
+uncached_shortest_path_start_time = time()
+output = new_gridGraph.get_shortest_path(
+    origin_node={"x": 1, "y": 8},
+    destination_node={"x": 8, "y": 8},
+    output_coordinate_path="list_of_lists",
+    cache=False,
+)
+uncached_shortest_path_time = time() - uncached_shortest_path_start_time
+if print_timings:
+    print(
+        f"GridGraph Imported Uncached Shortest Path Time: {(uncached_shortest_path_time)*1000:.6f} ms"
+    )
+
 
 success = True
 if (
-    imported_shortest_path_time > 0.001
+    imported_shortest_path_time
+    > 0.00005  # 500 us threshold (runs in ~30 us normally)
 ):  # liberal 1ms threshold - It normally clocks around 40µs
     print(
         "Imported shortest path time is too long - Check if the graph was cached / imported correctly"
