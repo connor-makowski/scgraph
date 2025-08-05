@@ -1,3 +1,4 @@
+from scgraph.graph import Graph
 from scgraph.helpers.shape_mover_utils import ShapeMoverUtils
 from scgraph.cache import CacheGraph
 from typing import Literal
@@ -437,7 +438,7 @@ class GridGraph:
                 - 'list_of_lists': A list of lists with the first value being x and the second being y
         - `cache`
             - Type: bool
-            - What: Whether to cache the spanning tree for future use
+            - What: Whether to use the cache (save and reuse the spanning tree)
             - Default: False
         - `cache_for`
             - Type: str
@@ -481,18 +482,29 @@ class GridGraph:
             raise ValueError(
                 "Destination node is not connected to any other nodes. This is likely caused by the destination node not being possible given a blocked cell or nearby blocked cell"
             )
-
-        output = self.cacheGraph.get_shortest_path(
-            origin_id=origin_id,
-            destination_id=destination_id,
-            cache=cache,
-            cache_for=cache_for,
-            heuristic_fn=(
-                self.euclidean_heuristic
-                if heuristic_fn == "euclidean"
-                else heuristic_fn
-            ),
-        )
+        if cache:
+            if cache_for not in ["origin", "destination"]:
+                raise ValueError(
+                    "cache_for must be 'origin' or 'destination' when cache is True"
+                )
+            # Reverse for cache graphing if cache_for is destination since the graph is undirected
+            if cache_for == "destination":
+                origin_id, destination_id = destination_id, origin_id
+            output = self.cacheGraph.get_shortest_path(
+                origin_id=origin_id,
+                destination_id=destination_id,
+            )
+            # Undo the reverse if cache_for is destination
+            if cache_for == "destination":
+                output["path"].reverse()
+                origin_id, destination_id = destination_id, origin_id
+        else:
+            output = Graph.a_star(
+                graph=self.graph,
+                origin_id=origin_id,
+                destination_id=destination_id,
+                heuristic_fn=self.euclidean_heuristic if heuristic_fn == "euclidean" else heuristic_fn,
+            )
         output["coordinate_path"] = self.get_coordinate_path(
             output["path"], output_coordinate_path
         )
@@ -597,6 +609,7 @@ class GridGraph:
         export_data = {
             "graph_attributes": {
                 "graph": self.graph,
+                "nodes": self.nodes,
                 "x_size": self.x_size,
                 "y_size": self.y_size,
                 "shape": self.shape,
