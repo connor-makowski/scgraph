@@ -1,4 +1,5 @@
-import math, json
+import json
+from math import pi, sin, cos, asin
 
 # Constants for haversine and cheap ruler calculations
 earth_radius = {
@@ -7,7 +8,7 @@ earth_radius = {
     "mi": 3959,
     "ft": 3959 * 5280,
 }
-radians_per_degree = math.pi / 180  # radians per degree
+radians_per_degree = pi / 180  # radians per degree
 cheap_e2 = (1 / 298.257223563) * (2 - (1 / 298.257223563))
 
 
@@ -44,23 +45,16 @@ def haversine(
 
     """
     # convert decimal degrees to radians
-    lon1, lat1, lon2, lat2 = map(
-        math.radians,
-        [
-            origin[1],
-            origin[0],
-            destination[1],
-            destination[0],
-        ],
-    )
+    lon1 = radians_per_degree * origin[1]
+    lat1 = radians_per_degree * origin[0]
+    lon2 = radians_per_degree * destination[1]
+    lat2 = radians_per_degree * destination[0]
+
     # haversine formula
     dlon = lon2 - lon1
     dlat = lat2 - lat1
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    )
-    c = 2 * math.asin(a**0.5)
+    a = ( sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2 )
+    c = 2 * asin(a**0.5)
     # Set the radius of earth based on the units specified
     radius = earth_radius.get(
         units, 6371
@@ -117,7 +111,7 @@ def cheap_ruler(origin, destination, units="km", circuity=1):
 
     # Midpoint latitude in radians
     mid_lat = (lat1 + lat2) / 2 * radians_per_degree
-    cos_lat = math.cos(mid_lat)
+    cos_lat = cos(mid_lat)
 
     # Radius adjustments
     w_squared = 1 / (1 - cheap_e2 * (1 - cos_lat**2))

@@ -62,7 +62,7 @@ class SpanningTree:
         }
 
     @staticmethod
-    def get_path(origin_id: int, destination_id: int, spanning_tree: dict):
+    def get_path(origin_id: int, destination_id: int, spanning_tree: dict, length_only: bool = False) -> dict:
         """
         Function:
 
@@ -83,7 +83,16 @@ class SpanningTree:
 
         Optional Arguments:
 
-        - None
+        - `length_only`
+            - Type: bool
+            - What: If True, only returns the length of the path
+            - Default: False
+
+        Returns:
+
+        - A dictionary with the following keys:
+            - `path`: A list of node ids in the order they are visited from the origin node to the destination node
+            - `length`: The length of the path from the origin node to the destination node
         """
         if spanning_tree["node_id"] != origin_id:
             raise Exception(
@@ -94,6 +103,8 @@ class SpanningTree:
             raise Exception(
                 "Something went wrong: The destination node is not reachable from the origin node."
             )
+        if length_only:
+            return {"length": destination_distance}
         current_id = destination_id
         current_path = [destination_id]
         while current_id != origin_id:

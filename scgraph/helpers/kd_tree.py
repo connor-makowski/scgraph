@@ -1,4 +1,4 @@
-import math
+from math import pi, cos, sin
 
 
 def kdtree(points, depth=0, axis_count=2):
@@ -123,6 +123,79 @@ def closest_point(node, point, depth=0, best=None, axis_count=2):
 
     return best
 
+def squared_distance_3d(p1, p2):
+    """
+    Function:
+
+    - Calculate the squared distance between two 3D points.
+
+    Required Arguments:
+
+    - `p1`
+        - Type: tuple
+        - What: The first point in 3D space
+    - `p2`
+        - Type: tuple
+        - What: The second point in 3D space
+
+    Returns:
+
+    - The squared distance between the two 3D points.
+    """
+    return sum([(p1[0] - p2[0]) ** 2, (p1[1] - p2[1]) ** 2, (p1[2] - p2[2]) ** 2])
+
+
+
+def closest_point_3d(node, point, depth=0, best=None):
+    """
+    Function:
+
+    - Find the closest point in the KDTree to a given point.
+
+    Required Arguments:
+
+    - `node`
+        - Type: tuple
+        - What: The node of the KDTree
+    - `point`
+        - Type: tuple
+        - What: The point to find the closest point to
+
+    Optional Arguments:
+
+    - `depth`
+        - Type: int
+        - What: The current depth in the tree (used for axis selection)
+    - `best`
+        - Type: tuple or None
+        - What: The best point found so far (default is None)
+
+    Returns:
+
+    - The closest point found in the KDTree to the given point.
+    """
+    if node == 0:
+        return best
+    if best is None or squared_distance_3d(
+        point, node[0]
+    ) < squared_distance_3d(point, best):
+        best = node[0]
+
+    axis = node[1]
+    diff = point[axis] - node[0][axis]
+
+    # Choose side to search
+    close, away = (node[2], node[3]) if diff < 0 else (node[3], node[2])
+
+    best = closest_point_3d(close, point, depth + 1, best)
+
+    # Check the other side if needed
+    if diff**2 < squared_distance_3d(point, best):
+        best = closest_point_3d(
+            away, point, depth + 1, best
+        )
+
+    return best
 
 class KDTree:
     def __init__(self, points):
@@ -205,10 +278,9 @@ class GeoKDTree:
 
         - The index of the closest point found in the GeoKDTree to the given latitude and longitude point.
         """
-        return closest_point(
+        return closest_point_3d(
             self.tree,
             GeoKDTree.lat_lon_idx_to_xyz_idx(point[0], point[1]),
-            axis_count=3,
         )[3]
 
     @staticmethod
@@ -235,9 +307,10 @@ class GeoKDTree:
             - Type: int
             - What: An index to include with the coordinates (default is 0)
         """
-        lat_rad = math.radians(lat)
-        lon_rad = math.radians(lon)
-        x = math.cos(lat_rad) * math.cos(lon_rad)
-        y = math.cos(lat_rad) * math.sin(lon_rad)
-        z = math.sin(lat_rad)
+        lat_rad = lat * pi / 180
+        lon_rad = lon * pi / 180
+        cos_lat = cos(lat_rad)
+        x = cos_lat * cos(lon_rad)
+        y = cos_lat * sin(lon_rad)
+        z = sin(lat_rad)
         return (x, y, z, idx)

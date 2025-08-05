@@ -40,6 +40,7 @@ class CacheGraph:
         self,
         origin_id: int,
         destination_id: int,
+        length_only: bool = False,
     ):
         """
         Function:
@@ -51,6 +52,10 @@ class CacheGraph:
 
         - origin_id: The id of the origin node
         - destination_id: The id of the destination node
+
+        Optional:
+
+        - length_only: If True, only returns the length of the path
         """
         spanning_tree = self.cache[origin_id]
         if spanning_tree == 0:
@@ -62,4 +67,5 @@ class CacheGraph:
             origin_id=origin_id,
             destination_id=destination_id,
             spanning_tree=spanning_tree,
+            length_only=length_only
         )
