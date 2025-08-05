@@ -67,5 +67,5 @@ class CacheGraph:
             origin_id=origin_id,
             destination_id=destination_id,
             spanning_tree=spanning_tree,
-            length_only=length_only
+            length_only=length_only,
         )

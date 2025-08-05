@@ -70,7 +70,10 @@ for city1, coord1 in cities.items():
                 cache=True,
                 length_only=True,
             )["length"]
-            if abs(length - cached_length) + abs(length - cached_len_only) > 0.001:
+            if (
+                abs(length - cached_length) + abs(length - cached_len_only)
+                > 0.001
+            ):
                 print(
                     f"Length mismatch between uncached and cached for {city1} to {city2}: {length} vs {cached_length} vs {cached_len_only}"
                 )
@@ -109,6 +112,7 @@ def cached_time():
                     cache=True,
                 )
 
+
 def cached_len_only_time():
     for city1, coord1 in cities.items():
         for city2, coord2 in cities.items():
@@ -123,6 +127,7 @@ def cached_len_only_time():
                     length_only=True,
                 )
 
+
 def single_uncached_time():
     us_freeway_geograph.get_shortest_path(
         origin_node={"longitude": -118.2437, "latitude": 34.0522},
@@ -131,6 +136,8 @@ def single_uncached_time():
             "latitude": 40.7128,
         },
     )
+
+
 def single_cached_time():
     us_freeway_geograph.get_shortest_path(
         origin_node={"longitude": -118.2437, "latitude": 34.0522},
@@ -140,6 +147,8 @@ def single_cached_time():
         },
         cache=True,
     )
+
+
 def single_cached_len_only_time():
     us_freeway_geograph.get_shortest_path(
         origin_node={"longitude": -118.2437, "latitude": 34.0522},
@@ -151,10 +160,14 @@ def single_cached_len_only_time():
         length_only=True,
     )
 
+
 print("\n===============\nGeoGraph Cache Timing Tests:\n===============")
 time_test(name="GeoGraph single uncached time", thunk=single_uncached_time)
 time_test(name="GeoGraph single cached time", thunk=single_cached_time)
-time_test(name="GeoGraph single cached length only time", thunk=single_cached_len_only_time)
+time_test(
+    name="GeoGraph single cached length only time",
+    thunk=single_cached_len_only_time,
+)
 
 time_test(name="GeoGraph uncached time", thunk=uncached_time)
 time_test(name="GeoGraph cached time", thunk=cached_time)

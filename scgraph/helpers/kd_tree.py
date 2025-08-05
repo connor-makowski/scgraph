@@ -69,7 +69,9 @@ def squared_distance(p1, p2, axis_count=2):
     return sum([(p1[i] - p2[i]) ** 2 for i in range(axis_count)])
 
 
-def closest_point(node, point, depth=0, best=None, axis_count=2, best_dist=float("inf")):
+def closest_point(
+    node, point, depth=0, best=None, axis_count=2, best_dist=float("inf")
+):
     """
     Function:
 
@@ -107,7 +109,9 @@ def closest_point(node, point, depth=0, best=None, axis_count=2, best_dist=float
         return best, best_dist
     # Get the median node and its distance
     median_node = node[0]
-    median_node_dist = squared_distance(point, median_node, axis_count=axis_count)
+    median_node_dist = squared_distance(
+        point, median_node, axis_count=axis_count
+    )
     # Update the best point and distance if necessary
     if best is None or median_node_dist < best_dist:
         best = median_node
@@ -118,13 +122,26 @@ def closest_point(node, point, depth=0, best=None, axis_count=2, best_dist=float
     # Choose side to search
     close, away = (node[2], node[3]) if diff < 0 else (node[3], node[2])
     # Search the close side first
-    best, best_dist = closest_point(close, point, depth + 1, best, axis_count=axis_count, best_dist=best_dist)
+    best, best_dist = closest_point(
+        close,
+        point,
+        depth + 1,
+        best,
+        axis_count=axis_count,
+        best_dist=best_dist,
+    )
     # Check the other side if needed
     if diff**2 < best_dist:
         best, best_dist = closest_point(
-            away, point, depth + 1, best, axis_count=axis_count, best_dist=best_dist
+            away,
+            point,
+            depth + 1,
+            best,
+            axis_count=axis_count,
+            best_dist=best_dist,
         )
     return best, best_dist
+
 
 def squared_distance_3d(p1, p2):
     """
@@ -145,7 +162,9 @@ def squared_distance_3d(p1, p2):
 
     - The squared distance between the two 3D points.
     """
-    return sum([(p1[0] - p2[0]) ** 2, (p1[1] - p2[1]) ** 2, (p1[2] - p2[2]) ** 2])
+    return sum(
+        [(p1[0] - p2[0]) ** 2, (p1[1] - p2[1]) ** 2, (p1[2] - p2[2]) ** 2]
+    )
 
 
 def closest_point_3d(node, point, depth=0, best=None, best_dist=float("inf")):
@@ -202,6 +221,7 @@ def closest_point_3d(node, point, depth=0, best=None, best_dist=float("inf")):
         )
     return best, best_dist
 
+
 class KDTree:
     def __init__(self, points):
         """
@@ -237,7 +257,9 @@ class KDTree:
 
         - The closest point found in the KDTree to the given point.
         """
-        return closest_point(self.tree, point)[0]  # Return only the point, not the distance
+        return closest_point(self.tree, point)[
+            0
+        ]  # Return only the point, not the distance
 
 
 class GeoKDTree:
@@ -286,7 +308,9 @@ class GeoKDTree:
         return closest_point_3d(
             self.tree,
             GeoKDTree.lat_lon_idx_to_xyz_idx(point[0], point[1]),
-        )[0][3]# Return the point [0] and the index of the point [3]
+        )[0][
+            3
+        ]  # Return the point [0] and the index of the point [3]
 
     @staticmethod
     def lat_lon_idx_to_xyz_idx(

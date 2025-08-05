@@ -197,7 +197,11 @@ class GeoGraph:
             circuity=0.9,
         )
 
-    def format_coordinates(self, coordinate_path: list[list[float | int]], output_format: str="list_of_lists") -> list:
+    def format_coordinates(
+        self,
+        coordinate_path: list[list[float | int]],
+        output_format: str = "list_of_lists",
+    ) -> list:
         """
         Function:
 
@@ -228,19 +232,19 @@ class GeoGraph:
             raise ValueError(
                 "Invalid output_format. Must be one of 'list_of_lists', 'list_of_lists_long_first', or 'list_of_dicts'"
             )
-        
+
     def format_output(
-            self,
-            output: dict,
-            output_coordinate_path: str="list_of_lists",
-            output_units: str="km",
-            geograph_units: str="km",
-            output_path: bool=False,
-            adj_circuity: bool=True,
-            node_addition_circuity: float | int =4,
-            off_graph_circuity: float | int =1,
-            length_only: bool=False,
-        ):
+        self,
+        output: dict,
+        output_coordinate_path: str = "list_of_lists",
+        output_units: str = "km",
+        geograph_units: str = "km",
+        output_path: bool = False,
+        adj_circuity: bool = True,
+        node_addition_circuity: float | int = 4,
+        off_graph_circuity: float | int = 1,
+        length_only: bool = False,
+    ):
         """
         Function:
 
@@ -301,7 +305,7 @@ class GeoGraph:
             - Type: bool
             - What: If True, only returns the length of the path
             - Default: False
-        
+
         Returns:
 
         - A dictionary with the following keys:
@@ -312,39 +316,35 @@ class GeoGraph:
         """
 
         # Format the length
-        output['length'] = distance_converter(
-            output['length'],
+        output["length"] = distance_converter(
+            output["length"],
             input_units=geograph_units,
             output_units=output_units,
         )
         # If only the length is requested, return early
         if length_only:
-            return {
-                'length': output['length']
-            }
+            return {"length": output["length"]}
 
         # Get the coordinate path
-        if 'coordinate_path' not in output:
-            output['coordinate_path'] = self.get_coordinate_path(
-                output['path']
-            )
+        if "coordinate_path" not in output:
+            output["coordinate_path"] = self.get_coordinate_path(output["path"])
         # If the output path is not requested, remove it from the output
         if not output_path:
-            if 'path' in output:
-                del output['path']
+            if "path" in output:
+                del output["path"]
 
         # Adjust the length for circuity factors if needed (this needs the coordinate path)
         if adj_circuity:
             output["length"] = self.adjust_circuity_length(
-                    output=output,
-                    node_addition_circuity=node_addition_circuity,
-                    off_graph_circuity=off_graph_circuity,
-                )
-            
+                output=output,
+                node_addition_circuity=node_addition_circuity,
+                off_graph_circuity=off_graph_circuity,
+            )
+
         # Format the coordinate path to the desired output format
-        output['coordinate_path'] = self.format_coordinates(
-            coordinate_path=output['coordinate_path'],
-            output_format=output_coordinate_path
+        output["coordinate_path"] = self.format_coordinates(
+            coordinate_path=output["coordinate_path"],
+            output_format=output_coordinate_path,
         )
         if output_coordinate_path == "list_of_lists_long_first":
             output["long_first"] = True
@@ -355,8 +355,6 @@ class GeoGraph:
         # Cleanup temp nodes from the graph
         while len(self.graph) > self.__original_graph_length__:
             self.remove_appended_node()
-        
-
 
     def get_shortest_path(
         self,
@@ -537,17 +535,23 @@ class GeoGraph:
         if node_addition_lat_lon_bound == "auto":
             node_addition_lat_lon_bound_origin = 180
             node_addition_lat_lon_bound_destination = 180
-            if not (node_addition_type == "kdclosest" and destination_node_addition_type == "kdclosest"):
+            if not (
+                node_addition_type == "kdclosest"
+                and destination_node_addition_type == "kdclosest"
+            ):
                 node_addition_lat_lon_bound_destination = (
                     get_lat_lon_bound_between_pts(origin_node, destination_node)
                     * 1.01
                 )
                 node_addition_lat_lon_bound_origin = min(
-                    node_addition_lat_lon_bound_destination, auto_lat_lon_bound_max
+                    node_addition_lat_lon_bound_destination,
+                    auto_lat_lon_bound_max,
                 )
         else:
             node_addition_lat_lon_bound_origin = node_addition_lat_lon_bound
-            node_addition_lat_lon_bound_destination = node_addition_lat_lon_bound
+            node_addition_lat_lon_bound_destination = (
+                node_addition_lat_lon_bound
+            )
         try:
             # Handle Cache based shortest path calculations
             if cache:
@@ -596,7 +600,11 @@ class GeoGraph:
                 output["length"] += entry_length + exit_length
                 # Make modifications to the output if the request is not just for length
                 if not length_only:
-                    output["coordinate_path"] = [origin] + self.get_coordinate_path(output["path"]) + [destination]
+                    output["coordinate_path"] = (
+                        [origin]
+                        + self.get_coordinate_path(output["path"])
+                        + [destination]
+                    )
                     # Add the origin and destination nodes to the id path
                     output["path"] = [entry_id] + output["path"] + [exit_id]
             # Handle non-cache based shortest path calculations
@@ -799,7 +807,7 @@ class GeoGraph:
             closest_idx = self.geokdtree.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
-                closest_idx: haversine(node, closest_point, circuity=circuity), 
+                closest_idx: haversine(node, closest_point, circuity=circuity),
             }
         assert node_addition_type in [
             "quadrant",

@@ -62,7 +62,12 @@ class SpanningTree:
         }
 
     @staticmethod
-    def get_path(origin_id: int, destination_id: int, spanning_tree: dict, length_only: bool = False) -> dict:
+    def get_path(
+        origin_id: int,
+        destination_id: int,
+        spanning_tree: dict,
+        length_only: bool = False,
+    ) -> dict:
         """
         Function:
 
