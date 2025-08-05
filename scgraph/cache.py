@@ -16,7 +16,7 @@ class CacheGraph:
 
         - graph:
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
             - Note: The graph must be symmetric for the CacheGraph to work based on how it takes advantage of spanning trees.
 
         Optional:

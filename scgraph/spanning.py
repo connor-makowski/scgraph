@@ -21,7 +21,7 @@ class SpanningTree:
 
         - `graph`:
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `node_id`
             - Type: int
             - What: The id of the node from which to calculate the spanning tree

@@ -12,7 +12,7 @@ Supply chain graph package for Python
 
 Getting Started: https://github.com/connor-makowski/scgraph
 
-Low Level: https://connor-makowski.github.io/scgraph/scgraph/core.html
+Low Level: https://connor-makowski.github.io/scgraph/scgraph.html
 
 
 ## Key Features
@@ -339,7 +339,7 @@ from scgraph import Graph
 
 # Define an arbitrary graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
 graph = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
@@ -364,7 +364,7 @@ from scgraph import GeoGraph
 
 # Define nodes
 # See the nodes definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+# https://connor-makowski.github.io/scgraph/scgraph/geograph.html#GeoGraph.__init__
 nodes = [
     # London
     [51.5074, -0.1278],
@@ -381,7 +381,7 @@ nodes = [
 ]
 # Define a graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
 graph = [
     # From London
     {
@@ -440,7 +440,7 @@ my_geograph.validate_nodes()
 # In this case, Birmingham England and Zaragoza Spain
 # Since Birmingham and Zaragoza are not in the graph,
 # the algorithm will add them into the graph.
-# See: https://connor-makowski.github.io/scgraph/scgraph/core.html#GeoGraph.get_shortest_path
+# See: https://connor-makowski.github.io/scgraph/scgraph/geograph.html#GeoGraph.get_shortest_path
 # Expected output would be to go from
 # Birmingham -> London -> Paris -> Madrid -> Zaragoza
 

@@ -13,7 +13,7 @@ authors:
     orcid: 'https://orcid.org/0009-0005-1522-022X'
 repository-code: 'https://github.com/connor-makowski/scgraph'
 url: >-
-  https://connor-makowski.github.io/scgraph/scgraph/core.html
+  https://connor-makowski.github.io/scgraph/scgraph.html
 abstract: >-
   A python package for generating shortest paths in
   geographic networks.

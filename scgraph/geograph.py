@@ -31,12 +31,12 @@ class GeoGraph:
 
         - `graph`
             - Type: list of dictionaries
-            - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `nodes`
             - Type: list of lists of ints or floats
             - What: A list of lists where the values are coordinates (latitude then longitude)
             - Note: The length of the nodes list must be the same as that of the graph list
-            - EG Continuing off the example from https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
+            - Example:
             ```
                 [
                     # London (index 0)
@@ -255,7 +255,7 @@ class GeoGraph:
                 - 'Graph.dijkstra_makowski': A modified dijkstra algorithm that uses a sparse distance matrix to identify the shortest path
                 - Any user defined algorithm that takes the arguments:
                     - `graph`: A dictionary of dictionaries where the keys are origin node ids and the values are dictionaries of destination node ids and distances
-                        - See: https://connor-makowski.github.io/scgraph/scgraph/core.html#Graph.validate_graph
+                        - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
                     - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
         - `algorithm_kwargs`

@@ -29,4 +29,4 @@ dependencies = []
 [project.urls]
 "Homepage" = "https://github.com/connor-makowski/scgraph"
 "Bug Tracker" = "https://github.com/connor-makowski/scgraph/issues"
-"Documentation" = "https://connor-makowski.github.io/scgraph/core.html"
+"Documentation" = "https://connor-makowski.github.io/scgraph/scgraph.html"
