@@ -358,8 +358,8 @@ class GeoGraph:
 
     def get_shortest_path(
         self,
-        origin_node: dict[float | int],
-        destination_node: dict[float | int],
+        origin_node: dict[str, float | int],
+        destination_node: dict[str, float | int],
         output_units: str = "km",
         algorithm_fn=Graph.dijkstra_makowski,
         algorithm_kwargs: dict = dict(),
@@ -438,16 +438,7 @@ class GeoGraph:
                 - 'kdclosest': Add the closest node using a KD-Tree
                 - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
                 - 'closest': Add only the closest node to the distance matrix for this node
-                - 'all': Add all nodes to the distance matrix for this node
-            - Notes:
-                - 'closest' is the recommended option for most use cases due to speed and accuracy
-                    - Using 'closest' adds about 20 microseconds to the algorithm runtime for graphs like scgraph_data.world_highways
-                    - Using 'quadrant' adds about 80 milliseconds to the algorithm runtime for graphs like scgraph_data.world_highways
-                    - Using 'all' adds about 80 milliseconds to the algorithm runtime for graphs like scgraph_data.world_highways
-                - The destination node is always added as 'all' regardless of the `node_addition_type` setting
-                    - This guarantees that any destination node will be connected to any origin node regardless of how or where the origin node is added to the graph
-                - If the passed graph is not a connected graph (meaning it is comprised of multiple disconnected networks)
-                    - The entrypoints generated using the `node_addition_type` will determine which disconnected networks will be used to calculate the `optimal route`
+                - 'all': Add all nodes within the bounding box to the distance matrix for this node
         - `node_addition_circuity`
             - Type: int | float
             - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
@@ -509,10 +500,7 @@ class GeoGraph:
                 - 'kdclosest': Add the closest node using a KD-Tree
                 - 'closest': Add the node to the closest point in the graph
                 - 'quadrant': Add the node to the quadrant it belongs to
-                - 'all': Add the node to all points in the graph
-            - Notes:
-                - If your graph is not fully connected, and you try a route that cannot work:
-                    - The algorithm will remove the destination node and try again with the destination node added as 'all'
+                - 'all': Add the node to all points in the graph within the bounding box
         - `silent`
             - Type: bool
             - What: If True, suppresses all output from the function
