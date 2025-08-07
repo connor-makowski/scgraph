@@ -104,7 +104,8 @@ pip install scgraph
 
 ## Basic Geograph Usage
 
-Get the shortest path between two points on earth using a latitude / longitude pair
+Get the shortest path between two points on earth using a latitude / longitude pair.
+
 In this case, calculate the shortest maritime path between Shanghai, China and Savannah, Georgia, USA.
 
 ```py
@@ -124,7 +125,7 @@ output = marnet_geograph.get_shortest_path(
 print('Length: ',output['length']) #=> Length:  19596.4653
 ```
 
-Adding in a few additional parameters to the `get_shortest_path` function can change the output format and performance of the calculation.
+Adding in a few additional parameters to the `get_shortest_path` function can change the output format as well as performance of the calculation.
 ```py
 # Use a maritime network geograph
 from scgraph.geographs.marnet import marnet_geograph
@@ -153,6 +154,27 @@ In the above example, the `output` variable is a dictionary with two keys: `leng
             - `mi` (miles)
             - `ft` (feet)
 - `coordinate_path`: A list of lists [`latitude`,`longitude`] that make up the shortest path
+
+
+You can also use the efficient distance matrix function to quickly get the distances between multiple points on the graph.
+```py
+from scgraph.geographs.us_freeway import us_freeway_geograph
+
+cities = [
+    {"latitude": 34.0522, "longitude": -118.2437},  # Los Angeles
+    {"latitude": 40.7128, "longitude": -74.0060},   # New York City
+    {"latitude": 41.8781, "longitude": -87.6298},   # Chicago
+    {"latitude": 29.7604, "longitude": -95.3698},   # Houston
+]
+
+distance_matrix = us_freeway_geograph.distance_matrix(cities, output_units='km')
+# [
+#  [0.0, 4510.965665644833, 3270.3864033755776, 2502.886438995942],
+#  [4510.9656656448415, 0.0, 1288.473118634311, 2637.5821542546687],
+#  [3270.3864033755744, 1288.4731186343113, 0.0, 1913.1928919854067],
+#  [2502.886438995935, 2637.5821542546687, 1913.1928919854076, 0.0],
+# ]
+```
 
 For more examples including viewing the output on a map, see the [example notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb).
 
