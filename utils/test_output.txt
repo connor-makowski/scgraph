@@ -1,0 +1,238 @@
+
+===============
+Basic Graph Tests:
+===============
+Graph Validation: PASS
+Dijkstra: PASS
+Dijkstra-Modified: PASS
+A*: PASS
+Spanning Tree: PASS
+
+===============
+Marnet Graph Tests:
+===============
+Graph Validation: PASS
+Dijkstra-Modified: PASS
+A*: PASS
+
+===============
+Marnet Time Tests:
+===============
+Graph Validation: 25.9359ms
+Dijkstra-Modified 1: 0.1035ms
+Dijkstra-Modified 2: 0.9284ms
+Dijkstra-Modified 3: 5.5032ms
+A* 1: 0.1633ms
+A* 2: 1.0321ms
+A* 3: 6.072ms
+
+===============
+Scale Time Tests:
+===============
+
+Graph Size: 100
+Graph Validation (100): 0.2258ms
+Dijkstra-Modified (100): 0.0894ms
+A* (100): 0.0913ms
+
+Graph Size: 1000
+Graph Validation (1000): 2.0192ms
+Dijkstra-Modified (1000): 0.8285ms
+A* (1000): 0.8683ms
+
+Graph Size: 10000
+Graph Validation (10000): 19.9955ms
+Dijkstra-Modified (10000): 9.9235ms
+A* (10000): 10.4077ms
+
+===============
+Basic GeoGraph Tests:
+===============
+GeoGraph Graph Validation: PASS
+GeoGraph Node Validation: PASS
+GeoGraph Shortest Path: PASS
+
+===============
+Marnet GeoGraph Tests:
+===============
+Graph Validation: PASS
+Node Validation: PASS
+Dijkstra-Modified: PASS
+A*-haversine: PASS
+A*-cheap_ruler: PASS
+Cached Spanning Tree First Call: PASS
+Cached Spanning Tree Second Call: PASS
+
+===============
+Marnet GeoGraph Time Tests:
+===============
+Graph Validation: 29.9253ms
+Node Validation: 4.2722ms
+Dijkstra-Modified: 9.7878ms
+A*-haversine: 6.6164ms
+A*-cheap_ruler: 7.4999ms
+Cached Spanning Tree First Call: 10.2808ms
+Cached Spanning Tree Second Call: 0.0994ms
+
+===============
+GeoGraph Iteration Test:
+===============
+Iteration Test: PASS
+
+===============
+Oak Ridge GeoGraph Tests:
+===============
+Graph Validation: PASS
+Node Validation: PASS
+Dijkstra-Modified: PASS
+A*-haversine: PASS
+A*-cheap_ruler: PASS
+
+===============
+Oak Ridge GeoGraph Time Tests:
+===============
+Graph Validation: 16.9623ms
+Node Validation: 4.3333ms
+Dijkstra-Modified: 6.0875ms
+A*-haversine: 6.5529ms
+A*-cheap_ruler: 7.3347ms
+
+===============
+North America Rail GeoGraph Tests:
+===============
+Graph Validation: PASS
+Node Validation: PASS
+Dijkstra-Modified: PASS
+A*-haversine: PASS
+A*-cheap_ruler: PASS
+
+===============
+North America Rail GeoGraph Time Tests:
+===============
+Graph Validation: 15.842ms
+Node Validation: 3.7458ms
+Dijkstra-Modified: 8.9319ms
+A*-haversine: 15.0452ms
+A*-cheap_ruler: 17.5073ms
+
+===============
+US Freeway GeoGraph Tests:
+===============
+Graph Validation: PASS
+Node Validation: PASS
+Dijkstra-Modified: PASS
+A*-haversine: PASS
+A*-cheap_ruler: PASS
+
+===============
+US Freeway GeoGraph Time Tests:
+===============
+Graph Validation: 24.5295ms
+Node Validation: 5.9185ms
+Dijkstra-Modified: 10.8316ms
+A*-haversine: 9.4683ms
+A*-cheap_ruler: 15.6355ms
+
+===============
+External Saving, Modification and Loading Tests:
+===============
+PASS
+
+===============
+GridGraph Tests:
+===============
+Basic GridGraph Test: PASS
+
+===============
+Cache + GridGraph Tests:
+===============
+300x300 Graph Creation Time:  413.06328773498535 ms
+A* Output Time:  2.8405189514160156 ms
+Dijkstra-Modified Output Time:  34.812211990356445 ms
+Spanning Tree + Output Time:  104.16460037231445 ms
+Cached Spanning Tree Output Time:  0.051021575927734375 ms
+
+GridGraph + Cache Test: PASS
+
+===============
+GridGraph Import Export Tests:
+===============
+GridGraph Creation Time: 422.950506 ms
+GridGraph First Shortest Path Time: 103.130579 ms
+GridGraph Export Time: 297.814131 ms
+GridGraph Import Time: 91.435909 ms
+GridGraph Imported Cached Shortest Path Time: 0.024557 ms
+GridGraph Imported Uncached Shortest Path Time: 0.579596 ms
+GridGraph Import Export Test: PASS
+
+===============
+GridGraph Import Export Tests:
+===============
+Dijkstra Negative Cycle Test: PASS
+
+===============
+Helper Tests:
+===============
+Basic Visvalingam Test: PASS
+
+Scale Testing Visvalingam (should be O(n log n))...
+n=10:     visvalingam: 0.0274ms
+n=100:    visvalingam: 0.2525ms
+n=1000:   visvalingam: 3.2198ms
+n=10000:  visvalingam: 43.8604ms
+n=100000: visvalingam: 635.0362ms
+
+Scale Testing KDTree...
+n=10 KD-Tree built in 0.0298 ms
+n=10 KD-Tree found in 0.0334 ms
+n=100 KD-Tree built in 0.1009 ms
+n=100 KD-Tree found in 0.0114 ms
+n=1000 KD-Tree built in 1.0262 ms
+n=1000 KD-Tree found in 0.0153 ms
+n=10000 KD-Tree built in 12.7246 ms
+n=10000 KD-Tree found in 0.0298 ms
+n=100000 KD-Tree built in 156.1227 ms
+n=100000 KD-Tree found in 0.0398 ms
+
+===============
+GeoGraph Merge Tests:
+===============
+Merge Test: PASS
+
+===============
+Import Timing:
+===============
+Importing Marnet took 51.8079 ms
+Importing North America Rail took 34.3175 ms
+Importing Oak Ridge Maritime took 37.5874 ms
+Importing US Freeway took 51.4195 ms
+
+===============
+GeoGraph Cache Tests:
+===============
+Geograph Cache Test: PASS
+
+===============
+GeoGraph Cache Timing Tests:
+===============
+GeoGraph single uncached time: 9.4612ms
+GeoGraph single cached time: 0.104ms
+GeoGraph single cached length only time: 0.0491ms
+GeoGraph uncached time: 1434.7732ms
+GeoGraph cached time: 26.262ms
+GeoGraph cached length only time: 9.5632ms
+
+===============
+GeoGraph Distance Matrix Tests:
+===============
+Distance matrix test: PASS
+
+===============
+GeoGraph Distance Matrix Timing Tests:
+===============
+Haversine distance (25 nodes, 625 distances): 0.5763ms total, 0.922us/distance
+Distance matrix (25 nodes, 625 distances): 271.2109ms total, 433.9375us/distance
+Haversine distance (100 nodes, 10000 distances): 7.6954ms total, 0.7695us/distance
+Distance matrix (100 nodes, 10000 distances): 788.121ms total, 78.8121us/distance
+Haversine distance (400 nodes, 160000 distances): 119.5123ms total, 0.747us/distance
+Distance matrix (400 nodes, 160000 distances): 2601.9213ms total, 16.262us/distance
