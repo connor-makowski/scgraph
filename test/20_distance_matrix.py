@@ -52,12 +52,12 @@ la_nyc = us_freeway_geograph.get_shortest_path(
     destination_node=city_nodes[1],
 )
 
-if abs(distance_matrix['distance_matrix'][0][1] - la_nyc["length"]) < 0.001:
+if abs(distance_matrix[0][1] - la_nyc["length"]) < 0.001:
     print("Distance matrix test: PASS")
 else:
     print("Distance matrix test: FAIL")
     print("Expected:", la_nyc["length"])
-    print("Realized:", distance_matrix['distance_matrix'][0][1])
+    print("Realized:", distance_matrix[0][1])
     success = False
 
 

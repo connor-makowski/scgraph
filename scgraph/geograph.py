@@ -1579,7 +1579,7 @@ class GeoGraph:
             json.dump(output, open(filename, "w"))
         return output
     
-    def distance_matrix(self, nodes: list[dict[str, float | int]], off_graph_circuity: float | int = 1, geograph_units: str = "km", output_units: str = "km", silent: bool = False) -> dict:
+    def distance_matrix(self, nodes: list[dict[str, float | int]], off_graph_circuity: float | int = 1, geograph_units: str = "km", output_units: str = "km", silent: bool = False) -> list[list[float|int|None]]:
         """
         Function:
 
@@ -1614,21 +1614,18 @@ class GeoGraph:
 
         Returns:
 
-        - A dictionary with the following structure:
+        - A list of lists representing the distance matrix between the nodes
+        - The distance matrix is a square matrix where the entry at (i, j) is the distance between node i and node j
+        - The distances are in the units specified by `output_units`
+        - EG:
         ```
-        {
-            nodes: [
-                {'latitude': 39.2904, 'longitude': -76.6122},
-                {'latitude': 39.2905, 'longitude': -76.6123}.
-                ...
-            ],
-            distance_matrix: [
-                [0.0, 0.1, ...],
-                [0.1, 0.0, ...],
-                ...
-            ]
+        [
+            [0.0, 0.1, ...],
+            [0.1, 0.0, ...],
+            ...
+        ]
         """
-        distance_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
+        output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(distance=1, input_units=geograph_units, output_units=output_units)
         node_addition_multiplier = distance_converter(distance=1, input_units="km", output_units=output_units)
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
@@ -1650,7 +1647,7 @@ class GeoGraph:
         for node_idx_start, (entry_idx_start, entry_length_start) in enumerate(entry_idx_and_distance):
             for node_idx_end, (entry_idx_end, entry_length_end) in enumerate(entry_idx_and_distance):
                 if entry_idx_start == entry_idx_end:
-                    distance_matrix[node_idx_start][node_idx_end] = 0.0
+                    output_matrix[node_idx_start][node_idx_end] = 0.0
                     continue
                 try:
                     length = self.cacheGraph.get_shortest_path(
@@ -1658,17 +1655,14 @@ class GeoGraph:
                         destination_id=entry_idx_end,
                         length_only=True,
                     )["length"]
-                    distance_matrix[node_idx_start][node_idx_end] = (length * dist_multiplier ) + entry_length_start + entry_length_end
+                    output_matrix[node_idx_start][node_idx_end] = (length * dist_multiplier ) + entry_length_start + entry_length_end
                 except Exception as e:
                     print_console(
                         f"Error calculating distance between nodes {node_idx_start} and {node_idx_end} with entry indices {entry_idx_start} and {entry_idx_end}.",
                         silent=silent,
                     )
 
-        return {
-            "nodes": nodes,
-            "distance_matrix": distance_matrix
-        }
+        return output_matrix
 
 
 def load_geojson_as_geograph(geojson_filename: str, silent=False) -> GeoGraph:
