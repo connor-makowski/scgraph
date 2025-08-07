@@ -317,11 +317,13 @@ class GeoGraph:
 
         # If only the length is requested, return early if no circuity adjustment is needed
         if length_only and not adj_circuity:
-            return {"length": distance_converter(
-                output["length"],
-                input_units=geograph_units,
-                output_units=output_units,
-            )}
+            return {
+                "length": distance_converter(
+                    output["length"],
+                    input_units=geograph_units,
+                    output_units=output_units,
+                )
+            }
 
         # Get the coordinate path
         if "coordinate_path" not in output:
@@ -545,7 +547,9 @@ class GeoGraph:
                 )
         else:
             node_addition_lat_lon_bound_origin = node_addition_lat_lon_bound
-            node_addition_lat_lon_bound_destination = node_addition_lat_lon_bound
+            node_addition_lat_lon_bound_destination = (
+                node_addition_lat_lon_bound
+            )
         try:
             # Handle Cache based shortest path calculations
             if cache:
@@ -1578,8 +1582,15 @@ class GeoGraph:
         if filename is not None:
             json.dump(output, open(filename, "w"))
         return output
-    
-    def distance_matrix(self, nodes: list[dict[str, float | int]], off_graph_circuity: float | int = 1, geograph_units: str = "km", output_units: str = "km", silent: bool = False) -> list[list[float|int|None]]:
+
+    def distance_matrix(
+        self,
+        nodes: list[dict[str, float | int]],
+        off_graph_circuity: float | int = 1,
+        geograph_units: str = "km",
+        output_units: str = "km",
+        silent: bool = False,
+    ) -> list[list[float | int | None]]:
         """
         Function:
 
@@ -1626,26 +1637,36 @@ class GeoGraph:
         ]
         """
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
-        dist_multiplier = distance_converter(distance=1, input_units=geograph_units, output_units=output_units)
-        node_addition_multiplier = distance_converter(distance=1, input_units="km", output_units=output_units)
+        dist_multiplier = distance_converter(
+            distance=1, input_units=geograph_units, output_units=output_units
+        )
+        node_addition_multiplier = distance_converter(
+            distance=1, input_units="km", output_units=output_units
+        )
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
         entry_idx_and_distance = []
         for node in nodes:
-            node_idx, distance = list(self.get_node_distances(
-                node=[node["latitude"], node["longitude"]],
-                circuity=off_graph_circuity,
-                node_addition_type='kdclosest',
-                node_addition_math='haversine',
-                lat_lon_bound=0,
-                silent=True,
-            ).items())[0]
+            node_idx, distance = list(
+                self.get_node_distances(
+                    node=[node["latitude"], node["longitude"]],
+                    circuity=off_graph_circuity,
+                    node_addition_type="kdclosest",
+                    node_addition_math="haversine",
+                    lat_lon_bound=0,
+                    silent=True,
+                ).items()
+            )[0]
             entry_idx_and_distance.append(
                 (node_idx, distance * node_addition_multiplier)
             )
 
-        for node_idx_start, (entry_idx_start, entry_length_start) in enumerate(entry_idx_and_distance):
-            for node_idx_end, (entry_idx_end, entry_length_end) in enumerate(entry_idx_and_distance):
+        for node_idx_start, (entry_idx_start, entry_length_start) in enumerate(
+            entry_idx_and_distance
+        ):
+            for node_idx_end, (entry_idx_end, entry_length_end) in enumerate(
+                entry_idx_and_distance
+            ):
                 if entry_idx_start == entry_idx_end:
                     output_matrix[node_idx_start][node_idx_end] = 0.0
                     continue
@@ -1655,7 +1676,11 @@ class GeoGraph:
                         destination_id=entry_idx_end,
                         length_only=True,
                     )["length"]
-                    output_matrix[node_idx_start][node_idx_end] = (length * dist_multiplier ) + entry_length_start + entry_length_end
+                    output_matrix[node_idx_start][node_idx_end] = (
+                        (length * dist_multiplier)
+                        + entry_length_start
+                        + entry_length_end
+                    )
                 except Exception as e:
                     print_console(
                         f"Error calculating distance between nodes {node_idx_start} and {node_idx_end} with entry indices {entry_idx_start} and {entry_idx_end}.",
