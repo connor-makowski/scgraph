@@ -315,15 +315,13 @@ class GeoGraph:
             - 'long_first': (optional) A boolean indicating if the coordinate path is in longitude-first format
         """
 
-        # Format the length
-        output["length"] = distance_converter(
-            output["length"],
-            input_units=geograph_units,
-            output_units=output_units,
-        )
-        # If only the length is requested, return early
-        if length_only:
-            return {"length": output["length"]}
+        # If only the length is requested, return early if no circuity adjustment is needed
+        if length_only and not adj_circuity:
+            return {"length": distance_converter(
+                output["length"],
+                input_units=geograph_units,
+                output_units=output_units,
+            )}
 
         # Get the coordinate path
         if "coordinate_path" not in output:
@@ -334,12 +332,23 @@ class GeoGraph:
                 del output["path"]
 
         # Adjust the length for circuity factors if needed (this needs the coordinate path)
+        # This adjusts for the difference between node addition circuity and off graph circuity
         if adj_circuity:
             output["length"] = self.adjust_circuity_length(
                 output=output,
                 node_addition_circuity=node_addition_circuity,
                 off_graph_circuity=off_graph_circuity,
             )
+
+        # Format the length
+        output["length"] = distance_converter(
+            output["length"],
+            input_units=geograph_units,
+            output_units=output_units,
+        )
+
+        if length_only:
+            return {"length": output["length"]}
 
         # Format the coordinate path to the desired output format
         output["coordinate_path"] = self.format_coordinates(
@@ -476,7 +485,6 @@ class GeoGraph:
                 - Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes
             - Default: 'auto'
             - If set to 'auto', the bounding box is set based on the distance between the origin and destination nodes capped at `auto_lat_lon_bound_max` for the origin node
-            - Note: If no nodes are found within the bounding box, the bounding box is expanded to 180 degrees in all directions (all nodes are considered)
             - Note: This is only used when adding a new node (the specified origin and destination) to the graph
         - `auto_lat_lon_bound_max`
             - Type: int | float
@@ -537,9 +545,7 @@ class GeoGraph:
                 )
         else:
             node_addition_lat_lon_bound_origin = node_addition_lat_lon_bound
-            node_addition_lat_lon_bound_destination = (
-                node_addition_lat_lon_bound
-            )
+            node_addition_lat_lon_bound_destination = node_addition_lat_lon_bound
         try:
             # Handle Cache based shortest path calculations
             if cache:
@@ -786,6 +792,9 @@ class GeoGraph:
         - `lat_lon_bound`
             - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
+
+        Optional Arguments:
+
         - `silent`
             - Type: bool
             - What: Whether to suppress output messages
@@ -1569,6 +1578,97 @@ class GeoGraph:
         if filename is not None:
             json.dump(output, open(filename, "w"))
         return output
+    
+    def distance_matrix(self, nodes: list[dict[str, float | int]], off_graph_circuity: float | int = 1, geograph_units: str = "km", output_units: str = "km", silent: bool = False) -> dict:
+        """
+        Function:
+
+        - Calculate the distance matrix for a list of nodes in a very efficient way using cached spanning trees and cached node addition distances
+        - This should run in O(((n+m)*log(n)*i) + (i*i)) time where i is the number of nodes in the distance matrix, n is the number of nodes in the graph, and m is the number of edges in the graph
+           - Compare this to a naive matrix implementation time of O(((n+m)*log(n)*(i*i)) where paths are fetched for each pair of nodes in the distance matrix without caching
+        - This is useful for calculating the distance between multiple nodes at the same time
+
+        Required Arguments:
+
+        - `nodes`
+            - Type: list[dict[str, float | int]]
+            - What: A list of dictionaries with the keys 'latitude' and 'longitude'
+            - EG: [{"latitude": 39.2904, "longitude": -76.6122}, {"latitude": 39.2905, "longitude": -76.6123}]
+
+        Optional Arguments:
+
+        - `off_graph_circuity`
+            - Type: float | int
+            - What: The circuity to apply to the distance calculations for nodes that are not in the graph
+            - Default: 1
+        - `geograph_units`
+            - Type: str
+            - What: The units of the distances in the graph
+            - Default: 'km'
+            - Options: 'km', 'miles', 'meters', 'feet'
+        - `output_units`
+            - Type: str
+            - What: The units of the output distance matrix
+            - Default: 'km'
+            - Options: 'km', 'miles', 'meters', 'feet'
+
+        Returns:
+
+        - A dictionary with the following structure:
+        ```
+        {
+            nodes: [
+                {'latitude': 39.2904, 'longitude': -76.6122},
+                {'latitude': 39.2905, 'longitude': -76.6123}.
+                ...
+            ],
+            distance_matrix: [
+                [0.0, 0.1, ...],
+                [0.1, 0.0, ...],
+                ...
+            ]
+        """
+        distance_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
+        dist_multiplier = distance_converter(distance=1, input_units=geograph_units, output_units=output_units)
+        node_addition_multiplier = distance_converter(distance=1, input_units="km", output_units=output_units)
+        # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
+        # [(entry_idx, distance), ...]
+        entry_idx_and_distance = []
+        for node in nodes:
+            node_idx, distance = list(self.get_node_distances(
+                node=[node["latitude"], node["longitude"]],
+                circuity=off_graph_circuity,
+                node_addition_type='kdclosest',
+                node_addition_math='haversine',
+                lat_lon_bound=0,
+                silent=True,
+            ).items())[0]
+            entry_idx_and_distance.append(
+                (node_idx, distance * node_addition_multiplier)
+            )
+
+        for node_idx_start, (entry_idx_start, entry_length_start) in enumerate(entry_idx_and_distance):
+            for node_idx_end, (entry_idx_end, entry_length_end) in enumerate(entry_idx_and_distance):
+                if entry_idx_start == entry_idx_end:
+                    distance_matrix[node_idx_start][node_idx_end] = 0.0
+                    continue
+                try:
+                    length = self.cacheGraph.get_shortest_path(
+                        origin_id=entry_idx_start,
+                        destination_id=entry_idx_end,
+                        length_only=True,
+                    )["length"]
+                    distance_matrix[node_idx_start][node_idx_end] = (length * dist_multiplier ) + entry_length_start + entry_length_end
+                except Exception as e:
+                    print_console(
+                        f"Error calculating distance between nodes {node_idx_start} and {node_idx_end} with entry indices {entry_idx_start} and {entry_idx_end}.",
+                        silent=silent,
+                    )
+
+        return {
+            "nodes": nodes,
+            "distance_matrix": distance_matrix
+        }
 
 
 def load_geojson_as_geograph(geojson_filename: str, silent=False) -> GeoGraph:

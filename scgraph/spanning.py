@@ -73,6 +73,7 @@ class SpanningTree:
 
         - Get the path from the origin node to the destination node using the provided spanning tree
         - Return a list of node ids in the order they are visited as well as the length of the path
+        - If the destination node is not reachable from the origin node, return None
 
         Required Arguments:
 
@@ -106,7 +107,7 @@ class SpanningTree:
         destination_distance = spanning_tree["distance_matrix"][destination_id]
         if destination_distance == float("inf"):
             raise Exception(
-                "Something went wrong: The destination node is not reachable from the origin node."
+                "Something went wrong, the origin and destination nodes are not connected."
             )
         if length_only:
             return {"length": destination_distance}
