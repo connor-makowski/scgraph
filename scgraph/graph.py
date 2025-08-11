@@ -187,6 +187,37 @@ class Graph:
             )
 
     @staticmethod
+    def reconstruct_path(destination_id: int, predecessor: list[int]) -> list[int]:
+        """
+        Function:
+
+        - Reconstruct the shortest path from the destination node to the origin node
+        - Return the reconstructed path in the correct order
+        - Given the predecessor list, this function reconstructs the path
+
+        Required Arguments:
+
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+        - `predecessor`
+            - Type: list[int]
+            - What: The predecessor list that was used to compute the shortest path
+            - This list is used to reconstruct the path from the destination node to the origin node
+            - Note: Nodes with no predecessor should be -1
+
+        Optional Arguments:
+
+        - None
+        """
+        output_path = [destination_id]
+        while predecessor[destination_id] != -1:
+            destination_id = predecessor[destination_id]
+            output_path.append(destination_id)
+        output_path.reverse()
+        return output_path
+
+    @staticmethod
     def dijkstra(
         graph: list[dict[int, int | float]], origin_id: int, destination_id: int
     ) -> dict:
@@ -244,15 +275,8 @@ class Graph:
                     predecessor[connected_id] = current_id
                     branch_tip_distances[connected_id] = possible_distance
 
-        output_path = [current_id]
-        while predecessor[current_id] != -1:
-            current_id = predecessor[current_id]
-            output_path.append(current_id)
-
-        output_path.reverse()
-
         return {
-            "path": output_path,
+            "path": Graph.reconstruct_path(destination_id, predecessor),
             "length": distance_matrix[destination_id],
         }
 
@@ -320,15 +344,8 @@ class Graph:
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
-        output_path = [current_id]
-        while predecessor[current_id] != -1:
-            current_id = predecessor[current_id]
-            output_path.append(current_id)
-
-        output_path.reverse()
-
         return {
-            "path": output_path,
+            "path": Graph.reconstruct_path(destination_id, predecessor),
             "length": distance_matrix[destination_id],
         }
 
@@ -444,15 +461,8 @@ class Graph:
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
-        output_path = [current_id]
-        while predecessor[current_id] != -1:
-            current_id = predecessor[current_id]
-            output_path.append(current_id)
-
-        output_path.reverse()
-
         return {
-            "path": output_path,
+            "path": Graph.reconstruct_path(destination_id, predecessor),
             "length": distance_matrix[destination_id],
         }
 
@@ -538,15 +548,8 @@ class Graph:
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
-        output_path = [current_id]
-        while predecessor[current_id] != -1:
-            current_id = predecessor[current_id]
-            output_path.append(current_id)
-
-        output_path.reverse()
-
         return {
-            "path": output_path,
+            "path": Graph.reconstruct_path(destination_id, predecessor),
             "length": distance_matrix[destination_id],
         }
 
@@ -609,15 +612,7 @@ class Graph:
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
-        current_id = destination_id
-        output_path = [current_id]
-        while predecessor[current_id] != -1:
-            current_id = predecessor[current_id]
-            output_path.append(current_id)
-
-        output_path.reverse()
-
         return {
-            "path": output_path,
+            "path": Graph.reconstruct_path(destination_id, predecessor),
             "length": distance_matrix[destination_id],
         }
