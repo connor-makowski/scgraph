@@ -609,6 +609,7 @@ class Graph:
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
+        current_id = destination_id
         output_path = [current_id]
         while predecessor[current_id] != -1:
             current_id = predecessor[current_id]
