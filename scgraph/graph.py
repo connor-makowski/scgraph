@@ -549,3 +549,74 @@ class Graph:
             "path": output_path,
             "length": distance_matrix[destination_id],
         }
+
+
+    @staticmethod
+    def bellman_ford(
+        graph: list[dict[int, int | float]],
+        origin_id: int,
+        destination_id: int,
+    ) -> dict:
+        """
+        Function:
+
+        - Identify the shortest path between two nodes in a sparse network graph using the Bellman-Ford algorithm
+        - Return a dictionary of various path information including:
+            - `id_path`: A list of node ids in the order they are visited
+            - `path`: A list of node dictionaries (lat + long) in the order they are visited
+
+        Required Arguments:
+
+        - `graph`:
+            - Type: list of dictionaries
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+
+        Optional Arguments:
+
+        - None
+        """
+        # Input Validation
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
+        # Variable Initialization
+        distance_matrix = [float("inf")] * len(graph)
+        distance_matrix[origin_id] = 0
+        predecessor = [-1] * len(graph)
+
+        len_graph = len(graph)
+        for i in range(len_graph):
+            for current_id in range(len(graph)):
+                current_distance = distance_matrix[current_id]
+                for connected_id, connected_distance in graph[current_id].items():
+                    possible_distance = current_distance + connected_distance
+                    if possible_distance < distance_matrix[connected_id]:
+                        distance_matrix[connected_id] = possible_distance
+                        predecessor[connected_id] = current_id
+                        if i == len_graph - 1:
+                            raise Exception(
+                                "Graph contains a negative weight cycle"
+                            )
+        # Check if destination is reachable
+        if distance_matrix[destination_id] == float("inf"):
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        output_path = [current_id]
+        while predecessor[current_id] != -1:
+            current_id = predecessor[current_id]
+            output_path.append(current_id)
+
+        output_path.reverse()
+
+        return {
+            "path": output_path,
+            "length": distance_matrix[destination_id],
+        }
