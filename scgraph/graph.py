@@ -1,4 +1,5 @@
-from heapq import heappop, heappush
+from heapq import heappop, heappush, heapify
+from scgraph.bmssp import BmsspSolver
 
 
 class Graph:
@@ -608,6 +609,71 @@ class Graph:
                             )
         # Check if destination is reachable
         if distance_matrix[destination_id] == float("inf"):
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        return {
+            "path": Graph.reconstruct_path(destination_id, predecessor),
+            "length": distance_matrix[destination_id],
+        }
+
+    @staticmethod
+    def bmssp(graph, origin_id, destination_id):
+        """
+        Function:
+
+        - A Full BMSSP-style shortest path solver with a Dijkstra finalizer for non-relaxed edges.
+        - Return a dictionary of various path information including:
+            - `id_path`: A list of node ids in the order they are visited
+            - `path`: A list of node dictionaries (lat + long) in the order they are visited
+
+        Required Arguments:
+
+        - `graph`:
+            - Type: list of dictionaries
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+        - `heuristic_fn`
+            - Type: function
+            - What: A heuristic function that takes two node ids and returns an estimated distance between them
+            - Note: If None, returns the shortest path using Makowski's modified Dijkstra algorithm
+            - Default: None
+
+        Optional Arguments:
+
+        - None
+        """
+        # Run the BMSSP Algorithm to relax as many edges as possible.
+        solver = BmsspSolver(graph, origin_id)
+
+        # Finalization: run a Dijkstra from all discovered vertices to finish relaxations
+        distance_matrix = solver.distance_matrix
+        predecessor = solver.predecessor
+
+        open_leaves = [(distance_matrix[i], i) for i in range(len(graph)) if predecessor[i] > 0]
+        heapify(open_leaves)
+
+        while open_leaves:
+            current_distance, current_id = heappop(open_leaves)
+            if current_id == destination_id:
+                break
+            # Technically, the next line is not necessary but can help with performance
+            if current_distance == distance_matrix[current_id]:
+                for connected_id, connected_distance in graph[
+                    current_id
+                ].items():
+                    possible_distance = current_distance + connected_distance
+                    if possible_distance < distance_matrix[connected_id]:
+                        distance_matrix[connected_id] = possible_distance
+                        predecessor[connected_id] = current_id
+                        heappush(open_leaves, (possible_distance, connected_id))
+        if current_id != destination_id:
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )

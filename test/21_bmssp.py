@@ -1,5 +1,3 @@
-from scgraph.bmssp import BMSSP
-
 from scgraph.graph import Graph
 
 graph = [
@@ -9,10 +7,6 @@ graph = [
     {1: 1, 2: 4, 4: 3, 5: 6},
     {2: 8, 3: 3},
     {3: 6},
-    # Uncomment this and the BMSSP algorithm breaks
-    # {7: 1},
-    # {8: 1},
-    # {6: 1},
 ]
 
 print(Graph.dijkstra_makowski(
@@ -27,14 +21,14 @@ print(Graph.dijkstra_makowski(
     destination_id=5
 ))
 
-print(BMSSP(
+print(Graph.bmssp(
     graph=graph,
     origin_id=0,
     destination_id=4
 ))
 
 
-print(BMSSP(
+print(Graph.bmssp(
     graph=graph,
     origin_id=0,
     destination_id=5

@@ -399,6 +399,8 @@ class GridGraph:
         cache_for: str = "origin",
         output_path: bool = False,
         heuristic_fn: callable | Literal["euclidean"] | None = "euclidean",
+        algorithm_fn: callable = Graph.a_star,
+        algorithm_kwargs: dict | None = None,
         **kwargs,
     ) -> dict:
         """
@@ -453,9 +455,19 @@ class GridGraph:
             - Type: callable | Literal['euclidean'] | None
             - What: A heuristic function to use for the A* algorithm if caching is False
             - Default: 'euclidean' (A predefined heuristic function that calculates the Euclidean distance for this grid graph)
-            - If None, the A* algorithm will not be used and the Dijkstra's algorithm will be used instead
+            - If None, the A* algorithm will default to Dijkstra's algorithm
             - If a callable is provided, it should take two arguments: origin_id and destination_id and return a float representing the heuristic distance between the two nodes
                 - Note: This distance should never be greater than the actual distance between the two nodes or you may get suboptimal paths
+                - Note: This is deprecated and will be removed in a future version
+        - `algorithm_fn`
+            - Type: callable | None
+            - What: The algorithm to use for pathfinding
+            - Default: 'a_star'
+            - If None, the default algorithm will be used
+        - `algorithm_kwargs`
+            - Type: dict
+            - What: Additional keyword arguments to pass to the algorithm function
+            - Default: {}
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
@@ -466,6 +478,8 @@ class GridGraph:
                 "x": destination_node[0],
                 "y": destination_node[1],
             }
+        if algorithm_kwargs is None:
+            algorithm_kwargs = {}
 
         origin_id, origin_distance = self.__get_closest_node_with_connections__(
             **origin_node
@@ -499,15 +513,19 @@ class GridGraph:
                 output["path"].reverse()
                 origin_id, destination_id = destination_id, origin_id
         else:
-            output = Graph.a_star(
+            # TODO: Remove this backwards compatibility hack in future versions
+            if algorithm_fn == Graph.a_star:
+                if 'heuristic_fn' not in algorithm_kwargs:
+                    algorithm_kwargs["heuristic_fn"] = (
+                        self.euclidean_heuristic
+                        if heuristic_fn == "euclidean"
+                        else heuristic_fn
+                    )
+            output = algorithm_fn(
                 graph=self.graph,
                 origin_id=origin_id,
                 destination_id=destination_id,
-                heuristic_fn=(
-                    self.euclidean_heuristic
-                    if heuristic_fn == "euclidean"
-                    else heuristic_fn
-                ),
+                **algorithm_kwargs,
             )
         output["coordinate_path"] = self.get_coordinate_path(
             output["path"], output_coordinate_path

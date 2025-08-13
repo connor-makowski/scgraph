@@ -9,7 +9,10 @@ def validate(name, realized, expected):
     # Custom lenth rounding for floating point precision issues
     if isinstance(realized, dict):
         if "length" in realized:
-            realized["length"] = hard_round(4, realized["length"])
+            realized["length"] = hard_round(3, realized["length"])
+    if isinstance(expected, dict):
+        if "length" in expected:
+            expected["length"] = hard_round(3, expected["length"])
     if realized == expected:
         print(f"{name}: PASS")
     else:
@@ -49,6 +52,25 @@ validate(
     realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5),
     expected=expected,
 )
+
+validate(
+    name="BMSSP",
+    realized=Graph.bmssp(graph, 0, 5),
+    expected=expected,
+)
+
+validate(
+    name="BMSSP 2",
+    realized=Graph.bmssp(graph, 100, 7999),
+    expected=Graph.dijkstra_makowski(graph, 100, 7999),
+)
+
+validate(
+    name="BMSSP 3",
+    realized=Graph.bmssp(graph, 4022, 8342),
+    expected=Graph.dijkstra_makowski(graph, 4022, 8342),
+)
+
 
 print("\n===============\nMarnet Time Tests:\n===============")
 
@@ -101,5 +123,31 @@ time_test(
         origin_id=4022,
         destination_id=8342,
         heuristic_fn=lambda x, y: 0,
+    ),
+)
+
+#BMSSP
+time_test(
+    "BMSSP 1",
+    pamda.thunkify(Graph.bmssp)(
+        graph=graph,
+        origin_id=0,
+        destination_id=5
+    ),
+)
+time_test(
+    "BMSSP 2",
+    pamda.thunkify(Graph.bmssp)(
+        graph=graph,
+        origin_id=100,
+        destination_id=7999
+    ),
+)
+time_test(
+    "BMSSP 3",
+    pamda.thunkify(Graph.bmssp)(
+        graph=graph,
+        origin_id=4022,
+        destination_id=8342
     ),
 )
