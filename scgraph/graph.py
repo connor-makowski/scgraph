@@ -655,10 +655,8 @@ class Graph:
         # Finalization: run a Dijkstra from all discovered vertices to finish relaxations
         distance_matrix = solver.distance_matrix
         predecessor = solver.predecessor
-
-        open_leaves = [(distance_matrix[i], i) for i in range(len(graph)) if predecessor[i] > 0]
+        open_leaves = [(distance_matrix[i], i) for i in range(len(graph)) if predecessor[i] != -1]
         heapify(open_leaves)
-
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
             if current_id == destination_id:
@@ -673,7 +671,7 @@ class Graph:
                         distance_matrix[connected_id] = possible_distance
                         predecessor[connected_id] = current_id
                         heappush(open_leaves, (possible_distance, connected_id))
-        if current_id != destination_id:
+        if distance_matrix[destination_id] == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
