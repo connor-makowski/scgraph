@@ -262,6 +262,9 @@ class BmsspSolver:
             for new_frontier_idx in new_frontier_i:
                 new_frontier_distance = self.distance_matrix[new_frontier_idx]
                 for connection_idx, connection_distance in self.graph[new_frontier_idx].items():
+                    # Avoid self-loops
+                    if connection_idx == new_frontier_idx:
+                        continue
                     new_distance = new_frontier_distance + connection_distance
                     if new_distance <= self.distance_matrix[connection_idx]:
                         if new_distance < self.distance_matrix[connection_idx]:
