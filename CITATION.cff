@@ -1,20 +1,31 @@
 cff-version: 1.2.0
 title: >-
-  Scgraph
+  SCGraph: A Dependency-Free Python Package for Road, Rail, and Maritime Shortest Path Routing Generation and Distance Estimation
 message: >-
   If you use this software, please cite it using the
   metadata from this file.
-type: software
+type: article
 authors:
   - given-names: Connor
     family-names: Makowski
     email: conmak@mit.edu
     affiliation: MIT
     orcid: 'https://orcid.org/0009-0005-1522-022X'
+  - given-names: Austin
+    family-names: Saragih
+  - given-names: Willem
+    family-names: Guter
+  - given-names: Tim
+    family-names: Russell
+  - given-names: Arne
+    family-names: Heinold
+  - given-names: Spyridon
+    family-names: Lekkakos
+journal: MIT Center for Transportation & Logistics Research Paper Series
+issue: '2025-028'
+year: 2025
+url: 'https://ssrn.com/abstract=5388845'
 repository-code: 'https://github.com/connor-makowski/scgraph'
-url: >-
-  https://connor-makowski.github.io/scgraph/scgraph.html
 abstract: >-
   A python package for generating shortest paths in
   geographic networks.
-license: MIT
