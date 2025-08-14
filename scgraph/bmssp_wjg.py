@@ -121,7 +121,7 @@ class Pivots:
         return Pivots(p, w)
 
 
-class ShortestPath:
+class BmsspWjg:
     def __init__(self, graph):
         """
         graph: list of dicts where graph[u] = {v: weight, ...}
@@ -131,6 +131,7 @@ class ShortestPath:
         self.k = 0
         self.dhat = []
         self.prev = []
+        self.previous = []
         self.tree_size = []
         self.f = []
 
@@ -139,6 +140,7 @@ class ShortestPath:
         self.dhat = [math.inf] * n
         self.dhat[s] = 0.0
         self.prev = [None] * n
+        self.previous = [-1] * n
         self.tree_size = [None] * n
         self.f = [[] for _ in range(n)]
 
@@ -151,7 +153,7 @@ class ShortestPath:
         l = math.ceil(math.log2(n_f) / t)
 
         self.bmssp(l, math.inf, [s])
-        return self.dhat.copy()
+        return self.dhat.copy(), self.previous.copy()
 
     def bmssp(self, l: int, b: Length, s: list[Vertex]) -> Entry:
         if l == 0:
@@ -182,9 +184,13 @@ class ShortestPath:
             k_vec = []
             for u in b_entry.u_set():
                 for v, w in self.graph[u].items():
+                    if v == u:
+                        continue
                     if self.dhat[v] >= self.dhat[u] + w:
                         new_dist = self.dhat[u] + w
                         self.dhat[v] = new_dist
+                        self.prev[v] = u
+                        self.previous[v] = u
                         if entry.b() <= new_dist < b:
                             d.insert(v, new_dist)
                         elif b_entry.b() <= new_dist < entry.b():
@@ -245,6 +251,7 @@ class ShortestPath:
                     if self.dhat[v] >= self.dhat[u] + wlen and self.dhat[u] + wlen < b:
                         self.dhat[v] = self.dhat[u] + wlen
                         self.prev[v] = u
+                        self.previous[v] = u
                         wi.add(v)
 
             w |= wi
@@ -277,3 +284,5 @@ class ShortestPath:
             res += self.find_tree_size(v)
         self.tree_size[u] = res
         return res
+
+

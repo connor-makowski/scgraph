@@ -55,6 +55,16 @@ bmssp_output = gridGraph.get_shortest_path(
 bmssp_output_time = time() - bmssp_output_start_time
 print("BMSSP Output Time: ", bmssp_output_time * 1000, "ms")
 
+# Gridgraph test for BMSSP WJG
+bmssp_wjg_output_start_time = time()
+bmssp_wjg_output = gridGraph.get_shortest_path(
+    origin_node={"x": 10, "y": y_size - 10},
+    destination_node={"x": x_size - 10, "y": y_size - 10},
+    algorithm_fn=Graph.bmssp_wjg,
+)
+bmssp_output_time = time() - bmssp_output_start_time
+print("BMSSP Output Time: ", bmssp_output_time * 1000, "ms")
+
 # Standard GridGraph test poplating the initial cache for the origin node
 output_start_time = time()
 output = gridGraph.get_shortest_path(
@@ -92,6 +102,8 @@ if hard_round(4, a_star_output["length"]) != hard_round(
 if hard_round(4, output["length"]) != hard_round(4, cached_output["length"]):
     success = False
 if hard_round(4, bmssp_output["length"]) != hard_round(4, cached_output["length"]):
+    success = False
+if hard_round(4, bmssp_wjg_output["length"]) != hard_round(4, cached_output["length"]):
     success = False
 if success:
     print("GridGraph + Cache Test: PASS")

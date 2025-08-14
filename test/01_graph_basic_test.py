@@ -74,6 +74,12 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="BMSSP_WJG",
+    realized=Graph.bmssp_wjg(graph, 0, 5),
+    expected=expected,
+)
+
 
 print("\n===============\nDisconnected Graph Tests:\n===============")
 
@@ -145,5 +151,11 @@ validate(
 validate(
     name="BMSSP",
     realized=Graph.bmssp(graph, 0, 5),
+    expected=expected,
+)
+
+validate(
+    name="BMSSP_WJG",
+    realized=Graph.bmssp_wjg(graph, 0, 5),
     expected=expected,
 )

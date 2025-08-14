@@ -33,3 +33,17 @@ print(Graph.bmssp(
     origin_id=0,
     destination_id=5
 ))
+
+
+print(Graph.bmssp_wjg(
+    graph=graph,
+    origin_id=0,
+    destination_id=4
+))
+
+
+print(Graph.bmssp_wjg(
+    graph=graph,
+    origin_id=0,
+    destination_id=5
+))

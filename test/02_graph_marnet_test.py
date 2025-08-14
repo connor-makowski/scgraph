@@ -71,6 +71,11 @@ validate(
     expected=Graph.dijkstra_makowski(graph, 4022, 8342),
 )
 
+validate(
+    name="BMSSP_WJG",
+    realized=Graph.bmssp_wjg(graph, 0, 5),
+    expected=expected,
+)
 
 print("\n===============\nMarnet Time Tests:\n===============")
 
@@ -149,5 +154,14 @@ time_test(
         graph=graph,
         origin_id=4022,
         destination_id=8342
+    ),
+)
+
+time_test(
+    "BMSSP_WJG",
+    pamda.thunkify(Graph.bmssp_wjg)(
+        graph=graph,
+        origin_id=0,
+        destination_id=5
     ),
 )
