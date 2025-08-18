@@ -83,10 +83,11 @@ class BmsspSolver:
         self.target_tree_depth = max(2, int(log(self.graph_length) ** (2 / 3.0)))       # t
 
         # Compute max_tree_depth based on k and t
-        max_tree_depth = int(ceil(log(max(2, self.graph_length)) / max(1, self.target_tree_depth)))
+        self.max_tree_depth = int(ceil(log(max(2, self.graph_length)) / max(1, self.target_tree_depth)))
 
         # Run the solver algorithm
-        self.recursive_bmssp(max_tree_depth, inf, {origin_id})
+        self.recursive_bmssp(self.max_tree_depth, inf, {origin_id})
+
 
     def find_pivots(self, upper_bound, frontier):
         """
@@ -178,8 +179,8 @@ class BmsspSolver:
         heappush(heap, (self.distance_matrix[first_frontier], first_frontier))
         visited = set()
 
-        # grow until we exceed pivot_relaxation_steps (practical limit), as in Algorithm 2
-        while heap and len(new_frontier) < self.pivot_relaxation_steps + 1:
+        # Once we get to base case, we need to fully explore the frontier
+        while heap:
             frontier_distance, frontier_idx = heappop(heap)
             if frontier_idx in visited:
                 continue
