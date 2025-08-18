@@ -650,6 +650,10 @@ class Graph:
 
         - None
         """
+        # Input Validation
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
         # Run the BMSSP Algorithm to relax as many edges as possible.
         solver = BmsspSolver(graph, origin_id)
 
@@ -715,6 +719,10 @@ class Graph:
 
         - None
         """
+        # Input Validation
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
         # Run the BMSSP Algorithm to relax as many edges as possible.
         sp = BmsspWjg(graph)
         distance_matrix, predecessor = sp.get(origin_id)

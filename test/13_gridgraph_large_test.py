@@ -63,7 +63,7 @@ bmssp_wjg_output = gridGraph.get_shortest_path(
     algorithm_fn=Graph.bmssp_wjg,
 )
 bmssp_output_time = time() - bmssp_output_start_time
-print("BMSSP Output Time: ", bmssp_output_time * 1000, "ms")
+print("BMSS WJG Output Time: ", bmssp_output_time * 1000, "ms")
 
 # Standard GridGraph test poplating the initial cache for the origin node
 output_start_time = time()
