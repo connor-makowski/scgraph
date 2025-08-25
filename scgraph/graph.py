@@ -649,34 +649,18 @@ class Graph:
 
         - None
         """
+        # Input Validation
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
         # Run the BMSSP Algorithm to relax as many edges as possible.
         solver = BmsspSolver(graph, origin_id)
-
-        # Finalization: run a Dijkstra from all discovered vertices to finish relaxations
-        distance_matrix = solver.distance_matrix
-        predecessor = solver.predecessor
-        open_leaves = [(distance_matrix[i], i) for i in range(len(graph)) if predecessor[i] != -1]
-        heapify(open_leaves)
-        while open_leaves:
-            current_distance, current_id = heappop(open_leaves)
-            if current_id == destination_id:
-                break
-            # Technically, the next line is not necessary but can help with performance
-            if current_distance == distance_matrix[current_id]:
-                for connected_id, connected_distance in graph[
-                    current_id
-                ].items():
-                    possible_distance = current_distance + connected_distance
-                    if possible_distance < distance_matrix[connected_id]:
-                        distance_matrix[connected_id] = possible_distance
-                        predecessor[connected_id] = current_id
-                        heappush(open_leaves, (possible_distance, connected_id))
-        if distance_matrix[destination_id] == float("inf"):
+        if solver.distance_matrix[destination_id] == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
         return {
-            "path": Graph.reconstruct_path(destination_id, predecessor),
-            "length": distance_matrix[destination_id],
+            "path": Graph.reconstruct_path(destination_id, solver.predecessor),
+            "length": solver.distance_matrix[destination_id],
         }

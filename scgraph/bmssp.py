@@ -1,4 +1,4 @@
-from heapq import heappush, heappop
+from heapq import heappush, heappop, heapify
 from math import ceil, log
 
 inf = float('inf')
@@ -83,10 +83,26 @@ class BmsspSolver:
         self.target_tree_depth = max(2, int(log(self.graph_length) ** (2 / 3.0)))       # t
 
         # Compute max_tree_depth based on k and t
-        max_tree_depth = int(ceil(log(max(2, self.graph_length)) / max(1, self.target_tree_depth)))
+        self.max_tree_depth = int(ceil(log(max(2, self.graph_length)) / max(1, self.target_tree_depth)))
 
         # Run the solver algorithm
-        self.recursive_bmssp(max_tree_depth, inf, {origin_id})
+        upper_bound, frontier = self.recursive_bmssp(self.max_tree_depth, inf, {origin_id})
+
+        # Finalization: run a Dijkstra from all frontier vertices to finish relaxations
+        # open_leaves = [(self.distance_matrix[i], i) for i in range(len(self.distance_matrix))]
+        # heapify(open_leaves)
+        # while open_leaves:
+        #     current_distance, current_id = heappop(open_leaves)
+        #     # Technically, the next line is not necessary but can help with performance
+        #     if current_distance == self.distance_matrix[current_id]:
+        #         for connected_id, connected_distance in graph[
+        #             current_id
+        #         ].items():
+        #             possible_distance = current_distance + connected_distance
+        #             if possible_distance < self.distance_matrix[connected_id]:
+        #                 self.distance_matrix[connected_id] = possible_distance
+        #                 self.predecessor[connected_id] = current_id
+        #                 heappush(open_leaves, (possible_distance, connected_id))
 
     def find_pivots(self, upper_bound, frontier):
         """
@@ -104,7 +120,7 @@ class BmsspSolver:
         prev_frontier = set(frontier)
 
         # Multi-step limited relaxation from current frontier
-        for _ in range(1, self.pivot_relaxation_steps + 1):
+        for _ in range(self.pivot_relaxation_steps):
             curr_frontier = set()
             for prev_frontier_idx in prev_frontier:
                 prev_frontier_distance = self.distance_matrix[prev_frontier_idx]
@@ -112,12 +128,11 @@ class BmsspSolver:
                     new_distance = prev_frontier_distance + connection_distance
                     # Important: Allow equality on relaxations
                     if new_distance <= self.distance_matrix[connection_idx]:
-                        if new_distance < self.distance_matrix[connection_idx]:
-                            self.predecessor[connection_idx] = prev_frontier_idx
+                        self.predecessor[connection_idx] = prev_frontier_idx
                         self.distance_matrix[connection_idx] = new_distance
                         if new_distance < upper_bound:
                             curr_frontier.add(connection_idx)
-                            temp_frontier.add(connection_idx)
+            temp_frontier.update(curr_frontier)
             # If the search balloons, take the current frontier as pivots
             if len(temp_frontier) > self.pivot_relaxation_steps * len(frontier):
                 pivots = set(frontier)
@@ -181,16 +196,11 @@ class BmsspSolver:
         # grow until we exceed pivot_relaxation_steps (practical limit), as in Algorithm 2
         while heap and len(new_frontier) < self.pivot_relaxation_steps + 1:
             frontier_distance, frontier_idx = heappop(heap)
-            if frontier_idx in visited:
-                continue
-            visited.add(frontier_idx)
             new_frontier.add(frontier_idx)
-
             for connection_idx, connection_distance in self.graph[frontier_idx].items():
                 new_distance = frontier_distance + connection_distance
                 if new_distance <= self.distance_matrix[connection_idx] and new_distance < upper_bound:
-                    if new_distance < self.distance_matrix[connection_idx]:
-                        self.predecessor[connection_idx] = frontier_idx
+                    self.predecessor[connection_idx] = frontier_idx
                     self.distance_matrix[connection_idx] = new_distance
                     heappush(heap, (new_distance, connection_idx))
 
@@ -267,8 +277,7 @@ class BmsspSolver:
                         continue
                     new_distance = new_frontier_distance + connection_distance
                     if new_distance <= self.distance_matrix[connection_idx]:
-                        if new_distance < self.distance_matrix[connection_idx]:
-                            self.predecessor[connection_idx] = new_frontier_idx
+                        self.predecessor[connection_idx] = new_frontier_idx
                         self.distance_matrix[connection_idx] = new_distance
                         # Insert based on which interval the new distance falls into
                         if data_struct_frontier_bound_i <= new_distance < upper_bound:
@@ -287,5 +296,18 @@ class BmsspSolver:
             # Success at this level: return (upper_bound, new_frontier)
             return upper_bound, new_frontier
         else:
+            new_frontier = {v for v in new_frontier if self.distance_matrix[v] < last_min_pivot_distance}
             # Partial: workload limit hit, return last_min_pivot_distance and new_frontier
             return last_min_pivot_distance, new_frontier
+
+if __name__ == "__main__":
+    graph = [
+        {1:1,2:1},
+        {2:1,3:3},
+        {3:1,4:2},
+        {4:1},
+        {}
+    ]
+
+    solver = BmsspSolver(graph, 0)
+    print(solver.distance_matrix)
