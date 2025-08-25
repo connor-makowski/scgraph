@@ -1,4 +1,3 @@
-import time
 from scgraph import Graph
 from scgraph.spanning import SpanningTree
 

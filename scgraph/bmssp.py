@@ -1,5 +1,6 @@
 from heapq import heappush, heappop, heapify
 from math import ceil, log
+from scgraph.utils import transform_to_constant_degree
 
 inf = float('inf')
 
@@ -69,8 +70,10 @@ class BmsspSolver:
         """
         Initialize the BMSSP solver with a graph represented as an adjacency list.
         """
+        # self.graph, self.vertex_cycles = transform_to_constant_degree(graph)
         self.graph = graph
-        self.graph_length = len(graph)
+        self.original_graph_length = len(graph)
+        self.graph_length = len(self.graph)
         self.distance_matrix = [inf] * self.graph_length
         self.predecessor = [-1] * self.graph_length
         self.distance_matrix[origin_id] = 0
@@ -88,8 +91,10 @@ class BmsspSolver:
         # Run the solver algorithm
         upper_bound, frontier = self.recursive_bmssp(self.max_tree_depth, inf, {origin_id})
 
+        self.original_predecessor = [i for i in self.predecessor if i < self.original_graph_length]
+
         # Finalization: run a Dijkstra from all frontier vertices to finish relaxations
-        # open_leaves = [(self.distance_matrix[i], i) for i in range(len(self.distance_matrix))]
+        # open_leaves = [(self.distance_matrix[i], i) for i in range(len(graph))]
         # heapify(open_leaves)
         # while open_leaves:
         #     current_distance, current_id = heappop(open_leaves)
@@ -196,6 +201,9 @@ class BmsspSolver:
         # grow until we exceed pivot_relaxation_steps (practical limit), as in Algorithm 2
         while heap and len(new_frontier) < self.pivot_relaxation_steps + 1:
             frontier_distance, frontier_idx = heappop(heap)
+            if frontier_idx in visited:
+                continue
+            visited.add(frontier_idx)
             new_frontier.add(frontier_idx)
             for connection_idx, connection_distance in self.graph[frontier_idx].items():
                 new_distance = frontier_distance + connection_distance
@@ -308,6 +316,8 @@ if __name__ == "__main__":
         {4:1},
         {}
     ]
-
     solver = BmsspSolver(graph, 0)
-    print(solver.distance_matrix)
+    if solver.distance_matrix != [0, 1, 1, 2, 3]:
+        print("BMSSP Test: Failed")
+    else:
+        print("BMSSP Test: Passed")
