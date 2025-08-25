@@ -91,9 +91,7 @@ class BmsspSolver:
         # Run the solver algorithm
         upper_bound, frontier = self.recursive_bmssp(self.max_tree_depth, inf, {origin_id})
 
-        self.original_predecessor = [i for i in self.predecessor if i < self.original_graph_length]
-
-        # Finalization: run a Dijkstra from all frontier vertices to finish relaxations
+        # Finalization: run a Dijkstra from all verticies to finish relaxations
         # open_leaves = [(self.distance_matrix[i], i) for i in range(len(graph))]
         # heapify(open_leaves)
         # while open_leaves:
@@ -108,6 +106,9 @@ class BmsspSolver:
         #                 self.distance_matrix[connected_id] = possible_distance
         #                 self.predecessor[connected_id] = current_id
         #                 heappush(open_leaves, (possible_distance, connected_id))
+
+        # Final cleanup since transforming to a constant degree adds nodes
+        self.predecessor = [i for i in self.predecessor if i < self.original_graph_length]
 
     def find_pivots(self, upper_bound, frontier):
         """
@@ -133,8 +134,9 @@ class BmsspSolver:
                     new_distance = prev_frontier_distance + connection_distance
                     # Important: Allow equality on relaxations
                     if new_distance <= self.distance_matrix[connection_idx]:
-                        self.predecessor[connection_idx] = prev_frontier_idx
-                        self.distance_matrix[connection_idx] = new_distance
+                        if new_distance < self.distance_matrix[connection_idx]:
+                            self.predecessor[connection_idx] = prev_frontier_idx
+                            self.distance_matrix[connection_idx] = new_distance
                         if new_distance < upper_bound:
                             curr_frontier.add(connection_idx)
             temp_frontier.update(curr_frontier)
@@ -208,8 +210,9 @@ class BmsspSolver:
             for connection_idx, connection_distance in self.graph[frontier_idx].items():
                 new_distance = frontier_distance + connection_distance
                 if new_distance <= self.distance_matrix[connection_idx] and new_distance < upper_bound:
-                    self.predecessor[connection_idx] = frontier_idx
-                    self.distance_matrix[connection_idx] = new_distance
+                    if new_distance < self.distance_matrix[connection_idx]:
+                        self.predecessor[connection_idx] = frontier_idx
+                        self.distance_matrix[connection_idx] = new_distance
                     heappush(heap, (new_distance, connection_idx))
 
         # If we exceeded k, trim by new boundary B' = max db over visited and return new_frontier = {db < B'}
@@ -285,8 +288,9 @@ class BmsspSolver:
                         continue
                     new_distance = new_frontier_distance + connection_distance
                     if new_distance <= self.distance_matrix[connection_idx]:
-                        self.predecessor[connection_idx] = new_frontier_idx
-                        self.distance_matrix[connection_idx] = new_distance
+                        if new_distance < self.distance_matrix[connection_idx]:
+                            self.predecessor[connection_idx] = new_frontier_idx
+                            self.distance_matrix[connection_idx] = new_distance
                         # Insert based on which interval the new distance falls into
                         if data_struct_frontier_bound_i <= new_distance < upper_bound:
                             data_struct.insert_key_value(connection_idx, new_distance)
