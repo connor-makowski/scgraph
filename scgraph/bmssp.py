@@ -199,7 +199,6 @@ class BmsspSolver:
         heap = []
         heappush(heap, (self.distance_matrix[first_frontier], first_frontier))
         visited = set()
-
         # grow until we exceed pivot_relaxation_steps (practical limit), as in Algorithm 2
         while heap and len(new_frontier) < self.pivot_relaxation_steps + 1:
             frontier_distance, frontier_idx = heappop(heap)
@@ -306,11 +305,11 @@ class BmsspSolver:
         # Step 22: Final return
         if data_struct.is_empty():
             # Success at this level: return (upper_bound, new_frontier)
-            return upper_bound, new_frontier
+            return upper_bound, new_frontier.union(temp_frontier)
         else:
             new_frontier = {v for v in new_frontier if self.distance_matrix[v] < last_min_pivot_distance}
             # Partial: workload limit hit, return last_min_pivot_distance and new_frontier
-            return last_min_pivot_distance, new_frontier
+            return last_min_pivot_distance, new_frontier.union(temp_frontier)
 
 if __name__ == "__main__":
     graph = [
