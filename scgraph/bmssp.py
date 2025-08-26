@@ -81,7 +81,8 @@ class BmsspSolver:
 
         # Practical choices (k and t) based on n
         self.pivot_relaxation_steps = max(2, int(log(self.graph_length) ** (1 / 3.0)))  # k
-        self.target_tree_depth = max(2, int(log(self.graph_length) ** (2 / 3.0)))       # t
+        # Modification: Change int to ceil
+        self.target_tree_depth = max(2, ceil(log(self.graph_length) ** (2 / 3.0)))      # t
 
         # Compute max_tree_depth based on k and t
         self.max_tree_depth = int(ceil(log(max(2, self.graph_length)) / max(1, self.target_tree_depth)))
