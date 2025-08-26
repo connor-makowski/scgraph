@@ -4,9 +4,23 @@ Basic Graph Tests:
 ===============
 Graph Validation: PASS
 Dijkstra: PASS
+Bellman-Ford: PASS
 Dijkstra-Modified: PASS
 A*: PASS
 Spanning Tree: PASS
+BMSSP: PASS
+
+===============
+Disconnected Graph Tests:
+===============
+Graph Connection Check: Pass
+Graph Symmetry Check: Pass
+Dijkstra: PASS
+Bellman-Ford: PASS
+Dijkstra-Modified: PASS
+A*: PASS
+Spanning Tree: PASS
+BMSSP: PASS
 
 ===============
 Marnet Graph Tests:
@@ -14,36 +28,49 @@ Marnet Graph Tests:
 Graph Validation: PASS
 Dijkstra-Modified: PASS
 A*: PASS
+BMSSP: PASS
 
 ===============
 Marnet Time Tests:
 ===============
-Graph Validation: 25.9359ms
-Dijkstra-Modified 1: 0.1035ms
-Dijkstra-Modified 2: 0.9284ms
-Dijkstra-Modified 3: 5.5032ms
-A* 1: 0.1633ms
-A* 2: 1.0321ms
-A* 3: 6.072ms
+Graph Validation: 24.4884ms
+Dijkstra-Modified 1: 0.1116ms
+Dijkstra-Modified 2: 0.9208ms
+Dijkstra-Modified 3: 5.5811ms
+A* 1: 0.1259ms
+A* 2: 1.0297ms
+A* 3: 5.8136ms
+BMSSP 1: 59.9158ms
+BMSSP 2: 60.0643ms
+BMSSP 3: 60.0877ms
 
 ===============
 Scale Time Tests:
 ===============
 
 Graph Size: 100
-Graph Validation (100): 0.2258ms
-Dijkstra-Modified (100): 0.0894ms
-A* (100): 0.0913ms
+Graph Validation (100): 0.1976ms
+Dijkstra-Modified (100): 0.0885ms
+A* (100): 0.0885ms
+BMSSP (100): 0.9339ms
 
 Graph Size: 1000
-Graph Validation (1000): 2.0192ms
-Dijkstra-Modified (1000): 0.8285ms
-A* (1000): 0.8683ms
+Graph Validation (1000): 1.8418ms
+Dijkstra-Modified (1000): 0.813ms
+A* (1000): 0.845ms
+BMSSP (1000): 6.5625ms
 
 Graph Size: 10000
-Graph Validation (10000): 19.9955ms
-Dijkstra-Modified (10000): 9.9235ms
-A* (10000): 10.4077ms
+Graph Validation (10000): 19.4302ms
+Dijkstra-Modified (10000): 9.4235ms
+A* (10000): 9.7525ms
+BMSSP (10000): 74.1367ms
+
+Graph Size: 100000
+Graph Validation (100000): 183.9383ms
+Dijkstra-Modified (100000): 98.2935ms
+A* (100000): 103.7238ms
+BMSSP (100000): 744.3304ms
 
 ===============
 Basic GeoGraph Tests:
@@ -62,17 +89,19 @@ A*-haversine: PASS
 A*-cheap_ruler: PASS
 Cached Spanning Tree First Call: PASS
 Cached Spanning Tree Second Call: PASS
+BMSSP: PASS
 
 ===============
 Marnet GeoGraph Time Tests:
 ===============
-Graph Validation: 29.9253ms
-Node Validation: 4.2722ms
-Dijkstra-Modified: 9.7878ms
-A*-haversine: 6.6164ms
-A*-cheap_ruler: 7.4999ms
-Cached Spanning Tree First Call: 10.2808ms
-Cached Spanning Tree Second Call: 0.0994ms
+Graph Validation: 24.8487ms
+Node Validation: 3.8319ms
+Dijkstra-Modified: 11.2984ms
+A*-haversine: 8.0223ms
+A*-cheap_ruler: 7.6063ms
+Cached Spanning Tree First Call: 11.3797ms
+Cached Spanning Tree Second Call: 0.0987ms
+BMSSP: 62.1057ms
 
 ===============
 GeoGraph Iteration Test:
@@ -87,15 +116,17 @@ Node Validation: PASS
 Dijkstra-Modified: PASS
 A*-haversine: PASS
 A*-cheap_ruler: PASS
+BMSSP: PASS
 
 ===============
 Oak Ridge GeoGraph Time Tests:
 ===============
-Graph Validation: 16.9623ms
-Node Validation: 4.3333ms
-Dijkstra-Modified: 6.0875ms
-A*-haversine: 6.5529ms
-A*-cheap_ruler: 7.3347ms
+Graph Validation: 17.936ms
+Node Validation: 3.6004ms
+Dijkstra-Modified: 7.0632ms
+A*-haversine: 6.3112ms
+A*-cheap_ruler: 7.2792ms
+BMSSP: 51.1925ms
 
 ===============
 North America Rail GeoGraph Tests:
@@ -105,15 +136,17 @@ Node Validation: PASS
 Dijkstra-Modified: PASS
 A*-haversine: PASS
 A*-cheap_ruler: PASS
+BMSSP: PASS
 
 ===============
 North America Rail GeoGraph Time Tests:
 ===============
-Graph Validation: 15.842ms
-Node Validation: 3.7458ms
-Dijkstra-Modified: 8.9319ms
-A*-haversine: 15.0452ms
-A*-cheap_ruler: 17.5073ms
+Graph Validation: 15.3313ms
+Node Validation: 3.3ms
+Dijkstra-Modified: 9.5558ms
+A*-haversine: 15.2302ms
+A*-cheap_ruler: 16.8648ms
+BMSSP: 55.3122ms
 
 ===============
 US Freeway GeoGraph Tests:
@@ -123,15 +156,17 @@ Node Validation: PASS
 Dijkstra-Modified: PASS
 A*-haversine: PASS
 A*-cheap_ruler: PASS
+BMSSP: PASS
 
 ===============
 US Freeway GeoGraph Time Tests:
 ===============
-Graph Validation: 24.5295ms
-Node Validation: 5.9185ms
-Dijkstra-Modified: 10.8316ms
-A*-haversine: 9.4683ms
-A*-cheap_ruler: 15.6355ms
+Graph Validation: 23.1051ms
+Node Validation: 4.9381ms
+Dijkstra-Modified: 11.1063ms
+A*-haversine: 9.6722ms
+A*-cheap_ruler: 17.1471ms
+BMSSP: 61.1892ms
 
 ===============
 External Saving, Modification and Loading Tests:
@@ -146,23 +181,24 @@ Basic GridGraph Test: PASS
 ===============
 Cache + GridGraph Tests:
 ===============
-300x300 Graph Creation Time:  413.06328773498535 ms
-A* Output Time:  2.8405189514160156 ms
-Dijkstra-Modified Output Time:  34.812211990356445 ms
-Spanning Tree + Output Time:  104.16460037231445 ms
-Cached Spanning Tree Output Time:  0.051021575927734375 ms
+300x300 Graph Creation Time:  400.94947814941406 ms
+A* Output Time:  163.499116897583 ms
+Dijkstra-Modified Output Time:  112.52713203430176 ms
+BMSSP Output Time:  467.6389694213867 ms
+Spanning Tree + Output Time:  113.00086975097656 ms
+Cached Spanning Tree Output Time:  2.0873546600341797 ms
 
 GridGraph + Cache Test: PASS
 
 ===============
 GridGraph Import Export Tests:
 ===============
-GridGraph Creation Time: 422.950506 ms
-GridGraph First Shortest Path Time: 103.130579 ms
-GridGraph Export Time: 297.814131 ms
-GridGraph Import Time: 91.435909 ms
-GridGraph Imported Cached Shortest Path Time: 0.024557 ms
-GridGraph Imported Uncached Shortest Path Time: 0.579596 ms
+GridGraph Creation Time: 408.593655 ms
+GridGraph First Shortest Path Time (caching results): 108.787298 ms
+GridGraph Export Time: 303.349257 ms
+GridGraph Import Time: 88.794947 ms
+GridGraph Imported Shortest Path Time (using cached distance matrix): 0.023365 ms
+GridGraph Imported Shortest Path Time (without using cache): 0.793219 ms
 GridGraph Import Export Test: PASS
 
 ===============
@@ -176,23 +212,23 @@ Helper Tests:
 Basic Visvalingam Test: PASS
 
 Scale Testing Visvalingam (should be O(n log n))...
-n=10:     visvalingam: 0.0274ms
-n=100:    visvalingam: 0.2525ms
-n=1000:   visvalingam: 3.2198ms
-n=10000:  visvalingam: 43.8604ms
-n=100000: visvalingam: 635.0362ms
+n=10:     visvalingam: 0.0243ms
+n=100:    visvalingam: 0.2420ms
+n=1000:   visvalingam: 3.6304ms
+n=10000:  visvalingam: 40.6439ms
+n=100000: visvalingam: 615.2954ms
 
 Scale Testing KDTree...
-n=10 KD-Tree built in 0.0298 ms
-n=10 KD-Tree found in 0.0334 ms
-n=100 KD-Tree built in 0.1009 ms
-n=100 KD-Tree found in 0.0114 ms
-n=1000 KD-Tree built in 1.0262 ms
-n=1000 KD-Tree found in 0.0153 ms
-n=10000 KD-Tree built in 12.7246 ms
-n=10000 KD-Tree found in 0.0298 ms
-n=100000 KD-Tree built in 156.1227 ms
-n=100000 KD-Tree found in 0.0398 ms
+n=10 KD-Tree built in 0.0284 ms
+n=10 KD-Tree found in 0.0198 ms
+n=100 KD-Tree built in 0.1202 ms
+n=100 KD-Tree found in 0.0107 ms
+n=1000 KD-Tree built in 0.9842 ms
+n=1000 KD-Tree found in 0.0143 ms
+n=10000 KD-Tree built in 12.871 ms
+n=10000 KD-Tree found in 0.0269 ms
+n=100000 KD-Tree built in 150.5237 ms
+n=100000 KD-Tree found in 0.0408 ms
 
 ===============
 GeoGraph Merge Tests:
@@ -202,10 +238,10 @@ Merge Test: PASS
 ===============
 Import Timing:
 ===============
-Importing Marnet took 51.8079 ms
-Importing North America Rail took 34.3175 ms
-Importing Oak Ridge Maritime took 37.5874 ms
-Importing US Freeway took 51.4195 ms
+Importing Marnet took 50.1971 ms
+Importing North America Rail took 32.721 ms
+Importing Oak Ridge Maritime took 35.713 ms
+Importing US Freeway took 48.5508 ms
 
 ===============
 GeoGraph Cache Tests:
@@ -215,12 +251,12 @@ Geograph Cache Test: PASS
 ===============
 GeoGraph Cache Timing Tests:
 ===============
-GeoGraph single uncached time: 9.4612ms
-GeoGraph single cached time: 0.104ms
-GeoGraph single cached length only time: 0.0491ms
-GeoGraph uncached time: 1434.7732ms
-GeoGraph cached time: 26.262ms
-GeoGraph cached length only time: 9.5632ms
+GeoGraph single uncached time: 10.3099ms
+GeoGraph single cached time: 0.1183ms
+GeoGraph single cached length only time: 0.0498ms
+GeoGraph uncached time: 1448.4055ms
+GeoGraph cached time: 25.5945ms
+GeoGraph cached length only time: 9.1441ms
 
 ===============
 GeoGraph Distance Matrix Tests:
@@ -230,9 +266,30 @@ Distance matrix test: PASS
 ===============
 GeoGraph Distance Matrix Timing Tests:
 ===============
-Haversine distance (25 nodes, 625 distances): 0.5763ms total, 0.922us/distance
-Distance matrix (25 nodes, 625 distances): 271.2109ms total, 433.9375us/distance
-Haversine distance (100 nodes, 10000 distances): 7.6954ms total, 0.7695us/distance
-Distance matrix (100 nodes, 10000 distances): 788.121ms total, 78.8121us/distance
-Haversine distance (400 nodes, 160000 distances): 119.5123ms total, 0.747us/distance
-Distance matrix (400 nodes, 160000 distances): 2601.9213ms total, 16.262us/distance
+Haversine distance (25 nodes, 625 distances): 0.4628ms total, 0.7404us/distance
+Distance matrix (25 nodes, 625 distances): 281.8351ms total, 450.9361us/distance
+Haversine distance (100 nodes, 10000 distances): 7.3743ms total, 0.7374us/distance
+Distance matrix (100 nodes, 10000 distances): 822.2308ms total, 82.2231us/distance
+Haversine distance (400 nodes, 160000 distances): 118.3023ms total, 0.7394us/distance
+Distance matrix (400 nodes, 160000 distances): 2786.1788ms total, 17.4136us/distance
+
+===============
+BMSSP Tests:
+===============
+BMSSP Basic Graph Distancd Matrix: PASS
+BMSSP Marnet Graph Distancd Matrix: PASS
+BMSSP 1 (marnet): PASS
+BMSSP 2 (marnet): PASS
+BMSSP 3 (marnet): PASS
+BMSSP 4 (us_freeway): PASS
+BMSSP 5 (us_freeway): FAIL
+Expected: {'path': [4022, 4021, 4020, 4019, 4018, 4017, 4003, 4002, 4001, 4000, 3999, 3998, 3997, 3996, 3995, 3994, 3993, 3990, 3989, 3991, 3987, 3986, 3980, 3985, 3439, 3436, 3438, 3961, 3963, 4004, 4006, 4007, 4008, 4009, 4010, 3450, 3447, 3449, 3452, 3981, 3465, 3464, 3469, 4047, 4048, 4049, 4036, 4034, 4035, 4037, 4038, 4039, 4040, 4041, 4042, 4043, 4044, 4045, 4046, 3949, 3947, 3948, 3951, 3952, 3953, 3954, 3955, 3956, 3957, 3958, 3959, 3960, 3940, 3939, 3941, 3942, 3943, 3944, 4011, 4012, 4013, 4014, 4016, 4847, 4849, 4872, 4869, 4871, 4874, 5981, 10428, 10846, 10847, 10848, 10849, 10850, 10851, 10852, 10853, 8897, 8894, 8896, 8892, 8891, 8893, 10854, 10855, 10856, 10857, 10858, 10859, 10860, 10861, 10862, 10863, 10864, 10865, 11046, 11047, 11048, 6466, 6130, 6465, 10806, 10807, 10808, 10837, 10839, 6120, 6118, 6121, 11049, 11050, 11051, 11052, 6868, 6866, 6870, 8917, 10435, 6830, 6341, 6338, 6340, 6372, 6373, 10804, 7044, 7042, 7045, 7050, 10430, 11061, 11062, 11063, 11064, 11065, 11066, 11067, 11068, 8963, 8960, 8962, 10719, 10720, 10722, 10723, 6952, 6950, 6953, 10728, 10730, 10990, 10991, 10992, 10993, 10994, 10995, 10996, 10997, 10998, 10999, 11000, 11001, 11002, 6505, 6503, 6504, 10981, 10982, 10983, 10984, 10985, 10986, 10987, 10988, 10989, 6582, 6579, 6581, 10949, 10950, 10951, 10952, 10953, 10954, 10955, 10956, 10957, 10958, 10959, 10960, 11003, 11004, 11005, 11006, 11007, 11008, 11009, 11010, 11011, 11012, 11013, 11014, 11015, 11016, 11017, 11018, 11019, 11020, 11021, 8700, 8698, 8699, 11022, 11023, 11024, 11025, 11026, 11027, 11028, 10915, 10913, 10914, 10917, 10918, 10919, 10920, 10910, 10908, 10911, 11189, 11190, 11191, 11192, 11193, 11194, 11195, 11196, 9372, 7202, 7236, 7115, 7113, 7116, 5011, 5009, 5010, 5034, 5035, 5036, 5037, 5038, 5039, 5048, 7695, 7693, 7694, 7698, 7699, 7700, 7701, 7702, 7703, 7704, 7705, 7706, 7707, 7708, 7709, 7710, 7711, 7712, 7713, 7714, 7715, 7716, 7717, 7718, 7719, 7720, 7732, 7733, 7734, 7735, 7736, 7737, 7738, 7739, 7740, 7741, 7742, 7743, 7744, 7745, 7746, 7747, 7748, 7749, 7750, 7751, 7752, 7753, 7617, 7613, 7616, 7729, 7469, 7723, 7721, 7724, 11888, 7895, 7882, 7896, 8096, 8097, 8099, 11898, 8024, 8023, 8025, 11771, 11770, 11769, 11768, 7953, 7951, 7952, 7955, 7948, 7947, 7946, 7611, 7608, 7612, 7964, 7965, 7966, 8264, 8261, 8260, 8262, 8265, 1328, 1326, 1327, 1351, 1333, 1330, 1329, 1331, 1343, 1341, 1337, 1336, 1339, 8125, 8126, 12803, 12804, 12805, 12806, 12807, 12808, 12810, 13135, 9206, 8202, 8199, 8201, 9339, 9338, 8530, 8526, 8529, 13155, 13156, 13149, 13147, 13151, 14033, 8340, 8338, 8339, 8342], 'length': 2919.634}
+Realized: {'path': [4022, 4021, 4020, 4019, 4018, 4017, 4003, 4002, 4001, 4000, 3999, 3998, 3997, 3996, 3995, 3994, 3993, 3990, 3989, 3991, 3987, 3986, 3980, 3985, 3439, 3436, 3438, 3961, 3963, 4004, 4006, 4007, 4008, 4009, 4010, 3450, 3447, 3449, 3452, 3981, 3465, 3464, 3469, 4047, 4048, 4049, 4036, 4034, 4035, 4037, 4038, 4039, 4040, 4041, 4042, 4043, 4044, 4045, 4046, 3949, 3947, 3948, 3951, 3952, 3953, 3954, 3955, 3956, 3957, 3958, 3959, 3960, 3940, 3939, 3941, 3942, 3943, 3944, 4011, 4012, 4013, 4014, 4016, 4847, 4849, 4872, 4869, 4871, 4874, 5981, 10428, 10846, 10847, 10848, 10849, 10850, 10851, 10852, 10853, 8897, 8894, 8896, 8892, 8891, 8893, 10854, 10855, 10856, 10857, 10858, 10859, 10860, 10861, 10862, 10863, 10864, 10865, 11046, 11047, 11048, 6466, 6130, 6465, 10806, 10807, 10808, 10837, 10839, 6120, 6118, 6121, 11049, 11050, 11051, 11052, 6868, 6866, 6870, 8917, 10435, 6834, 6831, 6833, 6352, 6348, 6350, 6357, 6358, 6359, 6360, 6361, 6394, 6029, 6028, 6030, 6364, 6363, 6365, 6376, 6377, 6378, 6379, 6374, 6335, 6333, 6334, 8919, 6813, 6811, 6812, 6027, 6899, 12943, 6758, 6756, 6759, 12964, 12965, 12966, 12967, 6642, 6609, 6608, 6610, 11207, 7845, 11206, 12983, 12984, 12985, 10015, 9215, 9213, 9214, 9223, 7642, 7639, 7643, 9221, 9222, 13057, 1150, 1147, 1149, 4992, 4993, 1145, 7660, 12944, 1173, 1172, 1174, 13058, 13059, 7779, 7776, 7777, 7780, 7781, 7782, 7783, 7784, 7785, 7787, 7906, 7905, 7760, 7910, 12982, 7763, 7759, 7764, 13060, 7804, 7801, 7803, 8070, 8068, 8071, 13146, 13145, 13144, 13143, 13142, 13141, 13140, 13139, 5209, 5208, 1350, 1347, 1349, 8141, 8132, 8130, 8131, 13078, 13079, 13080, 12809, 12808, 12810, 13135, 9206, 8202, 8199, 8201, 9339, 9338, 8530, 8526, 8529, 13155, 13156, 13149, 13147, 13151, 14033, 8340, 8338, 8339, 8342], 'length': 2960.866}
+
+===============
+BMSSP Time Tests:
+===============
+BMSSP 1 (marnet): 56.3571ms
+BMSSP 2 (marnet): 56.3829ms
+BMSSP 3 (marnet): 56.04ms
+BMSSP 4 (us_freeway): 61.1424ms

@@ -33,7 +33,7 @@ output = gridGraph.get_shortest_path(
 )
 if print_timings:
     print(
-        f"GridGraph First Shortest Path Time: {(time() - first_shortest_path_start_time)*1000:.6f} ms"
+        f"GridGraph First Shortest Path Time (caching results): {(time() - first_shortest_path_start_time)*1000:.6f} ms"
     )
 
 # Export the graph to a file
@@ -61,7 +61,7 @@ output = new_gridGraph.get_shortest_path(
 imported_shortest_path_time = time() - imported_shortest_path_start_time
 if print_timings:
     print(
-        f"GridGraph Imported Cached Shortest Path Time: {(imported_shortest_path_time)*1000:.6f} ms"
+        f"GridGraph Imported Shortest Path Time (using cached distance matrix): {(imported_shortest_path_time)*1000:.6f} ms"
     )
 
 uncached_shortest_path_start_time = time()
@@ -74,7 +74,7 @@ output = new_gridGraph.get_shortest_path(
 uncached_shortest_path_time = time() - uncached_shortest_path_start_time
 if print_timings:
     print(
-        f"GridGraph Imported Uncached Shortest Path Time: {(uncached_shortest_path_time)*1000:.6f} ms"
+        f"GridGraph Imported Shortest Path Time (without using cache): {(uncached_shortest_path_time)*1000:.6f} ms"
     )
 
 
