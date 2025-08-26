@@ -1,6 +1,5 @@
-from heapq import heappush, heappop, heapify
+from heapq import heappush, heappop
 from math import ceil, log
-from scgraph.utils import transform_to_constant_degree
 
 inf = float('inf')
 
