@@ -113,6 +113,7 @@ class BmsspSolver:
                     new_distance = prev_frontier_distance + connection_distance
                     # Important: Allow equality on relaxations
                     if new_distance <= self.distance_matrix[connection_idx]:
+                        # Addition: Add predecessor tracking
                         if new_distance < self.distance_matrix[connection_idx]:
                             self.predecessor[connection_idx] = prev_frontier_idx
                             self.distance_matrix[connection_idx] = new_distance
@@ -177,6 +178,7 @@ class BmsspSolver:
         new_frontier = set()
         heap = []
         heappush(heap, (self.distance_matrix[first_frontier], first_frontier))
+        # Addition: Add visited check to prevent reprocessing and dropping into infinite loops
         visited = set()
         # grow until we exceed pivot_relaxation_steps (practical limit), as in Algorithm 2
         while heap and len(new_frontier) < self.pivot_relaxation_steps + 1:
@@ -188,6 +190,7 @@ class BmsspSolver:
             for connection_idx, connection_distance in self.graph[frontier_idx].items():
                 new_distance = frontier_distance + connection_distance
                 if new_distance <= self.distance_matrix[connection_idx] and new_distance < upper_bound:
+                    # Addition: Add predecessor tracking
                     if new_distance < self.distance_matrix[connection_idx]:
                         self.predecessor[connection_idx] = frontier_idx
                         self.distance_matrix[connection_idx] = new_distance
@@ -261,11 +264,12 @@ class BmsspSolver:
             for new_frontier_idx in new_frontier_i:
                 new_frontier_distance = self.distance_matrix[new_frontier_idx]
                 for connection_idx, connection_distance in self.graph[new_frontier_idx].items():
-                    # Avoid self-loops
+                    # Addition: Avoid self-loops
                     if connection_idx == new_frontier_idx:
                         continue
                     new_distance = new_frontier_distance + connection_distance
                     if new_distance <= self.distance_matrix[connection_idx]:
+                        # Addition: Add predecessor tracking
                         if new_distance < self.distance_matrix[connection_idx]:
                             self.predecessor[connection_idx] = new_frontier_idx
                             self.distance_matrix[connection_idx] = new_distance
