@@ -4,6 +4,7 @@ from scgraph import Graph
 from scgraph.utils import hard_round
 from scgraph.geographs.marnet import graph as marnet_graph
 from scgraph.geographs.us_freeway import graph as us_freeway_graph
+# from scgraph_data.world_highways_and_marnet import graph as world_highways_and_marnet_graph
 from scgraph.bmssp import BmsspSolver
 from scgraph.spanning import SpanningTree
 
@@ -90,6 +91,12 @@ validate(
     expected=Graph.dijkstra_makowski(us_freeway_graph, 4022, 8342),
 )
 
+# validate(
+#     name="BMSSP 6 (world_highways_and_marnet)",
+#     realized=Graph.bmssp(world_highways_and_marnet_graph, 0, 5),
+#     expected=Graph.dijkstra_makowski(world_highways_and_marnet_graph, 0, 5),
+# )
+
 print("\n===============\nBMSSP Time Tests:\n===============")
 
 time_test(
@@ -125,3 +132,45 @@ time_test(
         destination_id=5
     ),
 )
+
+time_test(
+    "BMSSP 5 (us_freeway)",
+    pamda.thunkify(Graph.bmssp)(
+        graph=us_freeway_graph,
+        origin_id=4022,
+        destination_id=8342
+    ),
+)
+
+# time_test(
+#     "BMSSP 6 (world_highways_and_marnet)",
+#     pamda.thunkify(Graph.bmssp)(
+#         graph=world_highways_and_marnet_graph,
+#         origin_id=0,
+#         destination_id=5
+#     ),
+# )
+
+time_test(
+    "Spanning Comparison (marnet)",
+    pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
+        graph=marnet_graph,
+        node_id=0
+    ),
+)
+
+time_test(
+    "Spanning Comparison (us_freeway)",
+    pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
+        graph=us_freeway_graph,
+        node_id=0
+    ),
+)
+
+# time_test(
+#     "Spanning Comparison (world_highways)",
+#     pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
+#         graph=world_highways_and_marnet_graph,
+#         node_id=0
+#     ),
+# )
