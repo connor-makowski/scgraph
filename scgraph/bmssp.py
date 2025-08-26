@@ -70,7 +70,6 @@ class BmsspSolver:
         """
         Initialize the BMSSP solver with a graph represented as an adjacency list.
         """
-        # self.graph, self.vertex_cycles = transform_to_constant_degree(graph)
         self.graph = graph
         self.original_graph_length = len(graph)
         self.graph_length = len(self.graph)
@@ -90,25 +89,6 @@ class BmsspSolver:
 
         # Run the solver algorithm
         upper_bound, frontier = self.recursive_bmssp(self.max_tree_depth, inf, {origin_id})
-
-        # Finalization: run a Dijkstra from all verticies to finish relaxations
-        # open_leaves = [(self.distance_matrix[i], i) for i in range(len(graph))]
-        # heapify(open_leaves)
-        # while open_leaves:
-        #     current_distance, current_id = heappop(open_leaves)
-        #     # Technically, the next line is not necessary but can help with performance
-        #     if current_distance == self.distance_matrix[current_id]:
-        #         for connected_id, connected_distance in graph[
-        #             current_id
-        #         ].items():
-        #             possible_distance = current_distance + connected_distance
-        #             if possible_distance < self.distance_matrix[connected_id]:
-        #                 self.distance_matrix[connected_id] = possible_distance
-        #                 self.predecessor[connected_id] = current_id
-        #                 heappush(open_leaves, (possible_distance, connected_id))
-
-        # Final cleanup since transforming to a constant degree adds nodes
-        self.predecessor = [i for i in self.predecessor if i < self.original_graph_length]
 
     def find_pivots(self, upper_bound, frontier):
         """
@@ -303,13 +283,7 @@ class BmsspSolver:
                 data_struct.insert_key_value(frontier_idx, frontier_distance)
 
         # Step 22: Final return
-        if data_struct.is_empty():
-            # Success at this level: return (upper_bound, new_frontier)
-            return upper_bound, new_frontier.union(temp_frontier)
-        else:
-            new_frontier = {v for v in new_frontier if self.distance_matrix[v] < last_min_pivot_distance}
-            # Partial: workload limit hit, return last_min_pivot_distance and new_frontier
-            return last_min_pivot_distance, new_frontier.union(temp_frontier)
+        return min(last_min_pivot_distance, upper_bound), new_frontier | {v for v in temp_frontier if self.distance_matrix[v] < last_min_pivot_distance}
 
 if __name__ == "__main__":
     graph = [

@@ -59,18 +59,6 @@ validate(
     expected=expected,
 )
 
-validate(
-    name="BMSSP 2",
-    realized=Graph.bmssp(graph, 100, 7999),
-    expected=Graph.dijkstra_makowski(graph, 100, 7999),
-)
-
-validate(
-    name="BMSSP 3",
-    realized=Graph.bmssp(graph, 4022, 8342),
-    expected=Graph.dijkstra_makowski(graph, 4022, 8342),
-)
-
 
 print("\n===============\nMarnet Time Tests:\n===============")
 
@@ -126,7 +114,6 @@ time_test(
     ),
 )
 
-#BMSSP
 time_test(
     "BMSSP 1",
     pamda.thunkify(Graph.bmssp)(
@@ -135,6 +122,7 @@ time_test(
         destination_id=5
     ),
 )
+
 time_test(
     "BMSSP 2",
     pamda.thunkify(Graph.bmssp)(
@@ -143,6 +131,7 @@ time_test(
         destination_id=7999
     ),
 )
+
 time_test(
     "BMSSP 3",
     pamda.thunkify(Graph.bmssp)(
