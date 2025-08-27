@@ -1,22 +1,34 @@
-# scgraph
+# SCGraph
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/)
 <!-- [![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/) -->
 
 
-Supply chain graph package for Python
+### A Supply chain graph package for Python
 
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
-## Documentation
+## Quick Start: 
+Get the shortest maritime path length between Shanghai, China and Savannah, Georgia, USA
+```py
+# Use a maritime network geograph
+from scgraph.geographs.marnet import marnet_geograph
+output = marnet_geograph.get_shortest_path(
+    origin_node={"latitude": 31.23,"longitude": 121.47},
+    destination_node={"latitude": 32.08,"longitude": -81.09},
+    output_units='km',
+)
+print('Length: ',output['length']) #=> Length:  19596.4653
+```
 
-Getting Started: https://github.com/connor-makowski/scgraph
+### Documentation
 
-Low Level: https://connor-makowski.github.io/scgraph/scgraph.html
+- Getting Started: https://github.com/connor-makowski/scgraph
+- Low Level: https://connor-makowski.github.io/scgraph/scgraph.html
 
-## How to Cite SCGraph in your Research
+### How to Cite SCGraph in your Research
 
 If you use SCGraph for your research, please consider citing the following paper:
 
@@ -35,89 +47,13 @@ Or by using the BibTeX entry:
 }
 ```
 
-## Key Features
-
-- `GeoGraph`s:
-    - A geographic graph data structure that allows for the calculation of shortest paths between two points on earth
-    - Uses latitude / longitude pairs to represent points on earth
-    - Supports maritime, rail, road and other geographic networks
-    - Uses a sparse network data structure to represent the graph
-    - How to use it - Calculate the shortest path between two points on earth
-        - Inputs:
-            - A latitude / longitude pair for the origin
-            - A latitude / longitude pair for the destination
-        - Calculation:
-            - Algorithms:
-                - Dijkstra's algorithm
-                    - Modified to support sparse network data structures
-                - Modified Dijkstra algorithm
-                    - Modified for O((n+m)log(n)) performance where n is the number of nodes and m is the number of edges
-                    - Uses a priority queue and other improvements to run fast on large graphs
-                - A* algorithm (Extension of the Modified Dijkstra)
-                    - Uses a heuristic function to improve performance on large graphs
-                - Possible future support for other algorithms
-        - Returns:
-            - `path`:
-                - A list of lists `[latitude, longitude]` that make up the shortest path
-            - `length`:
-                - The distance (in the units requested) between the two points
-    - Precompiled Geographs offer Antimeridian support
-    - Arbitrary start and end points are supported
-        - Start and end points do not need to be in the graph
-    - Cached shortest path calculations can be used for very fast repetative calculations from the same origin node in a GeoGraph.
-        - This is done by caching the origin node's spanning tree
-        - The first call will be slower, but future calls using this origin node will be substantially faster.
-- `GridGraph`s:
-    - A grid based graph data structure that allows for the calculation of shortest paths between two points on a grid
-    - Supports arbitrary grid sizes and blockages
-    - Uses a sparse network data structure to represent the graph
-    - How to use it - Calculate the shortest path between two points on a grid
-        - Inputs:
-            - A (x,y) coordinate on the grid for the origin
-            - A (x,y) coordinate on the grid for the destination
-        - Calculation:
-            - Algorithms:
-                - Dijkstra's algorithm
-                - Modified Dijkstra algorithm
-                - A* algorithm (Extension of the Modified Dijkstra)
-        - Returns:
-            - `length`:
-                - The distance between the two points on the grid
-            - `coordinate_path`:
-                - A list of dicts `{"x": x, "y": y}` representing the path taken through the grid
-    - Arbitrary start and end points are supported
-        - Start and end points do not need to be in the graph
-    - Arbitrary connection matricies are supported
-        - Cardinal connections (up, down, left, right) and diagonal connections (up-left, up-right, down-left, down-right) are used by default
-        - Custom connection matricies can be used to change the connections between grid items
-    - Cached shortest path calculations can be used for very fast repetative calculations to or from the same point in a GridGraph.
-- Other Useful Features:
-    - Graph
-        - A low level graph object that has methods for validating graphs, calculating shortest paths, and more
-    - CacheGraphs
-        - A graph extension that caches spanning trees for fast shortest path calculations on repeat calls from the same origin node
-
-
-## Setup
-
-Make sure you have Python 3.10.x (or higher) installed on your system. You can download it [here](https://www.python.org/downloads/).
-
-Note: Support for python3.6-python3.9 is available up to version 2.2.0.
+# Getting Started
 
 ## Installation
 
 ```
 pip install scgraph
 ```
-
-## Use with Google Colab
-
-- [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb)
-- [Creating A Multi Path Geojson](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb)
-- [Modifying A Geograph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
-
-
-# Getting Started
 
 ## Basic Geograph Usage
 
@@ -129,7 +65,6 @@ In this case, calculate the shortest maritime path between Shanghai, China and S
 # Use a maritime network geograph
 from scgraph.geographs.marnet import marnet_geograph
 
-# Get the shortest maritime path between Shanghai, China and Savannah, Georgia, USA
 # Note: The origin and destination nodes can be any latitude / longitude pair
 output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23,"longitude": 121.47},
@@ -173,7 +108,19 @@ In the above example, the `output` variable is a dictionary with two keys: `leng
 - `coordinate_path`: A list of lists [`latitude`,`longitude`] that make up the shortest path
 
 
-You can also use the efficient distance matrix function to quickly get the distances between multiple points on the graph.
+You can also select a different algorithm function for the shortest_path:
+```py
+from scgraph.geographs.marnet import marnet_geograph
+from scgraph import Graph
+output = marnet_geograph.get_shortest_path(
+    origin_node={"latitude": 31.23,"longitude": 121.47},
+    destination_node={"latitude": 32.08,"longitude": -81.09},
+    # Optional: Specify an algorithm_fn to call when solving the shortest_path
+    algorithm_fn=Graph.bmssp,
+)
+```
+
+Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and spanning tree is cached so you can generate massive distance matricies incredibly quickly (approaching 50 nano seconds per distance for large enough distance matricies).
 ```py
 from scgraph.geographs.us_freeway import us_freeway_geograph
 
@@ -195,38 +142,12 @@ distance_matrix = us_freeway_geograph.distance_matrix(cities, output_units='km')
 
 For more examples including viewing the output on a map, see the [example notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb).
 
-## Included GeoGraphs
 
-- marnet_geograph:
-    - What: A maritime network data set from searoute
-    - Use: `from scgraph.geographs.marnet import marnet_geograph`
-    - Attribution: [searoute](https://github.com/genthalili/searoute-py)
-    - Length Measurement: Kilometers
-    - [Marnet Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png)
-- oak_ridge_maritime_geograph:
-    - What: A maritime data set from the Oak Ridge National Laboratory campus
-    - Use: `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph`
-    - Attribution: [Oak Ridge National Laboratory](https://www.ornl.gov/) with data from [Geocommons](http://geocommons.com/datasets?id=25)
-    - Length Measurement: Kilometers
-    - [Oak Ridge Maritime Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png)
-- north_america_rail_geograph:
-    - What: Class 1 Rail network for North America
-    - Use: `from scgraph.geographs.north_america_rail import north_america_rail_geograph`
-    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about)
-    - Length Measurement: Kilometers
-    - [North America Rail Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png)
-- us_freeway_geograph:
-    - What: Freeway network for the United States
-    - Use: `from scgraph.geographs.us_freeway import us_freeway_geograph`
-    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about)
-    - Length Measurement: Kilometers
-    - [US Freeway Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png)
-- `scgraph_data` geographs:
-    - What: Additional geographs are available in the `scgraph_data` package
-        - Note: These include larger geographs like the world highways geograph and world railways geograph.
-    - Installation: `pip install scgraph_data`
-    - Use: `from scgraph_data.world_highways import world_highways_geograph`
-    - See: [scgraph_data](https://github.com/connor-makowski/scgraph_data) for more information and all available geographs.
+### Examples with Google Colab
+
+- [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb)
+- [Creating A Multi Path Geojson](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb)
+- [Modifying A Geograph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
 
 ## GridGraph usage
 
@@ -267,6 +188,107 @@ output = gridGraph.get_shortest_path(
 print(output)
 #=> {'length': 20.9704, 'coordinate_path': [[2, 10], [3, 9], [4, 8], [5, 8], [6, 7], [7, 6], [8, 5], [9, 4], [10, 4], [11, 4], [12, 5], [13, 6], [14, 7], [15, 7], [16, 8], [17, 9], [18, 10]]}
 ```
+
+
+## Key Features
+
+- `Graph`:
+    - A low level graph object that has methods for validating graphs, calculating shortest paths, and more.
+    - See: [Graph Documentation](https://connor-makowski.github.io/scgraph/scgraph/graph.html)
+    - Contains the following methods:
+        - `validate_graph`: Validates symmetry and connectedness of a graph.
+        - `dijkstra`: Calculates the shortest path between two nodes using Dijkstra's algorithm.
+        - `dijkstra_makowski`: Calculates the shortest path between two nodes using a modified version of Dijkstra's algorithm designed for real world performance
+        - `dijkstra_negative`: Calculates the shortest path between two nodes using a modified version of Dijkstra's algorithm that supports negative edge weights and detects negative cycles.
+        - `a_star`: Modified version of `dijkstra_makowski` that incorporates a heuristic function to guide the search.
+        - `bellman_ford`: Calculates the shortest path between two nodes using the Bellman-Ford algorithm.
+        - `bmssp`: Calculates the shortest path between two nodes using a modified version of the [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033). See the [BmsspSolver](https://connor-makowski.github.io/scgraph/scgraph/bmssp.html).
+- `GeoGraph`s:
+    - A geographic graph data structure that allows for the calculation of shortest paths between two points on earth
+    - Uses latitude / longitude pairs to represent points on earth
+    - Supports maritime, rail, road and other geographic networks
+    - Uses a sparse network data structure to represent the graph
+    - How to use it - Calculate the shortest path between two points on earth
+        - Inputs:
+            - A latitude / longitude pair for the origin
+            - A latitude / longitude pair for the destination
+        - Calculation:
+            - See the `Graph` documentation above for available algorithms.
+        - Returns:
+            - `path`:
+                - A list of lists `[latitude, longitude]` that make up the shortest path
+            - `length`:
+                - The distance (in the units requested) between the two points
+    - Precompiled Geographs offer Antimeridian support
+    - Arbitrary start and end points are supported
+        - Start and end points do not need to be in the graph
+    - Cached shortest path calculations can be used for very fast repetative calculations from the same origin node in a GeoGraph.
+        - This is done by caching the origin node's spanning tree
+        - The first call will be slower, but future calls using this origin node will be substantially faster.
+- `GridGraph`s:
+    - A grid based graph data structure that allows for the calculation of shortest paths between two points on a grid
+    - See: [GridGraph Documentation](https://connor-makowski.github.io/scgraph/scgraph/grid.html)
+    - Supports arbitrary grid sizes and blockages
+    - Uses a sparse network data structure to represent the graph
+    - How to use it - Calculate the shortest path between two points on a grid
+        - Inputs:
+            - A (x,y) coordinate on the grid for the origin
+            - A (x,y) coordinate on the grid for the destination
+        - Calculation:
+            - Algorithms:
+                - Dijkstra's algorithm
+                - Modified Dijkstra algorithm
+                - A* algorithm (Extension of the Modified Dijkstra)
+        - Returns:
+            - `length`:
+                - The distance between the two points on the grid
+            - `coordinate_path`:
+                - A list of dicts `{"x": x, "y": y}` representing the path taken through the grid
+    - Arbitrary start and end points are supported
+        - Start and end points do not need to be in the graph
+    - Arbitrary connection matricies are supported
+        - Cardinal connections (up, down, left, right) and diagonal connections (up-left, up-right, down-left, down-right) are used by default
+        - Custom connection matricies can be used to change the connections between grid items
+    - Cached shortest path calculations can be used for very fast repetative calculations to or from the same point in a GridGraph.
+- Other Useful Features:
+    - `CacheGraph`s:
+        - A graph extension that caches spanning trees for fast shortest path calculations on repeat calls from the same origin node
+        - See: [CacheGraphs Documentation](https://connor-makowski.github.io/scgraph/scgraph/cache.html)
+    - `SpanningTree`s:
+        - See: [Spanning Trees Documentation](https://connor-makowski.github.io/scgraph/scgraph/spanning.html)
+
+## Included GeoGraphs
+
+- marnet_geograph:
+    - What: A maritime network data set from searoute
+    - Use: `from scgraph.geographs.marnet import marnet_geograph`
+    - Attribution: [searoute](https://github.com/genthalili/searoute-py)
+    - Length Measurement: Kilometers
+    - [Marnet Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png)
+- oak_ridge_maritime_geograph:
+    - What: A maritime data set from the Oak Ridge National Laboratory campus
+    - Use: `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph`
+    - Attribution: [Oak Ridge National Laboratory](https://www.ornl.gov/) with data from [Geocommons](http://geocommons.com/datasets?id=25)
+    - Length Measurement: Kilometers
+    - [Oak Ridge Maritime Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png)
+- north_america_rail_geograph:
+    - What: Class 1 Rail network for North America
+    - Use: `from scgraph.geographs.north_america_rail import north_america_rail_geograph`
+    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about)
+    - Length Measurement: Kilometers
+    - [North America Rail Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png)
+- us_freeway_geograph:
+    - What: Freeway network for the United States
+    - Use: `from scgraph.geographs.us_freeway import us_freeway_geograph`
+    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about)
+    - Length Measurement: Kilometers
+    - [US Freeway Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png)
+- `scgraph_data` geographs:
+    - What: Additional geographs are available in the `scgraph_data` package
+        - Note: These include larger geographs like the world highways geograph and world railways geograph.
+    - Installation: `pip install scgraph_data`
+    - Use: `from scgraph_data.world_highways import world_highways_geograph`
+    - See: [scgraph_data](https://github.com/connor-makowski/scgraph_data) for more information and all available geographs.
 
 ## Advanced Usage
 
