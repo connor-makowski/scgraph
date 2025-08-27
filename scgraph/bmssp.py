@@ -67,7 +67,23 @@ class BmsspDataStructure:
 class BmsspSolver:
     def __init__(self, graph: list[dict[int, int | float]], origin_id: int):
         """
-        Initialize the BMSSP solver with a graph represented as an adjacency list.
+        Function:
+
+        - Initialize the BMSSP solver with a graph represented as an adjacency list.
+
+        Required Arguments:
+
+        - graph:
+            - Type: list[dict[int, int | float]]
+            - Description: The graph is represented as an adjacency list, where each node points to a dictionary of its neighbors and their edge weights.
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+        - origin_id:
+            - Type: int
+            - What: The ID of the starting node for the BMSSP algorithm.
+
+        Optional Arguments:
+
+        - None
         """
         self.graph = graph
         self.original_graph_length = len(graph)
@@ -90,17 +106,33 @@ class BmsspSolver:
         # Run the solver algorithm
         upper_bound, frontier = self.recursive_bmssp(self.max_tree_depth, inf, {origin_id})
 
-    def find_pivots(self, upper_bound, frontier):
+    def find_pivots(self, upper_bound: int | float, frontier: set[int]) -> tuple[set[int], set[int]]:
         """
-        Finds pivot sets pivots and temp_frontier according to Algorithm 1.
+        Function: 
+        
+        - Finds pivot sets pivots and temp_frontier according to Algorithm 1.
 
-        Parameters:
-        - upper_bound: float, the upper bound threshold (B)
-        - frontier: set of vertices (S)
+        Required Arguments:
+        
+        - upper_bound:
+            - Type: int | float
+            - What: The upper bound threshold (B)
+        - frontier:
+            - Type: set[int]
+            - What: Set of vertices (S)
+
+        Optional Arguments:
+
+        - None
 
         Returns:
-        - pivots: set of pivot vertices
-        - temp_frontier: set of vertices explored within upper_bound
+
+        - pivots:
+            - Type: Set[int]
+            - What: Set of pivot vertices
+        - frontier:
+            - Type: Set[int]
+            - What: Return a new frontier set of vertices within the upper_bound
         """
         temp_frontier = set(frontier)
         prev_frontier = set(frontier)
@@ -161,17 +193,26 @@ class BmsspSolver:
 
         return pivots, temp_frontier
 
-    def base_case(self, upper_bound, frontier):
+    def base_case(self, upper_bound: int | float, frontier: set[int]) -> tuple[int | float, set[int]]:
         """
-        Implements Algorithm 2: Base Case of BMSSP
+        Function:
 
-        Parameters:
-        - upper_bound: float, boundary B
-        - frontier: set with a single vertex x (complete)
+        - Implements Algorithm 2: Base Case of BMSSP
+
+        Required Arguments:
+        - upper_bound:
+            - Type: int | float
+        - frontier:
+            - Type: set
+            - What: Set with a single vertex x (complete)
 
         Returns:
-        - new_upper_bound
-        - new_frontier with vertices v such that distance_matrix[v] < new_upper_bound
+        - new_upper_bound:
+            - Type: int | float
+            - What: The new upper bound for the search
+        - new_frontier:
+            - Type: set[int]
+            - What: Set of vertices v such that distance_matrix[v] < new_upper_bound
         """
         assert len(frontier) == 1, "Frontier must be a singleton set"
         first_frontier = next(iter(frontier))
@@ -206,18 +247,32 @@ class BmsspSolver:
             # Success for this base case: return current upper_bound unchanged and the completed set
             return upper_bound, new_frontier
 
-    def recursive_bmssp(self, recursion_depth, upper_bound, frontier):
+    def recursive_bmssp(self, recursion_depth: int, upper_bound: int | float, frontier: set[int]) -> tuple[int | float, set[int]]:
         """
-        Implements Algorithm 3: Bounded Multi-Source Shortest Path (BMSSP)
+        Function:
 
-        Parameters:
-        - recursion_depth: int, recursion depth
-        - upper_bound: float, boundary B
-        - frontier: set of vertices S (|S| <= 2)
+        - Implements Algorithm 3: Bounded Multi-Source Shortest Path (BMSSP)
+
+        Required Arguments:
+
+        - recursion_depth:
+            - Type: int
+            - What: The depth of the recursion
+        - upper_bound:
+            - Type: float
+            - What: The upper bound for the search
+        - frontier:
+            - Type: set[int]
+            - What: The set of vertices to explore
 
         Returns:
-        - new_upper_bound
-        - new_frontier
+
+        - new_upper_bound:
+            - Type: int | float
+            - What: The new upper bound for the search
+        - new_frontier:
+            - Type: set[int]
+            - What: Set of vertices v such that distance_matrix[v] < new_upper_bound
         """
         # Base case
         if recursion_depth == 0:
@@ -289,6 +344,8 @@ class BmsspSolver:
         # Step 22: Final return
         return min(last_min_pivot_distance, upper_bound), new_frontier | {v for v in temp_frontier if self.distance_matrix[v] < last_min_pivot_distance}
 
+
+# Add a special test case directly to the bmssp algorithm to test it if this file is directly called
 if __name__ == "__main__":
     graph = [
         {1:1,2:1},

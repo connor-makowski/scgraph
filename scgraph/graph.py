@@ -472,7 +472,7 @@ class Graph:
         graph: list[dict[int, int | float]],
         origin_id: int,
         destination_id: int,
-        heuristic_fn=None,
+        heuristic_fn: callable = None,
     ) -> dict:
         """
         Function:
@@ -619,7 +619,7 @@ class Graph:
         }
 
     @staticmethod
-    def bmssp(graph, origin_id, destination_id):
+    def bmssp(graph: list[dict[int, int | float]], origin_id: int, destination_id: int):
         """
         Function:
 
