@@ -289,6 +289,9 @@ print(output)
     - Installation: `pip install scgraph_data`
     - Use: `from scgraph_data.world_highways import world_highways_geograph`
     - See: [scgraph_data](https://github.com/connor-makowski/scgraph_data) for more information and all available geographs.
+- Custom Geographs:
+    - What: Users can create their own geographs from various data sources
+    - See: [Building your own Geographs from Open Source Data](https://github.com/connor-makowski/scgraph#building-your-own-geographs-from-open-source-data)
 
 ## Advanced Usage
 
@@ -311,29 +314,10 @@ output = world_railways_geograph.get_shortest_path(
 )
 ```
 
-### Using Geographs for Visualization
-Get a geojson line path of an output for easy visualization:
-- Note: `mapshaper.org` and `geojson.io` are good tools for visualizing geojson files
-```py
-from scgraph.geographs.marnet import marnet_geograph
-from scgraph.utils import get_line_path
-
- # Get the shortest sea path between Sri Lanka and Somalia
-output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 7.87,"longitude": 80.77},
-    destination_node={"latitude": 5.15,"longitude": 46.20}
-)
-# Write the output to a geojson file
-get_line_path(output, filename='output.geojson')
-```
-
 ### Building your own Geographs from Open Source Data
 You can build your own geographs using various tools and data sources. For example, you can use OpenStreetMap data to create a high fidelity geograph for a specific area.
 
-Expand the secion below for a step by step guide on how to create a geograph from OpenStreetMap data.
-<details>
-<summary>Click to see an example for Michigan, USA</summary>
-
+Follow this step by step guide on how to create a geograph from OpenStreetMap data.
 For this example, we will use some various tools to create a geograph for highways (including seconday highways) in Michigan, USA.
 
 Download an OSM PBF file using the AWS CLI:
@@ -393,7 +377,6 @@ Download an OSM PBF file using the AWS CLI:
     from scgraph import GeoGraph
     michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geojson')
     ```
-</details>
 
 ### Custom Graphs and Geographs
 Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
