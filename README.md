@@ -25,8 +25,8 @@ print('Length: ',output['length']) #=> Length:  19596.4653
 
 ### Documentation
 
-- Getting Started: https://github.com/connor-makowski/scgraph
-- Low Level: https://connor-makowski.github.io/scgraph/scgraph.html
+- Docs: https://connor-makowski.github.io/scgraph/scgraph.html
+- Git Repo: https://github.com/connor-makowski/scgraph
 
 ### How to Cite SCGraph in your Research
 
@@ -190,6 +190,7 @@ print(output)
 ```
 
 
+# About
 ## Key Features
 
 - `Graph`:
@@ -293,9 +294,9 @@ print(output)
     - What: Users can create their own geographs from various data sources
     - See: [Building your own Geographs from Open Source Data](https://github.com/connor-makowski/scgraph#building-your-own-geographs-from-open-source-data)
 
-## Advanced Usage
+# Advanced Usage
 
-### Using scgraph_data geographs
+## Using scgraph_data geographs
 
 Using `scgraph_data` geographs:
 - Note: Make sure to install the `scgraph_data` package before using these geographs
@@ -314,7 +315,7 @@ output = world_railways_geograph.get_shortest_path(
 )
 ```
 
-### Building your own Geographs from Open Source Data
+## Building your own Geographs from Open Source Data
 You can build your own geographs using various tools and data sources. For example, you can use OpenStreetMap data to create a high fidelity geograph for a specific area.
 
 Follow this step by step guide on how to create a geograph from OpenStreetMap data.
@@ -378,7 +379,7 @@ Download an OSM PBF file using the AWS CLI:
     michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geojson')
     ```
 
-### Custom Graphs and Geographs
+## Custom Graphs and Geographs
 Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
 
 
