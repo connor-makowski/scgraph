@@ -60,12 +60,19 @@
             <li>
                     <a class="function" href="#get_lat_lon_bound_between_pts">get_lat_lon_bound_between_pts</a>
             </li>
+            <li>
+                    <a class="function" href="#adjacency_dict_to_list_tuples">adjacency_dict_to_list_tuples</a>
+            </li>
+            <li>
+                    <a class="function" href="#adjacency_list_tuples_to_dict">adjacency_list_tuples_to_dict</a>
+            </li>
     </ul>
 
 
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
+        <option value="2.13.0">2.13.0</option>
         <option value="2.12.0">2.12.0</option>
         <option value="2.11.1">2.11.1</option>
         <option value="2.10.1">2.10.1</option>
@@ -393,6 +400,58 @@
 </span><span id="L-263"><a href="#L-263"><span class="linenos">263</span></a>        <span class="p">)</span>
 </span><span id="L-264"><a href="#L-264"><span class="linenos">264</span></a>        <span class="o">/</span> <span class="mi">111</span>
 </span><span id="L-265"><a href="#L-265"><span class="linenos">265</span></a>    <span class="p">)</span>
+</span><span id="L-266"><a href="#L-266"><span class="linenos">266</span></a>
+</span><span id="L-267"><a href="#L-267"><span class="linenos">267</span></a>
+</span><span id="L-268"><a href="#L-268"><span class="linenos">268</span></a><span class="k">def</span><span class="w"> </span><span class="nf">adjacency_dict_to_list_tuples</span><span class="p">(</span>
+</span><span id="L-269"><a href="#L-269"><span class="linenos">269</span></a>    <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]],</span>
+</span><span id="L-270"><a href="#L-270"><span class="linenos">270</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]]:</span>
+</span><span id="L-271"><a href="#L-271"><span class="linenos">271</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-272"><a href="#L-272"><span class="linenos">272</span></a><span class="sd">    Convert a graph from adjacency dictionary representation to adjacency list representation.</span>
+</span><span id="L-273"><a href="#L-273"><span class="linenos">273</span></a>
+</span><span id="L-274"><a href="#L-274"><span class="linenos">274</span></a><span class="sd">    Required Arguments:</span>
+</span><span id="L-275"><a href="#L-275"><span class="linenos">275</span></a>
+</span><span id="L-276"><a href="#L-276"><span class="linenos">276</span></a><span class="sd">    - `graph`:</span>
+</span><span id="L-277"><a href="#L-277"><span class="linenos">277</span></a><span class="sd">        - Type: list[dict[int, int | float]]</span>
+</span><span id="L-278"><a href="#L-278"><span class="linenos">278</span></a><span class="sd">        - What: The input graph to convert</span>
+</span><span id="L-279"><a href="#L-279"><span class="linenos">279</span></a>
+</span><span id="L-280"><a href="#L-280"><span class="linenos">280</span></a><span class="sd">    Returns:</span>
+</span><span id="L-281"><a href="#L-281"><span class="linenos">281</span></a>
+</span><span id="L-282"><a href="#L-282"><span class="linenos">282</span></a><span class="sd">    - Type: list[list[tuple[int, int | float]]]</span>
+</span><span id="L-283"><a href="#L-283"><span class="linenos">283</span></a><span class="sd">    - What: The converted graph in adjacency list representation</span>
+</span><span id="L-284"><a href="#L-284"><span class="linenos">284</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-285"><a href="#L-285"><span class="linenos">285</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">graph</span><span class="p">:</span>
+</span><span id="L-286"><a href="#L-286"><span class="linenos">286</span></a>        <span class="k">return</span> <span class="p">[]</span>
+</span><span id="L-287"><a href="#L-287"><span class="linenos">287</span></a>
+</span><span id="L-288"><a href="#L-288"><span class="linenos">288</span></a>    <span class="k">return</span> <span class="p">[</span>
+</span><span id="L-289"><a href="#L-289"><span class="linenos">289</span></a>        <span class="p">[(</span><span class="n">to_id</span><span class="p">,</span> <span class="n">weight</span><span class="p">)</span> <span class="k">for</span> <span class="n">to_id</span><span class="p">,</span> <span class="n">weight</span> <span class="ow">in</span> <span class="n">connections</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+</span><span id="L-290"><a href="#L-290"><span class="linenos">290</span></a>        <span class="k">for</span> <span class="n">connections</span> <span class="ow">in</span> <span class="n">graph</span>
+</span><span id="L-291"><a href="#L-291"><span class="linenos">291</span></a>    <span class="p">]</span>
+</span><span id="L-292"><a href="#L-292"><span class="linenos">292</span></a>
+</span><span id="L-293"><a href="#L-293"><span class="linenos">293</span></a>
+</span><span id="L-294"><a href="#L-294"><span class="linenos">294</span></a><span class="k">def</span><span class="w"> </span><span class="nf">adjacency_list_tuples_to_dict</span><span class="p">(</span>
+</span><span id="L-295"><a href="#L-295"><span class="linenos">295</span></a>    <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]],</span>
+</span><span id="L-296"><a href="#L-296"><span class="linenos">296</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]:</span>
+</span><span id="L-297"><a href="#L-297"><span class="linenos">297</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-298"><a href="#L-298"><span class="linenos">298</span></a><span class="sd">    Convert a graph from adjacency list representation to adjacency dictionary representation.</span>
+</span><span id="L-299"><a href="#L-299"><span class="linenos">299</span></a>
+</span><span id="L-300"><a href="#L-300"><span class="linenos">300</span></a><span class="sd">    Required Arguments:</span>
+</span><span id="L-301"><a href="#L-301"><span class="linenos">301</span></a>
+</span><span id="L-302"><a href="#L-302"><span class="linenos">302</span></a><span class="sd">    - `graph`:</span>
+</span><span id="L-303"><a href="#L-303"><span class="linenos">303</span></a><span class="sd">        - Type: list[list[tuple[int, int | float]]]</span>
+</span><span id="L-304"><a href="#L-304"><span class="linenos">304</span></a><span class="sd">        - What: The input graph to convert</span>
+</span><span id="L-305"><a href="#L-305"><span class="linenos">305</span></a>
+</span><span id="L-306"><a href="#L-306"><span class="linenos">306</span></a><span class="sd">    Returns:</span>
+</span><span id="L-307"><a href="#L-307"><span class="linenos">307</span></a>
+</span><span id="L-308"><a href="#L-308"><span class="linenos">308</span></a><span class="sd">    - Type: list[dict[int, int | float]]</span>
+</span><span id="L-309"><a href="#L-309"><span class="linenos">309</span></a><span class="sd">    - What: The converted graph in adjacency dictionary representation</span>
+</span><span id="L-310"><a href="#L-310"><span class="linenos">310</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-311"><a href="#L-311"><span class="linenos">311</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">graph</span><span class="p">:</span>
+</span><span id="L-312"><a href="#L-312"><span class="linenos">312</span></a>        <span class="k">return</span> <span class="p">[]</span>
+</span><span id="L-313"><a href="#L-313"><span class="linenos">313</span></a>
+</span><span id="L-314"><a href="#L-314"><span class="linenos">314</span></a>    <span class="k">return</span> <span class="p">[</span>
+</span><span id="L-315"><a href="#L-315"><span class="linenos">315</span></a>        <span class="p">{</span><span class="n">to_id</span><span class="p">:</span> <span class="n">weight</span> <span class="k">for</span> <span class="n">to_id</span><span class="p">,</span> <span class="n">weight</span> <span class="ow">in</span> <span class="n">connections</span><span class="p">}</span>
+</span><span id="L-316"><a href="#L-316"><span class="linenos">316</span></a>        <span class="k">for</span> <span class="n">connections</span> <span class="ow">in</span> <span class="n">graph</span>
+</span><span id="L-317"><a href="#L-317"><span class="linenos">317</span></a>    <span class="p">]</span>
 </span></pre></div>
 
 
@@ -987,6 +1046,126 @@ A* as this method can overestimate distances, especially near the Earth's poles.
 <li>Type: dict</li>
 <li>What: Destination point with "latitude" and "longitude" keys</li>
 </ul></li>
+</ul>
+</div>
+
+
+                </section>
+                <section id="adjacency_dict_to_list_tuples">
+                            <input id="adjacency_dict_to_list_tuples-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">adjacency_dict_to_list_tuples</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]]</span>:</span></span>
+
+                <label class="view-source-button" for="adjacency_dict_to_list_tuples-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#adjacency_dict_to_list_tuples"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="adjacency_dict_to_list_tuples-269"><a href="#adjacency_dict_to_list_tuples-269"><span class="linenos">269</span></a><span class="k">def</span><span class="w"> </span><span class="nf">adjacency_dict_to_list_tuples</span><span class="p">(</span>
+</span><span id="adjacency_dict_to_list_tuples-270"><a href="#adjacency_dict_to_list_tuples-270"><span class="linenos">270</span></a>    <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]],</span>
+</span><span id="adjacency_dict_to_list_tuples-271"><a href="#adjacency_dict_to_list_tuples-271"><span class="linenos">271</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]]:</span>
+</span><span id="adjacency_dict_to_list_tuples-272"><a href="#adjacency_dict_to_list_tuples-272"><span class="linenos">272</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="adjacency_dict_to_list_tuples-273"><a href="#adjacency_dict_to_list_tuples-273"><span class="linenos">273</span></a><span class="sd">    Convert a graph from adjacency dictionary representation to adjacency list representation.</span>
+</span><span id="adjacency_dict_to_list_tuples-274"><a href="#adjacency_dict_to_list_tuples-274"><span class="linenos">274</span></a>
+</span><span id="adjacency_dict_to_list_tuples-275"><a href="#adjacency_dict_to_list_tuples-275"><span class="linenos">275</span></a><span class="sd">    Required Arguments:</span>
+</span><span id="adjacency_dict_to_list_tuples-276"><a href="#adjacency_dict_to_list_tuples-276"><span class="linenos">276</span></a>
+</span><span id="adjacency_dict_to_list_tuples-277"><a href="#adjacency_dict_to_list_tuples-277"><span class="linenos">277</span></a><span class="sd">    - `graph`:</span>
+</span><span id="adjacency_dict_to_list_tuples-278"><a href="#adjacency_dict_to_list_tuples-278"><span class="linenos">278</span></a><span class="sd">        - Type: list[dict[int, int | float]]</span>
+</span><span id="adjacency_dict_to_list_tuples-279"><a href="#adjacency_dict_to_list_tuples-279"><span class="linenos">279</span></a><span class="sd">        - What: The input graph to convert</span>
+</span><span id="adjacency_dict_to_list_tuples-280"><a href="#adjacency_dict_to_list_tuples-280"><span class="linenos">280</span></a>
+</span><span id="adjacency_dict_to_list_tuples-281"><a href="#adjacency_dict_to_list_tuples-281"><span class="linenos">281</span></a><span class="sd">    Returns:</span>
+</span><span id="adjacency_dict_to_list_tuples-282"><a href="#adjacency_dict_to_list_tuples-282"><span class="linenos">282</span></a>
+</span><span id="adjacency_dict_to_list_tuples-283"><a href="#adjacency_dict_to_list_tuples-283"><span class="linenos">283</span></a><span class="sd">    - Type: list[list[tuple[int, int | float]]]</span>
+</span><span id="adjacency_dict_to_list_tuples-284"><a href="#adjacency_dict_to_list_tuples-284"><span class="linenos">284</span></a><span class="sd">    - What: The converted graph in adjacency list representation</span>
+</span><span id="adjacency_dict_to_list_tuples-285"><a href="#adjacency_dict_to_list_tuples-285"><span class="linenos">285</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="adjacency_dict_to_list_tuples-286"><a href="#adjacency_dict_to_list_tuples-286"><span class="linenos">286</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">graph</span><span class="p">:</span>
+</span><span id="adjacency_dict_to_list_tuples-287"><a href="#adjacency_dict_to_list_tuples-287"><span class="linenos">287</span></a>        <span class="k">return</span> <span class="p">[]</span>
+</span><span id="adjacency_dict_to_list_tuples-288"><a href="#adjacency_dict_to_list_tuples-288"><span class="linenos">288</span></a>
+</span><span id="adjacency_dict_to_list_tuples-289"><a href="#adjacency_dict_to_list_tuples-289"><span class="linenos">289</span></a>    <span class="k">return</span> <span class="p">[</span>
+</span><span id="adjacency_dict_to_list_tuples-290"><a href="#adjacency_dict_to_list_tuples-290"><span class="linenos">290</span></a>        <span class="p">[(</span><span class="n">to_id</span><span class="p">,</span> <span class="n">weight</span><span class="p">)</span> <span class="k">for</span> <span class="n">to_id</span><span class="p">,</span> <span class="n">weight</span> <span class="ow">in</span> <span class="n">connections</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+</span><span id="adjacency_dict_to_list_tuples-291"><a href="#adjacency_dict_to_list_tuples-291"><span class="linenos">291</span></a>        <span class="k">for</span> <span class="n">connections</span> <span class="ow">in</span> <span class="n">graph</span>
+</span><span id="adjacency_dict_to_list_tuples-292"><a href="#adjacency_dict_to_list_tuples-292"><span class="linenos">292</span></a>    <span class="p">]</span>
+</span></pre></div>
+
+
+            <div class="docstring"><p>Convert a graph from adjacency dictionary representation to adjacency list representation.</p>
+
+<p>Required Arguments:</p>
+
+<ul>
+<li><code>graph</code>:
+<ul>
+<li>Type: list[dict[int, int | float]]</li>
+<li>What: The input graph to convert</li>
+</ul></li>
+</ul>
+
+<p>Returns:</p>
+
+<ul>
+<li>Type: list[list[tuple[int, int | float]]]</li>
+<li>What: The converted graph in adjacency list representation</li>
+</ul>
+</div>
+
+
+                </section>
+                <section id="adjacency_list_tuples_to_dict">
+                            <input id="adjacency_list_tuples_to_dict-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">adjacency_list_tuples_to_dict</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]]</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]</span>:</span></span>
+
+                <label class="view-source-button" for="adjacency_list_tuples_to_dict-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#adjacency_list_tuples_to_dict"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="adjacency_list_tuples_to_dict-295"><a href="#adjacency_list_tuples_to_dict-295"><span class="linenos">295</span></a><span class="k">def</span><span class="w"> </span><span class="nf">adjacency_list_tuples_to_dict</span><span class="p">(</span>
+</span><span id="adjacency_list_tuples_to_dict-296"><a href="#adjacency_list_tuples_to_dict-296"><span class="linenos">296</span></a>    <span class="n">graph</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]],</span>
+</span><span id="adjacency_list_tuples_to_dict-297"><a href="#adjacency_list_tuples_to_dict-297"><span class="linenos">297</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]:</span>
+</span><span id="adjacency_list_tuples_to_dict-298"><a href="#adjacency_list_tuples_to_dict-298"><span class="linenos">298</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="adjacency_list_tuples_to_dict-299"><a href="#adjacency_list_tuples_to_dict-299"><span class="linenos">299</span></a><span class="sd">    Convert a graph from adjacency list representation to adjacency dictionary representation.</span>
+</span><span id="adjacency_list_tuples_to_dict-300"><a href="#adjacency_list_tuples_to_dict-300"><span class="linenos">300</span></a>
+</span><span id="adjacency_list_tuples_to_dict-301"><a href="#adjacency_list_tuples_to_dict-301"><span class="linenos">301</span></a><span class="sd">    Required Arguments:</span>
+</span><span id="adjacency_list_tuples_to_dict-302"><a href="#adjacency_list_tuples_to_dict-302"><span class="linenos">302</span></a>
+</span><span id="adjacency_list_tuples_to_dict-303"><a href="#adjacency_list_tuples_to_dict-303"><span class="linenos">303</span></a><span class="sd">    - `graph`:</span>
+</span><span id="adjacency_list_tuples_to_dict-304"><a href="#adjacency_list_tuples_to_dict-304"><span class="linenos">304</span></a><span class="sd">        - Type: list[list[tuple[int, int | float]]]</span>
+</span><span id="adjacency_list_tuples_to_dict-305"><a href="#adjacency_list_tuples_to_dict-305"><span class="linenos">305</span></a><span class="sd">        - What: The input graph to convert</span>
+</span><span id="adjacency_list_tuples_to_dict-306"><a href="#adjacency_list_tuples_to_dict-306"><span class="linenos">306</span></a>
+</span><span id="adjacency_list_tuples_to_dict-307"><a href="#adjacency_list_tuples_to_dict-307"><span class="linenos">307</span></a><span class="sd">    Returns:</span>
+</span><span id="adjacency_list_tuples_to_dict-308"><a href="#adjacency_list_tuples_to_dict-308"><span class="linenos">308</span></a>
+</span><span id="adjacency_list_tuples_to_dict-309"><a href="#adjacency_list_tuples_to_dict-309"><span class="linenos">309</span></a><span class="sd">    - Type: list[dict[int, int | float]]</span>
+</span><span id="adjacency_list_tuples_to_dict-310"><a href="#adjacency_list_tuples_to_dict-310"><span class="linenos">310</span></a><span class="sd">    - What: The converted graph in adjacency dictionary representation</span>
+</span><span id="adjacency_list_tuples_to_dict-311"><a href="#adjacency_list_tuples_to_dict-311"><span class="linenos">311</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="adjacency_list_tuples_to_dict-312"><a href="#adjacency_list_tuples_to_dict-312"><span class="linenos">312</span></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">graph</span><span class="p">:</span>
+</span><span id="adjacency_list_tuples_to_dict-313"><a href="#adjacency_list_tuples_to_dict-313"><span class="linenos">313</span></a>        <span class="k">return</span> <span class="p">[]</span>
+</span><span id="adjacency_list_tuples_to_dict-314"><a href="#adjacency_list_tuples_to_dict-314"><span class="linenos">314</span></a>
+</span><span id="adjacency_list_tuples_to_dict-315"><a href="#adjacency_list_tuples_to_dict-315"><span class="linenos">315</span></a>    <span class="k">return</span> <span class="p">[</span>
+</span><span id="adjacency_list_tuples_to_dict-316"><a href="#adjacency_list_tuples_to_dict-316"><span class="linenos">316</span></a>        <span class="p">{</span><span class="n">to_id</span><span class="p">:</span> <span class="n">weight</span> <span class="k">for</span> <span class="n">to_id</span><span class="p">,</span> <span class="n">weight</span> <span class="ow">in</span> <span class="n">connections</span><span class="p">}</span>
+</span><span id="adjacency_list_tuples_to_dict-317"><a href="#adjacency_list_tuples_to_dict-317"><span class="linenos">317</span></a>        <span class="k">for</span> <span class="n">connections</span> <span class="ow">in</span> <span class="n">graph</span>
+</span><span id="adjacency_list_tuples_to_dict-318"><a href="#adjacency_list_tuples_to_dict-318"><span class="linenos">318</span></a>    <span class="p">]</span>
+</span></pre></div>
+
+
+            <div class="docstring"><p>Convert a graph from adjacency list representation to adjacency dictionary representation.</p>
+
+<p>Required Arguments:</p>
+
+<ul>
+<li><code>graph</code>:
+<ul>
+<li>Type: list[list[tuple[int, int | float]]]</li>
+<li>What: The input graph to convert</li>
+</ul></li>
+</ul>
+
+<p>Returns:</p>
+
+<ul>
+<li>Type: list[dict[int, int | float]]</li>
+<li>What: The converted graph in adjacency dictionary representation</li>
 </ul>
 </div>
 
