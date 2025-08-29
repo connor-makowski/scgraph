@@ -4,12 +4,14 @@ from scgraph import Graph
 from scgraph.utils import hard_round
 from scgraph.geographs.marnet import graph as marnet_graph
 from scgraph.geographs.us_freeway import graph as us_freeway_graph
+
 # from scgraph_data.world_highways_and_marnet import graph as world_highways_and_marnet_graph
 from scgraph.bmssp import BmsspSolver
 from scgraph.spanning import SpanningTree
 
 
 print("\n===============\nBMSSP Tests:\n===============")
+
 
 def validate(name, realized, expected):
     # Custom lenth rounding for floating point precision issues
@@ -25,6 +27,7 @@ def validate(name, realized, expected):
         print(f"{name}: FAIL")
         print("Expected:", expected)
         print("Realized:", realized)
+
 
 def time_test(name, thunk):
     start = time.time()
@@ -56,7 +59,6 @@ validate(
     realized=bmssp_marnet_solver.distance_matrix,
     expected=marnet_spanning_tree["distance_matrix"],
 )
-
 
 
 graph = marnet_graph
@@ -102,43 +104,33 @@ print("\n===============\nBMSSP Time Tests:\n===============")
 time_test(
     "BMSSP 1 (marnet)",
     pamda.thunkify(Graph.bmssp)(
-        graph=marnet_graph,
-        origin_id=0,
-        destination_id=5
+        graph=marnet_graph, origin_id=0, destination_id=5
     ),
 )
 time_test(
     "BMSSP 2 (marnet)",
     pamda.thunkify(Graph.bmssp)(
-        graph=marnet_graph,
-        origin_id=100,
-        destination_id=7999
+        graph=marnet_graph, origin_id=100, destination_id=7999
     ),
 )
 time_test(
     "BMSSP 3 (marnet)",
     pamda.thunkify(Graph.bmssp)(
-        graph=marnet_graph,
-        origin_id=4022,
-        destination_id=8342
+        graph=marnet_graph, origin_id=4022, destination_id=8342
     ),
 )
 
 time_test(
     "BMSSP 4 (us_freeway)",
     pamda.thunkify(Graph.bmssp)(
-        graph=us_freeway_graph,
-        origin_id=0,
-        destination_id=5
+        graph=us_freeway_graph, origin_id=0, destination_id=5
     ),
 )
 
 time_test(
     "BMSSP 5 (us_freeway)",
     pamda.thunkify(Graph.bmssp)(
-        graph=us_freeway_graph,
-        origin_id=4022,
-        destination_id=8342
+        graph=us_freeway_graph, origin_id=4022, destination_id=8342
     ),
 )
 
@@ -154,16 +146,14 @@ time_test(
 time_test(
     "Spanning Comparison (marnet)",
     pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
-        graph=marnet_graph,
-        node_id=0
+        graph=marnet_graph, node_id=0
     ),
 )
 
 time_test(
     "Spanning Comparison (us_freeway)",
     pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
-        graph=us_freeway_graph,
-        node_id=0
+        graph=us_freeway_graph, node_id=0
     ),
 )
 

@@ -93,13 +93,17 @@ expected = {"path": [0, 2, 1, 3, 5], "length": 10}
 
 # This is not a connected or symmetric graph, both should raise errors
 try:
-    Graph.validate_graph(graph=graph, check_connected=True, check_symmetry=False)
+    Graph.validate_graph(
+        graph=graph, check_connected=True, check_symmetry=False
+    )
     print("Graph Connection Check: Fail")
 except Exception as e:
     print("Graph Connection Check: Pass")
 
 try:
-    Graph.validate_graph(graph=graph, check_connected=False, check_symmetry=True)
+    Graph.validate_graph(
+        graph=graph, check_connected=False, check_symmetry=True
+    )
     print("Graph Symmetry Check: Fail")
 except Exception as e:
     print("Graph Symmetry Check: Pass")

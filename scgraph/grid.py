@@ -515,7 +515,7 @@ class GridGraph:
         else:
             # TODO: Remove this backwards compatibility hack in future versions
             if algorithm_fn == Graph.a_star:
-                if 'heuristic_fn' not in algorithm_kwargs:
+                if "heuristic_fn" not in algorithm_kwargs:
                     algorithm_kwargs["heuristic_fn"] = (
                         self.euclidean_heuristic
                         if heuristic_fn == "euclidean"
