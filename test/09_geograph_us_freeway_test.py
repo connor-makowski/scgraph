@@ -101,6 +101,17 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="BMSSP",
+    realized=us_freeway_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.bmssp,
+    ),
+    expected=expected,
+)
+
+
 print("\n===============\nUS Freeway GeoGraph Time Tests:\n===============")
 
 time_test(
@@ -142,10 +153,18 @@ def a_star_cheap_ruler():
         algorithm_kwargs={"heuristic_fn": us_freeway_geograph.cheap_ruler},
     )
 
+def bmssp():
+    us_freeway_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.bmssp,
+    )
+
 
 time_test("Dijkstra-Modified", dijkstra_makowski)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
+time_test("BMSSP", bmssp)
 
 
 # us_freeway_geograph.save_as_geojson('us_freeway_geograph.geojson')

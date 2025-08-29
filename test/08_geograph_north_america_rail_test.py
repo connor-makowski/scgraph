@@ -87,6 +87,16 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="BMSSP",
+    realized=north_america_rail_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.bmssp,
+    ),
+    expected=expected,
+)
+
 print(
     "\n===============\nNorth America Rail GeoGraph Time Tests:\n==============="
 )
@@ -136,10 +146,17 @@ def a_star_cheap_ruler():
             "heuristic_fn": north_america_rail_geograph.cheap_ruler
         },
     )
+def bmssp():
+    north_america_rail_geograph.get_shortest_path(
+        origin_node=origin_node,
+        destination_node=destination_node,
+        algorithm_fn=Graph.bmssp,
+    )
 
 
 time_test("Dijkstra-Modified", dijkstra_makowski)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
+time_test("BMSSP", bmssp)
 
 # north_america_rail_geograph.save_as_geojson('north_america_rail.geojson')

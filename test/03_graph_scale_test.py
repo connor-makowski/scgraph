@@ -27,7 +27,7 @@ def gen_graph(size, avg_connections=10):
 
 print("\n===============\nScale Time Tests:\n===============")
 
-for size in [100, 1000, 10000]:
+for size in [100, 1000, 10000, 100000]:
     graph = gen_graph(size)
     print(f"\nGraph Size: {size}")
     time_test(
@@ -49,5 +49,11 @@ for size in [100, 1000, 10000]:
             origin_id=0,
             destination_id=size - 1,
             heuristic_fn=lambda x, y: 0,
+        ),
+    )
+    time_test(
+        f"BMSSP ({size})",
+        pamda.thunkify(Graph.bmssp)(
+            graph=graph, origin_id=0, destination_id=size - 1
         ),
     )

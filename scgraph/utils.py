@@ -262,4 +262,44 @@ def get_lat_lon_bound_between_pts(
             units="km",
         )
         / 111
-    )
+    )    
+
+def adjacency_dict_to_list_tuples(graph: list[dict[int, int | float]]) -> list[list[tuple[int, int | float]]]:
+    """
+    Convert a graph from adjacency dictionary representation to adjacency list representation.
+
+    Required Arguments:
+
+    - `graph`:
+        - Type: list[dict[int, int | float]]
+        - What: The input graph to convert
+
+    Returns:
+
+    - Type: list[list[tuple[int, int | float]]]
+    - What: The converted graph in adjacency list representation
+    """
+    if not graph:
+        return []
+
+    return [[(to_id, weight) for to_id, weight in connections.items()] for connections in graph]
+
+def adjacency_list_tuples_to_dict(graph: list[list[tuple[int, int | float]]]) -> list[dict[int, int | float]]:
+    """
+    Convert a graph from adjacency list representation to adjacency dictionary representation.
+
+    Required Arguments:
+
+    - `graph`:
+        - Type: list[list[tuple[int, int | float]]]
+        - What: The input graph to convert
+
+    Returns:
+
+    - Type: list[dict[int, int | float]]
+    - What: The converted graph in adjacency dictionary representation
+    """
+    if not graph:
+        return []
+
+    return [{to_id: weight for to_id, weight in connections} for connections in graph]

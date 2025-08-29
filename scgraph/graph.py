@@ -1,4 +1,5 @@
-from heapq import heappop, heappush
+from heapq import heappop, heappush, heapify
+from scgraph.bmssp import BmsspSolver
 
 
 class Graph:
@@ -471,7 +472,7 @@ class Graph:
         graph: list[dict[int, int | float]],
         origin_id: int,
         destination_id: int,
-        heuristic_fn=None,
+        heuristic_fn: callable = None,
     ) -> dict:
         """
         Function:
@@ -615,4 +616,51 @@ class Graph:
         return {
             "path": Graph.reconstruct_path(destination_id, predecessor),
             "length": distance_matrix[destination_id],
+        }
+
+    @staticmethod
+    def bmssp(graph: list[dict[int, int | float]], origin_id: int, destination_id: int):
+        """
+        Function:
+
+        - A Full BMSSP-style shortest path solver with a Dijkstra finalizer for non-relaxed edges.
+        - Return a dictionary of various path information including:
+            - `id_path`: A list of node ids in the order they are visited
+            - `path`: A list of node dictionaries (lat + long) in the order they are visited
+
+        Required Arguments:
+
+        - `graph`:
+            - Type: list of dictionaries
+            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+        - `heuristic_fn`
+            - Type: function
+            - What: A heuristic function that takes two node ids and returns an estimated distance between them
+            - Note: If None, returns the shortest path using Makowski's modified Dijkstra algorithm
+            - Default: None
+
+        Optional Arguments:
+
+        - None
+        """
+        # Input Validation
+        Graph.input_check(
+            graph=graph, origin_id=origin_id, destination_id=destination_id
+        )
+        # Run the BMSSP Algorithm to relax as many edges as possible.
+        solver = BmsspSolver(graph, origin_id)
+        if solver.distance_matrix[destination_id] == float("inf"):
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        return {
+            "path": Graph.reconstruct_path(destination_id, solver.predecessor),
+            "length": solver.distance_matrix[destination_id],
         }
