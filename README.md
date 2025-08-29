@@ -27,6 +27,7 @@ print('Length: ',output['length']) #=> Length:  19596.4653
 
 - Docs: https://connor-makowski.github.io/scgraph/scgraph.html
 - Git Repo: https://github.com/connor-makowski/scgraph
+- Paper: https://ssrn.com/abstract=5388845
 
 ### How to Cite SCGraph in your Research
 
