@@ -10,7 +10,7 @@
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
-## Quick Start: 
+## Quick Start:
 Get the shortest maritime path length between Shanghai, China and Savannah, Georgia, USA
 ```py
 # Use a maritime network geograph

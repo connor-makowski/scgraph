@@ -1,4 +1,4 @@
-from heapq import heappop, heappush, heapify
+from heapq import heappop, heappush
 from scgraph.bmssp import BmsspSolver
 
 
@@ -188,7 +188,9 @@ class Graph:
             )
 
     @staticmethod
-    def reconstruct_path(destination_id: int, predecessor: list[int]) -> list[int]:
+    def reconstruct_path(
+        destination_id: int, predecessor: list[int]
+    ) -> list[int]:
         """
         Function:
 
@@ -554,7 +556,6 @@ class Graph:
             "length": distance_matrix[destination_id],
         }
 
-
     @staticmethod
     def bellman_ford(
         graph: list[dict[int, int | float]],
@@ -598,7 +599,9 @@ class Graph:
         for i in range(len_graph):
             for current_id in range(len(graph)):
                 current_distance = distance_matrix[current_id]
-                for connected_id, connected_distance in graph[current_id].items():
+                for connected_id, connected_distance in graph[
+                    current_id
+                ].items():
                     possible_distance = current_distance + connected_distance
                     if possible_distance < distance_matrix[connected_id]:
                         distance_matrix[connected_id] = possible_distance
@@ -619,7 +622,9 @@ class Graph:
         }
 
     @staticmethod
-    def bmssp(graph: list[dict[int, int | float]], origin_id: int, destination_id: int):
+    def bmssp(
+        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
+    ):
         """
         Function:
 

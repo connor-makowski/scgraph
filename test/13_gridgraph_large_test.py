@@ -40,7 +40,7 @@ dijkstra_output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": y_size - 10},
     destination_node={"x": x_size - 10, "y": y_size - 10},
     cache=False,
-    algorithm_fn=Graph.dijkstra_makowski
+    algorithm_fn=Graph.dijkstra_makowski,
 )
 dijkstra_output_time = time() - dijkstra_output_start_time
 print("Dijkstra-Modified Output Time: ", dijkstra_output_time * 1000, "ms")
@@ -91,7 +91,9 @@ if hard_round(4, a_star_output["length"]) != hard_round(
     success = False
 if hard_round(4, output["length"]) != hard_round(4, cached_output["length"]):
     success = False
-if hard_round(4, bmssp_output["length"]) != hard_round(4, cached_output["length"]):
+if hard_round(4, bmssp_output["length"]) != hard_round(
+    4, cached_output["length"]
+):
     success = False
 if success:
     print("GridGraph + Cache Test: PASS")

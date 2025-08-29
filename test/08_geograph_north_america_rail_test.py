@@ -146,6 +146,8 @@ def a_star_cheap_ruler():
             "heuristic_fn": north_america_rail_geograph.cheap_ruler
         },
     )
+
+
 def bmssp():
     north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,

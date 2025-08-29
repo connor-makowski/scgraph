@@ -116,27 +116,19 @@ time_test(
 
 time_test(
     "BMSSP 1",
-    pamda.thunkify(Graph.bmssp)(
-        graph=graph,
-        origin_id=0,
-        destination_id=5
-    ),
+    pamda.thunkify(Graph.bmssp)(graph=graph, origin_id=0, destination_id=5),
 )
 
 time_test(
     "BMSSP 2",
     pamda.thunkify(Graph.bmssp)(
-        graph=graph,
-        origin_id=100,
-        destination_id=7999
+        graph=graph, origin_id=100, destination_id=7999
     ),
 )
 
 time_test(
     "BMSSP 3",
     pamda.thunkify(Graph.bmssp)(
-        graph=graph,
-        origin_id=4022,
-        destination_id=8342
+        graph=graph, origin_id=4022, destination_id=8342
     ),
 )

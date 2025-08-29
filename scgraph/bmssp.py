@@ -1,7 +1,7 @@
 from heapq import heappush, heappop
 from math import ceil, log
 
-inf = float('inf')
+inf = float("inf")
 
 
 class BmsspDataStructure:
@@ -9,6 +9,7 @@ class BmsspDataStructure:
     Data structure for inserting, updating and pulling the M smallest key-value pairs
     together with a lower bound on the remaining values (or B if empty), as required by Alg. 3.
     """
+
     def __init__(self, subset_size: int, upper_bound: int | float):
         # subset_size: how many items to return per pull (must match Alg. 3 for level l -> Given as M)
         self.subset_size = max(1, subset_size)
@@ -40,7 +41,7 @@ class BmsspDataStructure:
         """
         Check for empty data structure.
         """
-        return len(self.best)==0
+        return len(self.best) == 0
 
     def pull(self):
         """
@@ -60,7 +61,9 @@ class BmsspDataStructure:
             count += 1
 
         # Compute lower bound for remaining
-        remaining_best = min(self.best.values()) if self.best else self.upper_bound
+        remaining_best = (
+            min(self.best.values()) if self.best else self.upper_bound
+        )
         return remaining_best, subset
 
 
@@ -96,24 +99,36 @@ class BmsspSolver:
             raise ValueError("Your provided graph must have more than 2 nodes")
 
         # Practical choices (k and t) based on n
-        self.pivot_relaxation_steps = max(2, int(log(self.graph_length) ** (1 / 3.0)))  # k
+        self.pivot_relaxation_steps = max(
+            2, int(log(self.graph_length) ** (1 / 3.0))
+        )  # k
         # Modification: Change int to ceil
-        self.target_tree_depth = max(2, ceil(log(self.graph_length) ** (2 / 3.0)))      # t
+        self.target_tree_depth = max(
+            2, ceil(log(self.graph_length) ** (2 / 3.0))
+        )  # t
 
         # Compute max_tree_depth based on k and t
-        self.max_tree_depth = int(ceil(log(max(2, self.graph_length)) / max(1, self.target_tree_depth)))
+        self.max_tree_depth = int(
+            ceil(
+                log(max(2, self.graph_length)) / max(1, self.target_tree_depth)
+            )
+        )
 
         # Run the solver algorithm
-        upper_bound, frontier = self.recursive_bmssp(self.max_tree_depth, inf, {origin_id})
+        upper_bound, frontier = self.recursive_bmssp(
+            self.max_tree_depth, inf, {origin_id}
+        )
 
-    def find_pivots(self, upper_bound: int | float, frontier: set[int]) -> tuple[set[int], set[int]]:
+    def find_pivots(
+        self, upper_bound: int | float, frontier: set[int]
+    ) -> tuple[set[int], set[int]]:
         """
-        Function: 
-        
+        Function:
+
         - Finds pivot sets pivots and temp_frontier according to Algorithm 1.
 
         Required Arguments:
-        
+
         - upper_bound:
             - Type: int | float
             - What: The upper bound threshold (B)
@@ -142,7 +157,9 @@ class BmsspSolver:
             curr_frontier = set()
             for prev_frontier_idx in prev_frontier:
                 prev_frontier_distance = self.distance_matrix[prev_frontier_idx]
-                for connection_idx, connection_distance in self.graph[prev_frontier_idx].items():
+                for connection_idx, connection_distance in self.graph[
+                    prev_frontier_idx
+                ].items():
                     new_distance = prev_frontier_distance + connection_distance
                     # Important: Allow equality on relaxations
                     if new_distance <= self.distance_matrix[connection_idx]:
@@ -164,8 +181,17 @@ class BmsspSolver:
         indegree = {i: 0 for i in temp_frontier}
         for frontier_idx in temp_frontier:
             frontier_distance = self.distance_matrix[frontier_idx]
-            for connection_idx, connection_distance in self.graph[frontier_idx].items():
-                if connection_idx in temp_frontier and abs((frontier_distance + connection_distance) - self.distance_matrix[connection_idx]) < 1e-12:
+            for connection_idx, connection_distance in self.graph[
+                frontier_idx
+            ].items():
+                if (
+                    connection_idx in temp_frontier
+                    and abs(
+                        (frontier_distance + connection_distance)
+                        - self.distance_matrix[connection_idx]
+                    )
+                    < 1e-12
+                ):
                     # direction is frontier_idx -> connection_idx (parent to child)
                     forest_adj[frontier_idx].add(connection_idx)
                     indegree[connection_idx] += 1
@@ -193,7 +219,9 @@ class BmsspSolver:
 
         return pivots, temp_frontier
 
-    def base_case(self, upper_bound: int | float, frontier: set[int]) -> tuple[int | float, set[int]]:
+    def base_case(
+        self, upper_bound: int | float, frontier: set[int]
+    ) -> tuple[int | float, set[int]]:
         """
         Function:
 
@@ -229,9 +257,14 @@ class BmsspSolver:
                 continue
             visited.add(frontier_idx)
             new_frontier.add(frontier_idx)
-            for connection_idx, connection_distance in self.graph[frontier_idx].items():
+            for connection_idx, connection_distance in self.graph[
+                frontier_idx
+            ].items():
                 new_distance = frontier_distance + connection_distance
-                if new_distance <= self.distance_matrix[connection_idx] and new_distance < upper_bound:
+                if (
+                    new_distance <= self.distance_matrix[connection_idx]
+                    and new_distance < upper_bound
+                ):
                     # Addition: Add predecessor tracking
                     if new_distance < self.distance_matrix[connection_idx]:
                         self.predecessor[connection_idx] = frontier_idx
@@ -241,13 +274,19 @@ class BmsspSolver:
         # If we exceeded k, trim by new boundary B' = max db over visited and return new_frontier = {db < B'}
         if len(new_frontier) > self.pivot_relaxation_steps:
             new_upper_bound = max(self.distance_matrix[i] for i in new_frontier)
-            new_frontier = {i for i in new_frontier if self.distance_matrix[i] < new_upper_bound}
+            new_frontier = {
+                i
+                for i in new_frontier
+                if self.distance_matrix[i] < new_upper_bound
+            }
             return new_upper_bound, new_frontier
         else:
             # Success for this base case: return current upper_bound unchanged and the completed set
             return upper_bound, new_frontier
 
-    def recursive_bmssp(self, recursion_depth: int, upper_bound: int | float, frontier: set[int]) -> tuple[int | float, set[int]]:
+    def recursive_bmssp(
+        self, recursion_depth: int, upper_bound: int | float, frontier: set[int]
+    ) -> tuple[int | float, set[int]]:
         """
         Function:
 
@@ -284,30 +323,42 @@ class BmsspSolver:
         # Step 5–6: initialize data_struct with pivots
         # subset_size = 2^((l-1) * t)
         subset_size = 2 ** ((recursion_depth - 1) * self.target_tree_depth)
-        data_struct = BmsspDataStructure(subset_size=subset_size, upper_bound=upper_bound)
+        data_struct = BmsspDataStructure(
+            subset_size=subset_size, upper_bound=upper_bound
+        )
         for pivot in pivots:
             data_struct.insert_key_value(pivot, self.distance_matrix[pivot])
 
         # Track new_frontier and B' according to Algorithm 3
         new_frontier = set()
-        min_pivot_distance = min((self.distance_matrix[p] for p in pivots), default=upper_bound)
+        min_pivot_distance = min(
+            (self.distance_matrix[p] for p in pivots), default=upper_bound
+        )
         last_min_pivot_distance = min_pivot_distance
 
         # Work budget that scales with level: k^(2*l*t)
         # k = self.pivot_relaxation_steps
         # t = self.target_tree_depth
-        work_budget = self.pivot_relaxation_steps ** (2 * recursion_depth * self.target_tree_depth)
+        work_budget = self.pivot_relaxation_steps ** (
+            2 * recursion_depth * self.target_tree_depth
+        )
 
         # Main loop
         while len(new_frontier) < work_budget and not data_struct.is_empty():
             # Step 10: Pull from data_struct: get data_struct_frontier_i and upper_bound_i
-            data_struct_frontier_bound_i, data_struct_frontier_i = data_struct.pull()
+            data_struct_frontier_bound_i, data_struct_frontier_i = (
+                data_struct.pull()
+            )
             if not data_struct_frontier_i:
                 # data_struct is empty -> success at this level
                 break
 
             # Step 11: Recurse on (l-1, data_struct_frontier_bound_i, data_struct_frontier_i)
-            last_min_pivot_distance_i, new_frontier_i = self.recursive_bmssp(recursion_depth - 1, data_struct_frontier_bound_i, data_struct_frontier_i)
+            last_min_pivot_distance_i, new_frontier_i = self.recursive_bmssp(
+                recursion_depth - 1,
+                data_struct_frontier_bound_i,
+                data_struct_frontier_i,
+            )
 
             # Track results
             new_frontier.update(new_frontier_i)
@@ -319,7 +370,9 @@ class BmsspSolver:
             # Step 14–20: relax edges from new_frontier_i and enqueue into D or intermediate_frontier per their interval
             for new_frontier_idx in new_frontier_i:
                 new_frontier_distance = self.distance_matrix[new_frontier_idx]
-                for connection_idx, connection_distance in self.graph[new_frontier_idx].items():
+                for connection_idx, connection_distance in self.graph[
+                    new_frontier_idx
+                ].items():
                     # Addition: Avoid self-loops
                     if connection_idx == new_frontier_idx:
                         continue
@@ -330,30 +383,47 @@ class BmsspSolver:
                             self.predecessor[connection_idx] = new_frontier_idx
                             self.distance_matrix[connection_idx] = new_distance
                         # Insert based on which interval the new distance falls into
-                        if data_struct_frontier_bound_i <= new_distance < upper_bound:
-                            data_struct.insert_key_value(connection_idx, new_distance)
-                        elif last_min_pivot_distance_i <= new_distance < data_struct_frontier_bound_i:
-                            intermediate_frontier.add((connection_idx, new_distance))
+                        if (
+                            data_struct_frontier_bound_i
+                            <= new_distance
+                            < upper_bound
+                        ):
+                            data_struct.insert_key_value(
+                                connection_idx, new_distance
+                            )
+                        elif (
+                            last_min_pivot_distance_i
+                            <= new_distance
+                            < data_struct_frontier_bound_i
+                        ):
+                            intermediate_frontier.add(
+                                (connection_idx, new_distance)
+                            )
 
             # Step 21: Batch prepend intermediate_frontier plus filtered data_struct_frontier_i in last_min_pivot_distance_i, data_struct_frontier_bound_i)
-            data_struct_frontier_i_filtered = {(x, self.distance_matrix[x]) for x in data_struct_frontier_i
-                            if last_min_pivot_distance_i <= self.distance_matrix[x] < data_struct_frontier_bound_i}
-            for frontier_idx, frontier_distance in (intermediate_frontier | data_struct_frontier_i_filtered):
+            data_struct_frontier_i_filtered = {
+                (x, self.distance_matrix[x])
+                for x in data_struct_frontier_i
+                if last_min_pivot_distance_i
+                <= self.distance_matrix[x]
+                < data_struct_frontier_bound_i
+            }
+            for frontier_idx, frontier_distance in (
+                intermediate_frontier | data_struct_frontier_i_filtered
+            ):
                 data_struct.insert_key_value(frontier_idx, frontier_distance)
 
         # Step 22: Final return
-        return min(last_min_pivot_distance, upper_bound), new_frontier | {v for v in temp_frontier if self.distance_matrix[v] < last_min_pivot_distance}
+        return min(last_min_pivot_distance, upper_bound), new_frontier | {
+            v
+            for v in temp_frontier
+            if self.distance_matrix[v] < last_min_pivot_distance
+        }
 
 
 # Add a special test case directly to the bmssp algorithm to test it if this file is directly called
 if __name__ == "__main__":
-    graph = [
-        {1:1,2:1},
-        {2:1,3:3},
-        {3:1,4:2},
-        {4:1},
-        {}
-    ]
+    graph = [{1: 1, 2: 1}, {2: 1, 3: 3}, {3: 1, 4: 2}, {4: 1}, {}]
     solver = BmsspSolver(graph, 0)
     if solver.distance_matrix != [0, 1, 1, 2, 3]:
         print("BMSSP Test: Failed")

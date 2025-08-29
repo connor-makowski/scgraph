@@ -179,6 +179,7 @@ def cached_spanning_tree_second_call():
         cache=True,
     )
 
+
 def bmssp():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,

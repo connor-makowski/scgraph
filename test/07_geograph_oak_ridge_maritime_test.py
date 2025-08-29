@@ -145,6 +145,7 @@ def a_star_cheap_ruler():
         },
     )
 
+
 def bmssp():
     oak_ridge_maritime_geograph.get_shortest_path(
         origin_node=origin_node,

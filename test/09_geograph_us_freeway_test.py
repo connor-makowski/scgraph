@@ -153,6 +153,7 @@ def a_star_cheap_ruler():
         algorithm_kwargs={"heuristic_fn": us_freeway_geograph.cheap_ruler},
     )
 
+
 def bmssp():
     us_freeway_geograph.get_shortest_path(
         origin_node=origin_node,
