@@ -628,7 +628,7 @@ class Graph:
         """
         Function:
 
-        - A Full BMSSP-style shortest path solver with a Dijkstra finalizer for non-relaxed edges.
+        - A Full BMSSP-style shortest path solver.
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
             - `path`: A list of node dictionaries (lat + long) in the order they are visited
