@@ -1,70 +1,58 @@
 from heapq import heappush, heappop
 from math import ceil, log
 
+from .bmssp_data_structure import BmsspDataStructure
+
 inf = float("inf")
 
+# def cnt_reachable_nodes(root: int, forest: dict[int, set[int]]) -> int:
+#     """
+#     Function:
 
-class BmsspDataStructure:
+#     - Return the number of nodes reachable from root in the directed forest defined by forest.
+
+#     Required Arguments:
+
+#     - `root`
+#         - Type: int
+#         - What: The starting node for the DFS traversal.
+#     - `forest`
+#         - Type: dict[int, set[int]]
+#         - What: Adjacency list representing the directed forest.
+#     """
+#     seen = set()
+#     diff = {root}
+#     while diff:
+#         seen.update(diff)
+#         diff = set([idx for v in diff for idx in forest[v]]) - seen
+#     return len(seen)
+
+def cnt_reachable_nodes(root: int, forest: dict[int, set[int]]) -> int:
     """
-    Data structure for inserting, updating and pulling the M smallest key-value pairs
-    together with a lower bound on the remaining values (or B if empty), as required by Alg. 3.
+    Function:
+
+    - Return the number of nodes reachable from root in the directed forest defined by forest.
+
+    Required Arguments:
+
+    - `root`
+        - Type: int
+        - What: The starting node for the DFS traversal.
+    - `forest`
+        - Type: dict[int, set[int]]
+        - What: Adjacency list representing the directed forest.
     """
-
-    def __init__(self, subset_size: int, upper_bound: int | float):
-        # subset_size: how many items to return per pull (must match Alg. 3 for level l -> Given as M)
-        self.subset_size = max(1, subset_size)
-        self.upper_bound = upper_bound
-        self.best = {}
-        self.heap = []
-
-    def insert_key_value(self, key: int, value: int | float):
-        """
-        Insert/refresh a key-value pair; keeps only the best value per key.
-        """
-        if value < self.best.get(key, inf):
-            self.best[key] = value
-            heappush(self.heap, (value, key))
-
-    def __pop_current__(self):
-        """
-        Pop the current minimum key that matches self.best.
-        Returns None if heap is exhausted of current items.
-        """
-        while self.heap:
-            value, key = heappop(self.heap)
-            if self.best.get(key, inf) == value:
-                self.best.pop(key, None)  # Remove stale key
-                return key
-        return None
-
-    def is_empty(self) -> bool:
-        """
-        Check for empty data structure.
-        """
-        return len(self.best) == 0
-
-    def pull(self):
-        """
-        Return (remaining_best, subset) where subset is up to self.subset_size keys with *globally* smallest values.
-        Remove the returned keys from the structure (matching Alg. 3 semantics).
-        remaining_best is the smallest value still present after removal, or self.upper_bound if empty.
-        """
-        subset = set()
-        count = 0
-
-        # Take up to M distinct current keys
-        while count < self.subset_size:
-            key = self.__pop_current__()
-            if key is None:
-                break
-            subset.add(key)
-            count += 1
-
-        # Compute lower bound for remaining
-        remaining_best = (
-            min(self.best.values()) if self.best else self.upper_bound
-        )
-        return remaining_best, subset
+    seen = set()
+    stack = [root]
+    cnt = 0
+    while stack:
+        x = stack.pop()
+        if x in seen:
+            continue
+        seen.add(x)
+        cnt += 1
+        stack.extend(forest[x])
+    return cnt
 
 
 class BmsspSolver:
@@ -79,7 +67,6 @@ class BmsspSolver:
         - graph:
             - Type: list[dict[int, int | float]]
             - Description: The graph is represented as an adjacency list, where each node points to a dictionary of its neighbors and their edge weights.
-            - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - origin_id:
             - Type: int
             - What: The ID of the starting node for the BMSSP algorithm.
@@ -92,6 +79,7 @@ class BmsspSolver:
         self.original_graph_length = len(graph)
         self.graph_length = len(self.graph)
         self.distance_matrix = [inf] * self.graph_length
+        # Addition: Initialize Predecessor array for path reconstruction
         self.predecessor = [-1] * self.graph_length
         self.distance_matrix[origin_id] = 0
 
@@ -110,8 +98,8 @@ class BmsspSolver:
         # Compute max_tree_depth based on k and t
         self.max_tree_depth = int(
             ceil(
-                log(max(2, self.graph_length)) / max(1, self.target_tree_depth)
-            )
+                    log(max(2, self.graph_length)) / self.target_tree_depth
+                )
         )
 
         # Run the solver algorithm
@@ -177,7 +165,7 @@ class BmsspSolver:
             prev_frontier = curr_frontier
 
         # Build tight-edge forest F on temp_frontier: edges (u -> v) with db[u] + w == db[v]
-        forest_adj = {i: set() for i in temp_frontier}
+        forest = {i: set() for i in temp_frontier}
         indegree = {i: 0 for i in temp_frontier}
         for frontier_idx in temp_frontier:
             frontier_distance = self.distance_matrix[frontier_idx]
@@ -193,27 +181,14 @@ class BmsspSolver:
                     < 1e-12
                 ):
                     # direction is frontier_idx -> connection_idx (parent to child)
-                    forest_adj[frontier_idx].add(connection_idx)
+                    forest[frontier_idx].add(connection_idx)
                     indegree[connection_idx] += 1
 
-        # Non-sticky DFS that counts size of the reachable tree
-        def dfs_count(root):
-            seen = set()
-            stack = [root]
-            cnt = 0
-            while stack:
-                x = stack.pop()
-                if x in seen:
-                    continue
-                seen.add(x)
-                cnt += 1
-                stack.extend(forest_adj[x])
-            return cnt
 
         pivots = set()
         for frontier_idx in frontier:
             if indegree.get(frontier_idx, 0) == 0:
-                size = dfs_count(frontier_idx)
+                size = cnt_reachable_nodes(frontier_idx, forest=forest)
                 if size >= self.pivot_relaxation_steps:
                     pivots.add(frontier_idx)
 
@@ -248,14 +223,12 @@ class BmsspSolver:
         new_frontier = set()
         heap = []
         heappush(heap, (self.distance_matrix[first_frontier], first_frontier))
-        # Addition: Add visited check to prevent reprocessing and dropping into infinite loops
-        visited = set()
-        # grow until we exceed pivot_relaxation_steps (practical limit), as in Algorithm 2
+        # Grow until we exceed pivot_relaxation_steps (practical limit), as in Algorithm 2
         while heap and len(new_frontier) < self.pivot_relaxation_steps + 1:
             frontier_distance, frontier_idx = heappop(heap)
-            if frontier_idx in visited:
+            # Addition: Add check to ensure that we do not get caught in a relaxation loop
+            if frontier_idx in new_frontier:
                 continue
-            visited.add(frontier_idx)
             new_frontier.add(frontier_idx)
             for connection_idx, connection_distance in self.graph[
                 frontier_idx
@@ -326,8 +299,8 @@ class BmsspSolver:
         data_struct = BmsspDataStructure(
             subset_size=subset_size, upper_bound=upper_bound
         )
-        for pivot in pivots:
-            data_struct.insert_key_value(pivot, self.distance_matrix[pivot])
+
+        data_struct.batch_insert({(p, self.distance_matrix[p]) for p in pivots})
 
         # Track new_frontier and B' according to Algorithm 3
         new_frontier = set()
@@ -408,10 +381,8 @@ class BmsspSolver:
                 <= self.distance_matrix[x]
                 < data_struct_frontier_bound_i
             }
-            for frontier_idx, frontier_distance in (
-                intermediate_frontier | data_struct_frontier_i_filtered
-            ):
-                data_struct.insert_key_value(frontier_idx, frontier_distance)
+
+            data_struct.batch_insert(intermediate_frontier | data_struct_frontier_i_filtered)
 
         # Step 22: Final return
         return min(last_min_pivot_distance, upper_bound), new_frontier | {
@@ -419,13 +390,3 @@ class BmsspSolver:
             for v in temp_frontier
             if self.distance_matrix[v] < last_min_pivot_distance
         }
-
-
-# Add a special test case directly to the bmssp algorithm to test it if this file is directly called
-if __name__ == "__main__":
-    graph = [{1: 1, 2: 1}, {2: 1, 3: 3}, {3: 1, 4: 2}, {4: 1}, {}]
-    solver = BmsspSolver(graph, 0)
-    if solver.distance_matrix != [0, 1, 1, 2, 3]:
-        print("BMSSP Test: Failed")
-    else:
-        print("BMSSP Test: Passed")
