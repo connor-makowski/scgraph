@@ -56,7 +56,7 @@ def cnt_reachable_nodes(root: int, forest: dict[int, set[int]]) -> int:
 
 
 class BmsspSolver:
-    def __init__(self, graph: list[dict[int, int | float]], origin_id: int):
+    def __init__(self, graph: list[dict[int, int | float]], origin_ids: set[int] | int):
         """
         Function:
 
@@ -67,44 +67,47 @@ class BmsspSolver:
         - graph:
             - Type: list[dict[int, int | float]]
             - Description: The graph is represented as an adjacency list, where each node points to a dictionary of its neighbors and their edge weights.
-        - origin_id:
-            - Type: int
-            - What: The ID of the starting node for the BMSSP algorithm.
+        - origin_ids:
+            - Type: set[int] | int
+            - What: The IDs of the starting nodes for the BMSSP algorithm.
+            - Note: Can be a single integer or a set of integers.
 
         Optional Arguments:
 
         - None
         """
+        if isinstance(origin_ids, int):
+            origin_ids = {origin_ids}
         self.graph = graph
-        self.original_graph_length = len(graph)
-        self.graph_length = len(self.graph)
-        self.distance_matrix = [inf] * self.graph_length
+        graph_len = len(graph)
+        self.distance_matrix = [inf] * graph_len
         # Addition: Initialize Predecessor array for path reconstruction
-        self.predecessor = [-1] * self.graph_length
-        self.distance_matrix[origin_id] = 0
+        self.predecessor = [-1] * graph_len
+        for origin_id in origin_ids:
+            self.distance_matrix[origin_id] = 0
 
-        if self.graph_length <= 2:
+        if graph_len <= 2:
             raise ValueError("Your provided graph must have more than 2 nodes")
 
         # Practical choices (k and t) based on n
         self.pivot_relaxation_steps = max(
-            2, int(log(self.graph_length) ** (1 / 3.0))
+            2, int(log(graph_len) ** (1 / 3.0))
         )  # k
         # Modification: Change int to ceil
         self.target_tree_depth = max(
-            2, ceil(log(self.graph_length) ** (2 / 3.0))
+            2, ceil(log(graph_len) ** (2 / 3.0))
         )  # t
 
         # Compute max_tree_depth based on k and t
         self.max_tree_depth = int(
             ceil(
-                    log(max(2, self.graph_length)) / self.target_tree_depth
+                    log(max(2, graph_len)) / self.target_tree_depth
                 )
         )
 
         # Run the solver algorithm
         upper_bound, frontier = self.recursive_bmssp(
-            self.max_tree_depth, inf, {origin_id}
+            self.max_tree_depth, inf, origin_ids
         )
 
     def find_pivots(
@@ -174,11 +177,8 @@ class BmsspSolver:
             ].items():
                 if (
                     connection_idx in temp_frontier
-                    and abs(
-                        (frontier_distance + connection_distance)
-                        - self.distance_matrix[connection_idx]
-                    )
-                    < 1e-12
+                    and 
+                    (frontier_distance + connection_distance) == self.distance_matrix[connection_idx]
                 ):
                     # direction is frontier_idx -> connection_idx (parent to child)
                     forest[frontier_idx].add(connection_idx)

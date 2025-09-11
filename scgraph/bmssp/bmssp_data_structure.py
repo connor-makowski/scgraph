@@ -1,4 +1,4 @@
-from heapq import heappush, heappop
+from heapq import heappush, heappop, heapify
 
 inf = float("inf")
 class BmsspDataStructure:
@@ -22,7 +22,7 @@ class BmsspDataStructure:
             self.best[key] = value
             heappush(self.heap, (value, key))
 
-    def __pop_current__(self):
+    def pop_current(self):
         """
         Pop the current minimum key that matches self.best.
         Returns None if heap is exhausted of current items.
@@ -51,7 +51,7 @@ class BmsspDataStructure:
 
         # Take up to M distinct current keys
         while count < self.subset_size:
-            key = self.__pop_current__()
+            key = self.pop_current()
             if key is None:
                 break
             subset.add(key)
@@ -71,3 +71,16 @@ class BmsspDataStructure:
             if value < self.best.get(key, inf):
                 self.best[key] = value
                 heappush(self.heap, (value, key))
+
+    # def batch_insert_alt(self, key_value_pairs: set[tuple[int, int | float]]):
+    #     """
+    #     Insert/refresh multiple key-value pairs at once.
+    #     This only recalculates the invariant heap once at the end, which is faster for large batches.
+    #     - Note: In testing, this was found to be slower.
+    #     """
+    #     for key, value in key_value_pairs:
+    #         if value < self.best.get(key, inf):
+    #             self.best[key] = value
+    #             self.heap.append((value, key))
+    #     # Re-heapify after bulk insertion
+    #     heapify(self.heap)
