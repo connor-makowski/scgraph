@@ -101,7 +101,7 @@ class BmsspSolver:
         # Compute max_tree_depth based on k and t
         self.max_tree_depth = int(
             ceil(
-                    log(max(2, graph_len)) / self.target_tree_depth
+                    log(graph_len) / self.target_tree_depth
                 )
         )
 
@@ -304,10 +304,10 @@ class BmsspSolver:
 
         # Track new_frontier and B' according to Algorithm 3
         new_frontier = set()
+        # Addition: Store the min_pivot_distance for use if the frontier is empty and we break early (skip the B_prime_0 process)
         min_pivot_distance = min(
             (self.distance_matrix[p] for p in pivots), default=upper_bound
         )
-        last_min_pivot_distance = min_pivot_distance
 
         # Work budget that scales with level: k^(2*l*t)
         # k = self.pivot_relaxation_steps
@@ -318,30 +318,30 @@ class BmsspSolver:
 
         # Main loop
         while len(new_frontier) < work_budget and not data_struct.is_empty():
-            # Step 10: Pull from data_struct: get data_struct_frontier_i and upper_bound_i
-            data_struct_frontier_bound_i, data_struct_frontier_i = (
+            # Step 10: Pull from data_struct: get data_struct_frontier_temp and upper_bound_i
+            data_struct_frontier_bound_temp, data_struct_frontier_temp = (
                 data_struct.pull()
             )
-            if not data_struct_frontier_i:
+            # Addition: If data_struct_frontier_temp is empty, we have succeeded at this level and can break early
+            if not data_struct_frontier_temp:
                 # data_struct is empty -> success at this level
                 break
 
-            # Step 11: Recurse on (l-1, data_struct_frontier_bound_i, data_struct_frontier_i)
-            last_min_pivot_distance_i, new_frontier_i = self.recursive_bmssp(
+            # Step 11: Recurse on (l-1, data_struct_frontier_bound_temp, data_struct_frontier_temp)
+            min_pivot_distance, new_frontier_temp = self.recursive_bmssp(
                 recursion_depth - 1,
-                data_struct_frontier_bound_i,
-                data_struct_frontier_i,
+                data_struct_frontier_bound_temp,
+                data_struct_frontier_temp,
             )
 
             # Track results
-            new_frontier.update(new_frontier_i)
-            last_min_pivot_distance = last_min_pivot_distance_i  # If we later stop due to budget, we must return the last_min_pivot_distance
+            new_frontier.update(new_frontier_temp)
 
             # Step 13: Initialize intermediate_frontier to batch-prepend
             intermediate_frontier = set()
 
-            # Step 14–20: relax edges from new_frontier_i and enqueue into D or intermediate_frontier per their interval
-            for new_frontier_idx in new_frontier_i:
+            # Step 14–20: relax edges from new_frontier_temp and enqueue into D or intermediate_frontier per their interval
+            for new_frontier_idx in new_frontier_temp:
                 new_frontier_distance = self.distance_matrix[new_frontier_idx]
                 for connection_idx, connection_distance in self.graph[
                     new_frontier_idx
@@ -357,7 +357,7 @@ class BmsspSolver:
                             self.distance_matrix[connection_idx] = new_distance
                         # Insert based on which interval the new distance falls into
                         if (
-                            data_struct_frontier_bound_i
+                            data_struct_frontier_bound_temp
                             <= new_distance
                             < upper_bound
                         ):
@@ -365,28 +365,29 @@ class BmsspSolver:
                                 connection_idx, new_distance
                             )
                         elif (
-                            last_min_pivot_distance_i
+                            min_pivot_distance
                             <= new_distance
-                            < data_struct_frontier_bound_i
+                            < data_struct_frontier_bound_temp
                         ):
                             intermediate_frontier.add(
                                 (connection_idx, new_distance)
                             )
 
-            # Step 21: Batch prepend intermediate_frontier plus filtered data_struct_frontier_i in last_min_pivot_distance_i, data_struct_frontier_bound_i)
-            data_struct_frontier_i_filtered = {
+            # Step 21: Batch prepend intermediate_frontier plus filtered data_struct_frontier_temp in min_pivot_distance, data_struct_frontier_bound_temp)
+            data_struct_frontier_temp_filtered = {
                 (x, self.distance_matrix[x])
-                for x in data_struct_frontier_i
-                if last_min_pivot_distance_i
+                for x in data_struct_frontier_temp
+                if min_pivot_distance
                 <= self.distance_matrix[x]
-                < data_struct_frontier_bound_i
+                < data_struct_frontier_bound_temp
             }
 
-            data_struct.batch_insert(intermediate_frontier | data_struct_frontier_i_filtered)
+            data_struct.batch_insert(intermediate_frontier | data_struct_frontier_temp_filtered)
 
         # Step 22: Final return
-        return min(last_min_pivot_distance, upper_bound), new_frontier | {
+        new_bound = min(min_pivot_distance, upper_bound)
+        return new_bound, new_frontier | {
             v
             for v in temp_frontier
-            if self.distance_matrix[v] < last_min_pivot_distance
+            if self.distance_matrix[v] < new_bound
         }
