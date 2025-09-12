@@ -322,10 +322,6 @@ class BmsspSolver:
             data_struct_frontier_bound_temp, data_struct_frontier_temp = (
                 data_struct.pull()
             )
-            # Addition: If data_struct_frontier_temp is empty, we have succeeded at this level and can break early
-            if not data_struct_frontier_temp:
-                # data_struct is empty -> success at this level
-                break
 
             # Step 11: Recurse on (l-1, data_struct_frontier_bound_temp, data_struct_frontier_temp)
             min_pivot_distance, new_frontier_temp = self.recursive_bmssp(
