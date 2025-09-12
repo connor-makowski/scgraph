@@ -5,28 +5,6 @@ from .bmssp_data_structure import BmsspDataStructure
 
 inf = float("inf")
 
-# def cnt_reachable_nodes(root: int, forest: dict[int, set[int]]) -> int:
-#     """
-#     Function:
-
-#     - Return the number of nodes reachable from root in the directed forest defined by forest.
-
-#     Required Arguments:
-
-#     - `root`
-#         - Type: int
-#         - What: The starting node for the DFS traversal.
-#     - `forest`
-#         - Type: dict[int, set[int]]
-#         - What: Adjacency list representing the directed forest.
-#     """
-#     seen = set()
-#     diff = {root}
-#     while diff:
-#         seen.update(diff)
-#         diff = set([idx for v in diff for idx in forest[v]]) - seen
-#     return len(seen)
-
 def cnt_reachable_nodes(root: int, forest: dict[int, set[int]]) -> int:
     """
     Function:
@@ -299,12 +277,13 @@ class BmsspSolver:
         data_struct = BmsspDataStructure(
             subset_size=subset_size, upper_bound=upper_bound
         )
-
-        data_struct.batch_insert({(p, self.distance_matrix[p]) for p in pivots})
+        
+        for p in pivots:
+            data_struct.insert_key_value(p, self.distance_matrix[p])
 
         # Track new_frontier and B' according to Algorithm 3
         new_frontier = set()
-        # Addition: Store the min_pivot_distance for use if the frontier is empty and we break early (skip the B_prime_0 process)
+        # Store the min_pivot_distance for use if the frontier is empty and we break early
         min_pivot_distance = min(
             (self.distance_matrix[p] for p in pivots), default=upper_bound
         )
@@ -378,7 +357,7 @@ class BmsspSolver:
                 < data_struct_frontier_bound_temp
             }
 
-            data_struct.batch_insert(intermediate_frontier | data_struct_frontier_temp_filtered)
+            data_struct.batch_prepend(intermediate_frontier | data_struct_frontier_temp_filtered)
 
         # Step 22: Final return
         new_bound = min(min_pivot_distance, upper_bound)

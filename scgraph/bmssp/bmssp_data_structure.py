@@ -16,11 +16,10 @@ class BmsspDataStructure:
 
     def insert_key_value(self, key: int, value: int | float):
         """
-        Insert/refresh a key-value pair; keeps only the best value per key.
+        Insert/refresh a key-value pair;
         """
-        if value < self.best.get(key, inf):
-            self.best[key] = value
-            heappush(self.heap, (value, key))
+        self.best[key] = value
+        heappush(self.heap, (value, key))
 
     def pop_current(self):
         """
@@ -63,7 +62,7 @@ class BmsspDataStructure:
         )
         return remaining_best, subset
 
-    def batch_insert(self, key_value_pairs: set[tuple[int, int | float]]):
+    def batch_prepend(self, key_value_pairs: set[tuple[int, int | float]]):
         """
         Insert/refresh multiple key-value pairs at once.
         """
@@ -72,7 +71,7 @@ class BmsspDataStructure:
                 self.best[key] = value
                 heappush(self.heap, (value, key))
 
-    # def batch_insert_alt(self, key_value_pairs: set[tuple[int, int | float]]):
+    # def batch_prepend_alt(self, key_value_pairs: set[tuple[int, int | float]]):
     #     """
     #     Insert/refresh multiple key-value pairs at once.
     #     This only recalculates the invariant heap once at the end, which is faster for large batches.
