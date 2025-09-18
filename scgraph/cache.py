@@ -4,7 +4,7 @@ from scgraph.graph import Graph
 
 class CacheGraph:
     """
-    A class allowing a graph to cache spanning trees to quickly compute shortest paths between nodes.
+    A class allowing a graph to cache shortest path trees to quickly compute shortest paths between nodes.
     This is useful for speeding up the computation of shortest when origins or destinations are often the same.
     """
 
@@ -17,7 +17,7 @@ class CacheGraph:
         - graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
-            - Note: The graph must be symmetric for the CacheGraph to work based on how it takes advantage of spanning trees.
+            - Note: The graph must be symmetric for the CacheGraph to work based on how it takes advantage of shortest path trees.
 
         Optional:
 
@@ -27,7 +27,7 @@ class CacheGraph:
             - Default: False
             - Note: This is useful to ensure the graph is valid before caching, but can be skipped for performance reasons if you are sure the graph is valid.
 
-        - Note: Take care when caching spanning trees to avoid memory issues. It is recommend to only cache for nodes that will be used often.
+        - Note: Take care when caching shortest path trees to avoid memory issues. It is recommend to only cache for nodes that will be used often.
         """
         if validate_graph:
             Graph.validate_graph(
@@ -45,8 +45,8 @@ class CacheGraph:
         """
         Function:
 
-        - Get the shortest path between two nodes in the graph attempting to use a cached spanning tree if available
-        - If a cached spanning tree is not available, it will compute the spanning tree and cache it for future use if specified by `cache`
+        - Get the shortest path between two nodes in the graph attempting to use a cached shortest path tree if available
+        - If a cached shortest path tree is not available, it will compute the shortest path tree and cache it for future use if specified by `cache`
 
         Requires:
 
@@ -57,15 +57,15 @@ class CacheGraph:
 
         - length_only: If True, only returns the length of the path
         """
-        spanning_tree = self.cache[origin_id]
-        if spanning_tree == 0:
-            spanning_tree = SpanningTree.makowskis_spanning_tree(
+        shortest_path_tree = self.cache[origin_id]
+        if shortest_path_tree == 0:
+            shortest_path_tree = SpanningTree.makowskis_spanning_tree(
                 graph=self.graph, node_id=origin_id
             )
-            self.cache[origin_id] = spanning_tree
+            self.cache[origin_id] = shortest_path_tree
         return SpanningTree.get_path(
             origin_id=origin_id,
             destination_id=destination_id,
-            spanning_tree=spanning_tree,
+            spanning_tree=shortest_path_tree,
             length_only=length_only,
         )

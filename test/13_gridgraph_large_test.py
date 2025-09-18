@@ -64,7 +64,7 @@ output = gridGraph.get_shortest_path(
     cache_for="origin",
 )
 output_start_time = time() - output_start_time
-print("Spanning Tree + Output Time: ", output_start_time * 1000, "ms")
+print("Shortest Path Tree + Output Time: ", output_start_time * 1000, "ms")
 
 cached_output_start_time = time()
 cached_output = gridGraph.get_shortest_path(
@@ -74,7 +74,7 @@ cached_output = gridGraph.get_shortest_path(
     cache_for="origin",
 )
 cached_output_time = time() - cached_output_start_time
-print("Cached Spanning Tree Output Time: ", cached_output_time * 1000, "ms")
+print("Cached Shortest Path Tree Output Time: ", cached_output_time * 1000, "ms")
 
 print("")
 

@@ -94,7 +94,7 @@ validate(
 )
 
 validate(
-    name="Cached Spanning Tree First Call",
+    name="Cached Shortest Path Tree First Call",
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
@@ -104,7 +104,7 @@ validate(
 )
 
 validate(
-    name="Cached Spanning Tree Second Call",
+    name="Cached Shortest Path Tree Second Call",
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
@@ -164,7 +164,7 @@ def a_star_cheap_ruler():
     )
 
 
-def cached_spanning_tree_first_call():
+def cached_shortest_path_tree_first_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
@@ -172,7 +172,7 @@ def cached_spanning_tree_first_call():
     )
 
 
-def cached_spanning_tree_second_call():
+def cached_shortest_path_tree_second_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
@@ -191,8 +191,8 @@ def bmssp():
 time_test("Dijkstra-Modified", dijkstra_makowski)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
-time_test("Cached Spanning Tree First Call", cached_spanning_tree_first_call)
-time_test("Cached Spanning Tree Second Call", cached_spanning_tree_second_call)
+time_test("Cached Shortest Path Tree First Call", cached_shortest_path_tree_first_call)
+time_test("Cached Shortest Path Tree Second Call", cached_shortest_path_tree_second_call)
 time_test("BMSSP", bmssp)
 
 # marnet_geograph.save_as_geojson('marnet.geojson')

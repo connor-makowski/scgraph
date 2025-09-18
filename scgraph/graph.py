@@ -397,7 +397,7 @@ class Graph:
         - Identify the shortest path between two nodes in a sparse network graph using a modified Dijkstra algorithm that catches negative cycles
             - Negative cycles raise an exception if they are detected
         - Note: This algorithm is guaranteed to find the shortest path or raise an exception if a negative cycle is detected
-        - Note: This algorithm requires computing the entire spanning tree of the graph and is therefore not able to be terminated early
+        - Note: This algorithm requires computing the entire shorteest path tree of the graph and is therefore not able to be terminated early
             - For non negative weighted graphs, it is recommended to use the `dijkstra_makowski` algorithm instead
         - Note: For certain graphs with weights that are negative, this algorithm may run far slower than O((n+m) log n)
 

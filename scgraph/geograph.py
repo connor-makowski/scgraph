@@ -517,7 +517,7 @@ class GeoGraph:
             - Default: False
         - `cache`
             - Type: bool
-            - What: Whether to cache the spanning tree for future use
+            - What: Whether to cache the shortest path tree for future use
                 - Note: If true, the initial call will likely be slower than a non-cached call, but subsequent calls will be much faster
                 - Note: If true, this requires that both the node_addition_type and destination_node_addition_type are set to 'kdclosest' or 'closest'
                 - Note: Only the origin node is cached
@@ -1594,7 +1594,7 @@ class GeoGraph:
         """
         Function:
 
-        - Calculate the distance matrix for a list of nodes in a very efficient way using cached spanning trees and cached node addition distances
+        - Calculate the distance matrix for a list of nodes in a very efficient way using cached shortest path trees and cached node addition distances
         - This should run in O(((n+m)*log(n)*i) + (i*i)) time where i is the number of nodes in the distance matrix, n is the number of nodes in the graph, and m is the number of edges in the graph
            - Compare this to a naive matrix implementation time of O(((n+m)*log(n)*(i*i)) where paths are fetched for each pair of nodes in the distance matrix without caching
         - This is useful for calculating the distance between multiple nodes at the same time

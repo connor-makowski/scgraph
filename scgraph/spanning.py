@@ -7,7 +7,7 @@ class SpanningTree:
         """
         Function:
 
-        - Calculate the spanning tree of a graph using Makowski's modified Dijkstra algorithm
+        - Calculate the shortest path tree of a graph using Makowski's modified Dijkstra algorithm
             - Modifications allow for a sparse distance matrix to be used instead of a dense distance matrix
             - Improvements include only computing future potential nodes based on the open leaves for each branch
                 - Open leaves are nodes that have not been visited yet but are adjacent to other visited nodes
@@ -24,13 +24,13 @@ class SpanningTree:
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `node_id`
             - Type: int
-            - What: The id of the node from which to calculate the spanning tree
+            - What: The id of the node from which to calculate the shortest path tree
 
         Returns:
 
         - A dictionary with the following keys:
-            - `node_id`: The id of the node from which the spanning tree was calculated
-            - `predecessors`: A list of node ids referring to the predecessor of each node given the spanning tree
+            - `node_id`: The id of the node from which the shortest path tree was calculated
+            - `predecessors`: A list of node ids referring to the predecessor of each node given the shortest path tree
                 - Note: For disconnected graphs, nodes that are not connected to the origin node will have a predecessor of None
             - `distance_matrix`: A list of distances from the origin node to each node in the graph
                 - Note: For disconnected graphs, nodes that are not connected to the origin node will have a distance of float("inf")

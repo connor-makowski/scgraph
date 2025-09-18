@@ -58,11 +58,11 @@ validate(
     expected=expected,
 )
 
-spanning_tree = SpanningTree.makowskis_spanning_tree(graph=graph, node_id=0)
+shortest_path_tree = SpanningTree.makowskis_spanning_tree(graph=graph, node_id=0)
 validate(
-    name="Spanning Tree",
+    name="Shortest Path Tree",
     realized=SpanningTree.get_path(
-        origin_id=0, destination_id=5, spanning_tree=spanning_tree
+        origin_id=0, destination_id=5, spanning_tree=shortest_path_tree
     ),
     expected=expected,
 )
@@ -136,11 +136,11 @@ validate(
     expected=expected,
 )
 
-spanning_tree = SpanningTree.makowskis_spanning_tree(graph=graph, node_id=0)
+shortest_path_tree = SpanningTree.makowskis_spanning_tree(graph=graph, node_id=0)
 validate(
-    name="Spanning Tree",
+    name="Shortest Path Tree",
     realized=SpanningTree.get_path(
-        origin_id=0, destination_id=5, spanning_tree=spanning_tree
+        origin_id=0, destination_id=5, spanning_tree=shortest_path_tree
     ),
     expected=expected,
 )

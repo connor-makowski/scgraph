@@ -45,19 +45,19 @@ graph = [
 ]
 
 bmssp_solver = BmsspSolver(graph, 1)
-spanning_tree = SpanningTree.makowskis_spanning_tree(graph, 1)
+shortest_path_tree = SpanningTree.makowskis_spanning_tree(graph, 1)
 validate(
-    name="BMSSP Basic Graph Distancd Matrix",
+    name="BMSSP Basic Graph Distance Matrix",
     realized=bmssp_solver.distance_matrix,
-    expected=spanning_tree["distance_matrix"],
+    expected=shortest_path_tree["distance_matrix"],
 )
 
 bmssp_marnet_solver = BmsspSolver(marnet_graph, 1)
-marnet_spanning_tree = SpanningTree.makowskis_spanning_tree(marnet_graph, 1)
+marnet_shortest_path_tree = SpanningTree.makowskis_spanning_tree(marnet_graph, 1)
 validate(
-    name="BMSSP Marnet Graph Distancd Matrix",
+    name="BMSSP Marnet Graph Distance Matrix",
     realized=bmssp_marnet_solver.distance_matrix,
-    expected=marnet_spanning_tree["distance_matrix"],
+    expected=marnet_shortest_path_tree["distance_matrix"],
 )
 
 
@@ -144,21 +144,21 @@ time_test(
 # )
 
 time_test(
-    "Spanning Comparison (marnet)",
+    "Shortest Path Tree Comparison (marnet)",
     pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
         graph=marnet_graph, node_id=0
     ),
 )
 
 time_test(
-    "Spanning Comparison (us_freeway)",
+    "Shortest Path Tree Comparison (us_freeway)",
     pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
         graph=us_freeway_graph, node_id=0
     ),
 )
 
 # time_test(
-#     "Spanning Comparison (world_highways)",
+#     "Shortest Path Tree Comparison (world_highways)",
 #     pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
 #         graph=world_highways_and_marnet_graph,
 #         node_id=0

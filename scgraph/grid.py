@@ -440,11 +440,11 @@ class GridGraph:
                 - 'list_of_lists': A list of lists with the first value being x and the second being y
         - `cache`
             - Type: bool
-            - What: Whether to use the cache (save and reuse the spanning tree)
+            - What: Whether to use the cache (save and reuse the shortest path tree)
             - Default: False
         - `cache_for`
             - Type: str
-            - What: Whether to cache the spanning tree for the origin or destination node if `cache` is True
+            - What: Whether to cache the shortest path tree for the origin or destination node if `cache` is True
             - Default: 'origin'
             - Options: 'origin', 'destination'
         - `output_path`
