@@ -53,7 +53,9 @@ validate(
 )
 
 bmssp_marnet_solver = BmsspSolver(marnet_graph, 1)
-marnet_shortest_path_tree = SpanningTree.makowskis_spanning_tree(marnet_graph, 1)
+marnet_shortest_path_tree = SpanningTree.makowskis_spanning_tree(
+    marnet_graph, 1
+)
 validate(
     name="BMSSP Marnet Graph Distance Matrix",
     realized=bmssp_marnet_solver.distance_matrix,

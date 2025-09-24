@@ -74,7 +74,9 @@ cached_output = gridGraph.get_shortest_path(
     cache_for="origin",
 )
 cached_output_time = time() - cached_output_start_time
-print("Cached Shortest Path Tree Output Time: ", cached_output_time * 1000, "ms")
+print(
+    "Cached Shortest Path Tree Output Time: ", cached_output_time * 1000, "ms"
+)
 
 print("")
 

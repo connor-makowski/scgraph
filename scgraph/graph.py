@@ -230,7 +230,7 @@ class Graph:
         - Identify the shortest path between two nodes in a sparse network graph using a modified dijkstra algorithm
             - Modifications allow for a sparse distance matrix to be used instead of a dense distance matrix
             - This can dramatically reduce the memory and compute requirements of the algorithm
-            - This algorithm does not use a priority queue. 
+            - This algorithm does not use a priority queue.
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
             - `path`: A list of node dictionaries (lat + long) in the order they are visited

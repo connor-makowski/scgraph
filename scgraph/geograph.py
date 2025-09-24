@@ -56,7 +56,7 @@ class GeoGraph:
         """
         self.graph = graph
         self.nodes = nodes
-        self.__warm__=False
+        self.__warm__ = False
         self.__original_graph_length__ = len(graph)
 
     def warmup(self):
@@ -80,7 +80,7 @@ class GeoGraph:
         if not self.__warm__:
             self.geokdtree = GeoKDTree(points=self.nodes)
             self.cacheGraph = CacheGraph(graph=self.graph, validate_graph=False)
-            self.__warm__=True
+            self.__warm__ = True
 
     def validate_graph(
         self, check_symmetry: bool = True, check_connected: bool = True

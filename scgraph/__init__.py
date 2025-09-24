@@ -42,7 +42,7 @@ Or by using the BibTeX entry:
 @article{makowski2025scgraph,
   title={SCGraph: A Dependency-Free Python Package for Road, Rail, and Maritime Shortest Path Routing Generation and Distance Estimation},
   author={Makowski, Connor and Saragih, Austin and Guter, Willem and Russell, Tim and Heinold, Arne and Lekkakos, Spyridon},
-  journal={MIT Center for Transportation \& Logistics Research Paper Series},
+  journal={MIT Center for Transportation & Logistics Research Paper Series},
   number={2025-028},
   year={2025},
   url={https://ssrn.com/abstract=5388845}

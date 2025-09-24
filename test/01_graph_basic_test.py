@@ -58,7 +58,9 @@ validate(
     expected=expected,
 )
 
-shortest_path_tree = SpanningTree.makowskis_spanning_tree(graph=graph, node_id=0)
+shortest_path_tree = SpanningTree.makowskis_spanning_tree(
+    graph=graph, node_id=0
+)
 validate(
     name="Shortest Path Tree",
     realized=SpanningTree.get_path(
@@ -136,7 +138,9 @@ validate(
     expected=expected,
 )
 
-shortest_path_tree = SpanningTree.makowskis_spanning_tree(graph=graph, node_id=0)
+shortest_path_tree = SpanningTree.makowskis_spanning_tree(
+    graph=graph, node_id=0
+)
 validate(
     name="Shortest Path Tree",
     realized=SpanningTree.get_path(

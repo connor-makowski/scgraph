@@ -1,6 +1,8 @@
-from heapq import heappush, heappop, heapify
+from heapq import heappush, heappop
 
 inf = float("inf")
+
+
 class BmsspDataStructure:
     """
     Data structure for inserting, updating and pulling the M smallest key-value pairs
