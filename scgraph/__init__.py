@@ -2,8 +2,8 @@
 # SCGraph
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/)
-<!-- [![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/) -->
+[![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/)
+<!-- [![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/) -->
 
 
 ### A Supply chain graph package for Python
@@ -122,7 +122,7 @@ output = marnet_geograph.get_shortest_path(
 )
 ```
 
-Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 50 nano seconds per distance for large enough distance matricies).
+Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 500 nano seconds per distance for large enough distance matricies).
 ```py
 from scgraph.geographs.us_freeway import us_freeway_geograph
 
