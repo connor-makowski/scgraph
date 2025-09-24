@@ -121,7 +121,7 @@ output = marnet_geograph.get_shortest_path(
 )
 ```
 
-Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 50 nano seconds per distance for large enough distance matricies).
+Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 500 nano seconds per distance for large enough distance matricies).
 ```py
 from scgraph.geographs.us_freeway import us_freeway_geograph
 
