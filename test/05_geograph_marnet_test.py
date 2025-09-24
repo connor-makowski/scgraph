@@ -4,6 +4,8 @@ from scgraph import Graph
 from scgraph.geographs.marnet import marnet_geograph
 from scgraph.utils import hard_round
 
+marnet_geograph.warmup()
+
 
 def validate(name, realized, expected):
     if isinstance(realized, dict) and "length" in realized:
