@@ -69,7 +69,7 @@
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
-        <option value="2.14.0">2.14.0</option>
+        <option value="2.14.1">2.14.1</option>
         <option value="2.13.0">2.13.0</option>
         <option value="2.12.0">2.12.0</option>
         <option value="2.11.1">2.11.1</option>
@@ -132,8 +132,8 @@ scgraph    </h1>
 
 <p><a href="https://badge.fury.io/py/scgraph"><img src="https://badge.fury.io/py/scgraph.svg" alt="PyPI version" /></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
-<a href="https://pypi.org/project/scgraph/"><img src="https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads" alt="PyPI Downloads" /></a>
-<!-- <a href="https://pypi.org/project/scgraph/"><img src="https://pepy.tech/badge/scgraph" alt="PyPI Downloads" /></a> --></p>
+<a href="https://pypi.org/project/scgraph/"><img src="https://pepy.tech/badge/scgraph" alt="PyPI Downloads" /></a>
+<!-- <a href="https://pypi.org/project/scgraph/"><img src="https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads" alt="PyPI Downloads" /></a> --></p>
 
 <h3 id="a-supply-chain-graph-package-for-python">A Supply chain graph package for Python</h3>
 
@@ -176,7 +176,7 @@ scgraph    </h1>
 <pre><code>@article{makowski2025scgraph,
   title={SCGraph: A Dependency-Free Python Package for Road, Rail, and Maritime Shortest Path Routing Generation and Distance Estimation},
   author={Makowski, Connor and Saragih, Austin and Guter, Willem and Russell, Tim and Heinold, Arne and Lekkakos, Spyridon},
-  journal={MIT Center for Transportation \&amp; Logistics Research Paper Series},
+  journal={MIT Center for Transportation &amp; Logistics Research Paper Series},
   number={2025-028},
   year={2025},
   url={https://ssrn.com/abstract=5388845}
@@ -267,7 +267,7 @@ scgraph    </h1>
 </code></pre>
 </div>
 
-<p>Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 50 nano seconds per distance for large enough distance matricies).</p>
+<p>Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 500 nano seconds per distance for large enough distance matricies).</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.geographs.us_freeway</span><span class="w"> </span><span class="kn">import</span> <span class="n">us_freeway_geograph</span>
@@ -812,8 +812,8 @@ michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geoj
 </span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="sd"># SCGraph</span>
 </span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="sd">[![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)</span>
 </span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="sd">[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)</span>
-</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="sd">[![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/)</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="sd">&lt;!-- [![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/) --&gt;</span>
+</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="sd">[![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/)</span>
+</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="sd">&lt;!-- [![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/) --&gt;</span>
 </span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a>
 </span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a>
 </span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a><span class="sd">### A Supply chain graph package for Python</span>
@@ -852,7 +852,7 @@ michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geoj
 </span><span id="L-42"><a href="#L-42"><span class="linenos"> 42</span></a><span class="sd">@article{makowski2025scgraph,</span>
 </span><span id="L-43"><a href="#L-43"><span class="linenos"> 43</span></a><span class="sd">  title={SCGraph: A Dependency-Free Python Package for Road, Rail, and Maritime Shortest Path Routing Generation and Distance Estimation},</span>
 </span><span id="L-44"><a href="#L-44"><span class="linenos"> 44</span></a><span class="sd">  author={Makowski, Connor and Saragih, Austin and Guter, Willem and Russell, Tim and Heinold, Arne and Lekkakos, Spyridon},</span>
-</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a><span class="sd">  journal={MIT Center for Transportation \&amp; Logistics Research Paper Series},</span>
+</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a><span class="sd">  journal={MIT Center for Transportation &amp; Logistics Research Paper Series},</span>
 </span><span id="L-46"><a href="#L-46"><span class="linenos"> 46</span></a><span class="sd">  number={2025-028},</span>
 </span><span id="L-47"><a href="#L-47"><span class="linenos"> 47</span></a><span class="sd">  year={2025},</span>
 </span><span id="L-48"><a href="#L-48"><span class="linenos"> 48</span></a><span class="sd">  url={https://ssrn.com/abstract=5388845}</span>
@@ -932,7 +932,7 @@ michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geoj
 </span><span id="L-122"><a href="#L-122"><span class="linenos">122</span></a><span class="sd">)</span>
 </span><span id="L-123"><a href="#L-123"><span class="linenos">123</span></a><span class="sd">```</span>
 </span><span id="L-124"><a href="#L-124"><span class="linenos">124</span></a>
-</span><span id="L-125"><a href="#L-125"><span class="linenos">125</span></a><span class="sd">Don&#39;t neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 50 nano seconds per distance for large enough distance matricies).</span>
+</span><span id="L-125"><a href="#L-125"><span class="linenos">125</span></a><span class="sd">Don&#39;t neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 500 nano seconds per distance for large enough distance matricies).</span>
 </span><span id="L-126"><a href="#L-126"><span class="linenos">126</span></a><span class="sd">```py</span>
 </span><span id="L-127"><a href="#L-127"><span class="linenos">127</span></a><span class="sd">from scgraph.geographs.us_freeway import us_freeway_geograph</span>
 </span><span id="L-128"><a href="#L-128"><span class="linenos">128</span></a>
