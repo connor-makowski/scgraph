@@ -56,10 +56,31 @@ class GeoGraph:
         """
         self.graph = graph
         self.nodes = nodes
-        self.geokdtree = GeoKDTree(points=self.nodes)
-        self.cacheGraph = CacheGraph(graph=self.graph, validate_graph=False)
-
+        self.__warm__=False
         self.__original_graph_length__ = len(graph)
+
+    def warmup(self):
+        """
+        Function:
+
+        - Warm up the GeoGraph object by creating the GeoKDTree and CacheGraph objects
+        - This is done automatically the first time a shortest path is calculated or distance matrix is generated
+        - It can be done manually to avoid the overhead of doing it during the first shortest path / distance matrix calculation
+        - This makes installation and importing the package much faster
+            - This overhead is then moved to the first time a shortest path / distance matrix is calculated or when this method is called
+
+        Required Arguments:
+
+        - None
+
+        Returns:
+
+        - None
+        """
+        if not self.__warm__:
+            self.geokdtree = GeoKDTree(points=self.nodes)
+            self.cacheGraph = CacheGraph(graph=self.graph, validate_graph=False)
+            self.__warm__=True
 
     def validate_graph(
         self, check_symmetry: bool = True, check_connected: bool = True
@@ -529,6 +550,8 @@ class GeoGraph:
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
+        if not self.__warm__:
+            self.warmup()
         # Handle auto bounding boxes
         if node_addition_lat_lon_bound == "auto":
             node_addition_lat_lon_bound_origin = 180
@@ -1124,6 +1147,8 @@ class GeoGraph:
                 - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
                 - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points
         """
+        if not self.__warm__:
+            self.warmup()
         node_connection_mapper = {}
         original_other_graph_length = len(other_geograph.graph)
         for idx, node in enumerate(connection_nodes):
@@ -1636,6 +1661,8 @@ class GeoGraph:
             ...
         ]
         """
+        if not self.__warm__:
+            self.warmup()
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(
             distance=1, input_units=geograph_units, output_units=output_units
