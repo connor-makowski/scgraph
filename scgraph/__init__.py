@@ -42,7 +42,7 @@ Or by using the BibTeX entry:
 @article{makowski2025scgraph,
   title={SCGraph: A Dependency-Free Python Package for Road, Rail, and Maritime Shortest Path Routing Generation and Distance Estimation},
   author={Makowski, Connor and Saragih, Austin and Guter, Willem and Russell, Tim and Heinold, Arne and Lekkakos, Spyridon},
-  journal={MIT Center for Transportation & Logistics Research Paper Series},
+  journal={MIT Center for Transportation \& Logistics Research Paper Series},
   number={2025-028},
   year={2025},
   url={https://ssrn.com/abstract=5388845}
@@ -72,7 +72,7 @@ output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23,"longitude": 121.47},
     destination_node={"latitude": 32.08,"longitude": -81.09},
     output_units='km',
-    # Optional: Cache the origin node's spanning tree for faster calculations on future calls from the same origin node when cache=True
+    # Optional: Cache the origin node's shortest path tree for faster calculations on future calls from the same origin node when cache=True
     # Note: This will make the first call slower, but future calls using this origin node will be substantially faster.
     cache=True,
 )
@@ -122,7 +122,7 @@ output = marnet_geograph.get_shortest_path(
 )
 ```
 
-Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and spanning tree is cached so you can generate massive distance matricies incredibly quickly (approaching 50 nano seconds per distance for large enough distance matricies).
+Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 50 nano seconds per distance for large enough distance matricies).
 ```py
 from scgraph.geographs.us_freeway import us_freeway_geograph
 
@@ -181,9 +181,9 @@ gridGraph = GridGraph(
 output = gridGraph.get_shortest_path(
     origin_node={"x": 2, "y": 10},
     destination_node={"x": 18, "y": 10},
-    # Optional: Specify the output coodinate format (default is 'list_of_dicts)
+    # Optional: Specify the output coordinate format (default is 'list_of_dicts)
     output_coordinate_path="list_of_lists",
-    # Optional: Cache the origin point spanning_tree for faster calculations on future calls
+    # Optional: Cache the origin point shortest path tree for faster calculations on future calls
     cache=True,
 )
 
@@ -226,7 +226,7 @@ print(output)
     - Arbitrary start and end points are supported
         - Start and end points do not need to be in the graph
     - Cached shortest path calculations can be used for very fast repetative calculations from the same origin node in a GeoGraph.
-        - This is done by caching the origin node's spanning tree
+        - This is done by caching the origin node's shortest path tree
         - The first call will be slower, but future calls using this origin node will be substantially faster.
 - `GridGraph`s:
     - A grid based graph data structure that allows for the calculation of shortest paths between two points on a grid
@@ -255,9 +255,10 @@ print(output)
     - Cached shortest path calculations can be used for very fast repetative calculations to or from the same point in a GridGraph.
 - Other Useful Features:
     - `CacheGraph`s:
-        - A graph extension that caches spanning trees for fast shortest path calculations on repeat calls from the same origin node
+        - A graph extension that caches shortest path trees for fast shortest path calculations on repeat calls from the same origin node
         - See: [CacheGraphs Documentation](https://connor-makowski.github.io/scgraph/scgraph/cache.html)
     - `SpanningTree`s:
+        - Note: In general, we calculate the shortest path tree instead of the  minimum spanning tree, however the name is retained for backwards compatibility.
         - See: [Spanning Trees Documentation](https://connor-makowski.github.io/scgraph/scgraph/spanning.html)
 
 ## Included GeoGraphs
