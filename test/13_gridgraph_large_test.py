@@ -45,6 +45,18 @@ dijkstra_output = gridGraph.get_shortest_path(
 dijkstra_output_time = time() - dijkstra_output_start_time
 print("Dijkstra-Modified Output Time: ", dijkstra_output_time * 1000, "ms")
 
+# Gridgraph test for Dijkstra-Modified C++
+dijkstra_c_output_start_time = time()
+dijkstra_c_output = gridGraph.get_shortest_path(
+    origin_node={"x": 10, "y": y_size - 10},
+    destination_node={"x": x_size - 10, "y": y_size - 10},
+    cache=False,
+    algorithm_fn=Graph.dijkstra_makowski,
+    algorithm_kwargs={"use_cpp": True},
+)
+dijkstra_c_output_time = time() - dijkstra_c_output_start_time
+print("Dijkstra-Modified C++ Output Time: ", dijkstra_c_output_time * 1000, "ms")
+
 # Gridgraph test for BMSSP
 bmssp_output_start_time = time()
 bmssp_output = gridGraph.get_shortest_path(

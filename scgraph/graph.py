@@ -1,6 +1,11 @@
 from heapq import heappop, heappush
 from scgraph.bmssp import BmsspSolver
 
+try:
+    from scgraph.bin import graph_cpp
+except ImportError:
+    graph_cpp = None
+
 
 class Graph:
     @staticmethod
@@ -222,7 +227,7 @@ class Graph:
 
     @staticmethod
     def dijkstra(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]], origin_id: int, destination_id: int, use_cpp: bool = False
     ) -> dict:
         """
         Function:
@@ -249,8 +254,22 @@ class Graph:
 
         Optional Arguments:
 
-        - None
+        - `use_cpp`
+            - Type: bool
+            - What: Whether to try to use the C++ implementation of the algorithm if it is available on the calling system
+            - Default: False
+            - Note: If True, the C++ implementation will be used if it is available, otherwise the Python implementation will be used
+            - Note: When scaling Dijkstra to very large graphs, the C++ implementation is significantly faster.
         """
+        if use_cpp:
+            if graph_cpp is not None:
+                result = graph_cpp.dijkstra(graph, origin_id, destination_id)
+                return {
+                    "path": result.path,
+                    "length": result.length,
+                }
+            print("dijkstra C++ module not available, dropping back to Python implementation instead.")
+        # Input Validation
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
@@ -285,7 +304,7 @@ class Graph:
 
     @staticmethod
     def dijkstra_makowski(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]], origin_id: int, destination_id: int, use_cpp: bool = False
     ) -> dict:
         """
         Function:
@@ -315,8 +334,23 @@ class Graph:
 
         Optional Arguments:
 
-        - None
+        - `use_cpp`
+            - Type: bool
+            - What: Whether to try to use the C++ implementation of the algorithm if it is available on the calling system
+            - Default: False
+            - Note: If True, the C++ implementation will be used if it is available, otherwise the Python implementation will be used
+            - Note: For this algorithm, the C++ implementation is slightly slower than the Python implementation in most cases including at scale
         """
+        if use_cpp:
+            if graph_cpp is not None:
+                result = graph_cpp.dijkstra_makowski(
+                    graph, origin_id, destination_id
+                )
+                return {
+                    "path": result.path,
+                    "length": result.length,
+                }
+            print("dijkstra_makowski C++ module not available, dropping back to Python implementation instead.")
         # Input Validation
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id

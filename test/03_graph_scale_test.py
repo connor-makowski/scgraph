@@ -43,6 +43,12 @@ for size in [100, 1000, 10000, 100000]:
         ),
     )
     time_test(
+        f"Dijkstra-Modified C++({size})",
+        pamda.thunkify(Graph.dijkstra_makowski)(
+            graph=graph, origin_id=0, destination_id=size - 1, use_cpp=True
+        ),
+    )
+    time_test(
         f"A* ({size})",
         pamda.thunkify(Graph.a_star)(
             graph=graph,

@@ -48,6 +48,14 @@ validate(
 )
 
 validate(
+    name="Dijkstra-Modified C++",
+    realized=Graph.dijkstra_makowski(
+        graph=graph, origin_id=0, destination_id=5, use_cpp=True
+    ),
+    expected=expected,
+)
+
+validate(
     name="A*",
     realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5),
     expected=expected,
@@ -56,6 +64,18 @@ validate(
 validate(
     name="BMSSP",
     realized=Graph.bmssp(graph, 0, 5),
+    expected=expected,
+)
+
+validate(
+    name="Dijkstra",
+    realized=Graph.dijkstra(graph=graph, origin_id=0, destination_id=5),
+    expected=expected,
+)
+
+validate(
+    name="Dijkstra C++",
+    realized=Graph.dijkstra(graph=graph, origin_id=0, destination_id=5, use_cpp=True),
     expected=expected,
 )
 
@@ -68,7 +88,6 @@ time_test(
         graph=graph, check_symmetry=True, check_connected=True
     ),
 )
-
 
 time_test(
     "Dijkstra-Modified 1",
@@ -86,6 +105,27 @@ time_test(
     "Dijkstra-Modified 3",
     pamda.thunkify(Graph.dijkstra_makowski)(
         graph=graph, origin_id=4022, destination_id=8342
+    ),
+)
+
+time_test(
+    "Dijkstra Modified C++ 1",
+    pamda.thunkify(Graph.dijkstra_makowski)(
+        graph=graph, origin_id=0, destination_id=5, use_cpp=True
+    ),
+)
+
+time_test(
+    "Dijkstra Modified C++ 2",
+    pamda.thunkify(Graph.dijkstra_makowski)(
+        graph=graph, origin_id=100, destination_id=7999, use_cpp=True
+    ),
+)
+
+time_test(
+    "Dijkstra Modified C++ 3",
+    pamda.thunkify(Graph.dijkstra_makowski)(
+        graph=graph, origin_id=4022, destination_id=8342, use_cpp=True
     ),
 )
 
@@ -130,5 +170,43 @@ time_test(
     "BMSSP 3",
     pamda.thunkify(Graph.bmssp)(
         graph=graph, origin_id=4022, destination_id=8342
+    ),
+)
+
+time_test(
+    "Dijkstra 1",
+    pamda.thunkify(Graph.dijkstra)(
+        graph=graph, origin_id=0, destination_id=5
+    ),
+)
+time_test(
+    "Dijkstra 2",
+    pamda.thunkify(Graph.dijkstra)(
+        graph=graph, origin_id=100, destination_id=7999
+    ),
+)
+time_test(
+    "Dijkstra 3",
+    pamda.thunkify(Graph.dijkstra)(
+        graph=graph, origin_id=4022, destination_id=8342
+    ),
+)       
+
+time_test(
+    "Dijkstra-C++ 1",
+    pamda.thunkify(Graph.dijkstra)(
+        graph=graph, origin_id=0, destination_id=5, use_cpp=True
+    ),
+)
+time_test(
+    "Dijkstra-C++ 2",
+    pamda.thunkify(Graph.dijkstra)(           
+        graph=graph, origin_id=100, destination_id=7999, use_cpp=True
+    ),
+)       
+time_test(
+    "Dijkstra-C++ 3",
+    pamda.thunkify(Graph.dijkstra)(           
+        graph=graph, origin_id=4022, destination_id=8342, use_cpp=True
     ),
 )

@@ -1,9 +1,14 @@
 from heapq import heappush, heappop
 
+try:
+    from scgraph.bin import spanning_tree_cpp
+except ImportError:
+    spanning_tree_cpp = None
+
 
 class SpanningTree:
     @staticmethod
-    def makowskis_spanning_tree(graph: list[dict], node_id: int) -> dict:
+    def makowskis_spanning_tree(graph: list[dict], node_id: int, use_cpp: bool = False) -> dict:
         """
         Function:
 
@@ -26,6 +31,15 @@ class SpanningTree:
             - Type: int
             - What: The id of the node from which to calculate the shortest path tree
 
+        Optional Arguments:
+
+        - `use_cpp`
+            - Type: bool
+            - What: Whether to try to use the C++ implementation of the algorithm if it is available on the calling system
+            - Default: False
+            - Note: If True, the C++ implementation will be used if it is available, otherwise the Python implementation will be used
+            - Note: In practice, this function appears to about the same speed as the Python version
+
         Returns:
 
         - A dictionary with the following keys:
@@ -36,6 +50,15 @@ class SpanningTree:
                 - Note: For disconnected graphs, nodes that are not connected to the origin node will have a distance of float("inf")
 
         """
+        if use_cpp:
+            if spanning_tree_cpp is not None:
+                result = spanning_tree_cpp.makowskis_spanning_tree(graph, node_id)
+                return {
+                    "node_id": result.node_id,
+                    "predecessors": result.predecessors,
+                    "distance_matrix": result.distance_matrix,
+                }
+            print("makwoskis_spanning_tree C++ module not available, dropping back to Python implementation instead.")
         # Input Validation
         assert isinstance(node_id, int), "node_id must be an integer"
         assert 0 <= node_id < len(graph), "node_id must be a valid node id"
