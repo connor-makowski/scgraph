@@ -1,5 +1,9 @@
 from heapq import heappop, heappush
-from scgraph.bmssp import BmsspSolver
+
+try:
+    from bmsspy import Bmssp
+except ImportError:
+    Bmssp = None
 
 
 class Graph:
@@ -148,7 +152,9 @@ class Graph:
 
     @staticmethod
     def input_check(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]],
+        origin_id: int | set[int],
+        destination_id: int,
     ) -> None:
         """
         Function:
@@ -162,8 +168,8 @@ class Graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
@@ -172,12 +178,14 @@ class Graph:
 
         - None
         """
-        if (
-            not isinstance(origin_id, int)
-            and origin_id < len(graph)
-            and origin_id >= 0
-        ):
-            raise Exception(f"Origin node ({origin_id}) is not in the graph")
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        assert isinstance(
+            origin_ids, set
+        ), "origin_id must be an integer or a set of integers"
+
+        for oid in origin_ids:
+            if not isinstance(oid, int) and oid < len(graph) and oid >= 0:
+                raise Exception(f"Origin node ({oid}) is not in the graph")
         if (
             not isinstance(destination_id, int)
             and origin_id < len(graph)
@@ -222,7 +230,9 @@ class Graph:
 
     @staticmethod
     def dijkstra(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]],
+        origin_id: int | set[int],
+        destination_id: int,
     ) -> dict:
         """
         Function:
@@ -241,8 +251,8 @@ class Graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
@@ -258,8 +268,10 @@ class Graph:
         branch_tip_distances = [float("inf")] * len(graph)
         predecessor = [-1] * len(graph)
 
-        distance_matrix[origin_id] = 0
-        branch_tip_distances[origin_id] = 0
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
+            branch_tip_distances[oid] = 0
 
         while True:
             current_distance = min(branch_tip_distances)
@@ -285,7 +297,9 @@ class Graph:
 
     @staticmethod
     def dijkstra_makowski(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]],
+        origin_id: int | set[int],
+        destination_id: int,
     ) -> dict:
         """
         Function:
@@ -307,8 +321,8 @@ class Graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
@@ -321,12 +335,15 @@ class Graph:
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
-        distance_matrix[origin_id] = 0
-        open_leaves = []
-        heappush(open_leaves, (0, origin_id))
         predecessor = [-1] * len(graph)
+        open_leaves = []
+
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
+            heappush(open_leaves, (0, oid))
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
@@ -387,7 +404,7 @@ class Graph:
     @staticmethod
     def dijkstra_negative(
         graph: list[dict[int, int | float]],
-        origin_id: int,
+        origin_id: int | set[int],
         destination_id: int,
         cycle_check_iterations: int | None = None,
     ) -> dict:
@@ -411,8 +428,8 @@ class Graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
@@ -428,12 +445,16 @@ class Graph:
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
-        distance_matrix[origin_id] = 0
-        open_leaves = []
-        heappush(open_leaves, (0, origin_id))
         predecessor = [-1] * len(graph)
+        open_leaves = []
+
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
+            heappush(open_leaves, (0, oid))
 
         # Cycle iteration Variables
         cycle_iteration = 0
@@ -472,7 +493,7 @@ class Graph:
     @staticmethod
     def a_star(
         graph: list[dict[int, int | float]],
-        origin_id: int,
+        origin_id: int | set[int],
         destination_id: int,
         heuristic_fn: callable = None,
     ) -> dict:
@@ -490,7 +511,7 @@ class Graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `origin_id`
-            - Type: int
+            - Type: int | set[int]
             - What: The id of the origin node from the graph dictionary to start the shortest path from
         - `destination_id`
             - Type: int
@@ -515,15 +536,19 @@ class Graph:
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
-        distance_matrix[origin_id] = 0
         # Using a visited matrix does add a tad bit of overhead but avoids revisiting nodes
         # and does not require anything extra to be stored in the heap
         visited = [0] * len(graph)
         open_leaves = []
-        heappush(open_leaves, (0, origin_id))
         predecessor = [-1] * len(graph)
+
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
+            heappush(open_leaves, (0, oid))
 
         while open_leaves:
             current_id = heappop(open_leaves)[1]
@@ -559,7 +584,7 @@ class Graph:
     @staticmethod
     def bellman_ford(
         graph: list[dict[int, int | float]],
-        origin_id: int,
+        origin_id: int | set[int],
         destination_id: int,
     ) -> dict:
         """
@@ -576,8 +601,8 @@ class Graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
@@ -590,10 +615,13 @@ class Graph:
         Graph.input_check(
             graph=graph, origin_id=origin_id, destination_id=destination_id
         )
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
-        distance_matrix[origin_id] = 0
         predecessor = [-1] * len(graph)
+
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
 
         len_graph = len(graph)
         for i in range(len_graph):
@@ -623,12 +651,20 @@ class Graph:
 
     @staticmethod
     def bmssp(
-        graph: list[dict[int, int | float]], origin_id: int, destination_id: int
+        graph: list[dict[int, int | float]],
+        origin_id: int | set[int],
+        destination_id: int,
+        constant_degree_graph: bool = True,
     ):
         """
         Function:
 
-        - A Full BMSSP-style shortest path solver with a Dijkstra finalizer for non-relaxed edges.
+        - Identify the shortest path between two nodes in a sparse network graph using the BMSSPy package
+
+        - This is now a wrapper for the BMSSPy package
+            - https://github.com/connor-makowski/bmsspy
+            - For backwards compatibility, this function wraps around the dijkstra_makowski function if BMSSPy is not installed
+
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
             - `path`: A list of node dictionaries (lat + long) in the order they are visited
@@ -639,33 +675,38 @@ class Graph:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
-        - `heuristic_fn`
-            - Type: function
-            - What: A heuristic function that takes two node ids and returns an estimated distance between them
-            - Note: If None, returns the shortest path using Makowski's modified Dijkstra algorithm
-            - Default: None
+        - `constant_degree_graph`
+            - Type: bool
+            - What: Whether to convert the graph to a constant degree 2 graph prior to running the BMSSPy algorithm
+            - Default: True
+
 
         Optional Arguments:
 
         - None
         """
-        # Input Validation
-        Graph.input_check(
-            graph=graph, origin_id=origin_id, destination_id=destination_id
-        )
-        # Run the BMSSP Algorithm to relax as many edges as possible.
-        solver = BmsspSolver(graph, origin_id)
-        if solver.distance_matrix[destination_id] == float("inf"):
-            raise Exception(
-                "Something went wrong, the origin and destination nodes are not connected."
+        if Bmssp is None:
+            print(
+                "Warning: BMSSPy is not installed, falling back to dijkstra_makowski algorithm. To use the BMSSPy algorithm, please install the BMSSPy package."
             )
-
-        return {
-            "path": Graph.reconstruct_path(destination_id, solver.predecessor),
-            "length": solver.distance_matrix[destination_id],
-        }
+            return Graph.dijkstra_makowski(
+                graph=graph,
+                origin_id=origin_id,
+                destination_id=destination_id,
+            )
+        else:
+            bmssp_graph = Bmssp(
+                graph=graph, use_constant_degree_graph=constant_degree_graph
+            )
+            output = bmssp_graph.solve(
+                origin_id=origin_id, destination_id=destination_id
+            )
+            return {
+                "path": output["path"],
+                "length": output["length"],
+            }

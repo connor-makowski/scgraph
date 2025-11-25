@@ -45,15 +45,15 @@ dijkstra_output = gridGraph.get_shortest_path(
 dijkstra_output_time = time() - dijkstra_output_start_time
 print("Dijkstra-Modified Output Time: ", dijkstra_output_time * 1000, "ms")
 
-# Gridgraph test for BMSSP
-bmssp_output_start_time = time()
-bmssp_output = gridGraph.get_shortest_path(
-    origin_node={"x": 10, "y": y_size - 10},
-    destination_node={"x": x_size - 10, "y": y_size - 10},
-    algorithm_fn=Graph.bmssp,
-)
-bmssp_output_time = time() - bmssp_output_start_time
-print("BMSSP Output Time: ", bmssp_output_time * 1000, "ms")
+# # Gridgraph test for BMSSP
+# bmssp_output_start_time = time()
+# bmssp_output = gridGraph.get_shortest_path(
+#     origin_node={"x": 10, "y": y_size - 10},
+#     destination_node={"x": x_size - 10, "y": y_size - 10},
+#     algorithm_fn=Graph.bmssp,
+# )
+# bmssp_output_time = time() - bmssp_output_start_time
+# print("BMSSP Output Time: ", bmssp_output_time * 1000, "ms")
 
 # Standard GridGraph test poplating the initial cache for the origin node
 output_start_time = time()

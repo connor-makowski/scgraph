@@ -1,9 +1,12 @@
 from heapq import heappush, heappop
+from .graph import Graph
 
 
 class SpanningTree:
     @staticmethod
-    def makowskis_spanning_tree(graph: list[dict], node_id: int) -> dict:
+    def makowskis_spanning_tree(
+        graph: list[dict], node_id: int | set[int]
+    ) -> dict:
         """
         Function:
 
@@ -23,8 +26,8 @@ class SpanningTree:
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
         - `node_id`
-            - Type: int
-            - What: The id of the node from which to calculate the shortest path tree
+            - Type: int | set[int]
+            - What: The id(s) of the node(s) from which to calculate the shortest path tree
 
         Returns:
 
@@ -37,14 +40,17 @@ class SpanningTree:
 
         """
         # Input Validation
-        assert isinstance(node_id, int), "node_id must be an integer"
-        assert 0 <= node_id < len(graph), "node_id must be a valid node id"
+        Graph.input_check(graph=graph, origin_id=node_id, destination_id=0)
+        origin_ids = {node_id} if isinstance(node_id, int) else node_id
+
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
-        distance_matrix[node_id] = 0
         open_leaves = []
-        heappush(open_leaves, (0, node_id))
         predecessor = [-1] * len(graph)
+
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
+            heappush(open_leaves, (0, oid))
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
@@ -80,6 +86,7 @@ class SpanningTree:
         - `origin_id`
             - Type: int
             - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Note: Since multiple origins are possible, if the origin_id is not a predecessor node of the destination node, the closest origin will be used.
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
@@ -113,7 +120,7 @@ class SpanningTree:
             return {"length": destination_distance}
         current_id = destination_id
         current_path = [destination_id]
-        while current_id != origin_id:
+        while current_id != origin_id and current_id != -1:
             current_id = spanning_tree["predecessors"][current_id]
             current_path.append(current_id)
         current_path.reverse()

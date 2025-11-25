@@ -26,6 +26,11 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+bmsspy = [
+    "bmsspy>=2.0.1,<3.0.0",
+]
+
 [project.urls]
 "Homepage" = "https://github.com/connor-makowski/scgraph"
 "Bug Tracker" = "https://github.com/connor-makowski/scgraph/issues"

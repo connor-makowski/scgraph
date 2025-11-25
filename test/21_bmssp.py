@@ -6,7 +6,6 @@ from scgraph.geographs.marnet import graph as marnet_graph
 from scgraph.geographs.us_freeway import graph as us_freeway_graph
 
 # from scgraph_data.world_highways_and_marnet import graph as world_highways_and_marnet_graph
-from scgraph.bmssp import BmsspSolver
 from scgraph.spanning import SpanningTree
 
 
@@ -43,24 +42,6 @@ graph = [
     {2: 8, 3: 3},
     {3: 6},
 ]
-
-bmssp_solver = BmsspSolver(graph, 1)
-shortest_path_tree = SpanningTree.makowskis_spanning_tree(graph, 1)
-validate(
-    name="BMSSP Basic Graph Distance Matrix",
-    realized=bmssp_solver.distance_matrix,
-    expected=shortest_path_tree["distance_matrix"],
-)
-
-bmssp_marnet_solver = BmsspSolver(marnet_graph, 1)
-marnet_shortest_path_tree = SpanningTree.makowskis_spanning_tree(
-    marnet_graph, 1
-)
-validate(
-    name="BMSSP Marnet Graph Distance Matrix",
-    realized=bmssp_marnet_solver.distance_matrix,
-    expected=marnet_shortest_path_tree["distance_matrix"],
-)
 
 
 graph = marnet_graph

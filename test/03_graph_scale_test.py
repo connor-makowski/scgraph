@@ -51,9 +51,9 @@ for size in [100, 1000, 10000, 100000]:
             heuristic_fn=lambda x, y: 0,
         ),
     )
-    time_test(
-        f"BMSSP ({size})",
-        pamda.thunkify(Graph.bmssp)(
-            graph=graph, origin_id=0, destination_id=size - 1
-        ),
-    )
+    # time_test(
+    #     f"BMSSP ({size})",
+    #     pamda.thunkify(Graph.bmssp)(
+    #         graph=graph, origin_id=0, destination_id=size - 1, constant_degree_graph=False
+    #     ),
+    # )
