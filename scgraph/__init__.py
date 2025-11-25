@@ -29,6 +29,7 @@ print('Length: ',output['length']) #=> Length:  19596.4653
 - Docs: https://connor-makowski.github.io/scgraph/scgraph.html
 - Git Repo: https://github.com/connor-makowski/scgraph
 - Paper: https://ssrn.com/abstract=5388845
+- Awards: [2025 MIT Prize for Open Data](https://libraries.mit.edu/opendata/open-data-mit-home/mit-prize/)
 
 ### How to Cite SCGraph in your Research
 
@@ -205,7 +206,9 @@ print(output)
         - `dijkstra_negative`: Calculates the shortest path between two nodes using a modified version of Dijkstra's algorithm that supports negative edge weights and detects negative cycles.
         - `a_star`: Modified version of `dijkstra_makowski` that incorporates a heuristic function to guide the search.
         - `bellman_ford`: Calculates the shortest path between two nodes using the Bellman-Ford algorithm.
-        - `bmssp`: Calculates the shortest path between two nodes using a modified version of the [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033). See the [BmsspSolver](https://connor-makowski.github.io/scgraph/scgraph/bmssp.html).
+        - `bmssp`: Calculates the shortest path between two nodes using a modified version of the [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033). See the [BMSSPy](https://github.com/connor-makowski/bmsspy)
+            - Note: To use this, you must install `BMSSPy` as well. If not installed, the algorithm will default to solve with `dijkstra_makowski`.
+            - You can install the needed packages with `pip install scgraph[bmsspy]`.
 - `GeoGraph`s:
     - A geographic graph data structure that allows for the calculation of shortest paths between two points on earth
     - Uses latitude / longitude pairs to represent points on earth
