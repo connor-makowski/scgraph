@@ -6,7 +6,7 @@ from scgraph.geographs.marnet import graph as marnet_graph
 from scgraph.geographs.us_freeway import graph as us_freeway_graph
 
 # from scgraph_data.world_highways_and_marnet import graph as world_highways_and_marnet_graph
-from scgraph.spanning import SpanningTree
+from scgraph.tree import ShortestPathTree
 
 
 print("\n===============\nBMSSP Tests:\n===============")
@@ -128,21 +128,21 @@ time_test(
 
 time_test(
     "Shortest Path Tree Comparison (marnet)",
-    pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
+    pamda.thunkify(ShortestPathTree.shortest_path_tree)(
         graph=marnet_graph, node_id=0
     ),
 )
 
 time_test(
     "Shortest Path Tree Comparison (us_freeway)",
-    pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
+    pamda.thunkify(ShortestPathTree.shortest_path_tree)(
         graph=us_freeway_graph, node_id=0
     ),
 )
 
 # time_test(
 #     "Shortest Path Tree Comparison (world_highways)",
-#     pamda.thunkify(SpanningTree.makowskis_spanning_tree)(
+#     pamda.thunkify(ShortestPathTree.shortest_path_tree)(
 #         graph=world_highways_and_marnet_graph,
 #         node_id=0
 #     ),

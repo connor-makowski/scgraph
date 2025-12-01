@@ -19,10 +19,10 @@ def time_test(name, thunk):
 
 
 def gen_graph(size, avg_connections=10):
-    return [
+    return Graph([
         {i + j: 1 for j in range(1, avg_connections) if i + j < size}
         for i in range(size)
-    ]
+    ])
 
 
 print("\n===============\nScale Time Tests:\n===============")
@@ -32,20 +32,19 @@ for size in [100, 1000, 10000, 100000]:
     print(f"\nGraph Size: {size}")
     time_test(
         f"Graph Validation ({size})",
-        pamda.thunkify(Graph.validate_graph)(
-            graph=graph, check_symmetry=False, check_connected=False
+        pamda.thunkify(graph.validate)(
+            check_symmetry=False, check_connected=False
         ),
     )
     time_test(
-        f"Dijkstra-Modified ({size})",
-        pamda.thunkify(Graph.dijkstra_makowski)(
-            graph=graph, origin_id=0, destination_id=size - 1
+        f"Dijkstra ({size})",
+        pamda.thunkify(graph.dijkstra)(
+            origin_id=0, destination_id=size - 1
         ),
     )
     time_test(
         f"A* ({size})",
-        pamda.thunkify(Graph.a_star)(
-            graph=graph,
+        pamda.thunkify(graph.a_star)(
             origin_id=0,
             destination_id=size - 1,
             heuristic_fn=lambda x, y: 0,
@@ -53,7 +52,7 @@ for size in [100, 1000, 10000, 100000]:
     )
     # time_test(
     #     f"BMSSP ({size})",
-    #     pamda.thunkify(Graph.bmssp)(
-    #         graph=graph, origin_id=0, destination_id=size - 1, constant_degree_graph=False
+    #     pamda.thunkify(graph.bmssp)(
+    #         origin_id=0, destination_id=size - 1, constant_degree_graph=False
     #     ),
     # )

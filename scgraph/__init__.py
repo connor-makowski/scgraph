@@ -200,14 +200,13 @@ print(output)
     - A low level graph object that has methods for validating graphs, calculating shortest paths, and more.
     - See: [Graph Documentation](https://connor-makowski.github.io/scgraph/scgraph/graph.html)
     - Contains the following methods:
-        - `validate_graph`: Validates symmetry and connectedness of a graph.
+        - `validate`: Validates symmetry and connectedness of a graph.
         - `dijkstra`: Calculates the shortest path between two nodes using Dijkstra's algorithm.
-        - `dijkstra_makowski`: Calculates the shortest path between two nodes using a modified version of Dijkstra's algorithm designed for real world performance
         - `dijkstra_negative`: Calculates the shortest path between two nodes using a modified version of Dijkstra's algorithm that supports negative edge weights and detects negative cycles.
-        - `a_star`: Modified version of `dijkstra_makowski` that incorporates a heuristic function to guide the search.
+        - `a_star`: Modified version of `dijkstra` that incorporates a heuristic function to guide the search.
         - `bellman_ford`: Calculates the shortest path between two nodes using the Bellman-Ford algorithm.
         - `bmssp`: Calculates the shortest path between two nodes using a modified version of the [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033). See the [BMSSPy](https://github.com/connor-makowski/bmsspy)
-            - Note: To use this, you must install `BMSSPy` as well. If not installed, the algorithm will default to solve with `dijkstra_makowski`.
+            - Note: To use this, you must install `BMSSPy` as well. If not installed, the algorithm will default to solve with `dijkstra`.
             - You can install the needed packages with `pip install scgraph[bmsspy]`.
 - `GeoGraph`s:
     - A geographic graph data structure that allows for the calculation of shortest paths between two points on earth
@@ -260,7 +259,7 @@ print(output)
     - `CacheGraph`s:
         - A graph extension that caches shortest path trees for fast shortest path calculations on repeat calls from the same origin node
         - See: [CacheGraphs Documentation](https://connor-makowski.github.io/scgraph/scgraph/cache.html)
-    - `SpanningTree`s:
+    - `ShortestPathTree`s:
         - Note: In general, we calculate the shortest path tree instead of the  minimum spanning tree, however the name is retained for backwards compatibility.
         - See: [Spanning Trees Documentation](https://connor-makowski.github.io/scgraph/scgraph/spanning.html)
 
@@ -396,7 +395,7 @@ from scgraph import Graph
 
 # Define an arbitrary graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate
 graph = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
@@ -407,7 +406,7 @@ graph = [
 ]
 
 # Optional: Validate your graph
-Graph.validate_graph(graph=graph)
+Graph.validate(graph=graph)
 
 # Get the shortest path between idx 0 and idx 5
 output = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5)
@@ -438,7 +437,7 @@ nodes = [
 ]
 # Define a graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate
 graph = [
     # From London
     {
@@ -488,7 +487,7 @@ graph = [
 my_geograph = GeoGraph(nodes=nodes, graph=graph)
 
 # Optional: Validate your graph
-my_geograph.validate_graph()
+my_geograph.validate()
 
 # Optional: Validate your nodes
 my_geograph.validate_nodes()
@@ -544,4 +543,4 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py) inc
 
 from .graph import Graph
 from .geograph import GeoGraph
-from .grid import GridGraph
+# from .grid import GridGraph

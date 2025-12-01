@@ -42,7 +42,7 @@ destination_node = {"latitude": 30, "longitude": -160}
 
 validate(
     name="Graph Validation",
-    realized=oak_ridge_maritime_geograph.validate_graph(
+    realized=oak_ridge_maritime_geograph.validate(
         check_symmetry=True, check_connected=False
     ),
     expected=None,
@@ -103,7 +103,7 @@ print("\n===============\nOak Ridge GeoGraph Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(oak_ridge_maritime_geograph.validate_graph)(
+    pamda.thunkify(oak_ridge_maritime_geograph.validate)(
         check_symmetry=True, check_connected=False
     ),
 )

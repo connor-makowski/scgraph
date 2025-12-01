@@ -255,13 +255,6 @@ print(output)
         - Cardinal connections (up, down, left, right) and diagonal connections (up-left, up-right, down-left, down-right) are used by default
         - Custom connection matricies can be used to change the connections between grid items
     - Cached shortest path calculations can be used for very fast repetative calculations to or from the same point in a GridGraph.
-- Other Useful Features:
-    - `CacheGraph`s:
-        - A graph extension that caches shortest path trees for fast shortest path calculations on repeat calls from the same origin node
-        - See: [CacheGraphs Documentation](https://connor-makowski.github.io/scgraph/scgraph/cache.html)
-    - `SpanningTree`s:
-        - Note: In general, we calculate the shortest path tree instead of the  minimum spanning tree, however the name is retained for backwards compatibility.
-        - See: [Spanning Trees Documentation](https://connor-makowski.github.io/scgraph/scgraph/spanning.html)
 
 ## Included GeoGraphs
 
@@ -395,7 +388,7 @@ from scgraph import Graph
 
 # Define an arbitrary graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate
 graph = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
@@ -406,7 +399,7 @@ graph = [
 ]
 
 # Optional: Validate your graph
-Graph.validate_graph(graph=graph)
+Graph.validate(graph=graph)
 
 # Get the shortest path between idx 0 and idx 5
 output = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5)
@@ -437,7 +430,7 @@ nodes = [
 ]
 # Define a graph
 # See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate
 graph = [
     # From London
     {
@@ -487,7 +480,7 @@ graph = [
 my_geograph = GeoGraph(nodes=nodes, graph=graph)
 
 # Optional: Validate your graph
-my_geograph.validate_graph()
+my_geograph.validate()
 
 # Optional: Validate your nodes
 my_geograph.validate_nodes()

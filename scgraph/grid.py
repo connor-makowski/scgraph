@@ -527,7 +527,7 @@ class GridGraph:
                 destination_id=destination_id,
                 **algorithm_kwargs,
             )
-        output["coordinate_path"] = self.get_coordinate_path(
+        output["coordinate_path"] = self.__get_coordinate_path__(
             output["path"], output_coordinate_path
         )
         if origin_distance > 0:
@@ -546,7 +546,7 @@ class GridGraph:
             del output["path"]
         return output
 
-    def get_coordinate_path(
+    def __get_coordinate_path__(
         self, path: list[int], output_coordinate_path: str = "list_of_dicts"
     ) -> list[dict[str, int]]:
         """

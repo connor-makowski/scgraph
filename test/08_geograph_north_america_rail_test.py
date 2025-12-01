@@ -40,7 +40,7 @@ destination_node = {"longitude": -102.651, "latitude": 48.561}
 
 validate(
     name="Graph Validation",
-    realized=north_america_rail_geograph.validate_graph(
+    realized=north_america_rail_geograph.validate(
         check_symmetry=True, check_connected=False
     ),
     expected=None,
@@ -103,7 +103,7 @@ print(
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(north_america_rail_geograph.validate_graph)(
+    pamda.thunkify(north_america_rail_geograph.validate)(
         check_symmetry=True, check_connected=False
     ),
 )

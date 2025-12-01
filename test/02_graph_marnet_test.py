@@ -2,7 +2,7 @@ import time
 from pamda import pamda
 from scgraph import Graph
 from scgraph.utils import hard_round
-from scgraph.geographs.marnet import graph as marnet_graph
+from scgraph.geographs.marnet import marnet_geograph
 
 
 def validate(name, realized, expected):
@@ -29,33 +29,33 @@ def time_test(name, thunk):
 
 print("\n===============\nMarnet Graph Tests:\n===============")
 
-graph = marnet_graph
+graph = Graph(marnet_geograph.graph_object.graph)
 
 expected = {"path": [0, 1, 5695, 64, 2213, 10152, 6749, 5], "length": 1134.729}
 
 validate(
     name="Graph Validation",
-    realized=Graph.validate_graph(graph=graph),
+    realized=graph.validate(),
     expected=None,
 )
 
 validate(
-    name="Dijkstra-Modified",
-    realized=Graph.dijkstra_makowski(
-        graph=graph, origin_id=0, destination_id=5
+    name="Dijkstra",
+    realized=graph.dijkstra(
+        origin_id=0, destination_id=5
     ),
     expected=expected,
 )
 
 validate(
     name="A*",
-    realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5),
+    realized=graph.a_star(origin_id=0, destination_id=5),
     expected=expected,
 )
 
 validate(
     name="BMSSP",
-    realized=Graph.bmssp(graph, 0, 5),
+    realized=graph.bmssp(origin_id=0, destination_id=5),
     expected=expected,
 )
 
@@ -64,41 +64,41 @@ print("\n===============\nMarnet Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(Graph.validate_graph)(
-        graph=graph, check_symmetry=True, check_connected=True
+    pamda.thunkify(graph.validate)(
+       check_symmetry=True, check_connected=True
     ),
 )
 
 
 time_test(
-    "Dijkstra-Modified 1",
-    pamda.thunkify(Graph.dijkstra_makowski)(
-        graph=graph, origin_id=0, destination_id=5
+    "Dijkstra 1",
+    pamda.thunkify(graph.dijkstra)(
+        origin_id=0, destination_id=5
     ),
 )
 time_test(
-    "Dijkstra-Modified 2",
-    pamda.thunkify(Graph.dijkstra_makowski)(
-        graph=graph, origin_id=100, destination_id=7999
+    "Dijkstra 2",
+    pamda.thunkify(graph.dijkstra)(
+        origin_id=100, destination_id=7999
     ),
 )
 time_test(
-    "Dijkstra-Modified 3",
-    pamda.thunkify(Graph.dijkstra_makowski)(
-        graph=graph, origin_id=4022, destination_id=8342
+    "Dijkstra 3",
+    pamda.thunkify(graph.dijkstra)(
+        origin_id=4022, destination_id=8342
     ),
 )
 
 time_test(
     "A* 1",
-    pamda.thunkify(Graph.a_star)(
-        graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
+    pamda.thunkify(graph.a_star)(
+        origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
     ),
 )
 time_test(
     "A* 2",
-    pamda.thunkify(Graph.a_star)(
-        graph=graph,
+    pamda.thunkify(graph.a_star)(
+        
         origin_id=100,
         destination_id=7999,
         heuristic_fn=lambda x, y: 0,
@@ -106,8 +106,8 @@ time_test(
 )
 time_test(
     "A* 3",
-    pamda.thunkify(Graph.a_star)(
-        graph=graph,
+    pamda.thunkify(graph.a_star)(
+        
         origin_id=4022,
         destination_id=8342,
         heuristic_fn=lambda x, y: 0,
@@ -116,19 +116,19 @@ time_test(
 
 time_test(
     "BMSSP 1",
-    pamda.thunkify(Graph.bmssp)(graph=graph, origin_id=0, destination_id=5),
+    pamda.thunkify(graph.bmssp)(origin_id=0, destination_id=5),
 )
 
 time_test(
     "BMSSP 2",
-    pamda.thunkify(Graph.bmssp)(
-        graph=graph, origin_id=100, destination_id=7999
+    pamda.thunkify(graph.bmssp)(
+        origin_id=100, destination_id=7999
     ),
 )
 
 time_test(
     "BMSSP 3",
-    pamda.thunkify(Graph.bmssp)(
-        graph=graph, origin_id=4022, destination_id=8342
+    pamda.thunkify(graph.bmssp)(
+        origin_id=4022, destination_id=8342
     ),
 )

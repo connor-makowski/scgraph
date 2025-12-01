@@ -41,7 +41,7 @@ destination_node = {"latitude": 2, "longitude": 1}
 
 validate(
     name="GeoGraph Graph Validation",
-    realized=my_graph.validate_graph(),
+    realized=my_graph.validate(),
     expected=None,
 )
 
