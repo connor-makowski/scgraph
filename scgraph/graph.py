@@ -203,7 +203,7 @@ class GraphUtils:
 
 
 class GraphModifiers:
-    def add_node(self, node_dict: dict[int, int | float]=dict(), symmetric: bool = False) -> int:
+    def add_node(self, node_dict: dict[int, int | float]=None, symmetric: bool = False) -> int:
         """
         Function:
 
@@ -225,6 +225,7 @@ class GraphModifiers:
 
         - The id of the newly added node
         """
+        node_dict = node_dict if node_dict is not None else dict()
         self.graph.append(node_dict)
         new_node_id = len(self.graph) - 1
         if symmetric:

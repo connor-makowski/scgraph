@@ -1261,7 +1261,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         destination_node: dict[str, float | int],
         output_units: str = "km",
         algorithm_fn:str ='dijkstra',
-        algorithm_kwargs: dict = dict(),
+        algorithm_kwargs: dict = None,
         off_graph_circuity: float | int = 1,
         node_addition_type: str = "kdclosest",
         node_addition_circuity: float | int = 4,
@@ -1419,6 +1419,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
+        algorithm_kwargs = algorithm_kwargs if algorithm_kwargs is not None else dict()
         self.warmup()
         if callable(algorithm_fn):
             algorithm_kwargs['graph'] = self.graph_object.graph
