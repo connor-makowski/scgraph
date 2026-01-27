@@ -585,7 +585,6 @@ class GeoGraphModifiers:
             symmetric=symmetric,
         )
 
-    # TODO: Find way to merge with graph_objects
     def merge_with_other_geograph(
         self,
         other_geograph,
@@ -648,7 +647,7 @@ class GeoGraphModifiers:
         """
         self.warmup()
         node_connection_mapper = {}
-        original_other_graph_length = len(other_geograph.graph)
+        original_other_graph_length = len(other_geograph.graph_object.graph)
         for idx, node in enumerate(connection_nodes):
             node_dict = {
                 "latitude": node[0],
@@ -671,17 +670,17 @@ class GeoGraphModifiers:
             node_connection_mapper[other_node_id] = new_node_id
 
         # Store the modified other geograph graph that include the connection nodes
-        other_graph = deepcopy(other_geograph.graph)
+        other_graph = deepcopy(other_geograph.graph_object.graph)
         # Add the other graph nodes to the current geograph (removing the connection nodes since they are already added to the current geograph)
         self.nodes += deepcopy(other_geograph.nodes)[
             :original_other_graph_length
         ]
 
         # Clean up the other geograph to remove any appended nodes
-        while len(other_geograph.graph) > original_other_graph_length:
+        while len(other_geograph.graph_object.graph) > original_other_graph_length:
             other_geograph.remove_coord_node()
 
-        graph_length = len(self.graph)
+        graph_length = len(self.graph_object.graph)
 
         # Create a list based connection map to map the merging nodes into the current graph
         node_connection_map = [
@@ -692,13 +691,13 @@ class GeoGraphModifiers:
             node_connection_map[idx] = node
 
         # Fill the current graph with empty dictionaries to match the length of the other graph
-        self.graph.extend(
+        self.graph_object.graph.extend(
             [{} for _ in range(len(other_graph) - len(connection_nodes))]
         )
         # Populate the new connections
         for origin_idx, destinations in enumerate(other_graph):
             for destination_idx, distance in destinations.items():
-                self.graph[node_connection_map[origin_idx]][
+                self.graph_object.graph[node_connection_map[origin_idx]][
                     node_connection_map[destination_idx]
                 ] = distance
 
@@ -1312,10 +1311,10 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             - What: The algorithm method attached to the current GeoGraph class to identify the shortest path
             - Default: 'dijkstra'
             - Options:
-                - 'dijkstra' -> Graph.dijkstra
-                - 'a_star' -> Graph.a_star
-                - 'bellman_ford' -> Graph.bellman_ford
-                - 'bmssp' -> Graph.bmssp
+                - 'dijkstra' -> GraphAlgorithms.dijkstra
+                - 'a_star' -> GraphAlgorithms.a_star
+                - 'bellman_ford' -> GraphAlgorithms.bellman_ford
+                - 'bmssp' -> GraphAlgorithms.bmssp 
                 - Any user defined function that takes the arguments:
                     - `graph`: The graph (list[dict[int, int | float]]) to perform the shortest path on
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
@@ -1423,17 +1422,10 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         self.warmup()
         if callable(algorithm_fn):
             algorithm_kwargs['graph'] = self.graph_object.graph
-        elif isinstance(algorithm_fn, str):
-            if algorithm_fn in ['dijkstra', 'a_star', 'bellman_ford', 'bmssp']:
-                algorithm_fn = getattr(self.graph_object, algorithm_fn)
-            else:
-                raise ValueError(
-                    f"Invalid algorithm_fn provided ({algorithm_fn}), valid options are: ['dijkstra', 'a_star', 'bellman_ford', 'bmssp'] or a callable function"
-                )
+        elif isinstance(algorithm_fn, str) and hasattr(self.graph_object, algorithm_fn):
+            algorithm_fn = getattr(self.graph_object, algorithm_fn)
         else:
-            raise ValueError(
-                "algorithm_fn must be a string or a callable function"
-            )
+            raise ValueError("algorithm_fn must be a string or callable")
         # Handle auto bounding boxes
         if node_addition_lat_lon_bound == "auto":
             node_addition_lat_lon_bound_origin = 180
@@ -1656,7 +1648,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                     output_matrix[node_idx_start][node_idx_end] = 0.0
                     continue
                 try:
-                    length = self.get_set_cached_shortest_path(
+                    length = self.graph_object.get_set_cached_shortest_path(
                         origin_id=entry_idx_start,
                         destination_id=entry_idx_end,
                         length_only=True,

@@ -46,7 +46,7 @@ graph = {key_mapping[origin_id]: {key_mapping[destination_id]: distance for dest
 nodes = {key_mapping[node_id]: node for node_id, node in data["nodes"].items()}
 
 out_string = f"""
-from scgraph.core import GeoGraph
+from scgraph.geograph import GeoGraph
 graph={str(graph)}
 nodes={str(nodes)}
 {initialized_class_name} = GeoGraph(graph=graph, nodes=nodes)

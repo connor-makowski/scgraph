@@ -102,7 +102,7 @@ for arc in arcs:
     pamda.assocPath([destination_id, origin_id], arc['distance'], graph)
 
 out_string = f"""
-from scgraph.core import GeoGraph
+from scgraph.geograph import GeoGraph
 graph={str(graph)}
 nodes={str(nodes)}
 {initialized_class_name} = GeoGraph(graph=graph, nodes=nodes)

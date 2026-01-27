@@ -314,7 +314,7 @@ output = world_railways_geograph.get_shortest_path(
     origin_node={"latitude": 42.29,"longitude": -85.58},
     destination_node={"latitude": 42.33,"longitude": -83.05},
     # Optional: Use the A* algorithm
-    algorithm_fn=Graph.a_star,
+    algorithm_fn="a_star",
     # Optional: Pass the haversine function as the heuristic function to the A* algorithm
     algorithm_kwargs={"heuristic_fn": world_railways_geograph.haversine},
 )
@@ -409,7 +409,7 @@ graph = [
 Graph.validate(graph=graph)
 
 # Get the shortest path between idx 0 and idx 5
-output = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5)
+output = Graph.dijkstra(graph=graph, origin_id=0, destination_id=5)
 #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
 ```
 
@@ -543,4 +543,4 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py) inc
 
 from .graph import Graph
 from .geograph import GeoGraph
-# from .grid import GridGraph
+from .grid import GridGraph

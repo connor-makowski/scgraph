@@ -1,6 +1,6 @@
 from scgraph.graph import Graph
 from scgraph.helpers.shape_mover_utils import ShapeMoverUtils
-from scgraph.cache import CacheGraph
+from scgraph.graph import Graph
 from typing import Literal
 
 
@@ -104,7 +104,7 @@ class GridGraph:
 
         self.graph = self.__create_graph__()
         self.nodes = [self.__get_x_y__(idx) for idx in range(len(self.graph))]
-        self.cacheGraph = CacheGraph(self.graph)
+        self.graph_object = Graph(self.graph)
 
     def __get_idx__(self, x: int, y: int):
         """
@@ -398,8 +398,7 @@ class GridGraph:
         cache: bool = False,
         cache_for: str = "origin",
         output_path: bool = False,
-        heuristic_fn: callable | Literal["euclidean"] | None = "euclidean",
-        algorithm_fn: callable = Graph.a_star,
+        algorithm_fn: str | callable = "dijkstra",
         algorithm_kwargs: dict | None = None,
         **kwargs,
     ) -> dict:
@@ -451,18 +450,10 @@ class GridGraph:
             - Type: bool
             - What: Whether to output the path as a list of graph idxs (mostly for debugging purposes)
             - Default: False
-        - `heuristic_fn`
-            - Type: callable | Literal['euclidean'] | None
-            - What: A heuristic function to use for the A* algorithm if caching is False
-            - Default: 'euclidean' (A predefined heuristic function that calculates the Euclidean distance for this grid graph)
-            - If None, the A* algorithm will default to Dijkstra's algorithm
-            - If a callable is provided, it should take two arguments: origin_id and destination_id and return a float representing the heuristic distance between the two nodes
-                - Note: This distance should never be greater than the actual distance between the two nodes or you may get suboptimal paths
-                - Note: This is deprecated and will be removed in a future version
         - `algorithm_fn`
-            - Type: callable | None
+            - Type: stra | callable
             - What: The algorithm to use for pathfinding
-            - Default: 'a_star'
+            - Default: 'dijkstra'
             - If None, the default algorithm will be used
         - `algorithm_kwargs`
             - Type: dict
@@ -480,6 +471,12 @@ class GridGraph:
             }
         if algorithm_kwargs is None:
             algorithm_kwargs = {}
+        if callable(algorithm_fn):
+            algorithm_kwargs['graph'] = self.graph
+        elif isinstance(algorithm_fn, str) and hasattr(self.graph_object, algorithm_fn):
+            algorithm_fn = getattr(self.graph_object, algorithm_fn)
+        else:
+            raise ValueError("algorithm_fn must be a string or callable")
 
         origin_id, origin_distance = self.__get_closest_node_with_connections__(
             **origin_node
@@ -504,7 +501,7 @@ class GridGraph:
             # Reverse for cache graphing if cache_for is destination since the graph is undirected
             if cache_for == "destination":
                 origin_id, destination_id = destination_id, origin_id
-            output = self.cacheGraph.get_shortest_path(
+            output = self.graph_object.get_set_cached_shortest_path(
                 origin_id=origin_id,
                 destination_id=destination_id,
             )
@@ -513,16 +510,7 @@ class GridGraph:
                 output["path"].reverse()
                 origin_id, destination_id = destination_id, origin_id
         else:
-            # TODO: Remove this backwards compatibility hack in future versions
-            if algorithm_fn == Graph.a_star:
-                if "heuristic_fn" not in algorithm_kwargs:
-                    algorithm_kwargs["heuristic_fn"] = (
-                        self.euclidean_heuristic
-                        if heuristic_fn == "euclidean"
-                        else heuristic_fn
-                    )
             output = algorithm_fn(
-                graph=self.graph,
                 origin_id=origin_id,
                 destination_id=destination_id,
                 **algorithm_kwargs,
@@ -638,7 +626,7 @@ class GridGraph:
                 "add_exterior_walls": self.add_exterior_walls,
                 "conn_data": self.conn_data,
             },
-            "graph_cache": self.cacheGraph.cache,
+            "graph_cache": self.graph_object.__cache__,
             "export_version": 1,
         }
         if include_blocks:
@@ -698,6 +686,6 @@ class GridGraph:
         for key, value in import_data["graph_attributes"].items():
             GridGraph_object.__setattr__(key, value)
 
-        GridGraph_object.cacheGraph = CacheGraph(GridGraph_object.graph)
-        GridGraph_object.cacheGraph.cache = import_data["graph_cache"]
+        GridGraph_object.graph_object = Graph(GridGraph_object.graph)
+        GridGraph_object.graph_object.__cache__ = import_data["graph_cache"]
         return GridGraph_object

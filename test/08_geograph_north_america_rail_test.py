@@ -52,11 +52,11 @@ validate(
 )
 
 validate(
-    name="Dijkstra-Modified",
+    name="Dijkstra",
     realized=north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra_makowski,
+        algorithm_fn="dijkstra",
     ),
     expected=expected,
 )
@@ -66,7 +66,7 @@ validate(
     realized=north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={
             "heuristic_fn": north_america_rail_geograph.haversine
         },
@@ -79,7 +79,7 @@ validate(
     realized=north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={
             "heuristic_fn": north_america_rail_geograph.cheap_ruler
         },
@@ -92,7 +92,7 @@ validate(
     realized=north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.bmssp,
+        algorithm_fn="bmssp",
     ),
     expected=expected,
 )
@@ -118,11 +118,11 @@ origin_node = {"latitude": 47.6, "longitude": -122.33}
 destination_node = {"latitude": 25.78, "longitude": -80.21}
 
 
-def dijkstra_makowski():
+def dijkstra():
     north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra_makowski,
+        algorithm_fn="dijkstra",
     )
 
 
@@ -130,7 +130,7 @@ def a_star_haversine():
     north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={
             "heuristic_fn": north_america_rail_geograph.haversine
         },
@@ -141,7 +141,7 @@ def a_star_cheap_ruler():
     north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={
             "heuristic_fn": north_america_rail_geograph.cheap_ruler
         },
@@ -152,11 +152,11 @@ def bmssp():
     north_america_rail_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.bmssp,
+        algorithm_fn="bmssp",
     )
 
 
-time_test("Dijkstra-Modified", dijkstra_makowski)
+time_test("Dijkstra", dijkstra)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
 time_test("BMSSP", bmssp)

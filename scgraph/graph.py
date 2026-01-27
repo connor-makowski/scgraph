@@ -201,6 +201,24 @@ class GraphUtils:
         """
         self.__cache__ = [0] * len(self.graph)
 
+    def __get__(self, idx: int) -> dict[int, int | float]:
+        """
+        Function:
+
+        - Get the adjacency dictionary for a specific node in the graph
+
+        Required Arguments:
+
+        - `idx`:
+            - Type: int
+            - What: The id of the node to get the adjacency dictionary for
+        
+        Returns:
+        
+        - The adjacency dictionary for the specified node
+        """
+        return self.graph[idx]
+
 
 class GraphModifiers:
     def add_node(self, node_dict: dict[int, int | float]=None, symmetric: bool = False) -> int:

@@ -138,7 +138,6 @@ def simplify_geojson(
 
 def parse_geojson(
     filename_in,
-    filename_out: str | None = None,
     precision: int = 4,
     pct_to_keep: int | float = 100,
     min_points=3,
@@ -150,7 +149,9 @@ def parse_geojson(
     Args:
 
     - filename_in (str): Input GeoJSON file path.
-    - filename_out (str|None): Output GeoJSON file path. If None, no output file is created.
+
+    Optional Args:
+
     - precision (int): Decimal places to round coordinates.
     - pct_to_keep (int|float): Percentage of the interior line points to keep.
     - min_points (int): Minimum number of points to keep in the simplified line.
@@ -160,7 +161,12 @@ def parse_geojson(
         list: List of cleaned coordinates as a single MultiLineString.
     """
     single_multi_line = simplify_geojson(
-        filename_in, precision, pct_to_keep, min_points, silent
+        filename_in=filename_in,
+        filename_out=None,
+        precision=precision, 
+        pct_to_keep=pct_to_keep, 
+        min_points=min_points, 
+        silent=silent
     )
     total_geometries = len(single_multi_line)
 
