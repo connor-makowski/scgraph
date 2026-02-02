@@ -32,3 +32,12 @@ nanobind_add_module(graph_cpp
     src/graph.cpp
 )
 target_compile_features(graph_cpp PRIVATE cxx_std_17)
+
+# -----------------------------
+# KDTree module
+# -----------------------------
+nanobind_add_module(kdtree_cpp
+    bindings/kdtree_bindings.cpp
+    src/kdtree.cpp
+)
+target_compile_features(kdtree_cpp PRIVATE cxx_std_17)

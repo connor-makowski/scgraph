@@ -19,6 +19,9 @@ cd ..
 # Move the compiled binary to a 'bin' directory.
 mkdir ../scgraph/bin
 touch ../scgraph/bin/__init__.py
+touch ../scgraph/bin/.gitignore
+printf "*\n!__init__.py\n!.gitignore" > ../scgraph/bin/.gitignore
+
 for f in build/*.so; do
     mv "$f" ../scgraph/bin/
 done

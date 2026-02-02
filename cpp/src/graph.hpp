@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <variant>
+#include <utility>
 
 struct GraphResult {
     std::vector<int> path;
@@ -19,8 +20,14 @@ struct TreeData {
 
 class Graph {
 private:
-    std::vector<std::unordered_map<int, double>> graph;
+    // Internal representation: vector of vectors of (node_id, distance) pairs
+    std::vector<std::vector<std::pair<int, double>>> graph;
     std::vector<TreeData> cache;
+
+    // Helper methods for conversion
+    static std::vector<std::vector<std::pair<int, double>>> serialize_graph(
+        const std::vector<std::unordered_map<int, double>>& input_graph);
+    std::unordered_map<int, double> get_adjacency_dict(int idx) const;
 
     // Utility methods
     void input_check(const std::variant<int, std::set<int>>& origin_id, int destination_id) const;
@@ -39,9 +46,9 @@ public:
     void reset_cache();
 
     // Access
-    const std::unordered_map<int, double>& get(int idx) const;
+    const std::unordered_map<int, double> get(int idx) const;
     int size() const { return graph.size(); }
-    const std::vector<std::unordered_map<int, double>>& get_graph() const { return graph; }
+    const std::vector<std::unordered_map<int, double>> get_graph() const;
 
     // Graph modification
     int add_node(const std::unordered_map<int, double>& node_dict = {}, bool symmetric = false);
@@ -61,6 +68,7 @@ public:
                       std::function<double(int, int)> heuristic_fn = nullptr);
     GraphResult bellman_ford(const std::variant<int, std::set<int>>& origin_id, int destination_id);
     GraphResult bmssp(const std::variant<int, std::set<int>>& origin_id, int destination_id);
+    
     // Cached shortest path
     GraphResult get_set_cached_shortest_path(int origin_id, int destination_id, bool length_only = false);
 };

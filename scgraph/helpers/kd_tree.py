@@ -343,3 +343,10 @@ class GeoKDTree:
         y = cos_lat * sin(lon_rad)
         z = sin(lat_rad)
         return (x, y, z, idx)
+
+
+# try:
+#     from scgraph.bin.kdtree_cpp import KDTree, GeoKDTree
+# except ImportError:
+#     print("C++ Graph module not found, using Python implementation.")
+#     pass

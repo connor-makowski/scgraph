@@ -534,7 +534,7 @@ class GraphAlgorithms:
         - Identify the shortest path between two nodes in a sparse network graph using a modified Dijkstra algorithm that catches negative cycles
             - Negative cycles raise an exception if they are detected
         - Note: This algorithm is guaranteed to find the shortest path or raise an exception if a negative cycle is detected
-        - Note: This algorithm requires computing the entire shorteest path tree of the graph and is therefore not able to be terminated early
+        - Note: This algorithm requires computing the entire shortest path tree of the graph and is therefore not able to be terminated early
             - For non negative weighted graphs, it is recommended to use the `dijkstra` algorithm instead
         - Note: This should be fairly performant in general, however it does have a higher worst-case time complexity than Bellman-Ford
 
@@ -928,8 +928,8 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
             self.validate()
 
 
-try:
-    from scgraph.bin.graph_cpp import Graph
-except ImportError:
-    print("C++ Graph module not found, using Python implementation.")
-    pass
+# try:
+#     from scgraph.bin.graph_cpp import Graph
+# except ImportError:
+#     print("C++ Graph module not found, using Python implementation.")
+#     pass
