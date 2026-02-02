@@ -926,3 +926,10 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
         self.reset_cache()
         if validate:
             self.validate()
+
+
+try:
+    from scgraph.bin.graph_cpp import Graph
+except ImportError:
+    print("C++ Graph module not found, using Python implementation.")
+    pass

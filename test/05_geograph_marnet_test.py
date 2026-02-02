@@ -1,27 +1,7 @@
-import time
-from pamda import pamda
-from scgraph import Graph
 from scgraph.geographs.marnet import marnet_geograph
-from scgraph.utils import hard_round
+from scgraph.utils import validate, time_test
 
 marnet_geograph.warmup()
-
-
-def validate(name, realized, expected):
-    if isinstance(realized, dict) and "length" in realized:
-        realized["length"] = hard_round(3, realized["length"])
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time.time()
-    thunk()
-    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
 
 
 print("\n===============\nMarnet GeoGraph Tests:\n===============")
@@ -129,11 +109,13 @@ print("\n===============\nMarnet GeoGraph Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(marnet_geograph.validate)(
-        check_symmetry=True, check_connected=True
-    ),
+    marnet_geograph.validate, 
+    kwargs = {
+        'check_symmetry':True, 
+        'check_connected':True
+    },
 )
-time_test("Node Validation", pamda.thunkify(marnet_geograph.validate_nodes))
+time_test("Node Validation", marnet_geograph.validate_nodes)
 
 # Note: These must be different than the above calls to ensure caching testing works correctly
 origin_node = {"latitude": 31.23, "longitude": 121.47}

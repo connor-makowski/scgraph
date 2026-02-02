@@ -1,22 +1,5 @@
-import time
-from pamda import pamda
-from scgraph import Graph
 from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph
-
-
-def validate(name, realized, expected):
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time.time()
-    thunk()
-    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
+from scgraph.utils import validate, time_test
 
 
 print("\n===============\nOak Ridge GeoGraph Tests:\n===============")
@@ -103,13 +86,13 @@ print("\n===============\nOak Ridge GeoGraph Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(oak_ridge_maritime_geograph.validate)(
-        check_symmetry=True, check_connected=False
-    ),
+    oak_ridge_maritime_geograph.validate, kwargs ={
+        "check_symmetry": True, "check_connected": False
+    },
 )
 time_test(
     "Node Validation",
-    pamda.thunkify(oak_ridge_maritime_geograph.validate_nodes),
+    oak_ridge_maritime_geograph.validate_nodes,
 )
 
 origin_node = {"latitude": 31.23, "longitude": 121.47}

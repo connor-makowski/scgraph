@@ -11,7 +11,6 @@ from scgraph.helpers.kd_tree import GeoKDTree
 import json
 from copy import deepcopy
 from typing import Literal
-
 from scgraph.graph import Graph
 
 class GeoGraphIO:
@@ -991,7 +990,6 @@ class GeoGraphUtils:
             - 'coordinate_path': (optional) A list of coordinates (latitude, longitude) in the order they are visited
             - 'long_first': (optional) A boolean indicating if the coordinate path is in longitude-first format
         """
-
         # If only the length is requested, return early if no circuity adjustment is needed
         if length_only and not adj_circuity:
             return {
@@ -1075,6 +1073,7 @@ class GeoGraphUtils:
             check_symmetry=check_symmetry,
             check_connected=check_connected,
         )
+
 
 class GeoGraphDistanceCalculations:
     def haversine(
@@ -1491,6 +1490,10 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                     destination_id=exit_id,
                     length_only=length_only,
                 )
+                try:
+                    output = output.to_dict()
+                except Exception:
+                    pass
                 # Modify the output to include the origin and destination nodes
                 output["length"] += entry_length + exit_length
                 # Make modifications to the output if the request is not just for length
@@ -1529,6 +1532,11 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                     destination_id=destination_id,
                     **algorithm_kwargs,
                 )
+                # If the output has a to_dict method, call it to ensure it is serializable
+                try:
+                    output = output.to_dict()
+                except Exception:
+                    pass
             # Format the output
             output = self.__format_output__(
                 output=output,

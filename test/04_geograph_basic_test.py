@@ -1,14 +1,5 @@
-import time
-from scgraph import GeoGraph, Graph
-
-
-def validate(name, realized, expected):
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
+from scgraph import GeoGraph
+from scgraph.utils import validate
 
 
 print("\n===============\nBasic GeoGraph Tests:\n===============")

@@ -3,21 +3,6 @@ from scgraph.utils import haversine
 from time import time
 
 
-def validate(name, realized, expected):
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time()
-    thunk()
-    print(f"{name}: {round((time()-start)*1000, 4)}ms")
-
-
 cities = {
     "Los Angeles": (34.0522, -118.2437),
     "New York City": (40.7128, -74.0060),

@@ -1,7 +1,6 @@
-from scgraph.graph import Graph
 from scgraph.helpers.shape_mover_utils import ShapeMoverUtils
-from scgraph.graph import Graph
 from typing import Literal
+from scgraph.graph import Graph
 
 
 class GridGraph:
@@ -398,7 +397,7 @@ class GridGraph:
         cache: bool = False,
         cache_for: str = "origin",
         output_path: bool = False,
-        algorithm_fn: str | callable = "dijkstra",
+        algorithm_fn: str = "dijkstra",
         algorithm_kwargs: dict | None = None,
         **kwargs,
     ) -> dict:
@@ -505,6 +504,10 @@ class GridGraph:
                 origin_id=origin_id,
                 destination_id=destination_id,
             )
+            try:
+                output = output.to_dict()
+            except Exception:
+                pass
             # Undo the reverse if cache_for is destination
             if cache_for == "destination":
                 output["path"].reverse()
@@ -515,6 +518,10 @@ class GridGraph:
                 destination_id=destination_id,
                 **algorithm_kwargs,
             )
+            try:
+                output = output.to_dict()
+            except Exception:
+                pass
         output["coordinate_path"] = self.__get_coordinate_path__(
             output["path"], output_coordinate_path
         )

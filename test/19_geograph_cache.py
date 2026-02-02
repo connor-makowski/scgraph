@@ -1,20 +1,5 @@
 from scgraph.geographs.us_freeway import us_freeway_geograph
-from time import time
-
-
-def validate(name, realized, expected):
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time()
-    thunk()
-    print(f"{name}: {round((time()-start)*1000, 4)}ms")
+from scgraph.utils import time_test
 
 
 cities = {
@@ -162,13 +147,13 @@ def single_cached_len_only_time():
 
 
 print("\n===============\nGeoGraph Cache Timing Tests:\n===============")
-time_test(name="GeoGraph single uncached time", thunk=single_uncached_time)
-time_test(name="GeoGraph single cached time", thunk=single_cached_time)
+time_test(name="GeoGraph single uncached time", function=single_uncached_time)
+time_test(name="GeoGraph single cached time", function=single_cached_time)
 time_test(
     name="GeoGraph single cached length only time",
-    thunk=single_cached_len_only_time,
+    function=single_cached_len_only_time,
 )
 
-time_test(name="GeoGraph uncached time", thunk=uncached_time)
-time_test(name="GeoGraph cached time", thunk=cached_time)
-time_test(name="GeoGraph cached length only time", thunk=cached_len_only_time)
+time_test(name="GeoGraph uncached time", function=uncached_time)
+time_test(name="GeoGraph cached time", function=cached_time)
+time_test(name="GeoGraph cached length only time", function=cached_len_only_time)

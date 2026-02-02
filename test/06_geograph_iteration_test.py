@@ -1,4 +1,3 @@
-from scgraph import GeoGraph
 from scgraph.geographs.marnet import marnet_geograph
 
 print("\n===============\nGeoGraph Iteration Test:\n===============")

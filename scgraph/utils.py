@@ -1,5 +1,6 @@
 import json
 from math import pi, sin, cos, asin
+import time
 
 # Constants for haversine and cheap ruler calculations
 earth_radius = {
@@ -315,3 +316,36 @@ def adjacency_list_tuples_to_dict(
         {to_id: weight for to_id, weight in connections}
         for connections in graph
     ]
+
+def validate(name, realized, expected):
+    # If either of the realized or expected are a class that have a to_dict method, convert them
+    try:
+        realized = realized.to_dict()
+    except: 
+        pass
+    try:
+        expected = expected.to_dict()
+    except:
+        pass
+    # Custom length rounding for floating point precision issues
+    if isinstance(realized, dict):
+        if "length" in realized:
+            realized["length"] = round(hard_round(3, realized["length"]),3)
+    if isinstance(expected, dict):
+        if "length" in expected:
+            expected["length"] = round(hard_round(3, expected["length"]),3)
+    if realized == expected:
+        print(f"{name}: PASS")
+    else:
+        print(f"{name}: FAIL")
+        print("Expected:", expected)
+        print("Realized:", realized)
+
+def time_test(name, function, args=None, kwargs=None):
+    if args is None:
+        args = ()
+    if kwargs is None:
+        kwargs = {}
+    start = time.time()
+    function(*args, **kwargs)
+    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")

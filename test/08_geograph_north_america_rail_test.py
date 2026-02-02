@@ -1,22 +1,6 @@
-import time
 from pamda import pamda
-from scgraph import Graph
 from scgraph.geographs.north_america_rail import north_america_rail_geograph
-
-
-def validate(name, realized, expected):
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time.time()
-    thunk()
-    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
+from scgraph.utils import validate, time_test
 
 
 print("\n===============\nNorth America Rail GeoGraph Tests:\n===============")
@@ -103,13 +87,13 @@ print(
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(north_america_rail_geograph.validate)(
-        check_symmetry=True, check_connected=False
-    ),
+    north_america_rail_geograph.validate, kwargs ={
+        "check_symmetry": True, "check_connected": False
+    },
 )
 time_test(
     "Node Validation",
-    pamda.thunkify(north_america_rail_geograph.validate_nodes),
+    north_america_rail_geograph.validate_nodes,
 )
 
 # Seattle
