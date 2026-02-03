@@ -7,7 +7,7 @@ from scgraph.utils import (
     get_lat_lon_bound_between_pts,
 )
 from scgraph.helpers.geojson import parse_geojson
-from scgraph.helpers.kd_tree import GeoKDTree
+from geokdtree import GeoKDTree
 import json
 from copy import deepcopy
 from typing import Literal

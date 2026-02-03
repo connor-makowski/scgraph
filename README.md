@@ -34,7 +34,7 @@ print('Length: ',output['length']) #=> Length:  19596.4653
 
 If you use SCGraph for your research, please consider citing the following paper:
 
-> Makowski, C., Saragih, A., Guter, W., Russell, T., Heinold, A., & Lekkakos, S. (2025). SCGraph: A dependency-free Python package for road, rail, and maritime shortest path routing generation and distance estimation. MIT Center for Transportation & Logistics Research Paper Series, (2025-028). https://ssrn.com/abstract=5388845
+> Makowski, C., Saragih, A., Guter, W., Russell, T., Heinold, A., & Lekkakos, S. (2025). SCGraph: A Python package for road, rail, and maritime shortest path routing generation and distance estimation. MIT Center for Transportation & Logistics Research Paper Series, (2025-028). https://ssrn.com/abstract=5388845
 
 Or by using the BibTeX entry:
 
