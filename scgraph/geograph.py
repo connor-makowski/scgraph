@@ -250,6 +250,65 @@ class GeoGraphIO:
             graph=data["graph"],
             nodes=data["nodes"],
         )
+    
+    @staticmethod
+    def load_from_osmnx_graph(
+        osmnx_graph,
+        weight_key: Literal["length", "travel_time"] = "length",
+        coord_precision: int = 4,
+        length_precision: int = 3,
+        silent: bool = False,
+    ):
+        """
+        Function:
+
+        - Load a GeoGraph from an OSMnx graph object
+        - This function
+            - Will convert the OSMnx graph into a GeoGraph object
+            - Rounds the coordinates to the specified precision
+            - Graph direction is maintained from the OSMnx graph
+
+
+        Required Arguments:
+
+        - `osmnx_graph`
+            - Type: osmnx.graph
+            - What: The OSMnx graph object to load
+            - EG: G
+
+        Optional Arguments:
+
+        - `coord_precision`
+            - Type: int
+            - What: Decimal places to round coordinates when loading and simplifying the lines
+            - Default: 4
+        - `length_precision`
+            - Type: int
+            - What: Decimal places to round lengths when loading the graph (in KM)
+            - Default: 2
+        """
+        assert weight_key in ["length", "travel_time"], "Weight key must be either 'length' or 'travel_time'"
+
+        node_list = list(osmnx_graph.nodes)
+        node_to_idx = {node: i for i, node in enumerate(node_list)}
+        adjacency = [dict() for _ in range(len(node_list))]
+
+        weight_divisor = 1000 if weight_key == "length" else 1
+        for u, v, data in osmnx_graph.edges(data=True):
+            i = node_to_idx[u]
+            j = node_to_idx[v]
+            weight = round(float(data.get(weight_key))/weight_divisor, length_precision)
+            adjacency[i][j] =min(adjacency[i].get(j, float('inf')), weight)
+
+        coords = [None] * len(node_list)
+        for node, data in osmnx_graph.nodes(data=True):
+            coords[node_to_idx[node]] = [round(data["y"], coord_precision), round(data["x"], coord_precision)]  # (lat, lon)
+        assert all([i is not None for i in coords]), "Some nodes are missing coordinates"
+
+        return GeoGraph(
+            graph=adjacency,
+            nodes=coords
+        )
 
     @staticmethod
     def get_multi_path_geojson(
