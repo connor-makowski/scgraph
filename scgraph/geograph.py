@@ -256,6 +256,10 @@ class GeoGraphIO:
         osmnx_graph,
         coord_precision: int = 4,
         weight_precision: int = 3,
+        weight_key: Literal['length', 'travel_time'] = 'length',
+        off_graph_travel_speed: int | float | None = None,
+        load_intermediate_nodes: bool = True,
+        silent: bool = False,
     ):
         """
         Function:
@@ -285,22 +289,70 @@ class GeoGraphIO:
             - What: Decimal places to round weights when loading the graph
             - Default: 3
             - Note: By default, OSMNX returns meters, but they are adjusted to kilometers in this function before rounding
+        - `weight_key`
+            - Type: str
+            - What: The edge attribute to use as the weight for the graph
+            - Options:
+                - 'length': Use the length attribute (in kilometers)
+                - 'travel_time': Use the travel_time attribute (in seconds)
+            - Default: 'length'
+        - `off_graph_travel_speed`
+            - Type: int | float | None
+            - What: The travel speed (km/h) to assume for off-graph travel when using travel_time (seconds) as the weight key
+            - Default: None
+            - Options:
+                - If None and weight_key is 'travel_time'
+                    - The default_off_graph_circiuity will be set to 0 (assuming instant travel off graph)
+                    - The default_node_addition_circuity will be set to 240 
+                        - This assumes 15 km/h off graph travel speed when optimizing for entry 
+                        - This is not included in final returned length, but only used to choose an optimal entry node into the graph
+                - If None and weight_key is 'length', the function will ignore this parameter
+                - If a number, the function will use this speed to convert off-graph distances to travel times in seconds
+        - `load_intermediate_nodes`
+            - Type: bool
+            - What: Whether to load the intermediate nodes for each edge (if they exist)
+            - Default: True
+        - `silent`
+            - Type: bool
+            - What: Whether to suppress progress output to the console when loading the graph
+            - Default: False
+
         """
         node_list = list(osmnx_graph.nodes)
         node_to_idx = {node: i for i, node in enumerate(node_list)}
 
         graph = [dict() for _ in range(len(node_list))]
+        if load_intermediate_nodes:
+            intermediate_nodes = [dict() for _ in range(len(node_list))]
+        weight_divisor = 1000 if weight_key == 'length' else 1
         for u, v, data in osmnx_graph.edges(data=True):
             i = node_to_idx[u]
             j = node_to_idx[v]
-            weight = round(float(data.get('length'))/1000, weight_precision)
+            weight = round(float(data.get(weight_key))/weight_divisor, weight_precision)
             graph[i][j] = min(graph[i].get(j, float('inf')), weight)
+            if load_intermediate_nodes and "geometry" in data:
+                intermediate_nodes[i][j] = [
+                    [round(coord[1], coord_precision), round(coord[0], coord_precision)]
+                    for coord in data["geometry"].coords
+                ]
 
         nodes = [None] * len(node_list)
         for node, data in osmnx_graph.nodes(data=True):
             nodes[node_to_idx[node]] = [round(data["y"], coord_precision), round(data["x"], coord_precision)]
-
-        return GeoGraph(graph=graph,nodes=nodes)
+        kwargs = {}
+        if load_intermediate_nodes:
+            kwargs['intermediate_nodes'] = intermediate_nodes
+        # Handle travel_time specific parameters
+        if weight_key == 'travel_time':
+            if off_graph_travel_speed is None:
+                print_console("No off_graph_travel_speed provided but weight_key = 'travel_time'. Assuming instant travel off graph. Setting default_off_graph_circuity to 0 and default_node_addition_circuity to 240.", silent=silent)
+                kwargs['default_off_graph_circuity'] = 0
+                kwargs['default_node_addition_circuity'] = 240
+            else:
+                off_graph_speed_km_per_s = off_graph_travel_speed / 3600
+                kwargs['default_off_graph_circuity'] = 1 / off_graph_speed_km_per_s
+                kwargs['default_node_addition_circuity'] = 4 / off_graph_speed_km_per_s
+        return GeoGraph(graph=graph,nodes=nodes, **kwargs)
 
     @staticmethod
     def get_multi_path_geojson(
@@ -971,6 +1023,7 @@ class GeoGraphUtils:
         node_addition_circuity: float | int = 4,
         off_graph_circuity: float | int = 1,
         length_only: bool = False,
+        get_intermediate_nodes: bool = False,
     ):
         """
         Function:
@@ -1032,6 +1085,10 @@ class GeoGraphUtils:
             - Type: bool
             - What: If True, only returns the length of the path
             - Default: False
+        - `get_intermediate_nodes`:
+            - Type: bool
+            - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
+            - Default: False
 
         Returns:
 
@@ -1053,7 +1110,7 @@ class GeoGraphUtils:
 
         # Get the coordinate path
         if "coordinate_path" not in output:
-            output["coordinate_path"] = self.__get_coordinate_path__(output["path"])
+            output["coordinate_path"] = self.__get_coordinate_path__(output["path"], get_intermediate_nodes=get_intermediate_nodes)
         # If the output path is not requested, remove it from the output
         if not output_path:
             if "path" in output:
@@ -1097,7 +1154,7 @@ class GeoGraphUtils:
         while len(self.graph_object.graph) > self.__original_graph_length__:
             self.remove_coord_node()
 
-    def __get_coordinate_path__(self, path: list[int]) -> list[list[float | int]]:
+    def __get_coordinate_path__(self, path: list[int],  get_intermediate_nodes: bool = False) -> list[list[float | int]]:
         """
         Function:
 
@@ -1111,8 +1168,23 @@ class GeoGraphUtils:
 
         Optional Arguments:
 
-        - None
+        - `get_intermediate_nodes`
+            - Type: bool
+            - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
+            - Default: False
         """
+        if get_intermediate_nodes and self.intermediate_nodes is not None:
+            # Start with the origin node
+            coordinate_path = [self.nodes[path[0]]]
+            # Dont include the first and last node since they are both off graph.
+            for i in range(1, len(path) - 1):
+                origin_id = path[i]
+                destination_id = path[i + 1]
+                intermediate_nodes = self.intermediate_nodes[origin_id].get(destination_id, [])
+                coordinate_path.extend(intermediate_nodes)
+                # Add the destination node
+                coordinate_path.append(self.nodes[destination_id])
+            return coordinate_path
         return [self.nodes[node_id] for node_id in path]
 
     def validate(
@@ -1197,6 +1269,9 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         graph: list[dict[int, int | float]],
         nodes: list[list[float | int]],
         validate: bool = False,
+        intermediate_nodes: list[list[list[float | int]]] = None,
+        default_off_graph_circuity: float | int = 1,
+        default_node_addition_circuity: float | int = 4,
     ) -> None:
         """
         Function:
@@ -1236,9 +1311,32 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             - Type: bool
             - What: Whether to validate the graph upon initialization
             - Default: False
+        - `intermediate_nodes`
+            - Type: list of lists of lists of floats or ints
+            - What: A list of lists where each sublist contains the intermediate coordinates (latitude then longitude) for each arc in the graph
+            - Note: Allows for more detailed path plotting along arcs without needing to increase the number of nodes in the graph
+            - Default: None
+        - `default_off_graph_circuity`
+            - Type: float | int
+            - What: The default circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
+            - Note: This can be used to account for graphs in different units than kilometers (like time).
+                - EG: For time, you may opt to just make this 0 so that the off graph distance is not counted towards the total path length (time)
+                - EG: For travel_time in seconds, you could assume that the off graph travel speed is 30 km/h, so the off graph circuity should be 3600 / 30 = 120
+            - See: `off_graph_circuity` notes in `get_shortest_path` for more information on how to set this value appropriately for your use case
+            - Default: 1
+        - `default_node_addition_circuity`
+            - Type: float | int
+            - What: The default circuity factor to apply when adding your origin and destination nodes to the distance matrix
+            - See: `default_off_graph_circuity` notes above for more information on how to set this value appropriately for your use case
+            - See: `node_addition_circuity` notes in `get_shortest_path` for more information on how to set this value appropriately for your use case
+            - Default: 4
         """
         self.graph_object = Graph(graph=graph, validate=validate)
         self.nodes = nodes
+        self.intermediate_nodes = intermediate_nodes
+        self.default_off_graph_circuity = default_off_graph_circuity
+        self.default_node_addition_circuity = default_node_addition_circuity
+        self.default_get_intermediate_nodes = True if intermediate_nodes is not None else False
         self.__warm__ = False
         self.__original_graph_length__ = len(graph)
 
@@ -1324,6 +1422,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         silent: bool = False,
         cache: bool = False,
         length_only: bool = False,
+        get_intermediate_nodes: bool = None,
         **kwargs,
     ) -> dict:
         """
@@ -1376,10 +1475,11 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         - `off_graph_circuity`
             - Type: int | float
             - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
-            - Default: 1
+            - Default: 1 (more specifically self.default_off_graph_circuity)
             - Notes:
                 - For alogrithmic solving purposes, the node_addition_circuity is applied to the origin and destination nodes when they are added to the graph
                 - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
+                - The off graph KM multiplied by this value is added to the total path length to account for the distance traveled off the graph
         - `node_addition_type`
             - Type: str
             - What: The type of node addition to use when adding your origin node to the distance matrix
@@ -1392,7 +1492,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         - `node_addition_circuity`
             - Type: int | float
             - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
-            - Default: 4
+            - Default: 4 (more specifically self.default_node_addition_circuity)
             - Note:
                 - This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
                 - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
@@ -1465,9 +1565,16 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             - Type: bool
             - What: If True, only returns the length of the path
             - Default: False
+        - `get_intermediate_nodes`
+            - Type: bool
+            - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
+            - Default: self.default_get_intermediate_nodes
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
+        get_intermediate_nodes = get_intermediate_nodes if get_intermediate_nodes is not None else self.default_get_intermediate_nodes
+        off_graph_circuity = off_graph_circuity if off_graph_circuity is not None else self.default_off_graph_circuity
+        node_addition_circuity = node_addition_circuity if node_addition_circuity is not None else self.default_node_addition_circuity
         algorithm_kwargs = algorithm_kwargs if algorithm_kwargs is not None else dict()
         self.warmup()
         if callable(algorithm_fn):
@@ -1551,7 +1658,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 if not length_only:
                     output["coordinate_path"] = (
                         [origin]
-                        + self.__get_coordinate_path__(output["path"])
+                        + self.__get_coordinate_path__(output["path"], get_intermediate_nodes=get_intermediate_nodes)
                         + [destination]
                     )
                     # Add the origin and destination nodes to the id path
@@ -1601,6 +1708,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 node_addition_circuity=node_addition_circuity,
                 off_graph_circuity=off_graph_circuity,
                 length_only=length_only,
+                get_intermediate_nodes=get_intermediate_nodes,
             )
             self.__cleanup_temp_nodes__()
             return output
