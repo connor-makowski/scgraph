@@ -32,8 +32,20 @@ class GeoGraphIO:
                 - Import as: 'from .custom import custom_geograph'
         """
         self.validate_nodes()
-        self.graph_object.validate(check_symmetry=True, check_connected=False)
-        out_string = f"""from scgraph import GeoGraph\ngraph={str(self.graph_object.graph)}\nnodes={str(self.nodes)}\n{name}_geograph = GeoGraph(graph=graph, nodes=nodes)"""
+        self.graph_object.validate(check_symmetry=False, check_connected=False)
+        args = {
+            "graph": self.graph_object.graph,
+            "nodes": self.nodes,
+            "default_off_graph_circuity": self.default_off_graph_circuity,
+            "default_node_addition_circuity": self.default_node_addition_circuity,
+        }
+        if self.intermediate_nodes is not None:
+            args["intermediate_nodes"] = self.intermediate_nodes
+        out_string = "from scgraph import GeoGraph\n"
+        for arg_name, arg_value in args.items():
+            out_string += f"{arg_name}={str(arg_value)}\n"
+        key_equals = ", ".join([f"{k}={k}" for k in args.keys()])
+        out_string += (f"{name}_geograph = GeoGraph({key_equals})")
         with open(name + ".py", "w") as f:
             f.write(out_string)
 
@@ -58,12 +70,18 @@ class GeoGraphIO:
         """
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
+        extra_kwargs = {}
+        if self.intermediate_nodes is not None:
+            extra_kwargs["intermediate_nodes"] = self.intermediate_nodes
         with open(filename, "w") as f:
             json.dump(
                 {
                     "type": "GeoGraph",
                     "graph": self.graph_object.graph,
                     "nodes": self.nodes,
+                    "default_off_graph_circuity": self.default_off_graph_circuity,
+                    "default_node_addition_circuity": self.default_node_addition_circuity,
+                    **extra_kwargs,
                 },
                 f,
             )
@@ -96,11 +114,23 @@ class GeoGraphIO:
             raise ValueError(
                 "JSON file is not a valid GeoGraph. Ensure it was saved using the save_as_graphjson method."
             )
+        extra_kwargs = {}
+        if data.get("intermediate_nodes", None) is not None:
+            extra_kwargs["intermediate_nodes"] = data["intermediate_nodes"]
+        if data.get("default_off_graph_circuity", None) is not None:
+            extra_kwargs["default_off_graph_circuity"] = data[
+                "default_off_graph_circuity"
+            ]
+        if data.get("default_node_addition_circuity", None) is not None:
+            extra_kwargs["default_node_addition_circuity"] = data[
+                "default_node_addition_circuity"
+            ]
         return GeoGraph(
             graph=[
                 {int(k): v for k, v in item.items()} for item in data["graph"]
             ],
             nodes=data["nodes"],
+            **extra_kwargs,
         )
 
     # GeoJSON Methods
@@ -129,6 +159,7 @@ class GeoGraphIO:
             - Default: False
 
         """
+        # TODO: Store intermediate nodes in geojson if they exist
         graph = self.graph_object.graph
         if compact:
             multiline = []
@@ -239,6 +270,7 @@ class GeoGraphIO:
             - What: Whether to suppress progress output to the console when loading the geojson
             - Default: False
         """
+        #TODO: Load intermediate nodes from geojson if they exist
         data = parse_geojson(
             filename_in=filename,
             precision=precision,
@@ -351,7 +383,7 @@ class GeoGraphIO:
             else:
                 off_graph_speed_km_per_s = off_graph_travel_speed / 3600
                 kwargs['default_off_graph_circuity'] = 1 / off_graph_speed_km_per_s
-                kwargs['default_node_addition_circuity'] = 4 / off_graph_speed_km_per_s
+                kwargs['default_node_addition_circuity'] = 1 / off_graph_speed_km_per_s
         return GeoGraph(graph=graph,nodes=nodes, **kwargs)
 
     @staticmethod
@@ -359,6 +391,7 @@ class GeoGraphIO:
         routes: list[dict],
         filename: str | None = None,
         show_progress: bool = False,
+        get_intermediate_nodes: bool = True,
     ) -> dict:
         """
         Creates a GeoJSON file with the shortest path between the origin and destination of each route.
@@ -391,6 +424,9 @@ class GeoGraphIO:
             - Default: False
         - `silent`: bool
             - Whether to suppress console output
+            - Default: False
+        - `get_intermediate_nodes`: bool
+            - Whether to include intermediate nodes in the shortest path calculation
             - Default: False
 
         Returns
@@ -479,7 +515,9 @@ class GeoGraphIO:
         len_routes = len(routes)
         for idx, route in enumerate(routes):
             shortest_path = route["geograph"].get_shortest_path(
-                route["origin"], route["destination"]
+                origin_node = route["origin"], 
+                destination_node = route["destination"], 
+                get_intermediate_nodes=True
             )
             shortest_line_path = get_line_path(shortest_path)
             output["features"].append(
