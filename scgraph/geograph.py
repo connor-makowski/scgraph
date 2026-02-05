@@ -254,20 +254,18 @@ class GeoGraphIO:
     @staticmethod
     def load_from_osmnx_graph(
         osmnx_graph,
-        weight_key: Literal["length", "travel_time"] = "length",
         coord_precision: int = 4,
-        length_precision: int = 3,
-        silent: bool = False,
+        weight_precision: int = 3,
     ):
         """
         Function:
 
         - Load a GeoGraph from an OSMnx graph object
-        - This function
+        - This function:
             - Will convert the OSMnx graph into a GeoGraph object
             - Rounds the coordinates to the specified precision
-            - Graph direction is maintained from the OSMnx graph
-
+            - Rounds the weights to the specified precision (in kilometers)
+            - This preserves directionality of edges from the OSMnx graph
 
         Required Arguments:
 
@@ -280,35 +278,29 @@ class GeoGraphIO:
 
         - `coord_precision`
             - Type: int
-            - What: Decimal places to round coordinates when loading and simplifying the lines
+            - What: Decimal places to round coordinates when loading the graph
             - Default: 4
-        - `length_precision`
+        - `weight_precision`
             - Type: int
-            - What: Decimal places to round lengths when loading the graph (in KM)
-            - Default: 2
+            - What: Decimal places to round weights when loading the graph
+            - Default: 3
+            - Note: By default, OSMNX returns meters, but they are adjusted to kilometers in this function before rounding
         """
-        assert weight_key in ["length", "travel_time"], "Weight key must be either 'length' or 'travel_time'"
-
         node_list = list(osmnx_graph.nodes)
         node_to_idx = {node: i for i, node in enumerate(node_list)}
-        adjacency = [dict() for _ in range(len(node_list))]
 
-        weight_divisor = 1000 if weight_key == "length" else 1
+        graph = [dict() for _ in range(len(node_list))]
         for u, v, data in osmnx_graph.edges(data=True):
             i = node_to_idx[u]
             j = node_to_idx[v]
-            weight = round(float(data.get(weight_key))/weight_divisor, length_precision)
-            adjacency[i][j] =min(adjacency[i].get(j, float('inf')), weight)
+            weight = round(float(data.get('length'))/1000, weight_precision)
+            graph[i][j] = min(graph[i].get(j, float('inf')), weight)
 
-        coords = [None] * len(node_list)
+        nodes = [None] * len(node_list)
         for node, data in osmnx_graph.nodes(data=True):
-            coords[node_to_idx[node]] = [round(data["y"], coord_precision), round(data["x"], coord_precision)]  # (lat, lon)
-        assert all([i is not None for i in coords]), "Some nodes are missing coordinates"
+            nodes[node_to_idx[node]] = [round(data["y"], coord_precision), round(data["x"], coord_precision)]
 
-        return GeoGraph(
-            graph=adjacency,
-            nodes=coords
-        )
+        return GeoGraph(graph=graph,nodes=nodes)
 
     @staticmethod
     def get_multi_path_geojson(
