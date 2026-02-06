@@ -1,6 +1,6 @@
-from scgraph.helpers.shape_mover_utils import ShapeMoverUtils
 from typing import Literal
 from scgraph.graph import Graph
+from math import ceil
 
 
 class GridGraph:
@@ -200,17 +200,56 @@ class GridGraph:
         x_off: int,
         y_off: int,
     ):
-        return list(
-            ShapeMoverUtils.moving_shape_overlap_intervals(
-                x_coord=0,
-                y_coord=0,
-                x_shift=x_off,
-                y_shift=y_off,
-                t_start=0,
-                t_end=1,
-                shape=shape,
-            ).keys()
-        )
+        """
+        Returns the list of (x, y) integer grid cells that the shape overlaps
+        as it moves from (0, 0) to (x_off, y_off).
+        """
+        # Get bounding box of the shape at start and end positions
+        xs = [coord[0] for coord in shape]
+        ys = [coord[1] for coord in shape]
+        
+        # Calculate the 1d overlaps in x and y directions
+        x_cells = list(range(int(min(xs) + min(0, x_off)), int(ceil(max(xs) + max(0, x_off)))))
+        y_cells = list(range(int(min(ys) + min(0, y_off)), int(ceil(max(ys) + max(0, y_off)))))
+        
+        # Combine to get 2D cell overlaps
+        result = set()
+        for x_key in x_cells:
+            for y_key in y_cells:
+                result.add((x_key, y_key))
+        
+        # Remove untouched cells if moving diagonally
+        if x_off != 0 and y_off != 0:
+            slope = y_off / x_off
+
+            # Find min and max vertex given the slope
+            orthogonal = -1 / slope # Compute orthogonal slope
+            # Define direction projections (a normalized direction vector, but without the linear algebra)
+            # Note: Technically normalized length is (1**2 + orthogonal**2)**.5, but we avoid the extra square for performance
+            length = (1 + orthogonal**2) ** 0.5
+            projections = [x * 1.0 / length + y * orthogonal / length for x, y in shape]
+            # Return the min and max verticies
+            min_vertex = shape[min(enumerate(projections), key=lambda x: x[1])[0]]
+            max_vertex = shape[max(enumerate(projections), key=lambda x: x[1])[0]]
+            if slope > 0:
+                min_vertex, max_vertex = max_vertex, min_vertex
+
+            shape_min_intercept = min_vertex[1] - slope * min_vertex[0]
+            shape_max_intercept = max_vertex[1] - slope * max_vertex[0]
+            
+            ltx_increment, gtx_increment = (1, 0) if slope < 0 else (0, 1)
+
+            remove_cells = []
+            for x_cell, y_cell in result:
+                cell_min_intercept = y_cell - (slope * (x_cell + gtx_increment))
+                cell_max_intercept = (y_cell + 1) - (slope * (x_cell + ltx_increment))
+
+                if not (cell_min_intercept < shape_max_intercept and shape_min_intercept < cell_max_intercept):
+                    remove_cells.append((x_cell, y_cell))
+            for key in remove_cells:
+                result.remove(key)
+        # Return the list of offsets
+        return list(result)
 
     def __create_graph__(
         self,
