@@ -14,7 +14,7 @@ from typing import Literal
 from scgraph.graph import Graph
 
 class GeoGraphIO:
-    # Geograph Methods
+    # Save Methods
     def save_as_geograph(self, name: str, save_intermediate_nodes: bool=True) -> None:
         """
         Function:
@@ -29,7 +29,7 @@ class GeoGraphIO:
             - EG: 'custom'
                 - Stored as: 'custom.py'
                     - In your current directory
-                - Import as: 'from .custom import custom_geograph'
+                - Import as: 'from .custom import custom'
         
         Optional Arguments:
 
@@ -52,86 +52,8 @@ class GeoGraphIO:
             f.write("from scgraph import GeoGraph\n")
             for arg_name, arg_value in args.items():
                 f.write(f"{arg_name}={str(arg_value)}\n")
-            f.write(f"{name}_geograph = GeoGraph({", ".join([f"{k}={k}" for k in args.keys()])})")
+            f.write(f"{name} = GeoGraph({", ".join([f"{k}={k}" for k in args.keys()])})")
 
-    # GraphJSON Methods
-    def save_as_graphjson(self, filename: str, save_intermediate_nodes: bool = True) -> None:
-        """
-        Function:
-
-        - Save the current geograph as a JSON file that can be used to recreate the geograph later
-        - This is particularly useful for larger geographs that you want to save and load later without having to recreate them from scratch
-        - Only the graph and nodes are saved, not the methods or any other attributes of the GeoGraph class
-
-        Required Arguments:
-
-        - `filename`
-            - Type: str
-            - What: The filename to save the JSON file as
-            - EG: 'custom.graphjson'
-                - Stored as: 'custom.graphjson'
-                    - In your current directory
-            - Note: The filename must end with .graphjson
-
-        Optional Arguments:
-
-        - `save_intermediate_nodes`
-            - Type: bool
-            - What: Whether to include the intermediate nodes in the saved JSON file (if they exist)
-            - Default: True
-        """
-        if not filename.endswith(".graphjson"):
-            raise ValueError("Filename must end with .graphjson")
-        extra_kwargs = {}
-        if self.intermediate_nodes is not None and save_intermediate_nodes:
-            extra_kwargs["intermediate_nodes"] = self.intermediate_nodes
-        with open(filename, "w") as f:
-            json.dump(
-                {
-                    "type": "GeoGraph",
-                    "graph": self.graph_object.graph,
-                    "nodes": self.nodes,
-                    "default_off_graph_circuity": self.default_off_graph_circuity,
-                    "default_node_addition_circuity": self.default_node_addition_circuity,
-                    **extra_kwargs,
-                },
-                f,
-            )
-
-    @staticmethod
-    def load_from_graphjson(filename: str) -> "GeoGraph":
-        """
-        Function:
-
-        - Load a GeoGraph from a JSON file that was saved using the `save_as_graphjson` method
-
-        Required Arguments:
-
-        - `filename`
-            - Type: str
-            - What: The filename of the JSON file to load
-            - EG: 'custom.json'
-                - Stored as: 'custom.json'
-                    - In your current directory
-
-        Returns:
-
-        - A GeoGraph object with the graph and nodes loaded from the JSON file
-        """
-        if not filename.endswith(".graphjson"):
-            raise ValueError("Filename must end with .graphjson")
-        with open(filename, "r") as f:
-            data = json.load(f)
-        if data.get("type", None) != "GeoGraph":
-            raise ValueError(
-                "JSON file is not a valid GeoGraph. Ensure it was saved using the save_as_graphjson method."
-            )
-        data.pop("type")
-        # Clean the graph data such that all keys are ints (JSON only allows string keys, but we want int keys for the graph)
-        data['graph'] = [{int(k): v for k, v in item.items()} for item in data['graph']]
-        return GeoGraph(**data)
-
-    # GeoJSON Methods
     def save_as_geojson(self, filename: str, compact: bool = False, save_intermediate_nodes: bool = True) -> None:
         """
         Function:
@@ -210,6 +132,51 @@ class GeoGraphIO:
         with open(filename, "w") as f:
             json.dump(out_dict, f)
 
+    def save_as_graphjson(self, filename: str, save_intermediate_nodes: bool = True) -> None:
+        """
+        Function:
+
+        - Save the current geograph as a JSON file that can be used to recreate the geograph later
+        - This is particularly useful for larger geographs that you want to save and load later without having to recreate them from scratch
+        - Only the graph and nodes are saved, not the methods or any other attributes of the GeoGraph class
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename to save the JSON file as
+            - EG: 'custom.graphjson'
+                - Stored as: 'custom.graphjson'
+                    - In your current directory
+            - Note: The filename must end with .graphjson
+
+        Optional Arguments:
+
+        - `save_intermediate_nodes`
+            - Type: bool
+            - What: Whether to include the intermediate nodes in the saved JSON file (if they exist)
+            - Default: True
+        """
+        if not filename.endswith(".graphjson"):
+            raise ValueError("Filename must end with .graphjson")
+        extra_kwargs = {}
+        if self.intermediate_nodes is not None and save_intermediate_nodes:
+            extra_kwargs["intermediate_nodes"] = self.intermediate_nodes
+        with open(filename, "w") as f:
+            json.dump(
+                {
+                    "type": "GeoGraph",
+                    "graph": self.graph_object.graph,
+                    "nodes": self.nodes,
+                    "default_off_graph_circuity": self.default_off_graph_circuity,
+                    "default_node_addition_circuity": self.default_node_addition_circuity,
+                    **extra_kwargs,
+                },
+                f,
+            )
+
+
+    # Load Methods
     @staticmethod
     def load_from_geojson(
         filename: str,
@@ -279,6 +246,39 @@ class GeoGraphIO:
             nodes=data["nodes"],
         )
     
+    @staticmethod
+    def load_from_graphjson(filename: str) -> "GeoGraph":
+        """
+        Function:
+
+        - Load a GeoGraph from a JSON file that was saved using the `save_as_graphjson` method
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename of the JSON file to load
+            - EG: 'custom.json'
+                - Stored as: 'custom.json'
+                    - In your current directory
+
+        Returns:
+
+        - A GeoGraph object with the graph and nodes loaded from the JSON file
+        """
+        if not filename.endswith(".graphjson"):
+            raise ValueError("Filename must end with .graphjson")
+        with open(filename, "r") as f:
+            data = json.load(f)
+        if data.get("type", None) != "GeoGraph":
+            raise ValueError(
+                "JSON file is not a valid GeoGraph. Ensure it was saved using the save_as_graphjson method."
+            )
+        data.pop("type")
+        # Clean the graph data such that all keys are ints (JSON only allows string keys, but we want int keys for the graph)
+        data['graph'] = [{int(k): v for k, v in item.items()} for item in data['graph']]
+        return GeoGraph(**data)
+
     @staticmethod
     def load_from_osmnx_graph(
         osmnx_graph,
@@ -382,6 +382,8 @@ class GeoGraphIO:
                 kwargs['default_node_addition_circuity'] = 1 / off_graph_speed_km_per_s
         return GeoGraph(graph=graph,nodes=nodes, **kwargs)
 
+
+    # Misc IO Methods
     @staticmethod
     def get_multi_path_geojson(
         routes: list[dict],
