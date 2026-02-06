@@ -227,7 +227,7 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to load the intermediate nodes for each edge (if they exist) into the GeoGraph object
             - Default: True
-            - TODO: Not implemented yet.
+            - Note: Not implemented yet.
         - `silent`
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the geojson
@@ -853,7 +853,7 @@ class GeoGraphUtils:
         """
         Function:
 
-        - Get the distances between a node and all other nodes in the graph
+        - Get the distances between a node other connected nodes in the graph
         - This is used to determine the closest node to add to the graph when adding a new node
 
         Required Arguments:
@@ -906,7 +906,6 @@ class GeoGraphUtils:
             "quadrant",
             "all",
             "closest",
-            "kdclosest",
         ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest', 'kdclosest']"
         assert node_addition_math in [
             "euclidean",
@@ -1001,46 +1000,6 @@ class GeoGraphUtils:
         else:
             return []
 
-    def __adjust_circuity_length__(
-        self,
-        output: dict,
-        node_addition_circuity: float | int,
-        off_graph_circuity: float | int,
-    ) -> float | int:
-        """
-        Function:
-
-        - Adjust the length of the path to account for the circuity factors applied to the origin and destination nodes
-
-        Required Arguments:
-
-        - `output`
-            - Type: dict
-            - What: The output from the algorithm function
-        - `node_addition_circuity`
-            - Type: int | float
-            - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix
-        - `off_graph_circuity`
-            - Type: int | float
-            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
-        """
-        coordinate_path = output["coordinate_path"]
-        # If the path does not enter the graph, undo the node_addition_circuity and apply the off_graph_circuity
-        if len(output["coordinate_path"]) == 2:
-            return (
-                output["length"] / node_addition_circuity
-            ) * off_graph_circuity
-        else:
-            direct_off_graph_length = haversine(
-                coordinate_path[0], coordinate_path[1], circuity=1
-            ) + haversine(coordinate_path[-2], coordinate_path[-1], circuity=1)
-            return round(
-                output["length"]
-                + direct_off_graph_length
-                * (off_graph_circuity - node_addition_circuity),
-                4,
-            )
-
     def __format_coordinates__(
         self,
         coordinate_path: list[list[float | int]],
@@ -1076,139 +1035,6 @@ class GeoGraphUtils:
             raise ValueError(
                 "Invalid output_format. Must be one of 'list_of_lists', 'list_of_lists_long_first', or 'list_of_dicts'"
             )
-
-    def __format_output__(
-        self,
-        output: dict,
-        output_coordinate_path: str = "list_of_lists",
-        output_units: str = "km",
-        geograph_units: str = "km",
-        output_path: bool = False,
-        adj_circuity: bool = True,
-        node_addition_circuity: float | int = 4,
-        off_graph_circuity: float | int = 1,
-        length_only: bool = False,
-        get_intermediate_nodes: bool = False,
-    ):
-        """
-        Function:
-
-        - Format the output of the shortest path algorithm to include:
-
-        Arguments:
-
-        - `output`
-            - Type: dict
-            - What: The output from the shortest path algorithm
-            - Expected Keys:
-                - 'length': The length of the path in the units specified by `geograph_units`
-                - 'path': (optional) A list of node ids in the order they are visited
-                - 'coordinate_path': (optional) A list of coordinates (latitude, longitude) in the order they are visited
-        - `output_coordinate_path`:
-            - Type: str
-            - What: The format of the output coordinate path
-            - Options:
-                - 'list_of_dicts': A list of dictionaries with keys 'latitude' and 'longitude'
-                - 'list_of_lists': A list of lists with the first value being latitude and the second being longitude
-                - 'list_of_lists_long_first': A list of lists with the first value being longitude and the second being latitude
-            - Default: 'list_of_lists'
-        - `output_units`:
-            - Type: str
-            - What: The units in which to return the length of the path
-            - Default: 'km'
-            - Options:
-                - 'km': Kilometers
-                - 'm': Meters
-                - 'mi': Miles
-                - 'ft': Feet
-        - `geograph_units`:
-            - Type: str
-            - What: The units of measurement in the geograph data
-            - Default: 'km'
-            - Options:
-                - 'km': Kilometers
-                - 'm': Meters
-                - 'mi': Miles
-                - 'ft': Feet
-        - `output_path`:
-            - Type: bool
-            - What: Whether to output the path as a list of geograph node ids (for debugging and other advanced uses)
-            - Default: False
-        - `adj_circuity`:
-            - Type: bool
-            - What: Whether to adjust the length for node addition type circuity factors (this needs the coordinate path)
-            - Default: True
-        - `node_addition_circuity`:
-            - Type: float | int
-            - What: The circuity factor that was applied when adding your origin and destination nodes to the distance matrix
-            - Default: 4
-        - `off_graph_circuity`:
-            - Type: float | int
-            - What: The circuity factor that was applied when the path goes off the graph
-            - Default: 1
-        - `length_only`:
-            - Type: bool
-            - What: If True, only returns the length of the path
-            - Default: False
-        - `get_intermediate_nodes`:
-            - Type: bool
-            - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
-            - Default: False
-
-        Returns:
-
-        - A dictionary with the following keys:
-            - 'length': The length of the path in the units specified by `output_units`
-            - 'path': (optional) A list of node ids in the order they are visited
-            - 'coordinate_path': (optional) A list of coordinates (latitude, longitude) in the order they are visited
-            - 'long_first': (optional) A boolean indicating if the coordinate path is in longitude-first format
-        """
-        # If only the length is requested, return early if no circuity adjustment is needed
-        if length_only and not adj_circuity:
-            return {
-                "length": distance_converter(
-                    output["length"],
-                    input_units=geograph_units,
-                    output_units=output_units,
-                )
-            }
-
-        # Get the coordinate path
-        if "coordinate_path" not in output:
-            output["coordinate_path"] = self.__get_coordinate_path__(output["path"], get_intermediate_nodes=get_intermediate_nodes)
-        # If the output path is not requested, remove it from the output
-        if not output_path:
-            if "path" in output:
-                del output["path"]
-
-        # Adjust the length for circuity factors if needed (this needs the coordinate path)
-        # This adjusts for the difference between node addition circuity and off graph circuity
-        if adj_circuity:
-            output["length"] = self.__adjust_circuity_length__(
-                output=output,
-                node_addition_circuity=node_addition_circuity,
-                off_graph_circuity=off_graph_circuity,
-            )
-
-        # Format the length
-        output["length"] = distance_converter(
-            output["length"],
-            input_units=geograph_units,
-            output_units=output_units,
-        )
-
-        if length_only:
-            return {"length": output["length"]}
-
-        # Format the coordinate path to the desired output format
-        output["coordinate_path"] = self.__format_coordinates__(
-            coordinate_path=output["coordinate_path"],
-            output_format=output_coordinate_path,
-        )
-        if output_coordinate_path == "list_of_lists_long_first":
-            output["long_first"] = True
-
-        return output
 
     def __cleanup_temp_nodes__(self):
         """
@@ -1648,87 +1474,31 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             algorithm_fn = getattr(self.graph_object, algorithm_fn)
         else:
             raise ValueError("algorithm_fn must be a string or callable")
-        # Handle auto bounding boxes
+        # If auto lat lon bounds are needed, then calculate them.
         if node_addition_lat_lon_bound == "auto":
-            node_addition_lat_lon_bound_origin = 180
-            node_addition_lat_lon_bound_destination = 180
-            if not (
-                node_addition_type == "kdclosest"
-                and destination_node_addition_type == "kdclosest"
-            ):
-                node_addition_lat_lon_bound_destination = (
-                    get_lat_lon_bound_between_pts(origin_node, destination_node)
-                    * 1.01
-                )
-                node_addition_lat_lon_bound_origin = min(
-                    node_addition_lat_lon_bound_destination,
-                    auto_lat_lon_bound_max,
-                )
-        else:
-            node_addition_lat_lon_bound_origin = node_addition_lat_lon_bound
-            node_addition_lat_lon_bound_destination = (
-                node_addition_lat_lon_bound
-            )
+            if node_addition_type != 'kdclosest' or destination_node_addition_type != 'kdclosest':
+                node_addition_lat_lon_bound_destination = get_lat_lon_bound_between_pts(origin_node, destination_node)* 1.01
+                node_addition_lat_lon_bound_origin = min(node_addition_lat_lon_bound_destination, auto_lat_lon_bound_max)
         try:
-            # Handle Cache based shortest path calculations
-            if cache:
-                assert node_addition_type in [
-                    "kdclosest",
-                    "closest",
-                ], "When caching, origin_node_addition_type must be 'kdclosest' or 'closest'"
-                assert destination_node_addition_type in [
-                    "kdclosest",
-                    "closest",
-                ], "When caching, destination_node_addition_type must be 'kdclosest' or 'closest'"
-                origin = [
-                    origin_node.get("latitude"),
-                    origin_node.get("longitude"),
-                ]
-                destination = [
-                    destination_node.get("latitude"),
-                    destination_node.get("longitude"),
-                ]
-                entry_id, entry_length = list(
-                    self.__get_node_distances__(
-                        node=origin,
-                        circuity=off_graph_circuity,
-                        node_addition_type=node_addition_type,
-                        node_addition_math=node_addition_math,
-                        lat_lon_bound=node_addition_lat_lon_bound_origin,
-                        silent=silent,
-                    ).items()
-                )[0]
-                exit_id, exit_length = list(
-                    self.__get_node_distances__(
-                        node=destination,
-                        circuity=off_graph_circuity,
-                        node_addition_type=destination_node_addition_type,
-                        node_addition_math=node_addition_math,
-                        lat_lon_bound=node_addition_lat_lon_bound_destination,
-                        silent=silent,
-                    ).items()
-                )[0]
-                output = self.graph_object.get_set_cached_shortest_path(
-                    origin_id=entry_id,
-                    destination_id=exit_id,
-                    length_only=length_only,
-                )
-                try:
-                    output = output.to_dict()
-                except Exception:
-                    pass
-                # Modify the output to include the origin and destination nodes
-                output["length"] += entry_length + exit_length
-                # Make modifications to the output if the request is not just for length
-                if not length_only:
-                    output["coordinate_path"] = (
-                        [origin]
-                        + self.__get_coordinate_path__(output["path"], get_intermediate_nodes=get_intermediate_nodes)
-                        + [destination]
-                    )
-                    # Add the origin and destination nodes to the id path
-                    output["path"] = [entry_id] + output["path"] + [exit_id]
-            # Handle non-cache based shortest path calculations
+            origin = [
+                origin_node.get("latitude"),
+                origin_node.get("longitude"),
+            ]
+            destination = [
+                destination_node.get("latitude"),
+                destination_node.get("longitude"),
+            ]
+            origin_added = True
+            destination_added = True
+            origin_entry_length = 0
+            destination_exit_length = 0
+        
+            # If the node addition type is kdclosest, we can get the closest node and distance without adding a new node to the graph. 
+            # Otherwise, we need to add a new node to the graph for the origin and destination.
+            if node_addition_type == "kdclosest":
+                origin_id = self.geokdtree.closest_idx(point=origin)
+                origin_entry_length = haversine(origin, self.nodes[origin_id], circuity=off_graph_circuity, units=geograph_units)
+                origin_added = False
             else:
                 origin_id = self.add_coord_node(
                     coord_dict=origin_node,
@@ -1740,6 +1510,11 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                     silent=silent,
                     temp_node=True,
                 )
+            if destination_node_addition_type == "kdclosest":
+                destination_id = self.geokdtree.closest_idx(point=destination)
+                destination_exit_length = haversine(destination, self.nodes[destination_id], circuity=off_graph_circuity, units=geograph_units)
+                destination_added = False
+            else:
                 destination_id = self.add_coord_node(
                     coord_dict=destination_node,
                     auto_edge=True,
@@ -1749,45 +1524,79 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                     node_addition_math=node_addition_math,
                     silent=silent,
                     temp_node=True,
+                )  
+            
+            # If caching is enabled, we can use the cached shortest path tree to get the shortest path length and path between the origin and destination nodes. 
+            # Otherwise, we need to run the algorithm function to get the shortest path length and path between the origin and destination nodes.
+            if cache:
+                assert not origin_added, "When caching, origin_node_addition_type must be 'kdclosest'"
+                assert not destination_added, "When caching, destination_node_addition_type must be 'kdclosest'"
+                output = self.graph_object.get_set_cached_shortest_path(
+                    origin_id=origin_id,
+                    destination_id=destination_id,
+                    length_only=length_only,
                 )
+                # Add in missing lengths
+                output['length'] += origin_entry_length + destination_exit_length
+  
+            else:
                 output = algorithm_fn(
                     origin_id=origin_id,
                     destination_id=destination_id,
                     **algorithm_kwargs,
                 )
-                # If the output has a to_dict method, call it to ensure it is serializable
-                try:
-                    output = output.to_dict()
-                except Exception:
-                    pass
-            # Format the output
-            output = self.__format_output__(
-                output=output,
-                output_coordinate_path=output_coordinate_path,
+                # Handle circuity adjustments, length conversions, and path adjustments
+                # Edge case when there is a direct connection between the origin and destination nodes
+                if (origin_added and destination_added and len(output['path']) == 2) or len(output['path']) <= 1:
+                    output['length'] = haversine(origin, destination, circuity=off_graph_circuity, units=geograph_units)
+                    output['path'] = []
+                else:
+                    if origin_added:
+                        output['length']+= -self.graph_object.graph[output['path'][0]][output['path'][1]] + haversine(origin, self.nodes[output['path'][1]], circuity=off_graph_circuity, units=geograph_units)
+                        output['path'] = output['path'][1:]
+                    else:
+                        output['length']+= origin_entry_length
+                    if destination_added:
+                        output['length']+= -self.graph_object.graph[output['path'][-2]][output['path'][-1]] + haversine(self.nodes[output['path'][-2]], destination, circuity=off_graph_circuity, units=geograph_units)
+                        output['path'] = output['path'][:-1]
+                    else:
+                        output['length']+= destination_exit_length
+
+            # Convert the length to the desired output units
+            output['length'] = distance_converter(
+                output['length'],
+                input_units=geograph_units,
                 output_units=output_units,
-                geograph_units=geograph_units,
-                output_path=output_path,
-                # No need to adjust for node addition circuity here if the request is cached since
-                # the off_graph_circuity is applied for node addition when caching is used.
-                adj_circuity=not cache,
-                node_addition_circuity=node_addition_circuity,
-                off_graph_circuity=off_graph_circuity,
-                length_only=length_only,
-                get_intermediate_nodes=get_intermediate_nodes,
             )
-            self.__cleanup_temp_nodes__()
+            # Early return if only length is needed
+            if length_only:
+                return {"length": output['length']}
+            
+            # Get the coordinate path
+            output['coordinate_path'] = [origin] + self.__get_coordinate_path__(output['path'], get_intermediate_nodes=get_intermediate_nodes) + [destination]
+
+            # Format the coordinate path to the desired output format
+            if output_coordinate_path != "list_of_lists":
+                output['coordinate_path'] = self.__format_coordinates__(
+                    coordinate_path=output['coordinate_path'],
+                    output_format=output_coordinate_path,
+                )
+                if output_coordinate_path == "list_of_lists_long_first":
+                    output["long_first"] = True
+
+            if not output_path:
+                del output['path']
+            if origin_added or destination_added:
+                self.__cleanup_temp_nodes__()
             return output
+        
         except Exception as e:
             # Cleanup temp nodes from the graph
             self.__cleanup_temp_nodes__()
             print("An error occurred while calculating the shortest path:")
             print("This is likely caused by a disconnect in the graph.")
-            print(
-                "You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180."
-            )
-            print(
-                "This will, however, result in a much longer runtime per shortest path query."
-            )
+            print("You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180.")
+            print("This will, however, result in a much longer runtime per shortest path query.")
             print("See the stacktrace below for more details:")
             raise e
 
@@ -1849,26 +1658,18 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         dist_multiplier = distance_converter(
             distance=1, input_units=geograph_units, output_units=output_units
         )
-        node_addition_multiplier = distance_converter(
-            distance=1, input_units="km", output_units=output_units
-        )
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
         entry_idx_and_distance = []
         for node in nodes:
-            node_idx, distance = list(
-                self.__get_node_distances__(
-                    node=[node["latitude"], node["longitude"]],
-                    circuity=off_graph_circuity,
-                    node_addition_type="kdclosest",
-                    node_addition_math="haversine",
-                    lat_lon_bound=0,
-                    silent=True,
-                ).items()
-            )[0]
-            entry_idx_and_distance.append(
-                (node_idx, distance * node_addition_multiplier)
+            node_idx = self.geokdtree.closest_idx(point=[node["latitude"], node["longitude"]])
+            distance = haversine(
+                [node["latitude"], node["longitude"]],
+                self.nodes[node_idx],
+                circuity=off_graph_circuity,
+                units=output_units, # Store directly as output units since this is a post processing step
             )
+            entry_idx_and_distance.append((node_idx, distance))
 
         for node_idx_start, (entry_idx_start, entry_length_start) in enumerate(
             entry_idx_and_distance
