@@ -45,6 +45,7 @@ class GeoGraphIO:
             "nodes": self.nodes,
             "default_off_graph_circuity": self.default_off_graph_circuity,
             "default_node_addition_circuity": self.default_node_addition_circuity,
+            "geograph_units": self.geograph_units,
         }
         if self.intermediate_nodes is not None and save_intermediate_nodes:
             args["intermediate_nodes"] = self.intermediate_nodes
@@ -170,6 +171,7 @@ class GeoGraphIO:
                     "nodes": self.nodes,
                     "default_off_graph_circuity": self.default_off_graph_circuity,
                     "default_node_addition_circuity": self.default_node_addition_circuity,
+                    "geograph_units": self.geograph_units,
                     **extra_kwargs,
                 },
                 f,
@@ -380,6 +382,9 @@ class GeoGraphIO:
                 off_graph_speed_km_per_s = off_graph_travel_speed / 3600
                 kwargs['default_off_graph_circuity'] = 1 / off_graph_speed_km_per_s
                 kwargs['default_node_addition_circuity'] = 1 / off_graph_speed_km_per_s
+
+        # TODO: Handle time based geograph units in a better way by default.
+        # See: self.geograph_units
         return GeoGraph(graph=graph,nodes=nodes, **kwargs)
 
 
@@ -1163,6 +1168,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         intermediate_nodes: list[list[list[float | int]]] = None,
         default_off_graph_circuity: float | int = 1,
         default_node_addition_circuity: float | int = 4,
+        geograph_units: Literal["km", "m", "mi", "ft"] = "km",
     ) -> None:
         """
         Function:
@@ -1221,6 +1227,15 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             - See: `default_off_graph_circuity` notes above for more information on how to set this value appropriately for your use case
             - See: `node_addition_circuity` notes in `get_shortest_path` for more information on how to set this value appropriately for your use case
             - Default: 4
+        - `geograph_units`
+            - Type: str
+            - What: The units in which the geograph is represented
+            - Default: 'km'
+            - Options:
+                - 'km': Kilometers
+                - 'm': Meters
+                - 'mi': Miles
+                - 'ft': Feet
         """
         self.graph_object = Graph(graph=graph, validate=validate)
         self.nodes = nodes
@@ -1228,6 +1243,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         self.default_off_graph_circuity = default_off_graph_circuity
         self.default_node_addition_circuity = default_node_addition_circuity
         self.default_get_intermediate_nodes = True if intermediate_nodes is not None else False
+        self.geograph_units = geograph_units
         self.__warm__ = False
         self.__original_graph_length__ = len(graph)
 
@@ -1303,7 +1319,6 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         off_graph_circuity: float | int = 1,
         node_addition_type: str = "kdclosest",
         node_addition_circuity: float | int = 4,
-        geograph_units: str = "km",
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
         node_addition_lat_lon_bound: float | int | Literal["auto"] = "auto",
@@ -1389,16 +1404,6 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
                 - This is only relevant if `node_addition_type` is set to 'quadrant' or 'all' as it affects the choice on where to enter the graph network
                 - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
-        - `geograph_units`
-            - Type: str
-            - What: The units of measurement in the geograph data
-            - Default: 'km'
-            - Options:
-                - 'km': Kilometers
-                - 'm': Meters
-                - 'mi': Miles
-                - 'ft': Feet
-            - Note: In general, all scgraph provided geographs be in kilometers
         - `output_coordinate_path`
             - Type: str
             - What: The format of the output coordinate path
@@ -1497,7 +1502,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             # Otherwise, we need to add a new node to the graph for the origin and destination.
             if node_addition_type == "kdclosest":
                 origin_id = self.geokdtree.closest_idx(point=origin)
-                origin_entry_length = haversine(origin, self.nodes[origin_id], circuity=off_graph_circuity, units=geograph_units)
+                origin_entry_length = haversine(origin, self.nodes[origin_id], circuity=off_graph_circuity, units=self.geograph_units)
                 origin_added = False
             else:
                 origin_id = self.add_coord_node(
@@ -1512,7 +1517,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 )
             if destination_node_addition_type == "kdclosest":
                 destination_id = self.geokdtree.closest_idx(point=destination)
-                destination_exit_length = haversine(destination, self.nodes[destination_id], circuity=off_graph_circuity, units=geograph_units)
+                destination_exit_length = haversine(destination, self.nodes[destination_id], circuity=off_graph_circuity, units=self.geograph_units)
                 destination_added = False
             else:
                 destination_id = self.add_coord_node(
@@ -1548,16 +1553,16 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 # Handle circuity adjustments, length conversions, and path adjustments
                 # Edge case when there is a direct connection between the origin and destination nodes
                 if (origin_added and destination_added and len(output['path']) == 2) or len(output['path']) <= 1:
-                    output['length'] = haversine(origin, destination, circuity=off_graph_circuity, units=geograph_units)
+                    output['length'] = haversine(origin, destination, circuity=off_graph_circuity, units=self.geograph_units)
                     output['path'] = []
                 else:
                     if origin_added:
-                        output['length']+= -self.graph_object.graph[output['path'][0]][output['path'][1]] + haversine(origin, self.nodes[output['path'][1]], circuity=off_graph_circuity, units=geograph_units)
+                        output['length']+= -self.graph_object.graph[output['path'][0]][output['path'][1]] + haversine(origin, self.nodes[output['path'][1]], circuity=off_graph_circuity, units=self.geograph_units)
                         output['path'] = output['path'][1:]
                     else:
                         output['length']+= origin_entry_length
                     if destination_added:
-                        output['length']+= -self.graph_object.graph[output['path'][-2]][output['path'][-1]] + haversine(self.nodes[output['path'][-2]], destination, circuity=off_graph_circuity, units=geograph_units)
+                        output['length']+= -self.graph_object.graph[output['path'][-2]][output['path'][-1]] + haversine(self.nodes[output['path'][-2]], destination, circuity=off_graph_circuity, units=self.geograph_units)
                         output['path'] = output['path'][:-1]
                     else:
                         output['length']+= destination_exit_length
@@ -1565,7 +1570,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             # Convert the length to the desired output units
             output['length'] = distance_converter(
                 output['length'],
-                input_units=geograph_units,
+                input_units=self.geograph_units,
                 output_units=output_units,
             )
             # Early return if only length is needed
@@ -1604,7 +1609,6 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         self,
         nodes: list[dict[str, float | int]],
         off_graph_circuity: float | int = 1,
-        geograph_units: str = "km",
         output_units: str = "km",
         silent: bool = False,
     ) -> list[list[float | int | None]]:
@@ -1629,11 +1633,6 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             - Type: float | int
             - What: The circuity to apply to the distance calculations for nodes that are not in the graph
             - Default: 1
-        - `geograph_units`
-            - Type: str
-            - What: The units of the distances in the graph
-            - Default: 'km'
-            - Options: 'km', 'miles', 'meters', 'feet'
         - `output_units`
             - Type: str
             - What: The units of the output distance matrix
@@ -1656,7 +1655,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         self.warmup()
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(
-            distance=1, input_units=geograph_units, output_units=output_units
+            distance=1, input_units=self.geograph_units, output_units=output_units
         )
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
