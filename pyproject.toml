@@ -12,8 +12,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scgraph"
-version = "2.15.0"
-description = "Determine an approximate route between two points on earth."
+version = "3.0.0"
+description = "Determine an approximate distance and route between two points on earth."
 authors = [
     {name="Connor Makowski", email="conmak@mit.edu"}
 ]

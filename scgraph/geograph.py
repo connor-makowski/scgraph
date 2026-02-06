@@ -15,7 +15,7 @@ from scgraph.graph import Graph
 
 class GeoGraphIO:
     # Geograph Methods
-    def save_as_geograph(self, name: str) -> None:
+    def save_as_geograph(self, name: str, save_intermediate_nodes: bool=True) -> None:
         """
         Function:
 
@@ -30,6 +30,13 @@ class GeoGraphIO:
                 - Stored as: 'custom.py'
                     - In your current directory
                 - Import as: 'from .custom import custom_geograph'
+        
+        Optional Arguments:
+
+        - `save_intermediate_nodes`
+            - Type: bool
+            - What: Whether to include the intermediate nodes in the saved geograph file (if they exist)
+            - Default: True
         """
         self.validate_nodes()
         self.graph_object.validate(check_symmetry=False, check_connected=False)
@@ -39,18 +46,16 @@ class GeoGraphIO:
             "default_off_graph_circuity": self.default_off_graph_circuity,
             "default_node_addition_circuity": self.default_node_addition_circuity,
         }
-        if self.intermediate_nodes is not None:
+        if self.intermediate_nodes is not None and save_intermediate_nodes:
             args["intermediate_nodes"] = self.intermediate_nodes
-        out_string = "from scgraph import GeoGraph\n"
-        for arg_name, arg_value in args.items():
-            out_string += f"{arg_name}={str(arg_value)}\n"
-        key_equals = ", ".join([f"{k}={k}" for k in args.keys()])
-        out_string += (f"{name}_geograph = GeoGraph({key_equals})")
         with open(name + ".py", "w") as f:
-            f.write(out_string)
+            f.write("from scgraph import GeoGraph\n")
+            for arg_name, arg_value in args.items():
+                f.write(f"{arg_name}={str(arg_value)}\n")
+            f.write(f"{name}_geograph = GeoGraph({", ".join([f"{k}={k}" for k in args.keys()])})")
 
     # GraphJSON Methods
-    def save_as_graphjson(self, filename: str) -> None:
+    def save_as_graphjson(self, filename: str, save_intermediate_nodes: bool = True) -> None:
         """
         Function:
 
@@ -67,11 +72,18 @@ class GeoGraphIO:
                 - Stored as: 'custom.graphjson'
                     - In your current directory
             - Note: The filename must end with .graphjson
+
+        Optional Arguments:
+
+        - `save_intermediate_nodes`
+            - Type: bool
+            - What: Whether to include the intermediate nodes in the saved JSON file (if they exist)
+            - Default: True
         """
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
         extra_kwargs = {}
-        if self.intermediate_nodes is not None:
+        if self.intermediate_nodes is not None and save_intermediate_nodes:
             extra_kwargs["intermediate_nodes"] = self.intermediate_nodes
         with open(filename, "w") as f:
             json.dump(
@@ -114,27 +126,13 @@ class GeoGraphIO:
             raise ValueError(
                 "JSON file is not a valid GeoGraph. Ensure it was saved using the save_as_graphjson method."
             )
-        extra_kwargs = {}
-        if data.get("intermediate_nodes", None) is not None:
-            extra_kwargs["intermediate_nodes"] = data["intermediate_nodes"]
-        if data.get("default_off_graph_circuity", None) is not None:
-            extra_kwargs["default_off_graph_circuity"] = data[
-                "default_off_graph_circuity"
-            ]
-        if data.get("default_node_addition_circuity", None) is not None:
-            extra_kwargs["default_node_addition_circuity"] = data[
-                "default_node_addition_circuity"
-            ]
-        return GeoGraph(
-            graph=[
-                {int(k): v for k, v in item.items()} for item in data["graph"]
-            ],
-            nodes=data["nodes"],
-            **extra_kwargs,
-        )
+        data.pop("type")
+        # Clean the graph data such that all keys are ints (JSON only allows string keys, but we want int keys for the graph)
+        data['graph'] = [{int(k): v for k, v in item.items()} for item in data['graph']]
+        return GeoGraph(**data)
 
     # GeoJSON Methods
-    def save_as_geojson(self, filename: str, compact: bool = False) -> None:
+    def save_as_geojson(self, filename: str, compact: bool = False, save_intermediate_nodes: bool = True) -> None:
         """
         Function:
 
@@ -153,30 +151,25 @@ class GeoGraphIO:
         - `compact`
             - Type: bool
             - What:
-                - If True, saves the geojson as a compact multiline string without distances or properties
+                - If True, saves the geojson as a compact multiline string without distances or other properties
                 - If False, saves the geojson as a feature collection with each line as a separate feature
                     - Note: If False, the resulting file can be loaded with the legacy load_geojson_as_geograph function
             - Default: False
 
         """
-        # TODO: Store intermediate nodes in geojson if they exist
         graph = self.graph_object.graph
         if compact:
             multiline = []
             for origin_idx, destinations in enumerate(graph):
                 for destination_idx, distance in destinations.items():
-                    multiline.append(
-                        [
-                            [
-                                self.nodes[origin_idx][1],
-                                self.nodes[origin_idx][0],
-                            ],
-                            [
-                                self.nodes[destination_idx][1],
-                                self.nodes[destination_idx][0],
-                            ],
-                        ]
-                    )
+                    new_subline = [[self.nodes[origin_idx][1], self.nodes[origin_idx][0]]]
+                    if self.intermediate_nodes is not None and save_intermediate_nodes:
+                        im_pts =self.__get_intermediate_nodes__(origin_idx=origin_idx, destination_idx=destination_idx, sequence='lon_lat')
+                        if im_pts:
+                            new_subline.extend(im_pts)
+                    new_subline.append([self.nodes[destination_idx][1], self.nodes[destination_idx][0]])
+
+                    multiline.append(new_subline)
             out_dict = {
                 "type": "GeometryCollection",
                 "geometries": [
@@ -191,11 +184,14 @@ class GeoGraphIO:
             features = []
             for origin_idx, destinations in enumerate(graph):
                 for destination_idx, distance in destinations.items():
-                    # Create an undirected graph for geojson purposes
-                    if origin_idx > destination_idx:
-                        continue
                     origin = self.nodes[origin_idx]
                     destination = self.nodes[destination_idx]
+                    new_subline = [[origin[1], origin[0]]]
+                    if self.intermediate_nodes is not None and save_intermediate_nodes:
+                        im_pts =self.__get_intermediate_nodes__(origin_idx=origin_idx, destination_idx=destination_idx, sequence='lon_lat')
+                        if im_pts:
+                            new_subline.extend(im_pts)
+                    new_subline.append([destination[1], destination[0]])
                     features.append(
                         {
                             "type": "Feature",
@@ -206,13 +202,7 @@ class GeoGraphIO:
                             },
                             "geometry": {
                                 "type": "LineString",
-                                "coordinates": [
-                                    [origin[1], origin[0]],
-                                    [
-                                        destination[1],
-                                        destination[0],
-                                    ],
-                                ],
+                                "coordinates": new_subline,
                             },
                         }
                     )
@@ -223,9 +213,10 @@ class GeoGraphIO:
     @staticmethod
     def load_from_geojson(
         filename: str,
-        precision: int = 3,
+        precision: int = 5,
         pct_to_keep: int | float = 100,
         min_points=3,
+        load_intermediate_nodes: bool = True,
         silent: bool = False,
     ):
         """
@@ -265,17 +256,22 @@ class GeoGraphIO:
             - Type: int
             - What: Minimum number of points to keep in the simplified line (The ends are always kept but should be included in this count)
             - Default: 3
+        - `load_intermediate_nodes`
+            - Type: bool
+            - What: Whether to load the intermediate nodes for each edge (if they exist) into the GeoGraph object
+            - Default: True
+            - TODO: Not implemented yet.
         - `silent`
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the geojson
             - Default: False
         """
-        #TODO: Load intermediate nodes from geojson if they exist
         data = parse_geojson(
             filename_in=filename,
             precision=precision,
             pct_to_keep=pct_to_keep,
             min_points=min_points,
+            # load_intermediate_nodes=load_intermediate_nodes,
             silent=silent,
         )
         return GeoGraph(
@@ -286,7 +282,7 @@ class GeoGraphIO:
     @staticmethod
     def load_from_osmnx_graph(
         osmnx_graph,
-        coord_precision: int = 4,
+        coord_precision: int = 5,
         weight_precision: int = 3,
         weight_key: Literal['length', 'travel_time'] = 'length',
         off_graph_travel_speed: int | float | None = None,
@@ -315,7 +311,7 @@ class GeoGraphIO:
         - `coord_precision`
             - Type: int
             - What: Decimal places to round coordinates when loading the graph
-            - Default: 4
+            - Default: 5
         - `weight_precision`
             - Type: int
             - What: Decimal places to round weights when loading the graph
@@ -973,6 +969,35 @@ class GeoGraphUtils:
             )
             for node_idx in min_diffs_idx.values()
         }
+    
+    def __get_intermediate_nodes__(self, origin_idx:int, destination_idx:int, sequence: str = "lat_lon") -> list[list[float | int]]:
+        """
+        Function:
+
+        - Get the intermediate nodes between two nodes if they exist in the graph object
+        - Note: Not as performant so not used in __get_coordinate_path__, but can be used in post processing of the path if desired
+
+        Required Arguments:
+
+        - `origin_idx`
+            - Type: int
+            - What: The index of the origin node
+        - `destination_idx`
+            - Type: int
+            - What: The index of the destination node
+        - `sequence`
+            - Type: str
+            - What: The sequence of coordinates to return, either "lat_lon" or "lon_lat"
+            - Default: "lat_lon"
+        """
+        if self.intermediate_nodes is not None:
+            assert sequence in ["lat_lon", "lon_lat"], f"Invalid sequence provided ({sequence}), valid options are: ['lat_lon', 'lon_lat']"
+            out = self.intermediate_nodes[origin_idx].get(destination_idx, [])
+            if sequence == "lon_lat":
+                out = [[coord[1], coord[0]] for coord in out]
+            return out
+        else:
+            return []
 
     def __adjust_circuity_length__(
         self,
@@ -1214,7 +1239,7 @@ class GeoGraphUtils:
         if get_intermediate_nodes and self.intermediate_nodes is not None:
             # Start with the origin node
             coordinate_path = [self.nodes[path[0]]]
-            # Dont include the first and last node since they are both off graph.
+            # Note: The first and last node in the path are off graph so they do not have intermediate nodes.
             for i in range(1, len(path) - 1):
                 origin_id = path[i]
                 destination_id = path[i + 1]
