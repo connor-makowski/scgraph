@@ -31,7 +31,7 @@ print("\n===============\nGeoGraph Distance Matrix Tests:\n===============")
 
 success = True
 distance_matrix = us_freeway_geograph.distance_matrix(
-    city_nodes, off_graph_circuity=1, geograph_units="km", output_units="km"
+    city_nodes, off_graph_circuity=1, output_units="km"
 )
 
 la_nyc = us_freeway_geograph.get_shortest_path(
@@ -87,7 +87,6 @@ def distance_matrix_time(nodes):
     dm = us_freeway_geograph.distance_matrix(
         nodes=nodes,
         off_graph_circuity=1,
-        geograph_units="km",
         output_units="km",
     )
     time_taken = time() - start

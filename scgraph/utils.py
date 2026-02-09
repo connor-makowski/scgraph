@@ -318,22 +318,13 @@ def adjacency_list_tuples_to_dict(
     ]
 
 def validate(name, realized, expected):
-    # If either of the realized or expected are a class that have a to_dict method, convert them
-    try:
-        realized = realized.to_dict()
-    except: 
-        pass
-    try:
-        expected = expected.to_dict()
-    except:
-        pass
     # Custom length rounding for floating point precision issues
     if isinstance(realized, dict):
         if "length" in realized:
-            realized["length"] = round(hard_round(3, realized["length"]),3)
+            realized["length"] = hard_round(3, realized["length"])
     if isinstance(expected, dict):
         if "length" in expected:
-            expected["length"] = round(hard_round(3, expected["length"]),3)
+            expected["length"] = hard_round(3, expected["length"])
     if realized == expected:
         print(f"{name}: PASS")
     else:

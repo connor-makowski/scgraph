@@ -543,10 +543,6 @@ class GridGraph:
                 origin_id=origin_id,
                 destination_id=destination_id,
             )
-            try:
-                output = output.to_dict()
-            except Exception:
-                pass
             # Undo the reverse if cache_for is destination
             if cache_for == "destination":
                 output["path"].reverse()
@@ -557,10 +553,6 @@ class GridGraph:
                 destination_id=destination_id,
                 **algorithm_kwargs,
             )
-            try:
-                output = output.to_dict()
-            except Exception:
-                pass
         output["coordinate_path"] = self.__get_coordinate_path__(
             output["path"], output_coordinate_path
         )
