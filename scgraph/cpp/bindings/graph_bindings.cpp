@@ -21,7 +21,7 @@ static nb::dict graph_result_to_dict(const GraphResult& r) {
     return d;
 }
 
-NB_MODULE(graph_cpp, m) {
+NB_MODULE(cpp, m) {
     // TreeData struct
     nb::class_<TreeData>(m, "TreeData")
         .def_ro("origin_id", &TreeData::origin_id)

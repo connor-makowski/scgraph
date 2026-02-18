@@ -3,12 +3,16 @@ line-length = 80
 target-version = ['py312']
 exclude = '/.*(migrations|__pycache__|geographs).*/'
 
+[build-system]
+requires = ["skst_safe_build", "nanobind"]
+build-backend = "skst_safe_build"
+
+[tool.scikit-build]
+build.verbose = false
+build-dir = "build/{wheel_tag}"
+
 [tool.setuptools]
 py-modules = ["scgraph"]
-
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
 
 [project]
 name = "scgraph"
@@ -25,7 +29,7 @@ classifiers = [
     "Programming Language :: C++",
     "Operating System :: OS Independent",
 ]
-dependencies = ["geokdtree==1.0.0"]
+dependencies = ["geokdtree==1.1.0B1"]
 
 [project.optional-dependencies]
 bmsspy = [

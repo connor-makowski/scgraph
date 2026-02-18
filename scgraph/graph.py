@@ -928,8 +928,10 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
             self.validate()
 
 
-# try:
-#     from scgraph.bin.graph_cpp import Graph
-# except ImportError:
-#     print("C++ Graph module not found, using Python implementation.")
-#     pass
+try:
+    from scgraph.cpp import Graph
+    # TODO: Find way to notify users if they can use the C++ Implementation.
+    # print("C++ Graph module found, using C++ implementation.")
+except ImportError:
+    # print("C++ Graph module not found, using Python implementation.")
+    pass
