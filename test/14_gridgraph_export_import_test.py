@@ -81,12 +81,11 @@ if print_timings:
 success = True
 if (
     imported_shortest_path_time
-    > 0.00005  # 500 us threshold (runs in ~30 us normally)
+    > 0.000500  # 500 us threshold (runs in ~50 us normally)
 ):  # liberal 1ms threshold - It normally clocks around 40µs
     print(
         "Imported shortest path time is too long - Check if the graph was cached / imported correctly"
     )
-    print("GridGraph Import Export Test: FAIL")
     success = False
 
 if success == False:

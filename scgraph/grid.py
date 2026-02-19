@@ -664,7 +664,7 @@ class GridGraph:
                 "add_exterior_walls": self.add_exterior_walls,
                 "conn_data": self.conn_data,
             },
-            "graph_cache": self.graph_object.__cache__,
+            "graph_cache": self.graph_object.get_cache(),
             "export_version": 1,
         }
         if include_blocks:
@@ -725,5 +725,5 @@ class GridGraph:
             GridGraph_object.__setattr__(key, value)
 
         GridGraph_object.graph_object = Graph(GridGraph_object.graph)
-        GridGraph_object.graph_object.__cache__ = import_data["graph_cache"]
+        GridGraph_object.graph_object.set_cache(import_data["graph_cache"])
         return GridGraph_object

@@ -5,9 +5,9 @@
 # FROM python:3.11-slim
 # FROM python:3.12-slim
 # FROM python:3.13-slim
-FROM python:3.14-slim
+# FROM python:3.14-slim
 # Use non bookwork or trixie versions to test CPP builds
-# FROM python:3.14-bookworm
+FROM python:3.14-bookworm
 
 
 # Set the working directory to /app

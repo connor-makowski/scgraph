@@ -1,4 +1,5 @@
 from heapq import heappop, heappush
+from typing import Literal
 
 try:
     from bmsspy import Bmssp
@@ -200,6 +201,38 @@ class GraphUtils:
             - This is useful if the graph has been modified and the cached shortest path trees are no longer valid
         """
         self.__cache__ = [0] * len(self.graph)
+
+    def get_cache(self) -> list[dict | None]:
+        """
+        Function:
+
+        - Get the cached shortest path trees
+            - This is useful for saving the cache to disk or for inspecting the cache
+
+        Returns:
+
+        - A list of cached shortest path trees, where each tree is represented as a dictionary
+            - If a tree is not cached for a specific node, the corresponding entry in the list will be 0
+        """
+        return self.__cache__
+    
+    def set_cache(self, new_cache: list[dict | Literal[0]]) -> None:
+        """
+        Function:
+
+        - Set the cached shortest path trees
+            - This is useful for loading a cache from disk or for manually setting the cache
+
+        Required Arguments:
+
+        - `new_cache`:
+            - Type: list[dict | None]
+            - What: A list of cached shortest path trees, where each tree is represented as a dictionary
+                - If a tree is not cached for a specific node, the corresponding entry in the list should be 0
+        """
+        assert isinstance(new_cache, list), "Cache must be a list"
+        assert len(new_cache) == len(self.graph), "Cache must be the same length as the graph"
+        self.__cache__ = new_cache
 
     def __get__(self, idx: int) -> dict[int, int | float]:
         """

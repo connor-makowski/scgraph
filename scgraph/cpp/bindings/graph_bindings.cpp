@@ -20,6 +20,22 @@ static nb::dict graph_result_to_dict(const GraphResult& r) {
     d["length"] = r.length;
     return d;
 }
+// Helper function to convert TreeData to dict
+static nb::dict tree_result_to_dict(const TreeData& t) {
+    nb::dict d;
+    d["origin_id"] = t.origin_id;
+    d["predecessors"] = t.predecessors;
+    d["distance_matrix"] = t.distance_matrix;
+    return d;
+}
+// Helper function to convert dict to TreeData
+static TreeData dict_to_tree_result(const nb::dict& d) {
+    return TreeData(
+        nb::cast<int>(d["origin_id"]),
+        nb::cast<std::vector<int>>(d["predecessors"]),
+        nb::cast<std::vector<double>>(d["distance_matrix"])
+    );
+}
 
 NB_MODULE(cpp, m) {
     // TreeData struct
@@ -47,6 +63,27 @@ NB_MODULE(cpp, m) {
              "Get the number of nodes in the graph")
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
+        
+        // IO for cache - get returns a list of dicts, set accepts a list of dicts (or None for empty entries)
+        .def("get_cache", [](Graph& self) {
+            nb::list cache_list;
+            for (const auto& tree_data : self.get_cache()) {
+                cache_list.append(tree_result_to_dict(tree_data));
+            }
+            return cache_list;
+        }, "Get the cached shortest path trees")
+        .def("set_cache", [](Graph& self, const nb::list& new_cache) {
+            std::vector<TreeData> cache_vector;
+            cache_vector.resize(new_cache.size());
+            for (size_t i = 0; i < new_cache.size(); ++i) {
+                const auto& item = new_cache[i];
+               // Only push valid items. Leave the others null (default-constructed) to be handled by the get_tree_path function.
+                if (!item.is_none()) {
+                    cache_vector[i] = dict_to_tree_result(nb::cast<nb::dict>(item));
+                }
+            }
+            self.set_cache(cache_vector);
+            }, "Set the cached shortest path trees")
         
         // Graph modification methods
         .def("add_node", &Graph::add_node,

@@ -832,17 +832,19 @@ class GeoGraphModifiers:
         # Adjust the added nodes to match the nodes added to the current graph
         for idx, node in node_connection_mapper.items():
             node_connection_map[idx] = node
-
+        # Re establish the graph object (To support C++ Graph Objects)
+        graph = self.graph_object.graph
         # Fill the current graph with empty dictionaries to match the length of the other graph
-        self.graph_object.graph.extend(
+        graph.extend(
             [{} for _ in range(len(other_graph) - len(connection_nodes))]
         )
         # Populate the new connections
         for origin_idx, destinations in enumerate(other_graph):
             for destination_idx, distance in destinations.items():
-                self.graph_object.graph[node_connection_map[origin_idx]][
+                graph[node_connection_map[origin_idx]][
                     node_connection_map[destination_idx]
                 ] = distance
+        self.graph_object = Graph(graph=graph)
 
 
 class GeoGraphUtils:

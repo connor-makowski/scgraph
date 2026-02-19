@@ -1,7 +1,7 @@
 from scgraph import Graph
 from time import time
 
-print("\n===============\nGridGraph Import Export Tests:\n===============")
+print("\n===============\nGridGraph Negative Cycle Tests:\n===============")
 
 print_timings = True
 
