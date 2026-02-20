@@ -340,3 +340,10 @@ def time_test(name, function, args=None, kwargs=None):
     start = time.time()
     function(*args, **kwargs)
     print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
+
+def cpp_check():
+    try:
+        from scgraph.cpp import Graph
+        print("Using C++ & Python implementation of SCGraph.")
+    except:
+        print("Using Pure Python implementation of SCGraph.")

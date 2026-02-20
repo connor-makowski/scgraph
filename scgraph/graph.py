@@ -995,8 +995,5 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
 
 try:
     from scgraph.cpp import Graph
-    # TODO: Find way to notify users if they can use the C++ Implementation.
-    # print("C++ Graph module found, using C++ implementation.")
 except ImportError:
-    # print("C++ Graph module not found, using Python implementation.")
     pass

@@ -14,13 +14,12 @@ FROM python:3.14-bookworm
 WORKDIR /app/
 
 # Copy and install the requirements
-# This includes egg installing the scgraph package
-COPY scgraph/__init__.py /app/scgraph/__init__.py
-COPY scgraph/cpp /app/scgraph/cpp
-COPY pyproject.toml /app/pyproject.toml
-COPY CMakeLists.txt /app/CMakeLists.txt
-COPY README.md /app/README.md
 COPY requirements.txt /app/requirements.txt
+COPY pyproject.toml /app/pyproject.toml
+COPY scgraph/cpp /app/scgraph/cpp
+COPY CMakeLists.txt /app/CMakeLists.txt
+RUN touch /app/scgraph/__init__.py
+RUN touch README.md
 
 RUN pip install -r requirements.txt
 

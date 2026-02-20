@@ -57,6 +57,15 @@ Or by using the BibTeX entry:
 pip install scgraph
 ```
 
+## Note on C++ Implementation and Recent Performance Improvements
+
+If you have a C++ compiler, you should automatically get the much faster (~10x faster) version of the package with the C++ implementation. To check, you can run:
+
+```py
+from scgraph.utils import cpp_check
+cpp_check() #=> Prints the implementation being used
+```
+
 ## Basic Geograph Usage
 
 Get the shortest path between two points on earth using a latitude / longitude pair.
@@ -521,6 +530,8 @@ Make sure Docker is installed and running on a Unix system (Linux, MacOS, WSL2).
     - `./run.sh`
 - Run all tests (see ./utils/test.sh)
     - `./run.sh test`
+- Run a specific test file
+    - `./run.sh test test/01_graph_basic_test.py`
 - Prettify the code (see ./utils/prettify.sh)
     - `./run.sh prettify`
 - Update the docs (see ./utils/docs.sh)
