@@ -94,66 +94,93 @@ void Graph::cycle_check(const std::vector<int>& predecessor_matrix, int node_id)
     }
 }
 
-bool Graph::connected_check(int origin_id) const {
+void Graph::ensure_inverse_graph() {
+    if (inverse_graph_computed) return;
+    inverse_graph.assign(graph.size(), {});
+    for (size_t origin_id = 0; origin_id < graph.size(); ++origin_id) {
+        for (const auto& [dest_id, distance] : graph[origin_id]) {
+            inverse_graph[dest_id].emplace_back(static_cast<int>(origin_id), distance);
+        }
+    }
+    inverse_graph_computed = true;
+}
+
+bool Graph::connected_check(int origin_id) {
+    ensure_inverse_graph();
+
+    // Forward traversal
     std::vector<int> visited(graph.size(), 0);
     std::vector<int> open_leaves = {origin_id};
-    
     while (!open_leaves.empty()) {
         int current_id = open_leaves.back();
         open_leaves.pop_back();
         visited[current_id] = 1;
-        
         for (const auto& [connected_id, _] : graph[current_id]) {
             if (visited[connected_id] == 0) {
                 open_leaves.push_back(connected_id);
             }
         }
     }
-    
-    return *std::min_element(visited.begin(), visited.end()) == 1;
-}
 
-void Graph::validate(bool check_symmetry, bool check_connected) {
-    check_symmetry = check_symmetry || check_connected;
-    
-    size_t len_graph = graph.size();
-    
-    for (size_t origin_id = 0; origin_id < len_graph; ++origin_id) {
-        for (const auto& [dest_id, distance] : graph[origin_id]) {
-            if (dest_id < 0 || dest_id >= static_cast<int>(len_graph)) {
-                throw std::invalid_argument("Destination id " + std::to_string(dest_id) + 
-                    " at origin " + std::to_string(origin_id) + " is invalid");
-            }
-            
-            if (distance < 0) {
-                throw std::invalid_argument("Distance must be non-negative at origin " + 
-                    std::to_string(origin_id));
-            }
-            
-            if (check_symmetry) {
-                // Find the reverse edge
-                bool found = false;
-                double reverse_dist = 0.0;
-                for (const auto& [rev_dest, rev_dist] : graph[dest_id]) {
-                    if (rev_dest == static_cast<int>(origin_id)) {
-                        found = true;
-                        reverse_dist = rev_dist;
-                        break;
-                    }
-                }
-                
-                if (!found || reverse_dist != distance) {
-                    throw std::invalid_argument("Graph is not symmetric: distance from " + 
-                        std::to_string(origin_id) + " to " + std::to_string(dest_id) + 
-                        " is " + std::to_string(distance) + " but reverse is " + 
-                        (found ? std::to_string(reverse_dist) : "missing"));
-                }
+    // Inverse traversal
+    std::vector<int> inverse_visited(inverse_graph.size(), 0);
+    std::vector<int> inverse_open_leaves = {origin_id};
+    while (!inverse_open_leaves.empty()) {
+        int current_id = inverse_open_leaves.back();
+        inverse_open_leaves.pop_back();
+        inverse_visited[current_id] = 1;
+        for (const auto& [connected_id, _] : inverse_graph[current_id]) {
+            if (inverse_visited[connected_id] == 0) {
+                inverse_open_leaves.push_back(connected_id);
             }
         }
     }
-    
+
+    return *std::min_element(visited.begin(), visited.end()) == 1 &&
+           *std::min_element(inverse_visited.begin(), inverse_visited.end()) == 1;
+}
+
+bool Graph::symmetric_check() const {
+    for (size_t origin_id = 0; origin_id < graph.size(); ++origin_id) {
+        for (const auto& [dest_id, distance] : graph[origin_id]) {
+            // Look for reverse edge with matching distance
+            bool found = false;
+            for (const auto& [rev_dest, rev_dist] : graph[dest_id]) {
+                if (rev_dest == static_cast<int>(origin_id)) {
+                    if (rev_dist != distance) return false;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+    }
+    return true;
+}
+
+void Graph::validate(bool check_symmetry, bool check_connected) {
+    size_t len_graph = graph.size();
+    if (len_graph == 0) {
+        throw std::invalid_argument("The provided graph must contain at least one node");
+    }
+    for (size_t origin_id = 0; origin_id < len_graph; ++origin_id) {
+        for (const auto& [dest_id, distance] : graph[origin_id]) {
+            if (dest_id < 0 || dest_id >= static_cast<int>(len_graph)) {
+                throw std::invalid_argument("Destination id " + std::to_string(dest_id) +
+                    " at origin " + std::to_string(origin_id) + " is invalid");
+            }
+            if (distance < 0) {
+                throw std::invalid_argument("Distance must be non-negative at origin " +
+                    std::to_string(origin_id));
+            }
+        }
+    }
+
+    if (check_symmetry && !symmetric_check()) {
+        throw std::invalid_argument("The provided graph is not symmetric");
+    }
     if (check_connected && !connected_check()) {
-        throw std::runtime_error("Graph is not fully connected");
+        throw std::runtime_error("The provided graph is not fully connected");
     }
 }
 

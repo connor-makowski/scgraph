@@ -22,6 +22,9 @@ class Graph {
 private:
     // Internal representation: vector of vectors of (node_id, distance) pairs
     std::vector<std::vector<std::pair<int, double>>> graph;
+    // Inverse graph (lazily computed): vector of vectors of (node_id, distance) pairs
+    std::vector<std::vector<std::pair<int, double>>> inverse_graph;
+    bool inverse_graph_computed = false;
     std::vector<TreeData> cache;
 
     // Helper methods for conversion
@@ -33,7 +36,9 @@ private:
     void input_check(const std::variant<int, std::set<int>>& origin_id, int destination_id) const;
     std::vector<int> reconstruct_path(int destination_id, const std::vector<int>& predecessor) const;
     void cycle_check(const std::vector<int>& predecessor_matrix, int node_id) const;
-    bool connected_check(int origin_id = 0) const;
+    void ensure_inverse_graph();
+    bool connected_check(int origin_id = 0);
+    bool symmetric_check() const;
 
 public:
     // Constructor

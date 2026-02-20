@@ -127,3 +127,12 @@ validate(
     ),
     expected=expected,
 )
+
+empty_graph = Graph([])
+
+try:
+    # Empty graph should raise an exception regardless of checks, since it has no nodes
+    empty_graph.validate(check_symmetry=True, check_connected=True)
+    print("Empty Graph: Fail")
+except Exception as e:
+    print(f"Empty Graph: Pass")

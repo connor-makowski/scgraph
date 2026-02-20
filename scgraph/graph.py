@@ -112,6 +112,20 @@ class GraphUtils:
                 raise Exception(
                     f"Cycle detected in the graph at node {node_id}"
                 )
+            
+    def __ensure_inverse_graph__(self) -> list[dict[int, int | float]]:
+        """
+        Function:
+
+        - Ensure the inverse of the graph as self.inverse_graph is computed and stored
+            - The inverse of the graph is a graph where all edges are reversed
+            - This is useful for checking the connectivity of the graph and for algorithms that require the inverse graph
+        """
+        if not hasattr(self, "inverse_graph"):
+            self.inverse_graph = [dict() for _ in range(len(self.graph))]
+            for origin_id, origin_dict in enumerate(self.graph):
+                for destination_id, distance in origin_dict.items():
+                    self.inverse_graph[destination_id][origin_id] = distance
 
     def __connected_check__(
         self,
@@ -120,9 +134,6 @@ class GraphUtils:
         """
         Function:
 
-        - Validate that this graph is fully connected from a specific origin node
-            - This means that the provided origin node can reach all other nodes in the graph
-            - If the graph is symmetric, this also means that the graph is fully connected in general
         - Return True if this graph is fully connected and False if it is not
 
         Optional Arguments:
@@ -132,6 +143,8 @@ class GraphUtils:
             - What: The id of the origin node from which to start the connectivity check
             - Default: 0
         """
+        self.__ensure_inverse_graph__()
+
         visited = [0] * len(self.graph)
         open_leaves = [origin_id]
 
@@ -141,7 +154,30 @@ class GraphUtils:
             for connected_id in self.graph[current_id]:
                 if visited[connected_id] == 0:
                     open_leaves.append(connected_id)
-        return min(visited) == 1
+        
+        inverse_visited = [0] * len(self.inverse_graph)
+        inverse_open_leaves = [origin_id]
+        while inverse_open_leaves:
+            current_id = inverse_open_leaves.pop()
+            inverse_visited[current_id] = 1
+            for connected_id in self.inverse_graph[current_id]:
+                if inverse_visited[connected_id] == 0:
+                    inverse_open_leaves.append(connected_id)
+
+        return min(visited) == 1 and min(inverse_visited) == 1
+    
+    def __symmetric_check__(self) -> bool:
+        """
+        Function:
+
+        - Return True if this graph is symmetric and False if it is not
+            - A graph is symmetric if for every edge from node A to node B, there is an edge from node B to node A with the same distance
+        """
+        for origin_id, origin_dict in enumerate(self.graph):
+            for destination_id, distance in origin_dict.items():
+                if distance != self.graph[destination_id].get(origin_id, None):
+                    return False
+        return True
 
     def validate(
         self,
@@ -159,17 +195,15 @@ class GraphUtils:
             - Type: bool
             - What: Whether to check that the graph is symmetric
             - Default: True
-            - Note: This is forced to True if `check_connected` is True
         - `check_connected`
             - Type: bool
             - What: Whether to check that the graph is fully connected
             - Default: True
-            - Note: For computational efficiency, only symmetric graphs are checked for connectivity
-            - Note: If this is True, `check_symmetry` is forced to True and the graph will be checked for symmetry prior to checking for connectivity
         """
-        check_symmetry = check_symmetry or check_connected
         assert isinstance(self.graph, list), "Your graph must be a list"
         len_graph = len(self.graph)
+        if len_graph == 0:
+            raise Exception("The provided graph must contain at least one node")
         for origin_id, origin_dict in enumerate(self.graph):
             assert isinstance(
                 origin_dict, dict
@@ -185,13 +219,11 @@ class GraphUtils:
             assert all(
                 [(isinstance(i, (int, float)) and i >= 0) for i in lengths]
             ), f"Distances must be integers or floats, but graph[{origin_id}] contains a non-integer or non-float distance"
-            if check_symmetry:
-                for destination_id, distance in origin_dict.items():
-                    assert (
-                        self.graph[destination_id].get(origin_id) == distance
-                    ), f"Your graph is not symmetric, the distance from node {origin_id} to node {destination_id} is {distance} but the distance from node {destination_id} to node {origin_id} is {self.graph[destination_id].get(origin_id)}"
+        
+        if check_symmetry:
+            assert self.__symmetric_check__(), "The provided graph is not symmetric"
         if check_connected:
-            assert self.__connected_check__(), "Your graph is not fully connected"
+            assert self.__connected_check__(), "The provided graph is not fully connected"
 
     def reset_cache(self) -> None:
         """

@@ -29,7 +29,7 @@ classifiers = [
     "Programming Language :: C++",
     "Operating System :: OS Independent",
 ]
-dependencies = ["geokdtree==1.1.0B1"]
+dependencies = ["geokdtree==1.1.0"]
 
 [project.optional-dependencies]
 bmsspy = [
