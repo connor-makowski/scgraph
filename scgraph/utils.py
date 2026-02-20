@@ -317,6 +317,7 @@ def adjacency_list_tuples_to_dict(
         for connections in graph
     ]
 
+
 def validate(name, realized, expected):
     # Custom length rounding for floating point precision issues
     if isinstance(realized, dict):
@@ -332,6 +333,7 @@ def validate(name, realized, expected):
         print("Expected:", expected)
         print("Realized:", realized)
 
+
 def time_test(name, function, args=None, kwargs=None):
     if args is None:
         args = ()
@@ -340,6 +342,7 @@ def time_test(name, function, args=None, kwargs=None):
     start = time.time()
     function(*args, **kwargs)
     print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
+
 
 def cpp_check():
     try:

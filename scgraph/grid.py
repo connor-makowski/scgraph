@@ -207,44 +207,63 @@ class GridGraph:
         # Get bounding box of the shape at start and end positions
         xs = [coord[0] for coord in shape]
         ys = [coord[1] for coord in shape]
-        
+
         # Calculate the 1d overlaps in x and y directions
-        x_cells = list(range(int(min(xs) + min(0, x_off)), int(ceil(max(xs) + max(0, x_off)))))
-        y_cells = list(range(int(min(ys) + min(0, y_off)), int(ceil(max(ys) + max(0, y_off)))))
-        
+        x_cells = list(
+            range(
+                int(min(xs) + min(0, x_off)), int(ceil(max(xs) + max(0, x_off)))
+            )
+        )
+        y_cells = list(
+            range(
+                int(min(ys) + min(0, y_off)), int(ceil(max(ys) + max(0, y_off)))
+            )
+        )
+
         # Combine to get 2D cell overlaps
         result = set()
         for x_key in x_cells:
             for y_key in y_cells:
                 result.add((x_key, y_key))
-        
+
         # Remove untouched cells if moving diagonally
         if x_off != 0 and y_off != 0:
             slope = y_off / x_off
 
             # Find min and max vertex given the slope
-            orthogonal = -1 / slope # Compute orthogonal slope
+            orthogonal = -1 / slope  # Compute orthogonal slope
             # Define direction projections (a normalized direction vector, but without the linear algebra)
             # Note: Technically normalized length is (1**2 + orthogonal**2)**.5, but we avoid the extra square for performance
             length = (1 + orthogonal**2) ** 0.5
-            projections = [x * 1.0 / length + y * orthogonal / length for x, y in shape]
+            projections = [
+                x * 1.0 / length + y * orthogonal / length for x, y in shape
+            ]
             # Return the min and max verticies
-            min_vertex = shape[min(enumerate(projections), key=lambda x: x[1])[0]]
-            max_vertex = shape[max(enumerate(projections), key=lambda x: x[1])[0]]
+            min_vertex = shape[
+                min(enumerate(projections), key=lambda x: x[1])[0]
+            ]
+            max_vertex = shape[
+                max(enumerate(projections), key=lambda x: x[1])[0]
+            ]
             if slope > 0:
                 min_vertex, max_vertex = max_vertex, min_vertex
 
             shape_min_intercept = min_vertex[1] - slope * min_vertex[0]
             shape_max_intercept = max_vertex[1] - slope * max_vertex[0]
-            
+
             ltx_increment, gtx_increment = (1, 0) if slope < 0 else (0, 1)
 
             remove_cells = []
             for x_cell, y_cell in result:
                 cell_min_intercept = y_cell - (slope * (x_cell + gtx_increment))
-                cell_max_intercept = (y_cell + 1) - (slope * (x_cell + ltx_increment))
+                cell_max_intercept = (y_cell + 1) - (
+                    slope * (x_cell + ltx_increment)
+                )
 
-                if not (cell_min_intercept < shape_max_intercept and shape_min_intercept < cell_max_intercept):
+                if not (
+                    cell_min_intercept < shape_max_intercept
+                    and shape_min_intercept < cell_max_intercept
+                ):
                     remove_cells.append((x_cell, y_cell))
             for key in remove_cells:
                 result.remove(key)
@@ -510,8 +529,10 @@ class GridGraph:
         if algorithm_kwargs is None:
             algorithm_kwargs = {}
         if callable(algorithm_fn):
-            algorithm_kwargs['graph'] = self.graph
-        elif isinstance(algorithm_fn, str) and hasattr(self.graph_object, algorithm_fn):
+            algorithm_kwargs["graph"] = self.graph
+        elif isinstance(algorithm_fn, str) and hasattr(
+            self.graph_object, algorithm_fn
+        ):
             algorithm_fn = getattr(self.graph_object, algorithm_fn)
         else:
             raise ValueError("algorithm_fn must be a string or callable")

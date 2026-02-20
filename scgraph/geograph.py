@@ -13,9 +13,12 @@ from copy import deepcopy
 from typing import Literal
 from scgraph.graph import Graph
 
+
 class GeoGraphIO:
     # Save Methods
-    def save_as_geograph(self, name: str, save_intermediate_nodes: bool=True) -> None:
+    def save_as_geograph(
+        self, name: str, save_intermediate_nodes: bool = True
+    ) -> None:
         """
         Function:
 
@@ -30,7 +33,7 @@ class GeoGraphIO:
                 - Stored as: 'custom.py'
                     - In your current directory
                 - Import as: 'from .custom import custom'
-        
+
         Optional Arguments:
 
         - `save_intermediate_nodes`
@@ -53,9 +56,16 @@ class GeoGraphIO:
             f.write("from scgraph import GeoGraph\n")
             for arg_name, arg_value in args.items():
                 f.write(f"{arg_name}={str(arg_value)}\n")
-            f.write(f"{name} = GeoGraph({", ".join([f"{k}={k}" for k in args.keys()])})")
+            f.write(
+                f"{name} = GeoGraph({", ".join([f"{k}={k}" for k in args.keys()])})"
+            )
 
-    def save_as_geojson(self, filename: str, compact: bool = False, save_intermediate_nodes: bool = True) -> None:
+    def save_as_geojson(
+        self,
+        filename: str,
+        compact: bool = False,
+        save_intermediate_nodes: bool = True,
+    ) -> None:
         """
         Function:
 
@@ -85,12 +95,26 @@ class GeoGraphIO:
             multiline = []
             for origin_idx, destinations in enumerate(graph):
                 for destination_idx, distance in destinations.items():
-                    new_subline = [[self.nodes[origin_idx][1], self.nodes[origin_idx][0]]]
-                    if self.intermediate_nodes is not None and save_intermediate_nodes:
-                        im_pts =self.__get_intermediate_nodes__(origin_idx=origin_idx, destination_idx=destination_idx, sequence='lon_lat')
+                    new_subline = [
+                        [self.nodes[origin_idx][1], self.nodes[origin_idx][0]]
+                    ]
+                    if (
+                        self.intermediate_nodes is not None
+                        and save_intermediate_nodes
+                    ):
+                        im_pts = self.__get_intermediate_nodes__(
+                            origin_idx=origin_idx,
+                            destination_idx=destination_idx,
+                            sequence="lon_lat",
+                        )
                         if im_pts:
                             new_subline.extend(im_pts)
-                    new_subline.append([self.nodes[destination_idx][1], self.nodes[destination_idx][0]])
+                    new_subline.append(
+                        [
+                            self.nodes[destination_idx][1],
+                            self.nodes[destination_idx][0],
+                        ]
+                    )
 
                     multiline.append(new_subline)
             out_dict = {
@@ -110,8 +134,15 @@ class GeoGraphIO:
                     origin = self.nodes[origin_idx]
                     destination = self.nodes[destination_idx]
                     new_subline = [[origin[1], origin[0]]]
-                    if self.intermediate_nodes is not None and save_intermediate_nodes:
-                        im_pts =self.__get_intermediate_nodes__(origin_idx=origin_idx, destination_idx=destination_idx, sequence='lon_lat')
+                    if (
+                        self.intermediate_nodes is not None
+                        and save_intermediate_nodes
+                    ):
+                        im_pts = self.__get_intermediate_nodes__(
+                            origin_idx=origin_idx,
+                            destination_idx=destination_idx,
+                            sequence="lon_lat",
+                        )
                         if im_pts:
                             new_subline.extend(im_pts)
                     new_subline.append([destination[1], destination[0]])
@@ -133,7 +164,9 @@ class GeoGraphIO:
         with open(filename, "w") as f:
             json.dump(out_dict, f)
 
-    def save_as_graphjson(self, filename: str, save_intermediate_nodes: bool = True) -> None:
+    def save_as_graphjson(
+        self, filename: str, save_intermediate_nodes: bool = True
+    ) -> None:
         """
         Function:
 
@@ -176,7 +209,6 @@ class GeoGraphIO:
                 },
                 f,
             )
-
 
     # Load Methods
     @staticmethod
@@ -247,7 +279,7 @@ class GeoGraphIO:
             graph=data["graph"],
             nodes=data["nodes"],
         )
-    
+
     @staticmethod
     def load_from_graphjson(filename: str) -> "GeoGraph":
         """
@@ -278,7 +310,9 @@ class GeoGraphIO:
             )
         data.pop("type")
         # Clean the graph data such that all keys are ints (JSON only allows string keys, but we want int keys for the graph)
-        data['graph'] = [{int(k): v for k, v in item.items()} for item in data['graph']]
+        data["graph"] = [
+            {int(k): v for k, v in item.items()} for item in data["graph"]
+        ]
         return GeoGraph(**data)
 
     @staticmethod
@@ -286,7 +320,7 @@ class GeoGraphIO:
         osmnx_graph,
         coord_precision: int = 5,
         weight_precision: int = 3,
-        weight_key: Literal['length', 'travel_time'] = 'length',
+        weight_key: Literal["length", "travel_time"] = "length",
         off_graph_travel_speed: int | float | None = None,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
@@ -333,8 +367,8 @@ class GeoGraphIO:
             - Options:
                 - If None and weight_key is 'travel_time'
                     - The default_off_graph_circiuity will be set to 0 (assuming instant travel off graph)
-                    - The default_node_addition_circuity will be set to 240 
-                        - This assumes 15 km/h off graph travel speed when optimizing for entry 
+                    - The default_node_addition_circuity will be set to 240
+                        - This assumes 15 km/h off graph travel speed when optimizing for entry
                         - This is not included in final returned length, but only used to choose an optimal entry node into the graph
                 - If None and weight_key is 'length', the function will ignore this parameter
                 - If a number, the function will use this speed to convert off-graph distances to travel times in seconds
@@ -354,39 +388,53 @@ class GeoGraphIO:
         graph = [dict() for _ in range(len(node_list))]
         if load_intermediate_nodes:
             intermediate_nodes = [dict() for _ in range(len(node_list))]
-        weight_divisor = 1000 if weight_key == 'length' else 1
+        weight_divisor = 1000 if weight_key == "length" else 1
         for u, v, data in osmnx_graph.edges(data=True):
             i = node_to_idx[u]
             j = node_to_idx[v]
-            weight = round(float(data.get(weight_key))/weight_divisor, weight_precision)
-            graph[i][j] = min(graph[i].get(j, float('inf')), weight)
+            weight = round(
+                float(data.get(weight_key)) / weight_divisor, weight_precision
+            )
+            graph[i][j] = min(graph[i].get(j, float("inf")), weight)
             if load_intermediate_nodes and "geometry" in data:
                 intermediate_nodes[i][j] = [
-                    [round(coord[1], coord_precision), round(coord[0], coord_precision)]
+                    [
+                        round(coord[1], coord_precision),
+                        round(coord[0], coord_precision),
+                    ]
                     for coord in data["geometry"].coords
                 ]
 
         nodes = [None] * len(node_list)
         for node, data in osmnx_graph.nodes(data=True):
-            nodes[node_to_idx[node]] = [round(data["y"], coord_precision), round(data["x"], coord_precision)]
+            nodes[node_to_idx[node]] = [
+                round(data["y"], coord_precision),
+                round(data["x"], coord_precision),
+            ]
         kwargs = {}
         if load_intermediate_nodes:
-            kwargs['intermediate_nodes'] = intermediate_nodes
+            kwargs["intermediate_nodes"] = intermediate_nodes
         # Handle travel_time specific parameters
-        if weight_key == 'travel_time':
+        if weight_key == "travel_time":
             if off_graph_travel_speed is None:
-                print_console("No off_graph_travel_speed provided but weight_key = 'travel_time'. Assuming instant travel off graph. Setting default_off_graph_circuity to 0 and default_node_addition_circuity to 240.", silent=silent)
-                kwargs['default_off_graph_circuity'] = 0
-                kwargs['default_node_addition_circuity'] = 240
+                print_console(
+                    "No off_graph_travel_speed provided but weight_key = 'travel_time'. Assuming instant travel off graph. Setting default_off_graph_circuity to 0 and default_node_addition_circuity to 240.",
+                    silent=silent,
+                )
+                kwargs["default_off_graph_circuity"] = 0
+                kwargs["default_node_addition_circuity"] = 240
             else:
                 off_graph_speed_km_per_s = off_graph_travel_speed / 3600
-                kwargs['default_off_graph_circuity'] = 1 / off_graph_speed_km_per_s
-                kwargs['default_node_addition_circuity'] = 1 / off_graph_speed_km_per_s
+                kwargs["default_off_graph_circuity"] = (
+                    1 / off_graph_speed_km_per_s
+                )
+                kwargs["default_node_addition_circuity"] = (
+                    1 / off_graph_speed_km_per_s
+                )
 
         # TODO: Handle time based geograph units in a better way by default.
         # See: self.geograph_units
-        return GeoGraph(graph=graph,nodes=nodes, **kwargs)
-
+        return GeoGraph(graph=graph, nodes=nodes, **kwargs)
 
     # Misc IO Methods
     @staticmethod
@@ -518,9 +566,9 @@ class GeoGraphIO:
         len_routes = len(routes)
         for idx, route in enumerate(routes):
             shortest_path = route["geograph"].get_shortest_path(
-                origin_node = route["origin"], 
-                destination_node = route["destination"], 
-                get_intermediate_nodes=True
+                origin_node=route["origin"],
+                destination_node=route["destination"],
+                get_intermediate_nodes=True,
             )
             shortest_line_path = get_line_path(shortest_path)
             output["features"].append(
@@ -543,25 +591,34 @@ class GeoGraphIO:
 
 
 class GeoGraphModifiers:
-    def add_edge(self, origin_id: int, destination_id: int, distance: int | float, symmetric: bool = False) -> None:
+    def add_edge(
+        self,
+        origin_id: int,
+        destination_id: int,
+        distance: int | float,
+        symmetric: bool = False,
+    ) -> None:
         return self.graph_object.add_edge(
             origin_id=origin_id,
             destination_id=destination_id,
             distance=distance,
             symmetric=symmetric,
         )
-    
-    def remove_node(self, symmetric_node: bool = False) -> dict[int, int | float]:
+
+    def remove_node(
+        self, symmetric_node: bool = False
+    ) -> dict[int, int | float]:
         return self.graph_object.remove_node(symmetric_node=symmetric_node)
-    
-    def remove_edge(self, origin_id: int, destination_id: int, symmetric: bool = False) -> int | float | None:
+
+    def remove_edge(
+        self, origin_id: int, destination_id: int, symmetric: bool = False
+    ) -> int | float | None:
         return self.graph_object.remove_edge(
             origin_id=origin_id,
             destination_id=destination_id,
             symmetric=symmetric,
         )
-    
-    
+
     def add_coord_node(
         self,
         coord_dict: dict[str, float | int],
@@ -653,7 +710,7 @@ class GeoGraphModifiers:
             ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
             assert node_addition_math in [
                 "euclidean",
-                "haversine"
+                "haversine",
             ], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
             assert isinstance(
                 lat_lon_bound, (int, float)
@@ -675,7 +732,9 @@ class GeoGraphModifiers:
             self.__original_graph_length__ += 1
 
         # Create the node
-        new_node_id = self.graph_object.add_node(node_dict=node_dict, symmetric=True)
+        new_node_id = self.graph_object.add_node(
+            node_dict=node_dict, symmetric=True
+        )
         self.nodes.append(node)
         return new_node_id
 
@@ -694,7 +753,7 @@ class GeoGraphModifiers:
         self,
         origin_idx: int,
         destination_idx: int,
-        symmetric:bool=True,
+        symmetric: bool = True,
     ) -> None:
         """
         Function:
@@ -717,14 +776,18 @@ class GeoGraphModifiers:
             - What: Whether to add the edge in both directions
             - Default: True
         """
-        assert origin_idx < len(self.graph_object.graph), "Origin node does not exist"
+        assert origin_idx < len(
+            self.graph_object.graph
+        ), "Origin node does not exist"
         assert destination_idx < len(
             self.graph_object.graph
         ), "Destination node does not exist"
         self.add_edge(
             origin_idx=origin_idx,
             destination_idx=destination_idx,
-            distance=haversine(self.nodes[origin_idx], self.nodes[destination_idx]),
+            distance=haversine(
+                self.nodes[origin_idx], self.nodes[destination_idx]
+            ),
             symmetric=symmetric,
         )
 
@@ -820,7 +883,9 @@ class GeoGraphModifiers:
         ]
 
         # Clean up the other geograph to remove any appended nodes
-        while len(other_geograph.graph_object.graph) > original_other_graph_length:
+        while (
+            len(other_geograph.graph_object.graph) > original_other_graph_length
+        ):
             other_geograph.remove_coord_node()
 
         graph_length = len(self.graph_object.graph)
@@ -977,8 +1042,10 @@ class GeoGraphUtils:
             )
             for node_idx in min_diffs_idx.values()
         }
-    
-    def __get_intermediate_nodes__(self, origin_idx:int, destination_idx:int, sequence: str = "lat_lon") -> list[list[float | int]]:
+
+    def __get_intermediate_nodes__(
+        self, origin_idx: int, destination_idx: int, sequence: str = "lat_lon"
+    ) -> list[list[float | int]]:
         """
         Function:
 
@@ -999,7 +1066,10 @@ class GeoGraphUtils:
             - Default: "lat_lon"
         """
         if self.intermediate_nodes is not None:
-            assert sequence in ["lat_lon", "lon_lat"], f"Invalid sequence provided ({sequence}), valid options are: ['lat_lon', 'lon_lat']"
+            assert sequence in [
+                "lat_lon",
+                "lon_lat",
+            ], f"Invalid sequence provided ({sequence}), valid options are: ['lat_lon', 'lon_lat']"
             out = self.intermediate_nodes[origin_idx].get(destination_idx, [])
             if sequence == "lon_lat":
                 out = [[coord[1], coord[0]] for coord in out]
@@ -1052,7 +1122,9 @@ class GeoGraphUtils:
         while len(self.graph_object.graph) > self.__original_graph_length__:
             self.remove_coord_node()
 
-    def __get_coordinate_path__(self, path: list[int],  get_intermediate_nodes: bool = False) -> list[list[float | int]]:
+    def __get_coordinate_path__(
+        self, path: list[int], get_intermediate_nodes: bool = False
+    ) -> list[list[float | int]]:
         """
         Function:
 
@@ -1078,7 +1150,9 @@ class GeoGraphUtils:
             for i in range(1, len(path) - 1):
                 origin_id = path[i]
                 destination_id = path[i + 1]
-                intermediate_nodes = self.intermediate_nodes[origin_id].get(destination_id, [])
+                intermediate_nodes = self.intermediate_nodes[origin_id].get(
+                    destination_id, []
+                )
                 coordinate_path.extend(intermediate_nodes)
                 # Add the destination node
                 coordinate_path.append(self.nodes[destination_id])
@@ -1161,7 +1235,9 @@ class GeoGraphDistanceCalculations:
         )
 
 
-class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCalculations):
+class GeoGraph(
+    GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCalculations
+):
     def __init__(
         self,
         graph: list[dict[int, int | float]],
@@ -1244,7 +1320,9 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         self.intermediate_nodes = intermediate_nodes
         self.default_off_graph_circuity = default_off_graph_circuity
         self.default_node_addition_circuity = default_node_addition_circuity
-        self.default_get_intermediate_nodes = True if intermediate_nodes is not None else False
+        self.default_get_intermediate_nodes = (
+            True if intermediate_nodes is not None else False
+        )
         self.geograph_units = geograph_units
         self.__warm__ = False
         self.__original_graph_length__ = len(graph)
@@ -1316,7 +1394,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         origin_node: dict[str, float | int],
         destination_node: dict[str, float | int],
         output_units: str = "km",
-        algorithm_fn:str ='dijkstra',
+        algorithm_fn: str = "dijkstra",
         algorithm_kwargs: dict = None,
         off_graph_circuity: float | int = 1,
         node_addition_type: str = "kdclosest",
@@ -1371,7 +1449,7 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 - 'dijkstra' -> GraphAlgorithms.dijkstra
                 - 'a_star' -> GraphAlgorithms.a_star
                 - 'bellman_ford' -> GraphAlgorithms.bellman_ford
-                - 'bmssp' -> GraphAlgorithms.bmssp 
+                - 'bmssp' -> GraphAlgorithms.bmssp
                 - Any user defined function that takes the arguments:
                     - `graph`: The graph (list[dict[int, int | float]]) to perform the shortest path on
                     - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
@@ -1470,22 +1548,47 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
-        get_intermediate_nodes = get_intermediate_nodes if get_intermediate_nodes is not None else self.default_get_intermediate_nodes
-        off_graph_circuity = off_graph_circuity if off_graph_circuity is not None else self.default_off_graph_circuity
-        node_addition_circuity = node_addition_circuity if node_addition_circuity is not None else self.default_node_addition_circuity
-        algorithm_kwargs = algorithm_kwargs if algorithm_kwargs is not None else dict()
+        get_intermediate_nodes = (
+            get_intermediate_nodes
+            if get_intermediate_nodes is not None
+            else self.default_get_intermediate_nodes
+        )
+        off_graph_circuity = (
+            off_graph_circuity
+            if off_graph_circuity is not None
+            else self.default_off_graph_circuity
+        )
+        node_addition_circuity = (
+            node_addition_circuity
+            if node_addition_circuity is not None
+            else self.default_node_addition_circuity
+        )
+        algorithm_kwargs = (
+            algorithm_kwargs if algorithm_kwargs is not None else dict()
+        )
         self.warmup()
         if callable(algorithm_fn):
-            algorithm_kwargs['graph'] = self.graph_object.graph
-        elif isinstance(algorithm_fn, str) and hasattr(self.graph_object, algorithm_fn):
+            algorithm_kwargs["graph"] = self.graph_object.graph
+        elif isinstance(algorithm_fn, str) and hasattr(
+            self.graph_object, algorithm_fn
+        ):
             algorithm_fn = getattr(self.graph_object, algorithm_fn)
         else:
             raise ValueError("algorithm_fn must be a string or callable")
         # If auto lat lon bounds are needed, then calculate them.
         if node_addition_lat_lon_bound == "auto":
-            if node_addition_type != 'kdclosest' or destination_node_addition_type != 'kdclosest':
-                node_addition_lat_lon_bound_destination = get_lat_lon_bound_between_pts(origin_node, destination_node)* 1.01
-                node_addition_lat_lon_bound_origin = min(node_addition_lat_lon_bound_destination, auto_lat_lon_bound_max)
+            if (
+                node_addition_type != "kdclosest"
+                or destination_node_addition_type != "kdclosest"
+            ):
+                node_addition_lat_lon_bound_destination = (
+                    get_lat_lon_bound_between_pts(origin_node, destination_node)
+                    * 1.01
+                )
+                node_addition_lat_lon_bound_origin = min(
+                    node_addition_lat_lon_bound_destination,
+                    auto_lat_lon_bound_max,
+                )
         try:
             origin = [
                 origin_node.get("latitude"),
@@ -1499,12 +1602,17 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
             destination_added = True
             origin_entry_length = 0
             destination_exit_length = 0
-        
-            # If the node addition type is kdclosest, we can get the closest node and distance without adding a new node to the graph. 
+
+            # If the node addition type is kdclosest, we can get the closest node and distance without adding a new node to the graph.
             # Otherwise, we need to add a new node to the graph for the origin and destination.
             if node_addition_type == "kdclosest":
                 origin_id = self.geokdtree.closest_idx(point=origin)
-                origin_entry_length = haversine(origin, self.nodes[origin_id], circuity=off_graph_circuity, units=self.geograph_units)
+                origin_entry_length = haversine(
+                    origin,
+                    self.nodes[origin_id],
+                    circuity=off_graph_circuity,
+                    units=self.geograph_units,
+                )
                 origin_added = False
             else:
                 origin_id = self.add_coord_node(
@@ -1519,7 +1627,12 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 )
             if destination_node_addition_type == "kdclosest":
                 destination_id = self.geokdtree.closest_idx(point=destination)
-                destination_exit_length = haversine(destination, self.nodes[destination_id], circuity=off_graph_circuity, units=self.geograph_units)
+                destination_exit_length = haversine(
+                    destination,
+                    self.nodes[destination_id],
+                    circuity=off_graph_circuity,
+                    units=self.geograph_units,
+                )
                 destination_added = False
             else:
                 destination_id = self.add_coord_node(
@@ -1531,21 +1644,27 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                     node_addition_math=node_addition_math,
                     silent=silent,
                     temp_node=True,
-                )  
-            
-            # If caching is enabled, we can use the cached shortest path tree to get the shortest path length and path between the origin and destination nodes. 
+                )
+
+            # If caching is enabled, we can use the cached shortest path tree to get the shortest path length and path between the origin and destination nodes.
             # Otherwise, we need to run the algorithm function to get the shortest path length and path between the origin and destination nodes.
             if cache:
-                assert not origin_added, "When caching, origin_node_addition_type must be 'kdclosest'"
-                assert not destination_added, "When caching, destination_node_addition_type must be 'kdclosest'"
+                assert (
+                    not origin_added
+                ), "When caching, origin_node_addition_type must be 'kdclosest'"
+                assert (
+                    not destination_added
+                ), "When caching, destination_node_addition_type must be 'kdclosest'"
                 output = self.graph_object.get_set_cached_shortest_path(
                     origin_id=origin_id,
                     destination_id=destination_id,
                     length_only=length_only,
                 )
                 # Add in missing lengths
-                output['length'] += origin_entry_length + destination_exit_length
-  
+                output["length"] += (
+                    origin_entry_length + destination_exit_length
+                )
+
             else:
                 output = algorithm_fn(
                     origin_id=origin_id,
@@ -1554,56 +1673,90 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                 )
                 # Handle circuity adjustments, length conversions, and path adjustments
                 # Edge case when there is a direct connection between the origin and destination nodes
-                if (origin_added and destination_added and len(output['path']) == 2) or len(output['path']) <= 1:
-                    output['length'] = haversine(origin, destination, circuity=off_graph_circuity, units=self.geograph_units)
-                    output['path'] = []
+                if (
+                    origin_added
+                    and destination_added
+                    and len(output["path"]) == 2
+                ) or len(output["path"]) <= 1:
+                    output["length"] = haversine(
+                        origin,
+                        destination,
+                        circuity=off_graph_circuity,
+                        units=self.geograph_units,
+                    )
+                    output["path"] = []
                 else:
                     if origin_added:
-                        output['length']+= -self.graph_object.graph[output['path'][0]][output['path'][1]] + haversine(origin, self.nodes[output['path'][1]], circuity=off_graph_circuity, units=self.geograph_units)
-                        output['path'] = output['path'][1:]
+                        output["length"] += -self.graph_object.graph[
+                            output["path"][0]
+                        ][output["path"][1]] + haversine(
+                            origin,
+                            self.nodes[output["path"][1]],
+                            circuity=off_graph_circuity,
+                            units=self.geograph_units,
+                        )
+                        output["path"] = output["path"][1:]
                     else:
-                        output['length']+= origin_entry_length
+                        output["length"] += origin_entry_length
                     if destination_added:
-                        output['length']+= -self.graph_object.graph[output['path'][-2]][output['path'][-1]] + haversine(self.nodes[output['path'][-2]], destination, circuity=off_graph_circuity, units=self.geograph_units)
-                        output['path'] = output['path'][:-1]
+                        output["length"] += -self.graph_object.graph[
+                            output["path"][-2]
+                        ][output["path"][-1]] + haversine(
+                            self.nodes[output["path"][-2]],
+                            destination,
+                            circuity=off_graph_circuity,
+                            units=self.geograph_units,
+                        )
+                        output["path"] = output["path"][:-1]
                     else:
-                        output['length']+= destination_exit_length
+                        output["length"] += destination_exit_length
 
             # Convert the length to the desired output units
-            output['length'] = distance_converter(
-                output['length'],
+            output["length"] = distance_converter(
+                output["length"],
                 input_units=self.geograph_units,
                 output_units=output_units,
             )
             # Early return if only length is needed
             if length_only:
-                return {"length": output['length']}
-            
+                return {"length": output["length"]}
+
             # Get the coordinate path
-            output['coordinate_path'] = [origin] + self.__get_coordinate_path__(output['path'], get_intermediate_nodes=get_intermediate_nodes) + [destination]
+            output["coordinate_path"] = (
+                [origin]
+                + self.__get_coordinate_path__(
+                    output["path"],
+                    get_intermediate_nodes=get_intermediate_nodes,
+                )
+                + [destination]
+            )
 
             # Format the coordinate path to the desired output format
             if output_coordinate_path != "list_of_lists":
-                output['coordinate_path'] = self.__format_coordinates__(
-                    coordinate_path=output['coordinate_path'],
+                output["coordinate_path"] = self.__format_coordinates__(
+                    coordinate_path=output["coordinate_path"],
                     output_format=output_coordinate_path,
                 )
                 if output_coordinate_path == "list_of_lists_long_first":
                     output["long_first"] = True
 
             if not output_path:
-                del output['path']
+                del output["path"]
             if origin_added or destination_added:
                 self.__cleanup_temp_nodes__()
             return output
-        
+
         except Exception as e:
             # Cleanup temp nodes from the graph
             self.__cleanup_temp_nodes__()
             print("An error occurred while calculating the shortest path:")
             print("This is likely caused by a disconnect in the graph.")
-            print("You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180.")
-            print("This will, however, result in a much longer runtime per shortest path query.")
+            print(
+                "You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180."
+            )
+            print(
+                "This will, however, result in a much longer runtime per shortest path query."
+            )
             print("See the stacktrace below for more details:")
             raise e
 
@@ -1657,18 +1810,22 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
         self.warmup()
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(
-            distance=1, input_units=self.geograph_units, output_units=output_units
+            distance=1,
+            input_units=self.geograph_units,
+            output_units=output_units,
         )
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
         entry_idx_and_distance = []
         for node in nodes:
-            node_idx = self.geokdtree.closest_idx(point=[node["latitude"], node["longitude"]])
+            node_idx = self.geokdtree.closest_idx(
+                point=[node["latitude"], node["longitude"]]
+            )
             distance = haversine(
                 [node["latitude"], node["longitude"]],
                 self.nodes[node_idx],
                 circuity=off_graph_circuity,
-                units=output_units, # Store directly as output units since this is a post processing step
+                units=output_units,  # Store directly as output units since this is a post processing step
             )
             entry_idx_and_distance.append((node_idx, distance))
 
@@ -1699,4 +1856,3 @@ class GeoGraph(GeoGraphIO, GeoGraphModifiers, GeoGraphUtils, GeoGraphDistanceCal
                     )
 
         return output_matrix
-

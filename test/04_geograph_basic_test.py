@@ -1,7 +1,6 @@
 from scgraph import GeoGraph
 from scgraph.utils import validate
 
-
 print("\n===============\nBasic GeoGraph Tests:\n===============")
 nodes = [
     [0, 0],

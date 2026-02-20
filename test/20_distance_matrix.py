@@ -2,7 +2,6 @@ from scgraph.geographs.us_freeway import us_freeway_geograph
 from scgraph.utils import haversine
 from time import time
 
-
 cities = {
     "Los Angeles": (34.0522, -118.2437),
     "New York City": (40.7128, -74.0060),

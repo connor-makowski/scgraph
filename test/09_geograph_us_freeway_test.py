@@ -2,7 +2,6 @@ from pamda import pamda
 from scgraph.geographs.us_freeway import us_freeway_geograph
 from scgraph.utils import validate, time_test
 
-
 print("\n===============\nUS Freeway GeoGraph Tests:\n===============")
 
 expected = {
@@ -100,9 +99,8 @@ print("\n===============\nUS Freeway GeoGraph Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    us_freeway_geograph.validate, kwargs = {
-        "check_symmetry": True, "check_connected": False
-    },
+    us_freeway_geograph.validate,
+    kwargs={"check_symmetry": True, "check_connected": False},
 )
 time_test("Node Validation", us_freeway_geograph.validate_nodes)
 

@@ -6,6 +6,7 @@ try:
 except ImportError:
     Bmssp = None
 
+
 class GraphUtils:
     def __input_check__(
         self,
@@ -49,9 +50,7 @@ class GraphUtils:
             )
 
     def __reconstruct_path__(
-        self,
-        destination_id: int, 
-        predecessor: list[int]
+        self, destination_id: int, predecessor: list[int]
     ) -> list[int]:
         """
         Function:
@@ -112,7 +111,7 @@ class GraphUtils:
                 raise Exception(
                     f"Cycle detected in the graph at node {node_id}"
                 )
-            
+
     def __ensure_inverse_graph__(self) -> list[dict[int, int | float]]:
         """
         Function:
@@ -127,10 +126,7 @@ class GraphUtils:
                 for destination_id, distance in origin_dict.items():
                     self.inverse_graph[destination_id][origin_id] = distance
 
-    def __connected_check__(
-        self,
-        origin_id: int = 0
-    ) -> bool:
+    def __connected_check__(self, origin_id: int = 0) -> bool:
         """
         Function:
 
@@ -154,7 +150,7 @@ class GraphUtils:
             for connected_id in self.graph[current_id]:
                 if visited[connected_id] == 0:
                     open_leaves.append(connected_id)
-        
+
         inverse_visited = [0] * len(self.inverse_graph)
         inverse_open_leaves = [origin_id]
         while inverse_open_leaves:
@@ -165,7 +161,7 @@ class GraphUtils:
                     inverse_open_leaves.append(connected_id)
 
         return min(visited) == 1 and min(inverse_visited) == 1
-    
+
     def __symmetric_check__(self) -> bool:
         """
         Function:
@@ -219,11 +215,15 @@ class GraphUtils:
             assert all(
                 [(isinstance(i, (int, float)) and i >= 0) for i in lengths]
             ), f"Distances must be integers or floats, but graph[{origin_id}] contains a non-integer or non-float distance"
-        
+
         if check_symmetry:
-            assert self.__symmetric_check__(), "The provided graph is not symmetric"
+            assert (
+                self.__symmetric_check__()
+            ), "The provided graph is not symmetric"
         if check_connected:
-            assert self.__connected_check__(), "The provided graph is not fully connected"
+            assert (
+                self.__connected_check__()
+            ), "The provided graph is not fully connected"
 
     def reset_cache(self) -> None:
         """
@@ -247,7 +247,7 @@ class GraphUtils:
             - If a tree is not cached for a specific node, the corresponding entry in the list will be 0
         """
         return self.__cache__
-    
+
     def set_cache(self, new_cache: list[dict | Literal[0]]) -> None:
         """
         Function:
@@ -263,7 +263,9 @@ class GraphUtils:
                 - If a tree is not cached for a specific node, the corresponding entry in the list should be 0
         """
         assert isinstance(new_cache, list), "Cache must be a list"
-        assert len(new_cache) == len(self.graph), "Cache must be the same length as the graph"
+        assert len(new_cache) == len(
+            self.graph
+        ), "Cache must be the same length as the graph"
         self.__cache__ = new_cache
 
     def __get__(self, idx: int) -> dict[int, int | float]:
@@ -277,16 +279,18 @@ class GraphUtils:
         - `idx`:
             - Type: int
             - What: The id of the node to get the adjacency dictionary for
-        
+
         Returns:
-        
+
         - The adjacency dictionary for the specified node
         """
         return self.graph[idx]
 
 
 class GraphModifiers:
-    def add_node(self, node_dict: dict[int, int | float]=None, symmetric: bool = False) -> int:
+    def add_node(
+        self, node_dict: dict[int, int | float] = None, symmetric: bool = False
+    ) -> int:
         """
         Function:
 
@@ -315,8 +319,14 @@ class GraphModifiers:
             for dest_id, distance in node_dict.items():
                 self.graph[dest_id][new_node_id] = distance
         return new_node_id
-    
-    def add_edge(self, origin_id: int, destination_id: int, distance: int | float, symmetric: bool = False) -> None:
+
+    def add_edge(
+        self,
+        origin_id: int,
+        destination_id: int,
+        distance: int | float,
+        symmetric: bool = False,
+    ) -> None:
         """
         Function:
 
@@ -339,12 +349,16 @@ class GraphModifiers:
             - Default: False
         """
         assert origin_id < len(self.graph), "Origin node id is not in the graph"
-        assert destination_id < len(self.graph), "Destination node id is not in the graph"
+        assert destination_id < len(
+            self.graph
+        ), "Destination node id is not in the graph"
         self.graph[origin_id][destination_id] = distance
         if symmetric:
             self.graph[destination_id][origin_id] = distance
 
-    def remove_node(self, symmetric_node: bool = False) -> dict[int, int | float]:
+    def remove_node(
+        self, symmetric_node: bool = False
+    ) -> dict[int, int | float]:
         """
         Function:
 
@@ -354,7 +368,7 @@ class GraphModifiers:
 
         - `symmetric_node`:
             - Type: bool
-            - What: Whether the node being removed has symmetric edges 
+            - What: Whether the node being removed has symmetric edges
                 - Specifically: This should be True only if all inbound edges to this node are also outbound edges from this node
             - Default: False
             - If True, only uses outbound edges from this node to identify inbound edges to remove from other nodes.
@@ -374,7 +388,9 @@ class GraphModifiers:
                     origin_dict.pop(node_id)
         return self.graph.pop()
 
-    def remove_edge(self, origin_id: int, destination_id: int, symmetric: bool = False) -> int | float | None:
+    def remove_edge(
+        self, origin_id: int, destination_id: int, symmetric: bool = False
+    ) -> int | float | None:
         """
         Function:
 
@@ -398,17 +414,16 @@ class GraphModifiers:
         - The distance of the removed edge from origin to destination, or None if the edge did not exist
         """
         assert origin_id < len(self.graph), "Origin node id is not in the graph"
-        assert destination_id < len(self.graph), "Destination node id is not in the graph"
+        assert destination_id < len(
+            self.graph
+        ), "Destination node id is not in the graph"
         if symmetric:
             self.graph[destination_id].pop(origin_id, None)
         return self.graph[origin_id].pop(destination_id, None)
 
 
 class GraphTrees:
-    def get_shortest_path_tree(
-        self,
-        origin_id: int | set[int]
-    ) -> dict:
+    def get_shortest_path_tree(self, origin_id: int | set[int]) -> dict:
         """
         Function:
 
@@ -445,7 +460,9 @@ class GraphTrees:
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
-            for connected_id, connected_distance in self.graph[current_id].items():
+            for connected_id, connected_distance in self.graph[
+                current_id
+            ].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
@@ -457,7 +474,7 @@ class GraphTrees:
             "predecessors": predecessor,
             "distance_matrix": distance_matrix,
         }
-    
+
     def get_tree_path(
         self,
         origin_id: int,
@@ -550,9 +567,7 @@ class GraphAlgorithms:
         - None
         """
         # Input Validation
-        self.__input_check__(
-            origin_id=origin_id, destination_id=destination_id
-        )
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
         # Variable Initialization
         distance_matrix = [float("inf")] * len(self.graph)
@@ -624,9 +639,7 @@ class GraphAlgorithms:
             - Default: None (Then set to the number of nodes in the graph)
         """
         # Input Validation
-        self.__input_check__(
-            origin_id=origin_id, destination_id=destination_id
-        )
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
 
         # Variable Initialization
@@ -710,9 +723,7 @@ class GraphAlgorithms:
                 destination_id=destination_id,
             )
         # Input Validation
-        self.__input_check__(
-            origin_id=origin_id, destination_id=destination_id
-        )
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
 
         # Variable Initialization
@@ -735,7 +746,9 @@ class GraphAlgorithms:
                 continue
             visited[current_id] = 1
             current_distance = distance_matrix[current_id]
-            for connected_id, connected_distance in self.graph[current_id].items():
+            for connected_id, connected_distance in self.graph[
+                current_id
+            ].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
@@ -785,9 +798,7 @@ class GraphAlgorithms:
         - None
         """
         # Input Validation
-        self.__input_check__(
-            origin_id=origin_id, destination_id=destination_id
-        )
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
         # Variable Initialization
         distance_matrix = [float("inf")] * len(self.graph)
@@ -869,7 +880,8 @@ class GraphAlgorithms:
             )
         else:
             bmssp_graph = Bmssp(
-                graph=self.graph, use_constant_degree_graph=constant_degree_graph
+                graph=self.graph,
+                use_constant_degree_graph=constant_degree_graph,
             )
             output = bmssp_graph.solve(
                 origin_id=origin_id, destination_id=destination_id
@@ -896,7 +908,7 @@ class GraphAlgorithms:
             - You can reset the cache by calling self.reset_cache()
             - For efficiency, the cache is not automatically reset when the graph is modified
             - This logic must be handled by the user
-        
+
         Requires:
 
         - origin_id: The id of the origin node
@@ -908,7 +920,9 @@ class GraphAlgorithms:
         """
         shortest_path_tree = self.__cache__[origin_id]
         if shortest_path_tree == 0:
-            shortest_path_tree = self.get_shortest_path_tree(origin_id=origin_id)
+            shortest_path_tree = self.get_shortest_path_tree(
+                origin_id=origin_id
+            )
             self.__cache__[origin_id] = shortest_path_tree
         return self.get_tree_path(
             origin_id=origin_id,
@@ -919,7 +933,7 @@ class GraphAlgorithms:
 
 
 class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
-    def __init__(self, graph: list[dict[int, int | float]], validate = False):
+    def __init__(self, graph: list[dict[int, int | float]], validate=False):
         """
         Function:
 

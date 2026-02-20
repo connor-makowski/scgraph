@@ -3,10 +3,12 @@ from scgraph.utils import time_test
 
 
 def gen_graph(size, avg_connections=10):
-    return Graph([
-        {i + j: 1 for j in range(1, avg_connections) if i + j < size}
-        for i in range(size)
-    ])
+    return Graph(
+        [
+            {i + j: 1 for j in range(1, avg_connections) if i + j < size}
+            for i in range(size)
+        ]
+    )
 
 
 print("\n===============\nScale Time Tests:\n===============")

@@ -1,17 +1,18 @@
 from scgraph import Graph
 from scgraph.utils import validate
 
-
 print("\n===============\nBasic Graph Tests:\n===============")
 
-graph = Graph([
-    {1: 5, 2: 1},
-    {0: 5, 2: 2, 3: 1},
-    {0: 1, 1: 2, 3: 4, 4: 8},
-    {1: 1, 2: 4, 4: 3, 5: 6},
-    {2: 8, 3: 3},
-    {3: 6},
-])
+graph = Graph(
+    [
+        {1: 5, 2: 1},
+        {0: 5, 2: 2, 3: 1},
+        {0: 1, 1: 2, 3: 4, 4: 8},
+        {1: 1, 2: 4, 4: 3, 5: 6},
+        {2: 8, 3: 3},
+        {3: 6},
+    ]
+)
 
 expected = {"path": [0, 2, 1, 3, 5], "length": 10}
 
@@ -50,9 +51,9 @@ validate(
 validate(
     name="Shortest Path Tree",
     realized=graph.get_tree_path(
-        origin_id=0, 
-        destination_id=5, 
-        tree_data=graph.get_shortest_path_tree(origin_id=0)
+        origin_id=0,
+        destination_id=5,
+        tree_data=graph.get_shortest_path_tree(origin_id=0),
     ),
     expected=expected,
 )
@@ -60,34 +61,32 @@ validate(
 
 print("\n===============\nDisconnected Graph Tests:\n===============")
 
-graph = Graph([
-    {1: 5, 2: 1},
-    {0: 5, 2: 2, 3: 1},
-    {0: 1, 1: 2, 3: 4, 4: 8},
-    {1: 1, 2: 4, 4: 3, 5: 6},
-    {2: 8, 3: 3},
-    {3: 6},
-    # Make a disconnected graph
-    {7: 1},
-    {8: 1},
-    {6: 1},
-])
+graph = Graph(
+    [
+        {1: 5, 2: 1},
+        {0: 5, 2: 2, 3: 1},
+        {0: 1, 1: 2, 3: 4, 4: 8},
+        {1: 1, 2: 4, 4: 3, 5: 6},
+        {2: 8, 3: 3},
+        {3: 6},
+        # Make a disconnected graph
+        {7: 1},
+        {8: 1},
+        {6: 1},
+    ]
+)
 
 expected = {"path": [0, 2, 1, 3, 5], "length": 10}
 
 # This is not a connected or symmetric graph, both should raise errors
 try:
-    graph.validate(
-        check_connected=True, check_symmetry=False
-    )
+    graph.validate(check_connected=True, check_symmetry=False)
     print("Graph Connection Check: Fail")
 except Exception as e:
     print("Graph Connection Check: Pass")
 
 try:
-    graph.validate(
-        check_connected=False, check_symmetry=True
-    )
+    graph.validate(check_connected=False, check_symmetry=True)
     print("Graph Symmetry Check: Fail")
 except Exception as e:
     print("Graph Symmetry Check: Pass")

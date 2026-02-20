@@ -163,10 +163,10 @@ def parse_geojson(
     single_multi_line = simplify_geojson(
         filename_in=filename_in,
         filename_out=None,
-        precision=precision, 
-        pct_to_keep=pct_to_keep, 
-        min_points=min_points, 
-        silent=silent
+        precision=precision,
+        pct_to_keep=pct_to_keep,
+        min_points=min_points,
+        silent=silent,
     )
     total_geometries = len(single_multi_line)
 

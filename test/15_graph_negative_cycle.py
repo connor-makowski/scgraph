@@ -5,16 +5,20 @@ print("\n===============\nGridGraph Negative Cycle Tests:\n===============")
 
 print_timings = True
 
-graph = Graph([
-    {1: -1},
-    {2: 2},
-    {0: 2},
-])
-graph_negative_cycle = Graph([
-    {1: -5},
-    {2: 2},
-    {0: 2},
-])
+graph = Graph(
+    [
+        {1: -1},
+        {2: 2},
+        {0: 2},
+    ]
+)
+graph_negative_cycle = Graph(
+    [
+        {1: -5},
+        {2: 2},
+        {0: 2},
+    ]
+)
 success = True
 
 try:

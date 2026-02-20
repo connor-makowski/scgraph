@@ -1,6 +1,5 @@
 from scgraph import GeoGraph
 
-
 nodes = [
     [0, 0],
     [0, 1],

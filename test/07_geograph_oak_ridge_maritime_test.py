@@ -1,7 +1,6 @@
 from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph
 from scgraph.utils import validate, time_test
 
-
 print("\n===============\nOak Ridge GeoGraph Tests:\n===============")
 
 expected = {
@@ -86,9 +85,8 @@ print("\n===============\nOak Ridge GeoGraph Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    oak_ridge_maritime_geograph.validate, kwargs ={
-        "check_symmetry": True, "check_connected": False
-    },
+    oak_ridge_maritime_geograph.validate,
+    kwargs={"check_symmetry": True, "check_connected": False},
 )
 time_test(
     "Node Validation",

@@ -2,7 +2,6 @@ from pamda import pamda
 from scgraph.geographs.north_america_rail import north_america_rail_geograph
 from scgraph.utils import validate, time_test
 
-
 print("\n===============\nNorth America Rail GeoGraph Tests:\n===============")
 
 expected = {
@@ -87,9 +86,8 @@ print(
 
 time_test(
     "Graph Validation",
-    north_america_rail_geograph.validate, kwargs ={
-        "check_symmetry": True, "check_connected": False
-    },
+    north_america_rail_geograph.validate,
+    kwargs={"check_symmetry": True, "check_connected": False},
 )
 time_test(
     "Node Validation",

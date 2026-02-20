@@ -48,7 +48,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='dijkstra',
+        algorithm_fn="dijkstra",
     ),
     expected=expected,
 )
@@ -58,7 +58,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='a_star',
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
     ),
     expected=expected,
@@ -69,7 +69,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='a_star',
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     ),
     expected=expected,
@@ -100,7 +100,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='bmssp',
+        algorithm_fn="bmssp",
     ),
     expected=expected,
 )
@@ -109,11 +109,8 @@ print("\n===============\nMarnet GeoGraph Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    marnet_geograph.validate, 
-    kwargs = {
-        'check_symmetry':True, 
-        'check_connected':True
-    },
+    marnet_geograph.validate,
+    kwargs={"check_symmetry": True, "check_connected": True},
 )
 time_test("Node Validation", marnet_geograph.validate_nodes)
 
@@ -126,7 +123,7 @@ def dijkstra():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='dijkstra',
+        algorithm_fn="dijkstra",
     )
 
 
@@ -134,7 +131,7 @@ def a_star_haversine():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='a_star',
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
     )
 
@@ -143,7 +140,7 @@ def a_star_cheap_ruler():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='a_star',
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     )
 
@@ -168,7 +165,7 @@ def bmssp():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn='bmssp',
+        algorithm_fn="bmssp",
     )
 
 

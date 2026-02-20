@@ -52,35 +52,30 @@ print("\n===============\nBMSSP Time Tests:\n===============")
 
 time_test(
     "BMSSP 1 (marnet)",
-    marnet_graph.bmssp, kwargs={
-        "origin_id": 0, "destination_id": 5
-    },
+    marnet_graph.bmssp,
+    kwargs={"origin_id": 0, "destination_id": 5},
 )
 time_test(
     "BMSSP 2 (marnet)",
-    marnet_graph.bmssp, kwargs={
-        "origin_id": 100, "destination_id": 7999
-    },
+    marnet_graph.bmssp,
+    kwargs={"origin_id": 100, "destination_id": 7999},
 )
 time_test(
     "BMSSP 3 (marnet)",
-    marnet_graph.bmssp, kwargs={
-       "origin_id": 4022, "destination_id": 8342
-    },
+    marnet_graph.bmssp,
+    kwargs={"origin_id": 4022, "destination_id": 8342},
 )
 
 time_test(
     "BMSSP 4 (us_freeway)",
-    us_freeway_graph.bmssp, kwargs={
-        "origin_id": 0, "destination_id": 5
-    },
+    us_freeway_graph.bmssp,
+    kwargs={"origin_id": 0, "destination_id": 5},
 )
 
 time_test(
     "BMSSP 5 (us_freeway)",
-    us_freeway_graph.bmssp, kwargs={
-        "origin_id": 4022, "destination_id": 8342
-    },
+    us_freeway_graph.bmssp,
+    kwargs={"origin_id": 4022, "destination_id": 8342},
 )
 
 # time_test(
@@ -92,16 +87,14 @@ time_test(
 
 time_test(
     "Shortest Path Tree Comparison (marnet)",
-    marnet_graph.get_shortest_path_tree, kwargs={
-        "origin_id": 0
-    },
+    marnet_graph.get_shortest_path_tree,
+    kwargs={"origin_id": 0},
 )
 
 time_test(
     "Shortest Path Tree Comparison (us_freeway)",
-    us_freeway_graph.get_shortest_path_tree, kwargs={
-        "origin_id": 0
-    },
+    us_freeway_graph.get_shortest_path_tree,
+    kwargs={"origin_id": 0},
 )
 
 # time_test(

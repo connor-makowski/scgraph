@@ -1,7 +1,6 @@
 from scgraph.geographs.us_freeway import us_freeway_geograph
 from scgraph.utils import time_test
 
-
 cities = {
     "Los Angeles": (34.0522, -118.2437),
     "New York City": (40.7128, -74.0060),
@@ -156,4 +155,6 @@ time_test(
 
 time_test(name="GeoGraph uncached time", function=uncached_time)
 time_test(name="GeoGraph cached time", function=cached_time)
-time_test(name="GeoGraph cached length only time", function=cached_len_only_time)
+time_test(
+    name="GeoGraph cached length only time", function=cached_len_only_time
+)
