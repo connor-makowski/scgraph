@@ -1005,9 +1005,3 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
         self.reset_cache()
         if validate:
             self.validate()
-
-
-try:
-    from scgraph.cpp import Graph
-except ImportError:
-    pass

@@ -11,7 +11,7 @@ from geokdtree import GeoKDTree
 import json
 from copy import deepcopy
 from typing import Literal
-from scgraph.graph import Graph
+from scgraph import Graph
 
 
 class GeoGraphIO:
