@@ -3,37 +3,64 @@ cmake_minimum_required(VERSION 3.15)
 # -----------------------------
 # Define The Project
 # -----------------------------
-project(scgraph)
+project(scgraph LANGUAGES NONE)
 
 # -----------------------------
-# Set C++ standard
+# C++ detection
 # -----------------------------
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(CheckLanguage)
+check_language(CXX)
+
+if(CMAKE_CXX_COMPILER)
+    enable_language(CXX)
+endif()
 
 # -----------------------------
-# OPTIMIZATION FLAGS
+# If C++ is available, build extension
 # -----------------------------
-set(CMAKE_BUILD_TYPE Release)
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+if(CMAKE_CXX_COMPILER_LOADED)
 
-# -----------------------------
-# Find Packages
-# -----------------------------
-find_package(Python 3.10 COMPONENTS Interpreter Development REQUIRED)
+    message(STATUS "C++ compiler detected: Building compiled extension.")
 
-# -----------------------------
-# Add nanobind
-# -----------------------------
-find_package(nanobind CONFIG REQUIRED)
+    # -----------------------------
+    # Set C++ standard
+    # -----------------------------
+    set(CMAKE_CXX_STANDARD 20)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# -----------------------------
-# Graph module
-# -----------------------------
-nanobind_add_module(cpp
-    STABLE_ABI
-    scgraph/cpp/bindings/graph_bindings.cpp
-    scgraph/cpp/src/graph.cpp
-)
+    # -----------------------------
+    # OPTIMIZATION FLAGS
+    # -----------------------------
+    set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 
-install(TARGETS cpp DESTINATION scgraph)
+    # -----------------------------
+    # Find Packages
+    # -----------------------------
+    find_package(Python 3.10 COMPONENTS Interpreter Development REQUIRED)
+
+    # -----------------------------
+    # Add nanobind
+    # -----------------------------
+    find_package(nanobind CONFIG REQUIRED)
+
+    # -----------------------------
+    # Graph module
+    # -----------------------------
+    nanobind_add_module(cpp
+        STABLE_ABI
+        scgraph/cpp/bindings/graph_bindings.cpp
+        scgraph/cpp/src/graph.cpp
+    )
+
+    install(TARGETS cpp DESTINATION scgraph)
+
+else()
+
+    message(WARNING
+        "No usable C++ compiler detected. "
+        "Building pure Python version of scgraph. "
+        "Performance will be reduced."
+    )
+
+endif()

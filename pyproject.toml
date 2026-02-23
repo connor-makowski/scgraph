@@ -4,15 +4,12 @@ target-version = ['py312']
 exclude = '/.*(migrations|__pycache__|geographs).*/'
 
 [build-system]
-requires = ["skst_safe_build", "nanobind"]
-build-backend = "skst_safe_build"
+requires = ["scikit_build_core", "nanobind"]
+build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
 build.verbose = false
 build-dir = "build/{wheel_tag}"
-
-[tool.setuptools]
-py-modules = ["scgraph"]
 
 [project]
 name = "scgraph"
