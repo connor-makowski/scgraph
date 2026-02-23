@@ -1,4 +1,5 @@
 #include "graph.hpp"
+#include "bmssp.hpp"
 #include <queue>
 #include <limits>
 #include <stdexcept>
@@ -614,9 +615,80 @@ GraphResult Graph::bellman_ford(const std::variant<int, std::set<int>>& origin_i
 }
 
 GraphResult Graph::bmssp(const std::variant<int, std::set<int>>& origin_id, int destination_id) {
-    // Print a warning that bmssp is not supported when using C++ backend
-    std::cerr << "Warning: bmssp is not supported in the C++ backend. Falling back to Dijkstra's algorithm." << std::endl;
-    return dijkstra(origin_id, destination_id);
+    input_check(origin_id, destination_id);
+    auto origin_ids = get_origin_ids(origin_id);
+
+    const size_t n = graph.size();
+
+    // This BMSSP only supports a single source. When multiple origins are provided
+    // we add a virtual super-source (id = n) with zero-weight edges to each
+    // origin and run from there, then strip it from the result.
+    const bool multi_source = (origin_ids.size() > 1);
+
+    std::vector<double> distances;
+    std::vector<int>    preds;
+
+    if (!multi_source) {
+        spp_expected::bmssp<double> solver(graph);
+        solver.prepare_graph(false);
+
+        int src = *origin_ids.begin();
+        auto [dist, pred] = solver.execute(src);
+        distances = std::move(dist);
+        preds     = std::move(pred);
+    } else {
+        // Build an augmented graph with one extra super-source node.
+        std::vector<std::vector<std::pair<int, double>>> augmented(graph);
+        std::vector<std::pair<int, double>> super_edges;
+        super_edges.reserve(origin_ids.size());
+        for (int oid : origin_ids) {
+            super_edges.emplace_back(oid, 0.0);
+        }
+        augmented.push_back(std::move(super_edges));
+
+        spp_expected::bmssp<double> aug_solver(augmented);
+        aug_solver.prepare_graph(false);
+
+        int super_src = static_cast<int>(augmented.size()) - 1;
+        auto [dist, pred] = aug_solver.execute(super_src);
+
+        // Trim back to the original n nodes.
+        dist.resize(n);
+        pred.resize(n);
+
+        // Normalize: any node whose predecessor is the (now-removed) super-source
+        // should be treated as a true root for path reconstruction.
+        for (size_t i = 0; i < n; ++i) {
+            if (pred[i] == super_src) {
+                pred[i] = -1;
+            }
+        }
+
+        distances = std::move(dist);
+        preds     = std::move(pred);
+    }
+
+    // The solver uses max/10 as its infinity sentinel.
+    const double solver_inf = std::numeric_limits<double>::max() / 10.0;
+    if (distances[destination_id] >= solver_inf) {
+        throw std::runtime_error("The origin and destination nodes are not connected.");
+    }
+
+    // Reconstruct path by walking predecessors. The BMSSP solver sets
+    // pred[source] = source (self-loop) to mark the root.
+    std::vector<int> path;
+    {
+        int cur = destination_id;
+        while (true) {
+            path.push_back(cur);
+            int p = preds[cur];
+            if (p == cur || p == -1) break;  // reached the root
+            cur = p;
+        }
+        std::reverse(path.begin(), path.end());
+    }
+
+    return GraphResult{path, distances[destination_id]};
 }
 
 GraphResult Graph::get_set_cached_shortest_path(int origin_id, int destination_id, bool length_only) {
