@@ -66,6 +66,19 @@ from scgraph.utils import cpp_check
 cpp_check() #=> Prints the implementation being used
 ```
 
+If you are having trouble building the C++ extension during the pip installation process, you can run:
+
+- On Mac / Linux / WSL2:
+    ```bash
+    export SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"
+    pip install scgraph
+    ```
+- On Windows:
+    ```bash
+    set SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"
+    pip install scgraph
+    ```
+
 ## Basic Geograph Usage
 
 Get the shortest path between two points on earth using a latitude / longitude pair.
