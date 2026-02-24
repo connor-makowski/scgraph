@@ -75,7 +75,10 @@ If you are having trouble building the C++ extension during the pip installation
     ```
 - On Windows:
     ```bash
-    set SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"
+    # POWERHELL:
+    $env:SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"
+    # CMD:
+    set SKBUILD_CMAKE_ARGS=-DSKIP_CPP_BUILD=ON
     pip install scgraph
     ```
 
