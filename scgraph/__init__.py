@@ -547,3 +547,4 @@ except ImportError:
     from .graph import Graph
 from .geograph import GeoGraph
 from .grid import GridGraph
+from .ch import CHGraph
