@@ -1,5 +1,6 @@
 import json
 from heapq import heappush, heappop
+from typing import Callable, Any, Optional, Union
 from .graph import GraphUtils, GraphModifiers
 
 
@@ -61,7 +62,7 @@ class CHGraphIO:
 
 
 class CHGraphPreprocessing:
-    def default_heuristic(self, node_id):
+    def default_heuristic(self, node_id: int) -> int | float:
         """
         Heuristic: Edge Difference + Number of Contracted Neighbors
         """
@@ -81,7 +82,9 @@ class CHGraphPreprocessing:
 
         return edge_diff + contracted_neighbors
 
-    def _count_shortcuts(self, v):
+    def _count_shortcuts(
+        self, v: int
+    ) -> tuple[int, list[tuple[int, int, int | float, int]]]:
         """
         Calculate how many shortcuts are needed if node v is contracted.
         Returns (count, list_of_shortcuts)
@@ -117,7 +120,9 @@ class CHGraphPreprocessing:
 
         return len(shortcuts), shortcuts
 
-    def _witness_search(self, start_node, avoid_node, max_dist):
+    def _witness_search(
+        self, start_node: int, avoid_node: int, max_dist: int | float
+    ) -> dict[int, int | float]:
         """
         A Dijkstra search to find if there's a path from start_node to
         other nodes without passing through avoid_node, with distance <= max_dist.
@@ -143,7 +148,9 @@ class CHGraphPreprocessing:
                     heappush(pq, (new_dist, v))
         return distances
 
-    def _preprocess(self, heuristic=None):
+    def _preprocess(
+        self, heuristic: Optional[Callable[[int], int | float]] = None
+    ) -> None:
         """
         Perform node contraction and build the CH.
         """
@@ -188,7 +195,7 @@ class CHGraphPreprocessing:
 
 
 class CHGraphAlgorithms:
-    def _get_rank(self, node_id: int) -> int:
+    def _get_rank(self, node_id: int) -> int | float:
         """
         Get the rank of a node. Returns infinity for nodes added after preprocessing.
         """
@@ -196,7 +203,9 @@ class CHGraphAlgorithms:
             return self.ranks[node_id]
         return float("inf")
 
-    def _get_neighbors(self, node_id: int, forward: bool = True) -> dict:
+    def _get_neighbors(
+        self, node_id: int, forward: bool = True
+    ) -> dict[int, int | float]:
         """
         Get upward neighbors for a node in the bidirectional search.
         Handles nodes added after preprocessing (e.g., origin/destination in GeoGraph).
@@ -228,7 +237,7 @@ class CHGraphAlgorithms:
                     neighbors[v] = weight
             return neighbors
 
-    def search(self, origin_id: int, destination_id: int) -> dict:
+    def search(self, origin_id: int, destination_id: int) -> dict[str, Any]:
         """
         Perform a bidirectional search on the CH.
         Returns a dictionary with 'path' and 'length'.
@@ -317,7 +326,9 @@ class CHGraphAlgorithms:
         )
         return {"path": path, "length": best_dist}
 
-    def get_shortest_path(self, origin_id: int, destination_id: int) -> dict:
+    def get_shortest_path(
+        self, origin_id: int, destination_id: int
+    ) -> dict[str, Any]:
         """
         Wrapper to match scgraph naming conventions.
         """
@@ -325,8 +336,13 @@ class CHGraphAlgorithms:
         return self.search(origin_id, destination_id)
 
     def _reconstruct_ch_path(
-        self, origin_id, destination_id, meeting_node, f_parent, b_parent
-    ):
+        self,
+        origin_id: int,
+        destination_id: int,
+        meeting_node: int,
+        f_parent: dict[int, int],
+        b_parent: dict[int, int],
+    ) -> list[int]:
         # Forward part: origin -> ... -> meeting_node
         f_path = []
         curr = meeting_node
@@ -353,7 +369,7 @@ class CHGraphAlgorithms:
         actual_path.append(full_ch_path[-1])
         return actual_path
 
-    def _unpack_shortcut(self, u, w):
+    def _unpack_shortcut(self, u: int, w: int) -> list[int]:
         if (u, w) in self.shortcuts:
             v_mid = self.shortcuts[(u, w)]
             return self._unpack_shortcut(u, v_mid) + self._unpack_shortcut(
@@ -372,14 +388,14 @@ class CHGraph(
 ):
     def __init__(
         self,
-        graph: list[dict[int, int | float]] = None,
-        heuristic=None,
-        ranks: list[int] = None,
-        forward_graph: list[dict[int, int | float]] = None,
-        backward_graph: list[dict[int, int | float]] = None,
-        shortcuts: dict = None,
-        nodes_count: int = None,
-        original_graph: list[dict[int, int | float]] = None,
+        graph: Optional[list[dict[int, int | float]]] = None,
+        heuristic: Optional[Callable[[int], int | float]] = None,
+        ranks: Optional[list[int]] = None,
+        forward_graph: Optional[list[dict[int, int | float]]] = None,
+        backward_graph: Optional[list[dict[int, int | float]]] = None,
+        shortcuts: Optional[dict[Union[str, tuple[int, int]], int]] = None,
+        nodes_count: Optional[int] = None,
+        original_graph: Optional[list[dict[int, int | float]]] = None,
     ):
         """
         Initialize a Contraction Hierarchies Graph.
@@ -456,9 +472,11 @@ class CHGraph(
             self._preprocess(heuristic=heuristic)
 
     @property
-    def graph(self):
+    def graph(self) -> list[dict[int, int | float]]:
         return self.original_graph
 
-    def get_shortest_path(self, origin_id, destination_id, **kwargs):
+    def get_shortest_path(
+        self, origin_id: int, destination_id: int, **kwargs: Any
+    ) -> dict[str, Any]:
         # Match GeoGraph calling signature which uses origin_id and destination_id
         return self.search(origin_id, destination_id)
