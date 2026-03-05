@@ -1,6 +1,5 @@
 from scgraph.geographs.marnet import marnet_geograph
-from scgraph.graph import Graph
-from scgraph import CHGraph
+from scgraph import CHGraph, Graph
 from scgraph.utils import validate, hard_round
 import time
 

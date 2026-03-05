@@ -7,8 +7,10 @@
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/function.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/tuple.h>
 #include <nanobind/operators.h>
 #include "../src/graph.hpp"
+#include "../src/ch_graph.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -180,4 +182,43 @@ NB_MODULE(cpp, m) {
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            nb::arg("length_only") = false,
            "Get shortest path using cached tree if available");
+
+    // CHGraph class
+    nb::class_<CHGraph>(m, "CHGraph")
+        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, std::function<double(int)>>(),
+             nb::arg("graph"), nb::arg("heuristic_fn") = nullptr,
+             "Initialize and preprocess a CHGraph")
+        .def(nb::init<int, const std::vector<int>&, 
+                      const std::vector<std::unordered_map<int, double>>&,
+                      const std::vector<std::unordered_map<int, double>>&,
+                      const std::unordered_map<std::pair<int, int>, int, pair_hash>&,
+                      const std::optional<std::vector<std::unordered_map<int, double>>>&>(),
+             nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
+             nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
+             "Initialize a CHGraph from pre-calculated data")
+        .def("add_node", &CHGraph::add_node,
+             nb::arg("node_dict") = std::unordered_map<int, double>{},
+             nb::arg("symmetric") = false,
+             "Add a node to the graph")
+        .def("search", [](CHGraph& self, int origin_id, int destination_id) -> nb::dict {
+            return graph_result_to_dict(self.search(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           "Perform a bidirectional search on the CH")
+        .def("get_shortest_path", [](CHGraph& self, int origin_id, int destination_id) -> nb::dict {
+            return graph_result_to_dict(self.get_shortest_path(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           "Wrapper for search to match scgraph naming conventions")
+        .def_prop_ro("nodes_count", &CHGraph::get_nodes_count)
+        .def_prop_ro("ranks", &CHGraph::get_ranks)
+        .def_prop_ro("forward_graph", &CHGraph::get_forward_graph)
+        .def_prop_ro("backward_graph", &CHGraph::get_backward_graph)
+        .def_prop_ro("shortcuts", [](const CHGraph& self) {
+            nb::dict d;
+            for (const auto& [k, v] : self.get_shortcuts()) {
+                d[nb::cast(k)] = v;
+            }
+            return d;
+        })
+        .def_prop_ro("original_graph", &CHGraph::get_original_graph)
+        .def_prop_ro("graph", &CHGraph::get_original_graph);
 }

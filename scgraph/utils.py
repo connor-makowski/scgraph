@@ -346,7 +346,7 @@ def time_test(name, function, args=None, kwargs=None):
 
 def cpp_check():
     try:
-        from scgraph.cpp import Graph
+        from scgraph.cpp import Graph, CHGraph
         print("Using C++ & Python implementation of SCGraph.")
     except:
         print("Using Pure Python implementation of SCGraph.")

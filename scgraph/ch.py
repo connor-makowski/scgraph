@@ -3,6 +3,11 @@ from heapq import heappush, heappop
 from typing import Callable, Any, Optional, Union
 from .graph import GraphUtils, GraphModifiers
 
+try:
+    from .cpp import CHGraph as CppCHGraph
+except ImportError:
+    CppCHGraph = None
+
 
 class CHGraphIO:
     def save_as_chjson(self, filename: str) -> None:
@@ -29,8 +34,8 @@ class CHGraphIO:
                 f,
             )
 
-    @staticmethod
-    def load_from_chjson(filename: str) -> "CHGraph":
+    @classmethod
+    def load_from_chjson(cls, filename: str) -> "CHGraph":
         """
         Load a CHGraph from a JSON file.
         """
@@ -58,7 +63,7 @@ class CHGraphIO:
                 for d in data["original_graph"]
             ]
 
-        return CHGraph(**data)
+        return cls(**data)
 
 
 class CHGraphPreprocessing:
@@ -379,7 +384,7 @@ class CHGraphAlgorithms:
             return [u]
 
 
-class CHGraph(
+class PyCHGraph(
     GraphUtils,
     GraphModifiers,
     CHGraphIO,
@@ -478,5 +483,22 @@ class CHGraph(
     def get_shortest_path(
         self, origin_id: int, destination_id: int, **kwargs: Any
     ) -> dict[str, Any]:
-        # Match GeoGraph calling signature which uses origin_id and destination_id
         return self.search(origin_id, destination_id)
+
+
+class CHGraph(CHGraphIO):
+    def __init__(self, *args, **kwargs):
+        if CppCHGraph and kwargs.get("heuristic") is None:
+            self.internal = CppCHGraph(*args, **kwargs)
+            self.is_cpp = True
+        else:
+            self.internal = PyCHGraph(*args, **kwargs)
+            self.is_cpp = False
+
+    def __getattr__(self, name):
+        return getattr(self.internal, name)
+
+    def get_shortest_path(
+        self, origin_id: int, destination_id: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        return self.internal.search(origin_id, destination_id)

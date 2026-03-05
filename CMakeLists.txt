@@ -68,7 +68,9 @@ else()
         STABLE_ABI
         scgraph/cpp/bindings/graph_bindings.cpp
         scgraph/cpp/src/graph.cpp
+        scgraph/cpp/src/ch_graph.cpp
     )
+
 
     install(TARGETS cpp DESTINATION scgraph)
 

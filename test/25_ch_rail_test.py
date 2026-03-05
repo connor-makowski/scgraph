@@ -1,6 +1,5 @@
 from scgraph.geographs.north_america_rail import north_america_rail_geograph
-from scgraph.graph import Graph
-from scgraph import CHGraph
+from scgraph import CHGraph, Graph
 from scgraph.utils import hard_round
 import time
 import random
