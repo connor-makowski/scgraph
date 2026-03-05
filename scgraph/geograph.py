@@ -1315,7 +1315,10 @@ class GeoGraph(
                 - 'mi': Miles
                 - 'ft': Feet
         """
-        self.graph_object = Graph(graph=graph, validate=validate)
+        if hasattr(graph, "get_shortest_path") and not isinstance(graph, list):
+            self.graph_object = graph
+        else:
+            self.graph_object = Graph(graph=graph, validate=validate)
         self.nodes = nodes
         self.intermediate_nodes = intermediate_nodes
         self.default_off_graph_circuity = default_off_graph_circuity
@@ -1325,7 +1328,7 @@ class GeoGraph(
         )
         self.geograph_units = geograph_units
         self.__warm__ = False
-        self.__original_graph_length__ = len(graph)
+        self.__original_graph_length__ = len(self.graph_object.graph)
 
     def warmup(self):
         """

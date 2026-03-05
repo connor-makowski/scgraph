@@ -1,6 +1,6 @@
 import json
 from heapq import heappush, heappop
-from .graph import GraphUtils
+from .graph import GraphUtils, GraphModifiers
 
 
 class CHGraphIO:
@@ -188,6 +188,46 @@ class CHGraphPreprocessing:
 
 
 class CHGraphAlgorithms:
+    def _get_rank(self, node_id: int) -> int:
+        """
+        Get the rank of a node. Returns infinity for nodes added after preprocessing.
+        """
+        if node_id < len(self.ranks):
+            return self.ranks[node_id]
+        return float("inf")
+
+    def _get_neighbors(self, node_id: int, forward: bool = True) -> dict:
+        """
+        Get upward neighbors for a node in the bidirectional search.
+        Handles nodes added after preprocessing (e.g., origin/destination in GeoGraph).
+        """
+        if node_id < self.nodes_count:
+            # Preprocessed node
+            return (
+                self.forward_graph[node_id]
+                if forward
+                else self.backward_graph[node_id]
+            )
+        else:
+            # Node added after preprocessing (always infinite rank)
+            # It can reach any of its neighbors that have a rank
+            neighbors = {}
+            node_rank = self._get_rank(node_id)
+            for v, weight in self.original_graph[node_id].items():
+                if (
+                    self._get_rank(v) > node_rank
+                ):  # This won't happen if node_rank is inf
+                    neighbors[v] = weight
+                elif (
+                    not forward
+                ):  # If we are looking for backward neighbors, we need nodes that can reach us
+                    # This is slightly tricky for added nodes.
+                    # For GeoGraph, added nodes connect to existing nodes symmetrically.
+                    neighbors[v] = weight
+                elif forward:  # For forward search, we can go to any neighbor
+                    neighbors[v] = weight
+            return neighbors
+
     def search(self, origin_id: int, destination_id: int) -> dict:
         """
         Perform a bidirectional search on the CH.
@@ -216,7 +256,16 @@ class CHGraphAlgorithms:
                 if d > best_dist:
                     f_pq = []  # Done with forward search
                 else:
-                    for v, weight in self.forward_graph[u].items():
+                    # Get upward neighbors
+                    u_rank = self._get_rank(u)
+                    if u < self.nodes_count:
+                        neighbors = self.forward_graph[u]
+                    else:
+                        neighbors = self.original_graph[u]
+
+                    for v, weight in neighbors.items():
+                        if self._get_rank(v) <= u_rank and v < self.nodes_count:
+                            continue
                         new_dist = d + weight
                         if new_dist < f_dist.get(v, float("inf")):
                             f_dist[v] = new_dist
@@ -232,7 +281,20 @@ class CHGraphAlgorithms:
                 if d > best_dist:
                     b_pq = []  # Done with backward search
                 else:
-                    for v, weight in self.backward_graph[u].items():
+                    # Get upward neighbors (in backward graph)
+                    u_rank = self._get_rank(u)
+                    if u < self.nodes_count:
+                        neighbors = self.backward_graph[u]
+                    else:
+                        # For nodes added after preprocessing, we use the original graph
+                        # because they were added symmetrically or we need to find who connects to them.
+                        # In GeoGraph, origin/dest connect TO the graph.
+                        # So for backward search from destination, we look at its neighbors.
+                        neighbors = self.original_graph[u]
+
+                    for v, weight in neighbors.items():
+                        if self._get_rank(v) <= u_rank and v < self.nodes_count:
+                            continue
                         new_dist = d + weight
                         if new_dist < b_dist.get(v, float("inf")):
                             b_dist[v] = new_dist
@@ -259,6 +321,7 @@ class CHGraphAlgorithms:
         """
         Wrapper to match scgraph naming conventions.
         """
+        # Support for GeoGraph naming (origin_idx, destination_idx)
         return self.search(origin_id, destination_id)
 
     def _reconstruct_ch_path(
@@ -300,7 +363,13 @@ class CHGraphAlgorithms:
             return [u]
 
 
-class CHGraph(GraphUtils, CHGraphIO, CHGraphPreprocessing, CHGraphAlgorithms):
+class CHGraph(
+    GraphUtils,
+    GraphModifiers,
+    CHGraphIO,
+    CHGraphPreprocessing,
+    CHGraphAlgorithms,
+):
     def __init__(
         self,
         graph: list[dict[int, int | float]] = None,
@@ -385,3 +454,11 @@ class CHGraph(GraphUtils, CHGraphIO, CHGraphPreprocessing, CHGraphAlgorithms):
             self.contracted_count = 0
 
             self._preprocess(heuristic=heuristic)
+
+    @property
+    def graph(self):
+        return self.original_graph
+
+    def get_shortest_path(self, origin_id, destination_id, **kwargs):
+        # Match GeoGraph calling signature which uses origin_id and destination_id
+        return self.search(origin_id, destination_id)
