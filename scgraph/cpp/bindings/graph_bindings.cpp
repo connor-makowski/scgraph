@@ -230,5 +230,85 @@ NB_MODULE(cpp, m) {
             return d;
         })
         .def_prop_ro("original_graph", &CHGraph::get_original_graph)
-        .def_prop_ro("graph", &CHGraph::get_original_graph);
+        .def_prop_ro("graph", &CHGraph::get_original_graph)
+        .def("save_as_chjson", [](const CHGraph& self, const std::string& filename) {
+            if (filename.size() < 7 || filename.substr(filename.size() - 7) != ".chjson") {
+                throw std::invalid_argument("Filename must end with .chjson");
+            }
+
+            nb::dict d;
+            d["type"] = "CHGraph";
+            d["nodes_count"] = self.get_nodes_count();
+            d["ranks"] = self.get_ranks();
+            d["forward_graph"] = self.get_forward_graph();
+            d["backward_graph"] = self.get_backward_graph();
+            
+            nb::dict shortcuts_str;
+            for (const auto& [k, v] : self.get_shortcuts()) {
+                std::string key = "(" + std::to_string(k.first) + ", " + std::to_string(k.second) + ")";
+                shortcuts_str[nb::cast(key)] = v;
+            }
+            d["shortcuts"] = shortcuts_str;
+            d["original_graph"] = self.get_original_graph();
+
+            nb::module_ json = nb::module_::import_("json");
+            nb::module_ builtins = nb::module_::import_("builtins");
+            nb::object f = builtins.attr("open")(filename, "w");
+            json.attr("dump")(d, f);
+            f.attr("close")();
+        }, nb::arg("filename"), "Save the current CHGraph as a JSON file.")
+        .def_static("load_from_chjson", [](const std::string& filename) {
+            if (filename.size() < 7 || filename.substr(filename.size() - 7) != ".chjson") {
+                throw std::invalid_argument("Filename must end with .chjson");
+            }
+
+            nb::module_ json = nb::module_::import_("json");
+            nb::module_ builtins = nb::module_::import_("builtins");
+            nb::object f = builtins.attr("open")(filename, "r");
+            nb::dict data = nb::cast<nb::dict>(json.attr("load")(f));
+            f.attr("close")();
+
+            if (!data.contains("type") || nb::cast<std::string>(data["type"]) != "CHGraph") {
+                throw std::invalid_argument("JSON file is not a valid CHGraph.");
+            }
+
+            int nodes_count = nb::cast<int>(data["nodes_count"]);
+            std::vector<int> ranks = nb::cast<std::vector<int>>(data["ranks"]);
+            
+            auto convert_graph = [](nb::list raw_graph) {
+                std::vector<std::unordered_map<int, double>> graph;
+                for (auto item : raw_graph) {
+                    nb::dict d = nb::cast<nb::dict>(item);
+                    std::unordered_map<int, double> node_map;
+                    for (auto [k, v] : d) {
+                        node_map[std::stoi(nb::cast<std::string>(k))] = nb::cast<double>(v);
+                    }
+                    graph.push_back(node_map);
+                }
+                return graph;
+            };
+
+            std::vector<std::unordered_map<int, double>> forward_graph = convert_graph(nb::cast<nb::list>(data["forward_graph"]));
+            std::vector<std::unordered_map<int, double>> backward_graph = convert_graph(nb::cast<nb::list>(data["backward_graph"]));
+
+            nb::dict shortcuts_raw = nb::cast<nb::dict>(data["shortcuts"]);
+            std::unordered_map<std::pair<int, int>, int, pair_hash> shortcuts;
+            for (auto [k, v] : shortcuts_raw) {
+                std::string ks = nb::cast<std::string>(k);
+                // Parse "(u, v)" or "(u,v)"
+                size_t comma = ks.find(',');
+                int u = std::stoi(ks.substr(1, comma - 1));
+                size_t start_v = comma + 1;
+                while(start_v < ks.size() && (ks[start_v] == ' ' || ks[start_v] == '\t')) start_v++;
+                int w = std::stoi(ks.substr(start_v, ks.size() - start_v - 1));
+                shortcuts[{u, w}] = nb::cast<int>(v);
+            }
+
+            std::optional<std::vector<std::unordered_map<int, double>>> original_graph = std::nullopt;
+            if (data.contains("original_graph") && !data["original_graph"].is_none()) {
+                original_graph = convert_graph(nb::cast<nb::list>(data["original_graph"]));
+            }
+
+            return CHGraph(nodes_count, ranks, forward_graph, backward_graph, shortcuts, original_graph);
+        }, nb::arg("filename"), "Load a CHGraph from a JSON file.");
 }
