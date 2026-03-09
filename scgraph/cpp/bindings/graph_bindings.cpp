@@ -8,6 +8,7 @@
 #include <nanobind/stl/function.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/tuple.h>
+#include <nanobind/stl/shared_ptr.h>
 #include <nanobind/operators.h>
 #include "../src/graph.hpp"
 #include "../src/ch_graph.hpp"
@@ -181,7 +182,16 @@ NB_MODULE(cpp, m) {
             );
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            nb::arg("length_only") = false,
-           "Get shortest path using cached tree if available");
+           "Get shortest path using cached tree if available")
+
+        // Contraction Hierarchies
+        .def("create_ch", &Graph::create_ch,
+             nb::arg("heuristic_fn") = nullptr,
+             "Create a Contraction Hierarchies (CH) graph")
+        .def("ch_shortest_path", [](Graph& self, int origin_id, int destination_id) -> nb::dict {
+            return graph_result_to_dict(self.ch_shortest_path(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           "Get shortest path using Contraction Hierarchies");
 
     // CHGraph class
     nb::class_<CHGraph>(m, "CHGraph")

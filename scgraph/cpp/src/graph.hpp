@@ -6,6 +6,9 @@
 #include <optional>
 #include <variant>
 #include <utility>
+#include <memory>
+
+class CHGraph; // Forward declaration
 
 struct GraphResult {
     std::vector<int> path;
@@ -26,6 +29,7 @@ private:
     std::vector<std::vector<std::pair<int, double>>> inverse_graph;
     bool inverse_graph_computed = false;
     std::vector<TreeData> cache;
+    std::shared_ptr<CHGraph> ch_graph = nullptr;
 
     // Helper methods for conversion
     static std::vector<std::vector<std::pair<int, double>>> serialize_graph(
@@ -78,4 +82,8 @@ public:
     
     // Cached shortest path
     GraphResult get_set_cached_shortest_path(int origin_id, int destination_id, bool length_only = false);
+
+    // Contraction Hierarchies
+    std::shared_ptr<CHGraph> create_ch(std::function<double(int)> heuristic_fn = nullptr);
+    GraphResult ch_shortest_path(int origin_id, int destination_id);
 };

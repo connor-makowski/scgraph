@@ -1,5 +1,5 @@
 from heapq import heappop, heappush
-from typing import Literal
+from typing import Literal, Any
 
 try:
     from bmsspy import Bmssp
@@ -1005,3 +1005,50 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
         self.reset_cache()
         if validate:
             self.validate()
+
+    def create_ch(self, heuristic_fn=None) -> Any:
+        """
+        Function:
+
+        - Create a Contraction Hierarchies (CH) graph from the current Graph object
+        - The CH graph is stored as an instance variable `self.ch_graph`
+
+        Optional Arguments:
+
+        - `heuristic_fn`:
+            - Type: function or None
+            - What: A heuristic function for CH preprocessing
+            - Default: None (uses default heuristic)
+        """
+        try:
+            from .ch import CHGraph
+        except ImportError:
+            raise ImportError(
+                "CHGraph is not available. Please ensure the scgraph package is properly installed."
+            )
+
+        self.ch_graph = CHGraph(graph=self.graph, heuristic_fn=heuristic_fn)
+
+        return self.ch_graph
+
+    def ch_shortest_path(
+        self, origin_id: int, destination_id: int
+    ) -> dict[str, Any]:
+        """
+        Function:
+
+        - Get the shortest path between two nodes using the Contraction Hierarchies (CH) graph
+        - Creates the CH graph if it doesn't exist
+
+        Requires:
+
+        - origin_id: The id of the origin node
+        - destination_id: The id of the destination node
+
+        Returns:
+
+        - A dictionary with 'path' and 'length' keys containing the shortest path and its length
+        """
+        if not hasattr(self, "ch_graph") or self.ch_graph is None:
+            self.create_ch()
+        return self.ch_graph.search(origin_id, destination_id)

@@ -1,5 +1,6 @@
 #include "graph.hpp"
 #include "bmssp.hpp"
+#include "ch_graph.hpp"
 #include <queue>
 #include <limits>
 #include <stdexcept>
@@ -188,6 +189,7 @@ void Graph::validate(bool check_symmetry, bool check_connected) {
 void Graph::reset_cache() {
     cache.clear();
     cache.resize(graph.size());
+    ch_graph = nullptr;
 }
 
 const std::unordered_map<int, double> Graph::get(int idx) const {
@@ -700,4 +702,16 @@ GraphResult Graph::get_set_cached_shortest_path(int origin_id, int destination_i
     }
     
     return get_tree_path(origin_id, destination_id, cache[origin_id], length_only);
-}
+    }
+
+    std::shared_ptr<CHGraph> Graph::create_ch(std::function<double(int)> heuristic_fn) {
+    ch_graph = std::make_shared<CHGraph>(get_graph(), heuristic_fn);
+    return ch_graph;
+    }
+
+    GraphResult Graph::ch_shortest_path(int origin_id, int destination_id) {
+    if (ch_graph == nullptr) {
+        create_ch();
+    }
+    return ch_graph->get_shortest_path(origin_id, destination_id);
+    }

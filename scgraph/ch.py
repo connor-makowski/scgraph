@@ -149,12 +149,12 @@ class CHGraphPreprocessing:
         return distances
 
     def _preprocess(
-        self, heuristic: Optional[Callable[[int], int | float]] = None
+        self, heuristic_fn: Optional[Callable[[int], int | float]] = None
     ) -> None:
         """
         Perform node contraction and build the CH.
         """
-        heuristic_fn = heuristic or self.default_heuristic
+        heuristic_fn = heuristic_fn or self.default_heuristic
         pq = []
         for i in range(self.nodes_count):
             heappush(pq, (heuristic_fn(i), i))
@@ -389,7 +389,7 @@ class CHGraph(
     def __init__(
         self,
         graph: Optional[list[dict[int, int | float]]] = None,
-        heuristic: Optional[Callable[[int], int | float]] = None,
+        heuristic_fn: Optional[Callable[[int], int | float]] = None,
         ranks: Optional[list[int]] = None,
         forward_graph: Optional[list[dict[int, int | float]]] = None,
         backward_graph: Optional[list[dict[int, int | float]]] = None,
@@ -407,7 +407,7 @@ class CHGraph(
         - `graph`: The original graph as a list of adjacency dictionaries. (Required if not loading from saved state)
 
         Optional Arguments:
-        - `heuristic`: A function that takes (node_id)
+        - `heuristic_fn`: A function that takes (node_id)
           and returns a heuristic value for node ordering.
           Defaults to edge difference + other factors.
         - `ranks`: Pre-calculated ranks.
@@ -469,7 +469,7 @@ class CHGraph(
             self.contracted = [False] * self.nodes_count
             self.contracted_count = 0
 
-            self._preprocess(heuristic=heuristic)
+            self._preprocess(heuristic_fn=heuristic_fn)
 
     @property
     def graph(self) -> list[dict[int, int | float]]:
