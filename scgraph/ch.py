@@ -3,11 +3,6 @@ from heapq import heappush, heappop
 from typing import Callable, Any, Optional, Union
 from .graph import GraphUtils, GraphModifiers
 
-try:
-    from .cpp import CHGraph as CppCHGraph
-except ImportError:
-    CppCHGraph = None
-
 
 class CHGraphIO:
     def save_as_chjson(self, filename: str) -> None:
@@ -384,7 +379,7 @@ class CHGraphAlgorithms:
             return [u]
 
 
-class PyCHGraph(
+class CHGraph(
     GraphUtils,
     GraphModifiers,
     CHGraphIO,
@@ -484,21 +479,3 @@ class PyCHGraph(
         self, origin_id: int, destination_id: int, **kwargs: Any
     ) -> dict[str, Any]:
         return self.search(origin_id, destination_id)
-
-
-class CHGraph(CHGraphIO):
-    def __init__(self, *args, **kwargs):
-        if CppCHGraph and kwargs.get("heuristic") is None:
-            self.internal = CppCHGraph(*args, **kwargs)
-            self.is_cpp = True
-        else:
-            self.internal = PyCHGraph(*args, **kwargs)
-            self.is_cpp = False
-
-    def __getattr__(self, name):
-        return getattr(self.internal, name)
-
-    def get_shortest_path(
-        self, origin_id: int, destination_id: int, **kwargs: Any
-    ) -> dict[str, Any]:
-        return self.internal.search(origin_id, destination_id)

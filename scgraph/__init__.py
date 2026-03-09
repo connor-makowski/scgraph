@@ -545,6 +545,11 @@ try:
     from .cpp import Graph
 except ImportError:
     from .graph import Graph
+
+try:
+    from .cpp import CHGraph
+except ImportError:
+    from .ch import CHGraph
+
 from .geograph import GeoGraph
 from .grid import GridGraph
-from .ch import CHGraph
