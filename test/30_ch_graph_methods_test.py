@@ -43,7 +43,7 @@ def run_ch_test(GraphClass, name):
 
     print(f"[{name}] Testing create_ch with custom heuristic...")
 
-    def custom_heuristic(node_id):
+    def custom_heuristic(graph, node_id):
         return float(-node_id)  # Reverse order of nodes
 
     try:

@@ -84,6 +84,6 @@ public:
     GraphResult get_set_cached_shortest_path(int origin_id, int destination_id, bool length_only = false);
 
     // Contraction Hierarchies
-    std::shared_ptr<CHGraph> create_ch(std::function<double(int)> heuristic_fn = nullptr);
+    std::shared_ptr<CHGraph> create_ch(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
     GraphResult ch_shortest_path(int origin_id, int destination_id);
 };

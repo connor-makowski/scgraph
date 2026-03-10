@@ -195,7 +195,7 @@ NB_MODULE(cpp, m) {
 
     // CHGraph class
     nb::class_<CHGraph>(m, "CHGraph")
-        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, std::function<double(int)>>(),
+        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, std::function<double(CHGraph*, int)>>(),
              nb::arg("graph"), nb::arg("heuristic_fn") = nullptr,
              "Initialize and preprocess a CHGraph")
         .def(nb::init<int, const std::vector<int>&, 

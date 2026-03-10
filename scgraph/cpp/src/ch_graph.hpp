@@ -34,7 +34,7 @@ private:
     std::unordered_map<int, double> witness_search(int start_node, int avoid_node, double max_dist) const;
     std::pair<int, std::vector<std::tuple<int, int, double, int>>> count_shortcuts(int v) const;
     double default_heuristic(int node_id) const;
-    void preprocess(std::function<double(int)> heuristic_fn = nullptr);
+    void preprocess(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
     std::vector<int> reconstruct_ch_path(int origin_id, int destination_id, int meeting_node,
                                         const std::unordered_map<int, int>& f_parent,
                                         const std::unordered_map<int, int>& b_parent) const;
@@ -43,7 +43,7 @@ private:
 public:
     // Constructors
     CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
-            std::function<double(int)> heuristic_fn = nullptr);
+            std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
     
     // Constructor for loading from saved state
     CHGraph(int nodes_count,

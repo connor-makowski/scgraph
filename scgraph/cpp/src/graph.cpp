@@ -704,7 +704,7 @@ GraphResult Graph::get_set_cached_shortest_path(int origin_id, int destination_i
     return get_tree_path(origin_id, destination_id, cache[origin_id], length_only);
     }
 
-    std::shared_ptr<CHGraph> Graph::create_ch(std::function<double(int)> heuristic_fn) {
+    std::shared_ptr<CHGraph> Graph::create_ch(std::function<double(CHGraph*, int)> heuristic_fn) {
     ch_graph = std::make_shared<CHGraph>(get_graph(), heuristic_fn);
     return ch_graph;
     }

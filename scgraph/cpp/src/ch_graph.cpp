@@ -6,7 +6,7 @@
 #include <stdexcept>
 
 CHGraph::CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
-                 std::function<double(int)> heuristic_fn)
+                 std::function<double(CHGraph*, int)> heuristic_fn)
     : nodes_count(graph.size()), original_graph(graph), contracted_count(0) {
     
     ranks.assign(nodes_count, -1);
@@ -122,15 +122,15 @@ double CHGraph::default_heuristic(int node_id) const {
     return static_cast<double>(edge_diff + contracted_neighbors);
 }
 
-void CHGraph::preprocess(std::function<double(int)> heuristic_fn) {
+void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
     if (!heuristic_fn) {
-        heuristic_fn = [this](int id) { return this->default_heuristic(id); };
+        heuristic_fn = [](CHGraph* g, int id) { return g->default_heuristic(id); };
     }
     
     using PQItem = std::pair<double, int>;
     std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> pq;
     for (int i = 0; i < nodes_count; ++i) {
-        pq.push({heuristic_fn(i), i});
+        pq.push({heuristic_fn(this, i), i});
     }
     
     int rank = 0;
@@ -139,7 +139,7 @@ void CHGraph::preprocess(std::function<double(int)> heuristic_fn) {
         pq.pop();
         
         // Lazy update
-        double new_h = heuristic_fn(v);
+        double new_h = heuristic_fn(this, v);
         if (!pq.empty() && new_h > pq.top().first + 1e-9) {
             pq.push({new_h, v});
             continue;
