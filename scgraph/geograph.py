@@ -1315,7 +1315,10 @@ class GeoGraph(
                 - 'mi': Miles
                 - 'ft': Feet
         """
-        self.graph_object = Graph(graph=graph, validate=validate)
+        if hasattr(graph, "get_shortest_path") and not isinstance(graph, list):
+            self.graph_object = graph
+        else:
+            self.graph_object = Graph(graph=graph, validate=validate)
         self.nodes = nodes
         self.intermediate_nodes = intermediate_nodes
         self.default_off_graph_circuity = default_off_graph_circuity
@@ -1325,7 +1328,7 @@ class GeoGraph(
         )
         self.geograph_units = geograph_units
         self.__warm__ = False
-        self.__original_graph_length__ = len(graph)
+        self.__original_graph_length__ = len(self.graph_object.graph)
 
     def warmup(self):
         """
@@ -1406,7 +1409,6 @@ class GeoGraph(
         destination_node_addition_type: str = "kdclosest",
         auto_lat_lon_bound_max: float | int = 2,
         silent: bool = False,
-        cache: bool = False,
         length_only: bool = False,
         get_intermediate_nodes: bool = None,
         **kwargs,
@@ -1447,6 +1449,14 @@ class GeoGraph(
             - Default: 'dijkstra'
             - Options:
                 - 'dijkstra' -> GraphAlgorithms.dijkstra
+                - 'cache' -> CacheGraph.dijkstra (A faster implementation of Dijkstra's algorithm that caches results for faster subsequent calculations)
+                    - This is only faster if you are doing multiple shortest path calculations with the same origin node
+                    - otherwise it will be slower than the non-cached Dijkstra's algorithm due to the overhead of solving full shortest path tree and caching results
+                    - Only the origin node is cached
+                    - Note: This requires that both the node_addition_type and destination_node_addition_type are set to 'kdclosest'
+                - 'ch' -> CHGraph.shortest_path (contraction hierarchies)
+                    - This is much faster for large graphs but has a long warmup time to create the contraction hierarchy graph object (see `warmup_ch` method for more details on this)
+                    - Note: This requires that both the node_addition_type and destination_node_addition_type are set to 'kdclosest'
                 - 'a_star' -> GraphAlgorithms.a_star
                 - 'bellman_ford' -> GraphAlgorithms.bellman_ford
                 - 'bmssp' -> GraphAlgorithms.bmssp
@@ -1530,13 +1540,6 @@ class GeoGraph(
             - Type: bool
             - What: If True, suppresses all output from the function
             - Default: False
-        - `cache`
-            - Type: bool
-            - What: Whether to cache the shortest path tree for future use
-                - Note: If true, the initial call will likely be slower than a non-cached call, but subsequent calls will be much faster
-                - Note: If true, this requires that both the node_addition_type and destination_node_addition_type are set to 'kdclosest' or 'closest'
-                - Note: Only the origin node is cached
-            - Default: False
         - `length_only`
             - Type: bool
             - What: If True, only returns the length of the path
@@ -1575,6 +1578,11 @@ class GeoGraph(
             algorithm_fn = getattr(self.graph_object, algorithm_fn)
         else:
             raise ValueError("algorithm_fn must be a string or callable")
+        if algorithm_fn in [self.graph_object.cached_shortest_path, self.graph_object.contraction_hierarchy]:
+            assert node_addition_type == "kdclosest", "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, node_addition_type must be set to 'kdclosest'"
+            assert destination_node_addition_type == "kdclosest", "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, destination_node_addition_type must be set to 'kdclosest'"
+            # Pass length_only to the algorithm kwargs.
+            algorithm_kwargs['length_only'] = length_only
         # If auto lat lon bounds are needed, then calculate them.
         if node_addition_lat_lon_bound == "auto":
             if (
@@ -1646,70 +1654,55 @@ class GeoGraph(
                     temp_node=True,
                 )
 
-            # If caching is enabled, we can use the cached shortest path tree to get the shortest path length and path between the origin and destination nodes.
-            # Otherwise, we need to run the algorithm function to get the shortest path length and path between the origin and destination nodes.
-            if cache:
-                assert (
-                    not origin_added
-                ), "When caching, origin_node_addition_type must be 'kdclosest'"
-                assert (
-                    not destination_added
-                ), "When caching, destination_node_addition_type must be 'kdclosest'"
-                output = self.graph_object.get_set_cached_shortest_path(
-                    origin_id=origin_id,
-                    destination_id=destination_id,
-                    length_only=length_only,
+            # Calculate the shortest path using the specified algorithm function and the origin and destination node ids
+            output = algorithm_fn(
+                origin_id=origin_id,
+                destination_id=destination_id,
+                **algorithm_kwargs,
+            )
+            # Handle circuity adjustments, length conversions, and path adjustments for origin and destination additions
+            # Edge case when there is a direct connection between the origin and destination nodes
+            if (
+                origin_added
+                and destination_added
+                and len(output["path"]) == 2
+            ) or len(output.get("path", [])) == 1:
+                output["length"] = haversine(
+                    origin,
+                    destination,
+                    circuity=off_graph_circuity,
+                    units=self.geograph_units,
                 )
-                # Add in missing lengths
-                output["length"] += (
-                    origin_entry_length + destination_exit_length
-                )
-
+                output["path"] = []
+            # When not an edge case, apply the normal adjustments
             else:
-                output = algorithm_fn(
-                    origin_id=origin_id,
-                    destination_id=destination_id,
-                    **algorithm_kwargs,
-                )
-                # Handle circuity adjustments, length conversions, and path adjustments
-                # Edge case when there is a direct connection between the origin and destination nodes
-                if (
-                    origin_added
-                    and destination_added
-                    and len(output["path"]) == 2
-                ) or len(output["path"]) <= 1:
-                    output["length"] = haversine(
+                # Handle origin additions:
+                if origin_added:
+                    output["length"] += -self.graph_object.graph[
+                        output["path"][0]
+                    ][output["path"][1]] + haversine(
                         origin,
+                        self.nodes[output["path"][1]],
+                        circuity=off_graph_circuity,
+                        units=self.geograph_units,
+                    )
+                    output["path"] = output["path"][1:]
+                else:
+                    output["length"] += origin_entry_length
+                
+                # Handle destination additions
+                if destination_added:
+                    output["length"] += -self.graph_object.graph[
+                        output["path"][-2]
+                    ][output["path"][-1]] + haversine(
+                        self.nodes[output["path"][-2]],
                         destination,
                         circuity=off_graph_circuity,
                         units=self.geograph_units,
                     )
-                    output["path"] = []
+                    output["path"] = output["path"][:-1]
                 else:
-                    if origin_added:
-                        output["length"] += -self.graph_object.graph[
-                            output["path"][0]
-                        ][output["path"][1]] + haversine(
-                            origin,
-                            self.nodes[output["path"][1]],
-                            circuity=off_graph_circuity,
-                            units=self.geograph_units,
-                        )
-                        output["path"] = output["path"][1:]
-                    else:
-                        output["length"] += origin_entry_length
-                    if destination_added:
-                        output["length"] += -self.graph_object.graph[
-                            output["path"][-2]
-                        ][output["path"][-1]] + haversine(
-                            self.nodes[output["path"][-2]],
-                            destination,
-                            circuity=off_graph_circuity,
-                            units=self.geograph_units,
-                        )
-                        output["path"] = output["path"][:-1]
-                    else:
-                        output["length"] += destination_exit_length
+                    output["length"] += destination_exit_length
 
             # Convert the length to the desired output units
             output["length"] = distance_converter(
@@ -1839,7 +1832,7 @@ class GeoGraph(
                     output_matrix[node_idx_start][node_idx_end] = 0.0
                     continue
                 try:
-                    length = self.graph_object.get_set_cached_shortest_path(
+                    length = self.graph_object.cached_shortest_path(
                         origin_id=entry_idx_start,
                         destination_id=entry_idx_end,
                         length_only=True,

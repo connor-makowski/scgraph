@@ -1,5 +1,4 @@
-from scgraph import GridGraph
-from scgraph.graph import Graph
+from scgraph.grid import GridGraph
 from time import time
 from scgraph.utils import hard_round
 
@@ -60,8 +59,7 @@ output_start_time = time()
 output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": y_size - 10},
     destination_node={"x": x_size - 10, "y": y_size - 10},
-    cache=True,
-    cache_for="origin",
+    algorithm_fn="cached_shortest_path",
 )
 output_start_time = time() - output_start_time
 print("Shortest Path Tree + Output Time: ", output_start_time * 1000, "ms")
@@ -70,8 +68,7 @@ cached_output_start_time = time()
 cached_output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": y_size - 10},
     destination_node={"x": x_size - 10, "y": y_size - 10},
-    cache=True,
-    cache_for="origin",
+    algorithm_fn="cached_shortest_path",
 )
 cached_output_time = time() - cached_output_start_time
 print(

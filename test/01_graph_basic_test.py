@@ -58,6 +58,12 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="Contraction Hierarchy",
+    realized=graph.contraction_hierarchy(origin_id=0, destination_id=5),
+    expected=expected,
+)
+
 
 print("\n===============\nDisconnected Graph Tests:\n===============")
 
@@ -124,6 +130,12 @@ validate(
         destination_id=5,
         tree_data=graph.get_shortest_path_tree(origin_id=0),
     ),
+    expected=expected,
+)
+
+validate(
+    name="Contraction Hierarchy",
+    realized=graph.contraction_hierarchy(origin_id=0, destination_id=5),
     expected=expected,
 )
 

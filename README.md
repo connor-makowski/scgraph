@@ -97,9 +97,9 @@ output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23,"longitude": 121.47},
     destination_node={"latitude": 32.08,"longitude": -81.09},
     output_units='km',
-    # Optional: Cache the origin node's shortest path tree for faster calculations on future calls from the same origin node when cache=True
+    # Optional: Cache the origin node's shortest path tree for faster calculations on future calls from the same origin node
     # Note: This will make the first call slower, but future calls using this origin node will be substantially faster.
-    cache=True,
+    algorithm_fn = 'cached_shortest_path'
 )
 print('Length: ',output['length']) #=> Length:  19596.4653
 ```
@@ -232,6 +232,9 @@ print(output)
         - `bmssp`: Calculates the shortest path between two nodes using a modified version of the [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033). See the [BMSSPy](https://github.com/connor-makowski/bmsspy)
             - Note: To use this, you must install `BMSSPy` as well. If not installed, the algorithm will default to solve with `dijkstra`.
             - You can install the needed packages with `pip install scgraph[bmsspy]`.
+        - `cached_shortest_path`: Computes and caches the full shortest path tree from a given origin node for fast repeat queries from the same origin.
+        - `contraction_hierarchy`: Queries the CH (preprocessing automatically if needed).
+            - To preprocess see: `create_contraction_hierarchy`
 - `GeoGraph`s:
     - A geographic graph data structure that allows for the calculation of shortest paths between two points on earth
     - Uses latitude / longitude pairs to represent points on earth
@@ -251,9 +254,10 @@ print(output)
     - Precompiled Geographs offer Antimeridian support
     - Arbitrary start and end points are supported
         - Start and end points do not need to be in the graph
-    - Cached shortest path calculations can be used for very fast repetative calculations from the same origin node in a GeoGraph.
-        - This is done by caching the origin node's shortest path tree
-        - The first call will be slower, but future calls using this origin node will be substantially faster.
+    - Cached shortest path calculations (`algorithm_fn='cached_shortest_path'`) can be used for very fast repetitive calculations from the same origin node.
+        - The first call computes and caches the full shortest path tree; subsequent calls from the same origin are substantially faster.
+    - Contraction Hierarchies (`algorithm_fn='contraction_hierarchy'`) offer fast query times for arbitrary origin-destination pairs after a one-time preprocessing step.
+        - Preprocess explicitly with `{my_geograph}.graph_object.create_contraction_hierarchy()` to amortize the cost before queries.
 - `GridGraph`s:
     - A grid based graph data structure that allows for the calculation of shortest paths between two points on a grid
     - See: [GridGraph Documentation](https://connor-makowski.github.io/scgraph/scgraph/grid.html)
@@ -279,6 +283,10 @@ print(output)
         - Cardinal connections (up, down, left, right) and diagonal connections (up-left, up-right, down-left, down-right) are used by default
         - Custom connection matricies can be used to change the connections between grid items
     - Cached shortest path calculations can be used for very fast repetative calculations to or from the same point in a GridGraph.
+- `CHGraph`:
+    - A standalone Contraction Hierarchy graph object for fast repeated shortest path queries after one-time preprocessing.
+    - Can be built directly from a graph, saved to disk with `save_as_chjson`, and reloaded with `load_from_chjson` to avoid repeating preprocessing.
+    - See: [CHGraph Documentation](https://connor-makowski.github.io/scgraph/scgraph/contraction_hierarchies.html)
 
 ## Included GeoGraphs
 
@@ -535,6 +543,50 @@ print(output)
 #     ]
 # }
 
+```
+
+## Contraction Hierarchies
+
+Contraction Hierarchies (CH) offer significant query speedups on large graphs by doing a one-time preprocessing step. They work best when running many queries on the same graph with arbitrary origin-destination pairs.
+
+See: https://connor-makowski.github.io/scgraph/scgraph/contraction_hierarchies.html#CHGraph for more information on how to use the `CHGraph` class directly.
+
+### Preprocess and query via GeoGraph
+
+```py
+from scgraph.geographs.us_freeway import us_freeway_geograph
+
+# One-time preprocessing — slow, but only done once
+us_freeway_geograph.graph_object.create_contraction_hierarchy()
+
+# Fast queries from any origin to any destination
+output = us_freeway_geograph.get_shortest_path(
+    origin_node={"latitude": 34.05, "longitude": -118.24},  # Los Angeles
+    destination_node={"latitude": 40.71, "longitude": -74.01},  # New York
+    algorithm_fn='contraction_hierarchy',
+)
+print(output['length'])
+```
+
+### Direct CHGraph usage
+
+You can also use `CHGraph` directly without a `GeoGraph`:
+
+```py
+from scgraph import CHGraph
+
+graph_data = [
+    {1: 5, 2: 1},
+    {0: 5, 2: 2, 3: 1},
+    {0: 1, 1: 2, 3: 4, 4: 8},
+    {1: 1, 2: 4, 4: 3, 5: 6},
+    {2: 8, 3: 3},
+    {3: 6},
+]
+
+ch_graph = CHGraph(graph_data)
+output = ch_graph.search(origin_id=0, destination_id=5)
+#=> {'path': [0, 2, 1, 3, 5], 'length': 10}
 ```
 
 # Development

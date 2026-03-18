@@ -7,8 +7,11 @@
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/function.h>
 #include <nanobind/stl/string.h>
+#include <nanobind/stl/tuple.h>
+#include <nanobind/stl/shared_ptr.h>
 #include <nanobind/operators.h>
 #include "../src/graph.hpp"
+#include "../src/contraction_hierarchies.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -170,14 +173,144 @@ NB_MODULE(cpp, m) {
            "Find shortest path using BMSSP algorithm (falls back to Dijkstra in C++ backend)")
 
         // Cached shortest path
-        .def("get_set_cached_shortest_path", [](Graph& self,
-                                                 int origin_id,
-                                                 int destination_id,
-                                                 bool length_only) -> nb::dict {
+        .def("cached_shortest_path", [](Graph& self,
+                                        int origin_id,
+                                        int destination_id,
+                                        bool length_only) -> nb::dict {
             return graph_result_to_dict(
-                self.get_set_cached_shortest_path(origin_id, destination_id, length_only)
+                self.cached_shortest_path(origin_id, destination_id, length_only)
             );
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            nb::arg("length_only") = false,
-           "Get shortest path using cached tree if available");
+           "Get shortest path using cached tree if available")
+
+        // Contraction Hierarchies
+        .def("create_contraction_hierarchy", &Graph::create_contraction_hierarchy,
+             nb::arg("heuristic_fn") = nullptr,
+             "Create a Contraction Hierarchies (CH) graph")
+        .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id,
+                                         bool length_only) -> nb::dict {
+            return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           nb::arg("length_only") = false,
+           "Get shortest path using Contraction Hierarchies");
+
+    // CHGraph class
+    nb::class_<CHGraph>(m, "CHGraph")
+        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, std::function<double(CHGraph*, int)>>(),
+             nb::arg("graph"), nb::arg("heuristic_fn") = nullptr,
+             "Initialize and preprocess a CHGraph")
+        .def(nb::init<int, const std::vector<int>&, 
+                      const std::vector<std::unordered_map<int, double>>&,
+                      const std::vector<std::unordered_map<int, double>>&,
+                      const std::unordered_map<std::pair<int, int>, int, pair_hash>&,
+                      const std::optional<std::vector<std::unordered_map<int, double>>>&>(),
+             nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
+             nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
+             "Initialize a CHGraph from pre-calculated data")
+        .def("add_node", &CHGraph::add_node,
+             nb::arg("node_dict") = std::unordered_map<int, double>{},
+             nb::arg("symmetric") = false,
+             "Add a node to the graph")
+        .def("search", [](CHGraph& self, int origin_id, int destination_id) -> nb::dict {
+            return graph_result_to_dict(self.search(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           "Perform a bidirectional search on the CH")
+        .def("get_shortest_path", [](CHGraph& self, int origin_id, int destination_id) -> nb::dict {
+            return graph_result_to_dict(self.get_shortest_path(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           "Wrapper for search to match scgraph naming conventions")
+        .def_prop_ro("nodes_count", &CHGraph::get_nodes_count)
+        .def_prop_ro("ranks", &CHGraph::get_ranks)
+        .def_prop_ro("forward_graph", &CHGraph::get_forward_graph)
+        .def_prop_ro("backward_graph", &CHGraph::get_backward_graph)
+        .def_prop_ro("shortcuts", [](const CHGraph& self) {
+            nb::dict d;
+            for (const auto& [key, via_node_id] : self.get_shortcuts()) {
+                d[nb::cast(key)] = via_node_id;
+            }
+            return d;
+        })
+        .def_prop_ro("original_graph", &CHGraph::get_original_graph)
+        .def_prop_ro("graph", &CHGraph::get_original_graph)
+        .def("save_as_chjson", [](const CHGraph& self, const std::string& filename) {
+            if (filename.size() < 7 || filename.substr(filename.size() - 7) != ".chjson") {
+                throw std::invalid_argument("Filename must end with .chjson");
+            }
+
+            nb::dict d;
+            d["type"] = "CHGraph";
+            d["nodes_count"] = self.get_nodes_count();
+            d["ranks"] = self.get_ranks();
+            d["forward_graph"] = self.get_forward_graph();
+            d["backward_graph"] = self.get_backward_graph();
+            
+            nb::dict shortcuts_str;
+            for (const auto& [key, via_node_id] : self.get_shortcuts()) {
+                std::string key_str = "(" + std::to_string(key.first) + ", " + std::to_string(key.second) + ")";
+                shortcuts_str[nb::cast(key_str)] = via_node_id;
+            }
+            d["shortcuts"] = shortcuts_str;
+            d["original_graph"] = self.get_original_graph();
+
+            nb::module_ json = nb::module_::import_("json");
+            nb::module_ builtins = nb::module_::import_("builtins");
+            nb::object f = builtins.attr("open")(filename, "w");
+            json.attr("dump")(d, f);
+            f.attr("close")();
+        }, nb::arg("filename"), "Save the current CHGraph as a JSON file.")
+        .def_static("load_from_chjson", [](const std::string& filename) {
+            if (filename.size() < 7 || filename.substr(filename.size() - 7) != ".chjson") {
+                throw std::invalid_argument("Filename must end with .chjson");
+            }
+
+            nb::module_ json = nb::module_::import_("json");
+            nb::module_ builtins = nb::module_::import_("builtins");
+            nb::object f = builtins.attr("open")(filename, "r");
+            nb::dict data = nb::cast<nb::dict>(json.attr("load")(f));
+            f.attr("close")();
+
+            if (!data.contains("type") || nb::cast<std::string>(data["type"]) != "CHGraph") {
+                throw std::invalid_argument("JSON file is not a valid CHGraph.");
+            }
+
+            int nodes_count = nb::cast<int>(data["nodes_count"]);
+            std::vector<int> ranks = nb::cast<std::vector<int>>(data["ranks"]);
+            
+            auto convert_graph = [](nb::list raw_graph) {
+                std::vector<std::unordered_map<int, double>> graph;
+                for (auto item : raw_graph) {
+                    nb::dict d = nb::cast<nb::dict>(item);
+                    std::unordered_map<int, double> node_map;
+                    for (auto [k, v] : d) {
+                        node_map[std::stoi(nb::cast<std::string>(k))] = nb::cast<double>(v);
+                    }
+                    graph.push_back(node_map);
+                }
+                return graph;
+            };
+
+            std::vector<std::unordered_map<int, double>> forward_graph = convert_graph(nb::cast<nb::list>(data["forward_graph"]));
+            std::vector<std::unordered_map<int, double>> backward_graph = convert_graph(nb::cast<nb::list>(data["backward_graph"]));
+
+            nb::dict shortcuts_raw = nb::cast<nb::dict>(data["shortcuts"]);
+            std::unordered_map<std::pair<int, int>, int, pair_hash> shortcuts;
+            for (auto [key, via_node_id] : shortcuts_raw) {
+                std::string key_str = nb::cast<std::string>(key);
+                // Parse "(origin_id, destination_id)" or "(origin_id,destination_id)"
+                size_t comma = key_str.find(',');
+                int shortcut_origin_id = std::stoi(key_str.substr(1, comma - 1));
+                size_t start_dest = comma + 1;
+                while (start_dest < key_str.size() && (key_str[start_dest] == ' ' || key_str[start_dest] == '\t')) start_dest++;
+                int shortcut_destination_id = std::stoi(key_str.substr(start_dest, key_str.size() - start_dest - 1));
+                shortcuts[{shortcut_origin_id, shortcut_destination_id}] = nb::cast<int>(via_node_id);
+            }
+
+            std::optional<std::vector<std::unordered_map<int, double>>> original_graph = std::nullopt;
+            if (data.contains("original_graph") && !data["original_graph"].is_none()) {
+                original_graph = convert_graph(nb::cast<nb::list>(data["original_graph"]));
+            }
+
+            return CHGraph(nodes_count, ranks, forward_graph, backward_graph, shortcuts, original_graph);
+        }, nb::arg("filename"), "Load a CHGraph from a JSON file.");
 }
