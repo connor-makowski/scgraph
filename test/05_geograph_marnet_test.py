@@ -80,7 +80,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     ),
     expected=expected,
 )
@@ -90,7 +90,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     ),
     expected=expected,
 )
@@ -149,7 +149,7 @@ def cached_shortest_path_tree_first_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     )
 
 
@@ -157,7 +157,7 @@ def cached_shortest_path_tree_second_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     )
 
 

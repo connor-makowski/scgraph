@@ -549,7 +549,7 @@ except ImportError:
 try:
     from .cpp import CHGraph
 except ImportError:
-    from .ch import CHGraph
+    from .contraction_hierarchies import CHGraph
 
 from .geograph import GeoGraph
 from .grid import GridGraph

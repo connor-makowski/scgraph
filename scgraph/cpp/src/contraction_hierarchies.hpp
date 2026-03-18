@@ -5,14 +5,7 @@
 #include <string>
 #include <functional>
 #include <optional>
-#include "graph.hpp"
-
-// Custom hash for std::pair<int, int> to use in unordered_map
-struct pair_hash {
-    inline std::size_t operator()(const std::pair<int, int> & v) const {
-        return v.first * 31 + v.second;
-    }
-};
+#include "graph_utils.hpp"
 
 class CHGraph {
 private:
@@ -32,19 +25,19 @@ private:
     // Helper methods
     double get_rank(int node_id) const;
     std::unordered_map<int, double> witness_search(int start_node, int avoid_node, double max_dist) const;
-    std::pair<int, std::vector<std::tuple<int, int, double, int>>> count_shortcuts(int v) const;
+    std::pair<int, std::vector<std::tuple<int, int, double, int>>> count_shortcuts(int node_id) const;
     double default_heuristic(int node_id) const;
     void preprocess(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
     std::vector<int> reconstruct_ch_path(int origin_id, int destination_id, int meeting_node,
-                                        const std::unordered_map<int, int>& f_parent,
-                                        const std::unordered_map<int, int>& b_parent) const;
-    std::vector<int> unpack_shortcut(int u, int w) const;
+                                        const std::unordered_map<int, int>& forward_parent,
+                                        const std::unordered_map<int, int>& backward_parent) const;
+    std::vector<int> unpack_shortcut(int origin_id, int destination_id) const;
 
 public:
     // Constructors
     CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
             std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
-    
+
     // Constructor for loading from saved state
     CHGraph(int nodes_count,
             const std::vector<int>& ranks,

@@ -10,6 +10,9 @@
       "Read(./test/**)",
       "Edit(./test/**)",
       "Write(./test/**)",
+      "Read(./README.md)",
+      "Edit(./README.md)",
+      "Write(./README.md)",
       "Bash(./run.sh test)",
       "Bash(./run.sh test test/*.py)",
       "Bash(./run.sh prettify)"

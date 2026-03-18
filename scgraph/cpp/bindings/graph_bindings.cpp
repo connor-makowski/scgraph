@@ -11,7 +11,7 @@
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/operators.h>
 #include "../src/graph.hpp"
-#include "../src/ch_graph.hpp"
+#include "../src/contraction_hierarchies.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -173,24 +173,26 @@ NB_MODULE(cpp, m) {
            "Find shortest path using BMSSP algorithm (falls back to Dijkstra in C++ backend)")
 
         // Cached shortest path
-        .def("get_set_cached_shortest_path", [](Graph& self,
-                                                 int origin_id,
-                                                 int destination_id,
-                                                 bool length_only) -> nb::dict {
+        .def("cached_shortest_path", [](Graph& self,
+                                        int origin_id,
+                                        int destination_id,
+                                        bool length_only) -> nb::dict {
             return graph_result_to_dict(
-                self.get_set_cached_shortest_path(origin_id, destination_id, length_only)
+                self.cached_shortest_path(origin_id, destination_id, length_only)
             );
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            nb::arg("length_only") = false,
            "Get shortest path using cached tree if available")
 
         // Contraction Hierarchies
-        .def("create_ch", &Graph::create_ch,
+        .def("create_contraction_hierarchy", &Graph::create_contraction_hierarchy,
              nb::arg("heuristic_fn") = nullptr,
              "Create a Contraction Hierarchies (CH) graph")
-        .def("ch_shortest_path", [](Graph& self, int origin_id, int destination_id) -> nb::dict {
-            return graph_result_to_dict(self.ch_shortest_path(origin_id, destination_id));
+        .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id,
+                                         bool length_only) -> nb::dict {
+            return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
+           nb::arg("length_only") = false,
            "Get shortest path using Contraction Hierarchies");
 
     // CHGraph class
@@ -224,8 +226,8 @@ NB_MODULE(cpp, m) {
         .def_prop_ro("backward_graph", &CHGraph::get_backward_graph)
         .def_prop_ro("shortcuts", [](const CHGraph& self) {
             nb::dict d;
-            for (const auto& [k, v] : self.get_shortcuts()) {
-                d[nb::cast(k)] = v;
+            for (const auto& [key, via_node_id] : self.get_shortcuts()) {
+                d[nb::cast(key)] = via_node_id;
             }
             return d;
         })
@@ -244,9 +246,9 @@ NB_MODULE(cpp, m) {
             d["backward_graph"] = self.get_backward_graph();
             
             nb::dict shortcuts_str;
-            for (const auto& [k, v] : self.get_shortcuts()) {
-                std::string key = "(" + std::to_string(k.first) + ", " + std::to_string(k.second) + ")";
-                shortcuts_str[nb::cast(key)] = v;
+            for (const auto& [key, via_node_id] : self.get_shortcuts()) {
+                std::string key_str = "(" + std::to_string(key.first) + ", " + std::to_string(key.second) + ")";
+                shortcuts_str[nb::cast(key_str)] = via_node_id;
             }
             d["shortcuts"] = shortcuts_str;
             d["original_graph"] = self.get_original_graph();
@@ -293,15 +295,15 @@ NB_MODULE(cpp, m) {
 
             nb::dict shortcuts_raw = nb::cast<nb::dict>(data["shortcuts"]);
             std::unordered_map<std::pair<int, int>, int, pair_hash> shortcuts;
-            for (auto [k, v] : shortcuts_raw) {
-                std::string ks = nb::cast<std::string>(k);
-                // Parse "(u, v)" or "(u,v)"
-                size_t comma = ks.find(',');
-                int u = std::stoi(ks.substr(1, comma - 1));
-                size_t start_v = comma + 1;
-                while(start_v < ks.size() && (ks[start_v] == ' ' || ks[start_v] == '\t')) start_v++;
-                int w = std::stoi(ks.substr(start_v, ks.size() - start_v - 1));
-                shortcuts[{u, w}] = nb::cast<int>(v);
+            for (auto [key, via_node_id] : shortcuts_raw) {
+                std::string key_str = nb::cast<std::string>(key);
+                // Parse "(origin_id, destination_id)" or "(origin_id,destination_id)"
+                size_t comma = key_str.find(',');
+                int shortcut_origin_id = std::stoi(key_str.substr(1, comma - 1));
+                size_t start_dest = comma + 1;
+                while (start_dest < key_str.size() && (key_str[start_dest] == ' ' || key_str[start_dest] == '\t')) start_dest++;
+                int shortcut_destination_id = std::stoi(key_str.substr(start_dest, key_str.size() - start_dest - 1));
+                shortcuts[{shortcut_origin_id, shortcut_destination_id}] = nb::cast<int>(via_node_id);
             }
 
             std::optional<std::vector<std::unordered_map<int, double>>> original_graph = std::nullopt;

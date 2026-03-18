@@ -1,71 +1,23 @@
 #pragma once
-#include <vector>
-#include <unordered_map>
 #include <set>
 #include <functional>
 #include <optional>
 #include <variant>
-#include <utility>
 #include <memory>
+#include "graph_utils.hpp"
 
 class CHGraph; // Forward declaration
 
-struct GraphResult {
-    std::vector<int> path;
-    double length;
-};
-
-struct TreeData {
-    std::variant<int, std::set<int>> origin_id;
-    std::vector<int> predecessors;
-    std::vector<double> distance_matrix;
-};
-
-class Graph {
+class Graph : public GraphUtils {
 private:
-    // Internal representation: vector of vectors of (node_id, distance) pairs
-    std::vector<std::vector<std::pair<int, double>>> graph;
-    // Inverse graph (lazily computed): vector of vectors of (node_id, distance) pairs
-    std::vector<std::vector<std::pair<int, double>>> inverse_graph;
-    bool inverse_graph_computed = false;
-    std::vector<TreeData> cache;
-    std::shared_ptr<CHGraph> ch_graph = nullptr;
-
-    // Helper methods for conversion
-    static std::vector<std::vector<std::pair<int, double>>> serialize_graph(
-        const std::vector<std::unordered_map<int, double>>& input_graph);
-    std::unordered_map<int, double> get_adjacency_dict(int idx) const;
-
-    // Utility methods
-    void input_check(const std::variant<int, std::set<int>>& origin_id, int destination_id) const;
-    std::vector<int> reconstruct_path(int destination_id, const std::vector<int>& predecessor) const;
-    void cycle_check(const std::vector<int>& predecessor_matrix, int node_id) const;
-    void ensure_inverse_graph();
-    bool connected_check(int origin_id = 0);
-    bool symmetric_check() const;
+    std::shared_ptr<CHGraph> __ch_graph__ = nullptr;
 
 public:
     // Constructor
     explicit Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate = false);
 
-    // Validation
-    void validate(bool check_symmetry = true, bool check_connected = true);
-    
-    // Cache management
+    // Override reset_cache to also clear ch_graph
     void reset_cache();
-
-    // Access
-    const std::unordered_map<int, double> get(int idx) const;
-    int size() const { return graph.size(); }
-    const std::vector<std::unordered_map<int, double>> get_graph() const;
-    const std::vector<TreeData>& get_cache() const { return cache; }
-    void set_cache(const std::vector<TreeData>& new_cache) { cache = new_cache; }
-
-    // Graph modification
-    int add_node(const std::unordered_map<int, double>& node_dict = {}, bool symmetric = false);
-    void add_edge(int origin_id, int destination_id, double distance, bool symmetric = false);
-    std::unordered_map<int, double> remove_node(bool symmetric_node = false);
-    std::optional<double> remove_edge(int origin_id, int destination_id, bool symmetric = false);
 
     // Tree algorithms
     TreeData get_shortest_path_tree(const std::variant<int, std::set<int>>& origin_id);
@@ -73,17 +25,17 @@ public:
 
     // Shortest path algorithms
     GraphResult dijkstra(const std::variant<int, std::set<int>>& origin_id, int destination_id);
-    GraphResult dijkstra_negative(const std::variant<int, std::set<int>>& origin_id, int destination_id, 
+    GraphResult dijkstra_negative(const std::variant<int, std::set<int>>& origin_id, int destination_id,
                                   std::optional<int> cycle_check_iterations = std::nullopt);
     GraphResult a_star(const std::variant<int, std::set<int>>& origin_id, int destination_id,
                       std::function<double(int, int)> heuristic_fn = nullptr);
     GraphResult bellman_ford(const std::variant<int, std::set<int>>& origin_id, int destination_id);
     GraphResult bmssp(const std::variant<int, std::set<int>>& origin_id, int destination_id);
-    
+
     // Cached shortest path
-    GraphResult get_set_cached_shortest_path(int origin_id, int destination_id, bool length_only = false);
+    GraphResult cached_shortest_path(int origin_id, int destination_id, bool length_only = false);
 
     // Contraction Hierarchies
-    std::shared_ptr<CHGraph> create_ch(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
-    GraphResult ch_shortest_path(int origin_id, int destination_id);
+    std::shared_ptr<CHGraph> create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
+    GraphResult contraction_hierarchy(int origin_id, int destination_id);
 };

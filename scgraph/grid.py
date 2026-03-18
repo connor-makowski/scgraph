@@ -1,5 +1,5 @@
 from typing import Literal
-from scgraph import Graph
+from scgraph import Graph, CHGraph
 from math import ceil
 
 
@@ -452,8 +452,6 @@ class GridGraph:
             | list[int | float]
         ),
         output_coordinate_path: str = "list_of_dicts",
-        cache: bool = False,
-        cache_for: str = "origin",
         output_path: bool = False,
         algorithm_fn: str = "dijkstra",
         algorithm_kwargs: dict | None = None,
@@ -494,24 +492,18 @@ class GridGraph:
                 - `list_of_tuples`: A list of tuples with the first value being x and the second being y
                 - 'list_of_dicts': A list of dictionaries with keys 'x' and 'y'
                 - 'list_of_lists': A list of lists with the first value being x and the second being y
-        - `cache`
-            - Type: bool
-            - What: Whether to use the cache (save and reuse the shortest path tree)
-            - Default: False
-        - `cache_for`
-            - Type: str
-            - What: Whether to cache the shortest path tree for the origin or destination node if `cache` is True
-            - Default: 'origin'
-            - Options: 'origin', 'destination'
         - `output_path`
             - Type: bool
             - What: Whether to output the path as a list of graph idxs (mostly for debugging purposes)
             - Default: False
         - `algorithm_fn`
-            - Type: stra | callable
+            - Type: str | callable
             - What: The algorithm to use for pathfinding
             - Default: 'dijkstra'
-            - If None, the default algorithm will be used
+            - Options:
+                - 'dijkstra': Standard Dijkstra's algorithm (default)
+                - Any method name from the Graph class (e.g. 'bellman_ford', 'a_star', 'bmssp', 'cached_shortest_path', etc.)
+                - Any user defined function that takes origin_id, destination_id, and **algorithm_kwargs
         - `algorithm_kwargs`
             - Type: dict
             - What: Additional keyword arguments to pass to the algorithm function
@@ -552,28 +544,11 @@ class GridGraph:
             raise ValueError(
                 "Destination node is not connected to any other nodes. This is likely caused by the destination node not being possible given a blocked cell or nearby blocked cell"
             )
-        if cache:
-            if cache_for not in ["origin", "destination"]:
-                raise ValueError(
-                    "cache_for must be 'origin' or 'destination' when cache is True"
-                )
-            # Reverse for cache graphing if cache_for is destination since the graph is undirected
-            if cache_for == "destination":
-                origin_id, destination_id = destination_id, origin_id
-            output = self.graph_object.get_set_cached_shortest_path(
-                origin_id=origin_id,
-                destination_id=destination_id,
-            )
-            # Undo the reverse if cache_for is destination
-            if cache_for == "destination":
-                output["path"].reverse()
-                origin_id, destination_id = destination_id, origin_id
-        else:
-            output = algorithm_fn(
-                origin_id=origin_id,
-                destination_id=destination_id,
-                **algorithm_kwargs,
-            )
+        output = algorithm_fn(
+            origin_id=origin_id,
+            destination_id=destination_id,
+            **algorithm_kwargs,
+        )
         output["coordinate_path"] = self.__get_coordinate_path__(
             output["path"], output_coordinate_path
         )

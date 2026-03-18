@@ -1,5 +1,4 @@
 from scgraph import Graph
-from scgraph.utils import validate
 
 print(
     "\n===============\nSymmetry + Connectivity Validation Tests:\n==============="

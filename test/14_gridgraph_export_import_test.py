@@ -29,7 +29,6 @@ output = gridGraph.get_shortest_path(
     destination_node={"x": 8, "y": 8},
     output_coordinate_path="list_of_lists",
     cache=True,
-    cache_for="origin",
 )
 if print_timings:
     print(

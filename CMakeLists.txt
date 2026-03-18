@@ -68,7 +68,8 @@ else()
         STABLE_ABI
         scgraph/cpp/bindings/graph_bindings.cpp
         scgraph/cpp/src/graph.cpp
-        scgraph/cpp/src/ch_graph.cpp
+        scgraph/cpp/src/graph_utils.cpp
+        scgraph/cpp/src/contraction_hierarchies.cpp
     )
 
 

@@ -1,4 +1,3 @@
-from pamda import pamda
 from scgraph.geographs.us_freeway import us_freeway_geograph
 from scgraph.utils import validate, time_test
 
@@ -149,5 +148,3 @@ time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
 time_test("BMSSP", bmssp)
 
-
-# us_freeway_geograph.save_as_geojson('us_freeway_geograph.geojson')

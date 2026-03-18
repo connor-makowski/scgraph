@@ -26,6 +26,17 @@ validate(
     expected=expected,
 )
 
+time_test(
+    "Contraction Hierarchies Preprocessing",
+    graph.create_contraction_hierarchy,
+)
+
+validate(
+    name="Contraction Hierarchies",
+    realized=graph.contraction_hierarchy(origin_id=0, destination_id=5),
+    expected=expected,
+)
+
 # validate(
 #     name="BMSSP",
 #     realized=graph.bmssp(origin_id=0, destination_id=5),
@@ -86,21 +97,38 @@ time_test(
     },
 )
 
+time_test(  
+    "Contraction Hierarchies 1",
+    graph.contraction_hierarchy,
+    kwargs={"origin_id": 0, "destination_id": 5},
+)
+
+time_test(
+    "Contraction Hierarchies 2",
+    graph.contraction_hierarchy,
+    kwargs={"origin_id": 100, "destination_id": 7999},
+)
+
+time_test(
+    "Contraction Hierarchies 3",
+    graph.contraction_hierarchy,
+    kwargs={"origin_id": 4022, "destination_id": 8342},
+)
+
 # time_test(
 #     "BMSSP 1",
-#     pamda.thunkify(graph.bmssp)(origin_id=0, destination_id=5),
+#     graph.bmssp,
+#     kwargs={"origin_id": 0, "destination_id": 5},
 # )
 
 # time_test(
 #     "BMSSP 2",
-#     pamda.thunkify(graph.bmssp)(
-#         origin_id=100, destination_id=7999
-#     ),
+#     graph.bmssp,
+#     kwargs={"origin_id": 100, "destination_id": 7999},
 # )
 
 # time_test(
 #     "BMSSP 3",
-#     pamda.thunkify(graph.bmssp)(
-#         origin_id=4022, destination_id=8342
-#     ),
+#     graph.bmssp,
+#     kwargs={"origin_id": 4022, "destination_id": 8342},
 # )

@@ -43,7 +43,7 @@ for city1, coord1 in cities.items():
                     "longitude": coord2[1],
                     "latitude": coord2[0],
                 },
-                cache=True,
+                algorithm_fn="cached_shortest_path",
             )["length"]
             cached_len_only = us_freeway_geograph.get_shortest_path(
                 origin_node={"longitude": coord1[1], "latitude": coord1[0]},
@@ -51,7 +51,7 @@ for city1, coord1 in cities.items():
                     "longitude": coord2[1],
                     "latitude": coord2[0],
                 },
-                cache=True,
+                algorithm_fn="cached_shortest_path",
                 length_only=True,
             )["length"]
             if (
@@ -93,7 +93,7 @@ def cached_time():
                         "longitude": coord2[1],
                         "latitude": coord2[0],
                     },
-                    cache=True,
+                    algorithm_fn="cached_shortest_path",
                 )
 
 
@@ -107,7 +107,7 @@ def cached_len_only_time():
                         "longitude": coord2[1],
                         "latitude": coord2[0],
                     },
-                    cache=True,
+                    algorithm_fn="cached_shortest_path",
                     length_only=True,
                 )
 
@@ -129,7 +129,7 @@ def single_cached_time():
             "longitude": -74.0060,
             "latitude": 40.7128,
         },
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     )
 
 
@@ -140,7 +140,7 @@ def single_cached_len_only_time():
             "longitude": -74.0060,
             "latitude": 40.7128,
         },
-        cache=True,
+        algorithm_fn="cached_shortest_path",
         length_only=True,
     )
 
