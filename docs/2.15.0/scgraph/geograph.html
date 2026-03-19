@@ -135,22 +135,8 @@
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
+        <option value="3.0.0">3.0.0</option>
         <option value="2.15.0">2.15.0</option>
-        <option value="2.14.1">2.14.1</option>
-        <option value="2.13.0">2.13.0</option>
-        <option value="2.12.0">2.12.0</option>
-        <option value="2.11.1">2.11.1</option>
-        <option value="2.10.1">2.10.1</option>
-        <option value="2.9.0">2.9.0</option>
-        <option value="2.8.2">2.8.2</option>
-        <option value="2.7.0">2.7.0</option>
-        <option value="2.6.0">2.6.0</option>
-        <option value="2.5.1">2.5.1</option>
-        <option value="2.4.1">2.4.1</option>
-        <option value="2.3.0">2.3.0</option>
-        <option value="2.2.0">2.2.0</option>
-        <option value="2.1.2">2.1.2</option>
-        <option value="2.0.0">2.0.0</option>
         <option value="1.5.2">1.5.2</option>
         <option value="0.3.0">0.3.0</option>
 </select>
@@ -7098,7 +7084,7 @@
 
 <ul>
 <li>Calculate the distance matrix for a list of nodes in a very efficient way using cached shortest path trees and cached node addition distances</li>
-<li>This should run in O(((n+m)<em>log(n)</em>i) + (i<em>i)) time where i is the number of nodes in the distance matrix, n is the number of nodes in the graph, and m is the number of edges in the graph
+<li>This should run in O(((n+m)<em>log(n)<em>i) + (i</em>i)) time where i is the number of nodes in the distance matrix, n is the number of nodes in the graph, and m is the number of edges in the graph
 <ul>
 <li>Compare this to a naive matrix implementation time of O(((n+m)<em>log(n)</em>(i</em>i)) where paths are fetched for each pair of nodes in the distance matrix without caching</li>
 </ul></li>
