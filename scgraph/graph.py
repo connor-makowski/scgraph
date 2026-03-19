@@ -517,8 +517,10 @@ class GraphAlgorithms:
             tree_data=shortest_path_tree,
             length_only=length_only,
         )
-    
-    def create_contraction_hierarchy(self, heuristic_fn=None, ch_graph_kwargs=None) -> Any:
+
+    def create_contraction_hierarchy(
+        self, heuristic_fn=None, ch_graph_kwargs=None
+    ) -> Any:
         """
         Function:
 
@@ -533,8 +535,12 @@ class GraphAlgorithms:
             - Default: None (uses default heuristic)
         """
         if not hasattr(self, "__ch_graph__"):
-            ch_graph_kwargs = ch_graph_kwargs if ch_graph_kwargs is not None else dict()
-            self.__ch_graph__ = CHGraph(graph=self.graph, heuristic_fn=heuristic_fn, **ch_graph_kwargs)
+            ch_graph_kwargs = (
+                ch_graph_kwargs if ch_graph_kwargs is not None else dict()
+            )
+            self.__ch_graph__ = CHGraph(
+                graph=self.graph, heuristic_fn=heuristic_fn, **ch_graph_kwargs
+            )
 
     def contraction_hierarchy(
         self, origin_id: int, destination_id: int, length_only: bool = False

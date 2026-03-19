@@ -3,9 +3,7 @@ from scgraph.utils import validate
 import os
 import json
 
-print(
-    "\n===============\nCH Save/Load Tests:\n==============="
-)
+print("\n===============\nCH Save/Load Tests:\n===============")
 
 graph_data = [
     {1: 5, 2: 1},

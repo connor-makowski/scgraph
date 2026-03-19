@@ -1,5 +1,6 @@
 from typing import Literal
 
+
 class GraphUtils:
     def __input_check__(
         self,
@@ -413,4 +414,3 @@ class GraphModifiers:
         if symmetric:
             self.graph[destination_id].pop(origin_id, None)
         return self.graph[origin_id].pop(destination_id, None)
-

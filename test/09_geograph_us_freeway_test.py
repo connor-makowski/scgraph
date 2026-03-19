@@ -147,4 +147,3 @@ time_test("Dijkstra", dijkstra)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
 time_test("BMSSP", bmssp)
-

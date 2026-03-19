@@ -1587,11 +1587,18 @@ class GeoGraph(
             algorithm_fn = getattr(self.graph_object, algorithm_fn)
         else:
             raise ValueError("algorithm_fn must be a string or callable")
-        if algorithm_fn in [self.graph_object.cached_shortest_path, self.graph_object.contraction_hierarchy]:
-            assert node_addition_type == "kdclosest", "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, node_addition_type must be set to 'kdclosest'"
-            assert destination_node_addition_type == "kdclosest", "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, destination_node_addition_type must be set to 'kdclosest'"
+        if algorithm_fn in [
+            self.graph_object.cached_shortest_path,
+            self.graph_object.contraction_hierarchy,
+        ]:
+            assert (
+                node_addition_type == "kdclosest"
+            ), "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, node_addition_type must be set to 'kdclosest'"
+            assert (
+                destination_node_addition_type == "kdclosest"
+            ), "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, destination_node_addition_type must be set to 'kdclosest'"
             # Pass length_only to the algorithm kwargs.
-            algorithm_kwargs['length_only'] = length_only
+            algorithm_kwargs["length_only"] = length_only
         # If auto lat lon bounds are needed, then calculate them.
         if node_addition_lat_lon_bound == "auto":
             if (
@@ -1672,9 +1679,7 @@ class GeoGraph(
             # Handle circuity adjustments, length conversions, and path adjustments for origin and destination additions
             # Edge case when there is a direct connection between the origin and destination nodes
             if (
-                origin_added
-                and destination_added
-                and len(output["path"]) == 2
+                origin_added and destination_added and len(output["path"]) == 2
             ) or len(output.get("path", [])) == 1:
                 output["length"] = haversine(
                     origin,
@@ -1698,7 +1703,7 @@ class GeoGraph(
                     output["path"] = output["path"][1:]
                 else:
                     output["length"] += origin_entry_length
-                
+
                 # Handle destination additions
                 if destination_added:
                     output["length"] += -self.graph_object.graph[

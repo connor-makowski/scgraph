@@ -1,5 +1,5 @@
 from typing import Literal
-from scgraph import Graph, CHGraph
+from scgraph import Graph
 from math import ceil
 
 

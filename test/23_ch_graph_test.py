@@ -3,12 +3,10 @@ try:
 except ImportError:
     CPPGraph = None
 
-from scgraph.graph import Graph 
+from scgraph.graph import Graph
 from scgraph.utils import validate
 
-print(
-    "\n===============\nCH Graph Tests:\n==============="
-)
+print("\n===============\nCH Graph Tests:\n===============")
 
 graph_data = [
     {1: 5, 2: 1},

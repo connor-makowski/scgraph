@@ -97,7 +97,7 @@ time_test(
     },
 )
 
-time_test(  
+time_test(
     "Contraction Hierarchies 1",
     graph.contraction_hierarchy,
     kwargs={"origin_id": 0, "destination_id": 5},

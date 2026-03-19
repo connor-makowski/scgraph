@@ -155,7 +155,10 @@ class CHGraphPreprocessing:
             max_dist = 0
             targets = {}
             for out_neighbor_id, out_weight in out_neighbors.items():
-                if self.contracted[out_neighbor_id] or in_neighbor_id == out_neighbor_id:
+                if (
+                    self.contracted[out_neighbor_id]
+                    or in_neighbor_id == out_neighbor_id
+                ):
                     continue
                 shortcut_distance = in_weight + out_weight
                 targets[out_neighbor_id] = shortcut_distance
@@ -166,11 +169,23 @@ class CHGraphPreprocessing:
                 continue
 
             # Witness search from in_neighbor_id
-            distances = self.__witness_search__(in_neighbor_id, node_id, max_dist)
+            distances = self.__witness_search__(
+                in_neighbor_id, node_id, max_dist
+            )
 
             for out_neighbor_id, shortcut_distance in targets.items():
-                if distances.get(out_neighbor_id, float("inf")) > shortcut_distance + 1e-9:
-                    shortcuts.append((in_neighbor_id, out_neighbor_id, shortcut_distance, node_id))
+                if (
+                    distances.get(out_neighbor_id, float("inf"))
+                    > shortcut_distance + 1e-9
+                ):
+                    shortcuts.append(
+                        (
+                            in_neighbor_id,
+                            out_neighbor_id,
+                            shortcut_distance,
+                            node_id,
+                        )
+                    )
 
         return len(shortcuts), shortcuts
 
@@ -210,12 +225,16 @@ class CHGraphPreprocessing:
             if current_distance > distances.get(current_id, float("inf")):
                 continue
 
-            for neighbor_id, weight in self.contracting_graph[current_id].items():
+            for neighbor_id, weight in self.contracting_graph[
+                current_id
+            ].items():
                 if neighbor_id == avoid_node or self.contracted[neighbor_id]:
                     continue
                 possible_distance = current_distance + weight
-                if possible_distance <= max_dist and possible_distance < distances.get(
-                    neighbor_id, float("inf")
+                if (
+                    possible_distance <= max_dist
+                    and possible_distance
+                    < distances.get(neighbor_id, float("inf"))
                 ):
                     distances[neighbor_id] = possible_distance
                     heappush(open_leaves, (possible_distance, neighbor_id))
@@ -269,17 +288,25 @@ class CHGraphPreprocessing:
 
             # Add shortcuts to the contracting graph
             for origin_id, destination_id, distance, via_node_id in shortcuts:
-                if distance < self.contracting_graph[origin_id].get(destination_id, float("inf")):
+                if distance < self.contracting_graph[origin_id].get(
+                    destination_id, float("inf")
+                ):
                     self.contracting_graph[origin_id][destination_id] = distance
-                    self.contracting_inverse_graph[destination_id][origin_id] = distance
+                    self.contracting_inverse_graph[destination_id][
+                        origin_id
+                    ] = distance
                     self.shortcuts[(origin_id, destination_id)] = via_node_id
 
         # Build final forward and backward graphs
         for origin_id in range(self.nodes_count):
-            for destination_id, weight in self.contracting_graph[origin_id].items():
+            for destination_id, weight in self.contracting_graph[
+                origin_id
+            ].items():
                 if self.ranks[origin_id] < self.ranks[destination_id]:
                     self.forward_graph[origin_id][destination_id] = weight
-            for destination_id, weight in self.contracting_inverse_graph[origin_id].items():
+            for destination_id, weight in self.contracting_inverse_graph[
+                origin_id
+            ].items():
                 if self.ranks[origin_id] < self.ranks[destination_id]:
                     self.backward_graph[origin_id][destination_id] = weight
 
@@ -411,15 +438,28 @@ class CHGraphAlgorithms:
                         neighbors = self.original_graph[current_id]
 
                     for neighbor_id, weight in neighbors.items():
-                        if self.__get_rank__(neighbor_id) <= current_rank and neighbor_id < self.nodes_count:
+                        if (
+                            self.__get_rank__(neighbor_id) <= current_rank
+                            and neighbor_id < self.nodes_count
+                        ):
                             continue
                         new_dist = current_distance + weight
-                        if new_dist < forward_distances.get(neighbor_id, float("inf")):
+                        if new_dist < forward_distances.get(
+                            neighbor_id, float("inf")
+                        ):
                             forward_distances[neighbor_id] = new_dist
                             forward_parent[neighbor_id] = current_id
-                            heappush(forward_open_leaves, (new_dist, neighbor_id))
-                            if neighbor_id in backward_distances and new_dist + backward_distances[neighbor_id] < best_dist:
-                                best_dist = new_dist + backward_distances[neighbor_id]
+                            heappush(
+                                forward_open_leaves, (new_dist, neighbor_id)
+                            )
+                            if (
+                                neighbor_id in backward_distances
+                                and new_dist + backward_distances[neighbor_id]
+                                < best_dist
+                            ):
+                                best_dist = (
+                                    new_dist + backward_distances[neighbor_id]
+                                )
                                 meeting_node = neighbor_id
 
             # Backward step
@@ -440,19 +480,40 @@ class CHGraphAlgorithms:
                         neighbors = self.original_graph[current_id]
 
                     for neighbor_id, weight in neighbors.items():
-                        if self.__get_rank__(neighbor_id) <= current_rank and neighbor_id < self.nodes_count:
+                        if (
+                            self.__get_rank__(neighbor_id) <= current_rank
+                            and neighbor_id < self.nodes_count
+                        ):
                             continue
                         new_dist = current_distance + weight
-                        if new_dist < backward_distances.get(neighbor_id, float("inf")):
+                        if new_dist < backward_distances.get(
+                            neighbor_id, float("inf")
+                        ):
                             backward_distances[neighbor_id] = new_dist
                             backward_parent[neighbor_id] = current_id
-                            heappush(backward_open_leaves, (new_dist, neighbor_id))
-                            if neighbor_id in forward_distances and new_dist + forward_distances[neighbor_id] < best_dist:
-                                best_dist = new_dist + forward_distances[neighbor_id]
+                            heappush(
+                                backward_open_leaves, (new_dist, neighbor_id)
+                            )
+                            if (
+                                neighbor_id in forward_distances
+                                and new_dist + forward_distances[neighbor_id]
+                                < best_dist
+                            ):
+                                best_dist = (
+                                    new_dist + forward_distances[neighbor_id]
+                                )
                                 meeting_node = neighbor_id
 
-            forward_min = forward_open_leaves[0][0] if forward_open_leaves else float("inf")
-            backward_min = backward_open_leaves[0][0] if backward_open_leaves else float("inf")
+            forward_min = (
+                forward_open_leaves[0][0]
+                if forward_open_leaves
+                else float("inf")
+            )
+            backward_min = (
+                backward_open_leaves[0][0]
+                if backward_open_leaves
+                else float("inf")
+            )
             if forward_min > best_dist and backward_min > best_dist:
                 break
 
@@ -460,7 +521,11 @@ class CHGraphAlgorithms:
             raise Exception("No path found between origin and destination")
 
         path = self.__reconstruct_ch_path__(
-            origin_id, destination_id, meeting_node, forward_parent, backward_parent
+            origin_id,
+            destination_id,
+            meeting_node,
+            forward_parent,
+            backward_parent,
         )
         return {"path": path, "length": best_dist}
 
@@ -526,7 +591,9 @@ class CHGraphAlgorithms:
         path.append(contracted_path[-1])
         return path
 
-    def __unpack_shortcut__(self, origin_id: int, destination_id: int) -> list[int]:
+    def __unpack_shortcut__(
+        self, origin_id: int, destination_id: int
+    ) -> list[int]:
         """
         Function:
 
@@ -548,9 +615,9 @@ class CHGraphAlgorithms:
         """
         if (origin_id, destination_id) in self.shortcuts:
             via_node_id = self.shortcuts[(origin_id, destination_id)]
-            return self.__unpack_shortcut__(origin_id, via_node_id) + self.__unpack_shortcut__(
-                via_node_id, destination_id
-            )
+            return self.__unpack_shortcut__(
+                origin_id, via_node_id
+            ) + self.__unpack_shortcut__(via_node_id, destination_id)
         else:
             return [origin_id]
 
@@ -639,8 +706,12 @@ class CHGraph(
             ):
                 self.shortcuts = {}
                 for key, via_node_id in shortcuts.items():
-                    shortcut_origin_id, shortcut_destination_id = map(int, key.strip("()").split(","))
-                    self.shortcuts[(shortcut_origin_id, shortcut_destination_id)] = via_node_id
+                    shortcut_origin_id, shortcut_destination_id = map(
+                        int, key.strip("()").split(",")
+                    )
+                    self.shortcuts[
+                        (shortcut_origin_id, shortcut_destination_id)
+                    ] = via_node_id
             else:
                 self.shortcuts = shortcuts
         else:
@@ -661,7 +732,9 @@ class CHGraph(
             ]
             for origin_id, edges in enumerate(self.original_graph):
                 for destination_id, weight in edges.items():
-                    self.contracting_inverse_graph[destination_id][origin_id] = weight
+                    self.contracting_inverse_graph[destination_id][
+                        origin_id
+                    ] = weight
 
             self.contracted = [False] * self.nodes_count
             self.contracted_count = 0
