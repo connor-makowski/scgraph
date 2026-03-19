@@ -1445,26 +1445,35 @@ class GeoGraph(
                 - 'ft': Feet
         - `algorithm_fn`
             - Type: str | callable
-            - What: The algorithm method attached to the current GeoGraph class to identify the shortest path
+            - What: The algorithm to use for shortest path calculation. Can be a string name of a method on the underlying Graph object, or any callable.
             - Default: 'dijkstra'
             - Options:
                 - 'dijkstra' -> GraphAlgorithms.dijkstra
-                - 'cache' -> CacheGraph.dijkstra (A faster implementation of Dijkstra's algorithm that caches results for faster subsequent calculations)
-                    - This is only faster if you are doing multiple shortest path calculations with the same origin node
-                    - otherwise it will be slower than the non-cached Dijkstra's algorithm due to the overhead of solving full shortest path tree and caching results
-                    - Only the origin node is cached
-                    - Note: This requires that both the node_addition_type and destination_node_addition_type are set to 'kdclosest'
-                - 'ch' -> CHGraph.shortest_path (contraction hierarchies)
-                    - This is much faster for large graphs but has a long warmup time to create the contraction hierarchy graph object (see `warmup_ch` method for more details on this)
-                    - Note: This requires that both the node_addition_type and destination_node_addition_type are set to 'kdclosest'
+                    - Standard Dijkstra's algorithm; general purpose for non-negative edge weights
+                - 'dijkstra_negative' -> GraphAlgorithms.dijkstra_negative
+                    - Modified Dijkstra supporting negative edge weights; detects negative cycles
                 - 'a_star' -> GraphAlgorithms.a_star
+                    - A* algorithm; requires a heuristic_fn passed via algorithm_kwargs for speedup
                 - 'bellman_ford' -> GraphAlgorithms.bellman_ford
+                    - Bellman-Ford algorithm; supports negative weights but slower than dijkstra
                 - 'bmssp' -> GraphAlgorithms.bmssp
-                - Any user defined function that takes the arguments:
+                    - BMSSP algorithm (requires `pip install scgraph[bmssp]`); falls back to dijkstra if not installed
+                - 'cached_shortest_path' -> GraphAlgorithms.cached_shortest_path
+                    - Computes and caches the full shortest path tree from the origin on the first call;
+                      subsequent calls from the same origin node are near-instant
+                    - Only the origin graph node is cached (not the off-graph origin coordinate)
+                    - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
+                - 'contraction_hierarchy' -> GraphAlgorithms.contraction_hierarchy
+                    - Bidirectional Dijkstra on a preprocessed Contraction Hierarchy graph
+                    - Requires one-time preprocessing via graph_object.create_contraction_hierarchy()
+                      (called automatically on first use if not already done)
+                    - Very fast for arbitrary origin-destination queries on large graphs
+                    - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
+                - Any callable that accepts:
                     - `graph`: The graph (list[dict[int, int | float]]) to perform the shortest path on
-                    - `origin`: The id of the origin node from the graph dictionary to start the shortest path from
-                    - `destination`: The id of the destination node from the graph dictionary to end the shortest path at
-                    - `**algorithm_kwargs`: Additional keyword arguments to pass to the algorithm function assuming it accepts them
+                    - `origin_id`: The id of the origin node
+                    - `destination_id`: The id of the destination node
+                    - `**algorithm_kwargs`: Additional keyword arguments
         - `algorithm_kwargs`
             - Type: dict
             - What: Additional keyword arguments to pass to the algorithm function assuming it accepts them

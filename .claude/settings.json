@@ -23,7 +23,9 @@
       "Read(cache/**)",
       "Read(dist/**)",
       "Read(**/__pycache__/**)",
-      "Read(**/venv/**)"
+      "Read(**/venv/**)",
+      "Read(**scgraph/geographs/**)",
+      "Read(**.json)"
     ]
   }
 }
