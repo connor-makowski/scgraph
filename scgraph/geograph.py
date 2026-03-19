@@ -5,23 +5,15 @@ from scgraph.utils import (
     cheap_ruler,
     print_console,
     get_lat_lon_bound_between_pts,
+    get_default_cache_path,
 )
 from scgraph.helpers.geojson import parse_geojson
 from geokdtree import GeoKDTree
-import json
-import os
-import shutil
+import json, requests, shutil
 from copy import deepcopy
 from pathlib import Path
 from typing import Literal
 from scgraph import Graph
-
-AVAILABLE_GEOGRAPHS = {
-    "marnet",
-    "north_america_rail",
-    "oak_ridge_maritime",
-    "us_freeway",
-}
 
 
 class GeoGraphIO:
@@ -326,61 +318,157 @@ class GeoGraphIO:
         return GeoGraph(**data)
 
     @staticmethod
-    def load(
+    def __fetch_geograph_to_cache__(name: str, cached_file: Path, geograph_url: str) -> None:
+        """
+        Function:
+
+        - Download a built-in GeoGraph file from GitHub into the cache directory.
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of the built-in geograph to fetch
+        - `cached_file`
+            - Type: Path
+            - What: The destination path in the cache to write the file to
+        """
+        url = f"{geograph_url}/{name}.graphjson"
+        response = requests.get(url)
+        if response.status_code == 404:
+            raise FileNotFoundError(
+                f"Geograph '{name}' not found at '{url}'. "
+                f"Check that the name is correct and the file exists in the scgraph GitHub repository."
+            )
+        if not response.ok:
+            raise ConnectionError(
+                f"Failed to download geograph '{name}' from '{url}'. "
+                f"HTTP status: {response.status_code}."
+            )
+        cached_file.write_bytes(response.content)
+
+    @staticmethod
+    def load_geograph(
         name: str,
         cache_dir: str | None = None,
+        geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs"
     ) -> "GeoGraph":
         """
         Function:
 
         - Load a built-in GeoGraph by name, using a local cache.
-        - On first call for a given name, copies the .graphjson file from the
-          bundled geographs source into the cache directory.
-        - On subsequent calls, loads directly from cache.
-        - In the future, missing files will be fetched from GitHub instead of
-          copied locally.
+        - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
+        - On subsequent calls, loads directly from cache without any network requests.
 
         Required Arguments:
 
         - `name`
             - Type: str
             - What: The name of the built-in geograph to load
-            - Options: 'marnet', 'north_america_rail', 'oak_ridge_maritime', 'us_freeway'
+            - Examples: 'marnet', 'north_america_rail', 'oak_ridge_maritime', 'us_freeway'
 
         Optional Arguments:
 
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory where geograph files are stored
-            - Default: None (resolves to ~/.cache/scgraph/)
+            - Default: None (resolves to the platform-appropriate cache directory)
+                - Linux:   ~/.cache/scgraph/
+                - macOS:   ~/Library/Caches/scgraph/
+                - Windows: %LOCALAPPDATA%\\scgraph\\
+        - `geograph_url`
+            - Type: str
+            - What: The base URL where the built-in geograph .graphjson files are hosted
         """
-        if name not in AVAILABLE_GEOGRAPHS:
-            raise ValueError(
-                f"Unknown geograph name '{name}'. "
-                f"Available geographs: {sorted(AVAILABLE_GEOGRAPHS)}"
-            )
         cache_path = (
-            Path(os.path.join(cache_dir))
+            Path(cache_dir)
             if cache_dir is not None
-            else Path(os.path.join(Path.home(), ".cache", "scgraph"))
+            else get_default_cache_path()
         )
         cache_path.mkdir(parents=True, exist_ok=True)
-        cached_file = Path(os.path.join(cache_path, f"{name}.graphjson"))
+        cached_file = cache_path.joinpath(f"{name}.graphjson")
         if not cached_file.exists():
-            # Source: bundled geographs folder at project root (relative to this file)
-            # TODO: Replace with GitHub download when files are hosted remotely
-            source_file = Path(
-                os.path.join(
-                    Path(__file__).parent.parent, "geographs", f"{name}.graphjson"
-                )
-            )
-            if not source_file.exists():
-                raise FileNotFoundError(
-                    f"Geograph source file not found at '{source_file}'. "
-                    f"Ensure the geographs folder exists in the project root."
-                )
-            shutil.copy2(source_file, cached_file)
+            GeoGraph.__fetch_geograph_to_cache__(name, cached_file, geograph_url)
         return GeoGraph.load_from_graphjson(str(cached_file))
+
+    @staticmethod
+    def list_geographs(
+        cache_dir: str | None = None,
+        geograph_api_url: str = "https://api.github.com/repos/connor-makowski/scgraph/contents/geographs",
+    ) -> list[dict]:
+        """
+        Function:
+
+        - List all built-in GeoGraphs available on GitHub, indicating which are already cached locally.
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory to check for cached files
+            - Default: None (resolves to the platform-appropriate cache directory)
+                - Linux:   ~/.cache/scgraph/
+                - macOS:   ~/Library/Caches/scgraph/
+                - Windows: %LOCALAPPDATA%\\scgraph\\
+        - `geograph_api_url`
+            - Type: str
+            - What: The GitHub contents API URL for the geographs directory
+            - Default: https://api.github.com/repos/connor-makowski/scgraph/contents/geographs
+
+        Returns:
+
+        - A list of dicts, one per available geograph, sorted by name:
+            - `name`: str — the geograph name (without extension)
+            - `cached`: bool — whether the file is already in the local cache
+        """
+        response = requests.get(geograph_api_url)
+        if not response.ok:
+            raise ConnectionError(
+                f"Failed to fetch geograph list from '{geograph_api_url}'. "
+                f"HTTP status: {response.status_code}."
+            )
+        cache_path = (
+            Path(cache_dir)
+            if cache_dir is not None
+            else get_default_cache_path()
+        )
+        available = sorted(
+            entry["name"][: -len(".graphjson")]
+            for entry in response.json()
+            if entry.get("name", "").endswith(".graphjson")
+        )
+        return [
+            {
+                "name": name,
+                "cached": cache_path.joinpath(f"{name}.graphjson").exists(),
+            }
+            for name in available
+        ]
+
+    @staticmethod
+    def clear_geograph_cache(cache_dir: str | None = None) -> None:
+        """
+        Function:
+
+        - Remove the local geograph cache directory and all its contents.
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory to clear
+            - Default: None (resolves to the platform-appropriate cache directory)
+                - Linux:   ~/.cache/scgraph/
+                - macOS:   ~/Library/Caches/scgraph/
+                - Windows: %LOCALAPPDATA%\\scgraph\\
+        """
+        cache_path = (
+            Path(cache_dir)
+            if cache_dir is not None
+            else get_default_cache_path()
+        )
+        if cache_path.exists():
+            shutil.rmtree(cache_path)
 
     @staticmethod
     def load_from_osmnx_graph(

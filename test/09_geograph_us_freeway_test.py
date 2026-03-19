@@ -1,7 +1,7 @@
 from scgraph import GeoGraph
 from scgraph.utils import validate, time_test
 
-us_freeway_geograph = GeoGraph.load("us_freeway")
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 
 print("\n===============\nUS Freeway GeoGraph Tests:\n===============")
 

@@ -1,6 +1,6 @@
 from scgraph import GeoGraph
 
-marnet_geograph = GeoGraph.load("marnet")
+marnet_geograph = GeoGraph.load_geograph("marnet")
 
 print("\n===============\nGeoGraph Iteration Test:\n===============")
 

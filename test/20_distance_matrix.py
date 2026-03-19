@@ -1,6 +1,6 @@
 from scgraph import GeoGraph
 
-us_freeway_geograph = GeoGraph.load("us_freeway")
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 from scgraph.utils import haversine
 from time import time
 

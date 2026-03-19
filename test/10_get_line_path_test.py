@@ -1,6 +1,6 @@
 from scgraph import GeoGraph
 
-marnet_geograph = GeoGraph.load("marnet")
+marnet_geograph = GeoGraph.load_geograph("marnet")
 from scgraph.utils import get_line_path
 
 origin_node = {"latitude": 30, "longitude": 160}

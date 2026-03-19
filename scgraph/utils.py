@@ -1,6 +1,6 @@
-import json
+import json, time, platform, os
+from pathlib import Path
 from math import pi, sin, cos, asin
-import time
 
 # Constants for haversine and cheap ruler calculations
 earth_radius = {
@@ -349,3 +349,14 @@ def cpp_check():
         print("Using C++ & Python implementation of SCGraph.")
     except:
         print("Using Pure Python implementation of SCGraph.")
+
+def get_default_cache_path() -> Path:
+    system = platform.system()
+    if system == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        base = Path(local_app_data) if local_app_data else Path.home() / "AppData" / "Local"
+        return base.joinpath("scgraph")
+    elif system == "Darwin":
+        return Path.home().joinpath("Library", "Caches", "scgraph")
+    else:
+        return Path.home().joinpath(".cache", "scgraph")

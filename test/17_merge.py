@@ -1,7 +1,7 @@
 from scgraph import GeoGraph
 
-marnet_geograph = GeoGraph.load("marnet")
-us_freeway_geograph = GeoGraph.load("us_freeway")
+marnet_geograph = GeoGraph.load_geograph("marnet")
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 
 print("\n===============\nGeoGraph Merge Tests:\n===============")
 
