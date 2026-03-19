@@ -1,6 +1,7 @@
-from scgraph.geographs.marnet import marnet_geograph
+from scgraph import GeoGraph
 from scgraph.utils import validate, time_test
 
+marnet_geograph = GeoGraph.load("marnet")
 marnet_geograph.warmup()
 
 

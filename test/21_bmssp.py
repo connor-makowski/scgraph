@@ -1,6 +1,8 @@
+from scgraph import GeoGraph
 from scgraph.utils import validate, time_test
-from scgraph.geographs.marnet import marnet_geograph
-from scgraph.geographs.us_freeway import us_freeway_geograph
+
+marnet_geograph = GeoGraph.load("marnet")
+us_freeway_geograph = GeoGraph.load("us_freeway")
 
 # from scgraph_data.world_highways_and_marnet import world_highways_and_marnet_graph
 

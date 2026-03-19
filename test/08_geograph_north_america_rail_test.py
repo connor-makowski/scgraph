@@ -1,6 +1,8 @@
 from pamda import pamda
-from scgraph.geographs.north_america_rail import north_america_rail_geograph
+from scgraph import GeoGraph
 from scgraph.utils import validate, time_test
+
+north_america_rail_geograph = GeoGraph.load("north_america_rail")
 
 print("\n===============\nNorth America Rail GeoGraph Tests:\n===============")
 

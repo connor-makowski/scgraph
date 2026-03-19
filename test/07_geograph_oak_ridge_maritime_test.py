@@ -1,5 +1,7 @@
-from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph
+from scgraph import GeoGraph
 from scgraph.utils import validate, time_test
+
+oak_ridge_maritime_geograph = GeoGraph.load("oak_ridge_maritime")
 
 print("\n===============\nOak Ridge GeoGraph Tests:\n===============")
 

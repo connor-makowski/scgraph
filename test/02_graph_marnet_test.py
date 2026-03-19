@@ -1,6 +1,6 @@
-from scgraph import Graph
+from scgraph import Graph, GeoGraph
 from scgraph.utils import validate, time_test
-from scgraph.geographs.marnet import marnet_geograph
+marnet_geograph = GeoGraph.load("marnet")
 
 print("\n===============\nMarnet Graph Tests:\n===============")
 

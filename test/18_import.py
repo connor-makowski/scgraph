@@ -1,23 +1,24 @@
 from time import time
+from scgraph import GeoGraph
 
 print("\n===============\nImport Timing:\n===============")
 start_time = time()
-from scgraph.geographs.marnet import marnet_geograph
+marnet_geograph = GeoGraph.load("marnet")
 
-print(f"Importing Marnet took {round((time() - start_time) * 1000, 4)} ms")
+print(f"Loading Marnet took {round((time() - start_time) * 1000, 4)} ms")
 start_time = time()
-from scgraph.geographs.north_america_rail import north_america_rail_geograph
+north_america_rail_geograph = GeoGraph.load("north_america_rail")
 
 print(
-    f"Importing North America Rail took {round((time() - start_time) * 1000, 4)} ms"
+    f"Loading North America Rail took {round((time() - start_time) * 1000, 4)} ms"
 )
 start_time = time()
-from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph
+oak_ridge_maritime_geograph = GeoGraph.load("oak_ridge_maritime")
 
 print(
-    f"Importing Oak Ridge Maritime took {round((time() - start_time) * 1000, 4)} ms"
+    f"Loading Oak Ridge Maritime took {round((time() - start_time) * 1000, 4)} ms"
 )
 start_time = time()
-from scgraph.geographs.us_freeway import us_freeway_geograph
+us_freeway_geograph = GeoGraph.load("us_freeway")
 
-print(f"Importing US Freeway took {round((time() - start_time) * 1000, 4)} ms")
+print(f"Loading US Freeway took {round((time() - start_time) * 1000, 4)} ms")

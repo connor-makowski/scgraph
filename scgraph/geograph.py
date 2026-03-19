@@ -9,9 +9,19 @@ from scgraph.utils import (
 from scgraph.helpers.geojson import parse_geojson
 from geokdtree import GeoKDTree
 import json
+import os
+import shutil
 from copy import deepcopy
+from pathlib import Path
 from typing import Literal
 from scgraph import Graph
+
+AVAILABLE_GEOGRAPHS = {
+    "marnet",
+    "north_america_rail",
+    "oak_ridge_maritime",
+    "us_freeway",
+}
 
 
 class GeoGraphIO:
@@ -314,6 +324,63 @@ class GeoGraphIO:
             {int(k): v for k, v in item.items()} for item in data["graph"]
         ]
         return GeoGraph(**data)
+
+    @staticmethod
+    def load(
+        name: str,
+        cache_dir: str | None = None,
+    ) -> "GeoGraph":
+        """
+        Function:
+
+        - Load a built-in GeoGraph by name, using a local cache.
+        - On first call for a given name, copies the .graphjson file from the
+          bundled geographs source into the cache directory.
+        - On subsequent calls, loads directly from cache.
+        - In the future, missing files will be fetched from GitHub instead of
+          copied locally.
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of the built-in geograph to load
+            - Options: 'marnet', 'north_america_rail', 'oak_ridge_maritime', 'us_freeway'
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory where geograph files are stored
+            - Default: None (resolves to ~/.cache/scgraph/)
+        """
+        if name not in AVAILABLE_GEOGRAPHS:
+            raise ValueError(
+                f"Unknown geograph name '{name}'. "
+                f"Available geographs: {sorted(AVAILABLE_GEOGRAPHS)}"
+            )
+        cache_path = (
+            Path(os.path.join(cache_dir))
+            if cache_dir is not None
+            else Path(os.path.join(Path.home(), ".cache", "scgraph"))
+        )
+        cache_path.mkdir(parents=True, exist_ok=True)
+        cached_file = Path(os.path.join(cache_path, f"{name}.graphjson"))
+        if not cached_file.exists():
+            # Source: bundled geographs folder at project root (relative to this file)
+            # TODO: Replace with GitHub download when files are hosted remotely
+            source_file = Path(
+                os.path.join(
+                    Path(__file__).parent.parent, "geographs", f"{name}.graphjson"
+                )
+            )
+            if not source_file.exists():
+                raise FileNotFoundError(
+                    f"Geograph source file not found at '{source_file}'. "
+                    f"Ensure the geographs folder exists in the project root."
+                )
+            shutil.copy2(source_file, cached_file)
+        return GeoGraph.load_from_graphjson(str(cached_file))
 
     @staticmethod
     def load_from_osmnx_graph(
