@@ -394,12 +394,13 @@ class GeoGraphIO:
     @staticmethod
     def list_geographs(
         cache_dir: str | None = None,
-        geograph_api_url: str = "https://api.github.com/repos/connor-makowski/scgraph/contents/geographs",
+        geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs",
     ) -> list[dict]:
         """
         Function:
 
-        - List all built-in GeoGraphs available on GitHub, indicating which are already cached locally.
+        - List all built-in GeoGraphs available, indicating which are already cached locally.
+        - Fetches the available geograph names from a `contents.txt` file at the geograph URL.
 
         Optional Arguments:
 
@@ -410,10 +411,10 @@ class GeoGraphIO:
                 - Linux:   ~/.cache/scgraph/
                 - macOS:   ~/Library/Caches/scgraph/
                 - Windows: %LOCALAPPDATA%\\scgraph\\
-        - `geograph_api_url`
+        - `geograph_url`
             - Type: str
-            - What: The GitHub contents API URL for the geographs directory
-            - Default: https://api.github.com/repos/connor-makowski/scgraph/contents/geographs
+            - What: The base URL where the geograph files and contents.txt are hosted
+            - Default: https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs
 
         Returns:
 
@@ -421,10 +422,11 @@ class GeoGraphIO:
             - `name`: str — the geograph name (without extension)
             - `cached`: bool — whether the file is already in the local cache
         """
-        response = requests.get(geograph_api_url)
+        url = f"{geograph_url.rstrip('/')}/contents.txt"
+        response = requests.get(url)
         if not response.ok:
             raise ConnectionError(
-                f"Failed to fetch geograph list from '{geograph_api_url}'. "
+                f"Failed to fetch geograph list from '{url}'. "
                 f"HTTP status: {response.status_code}."
             )
         cache_path = (
@@ -433,9 +435,9 @@ class GeoGraphIO:
             else get_default_cache_path()
         )
         available = sorted(
-            entry["name"][: -len(".graphjson")]
-            for entry in response.json()
-            if entry.get("name", "").endswith(".graphjson")
+            line.removesuffix(".graphjson")
+            for line in response.text.splitlines()
+            if line.strip().endswith(".graphjson")
         )
         return [
             {
