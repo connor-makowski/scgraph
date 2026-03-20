@@ -6,11 +6,10 @@ print("\n===============\nGeoGraph Load/Cache Tests:\n===============")
 
 with tempfile.TemporaryDirectory() as tmp:
     # Uncomment and change for branch specific testing
-    geograph_url = "https://raw.githubusercontent.com/connor-makowski/scgraph/refs/heads/3.0.0-dev/geographs/"
 
     # list_geographs returns a non-empty list of dicts with the expected keys
     geograph_list = GeoGraph.list_geographs(
-        cache_dir=tmp, geograph_url=geograph_url
+        cache_dir=tmp,
     )
     validate(
         name="list_geographs returns a list",
@@ -40,7 +39,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # load_geograph downloads and returns a GeoGraph
     geograph = GeoGraph.load_geograph(
-        "marnet", cache_dir=tmp, geograph_url=geograph_url
+        "marnet", cache_dir=tmp,
     )
     validate(
         name="load_geograph returns a GeoGraph",
@@ -50,7 +49,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # After loading, marnet should be cached
     geograph_list = GeoGraph.list_geographs(
-        cache_dir=tmp, geograph_url=geograph_url
+        cache_dir=tmp,
     )
     marnet_entry = next(
         (g for g in geograph_list if g["name"] == "marnet"), None
@@ -63,7 +62,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # Second load uses cache (no network) and still returns a GeoGraph
     geograph_cached = GeoGraph.load_geograph(
-        "marnet", cache_dir=tmp, geograph_url=geograph_url
+        "marnet", cache_dir=tmp,
     )
     validate(
         name="load_geograph from cache returns a GeoGraph",
@@ -74,7 +73,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # clear_geograph_cache removes the cache
     GeoGraph.clear_geograph_cache(cache_dir=tmp)
     geograph_list = GeoGraph.list_geographs(
-        cache_dir=tmp, geograph_url=geograph_url
+        cache_dir=tmp,
     )
     marnet_entry = next(
         (g for g in geograph_list if g["name"] == "marnet"), None
