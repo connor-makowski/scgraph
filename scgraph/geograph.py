@@ -1320,6 +1320,92 @@ class GeoGraphUtils:
             return coordinate_path
         return [self.nodes[node_id] for node_id in path]
 
+    def get_path_weight(
+        self,
+        path_result: dict,
+        off_graph_circuity: float | int = None,
+        output_units: str = "km",
+    ) -> float:
+        """
+        Function:
+
+        - Compute the total weight of a pre-computed path in this geograph's units
+
+        - This allows computing the weight of a path optimized for one metric
+          (e.g., time) using a different geograph's weights (e.g., distance),
+          including the off-graph entry and exit segments using this geograph's
+          circuity.
+
+        Required Arguments:
+
+        - `path_result`
+            - Type: dict
+            - What: The output from `get_shortest_path` called with `output_path=True`
+            - Must contain both a `path` key (list of on-graph node ids) and a
+              `coordinate_path` key (list of [lat, lon] pairs)
+
+        Optional Arguments:
+
+        - `off_graph_circuity`
+            - Type: float | int | None
+            - What: Circuity to apply to the off-graph entry and exit haversine
+              distances. Defaults to `self.default_off_graph_circuity`.
+            - Default: None
+
+        - `output_units`
+            - Type: str
+            - What: Units for the returned weight value
+            - Default: 'km'
+
+        Returns:
+
+        - The total weight of the path in this geograph's edge units, converted
+          to `output_units`
+        """
+        if off_graph_circuity is None:
+            off_graph_circuity = self.default_off_graph_circuity
+        path = path_result.get("path")
+        coordinate_path = path_result.get("coordinate_path")
+        assert path is not None, (
+            "path_result must contain a 'path' key; call get_shortest_path with output_path=True"
+        )
+        assert coordinate_path is not None, (
+            "path_result must contain a 'coordinate_path' key"
+        )
+
+        origin = coordinate_path[0]
+        destination = coordinate_path[-1]
+
+        if len(path) == 0:
+            # Edge case: origin and destination map to the same graph node
+            total = haversine(
+                origin,
+                destination,
+                circuity=off_graph_circuity,
+                units=self.geograph_units,
+            )
+        else:
+            on_graph_weight = self.graph_object.get_path_weight(path)
+            origin_off = haversine(
+                origin,
+                self.nodes[path[0]],
+                circuity=off_graph_circuity,
+                units=self.geograph_units,
+            )
+            destination_off = haversine(
+                self.nodes[path[-1]],
+                destination,
+                circuity=off_graph_circuity,
+                units=self.geograph_units,
+            )
+            total = on_graph_weight + origin_off + destination_off
+
+        return distance_converter(
+            total,
+            input_units=self.geograph_units,
+            output_units=output_units,
+        )
+
     def validate(
         self,
         check_symmetry: bool = True,

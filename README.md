@@ -55,7 +55,7 @@ set SKBUILD_CMAKE_ARGS=-DSKIP_CPP_BUILD=ON && pip install scgraph
 
 ---
 
-## Quick Start
+## Quick Start: Using Built-in GeoGraphs
 
 Get the shortest maritime path between Shanghai and Savannah, GA:
 
@@ -78,6 +78,44 @@ The output dictionary always contains:
 |---|---|
 | `length` | Distance along the shortest path in the requested `output_units` |
 | `coordinate_path` | List of `[latitude, longitude]` pairs making up the path |
+
+## Quick Start: OSMNx Integration
+
+Route on any OpenStreetMap network (including bike, drive, and walk) using [OSMNx](https://osmnx.readthedocs.io/). This example finds the fastest and shortest bike paths between two points in Somerville and Cambridge, MA, then cross-evaluates each path's time and distance:
+
+```py
+import osmnx as ox
+from scgraph import GeoGraph
+
+# Download the bike network for Somerville and Cambridge, MA
+G = ox.graph_from_place(
+    ['Somerville, Massachusetts, USA', 'Cambridge, Massachusetts, USA'],
+    network_type='bike'
+)
+G = ox.add_edge_speeds(G)
+G = ox.add_edge_travel_times(G)
+
+# Build a time-based and a distance-based GeoGraph from the same OSMNx graph
+geograph_time     = GeoGraph.load_from_osmnx_graph(G, weight_key='travel_time')
+geograph_distance = GeoGraph.load_from_osmnx_graph(G, weight_key='length')
+
+origin      = {'latitude': 42.3601, 'longitude': -71.0942}  # MIT campus
+destination = {'latitude': 42.3876, 'longitude': -71.0995}  # Somerville City Hall
+
+time_result     = geograph_time.get_shortest_path(origin_node=origin, destination_node=destination, output_path=True)
+distance_result = geograph_distance.get_shortest_path(origin_node=origin, destination_node=destination, output_path=True)
+
+# Cross-evaluate: get the distance of the time-optimal path, and vice versa
+time_path_distance_km = geograph_distance.get_path_weight(time_result)
+distance_path_time_s  = geograph_time.get_path_weight(distance_result)
+
+print(f"Time-optimal path:     {time_result['length']:.1f} s  |  {time_path_distance_km:.3f} km")
+print(f"Distance-optimal path: {distance_path_time_s:.1f} s  |  {distance_result['length']:.3f} km")
+# Time-optimal path:     340.9 s  |  3.920 km
+# Distance-optimal path: 369.3 s  |  3.605 km
+```
+
+See the [OSMNx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) for a full example with folium map visualization.
 
 ---
 
@@ -682,6 +720,7 @@ dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
 ### Google Colab Notebooks
 
 - [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb) — Basic usage, visualization
+- [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) — Load OSM data, sovle for time and distance on bike networks
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb) — Export multiple routes as GeoJSON
 - [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) — Add/remove nodes and edges
 

@@ -95,6 +95,11 @@ NB_MODULE(cpp, m) {
             self.set_cache(cache_vector);
         }, "Set the cached shortest path trees")
 
+        // Path weight
+        .def("get_path_weight", &Graph::get_path_weight,
+             nb::arg("path"),
+             "Sum the graph weights along a sequence of node ids")
+
         // Graph modification methods
         .def("add_node", &Graph::add_node,
              nb::arg("node_dict") = std::unordered_map<int, double>{},
