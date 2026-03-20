@@ -39,7 +39,8 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # load_geograph downloads and returns a GeoGraph
     geograph = GeoGraph.load_geograph(
-        "marnet", cache_dir=tmp,
+        "marnet",
+        cache_dir=tmp,
     )
     validate(
         name="load_geograph returns a GeoGraph",
@@ -62,7 +63,8 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # Second load uses cache (no network) and still returns a GeoGraph
     geograph_cached = GeoGraph.load_geograph(
-        "marnet", cache_dir=tmp,
+        "marnet",
+        cache_dir=tmp,
     )
     validate(
         name="load_geograph from cache returns a GeoGraph",
