@@ -263,6 +263,8 @@ All built-in geographs measure distances in kilometers and are downloaded on fir
 | `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
 | `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
 | `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
+| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
 ## Loading and Cache Management
 
@@ -285,6 +287,8 @@ available = GeoGraph.list_geographs()
 #     {"name": "oak_ridge_maritime",        "cached": False},
 #     {"name": "us_freeway",                "cached": True},
 #     {"name": "world_highways_and_marnet", "cached": False},
+#     {"name": "world_highways",            "cached": False},
+#     {"name": "world_railways",            "cached": False},
 # ]
 
 # Clear all cached geograph files
