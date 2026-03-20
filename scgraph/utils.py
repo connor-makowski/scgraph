@@ -1,4 +1,5 @@
-import json
+import json, time, platform, os
+from pathlib import Path
 from math import pi, sin, cos, asin
 
 # Constants for haversine and cheap ruler calculations
@@ -315,3 +316,52 @@ def adjacency_list_tuples_to_dict(
         {to_id: weight for to_id, weight in connections}
         for connections in graph
     ]
+
+
+def validate(name, realized, expected):
+    # Custom length rounding for floating point precision issues
+    if isinstance(realized, dict):
+        if "length" in realized:
+            realized["length"] = hard_round(3, realized["length"])
+    if isinstance(expected, dict):
+        if "length" in expected:
+            expected["length"] = hard_round(3, expected["length"])
+    if realized == expected:
+        print(f"{name}: PASS")
+    else:
+        print(f"{name}: FAIL")
+        print("Expected:", expected)
+        print("Realized:", realized)
+
+
+def time_test(name, function, args=None, kwargs=None):
+    if args is None:
+        args = ()
+    if kwargs is None:
+        kwargs = {}
+    start = time.time()
+    function(*args, **kwargs)
+    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
+
+
+def cpp_check():
+    try:
+        print("Using C++ & Python implementation of SCGraph.")
+    except:
+        print("Using Pure Python implementation of SCGraph.")
+
+
+def get_default_cache_path() -> Path:
+    system = platform.system()
+    if system == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        base = (
+            Path(local_app_data)
+            if local_app_data
+            else Path.home() / "AppData" / "Local"
+        )
+        return base.joinpath("scgraph")
+    elif system == "Darwin":
+        return Path.home().joinpath("Library", "Caches", "scgraph")
+    else:
+        return Path.home().joinpath(".cache", "scgraph")

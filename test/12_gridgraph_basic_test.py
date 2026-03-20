@@ -18,7 +18,7 @@ gridGraph = GridGraph(
     add_exterior_walls=True,
 )
 
-# Since heuristic_fn is not specified, the gridGraph will default to using Dijkstra-Modified
+# Since heuristic_fn is not specified, the gridGraph will default to using Dijkstra
 output = gridGraph.get_shortest_path(
     origin_node={"x": 1, "y": 8},
     destination_node={"x": 8, "y": 8},

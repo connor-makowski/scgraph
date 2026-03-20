@@ -1,22 +1,8 @@
-from scgraph.geographs.us_freeway import us_freeway_geograph
+from scgraph import GeoGraph
+
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 from scgraph.utils import haversine
 from time import time
-
-
-def validate(name, realized, expected):
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time()
-    thunk()
-    print(f"{name}: {round((time()-start)*1000, 4)}ms")
-
 
 cities = {
     "Los Angeles": (34.0522, -118.2437),
@@ -46,7 +32,7 @@ print("\n===============\nGeoGraph Distance Matrix Tests:\n===============")
 
 success = True
 distance_matrix = us_freeway_geograph.distance_matrix(
-    city_nodes, off_graph_circuity=1, geograph_units="km", output_units="km"
+    city_nodes, off_graph_circuity=1, output_units="km"
 )
 
 la_nyc = us_freeway_geograph.get_shortest_path(
@@ -102,7 +88,6 @@ def distance_matrix_time(nodes):
     dm = us_freeway_geograph.distance_matrix(
         nodes=nodes,
         off_graph_circuity=1,
-        geograph_units="km",
         output_units="km",
     )
     time_taken = time() - start

@@ -1,134 +1,135 @@
-import time
-from pamda import pamda
-from scgraph import Graph
-from scgraph.utils import hard_round
-from scgraph.geographs.marnet import graph as marnet_graph
+from scgraph import Graph, GeoGraph
+from scgraph.utils import validate, time_test
 
-
-def validate(name, realized, expected):
-    # Custom lenth rounding for floating point precision issues
-    if isinstance(realized, dict):
-        if "length" in realized:
-            realized["length"] = hard_round(3, realized["length"])
-    if isinstance(expected, dict):
-        if "length" in expected:
-            expected["length"] = hard_round(3, expected["length"])
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time.time()
-    thunk()
-    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
-
+marnet_geograph = GeoGraph.load_geograph("marnet")
 
 print("\n===============\nMarnet Graph Tests:\n===============")
 
-graph = marnet_graph
+graph = Graph(marnet_geograph.graph_object.graph)
 
 expected = {"path": [0, 1, 5695, 64, 2213, 10152, 6749, 5], "length": 1134.729}
 
 validate(
     name="Graph Validation",
-    realized=Graph.validate_graph(graph=graph),
+    realized=graph.validate(),
     expected=None,
 )
 
 validate(
-    name="Dijkstra-Modified",
-    realized=Graph.dijkstra_makowski(
-        graph=graph, origin_id=0, destination_id=5
-    ),
+    name="Dijkstra",
+    realized=graph.dijkstra(origin_id=0, destination_id=5),
     expected=expected,
 )
 
 validate(
     name="A*",
-    realized=Graph.a_star(graph=graph, origin_id=0, destination_id=5),
+    realized=graph.a_star(origin_id=0, destination_id=5),
     expected=expected,
 )
 
+time_test(
+    "Contraction Hierarchies Preprocessing",
+    graph.create_contraction_hierarchy,
+)
+
 validate(
-    name="BMSSP",
-    realized=Graph.bmssp(graph, 0, 5),
+    name="Contraction Hierarchies",
+    realized=graph.contraction_hierarchy(origin_id=0, destination_id=5),
     expected=expected,
 )
+
+# validate(
+#     name="BMSSP",
+#     realized=graph.bmssp(origin_id=0, destination_id=5),
+#     expected=expected,
+# )
 
 
 print("\n===============\nMarnet Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(Graph.validate_graph)(
-        graph=graph, check_symmetry=True, check_connected=True
-    ),
+    graph.validate,
+    kwargs={"check_symmetry": True, "check_connected": True},
 )
 
 
 time_test(
-    "Dijkstra-Modified 1",
-    pamda.thunkify(Graph.dijkstra_makowski)(
-        graph=graph, origin_id=0, destination_id=5
-    ),
+    "Dijkstra 1",
+    graph.dijkstra,
+    kwargs={"origin_id": 0, "destination_id": 5},
 )
 time_test(
-    "Dijkstra-Modified 2",
-    pamda.thunkify(Graph.dijkstra_makowski)(
-        graph=graph, origin_id=100, destination_id=7999
-    ),
+    "Dijkstra 2",
+    graph.dijkstra,
+    kwargs={"origin_id": 100, "destination_id": 7999},
 )
 time_test(
-    "Dijkstra-Modified 3",
-    pamda.thunkify(Graph.dijkstra_makowski)(
-        graph=graph, origin_id=4022, destination_id=8342
-    ),
+    "Dijkstra 3",
+    graph.dijkstra,
+    kwargs={"origin_id": 4022, "destination_id": 8342},
 )
 
 time_test(
     "A* 1",
-    pamda.thunkify(Graph.a_star)(
-        graph=graph, origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
-    ),
+    graph.a_star,
+    kwargs={
+        "origin_id": 0,
+        "destination_id": 5,
+        "heuristic_fn": lambda x, y: 0,
+    },
 )
 time_test(
     "A* 2",
-    pamda.thunkify(Graph.a_star)(
-        graph=graph,
-        origin_id=100,
-        destination_id=7999,
-        heuristic_fn=lambda x, y: 0,
-    ),
+    graph.a_star,
+    kwargs={
+        "origin_id": 100,
+        "destination_id": 7999,
+        "heuristic_fn": lambda x, y: 0,
+    },
 )
 time_test(
     "A* 3",
-    pamda.thunkify(Graph.a_star)(
-        graph=graph,
-        origin_id=4022,
-        destination_id=8342,
-        heuristic_fn=lambda x, y: 0,
-    ),
+    graph.a_star,
+    kwargs={
+        "origin_id": 4022,
+        "destination_id": 8342,
+        "heuristic_fn": lambda x, y: 0,
+    },
 )
 
 time_test(
-    "BMSSP 1",
-    pamda.thunkify(Graph.bmssp)(graph=graph, origin_id=0, destination_id=5),
+    "Contraction Hierarchies 1",
+    graph.contraction_hierarchy,
+    kwargs={"origin_id": 0, "destination_id": 5},
 )
 
 time_test(
-    "BMSSP 2",
-    pamda.thunkify(Graph.bmssp)(
-        graph=graph, origin_id=100, destination_id=7999
-    ),
+    "Contraction Hierarchies 2",
+    graph.contraction_hierarchy,
+    kwargs={"origin_id": 100, "destination_id": 7999},
 )
 
 time_test(
-    "BMSSP 3",
-    pamda.thunkify(Graph.bmssp)(
-        graph=graph, origin_id=4022, destination_id=8342
-    ),
+    "Contraction Hierarchies 3",
+    graph.contraction_hierarchy,
+    kwargs={"origin_id": 4022, "destination_id": 8342},
 )
+
+# time_test(
+#     "BMSSP 1",
+#     graph.bmssp,
+#     kwargs={"origin_id": 0, "destination_id": 5},
+# )
+
+# time_test(
+#     "BMSSP 2",
+#     graph.bmssp,
+#     kwargs={"origin_id": 100, "destination_id": 7999},
+# )
+
+# time_test(
+#     "BMSSP 3",
+#     graph.bmssp,
+#     kwargs={"origin_id": 4022, "destination_id": 8342},
+# )

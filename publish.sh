@@ -1,2 +1,3 @@
-python -m build
-python -m twine upload dist/*
+rm -r dist/*
+python -m build --sdist
+python -m twine upload dist/*.tar.gz

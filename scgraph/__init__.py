@@ -3,43 +3,26 @@
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/)
-<!-- [![PyPI Downloads](https://img.shields.io/pypi/dm/scgraph.svg?label=PyPI%20downloads)](https://pypi.org/project/scgraph/) -->
 
-
-### A Supply chain graph package for Python
-
+**A high-performance, lightweight Python library for shortest path routing on geographic and supply chain networks.**
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
-## Quick Start:
-Get the shortest maritime path length between Shanghai, China and Savannah, Georgia, USA
-```py
-# Use a maritime network geograph
-from scgraph.geographs.marnet import marnet_geograph
-output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 31.23,"longitude": 121.47},
-    destination_node={"latitude": 32.08,"longitude": -81.09},
-    output_units='km',
-)
-print('Length: ',output['length']) #=> Length:  19596.4653
-```
+SCGraph provides fast, flexible shortest path routing for road, rail, maritime, and custom networks. It ships with prebuilt geographic networks, supports arbitrary graph construction and OSMNx integration, and scales from simple point-to-point queries to massive distance matrices. It also supports optional C++ acceleration and Contraction Hierarchy preprocessing for large-scale applications.
 
-### Documentation
+- **Docs**: https://connor-makowski.github.io/scgraph/scgraph.html
+- **Paper**: https://ssrn.com/abstract=5388845
+- **Award**: [2025 MIT Prize for Open Data](https://libraries.mit.edu/opendata/open-data-mit-home/mit-prize/)
 
-- Docs: https://connor-makowski.github.io/scgraph/scgraph.html
-- Git Repo: https://github.com/connor-makowski/scgraph
-- Paper: https://ssrn.com/abstract=5388845
-- Awards: [2025 MIT Prize for Open Data](https://libraries.mit.edu/opendata/open-data-mit-home/mit-prize/)
+---
 
-### How to Cite SCGraph in your Research
+## Citation
 
-If you use SCGraph for your research, please consider citing the following paper:
+If you use SCGraph in your research, please cite:
 
-> Makowski, C., Saragih, A., Guter, W., Russell, T., Heinold, A., & Lekkakos, S. (2025). SCGraph: A dependency-free Python package for road, rail, and maritime shortest path routing generation and distance estimation. MIT Center for Transportation & Logistics Research Paper Series, (2025-028). https://ssrn.com/abstract=5388845
+> Makowski, C., Saragih, A., Guter, W., Russell, T., Heinold, A., & Lekkakos, S. (2025). SCGraph: A Dependency-Free Python Package for Road, Rail, and Maritime Shortest Path Routing Generation and Distance Estimation. *MIT Center for Transportation & Logistics Research Paper Series*, (2025-028). https://ssrn.com/abstract=5388845
 
-Or by using the BibTeX entry:
-
-```
+```bibtex
 @article{makowski2025scgraph,
   title={SCGraph: A Dependency-Free Python Package for Road, Rail, and Maritime Shortest Path Routing Generation and Distance Estimation},
   author={Makowski, Connor and Saragih, Austin and Guter, Willem and Russell, Tim and Heinold, Arne and Lekkakos, Spyridon},
@@ -50,82 +33,174 @@ Or by using the BibTeX entry:
 }
 ```
 
-# Getting Started
+---
 
 ## Installation
 
-```
+```bash
 pip install scgraph
 ```
 
-## Basic Geograph Usage
+A C++ extension is compiled automatically if a compiler is available (~10x speedup on core algorithms). To verify: `from scgraph.utils import cpp_check; cpp_check()`.
 
-Get the shortest path between two points on earth using a latitude / longitude pair.
+To skip the C++ build:
 
-In this case, calculate the shortest maritime path between Shanghai, China and Savannah, Georgia, USA.
+```bash
+# macOS / Linux / WSL2
+export SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON" && pip install scgraph
+# Windows (PowerShell)
+$env:SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"; pip install scgraph
+# Windows (CMD)
+set SKBUILD_CMAKE_ARGS=-DSKIP_CPP_BUILD=ON && pip install scgraph
+```
+
+---
+
+## Quick Start
+
+Get the shortest maritime path between Shanghai and Savannah, GA:
 
 ```py
-# Use a maritime network geograph
-from scgraph.geographs.marnet import marnet_geograph
+from scgraph import GeoGraph
 
-# Note: The origin and destination nodes can be any latitude / longitude pair
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
 output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 31.23,"longitude": 121.47},
-    destination_node={"latitude": 32.08,"longitude": -81.09},
+    origin_node={"latitude": 31.23, "longitude": 121.47},
+    destination_node={"latitude": 32.08, "longitude": -81.09},
     output_units='km',
-    # Optional: Cache the origin node's shortest path tree for faster calculations on future calls from the same origin node when cache=True
-    # Note: This will make the first call slower, but future calls using this origin node will be substantially faster.
-    cache=True,
 )
-print('Length: ',output['length']) #=> Length:  19596.4653
+print(output['length'])  #=> 19596.4653
 ```
 
-Adding in a few additional parameters to the `get_shortest_path` function can change the output format as well as performance of the calculation.
-```py
-# Use a maritime network geograph
-from scgraph.geographs.marnet import marnet_geograph
+The output dictionary always contains:
 
-# Get the shortest maritime path between Shanghai, China and Savannah, Georgia, USA
+| Key | Description |
+|---|---|
+| `length` | Distance along the shortest path in the requested `output_units` |
+| `coordinate_path` | List of `[latitude, longitude]` pairs making up the path |
+
+---
+
+# Core Concepts
+
+## What is a GeoGraph?
+
+A `GeoGraph` is the primary object in SCGraph. It combines a **graph** (a network of nodes and weighted edges) with **geographic coordinates** (latitude/longitude for each node), enabling shortest path queries between arbitrary real-world coordinates, not just predefined graph nodes.
+
+When you call `get_shortest_path`, SCGraph:
+1. Temporarily inserts your origin and destination as new nodes in the graph
+2. Connects them to nearby graph nodes using haversine or euclidean distance
+3. Runs the requested shortest path algorithm
+4. Returns the path in geographic coordinates
+5. Cleans up the temporary nodes
+
+This means you never need to worry about whether your start/end points are "in" the network. SCGraph handles that automatically.
+
+### Graph Structure
+
+Internally, a graph is represented as a list of adjacency dicts:
+
+```py
+graph = [
+    {1: 5, 2: 1},   # node 0: connected to node 1 (cost 5) and node 2 (cost 1)
+    {0: 5, 2: 2},   # node 1: connected to node 0 and node 2
+    {0: 1, 1: 2},   # node 2: connected to node 0 and node 1
+]
+```
+
+Nodes are identified by their zero-based index. Edge weights are typically distances in kilometers for GeoGraphs.
+
+---
+
+# GeoGraph Usage
+
+## Basic Routing
+
+```py
+from scgraph import GeoGraph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
 output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 31.23,"longitude": 121.47},
-    destination_node={"latitude": 32.08,"longitude": -81.09},
+    origin_node={"latitude": 31.23, "longitude": 121.47},      # Shanghai
+    destination_node={"latitude": 32.08, "longitude": -81.09}, # Savannah, GA
     output_units='km',
-    node_addition_lat_lon_bound=180, # Optional: The maximum distance in degrees to consider nodes when attempting to add the origin and destination nodes to the graph
-    node_addition_type='quadrant', # Optional: Instead of connecting the origin node to the graph by the closest node, connect it to the closest node in each direction (NE, NW, SE, SW) if found within the node_addition_lat_lon_bound
-    destination_node_addition_type='all', # Optional: Instead of connecting the destination node to the graph by the closest node, connect it to all nodes found within the node_addition_lat_lon_bound
-    # When destination_node_addition_type='all' is set with a node_addition_lat_lon_bound=180, this will guarantee a solution can be found since the destination node will also connect to the origin node
 )
-print('Length: ',output['length']) #=> Length:  19596.4653
+
+print(output['length'])          # 19596.4653
+print(output['coordinate_path']) # [[31.23, 121.47], ..., [32.08, -81.09]]
 ```
 
-In the above example, the `output` variable is a dictionary with two keys: `length` and `coordinate_path`.
+Supported `output_units`:
 
-- `length`: The distance between the passed origin and destination when traversing the graph along the shortest path
-    - Notes:
-        - This will be in the units specified by the `output_units` parameter.
-        - `output_units` options:
-            - `km` (kilometers - default)
-            - `m` (meters)
-            - `mi` (miles)
-            - `ft` (feet)
-- `coordinate_path`: A list of lists [`latitude`,`longitude`] that make up the shortest path
+| Value | Unit |
+|---|---|
+| `km` | Kilometers (default) |
+| `m` | Meters |
+| `mi` | Miles |
+| `ft` | Feet |
 
+## Choosing an Algorithm
 
-You can also select a different algorithm function for the shortest_path:
+Pass any algorithm name (or function) to `algorithm_fn`:
+
 ```py
-from scgraph.geographs.marnet import marnet_geograph
-from scgraph import Graph
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
 output = marnet_geograph.get_shortest_path(
-    origin_node={"latitude": 31.23,"longitude": 121.47},
-    destination_node={"latitude": 32.08,"longitude": -81.09},
-    # Optional: Specify an algorithm_fn to call when solving the shortest_path
-    algorithm_fn=Graph.bmssp,
+    origin_node={"latitude": 31.23, "longitude": 121.47},
+    destination_node={"latitude": 32.08, "longitude": -81.09},
+    algorithm_fn='a_star',
+    algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
 )
 ```
 
-Don't neglect the very efficient distance matrix function to quickly get the distances between multiple points on the graph. Each origin graph entry point and shortest path tree is cached so you can generate massive distance matricies incredibly quickly (approaching 500 nano seconds per distance for large enough distance matricies).
+Available algorithm strings:
+
+| `algorithm_fn` | Description |
+|---|---|
+| `'dijkstra'` | Standard Dijkstra (default) |
+| `'a_star'` | A* with optional heuristic function |
+| `'bellman_ford'` | Bellman-Ford (supports negative weights) |
+| `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) and [BMSSP Implementation](https://github.com/connor-makowski/bmsspy) |
+| `'cached_shortest_path'` | Caches the shortest path tree for fast repeated queries from the same origin |
+| `'contraction_hierarchy'` | Bidirectional Dijkstra on a preprocessed CH graph. Very fast for arbitrary queries |
+
+You can also pass any callable that matches the `Graph` method signature.
+
+## Cached Queries (Same Origin, Many Destinations)
+
+For repeated queries from the same origin point (e.g., distribution center → many customers), use `cached_shortest_path`. The full shortest path tree is computed once and cached:
+
 ```py
-from scgraph.geographs.us_freeway import us_freeway_geograph
+from scgraph import GeoGraph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
+# First call: computes and caches the shortest path tree (~same cost as dijkstra)
+output1 = marnet_geograph.get_shortest_path(
+    origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai
+    destination_node={"latitude": 32.08, "longitude": -81.09}, # Savannah, GA
+    algorithm_fn='cached_shortest_path',
+)
+
+# Subsequent calls to the same origin are near-instant
+output2 = marnet_geograph.get_shortest_path(
+    origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai (same)
+    destination_node={"latitude": 51.50, "longitude": -0.13},  # London
+    algorithm_fn='cached_shortest_path',
+)
+```
+
+## Distance Matrix
+
+For all-pairs distance computation across a set of locations, use `distance_matrix`. Each origin's shortest path tree is cached internally, making this highly efficient for large matrices:
+
+```py
+from scgraph import GeoGraph
+
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 
 cities = [
     {"latitude": 34.0522, "longitude": -118.2437},  # Los Angeles
@@ -134,414 +209,562 @@ cities = [
     {"latitude": 29.7604, "longitude": -95.3698},   # Houston
 ]
 
-distance_matrix = us_freeway_geograph.distance_matrix(cities, output_units='km')
+matrix = us_freeway_geograph.distance_matrix(cities, output_units='km')
 # [
-#  [0.0, 4510.965665644833, 3270.3864033755776, 2502.886438995942],
-#  [4510.9656656448415, 0.0, 1288.473118634311, 2637.5821542546687],
-#  [3270.3864033755744, 1288.4731186343113, 0.0, 1913.1928919854067],
-#  [2502.886438995935, 2637.5821542546687, 1913.1928919854076, 0.0],
+#  [0.0,    4510.97, 3270.39, 2502.89],
+#  [4510.97, 0.0,   1288.47, 2637.58],
+#  [3270.39, 1288.47, 0.0,  1913.19],
+#  [2502.89, 2637.58, 1913.19, 0.0 ],
 # ]
 ```
 
-For more examples including viewing the output on a map, see the [example notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb).
+For large matrices, throughput can approach 500 nanoseconds per distance query.
 
+## Node Addition Options
 
-### Examples with Google Colab
-
-- [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb)
-- [Creating A Multi Path Geojson](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb)
-- [Modifying A Geograph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
-
-## GridGraph usage
-
-Example:
-- Create a grid of 20x20 cells.
-    - This creates a grid based graph with connections to all 8 neighbors for each grid item.
-    - Each grid item has 4 cardinal connections at length 1 and 4 diagonal connections at length sqrt(2)
-- Create a wall from (10,5) to (10,19).
-    - This would foce any path to go to the bottom of the graph to get around the wall.
-- Get the shortest path between (2,10) and (18,10)
-    - Note: The length of this path should be 16 without the wall and 20.9704 with the wall.
+Control how origin/destination are connected to the graph:
 
 ```py
-from scgraph import GridGraph
+marnet_geograph = GeoGraph.load_geograph("marnet")
 
-x_size = 20
-y_size = 20
-blocks = [(10, i) for i in range(5, y_size)]
-
-# Create the GridGraph object
-gridGraph = GridGraph(
-    x_size=x_size,
-    y_size=y_size,
-    blocks=blocks,
-    add_exterior_walls=True,
-)
-
-# Solve the shortest path between two points
-output = gridGraph.get_shortest_path(
-    origin_node={"x": 2, "y": 10},
-    destination_node={"x": 18, "y": 10},
-    # Optional: Specify the output coordinate format (default is 'list_of_dicts)
-    output_coordinate_path="list_of_lists",
-    # Optional: Cache the origin point shortest path tree for faster calculations on future calls
-    cache=True,
-)
-
-print(output)
-#=> {'length': 20.9704, 'coordinate_path': [[2, 10], [3, 9], [4, 8], [5, 8], [6, 7], [7, 6], [8, 5], [9, 4], [10, 4], [11, 4], [12, 5], [13, 6], [14, 7], [15, 7], [16, 8], [17, 9], [18, 10]]}
-```
-
-
-# About
-## Key Features
-
-- `Graph`:
-    - A low level graph object that has methods for validating graphs, calculating shortest paths, and more.
-    - See: [Graph Documentation](https://connor-makowski.github.io/scgraph/scgraph/graph.html)
-    - Contains the following methods:
-        - `validate_graph`: Validates symmetry and connectedness of a graph.
-        - `dijkstra`: Calculates the shortest path between two nodes using Dijkstra's algorithm.
-        - `dijkstra_makowski`: Calculates the shortest path between two nodes using a modified version of Dijkstra's algorithm designed for real world performance
-        - `dijkstra_negative`: Calculates the shortest path between two nodes using a modified version of Dijkstra's algorithm that supports negative edge weights and detects negative cycles.
-        - `a_star`: Modified version of `dijkstra_makowski` that incorporates a heuristic function to guide the search.
-        - `bellman_ford`: Calculates the shortest path between two nodes using the Bellman-Ford algorithm.
-        - `bmssp`: Calculates the shortest path between two nodes using a modified version of the [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033). See the [BMSSPy](https://github.com/connor-makowski/bmsspy)
-            - Note: To use this, you must install `BMSSPy` as well. If not installed, the algorithm will default to solve with `dijkstra_makowski`.
-            - You can install the needed packages with `pip install scgraph[bmsspy]`.
-- `GeoGraph`s:
-    - A geographic graph data structure that allows for the calculation of shortest paths between two points on earth
-    - Uses latitude / longitude pairs to represent points on earth
-    - Supports maritime, rail, road and other geographic networks
-    - Uses a sparse network data structure to represent the graph
-    - How to use it - Calculate the shortest path between two points on earth
-        - Inputs:
-            - A latitude / longitude pair for the origin
-            - A latitude / longitude pair for the destination
-        - Calculation:
-            - See the `Graph` documentation above for available algorithms.
-        - Returns:
-            - `path`:
-                - A list of lists `[latitude, longitude]` that make up the shortest path
-            - `length`:
-                - The distance (in the units requested) between the two points
-    - Precompiled Geographs offer Antimeridian support
-    - Arbitrary start and end points are supported
-        - Start and end points do not need to be in the graph
-    - Cached shortest path calculations can be used for very fast repetative calculations from the same origin node in a GeoGraph.
-        - This is done by caching the origin node's shortest path tree
-        - The first call will be slower, but future calls using this origin node will be substantially faster.
-- `GridGraph`s:
-    - A grid based graph data structure that allows for the calculation of shortest paths between two points on a grid
-    - See: [GridGraph Documentation](https://connor-makowski.github.io/scgraph/scgraph/grid.html)
-    - Supports arbitrary grid sizes and blockages
-    - Uses a sparse network data structure to represent the graph
-    - How to use it - Calculate the shortest path between two points on a grid
-        - Inputs:
-            - A (x,y) coordinate on the grid for the origin
-            - A (x,y) coordinate on the grid for the destination
-        - Calculation:
-            - Algorithms:
-                - Dijkstra's algorithm
-                - Modified Dijkstra algorithm
-                - A* algorithm (Extension of the Modified Dijkstra)
-        - Returns:
-            - `length`:
-                - The distance between the two points on the grid
-            - `coordinate_path`:
-                - A list of dicts `{"x": x, "y": y}` representing the path taken through the grid
-    - Arbitrary start and end points are supported
-        - Start and end points do not need to be in the graph
-    - Arbitrary connection matricies are supported
-        - Cardinal connections (up, down, left, right) and diagonal connections (up-left, up-right, down-left, down-right) are used by default
-        - Custom connection matricies can be used to change the connections between grid items
-    - Cached shortest path calculations can be used for very fast repetative calculations to or from the same point in a GridGraph.
-- Other Useful Features:
-    - `CacheGraph`s:
-        - A graph extension that caches shortest path trees for fast shortest path calculations on repeat calls from the same origin node
-        - See: [CacheGraphs Documentation](https://connor-makowski.github.io/scgraph/scgraph/cache.html)
-    - `SpanningTree`s:
-        - Note: In general, we calculate the shortest path tree instead of the  minimum spanning tree, however the name is retained for backwards compatibility.
-        - See: [Spanning Trees Documentation](https://connor-makowski.github.io/scgraph/scgraph/spanning.html)
-
-## Included GeoGraphs
-
-- marnet_geograph:
-    - What: A maritime network data set from searoute
-    - Use: `from scgraph.geographs.marnet import marnet_geograph`
-    - Attribution: [searoute](https://github.com/genthalili/searoute-py)
-    - Length Measurement: Kilometers
-    - [Marnet Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png)
-- oak_ridge_maritime_geograph:
-    - What: A maritime data set from the Oak Ridge National Laboratory campus
-    - Use: `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph`
-    - Attribution: [Oak Ridge National Laboratory](https://www.ornl.gov/) with data from [Geocommons](http://geocommons.com/datasets?id=25)
-    - Length Measurement: Kilometers
-    - [Oak Ridge Maritime Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png)
-- north_america_rail_geograph:
-    - What: Class 1 Rail network for North America
-    - Use: `from scgraph.geographs.north_america_rail import north_america_rail_geograph`
-    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about)
-    - Length Measurement: Kilometers
-    - [North America Rail Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png)
-- us_freeway_geograph:
-    - What: Freeway network for the United States
-    - Use: `from scgraph.geographs.us_freeway import us_freeway_geograph`
-    - Attribution: [U.S. Department of Transportation: ArcGIS Online](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about)
-    - Length Measurement: Kilometers
-    - [US Freeway Picture](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png)
-- `scgraph_data` geographs:
-    - What: Additional geographs are available in the `scgraph_data` package
-        - Note: These include larger geographs like the world highways geograph and world railways geograph.
-    - Installation: `pip install scgraph_data`
-    - Use: `from scgraph_data.world_highways import world_highways_geograph`
-    - See: [scgraph_data](https://github.com/connor-makowski/scgraph_data) for more information and all available geographs.
-- Custom Geographs:
-    - What: Users can create their own geographs from various data sources
-    - See: [Building your own Geographs from Open Source Data](https://github.com/connor-makowski/scgraph#building-your-own-geographs-from-open-source-data)
-
-# Advanced Usage
-
-## Using scgraph_data geographs
-
-Using `scgraph_data` geographs:
-- Note: Make sure to install the `scgraph_data` package before using these geographs
-```py
-from scgraph_data.world_railways import world_railways_geograph
-from scgraph import Graph
-
-# Get the shortest path between Kalamazoo Michigan and Detroit Michigan by Train
-output = world_railways_geograph.get_shortest_path(
-    origin_node={"latitude": 42.29,"longitude": -85.58},
-    destination_node={"latitude": 42.33,"longitude": -83.05},
-    # Optional: Use the A* algorithm
-    algorithm_fn=Graph.a_star,
-    # Optional: Pass the haversine function as the heuristic function to the A* algorithm
-    algorithm_kwargs={"heuristic_fn": world_railways_geograph.haversine},
+output = marnet_geograph.get_shortest_path(
+    origin_node={"latitude": 31.23, "longitude": 121.47},
+    destination_node={"latitude": 32.08, "longitude": -81.09},
+    # Max search radius in degrees (default: 'auto')
+    node_addition_lat_lon_bound=180,
+    # Connect origin to the closest node in each quadrant (NE, NW, SE, SW)
+    node_addition_type='quadrant',
+    # Connect destination to all nodes within the bound
+    destination_node_addition_type='all',
 )
 ```
 
-## Building your own Geographs from Open Source Data
-You can build your own geographs using various tools and data sources. For example, you can use OpenStreetMap data to create a high fidelity geograph for a specific area.
+| `node_addition_type` | Description |
+|---|---|
+| `'kdclosest'` | Closest node via KD-tree (default, fastest) |
+| `'closest'` | Closest node via brute force |
+| `'quadrant'` | Closest node in each of 4 quadrants |
+| `'all'` | All nodes within the bound |
 
-Follow this step by step guide on how to create a geograph from OpenStreetMap data.
-For this example, we will use some various tools to create a geograph for highways (including seconday highways) in Michigan, USA.
+| `node_addition_math` | Description |
+|---|---|
+| `'euclidean'` | Fast planar distance (default) |
+| `'haversine'` | Accurate great-circle distance |
 
-Download an OSM PBF file using the AWS CLI:
-- Geofabrik is a good source for smaller OSM PBF files. See: https://download.geofabrik.de/
-- To keep things generalizable, you can also download the entire planet OSM PBF file using AWS. But you should consider downloading a smaller region if you are only interested in a specific area.
-    - Note: For this, you will need to install the AWS CLI.
-    - Note: The planet OSM PBF file is very large (About 100GB)
-        ```
-        aws s3 cp s3://osm-pds/planet-latest.osm.pbf .
-        ```
-- Use Osmium to filter and extract the highways from the OSM PBF file.
-    - Install osmium on macOS:
-        ```
-        brew install osmium-tool
-        ```
-    - Install osmium on Ubuntu:
-        ```
-        sudo apt-get install osmium-tool
-        ```
-- Download a Poly file for the area you are interested in. This is a polygon file that defines the area you want to extract from the OSM PBF file.
-    - For Michigan, you can download the poly file from Geofabrik:
-        ```
-        curl https://download.geofabrik.de/north-america/us/michigan.poly > michigan.poly
-        ```
-    - Google around to find an appropriate poly file for your area of interest.
-- Filter and extract as GeoJSON (EG: Michigan) substituting the poly and pbf file names as needed:
-    ```
-    osmium extract -p michigan.poly --overwrite -o michigan.osm.pbf planet-latest.osm.pbf
-    ```
-- Filter the OSM PBF file to only areas of interest and export to GeoJSON:
-    - See: https://wiki.openstreetmap.org/wiki/
-    - EG For Highways, see: https://wiki.openstreetmap.org/wiki/Key:highway
-    ```
-    osmium tags-filter michigan.osm.pbf w/highway=motorway,trunk,primary,motorway_link,trunk_link,primary_link,secondary,secondary_link,tertiary,tertiary_link -t --overwrite -o michigan_roads.osm.pbf
-    osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.geojson
-    ```
+---
 
-- Simplify the geojson
-    - This uses some tools in the SCGraph library as well as Mapshaper to simplify the geojson files.
-    - Mapshaper is a CLI and web tool for simplifying and editing geojson files.
-    - To install Mapshaper for CLI use, use NPM:
-        ```
-        npm install -g mapshaper
-        ```
-    - Mapshaper is particularly helpful since it repairs intersections in the lines which is crutial for geographs to work properly.
-    - Mapshaper, however, does not handle larger files very well, so it is recommended to simplify the geojson file first using the `scgraph.helpers.geojson.simplify_geojson` function first to reduce the size of the file.
-    - Make sure to tailor the parameters to your needs.
-    ```
-    python -c "from scgraph.helpers.geojson import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3, silent=False)"
-    mapshaper michigan_roads_simple.geojson -simplify 10% -filter-fields -o force michigan_roads_simple.geojson
-    mapshaper michigan_roads_simple.geojson -snap -clean -o force michigan_roads_simple.geojson
-    ```
-- Load the newly created geojson file as a geograph:
-    - Note: The `GeoGraph.load_from_geojson` function is used to load the geojson file as a geograph.
-    - This will create a geograph that can be used to calculate shortest paths between points on the graph.
-    ```
-    from scgraph import GeoGraph
-    michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geojson')
-    ```
+# Built-in GeoGraphs
 
-## Custom Graphs and Geographs
-Modify an existing geograph: See the notebook [here](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb)
+All built-in geographs measure distances in kilometers and are downloaded on first use and cached locally.
 
+| Name | Load Key | Description | Attribution |
+|---|---|---|---|
+| `marnet` | `GeoGraph.load_geograph("marnet")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
+| `oak_ridge_maritime` | `GeoGraph.load_geograph("oak_ridge_maritime")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
+| `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
+| `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
+| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
+| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
-You can specify your own custom graphs for direct access to the solving algorithms. This requires the use of the low level `Graph` class
+## Loading and Cache Management
+
+Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads are instant and require no network access.
+
+```py
+from scgraph import GeoGraph
+
+# Load a geograph (downloads on first call, loads from cache after)
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
+# Optionally specify a custom cache directory
+marnet_geograph = GeoGraph.load_geograph("marnet", cache_dir="/path/to/cache")
+
+# List all available geographs and whether each is cached locally
+available = GeoGraph.list_geographs()
+# [
+#     {"name": "marnet",                    "cached": True},
+#     {"name": "north_america_rail",        "cached": False},
+#     {"name": "oak_ridge_maritime",        "cached": False},
+#     {"name": "us_freeway",                "cached": True},
+#     {"name": "world_highways_and_marnet", "cached": False},
+#     {"name": "world_highways",            "cached": False},
+#     {"name": "world_railways",            "cached": False},
+# ]
+
+# Clear all cached geograph files
+GeoGraph.clear_geograph_cache()
+```
+
+The cache location defaults to the platform-appropriate directory:
+
+| Platform | Default cache path |
+|---|---|
+| Linux | `~/.cache/scgraph/` |
+| macOS | `~/Library/Caches/scgraph/` |
+| Windows | `%LOCALAPPDATA%\\scgraph\\` |
+
+---
+
+# Loading Graphs from OSMNx
+
+SCGraph integrates directly with [OSMNx](https://osmnx.readthedocs.io/) — load any OpenStreetMap network and convert it to a `GeoGraph` in two lines:
+
+```py
+import osmnx as ox
+from scgraph import GeoGraph
+
+# Download the drivable road network for Ann Arbor, MI
+osmnx_graph = ox.graph_from_place("Ann Arbor, Michigan, USA", network_type="drive")
+
+# Convert to a GeoGraph
+ann_arbor_geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
+
+# Route between two points
+output = ann_arbor_geograph.get_shortest_path(
+    origin_node={"latitude": 42.2808, "longitude": -83.7430},
+    destination_node={"latitude": 42.2622, "longitude": -83.7482},
+    output_units='km',
+)
+print(output['length'])
+```
+
+### `load_from_osmnx_graph` Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `osmnx_graph` | required | An OSMNx graph object |
+| `coord_precision` | `5` | Decimal places for lat/lon coordinates |
+| `weight_precision` | `3` | Decimal places for edge weights |
+| `weight_key` | `'length'` | Edge attribute to use as weight (`'length'` or `'travel_time'`) |
+| `off_graph_travel_speed` | `None` | Speed (km/h) for off-graph connections; used to convert time-based weights to distances |
+| `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
+| `silent` | `False` | Suppress progress output |
+
+---
+
+# Building GeoGraphs from OSM Data (Without OSMNx)
+
+You can also build geographs from raw OpenStreetMap `.pbf` files. This approach works well for large regions or full-planet routing.
+
+**1. Download an OSM PBF file**
+
+[Geofabrik](https://download.geofabrik.de/) provides regional extracts. For the full planet (requires AWS CLI, ~100 GB):
+
+```bash
+aws s3 cp s3://osm-pds/planet-latest.osm.pbf .
+```
+
+**2. Install Osmium**
+
+```bash
+# macOS
+brew install osmium-tool
+# Ubuntu
+sudo apt-get install osmium-tool
+```
+
+**3. Extract and filter OSM data for your region**
+
+```bash
+# Download a polygon file for your region
+curl https://download.geofabrik.de/north-america/us/michigan.poly > michigan.poly
+
+# Extract and filter to highway types
+osmium extract -p michigan.poly --overwrite -o michigan.osm.pbf planet-latest.osm.pbf
+osmium tags-filter michigan.osm.pbf w/highway=motorway,trunk,primary,motorway_link,trunk_link,primary_link,secondary,secondary_link,tertiary,tertiary_link -t --overwrite -o michigan_roads.osm.pbf
+osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.geojson
+```
+
+**4. Simplify the GeoJSON**
+
+[Mapshaper](https://mapshaper.org/) repairs line intersections, which is essential for correct routing. Pre-simplify with SCGraph first to speed up Mapshaper:
+
+```bash
+npm install -g mapshaper
+
+python -c "from scgraph.helpers.geojson import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3, silent=False)"
+mapshaper michigan_roads_simple.geojson -simplify 10% -filter-fields -o force michigan_roads_simple.geojson
+mapshaper michigan_roads_simple.geojson -snap -clean -o force michigan_roads_simple.geojson
+```
+
+**5. Load as a GeoGraph**
+
+```py
+from scgraph import GeoGraph
+
+michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geojson')
+```
+
+---
+
+# GeoGraph Serialization
+
+Save and reload GeoGraphs to avoid rebuilding from source data each time.
+
+```py
+# Save to JSON (fastest reload)
+my_geograph.save_as_graphjson('my_geograph.json')
+
+# Reload later
+from scgraph import GeoGraph
+my_geograph = GeoGraph.load_from_graphjson('my_geograph.json')
+```
+
+| Method | Description |
+|---|---|
+| `save_as_geojson(filename)` | Save as GeoJSON (interoperable, larger file) |
+| `save_as_graphjson(filename)` | Save as SCGraph JSON (compact, fast reload) |
+| `save_as_geograph(name)` | Save as importable Python module |
+| `load_geograph(name)` | Load a built-in geograph by name (cached download) |
+| `load_from_geojson(filename)` | Load from GeoJSON file |
+| `load_from_graphjson(filename)` | Load from SCGraph JSON |
+| `load_from_osmnx_graph(osmnx_graph)` | Load from OSMNx graph object |
+
+---
+
+# Custom Graphs and Geographs
+
+## Custom Graph
+
+Use the low-level `Graph` class to work with arbitrary graph data:
 
 ```py
 from scgraph import Graph
 
-# Define an arbitrary graph
-# See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
-graph = [
+graph = Graph([
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
     {0: 1, 1: 2, 3: 4, 4: 8},
     {1: 1, 2: 4, 4: 3, 5: 6},
     {2: 8, 3: 3},
     {3: 6}
-]
+])
 
-# Optional: Validate your graph
-Graph.validate_graph(graph=graph)
+graph.validate()
 
-# Get the shortest path between idx 0 and idx 5
-output = Graph.dijkstra_makowski(graph=graph, origin_id=0, destination_id=5)
-#=> {'path': [0, 2, 1, 3, 5], 'length': 10}
+output = graph.dijkstra(origin_id=0, destination_id=5)
+print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
 ```
 
-You can also use a slightly higher level `GeoGraph` class to work with latitude / longitude pairs
+## Custom GeoGraph
+
+Attach latitude/longitude coordinates to your own graph data:
 
 ```py
 from scgraph import GeoGraph
 
-# Define nodes
-# See the nodes definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/geograph.html#GeoGraph.__init__
 nodes = [
-    # London
-    [51.5074, -0.1278],
-    # Paris
-    [48.8566, 2.3522],
-    # Berlin
-    [52.5200, 13.4050],
-    # Rome
-    [41.9028, 12.4964],
-    # Madrid
-    [40.4168, -3.7038],
-    # Lisbon
-    [38.7223, -9.1393]
+    [51.5074, -0.1278],   # 0: London
+    [48.8566,  2.3522],   # 1: Paris
+    [52.5200, 13.4050],   # 2: Berlin
+    [41.9028, 12.4964],   # 3: Rome
+    [40.4168, -3.7038],   # 4: Madrid
+    [38.7223, -9.1393],   # 5: Lisbon
 ]
-# Define a graph
-# See the graph definitions here:
-# https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph.validate_graph
+
 graph = [
-    # From London
-    {
-        # To Paris
-        1: 311,
-    },
-    # From Paris
-    {
-        # To London
-        0: 311,
-        # To Berlin
-        2: 878,
-        # To Rome
-        3: 1439,
-        # To Madrid
-        4: 1053
-    },
-    # From Berlin
-    {
-        # To Paris
-        1: 878,
-        # To Rome
-        3: 1181,
-    },
-    # From Rome
-    {
-        # To Paris
-        1: 1439,
-        # To Berlin
-        2: 1181,
-    },
-    # From Madrid
-    {
-        # To Paris
-        1: 1053,
-        # To Lisbon
-        5: 623
-    },
-    # From Lisbon
-    {
-        # To Madrid
-        4: 623
-    }
+    {1: 311},                           # London -> Paris
+    {0: 311, 2: 878, 3: 1439, 4: 1053},# Paris -> London, Berlin, Rome, Madrid
+    {1: 878, 3: 1181},                  # Berlin -> Paris, Rome
+    {1: 1439, 2: 1181},                 # Rome -> Paris, Berlin
+    {1: 1053, 5: 623},                  # Madrid -> Paris, Lisbon
+    {4: 623},                           # Lisbon -> Madrid
 ]
 
-# Create a GeoGraph object
 my_geograph = GeoGraph(nodes=nodes, graph=graph)
-
-# Optional: Validate your graph
-my_geograph.validate_graph()
-
-# Optional: Validate your nodes
+my_geograph.validate()
 my_geograph.validate_nodes()
 
-# Get the shortest path between two points
-# In this case, Birmingham England and Zaragoza Spain
-# Since Birmingham and Zaragoza are not in the graph,
-# the algorithm will add them into the graph.
-# See: https://connor-makowski.github.io/scgraph/scgraph/geograph.html#GeoGraph.get_shortest_path
-# Expected output would be to go from
-# Birmingham -> London -> Paris -> Madrid -> Zaragoza
-
+# Route Birmingham, England -> Zaragoza, Spain
 output = my_geograph.get_shortest_path(
-    # Birmingham England
-    origin_node = {'latitude': 52.4862, 'longitude': -1.8904},
-    # Zaragoza Spain
-    destination_node = {'latitude': 41.6488, 'longitude': -0.8891}
+    origin_node={'latitude': 52.4862, 'longitude': -1.8904},
+    destination_node={'latitude': 41.6488, 'longitude': -0.8891},
 )
 print(output)
 # {
 #     'length': 1799.4323,
 #     'coordinate_path': [
-#         [52.4862, -1.8904],
-#         [51.5074, -0.1278],
-#         [48.8566, 2.3522],
-#         [40.4168, -3.7038],
-#         [41.6488, -0.8891]
+#         [52.4862, -1.8904],  # Birmingham (off-graph, auto-connected)
+#         [51.5074, -0.1278],  # London
+#         [48.8566,  2.3522],  # Paris
+#         [40.4168, -3.7038],  # Madrid
+#         [41.6488, -0.8891]   # Zaragoza (off-graph, auto-connected)
 #     ]
 # }
-
 ```
 
+## Modifying a GeoGraph
+
+Add or remove nodes and edges dynamically:
+
+```py
+# Add a new coordinate node and auto-connect it to the graph
+node_id = my_geograph.add_coord_node(
+    coord_dict={"latitude": 43.70, "longitude": 7.25},  # Nice, France
+    auto_edge=True,
+    circuity=1.2,
+)
+
+# Add a direct edge between two existing nodes
+my_geograph.graph_object.add_edge(origin_id=0, destination_id=5, distance=1850, symmetric=True)
+
+# Remove the last added coordinate node
+my_geograph.remove_coord_node()
+```
+
+See the [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) for more examples.
+
+## Merging Two GeoGraphs
+
+Combine networks (e.g., road + rail) at specified interchange nodes:
+
+```py
+road_geograph.merge_with_other_geograph(
+    other_geograph=rail_geograph,
+    connection_nodes=[[40.71, -74.01], [41.88, -87.63]],  # NYC, Chicago
+    circuity_to_current_geograph=1.2,
+    circuity_to_other_geograph=1.2,
+)
+```
+
+---
+
+# GridGraph Usage
+
+`GridGraph` provides shortest path routing on a 2D grid with obstacles and configurable connectivity.
+
+```py
+from scgraph import GridGraph
+
+x_size = 20
+y_size = 20
+# Wall from (10,5) to (10,19)
+blocks = [(10, i) for i in range(5, y_size)]
+
+gridGraph = GridGraph(
+    x_size=x_size,
+    y_size=y_size,
+    blocks=blocks,
+    add_exterior_walls=True,
+    # Default: 8-neighbor connections (4 cardinal + 4 diagonal)
+)
+
+output = gridGraph.get_shortest_path(
+    origin_node={"x": 2, "y": 10},
+    destination_node={"x": 18, "y": 10},
+    output_coordinate_path="list_of_lists",  # or 'list_of_dicts' (default)
+    cache=True,  # Cache the origin tree for fast repeated queries
+)
+
+print(output)
+# {'length': 20.9704, 'coordinate_path': [[2, 10], [3, 9], ..., [18, 10]]}
+```
+
+Without the wall, the direct path length would be 16; the wall forces a detour to 20.9704.
+
+### Custom Connectivity
+
+Override the default 8-neighbor grid with a custom connection matrix:
+
+```py
+# conn_data: list of (x_offset, y_offset, distance) tuples
+# 4-neighbor (cardinal only) example:
+conn_data = [
+    (1, 0, 1.0),   # right
+    (-1, 0, 1.0),  # left
+    (0, 1, 1.0),   # up
+    (0, -1, 1.0),  # down
+]
+
+gridGraph = GridGraph(x_size=10, y_size=10, blocks=[], conn_data=conn_data)
+```
+
+---
+
+# Contraction Hierarchies
+
+Contraction Hierarchies (CH) provide extremely fast query times after a one-time preprocessing step. They are ideal when running many arbitrary origin-destination queries on the same large graph.
+
+**Performance tradeoff**: Preprocessing is slow (seconds to minutes depending on graph size); longer routes can solve far faster than standard Dijkstra. Note: This will likely still be slower than a cached shortest path tree for repeated queries from the same origin.
+
+## Preprocessing via GeoGraph
+
+```py
+from scgraph import GeoGraph
+
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
+
+# One-time preprocessing — only needed once per graph
+us_freeway_geograph.graph_object.create_contraction_hierarchy(
+    # Optionally: pass CH parameters here.
+)
+
+# All subsequent queries use the fast CH algorithm
+output = us_freeway_geograph.get_shortest_path(
+    origin_node={"latitude": 34.05, "longitude": -118.24},  # Los Angeles
+    destination_node={"latitude": 40.71, "longitude": -74.01},  # New York
+    algorithm_fn='contraction_hierarchy',
+)
+print(output['length'])
+```
+
+---
+
+# Algorithm Reference
+
+## Graph Algorithms
+
+All algorithms are available on `Graph` objects and accessible from `GeoGraph` via `algorithm_fn`:
+
+| Algorithm | `algorithm_fn` string | Use Case |
+|---|---|---|
+| `dijkstra` | `'dijkstra'` | General purpose; non-negative weights |
+| `dijkstra_negative` | `'dijkstra_negative'` | Negative edge weights; cycle detection |
+| `a_star` | `'a_star'` | Faster than Dijkstra with a good heuristic |
+| `bellman_ford` | `'bellman_ford'` | Negative weights; slower than Dijkstra |
+| `bmssp` | `'bmssp'` | [BMSSP](https://arxiv.org/pdf/2504.17033) + [Implementation](https://github.com/connor-makowski/bmsspy) |
+| `cached_shortest_path` | `'cached_shortest_path'` | Fast repeated queries from same origin |
+| `contraction_hierarchy` | `'contraction_hierarchy'` | Fast arbitrary queries after one-time preprocessing |
+
+## Heuristic Functions (for A*)
+
+GeoGraph provides built-in heuristics for A*:
+
+```py
+my_geograph = GeoGraph.load_geograph("marnet")  # or any other geograph
+
+output = my_geograph.get_shortest_path(
+    origin_node={"latitude": 42.29, "longitude": -85.58},
+    destination_node={"latitude": 42.33, "longitude": -83.05},
+    algorithm_fn='a_star',
+    algorithm_kwargs={"heuristic_fn": my_geograph.haversine},
+)
+```
+
+| Method | Description |
+|---|---|
+| `my_geograph.haversine` | Great-circle distance heuristic (accurate) |
+| `my_geograph.cheap_ruler` | Fast approximate distance (Mapbox method) |
+
+## Shortest Path Tree
+
+Compute the full shortest path tree from an origin for inspection or custom use:
+
+```py
+tree = graph.get_shortest_path_tree(origin_id=0)
+# {'origin_id': 0, 'predecessors': [...], 'distance_matrix': [...]}
+
+path = graph.get_tree_path(origin_id=0, destination_id=5, tree_data=tree)
+# {'path': [...], 'length': float}
+```
+
+---
+
+# Distance Utilities
+
+```py
+from scgraph.utils import haversine, cheap_ruler, distance_converter
+
+# Great-circle distance between two lat/lon points
+dist_km = haversine([31.23, 121.47], [32.08, -81.09], units='km')
+
+# Fast approximate distance (good near equator)
+dist_km = cheap_ruler([31.23, 121.47], [32.08, -81.09], units='km')
+
+# Unit conversion
+dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
+```
+
+---
+
+# Examples
+
+### Google Colab Notebooks
+
+- [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb) — Basic usage, visualization
+- [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb) — Export multiple routes as GeoJSON
+- [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) — Add/remove nodes and edges
+
+### Multi-Path GeoJSON Output
+
+Generate a GeoJSON file with multiple routes and custom properties:
+
+```py
+from scgraph import GeoGraph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
+routes = [
+    {
+        "geograph": marnet_geograph,
+        "origin": {"latitude": 31.23, "longitude": 121.47},
+        "destination": {"latitude": 32.08, "longitude": -81.09},
+        "properties": {"name": "Shanghai to Savannah"},
+    },
+    {
+        "geograph": marnet_geograph,
+        "origin": {"latitude": 22.30, "longitude": 114.17},
+        "destination": {"latitude": 51.50, "longitude": -0.13},
+        "properties": {"name": "Hong Kong to London"},
+    },
+]
+
+geojson = GeoGraph.get_multi_path_geojson(
+    routes=routes,
+    filename="routes.geojson",
+)
+```
+
+---
+
+# Performance Guide
+
+| Scenario | Recommended Approach |
+|---|---|
+| Single query | `dijkstra` (default) |
+| Repeated queries from one origin | `cached_shortest_path` |
+| Large distance matrix (same graph) | `distance_matrix()` method |
+| Many arbitrary queries on a fixed graph | `contraction_hierarchy` |
+| Speed-critical with a geographic heuristic | `a_star` with `haversine` heuristic |
+
+**Algorithm complexity**:
+
+| Algorithm | Time Complexity | Notes |
+|---|---|---|
+| Dijkstra | O((n+m) log n) | General purpose |
+| A* | O((n+m) log n) | Faster in practice with good heuristic |
+| Bellman-Ford | O(n·m) | Only needed for negative weights |
+| Cached SP | O((n+m) log n) first, O(1) after | Per-origin caching |
+| Contraction Hierarchy | O(k log k) per query | After O(n log n) preprocessing |
+
+---
+
 # Development
-## Running Tests, Prettifying Code, and Updating Docs
 
-Make sure Docker is installed and running on a Unix system (Linux, MacOS, WSL2).
+Make sure Docker is installed and running on a Unix system (Linux, macOS, WSL2).
 
-- Create a docker container and drop into a shell
-    - `./run.sh`
-- Run all tests (see ./utils/test.sh)
-    - `./run.sh test`
-- Prettify the code (see ./utils/prettify.sh)
-    - `./run.sh prettify`
-- Update the docs (see ./utils/docs.sh)
-    - `./run.sh docs`
+| Command | Description |
+|---|---|
+| `./run.sh` | Create a Docker container and drop into a shell |
+| `./run.sh test` | Run all tests |
+| `./run.sh test test/01_graph_basic_test.py` | Run a specific test file |
+| `./run.sh prettify` | Prettify the code |
+| `./run.sh docs` | Update the docs |
 
-- Note: You can and should modify the `Dockerfile` to test different python versions.
+You can modify the `Dockerfile` to test against different Python versions.
 
+---
 
 ## Attributions and Thanks
-Originally inspired by [searoute](https://github.com/genthalili/searoute-py) including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work properly with this package.
+
+Originally inspired by [searoute](https://github.com/genthalili/searoute-py), including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work with this package.
 """
 
-from .graph import Graph
-from .geograph import GeoGraph
-from .grid import GridGraph
+try:
+    from scgraph.cpp import Graph, CHGraph
+except ImportError:
+    from scgraph.graph import Graph
+    from scgraph.contraction_hierarchies import CHGraph
+from scgraph.geograph import GeoGraph
+from scgraph.grid import GridGraph

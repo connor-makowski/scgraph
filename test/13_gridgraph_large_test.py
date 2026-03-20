@@ -1,5 +1,4 @@
-from scgraph import GridGraph
-from scgraph.graph import Graph
+from scgraph.grid import GridGraph
 from time import time
 from scgraph.utils import hard_round
 
@@ -28,29 +27,29 @@ a_star_output_start_time = time()
 a_star_output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": y_size - 10},
     destination_node={"x": x_size - 10, "y": y_size - 10},
-    algorithm_fn=Graph.a_star,
+    algorithm_fn="a_star",
     heuristic_fn="euclidean",
 )
 a_star_output_time = time() - a_star_output_start_time
 print("A* Output Time: ", a_star_output_time * 1000, "ms")
 
-# Gridgraph test for Dijkstra-Modified
+# Gridgraph test for Dijkstra
 dijkstra_output_start_time = time()
 dijkstra_output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": y_size - 10},
     destination_node={"x": x_size - 10, "y": y_size - 10},
     cache=False,
-    algorithm_fn=Graph.dijkstra_makowski,
+    algorithm_fn="dijkstra",
 )
 dijkstra_output_time = time() - dijkstra_output_start_time
-print("Dijkstra-Modified Output Time: ", dijkstra_output_time * 1000, "ms")
+print("Dijkstra Output Time: ", dijkstra_output_time * 1000, "ms")
 
 # # Gridgraph test for BMSSP
 # bmssp_output_start_time = time()
 # bmssp_output = gridGraph.get_shortest_path(
 #     origin_node={"x": 10, "y": y_size - 10},
 #     destination_node={"x": x_size - 10, "y": y_size - 10},
-#     algorithm_fn=Graph.bmssp,
+#     algorithm_fn="bmssp",
 # )
 # bmssp_output_time = time() - bmssp_output_start_time
 # print("BMSSP Output Time: ", bmssp_output_time * 1000, "ms")
@@ -60,8 +59,7 @@ output_start_time = time()
 output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": y_size - 10},
     destination_node={"x": x_size - 10, "y": y_size - 10},
-    cache=True,
-    cache_for="origin",
+    algorithm_fn="cached_shortest_path",
 )
 output_start_time = time() - output_start_time
 print("Shortest Path Tree + Output Time: ", output_start_time * 1000, "ms")
@@ -70,8 +68,7 @@ cached_output_start_time = time()
 cached_output = gridGraph.get_shortest_path(
     origin_node={"x": 10, "y": y_size - 10},
     destination_node={"x": x_size - 10, "y": y_size - 10},
-    cache=True,
-    cache_for="origin",
+    algorithm_fn="cached_shortest_path",
 )
 cached_output_time = time() - cached_output_start_time
 print(
@@ -93,10 +90,10 @@ if hard_round(4, a_star_output["length"]) != hard_round(
     success = False
 if hard_round(4, output["length"]) != hard_round(4, cached_output["length"]):
     success = False
-if hard_round(4, bmssp_output["length"]) != hard_round(
-    4, cached_output["length"]
-):
-    success = False
+# if hard_round(4, bmssp_output["length"]) != hard_round(
+#     4, cached_output["length"]
+# ):
+#     success = False
 if success:
     print("GridGraph + Cache Test: PASS")
 else:

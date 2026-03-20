@@ -5,18 +5,22 @@
 # FROM python:3.11-slim
 # FROM python:3.12-slim
 # FROM python:3.13-slim
-FROM python:3.14-slim
-# # Temp Fix only needed for 3.14 until a wheel cffi is available
-# RUN apt-get update && apt-get install -y gcc libffi-dev
+# FROM python:3.14-slim
+# Use non bookwork or trixie versions to test CPP builds
+FROM python:3.14-bookworm
+
 
 # Set the working directory to /app
 WORKDIR /app/
 
 # Copy and install the requirements
-# This includes egg installing the scgraph package
-COPY scgraph/__init__.py /app/scgraph/__init__.py
-COPY pyproject.toml /app/pyproject.toml
 COPY requirements.txt /app/requirements.txt
+COPY pyproject.toml /app/pyproject.toml
+COPY scgraph/cpp /app/scgraph/cpp
+COPY CMakeLists.txt /app/CMakeLists.txt
+RUN touch /app/scgraph/__init__.py
+RUN touch README.md
+
 RUN pip install -r requirements.txt
 
 # Drop into a shell by default

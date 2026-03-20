@@ -6,15 +6,25 @@ cp README.md scgraph/__init__.py
 sed -i '1s/^/\"\"\"\n/' scgraph/__init__.py
 echo "\"\"\"" >> scgraph/__init__.py
 echo "" >> scgraph/__init__.py
-echo "from .graph import Graph" >> scgraph/__init__.py
-echo "from .geograph import GeoGraph" >> scgraph/__init__.py
-echo "from .grid import GridGraph" >> scgraph/__init__.py
+
+# Read through the file and replace all \ with \\ (for windows path issues in python docstrings)
+sed -i 's|\\|\\\\|g' scgraph/__init__.py
+
+# Add the following import statements to the end of the file:
+echo "try:" >> scgraph/__init__.py
+echo "    from scgraph.cpp import Graph, CHGraph" >> scgraph/__init__.py
+echo "except ImportError:" >> scgraph/__init__.py
+echo "    from scgraph.graph import Graph" >> scgraph/__init__.py
+echo "    from scgraph.contraction_hierarchies import CHGraph" >> scgraph/__init__.py
+
+echo "from scgraph.geograph import GeoGraph" >> scgraph/__init__.py
+echo "from scgraph.grid import GridGraph" >> scgraph/__init__.py
 
 
 
 # Specify versions for documentation purposes
-VERSION="2.15.0"
-OLD_DOC_VERSIONS="2.14.1 2.13.0 2.12.0 2.11.1 2.10.1 2.9.0 2.8.2 2.7.0 2.6.0 2.5.1 2.4.1 2.3.0 2.2.0 2.1.2 2.0.0 1.5.2 0.3.0"
+VERSION="3.0.0"
+OLD_DOC_VERSIONS="2.15.0 1.5.2 0.3.0"
 export version_options="$VERSION $OLD_DOC_VERSIONS"
 
 # generate the docs for a version function:

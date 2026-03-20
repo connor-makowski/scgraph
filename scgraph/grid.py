@@ -1,7 +1,6 @@
-from scgraph.graph import Graph
-from scgraph.helpers.shape_mover_utils import ShapeMoverUtils
-from scgraph.cache import CacheGraph
 from typing import Literal
+from scgraph import Graph
+from math import ceil
 
 
 class GridGraph:
@@ -104,7 +103,7 @@ class GridGraph:
 
         self.graph = self.__create_graph__()
         self.nodes = [self.__get_x_y__(idx) for idx in range(len(self.graph))]
-        self.cacheGraph = CacheGraph(self.graph)
+        self.graph_object = Graph(self.graph)
 
     def __get_idx__(self, x: int, y: int):
         """
@@ -201,17 +200,75 @@ class GridGraph:
         x_off: int,
         y_off: int,
     ):
-        return list(
-            ShapeMoverUtils.moving_shape_overlap_intervals(
-                x_coord=0,
-                y_coord=0,
-                x_shift=x_off,
-                y_shift=y_off,
-                t_start=0,
-                t_end=1,
-                shape=shape,
-            ).keys()
+        """
+        Returns the list of (x, y) integer grid cells that the shape overlaps
+        as it moves from (0, 0) to (x_off, y_off).
+        """
+        # Get bounding box of the shape at start and end positions
+        xs = [coord[0] for coord in shape]
+        ys = [coord[1] for coord in shape]
+
+        # Calculate the 1d overlaps in x and y directions
+        x_cells = list(
+            range(
+                int(min(xs) + min(0, x_off)), int(ceil(max(xs) + max(0, x_off)))
+            )
         )
+        y_cells = list(
+            range(
+                int(min(ys) + min(0, y_off)), int(ceil(max(ys) + max(0, y_off)))
+            )
+        )
+
+        # Combine to get 2D cell overlaps
+        result = set()
+        for x_key in x_cells:
+            for y_key in y_cells:
+                result.add((x_key, y_key))
+
+        # Remove untouched cells if moving diagonally
+        if x_off != 0 and y_off != 0:
+            slope = y_off / x_off
+
+            # Find min and max vertex given the slope
+            orthogonal = -1 / slope  # Compute orthogonal slope
+            # Define direction projections (a normalized direction vector, but without the linear algebra)
+            # Note: Technically normalized length is (1**2 + orthogonal**2)**.5, but we avoid the extra square for performance
+            length = (1 + orthogonal**2) ** 0.5
+            projections = [
+                x * 1.0 / length + y * orthogonal / length for x, y in shape
+            ]
+            # Return the min and max verticies
+            min_vertex = shape[
+                min(enumerate(projections), key=lambda x: x[1])[0]
+            ]
+            max_vertex = shape[
+                max(enumerate(projections), key=lambda x: x[1])[0]
+            ]
+            if slope > 0:
+                min_vertex, max_vertex = max_vertex, min_vertex
+
+            shape_min_intercept = min_vertex[1] - slope * min_vertex[0]
+            shape_max_intercept = max_vertex[1] - slope * max_vertex[0]
+
+            ltx_increment, gtx_increment = (1, 0) if slope < 0 else (0, 1)
+
+            remove_cells = []
+            for x_cell, y_cell in result:
+                cell_min_intercept = y_cell - (slope * (x_cell + gtx_increment))
+                cell_max_intercept = (y_cell + 1) - (
+                    slope * (x_cell + ltx_increment)
+                )
+
+                if not (
+                    cell_min_intercept < shape_max_intercept
+                    and shape_min_intercept < cell_max_intercept
+                ):
+                    remove_cells.append((x_cell, y_cell))
+            for key in remove_cells:
+                result.remove(key)
+        # Return the list of offsets
+        return list(result)
 
     def __create_graph__(
         self,
@@ -395,11 +452,8 @@ class GridGraph:
             | list[int | float]
         ),
         output_coordinate_path: str = "list_of_dicts",
-        cache: bool = False,
-        cache_for: str = "origin",
         output_path: bool = False,
-        heuristic_fn: callable | Literal["euclidean"] | None = "euclidean",
-        algorithm_fn: callable = Graph.a_star,
+        algorithm_fn: str = "dijkstra",
         algorithm_kwargs: dict | None = None,
         **kwargs,
     ) -> dict:
@@ -438,32 +492,18 @@ class GridGraph:
                 - `list_of_tuples`: A list of tuples with the first value being x and the second being y
                 - 'list_of_dicts': A list of dictionaries with keys 'x' and 'y'
                 - 'list_of_lists': A list of lists with the first value being x and the second being y
-        - `cache`
-            - Type: bool
-            - What: Whether to use the cache (save and reuse the shortest path tree)
-            - Default: False
-        - `cache_for`
-            - Type: str
-            - What: Whether to cache the shortest path tree for the origin or destination node if `cache` is True
-            - Default: 'origin'
-            - Options: 'origin', 'destination'
         - `output_path`
             - Type: bool
             - What: Whether to output the path as a list of graph idxs (mostly for debugging purposes)
             - Default: False
-        - `heuristic_fn`
-            - Type: callable | Literal['euclidean'] | None
-            - What: A heuristic function to use for the A* algorithm if caching is False
-            - Default: 'euclidean' (A predefined heuristic function that calculates the Euclidean distance for this grid graph)
-            - If None, the A* algorithm will default to Dijkstra's algorithm
-            - If a callable is provided, it should take two arguments: origin_id and destination_id and return a float representing the heuristic distance between the two nodes
-                - Note: This distance should never be greater than the actual distance between the two nodes or you may get suboptimal paths
-                - Note: This is deprecated and will be removed in a future version
         - `algorithm_fn`
-            - Type: callable | None
+            - Type: str | callable
             - What: The algorithm to use for pathfinding
-            - Default: 'a_star'
-            - If None, the default algorithm will be used
+            - Default: 'dijkstra'
+            - Options:
+                - 'dijkstra': Standard Dijkstra's algorithm (default)
+                - Any method name from the Graph class (e.g. 'bellman_ford', 'a_star', 'bmssp', 'cached_shortest_path', etc.)
+                - Any user defined function that takes origin_id, destination_id, and **algorithm_kwargs
         - `algorithm_kwargs`
             - Type: dict
             - What: Additional keyword arguments to pass to the algorithm function
@@ -480,6 +520,14 @@ class GridGraph:
             }
         if algorithm_kwargs is None:
             algorithm_kwargs = {}
+        if callable(algorithm_fn):
+            algorithm_kwargs["graph"] = self.graph
+        elif isinstance(algorithm_fn, str) and hasattr(
+            self.graph_object, algorithm_fn
+        ):
+            algorithm_fn = getattr(self.graph_object, algorithm_fn)
+        else:
+            raise ValueError("algorithm_fn must be a string or callable")
 
         origin_id, origin_distance = self.__get_closest_node_with_connections__(
             **origin_node
@@ -496,38 +544,12 @@ class GridGraph:
             raise ValueError(
                 "Destination node is not connected to any other nodes. This is likely caused by the destination node not being possible given a blocked cell or nearby blocked cell"
             )
-        if cache:
-            if cache_for not in ["origin", "destination"]:
-                raise ValueError(
-                    "cache_for must be 'origin' or 'destination' when cache is True"
-                )
-            # Reverse for cache graphing if cache_for is destination since the graph is undirected
-            if cache_for == "destination":
-                origin_id, destination_id = destination_id, origin_id
-            output = self.cacheGraph.get_shortest_path(
-                origin_id=origin_id,
-                destination_id=destination_id,
-            )
-            # Undo the reverse if cache_for is destination
-            if cache_for == "destination":
-                output["path"].reverse()
-                origin_id, destination_id = destination_id, origin_id
-        else:
-            # TODO: Remove this backwards compatibility hack in future versions
-            if algorithm_fn == Graph.a_star:
-                if "heuristic_fn" not in algorithm_kwargs:
-                    algorithm_kwargs["heuristic_fn"] = (
-                        self.euclidean_heuristic
-                        if heuristic_fn == "euclidean"
-                        else heuristic_fn
-                    )
-            output = algorithm_fn(
-                graph=self.graph,
-                origin_id=origin_id,
-                destination_id=destination_id,
-                **algorithm_kwargs,
-            )
-        output["coordinate_path"] = self.get_coordinate_path(
+        output = algorithm_fn(
+            origin_id=origin_id,
+            destination_id=destination_id,
+            **algorithm_kwargs,
+        )
+        output["coordinate_path"] = self.__get_coordinate_path__(
             output["path"], output_coordinate_path
         )
         if origin_distance > 0:
@@ -546,7 +568,7 @@ class GridGraph:
             del output["path"]
         return output
 
-    def get_coordinate_path(
+    def __get_coordinate_path__(
         self, path: list[int], output_coordinate_path: str = "list_of_dicts"
     ) -> list[dict[str, int]]:
         """
@@ -638,7 +660,7 @@ class GridGraph:
                 "add_exterior_walls": self.add_exterior_walls,
                 "conn_data": self.conn_data,
             },
-            "graph_cache": self.cacheGraph.cache,
+            "graph_cache": self.graph_object.get_cache(),
             "export_version": 1,
         }
         if include_blocks:
@@ -698,6 +720,6 @@ class GridGraph:
         for key, value in import_data["graph_attributes"].items():
             GridGraph_object.__setattr__(key, value)
 
-        GridGraph_object.cacheGraph = CacheGraph(GridGraph_object.graph)
-        GridGraph_object.cacheGraph.cache = import_data["graph_cache"]
+        GridGraph_object.graph_object = Graph(GridGraph_object.graph)
+        GridGraph_object.graph_object.set_cache(import_data["graph_cache"])
         return GridGraph_object

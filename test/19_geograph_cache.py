@@ -1,21 +1,7 @@
-from scgraph.geographs.us_freeway import us_freeway_geograph
-from time import time
+from scgraph import GeoGraph
 
-
-def validate(name, realized, expected):
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time()
-    thunk()
-    print(f"{name}: {round((time()-start)*1000, 4)}ms")
-
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
+from scgraph.utils import time_test
 
 cities = {
     "Los Angeles": (34.0522, -118.2437),
@@ -59,7 +45,7 @@ for city1, coord1 in cities.items():
                     "longitude": coord2[1],
                     "latitude": coord2[0],
                 },
-                cache=True,
+                algorithm_fn="cached_shortest_path",
             )["length"]
             cached_len_only = us_freeway_geograph.get_shortest_path(
                 origin_node={"longitude": coord1[1], "latitude": coord1[0]},
@@ -67,7 +53,7 @@ for city1, coord1 in cities.items():
                     "longitude": coord2[1],
                     "latitude": coord2[0],
                 },
-                cache=True,
+                algorithm_fn="cached_shortest_path",
                 length_only=True,
             )["length"]
             if (
@@ -109,7 +95,7 @@ def cached_time():
                         "longitude": coord2[1],
                         "latitude": coord2[0],
                     },
-                    cache=True,
+                    algorithm_fn="cached_shortest_path",
                 )
 
 
@@ -123,7 +109,7 @@ def cached_len_only_time():
                         "longitude": coord2[1],
                         "latitude": coord2[0],
                     },
-                    cache=True,
+                    algorithm_fn="cached_shortest_path",
                     length_only=True,
                 )
 
@@ -145,7 +131,7 @@ def single_cached_time():
             "longitude": -74.0060,
             "latitude": 40.7128,
         },
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     )
 
 
@@ -156,19 +142,21 @@ def single_cached_len_only_time():
             "longitude": -74.0060,
             "latitude": 40.7128,
         },
-        cache=True,
+        algorithm_fn="cached_shortest_path",
         length_only=True,
     )
 
 
 print("\n===============\nGeoGraph Cache Timing Tests:\n===============")
-time_test(name="GeoGraph single uncached time", thunk=single_uncached_time)
-time_test(name="GeoGraph single cached time", thunk=single_cached_time)
+time_test(name="GeoGraph single uncached time", function=single_uncached_time)
+time_test(name="GeoGraph single cached time", function=single_cached_time)
 time_test(
     name="GeoGraph single cached length only time",
-    thunk=single_cached_len_only_time,
+    function=single_cached_len_only_time,
 )
 
-time_test(name="GeoGraph uncached time", thunk=uncached_time)
-time_test(name="GeoGraph cached time", thunk=cached_time)
-time_test(name="GeoGraph cached length only time", thunk=cached_len_only_time)
+time_test(name="GeoGraph uncached time", function=uncached_time)
+time_test(name="GeoGraph cached time", function=cached_time)
+time_test(
+    name="GeoGraph cached length only time", function=cached_len_only_time
+)

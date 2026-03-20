@@ -1,0 +1,31 @@
+
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Read(./scgraph/**)",
+      "Edit(./scgraph/**)",
+      "Write(./scgraph/**)",
+      "Read(./test/**)",
+      "Edit(./test/**)",
+      "Write(./test/**)",
+      "Read(./README.md)",
+      "Edit(./README.md)",
+      "Write(./README.md)",
+      "Bash(./run.sh test)",
+      "Bash(./run.sh test test/*.py)",
+      "Bash(./run.sh prettify)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(git *)",
+      "Read(cache/**)",
+      "Read(dist/**)",
+      "Read(**/__pycache__/**)",
+      "Read(**/venv/**)",
+      "Read(geographs/**)",
+      "Read(**.json)"
+    ]
+  }
+}

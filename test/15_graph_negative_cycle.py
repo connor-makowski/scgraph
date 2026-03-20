@@ -1,25 +1,29 @@
 from scgraph import Graph
 from time import time
 
-print("\n===============\nGridGraph Import Export Tests:\n===============")
+print("\n===============\nGridGraph Negative Cycle Tests:\n===============")
 
 print_timings = True
 
-graph = [
-    {1: -1},
-    {2: 2},
-    {0: 2},
-]
-graph_negative_cycle = [
-    {1: -5},
-    {2: 2},
-    {0: 2},
-]
+graph = Graph(
+    [
+        {1: -1},
+        {2: 2},
+        {0: 2},
+    ]
+)
+graph_negative_cycle = Graph(
+    [
+        {1: -5},
+        {2: 2},
+        {0: 2},
+    ]
+)
 success = True
 
 try:
-    Graph.dijkstra_negative(
-        graph=graph, origin_id=0, destination_id=1, cycle_check_iterations=10
+    graph.dijkstra_negative(
+        origin_id=0, destination_id=1, cycle_check_iterations=10
     )
 except:
     # print("An exception was raised when no negative cycle was expected.")
@@ -27,8 +31,7 @@ except:
 
 
 try:
-    Graph.dijkstra_negative(
-        graph=graph_negative_cycle,
+    graph_negative_cycle.dijkstra_negative(
         origin_id=0,
         destination_id=1,
         cycle_check_iterations=10,

@@ -1,5 +1,7 @@
-from scgraph.geographs.marnet import marnet_geograph
-from scgraph.geographs.us_freeway import us_freeway_geograph
+from scgraph import GeoGraph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 
 print("\n===============\nGeoGraph Merge Tests:\n===============")
 
@@ -38,39 +40,42 @@ ports = [
     [45.5152, -122.6784],
 ]
 
-us_freeway_geograph.merge_with_other_geograph(
-    other_geograph=marnet_geograph,
-    connection_nodes=ports,
-    circuity_to_current_geograph=1.1,
-    circuity_to_other_geograph=1.3,
-    node_addition_type_current_geograph="closest",
-    node_addition_type_other_geograph="closest",
-    node_addition_math="euclidean",
-)
+try:
+    us_freeway_geograph.merge_with_other_geograph(
+        other_geograph=marnet_geograph,
+        connection_nodes=ports,
+        circuity_to_current_geograph=1.1,
+        circuity_to_other_geograph=1.3,
+        node_addition_type_current_geograph="closest",
+        node_addition_type_other_geograph="closest",
+        node_addition_math="euclidean",
+    )
 
-# Test from Atlanta to London
-atlanta_node = {"latitude": 33.7490, "longitude": -84.3880}
-london_node = {"latitude": 51.5074, "longitude": -0.1278}
+    # Test from Atlanta to London
+    atlanta_node = {"latitude": 33.7490, "longitude": -84.3880}
+    london_node = {"latitude": 51.5074, "longitude": -0.1278}
 
-freeway = us_freeway_geograph.get_shortest_path(
-    origin_node=atlanta_node,
-    destination_node=london_node,
-)
+    freeway = us_freeway_geograph.get_shortest_path(
+        origin_node=atlanta_node,
+        destination_node=london_node,
+    )
 
-marnet = marnet_geograph.get_shortest_path(
-    origin_node=atlanta_node,
-    destination_node=london_node,
-)
+    marnet = marnet_geograph.get_shortest_path(
+        origin_node=atlanta_node,
+        destination_node=london_node,
+    )
 
-expected_freeway_length = 7094.0603
-expected_marnet_length = 8820.8927
+    expected_freeway_length = 7094.0603
+    expected_marnet_length = 8820.8927
 
-success = True
+    success = True
 
-if abs(freeway["length"] - expected_freeway_length) > 0.1:
-    success = False
+    if abs(freeway["length"] - expected_freeway_length) > 0.1:
+        success = False
 
-if abs(marnet["length"] - expected_marnet_length) > 0.1:
+    if abs(marnet["length"] - expected_marnet_length) > 0.1:
+        success = False
+except:
     success = False
 
 if not success:

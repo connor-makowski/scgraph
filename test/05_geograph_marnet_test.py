@@ -1,27 +1,8 @@
-import time
-from pamda import pamda
-from scgraph import Graph
-from scgraph.geographs.marnet import marnet_geograph
-from scgraph.utils import hard_round
+from scgraph import GeoGraph
+from scgraph.utils import validate, time_test
 
+marnet_geograph = GeoGraph.load_geograph("marnet")
 marnet_geograph.warmup()
-
-
-def validate(name, realized, expected):
-    if isinstance(realized, dict) and "length" in realized:
-        realized["length"] = hard_round(3, realized["length"])
-    if realized == expected:
-        print(f"{name}: PASS")
-    else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
-
-
-def time_test(name, thunk):
-    start = time.time()
-    thunk()
-    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
 
 
 print("\n===============\nMarnet GeoGraph Tests:\n===============")
@@ -52,7 +33,7 @@ destination_node = {"latitude": 30, "longitude": -160}
 
 validate(
     name="Graph Validation",
-    realized=marnet_geograph.validate_graph(
+    realized=marnet_geograph.validate(
         check_symmetry=True, check_connected=True
     ),
     expected=None,
@@ -64,21 +45,11 @@ validate(
 )
 
 validate(
-    name="Dijkstra-Modified",
+    name="Dijkstra",
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra,
-    ),
-    expected=expected,
-)
-
-validate(
-    name="Dijkstra-Modified",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra_makowski,
+        algorithm_fn="dijkstra",
     ),
     expected=expected,
 )
@@ -88,7 +59,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
     ),
     expected=expected,
@@ -99,7 +70,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     ),
     expected=expected,
@@ -110,7 +81,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     ),
     expected=expected,
 )
@@ -120,7 +91,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     ),
     expected=expected,
 )
@@ -130,7 +101,7 @@ validate(
     realized=marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.bmssp,
+        algorithm_fn="bmssp",
     ),
     expected=expected,
 )
@@ -139,11 +110,10 @@ print("\n===============\nMarnet GeoGraph Time Tests:\n===============")
 
 time_test(
     "Graph Validation",
-    pamda.thunkify(marnet_geograph.validate_graph)(
-        check_symmetry=True, check_connected=True
-    ),
+    marnet_geograph.validate,
+    kwargs={"check_symmetry": True, "check_connected": True},
 )
-time_test("Node Validation", pamda.thunkify(marnet_geograph.validate_nodes))
+time_test("Node Validation", marnet_geograph.validate_nodes)
 
 # Note: These must be different than the above calls to ensure caching testing works correctly
 origin_node = {"latitude": 31.23, "longitude": 121.47}
@@ -154,15 +124,7 @@ def dijkstra():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra,
-    )
-
-
-def dijkstra_makowski():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn=Graph.dijkstra_makowski,
+        algorithm_fn="dijkstra",
     )
 
 
@@ -170,7 +132,7 @@ def a_star_haversine():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
     )
 
@@ -179,7 +141,7 @@ def a_star_cheap_ruler():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.a_star,
+        algorithm_fn="a_star",
         algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
     )
 
@@ -188,7 +150,7 @@ def cached_shortest_path_tree_first_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     )
 
 
@@ -196,7 +158,7 @@ def cached_shortest_path_tree_second_call():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        cache=True,
+        algorithm_fn="cached_shortest_path",
     )
 
 
@@ -204,12 +166,11 @@ def bmssp():
     marnet_geograph.get_shortest_path(
         origin_node=origin_node,
         destination_node=destination_node,
-        algorithm_fn=Graph.bmssp,
+        algorithm_fn="bmssp",
     )
 
 
 time_test("Dijkstra", dijkstra)
-time_test("Dijkstra-Modified", dijkstra_makowski)
 time_test("A*-haversine", a_star_haversine)
 time_test("A*-cheap_ruler", a_star_cheap_ruler)
 time_test(
