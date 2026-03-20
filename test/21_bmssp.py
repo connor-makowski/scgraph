@@ -3,8 +3,7 @@ from scgraph.utils import validate, time_test
 
 marnet_geograph = GeoGraph.load_geograph("marnet")
 us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
-
-# from scgraph_data.world_highways_and_marnet import world_highways_and_marnet_graph
+# world_highways_and_marnet_geograph = GeoGraph.load_geograph("world_highways_and_marnet")
 
 
 print("\n===============\nBMSSP Tests:\n===============")

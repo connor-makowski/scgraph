@@ -2,11 +2,7 @@ from heapq import heappop, heappush
 from typing import Any
 from scgraph.graph_utils import GraphUtils, GraphModifiers
 from scgraph.contraction_hierarchies import CHGraph
-
-try:
-    from bmsspy import Bmssp
-except ImportError:
-    Bmssp = None
+from bmsspy import Bmssp
 
 
 class GraphTrees:
@@ -424,7 +420,7 @@ class GraphAlgorithms:
         self,
         origin_id: int | set[int],
         destination_id: int,
-        constant_degree_graph: bool = True,
+        use_constant_degree_graph: bool = True,
     ):
         """
         Function:
@@ -447,7 +443,7 @@ class GraphAlgorithms:
         - `destination_id`
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
-        - `constant_degree_graph`
+        - `use_constant_degree_graph`
             - Type: bool
             - What: Whether to convert the graph to a constant degree 2 graph prior to running the BMSSPy algorithm
             - Default: True
@@ -457,26 +453,17 @@ class GraphAlgorithms:
 
         - None
         """
-        if Bmssp is None:
-            print(
-                "Warning: BMSSPy is not installed, falling back to dijkstra algorithm. To use the BMSSPy algorithm, please install the BMSSPy package."
-            )
-            return self.dijkstra(
-                origin_id=origin_id,
-                destination_id=destination_id,
-            )
-        else:
-            bmssp_graph = Bmssp(
-                graph=self.graph,
-                use_constant_degree_graph=constant_degree_graph,
-            )
-            output = bmssp_graph.solve(
-                origin_id=origin_id, destination_id=destination_id
-            )
-            return {
-                "path": output["path"],
-                "length": output["length"],
-            }
+        bmssp_graph = Bmssp(
+            graph=self.graph,
+            use_constant_degree_graph=use_constant_degree_graph,
+        )
+        output = bmssp_graph.solve(
+            origin_id=origin_id, destination_id=destination_id
+        )
+        return {
+            "path": output["path"],
+            "length": output["length"],
+        }
 
     def cached_shortest_path(
         self,

@@ -6,4 +6,4 @@ pamda>=2.6.1
 pdoc>=15.0.1
 twine>=6.1.0
 virtualenv>=20.29.2
--e .[bmsspy]
+-e .

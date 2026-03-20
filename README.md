@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/)
 
-**A high-performance, dependency-free Python library for shortest path routing on geographic and supply chain networks.**
+**A high-performance, lightweight Python library for shortest path routing on geographic and supply chain networks.**
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
@@ -162,7 +162,7 @@ Available algorithm strings:
 | `'dijkstra'` | Standard Dijkstra (default) |
 | `'a_star'` | A* with optional heuristic function |
 | `'bellman_ford'` | Bellman-Ford (supports negative weights) |
-| `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) (requires `pip install scgraph[bmssp]`) |
+| `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) and [BMSSP Implementation](https://github.com/connor-makowski/bmsspy) |
 | `'cached_shortest_path'` | Caches the shortest path tree for fast repeated queries from the same origin |
 | `'contraction_hierarchy'` | Bidirectional Dijkstra on a preprocessed CH graph. Very fast for arbitrary queries |
 
@@ -618,7 +618,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | `dijkstra_negative` | `'dijkstra_negative'` | Negative edge weights; cycle detection |
 | `a_star` | `'a_star'` | Faster than Dijkstra with a good heuristic |
 | `bellman_ford` | `'bellman_ford'` | Negative weights; slower than Dijkstra |
-| `bmssp` | `'bmssp'` | [BMSSP](https://arxiv.org/pdf/2504.17033) algorithm (optional dependency) |
+| `bmssp` | `'bmssp'` | [BMSSP](https://arxiv.org/pdf/2504.17033) + [Implementation](https://github.com/connor-makowski/bmsspy) |
 | `cached_shortest_path` | `'cached_shortest_path'` | Fast repeated queries from same origin |
 | `contraction_hierarchy` | `'contraction_hierarchy'` | Fast arbitrary queries after one-time preprocessing |
 

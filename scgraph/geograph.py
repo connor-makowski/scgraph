@@ -1614,7 +1614,7 @@ class GeoGraph(
                 - 'bellman_ford' -> GraphAlgorithms.bellman_ford
                     - Bellman-Ford algorithm; supports negative weights but slower than dijkstra
                 - 'bmssp' -> GraphAlgorithms.bmssp
-                    - BMSSP algorithm (requires `pip install scgraph[bmssp]`); falls back to dijkstra if not installed
+                    - BMSSP algorithm; not actually faster in practice than dijkstra but included for completeness
                 - 'cached_shortest_path' -> GraphAlgorithms.cached_shortest_path
                     - Computes and caches the full shortest path tree from the origin on the first call;
                       subsequent calls from the same origin node are near-instant
