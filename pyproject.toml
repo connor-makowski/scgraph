@@ -11,9 +11,21 @@ build-backend = "scikit_build_core.build"
 build.verbose = false
 build-dir = "build/{wheel_tag}"
 
+[tool.scikit-build.sdist]
+exclude = ["*"]
+include = [
+    "scgraph/**/*.py",
+    "scgraph/**/*.cpp",
+    "scgraph/**/*.hpp",
+    "CMakeLists.txt",
+    "README.md",
+    "LICENSE",
+]
+
+
 [project]
 name = "scgraph"
-version = "3.0.0b1"
+version = "3.0.0b2"
 description = "Determine an approximate distance and route between two points on earth."
 authors = [
     {name="Connor Makowski", email="conmak@mit.edu"}
