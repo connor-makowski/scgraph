@@ -14,9 +14,10 @@ build-dir = "build/{wheel_tag}"
 [tool.scikit-build.sdist]
 exclude = ["*"]
 include = [
-    "scgraph/**/*.py",
-    "scgraph/**/*.cpp",
-    "scgraph/**/*.hpp",
+    "scgraph/*.py",
+    "scgraph/helpers/*.py",
+    "scgraph/cpp/*",
+    "pyproject.toml",
     "CMakeLists.txt",
     "README.md",
     "LICENSE",
@@ -25,7 +26,7 @@ include = [
 
 [project]
 name = "scgraph"
-version = "3.0.0b2"
+version = "3.0.0b4"
 description = "Determine an approximate distance and route between two points on earth."
 authors = [
     {name="Connor Makowski", email="conmak@mit.edu"}
