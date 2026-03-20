@@ -1,13 +1,17 @@
 from scgraph import GeoGraph
 from scgraph.utils import validate, time_test
 
-world_highways_and_marnet_geograph = GeoGraph.load_geograph("world_highways_and_marnet")
+world_highways_and_marnet_geograph = GeoGraph.load_geograph(
+    "world_highways_and_marnet"
+)
 
-print("\n===============\nWorld Highways and Marnet GeoGraph Tests:\n===============")
+print(
+    "\n===============\nWorld Highways and Marnet GeoGraph Tests:\n==============="
+)
 
 expected = {
-    'length': 134.478, 
-    'coordinate_path': [
+    "length": 134.478,
+    "coordinate_path": [
         [41.129, -85.158],
         [41.129, -85.158],
         [41.138, -85.136],
@@ -29,10 +33,9 @@ expected = {
         [42.262, -84.988],
         [42.27, -84.991],
         [42.297, -84.997],
-        [42.297, -84.996]
-    ]
+        [42.297, -84.996],
+    ],
 }
-
 
 
 # Fort Wayne IN
@@ -69,7 +72,9 @@ validate(
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": world_highways_and_marnet_geograph.haversine},
+        algorithm_kwargs={
+            "heuristic_fn": world_highways_and_marnet_geograph.haversine
+        },
     ),
     expected=expected,
 )
@@ -80,7 +85,9 @@ validate(
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": world_highways_and_marnet_geograph.cheap_ruler},
+        algorithm_kwargs={
+            "heuristic_fn": world_highways_and_marnet_geograph.cheap_ruler
+        },
     ),
     expected=expected,
 )
@@ -96,7 +103,9 @@ validate(
 )
 
 
-print("\n===============\nWorld Highways and Marnet GeoGraph Time Tests:\n===============")
+print(
+    "\n===============\nWorld Highways and Marnet GeoGraph Time Tests:\n==============="
+)
 
 time_test(
     "Graph Validation",
@@ -124,7 +133,9 @@ def a_star_haversine():
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": world_highways_and_marnet_geograph.haversine},
+        algorithm_kwargs={
+            "heuristic_fn": world_highways_and_marnet_geograph.haversine
+        },
     )
 
 
@@ -133,7 +144,9 @@ def a_star_cheap_ruler():
         origin_node=origin_node,
         destination_node=destination_node,
         algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": world_highways_and_marnet_geograph.cheap_ruler},
+        algorithm_kwargs={
+            "heuristic_fn": world_highways_and_marnet_geograph.cheap_ruler
+        },
     )
 
 

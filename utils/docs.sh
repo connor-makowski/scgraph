@@ -6,6 +6,11 @@ cp README.md scgraph/__init__.py
 sed -i '1s/^/\"\"\"\n/' scgraph/__init__.py
 echo "\"\"\"" >> scgraph/__init__.py
 echo "" >> scgraph/__init__.py
+
+# Read through the file and replace all \ with \\ (for windows path issues in python docstrings)
+sed -i 's|\\|\\\\|g' scgraph/__init__.py
+
+# Add the following import statements to the end of the file:
 echo "try:" >> scgraph/__init__.py
 echo "    from scgraph.cpp import Graph, CHGraph" >> scgraph/__init__.py
 echo "except ImportError:" >> scgraph/__init__.py

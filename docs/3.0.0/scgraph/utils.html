@@ -75,6 +75,9 @@
             <li>
                     <a class="function" href="#cpp_check">cpp_check</a>
             </li>
+            <li>
+                    <a class="function" href="#get_default_cache_path">get_default_cache_path</a>
+            </li>
     </ul>
 
 
@@ -132,9 +135,9 @@
 
                         <label class="view-source-button" for="mod-utils-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">pi</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">asin</span>
-</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span><span class="o">,</span><span class="w"> </span><span class="nn">platform</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">pi</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">asin</span>
 </span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a>
 </span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="c1"># Constants for haversine and cheap ruler calculations</span>
 </span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="n">earth_radius</span> <span class="o">=</span> <span class="p">{</span>
@@ -483,6 +486,22 @@
 </span><span id="L-349"><a href="#L-349"><span class="linenos">349</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using C++ &amp; Python implementation of SCGraph.&quot;</span><span class="p">)</span>
 </span><span id="L-350"><a href="#L-350"><span class="linenos">350</span></a>    <span class="k">except</span><span class="p">:</span>
 </span><span id="L-351"><a href="#L-351"><span class="linenos">351</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using Pure Python implementation of SCGraph.&quot;</span><span class="p">)</span>
+</span><span id="L-352"><a href="#L-352"><span class="linenos">352</span></a>
+</span><span id="L-353"><a href="#L-353"><span class="linenos">353</span></a>
+</span><span id="L-354"><a href="#L-354"><span class="linenos">354</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+</span><span id="L-355"><a href="#L-355"><span class="linenos">355</span></a>    <span class="n">system</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
+</span><span id="L-356"><a href="#L-356"><span class="linenos">356</span></a>    <span class="k">if</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">:</span>
+</span><span id="L-357"><a href="#L-357"><span class="linenos">357</span></a>        <span class="n">local_app_data</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LOCALAPPDATA&quot;</span><span class="p">)</span>
+</span><span id="L-358"><a href="#L-358"><span class="linenos">358</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="L-359"><a href="#L-359"><span class="linenos">359</span></a>            <span class="n">Path</span><span class="p">(</span><span class="n">local_app_data</span><span class="p">)</span>
+</span><span id="L-360"><a href="#L-360"><span class="linenos">360</span></a>            <span class="k">if</span> <span class="n">local_app_data</span>
+</span><span id="L-361"><a href="#L-361"><span class="linenos">361</span></a>            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;AppData&quot;</span> <span class="o">/</span> <span class="s2">&quot;Local&quot;</span>
+</span><span id="L-362"><a href="#L-362"><span class="linenos">362</span></a>        <span class="p">)</span>
+</span><span id="L-363"><a href="#L-363"><span class="linenos">363</span></a>        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="L-364"><a href="#L-364"><span class="linenos">364</span></a>    <span class="k">elif</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Darwin&quot;</span><span class="p">:</span>
+</span><span id="L-365"><a href="#L-365"><span class="linenos">365</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;Library&quot;</span><span class="p">,</span> <span class="s2">&quot;Caches&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="L-366"><a href="#L-366"><span class="linenos">366</span></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="L-367"><a href="#L-367"><span class="linenos">367</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;.cache&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 
@@ -1274,6 +1293,37 @@ A* as this method can overestimate distances, especially near the Earth's poles.
 </span><span id="cpp_check-350"><a href="#cpp_check-350"><span class="linenos">350</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using C++ &amp; Python implementation of SCGraph.&quot;</span><span class="p">)</span>
 </span><span id="cpp_check-351"><a href="#cpp_check-351"><span class="linenos">351</span></a>    <span class="k">except</span><span class="p">:</span>
 </span><span id="cpp_check-352"><a href="#cpp_check-352"><span class="linenos">352</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using Pure Python implementation of SCGraph.&quot;</span><span class="p">)</span>
+</span></pre></div>
+
+
+    
+
+                </section>
+                <section id="get_default_cache_path">
+                            <input id="get_default_cache_path-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_default_cache_path</span><span class="signature pdoc-code condensed">(<span class="return-annotation">) -> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span>:</span></span>
+
+                <label class="view-source-button" for="get_default_cache_path-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#get_default_cache_path"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_default_cache_path-355"><a href="#get_default_cache_path-355"><span class="linenos">355</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+</span><span id="get_default_cache_path-356"><a href="#get_default_cache_path-356"><span class="linenos">356</span></a>    <span class="n">system</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
+</span><span id="get_default_cache_path-357"><a href="#get_default_cache_path-357"><span class="linenos">357</span></a>    <span class="k">if</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">:</span>
+</span><span id="get_default_cache_path-358"><a href="#get_default_cache_path-358"><span class="linenos">358</span></a>        <span class="n">local_app_data</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LOCALAPPDATA&quot;</span><span class="p">)</span>
+</span><span id="get_default_cache_path-359"><a href="#get_default_cache_path-359"><span class="linenos">359</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="get_default_cache_path-360"><a href="#get_default_cache_path-360"><span class="linenos">360</span></a>            <span class="n">Path</span><span class="p">(</span><span class="n">local_app_data</span><span class="p">)</span>
+</span><span id="get_default_cache_path-361"><a href="#get_default_cache_path-361"><span class="linenos">361</span></a>            <span class="k">if</span> <span class="n">local_app_data</span>
+</span><span id="get_default_cache_path-362"><a href="#get_default_cache_path-362"><span class="linenos">362</span></a>            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;AppData&quot;</span> <span class="o">/</span> <span class="s2">&quot;Local&quot;</span>
+</span><span id="get_default_cache_path-363"><a href="#get_default_cache_path-363"><span class="linenos">363</span></a>        <span class="p">)</span>
+</span><span id="get_default_cache_path-364"><a href="#get_default_cache_path-364"><span class="linenos">364</span></a>        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="get_default_cache_path-365"><a href="#get_default_cache_path-365"><span class="linenos">365</span></a>    <span class="k">elif</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Darwin&quot;</span><span class="p">:</span>
+</span><span id="get_default_cache_path-366"><a href="#get_default_cache_path-366"><span class="linenos">366</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;Library&quot;</span><span class="p">,</span> <span class="s2">&quot;Caches&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="get_default_cache_path-367"><a href="#get_default_cache_path-367"><span class="linenos">367</span></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="get_default_cache_path-368"><a href="#get_default_cache_path-368"><span class="linenos">368</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;.cache&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 

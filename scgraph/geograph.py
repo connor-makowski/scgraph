@@ -318,7 +318,9 @@ class GeoGraphIO:
         return GeoGraph(**data)
 
     @staticmethod
-    def __fetch_geograph_to_cache__(name: str, cached_file: Path, geograph_url: str) -> None:
+    def __fetch_geograph_to_cache__(
+        name: str, cached_file: Path, geograph_url: str
+    ) -> None:
         """
         Function:
 
@@ -351,7 +353,7 @@ class GeoGraphIO:
     def load_geograph(
         name: str,
         cache_dir: str | None = None,
-        geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs"
+        geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs",
     ) -> "GeoGraph":
         """
         Function:
@@ -388,7 +390,9 @@ class GeoGraphIO:
         cache_path.mkdir(parents=True, exist_ok=True)
         cached_file = cache_path.joinpath(f"{name}.graphjson")
         if not cached_file.exists():
-            GeoGraph.__fetch_geograph_to_cache__(name, cached_file, geograph_url)
+            GeoGraph.__fetch_geograph_to_cache__(
+                name, cached_file, geograph_url
+            )
         return GeoGraph.load_from_graphjson(str(cached_file))
 
     @staticmethod

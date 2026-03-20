@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/)
 
-**A high-performance, dependency-free Python library for shortest path routing on geographic and supply chain networks.**
+**A high-performance, lightweight Python library for shortest path routing on geographic and supply chain networks.**
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
@@ -61,7 +61,9 @@ set SKBUILD_CMAKE_ARGS=-DSKIP_CPP_BUILD=ON && pip install scgraph
 Get the shortest maritime path between Shanghai and Savannah, GA:
 
 ```py
-from scgraph.geographs.marnet import marnet_geograph
+from scgraph import GeoGraph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
 
 output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},
@@ -116,7 +118,9 @@ Nodes are identified by their zero-based index. Edge weights are typically dista
 ## Basic Routing
 
 ```py
-from scgraph.geographs.marnet import marnet_geograph
+from scgraph import GeoGraph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
 
 output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},      # Shanghai
@@ -142,6 +146,8 @@ Supported `output_units`:
 Pass any algorithm name (or function) to `algorithm_fn`:
 
 ```py
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
 output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},
     destination_node={"latitude": 32.08, "longitude": -81.09},
@@ -157,7 +163,7 @@ Available algorithm strings:
 | `'dijkstra'` | Standard Dijkstra (default) |
 | `'a_star'` | A* with optional heuristic function |
 | `'bellman_ford'` | Bellman-Ford (supports negative weights) |
-| `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) (requires `pip install scgraph[bmssp]`) |
+| `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) and [BMSSP Implementation](https://github.com/connor-makowski/bmsspy) |
 | `'cached_shortest_path'` | Caches the shortest path tree for fast repeated queries from the same origin |
 | `'contraction_hierarchy'` | Bidirectional Dijkstra on a preprocessed CH graph. Very fast for arbitrary queries |
 
@@ -168,7 +174,9 @@ You can also pass any callable that matches the `Graph` method signature.
 For repeated queries from the same origin point (e.g., distribution center → many customers), use `cached_shortest_path`. The full shortest path tree is computed once and cached:
 
 ```py
-from scgraph.geographs.marnet import marnet_geograph
+from scgraph import GeoGraph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
 
 # First call: computes and caches the shortest path tree (~same cost as dijkstra)
 output1 = marnet_geograph.get_shortest_path(
@@ -190,7 +198,9 @@ output2 = marnet_geograph.get_shortest_path(
 For all-pairs distance computation across a set of locations, use `distance_matrix`. Each origin's shortest path tree is cached internally, making this highly efficient for large matrices:
 
 ```py
-from scgraph.geographs.us_freeway import us_freeway_geograph
+from scgraph import GeoGraph
+
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 
 cities = [
     {"latitude": 34.0522, "longitude": -118.2437},  # Los Angeles
@@ -215,6 +225,8 @@ For large matrices, throughput can approach 500 nanoseconds per distance query.
 Control how origin/destination are connected to the graph:
 
 ```py
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
 output = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},
     destination_node={"latitude": 32.08, "longitude": -81.09},
@@ -243,25 +255,54 @@ output = marnet_geograph.get_shortest_path(
 
 # Built-in GeoGraphs
 
-All built-in geographs measure distances in kilometers. Import pattern: `from scgraph.geographs.<name> import <name>_geograph`.
+All built-in geographs measure distances in kilometers and are downloaded on first use and cached locally.
 
-| Name | Import | Description | Attribution |
+| Name | Load Key | Description | Attribution |
 |---|---|---|---|
-| `marnet_geograph` | `from scgraph.geographs.marnet import marnet_geograph` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
-| `oak_ridge_maritime_geograph` | `from scgraph.geographs.oak_ridge_maritime import oak_ridge_maritime_geograph` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
-| `north_america_rail_geograph` | `from scgraph.geographs.north_america_rail import north_america_rail_geograph` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
-| `us_freeway_geograph` | `from scgraph.geographs.us_freeway import us_freeway_geograph` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
+| `marnet` | `GeoGraph.load_geograph("marnet")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
+| `oak_ridge_maritime` | `GeoGraph.load_geograph("oak_ridge_maritime")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
+| `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
+| `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
+| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
+| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
-Additional geographs (world highways, world railways, etc.) are available via the [`scgraph_data`](https://github.com/connor-makowski/scgraph_data) package:
+## Loading and Cache Management
 
-```bash
-pip install scgraph_data
-```
+Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads are instant and require no network access.
 
 ```py
-from scgraph_data.world_highways import world_highways_geograph
-from scgraph_data.world_railways import world_railways_geograph
+from scgraph import GeoGraph
+
+# Load a geograph (downloads on first call, loads from cache after)
+marnet_geograph = GeoGraph.load_geograph("marnet")
+
+# Optionally specify a custom cache directory
+marnet_geograph = GeoGraph.load_geograph("marnet", cache_dir="/path/to/cache")
+
+# List all available geographs and whether each is cached locally
+available = GeoGraph.list_geographs()
+# [
+#     {"name": "marnet",                    "cached": True},
+#     {"name": "north_america_rail",        "cached": False},
+#     {"name": "oak_ridge_maritime",        "cached": False},
+#     {"name": "us_freeway",                "cached": True},
+#     {"name": "world_highways_and_marnet", "cached": False},
+#     {"name": "world_highways",            "cached": False},
+#     {"name": "world_railways",            "cached": False},
+# ]
+
+# Clear all cached geograph files
+GeoGraph.clear_geograph_cache()
 ```
+
+The cache location defaults to the platform-appropriate directory:
+
+| Platform | Default cache path |
+|---|---|
+| Linux | `~/.cache/scgraph/` |
+| macOS | `~/Library/Caches/scgraph/` |
+| Windows | `%LOCALAPPDATA%\\scgraph\\` |
 
 ---
 
@@ -375,6 +416,7 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.json')
 | `save_as_geojson(filename)` | Save as GeoJSON (interoperable, larger file) |
 | `save_as_graphjson(filename)` | Save as SCGraph JSON (compact, fast reload) |
 | `save_as_geograph(name)` | Save as importable Python module |
+| `load_geograph(name)` | Load a built-in geograph by name (cached download) |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |
 | `load_from_osmnx_graph(osmnx_graph)` | Load from OSMNx graph object |
@@ -549,7 +591,9 @@ Contraction Hierarchies (CH) provide extremely fast query times after a one-time
 ## Preprocessing via GeoGraph
 
 ```py
-from scgraph.geographs.us_freeway import us_freeway_geograph
+from scgraph import GeoGraph
+
+us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
 
 # One-time preprocessing — only needed once per graph
 us_freeway_geograph.graph_object.create_contraction_hierarchy(
@@ -579,7 +623,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | `dijkstra_negative` | `'dijkstra_negative'` | Negative edge weights; cycle detection |
 | `a_star` | `'a_star'` | Faster than Dijkstra with a good heuristic |
 | `bellman_ford` | `'bellman_ford'` | Negative weights; slower than Dijkstra |
-| `bmssp` | `'bmssp'` | [BMSSP](https://arxiv.org/pdf/2504.17033) algorithm (optional dependency) |
+| `bmssp` | `'bmssp'` | [BMSSP](https://arxiv.org/pdf/2504.17033) + [Implementation](https://github.com/connor-makowski/bmsspy) |
 | `cached_shortest_path` | `'cached_shortest_path'` | Fast repeated queries from same origin |
 | `contraction_hierarchy` | `'contraction_hierarchy'` | Fast arbitrary queries after one-time preprocessing |
 
@@ -588,6 +632,8 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 GeoGraph provides built-in heuristics for A*:
 
 ```py
+my_geograph = GeoGraph.load_geograph("marnet")  # or any other geograph
+
 output = my_geograph.get_shortest_path(
     origin_node={"latitude": 42.29, "longitude": -85.58},
     destination_node={"latitude": 42.33, "longitude": -83.05},
@@ -646,7 +692,8 @@ Generate a GeoJSON file with multiple routes and custom properties:
 
 ```py
 from scgraph import GeoGraph
-from scgraph.geographs.marnet import marnet_geograph
+
+marnet_geograph = GeoGraph.load_geograph("marnet")
 
 routes = [
     {

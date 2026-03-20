@@ -9,7 +9,9 @@ with tempfile.TemporaryDirectory() as tmp:
     geograph_url = "https://raw.githubusercontent.com/connor-makowski/scgraph/refs/heads/3.0.0-dev/geographs/"
 
     # list_geographs returns a non-empty list of dicts with the expected keys
-    geograph_list = GeoGraph.list_geographs(cache_dir=tmp, geograph_url=geograph_url)
+    geograph_list = GeoGraph.list_geographs(
+        cache_dir=tmp, geograph_url=geograph_url
+    )
     validate(
         name="list_geographs returns a list",
         realized=isinstance(geograph_list, list) and len(geograph_list) > 0,
@@ -22,7 +24,9 @@ with tempfile.TemporaryDirectory() as tmp:
     )
 
     # marnet is available and not yet cached
-    marnet_entry = next((g for g in geograph_list if g["name"] == "marnet"), None)
+    marnet_entry = next(
+        (g for g in geograph_list if g["name"] == "marnet"), None
+    )
     validate(
         name="marnet is listed as available",
         realized=marnet_entry is not None,
@@ -35,7 +39,9 @@ with tempfile.TemporaryDirectory() as tmp:
     )
 
     # load_geograph downloads and returns a GeoGraph
-    geograph = GeoGraph.load_geograph("marnet", cache_dir=tmp, geograph_url=geograph_url)
+    geograph = GeoGraph.load_geograph(
+        "marnet", cache_dir=tmp, geograph_url=geograph_url
+    )
     validate(
         name="load_geograph returns a GeoGraph",
         realized=isinstance(geograph, GeoGraph),
@@ -43,8 +49,12 @@ with tempfile.TemporaryDirectory() as tmp:
     )
 
     # After loading, marnet should be cached
-    geograph_list = GeoGraph.list_geographs(cache_dir=tmp, geograph_url=geograph_url)
-    marnet_entry = next((g for g in geograph_list if g["name"] == "marnet"), None)
+    geograph_list = GeoGraph.list_geographs(
+        cache_dir=tmp, geograph_url=geograph_url
+    )
+    marnet_entry = next(
+        (g for g in geograph_list if g["name"] == "marnet"), None
+    )
     validate(
         name="marnet is cached after load",
         realized=marnet_entry["cached"],
@@ -52,7 +62,9 @@ with tempfile.TemporaryDirectory() as tmp:
     )
 
     # Second load uses cache (no network) and still returns a GeoGraph
-    geograph_cached = GeoGraph.load_geograph("marnet", cache_dir=tmp, geograph_url=geograph_url)
+    geograph_cached = GeoGraph.load_geograph(
+        "marnet", cache_dir=tmp, geograph_url=geograph_url
+    )
     validate(
         name="load_geograph from cache returns a GeoGraph",
         realized=isinstance(geograph_cached, GeoGraph),
@@ -61,8 +73,12 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # clear_geograph_cache removes the cache
     GeoGraph.clear_geograph_cache(cache_dir=tmp)
-    geograph_list = GeoGraph.list_geographs(cache_dir=tmp, geograph_url=geograph_url)
-    marnet_entry = next((g for g in geograph_list if g["name"] == "marnet"), None)
+    geograph_list = GeoGraph.list_geographs(
+        cache_dir=tmp, geograph_url=geograph_url
+    )
+    marnet_entry = next(
+        (g for g in geograph_list if g["name"] == "marnet"), None
+    )
     validate(
         name="marnet is not cached after clear",
         realized=marnet_entry["cached"],
