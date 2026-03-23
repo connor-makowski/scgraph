@@ -176,6 +176,29 @@ const std::unordered_map<int, double> GraphUtils::get(int idx) const {
     return get_adjacency_dict(idx);
 }
 
+double GraphUtils::get_path_weight(const std::vector<int>& path) const {
+    double total = 0.0;
+    for (size_t i = 0; i + 1 < path.size(); ++i) {
+        int origin = path[i];
+        int dest = path[i + 1];
+        bool found = false;
+        for (const auto& [d, w] : graph[origin]) {
+            if (d == dest) {
+                total += w;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            throw std::invalid_argument(
+                "No edge from node " + std::to_string(origin) +
+                " to node " + std::to_string(dest)
+            );
+        }
+    }
+    return total;
+}
+
 const std::vector<std::unordered_map<int, double>> GraphUtils::get_graph() const {
     std::vector<std::unordered_map<int, double>> result;
     result.reserve(graph.size());

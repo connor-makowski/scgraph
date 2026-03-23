@@ -23,7 +23,7 @@ echo "from scgraph.grid import GridGraph" >> scgraph/__init__.py
 
 
 # Specify versions for documentation purposes
-VERSION="3.0.1"
+VERSION="3.1.0"
 OLD_DOC_VERSIONS="2.15.0 1.5.2 0.3.0"
 export version_options="$VERSION $OLD_DOC_VERSIONS"
 

@@ -43,6 +43,26 @@ class GraphUtils:
                 f"Destination node ({destination_id}) is not in this graph"
             )
 
+    def get_path_weight(self, path: list[int]) -> int | float:
+        """
+        Function:
+
+        - Sum the graph weights along a sequence of node ids
+
+        Required Arguments:
+
+        - `path`
+            - Type: list[int]
+            - What: An ordered list of node ids representing a path through the graph
+
+        Returns:
+
+        - The total weight of the path as an int or float
+        """
+        return sum(
+            self.graph[path[i]][path[i + 1]] for i in range(len(path) - 1)
+        )
+
     def __reconstruct_path__(
         self, destination_id: int, predecessor: list[int]
     ) -> list[int]:

@@ -25,7 +25,6 @@ print(
 my_graph = GeoGraph(nodes=nodes, graph=graph)
 
 my_graph.save_as_geojson("11_save_as_geojson_test.geojson")
-my_graph.save_as_geograph("11_save_as_geojson_test")
 my_graph.save_as_graphjson("11_save_as_geojson_test.graphjson")
 my_graph2 = GeoGraph.load_from_geojson(
     "11_save_as_geojson_test.geojson", silent=True
@@ -51,7 +50,6 @@ import os
 
 os.remove("11_save_as_geojson_test.geojson")
 os.remove("11_save_as_geojson_test.graphjson")
-os.remove("11_save_as_geojson_test.py")
 
 if success:
     print("PASS")

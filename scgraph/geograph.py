@@ -18,49 +18,6 @@ from scgraph import Graph
 
 class GeoGraphIO:
     # Save Methods
-    def save_as_geograph(
-        self, name: str, save_intermediate_nodes: bool = True
-    ) -> None:
-        """
-        Function:
-
-        - Save the current geograph as an importable python file
-
-        Required Arguments:
-
-        - `name`
-            - Type: str
-            - What: The name of the geograph and file
-            - EG: 'custom'
-                - Stored as: 'custom.py'
-                    - In your current directory
-                - Import as: 'from .custom import custom'
-
-        Optional Arguments:
-
-        - `save_intermediate_nodes`
-            - Type: bool
-            - What: Whether to include the intermediate nodes in the saved geograph file (if they exist)
-            - Default: True
-        """
-        self.validate_nodes()
-        self.graph_object.validate(check_symmetry=False, check_connected=False)
-        args = {
-            "graph": self.graph_object.graph,
-            "nodes": self.nodes,
-            "default_off_graph_circuity": self.default_off_graph_circuity,
-            "default_node_addition_circuity": self.default_node_addition_circuity,
-            "geograph_units": self.geograph_units,
-        }
-        if self.intermediate_nodes is not None and save_intermediate_nodes:
-            args["intermediate_nodes"] = self.intermediate_nodes
-        with open(name + ".py", "w") as f:
-            f.write("from scgraph import GeoGraph\n")
-            for arg_name, arg_value in args.items():
-                f.write(f"{arg_name}={str(arg_value)}\n")
-            f.write(
-                f"{name} = GeoGraph({", ".join([f"{k}={k}" for k in args.keys()])})"
-            )
 
     def save_as_geojson(
         self,
@@ -1319,6 +1276,92 @@ class GeoGraphUtils:
                 coordinate_path.append(self.nodes[destination_id])
             return coordinate_path
         return [self.nodes[node_id] for node_id in path]
+
+    def get_path_weight(
+        self,
+        path_result: dict,
+        off_graph_circuity: float | int = None,
+        output_units: str = "km",
+    ) -> float:
+        """
+        Function:
+
+        - Compute the total weight of a pre-computed path in this geograph's units
+
+        - This allows computing the weight of a path optimized for one metric
+          (e.g., time) using a different geograph's weights (e.g., distance),
+          including the off-graph entry and exit segments using this geograph's
+          circuity.
+
+        Required Arguments:
+
+        - `path_result`
+            - Type: dict
+            - What: The output from `get_shortest_path` called with `output_path=True`
+            - Must contain both a `path` key (list of on-graph node ids) and a
+              `coordinate_path` key (list of [lat, lon] pairs)
+
+        Optional Arguments:
+
+        - `off_graph_circuity`
+            - Type: float | int | None
+            - What: Circuity to apply to the off-graph entry and exit haversine
+              distances. Defaults to `self.default_off_graph_circuity`.
+            - Default: None
+
+        - `output_units`
+            - Type: str
+            - What: Units for the returned weight value
+            - Default: 'km'
+
+        Returns:
+
+        - The total weight of the path in this geograph's edge units, converted
+          to `output_units`
+        """
+        if off_graph_circuity is None:
+            off_graph_circuity = self.default_off_graph_circuity
+        path = path_result.get("path")
+        coordinate_path = path_result.get("coordinate_path")
+        assert (
+            path is not None
+        ), "path_result must contain a 'path' key; call get_shortest_path with output_path=True"
+        assert (
+            coordinate_path is not None
+        ), "path_result must contain a 'coordinate_path' key"
+
+        origin = coordinate_path[0]
+        destination = coordinate_path[-1]
+
+        if len(path) == 0:
+            # Edge case: origin and destination map to the same graph node
+            total = haversine(
+                origin,
+                destination,
+                circuity=off_graph_circuity,
+                units=self.geograph_units,
+            )
+        else:
+            on_graph_weight = self.graph_object.get_path_weight(path)
+            origin_off = haversine(
+                origin,
+                self.nodes[path[0]],
+                circuity=off_graph_circuity,
+                units=self.geograph_units,
+            )
+            destination_off = haversine(
+                self.nodes[path[-1]],
+                destination,
+                circuity=off_graph_circuity,
+                units=self.geograph_units,
+            )
+            total = on_graph_weight + origin_off + destination_off
+
+        return distance_converter(
+            total,
+            input_units=self.geograph_units,
+            output_units=output_units,
+        )
 
     def validate(
         self,
