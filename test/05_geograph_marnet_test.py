@@ -2,7 +2,6 @@ from scgraph import GeoGraph
 from scgraph.utils import validate, time_test
 
 marnet_geograph = GeoGraph.load_geograph("marnet")
-marnet_geograph.warmup()
 
 
 print("\n===============\nMarnet GeoGraph Tests:\n===============")

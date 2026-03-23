@@ -969,7 +969,6 @@ class GeoGraphModifiers:
                 - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
                 - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points
         """
-        self.warmup()
         node_connection_mapper = {}
         original_other_graph_length = len(other_geograph.graph_object.graph)
         for idx, node in enumerate(connection_nodes):
@@ -1521,8 +1520,10 @@ class GeoGraph(
         """
         if hasattr(graph, "get_shortest_path") and not isinstance(graph, list):
             self.graph_object = graph
+            self.graph = graph.graph
         else:
             self.graph_object = Graph(graph=graph, validate=validate)
+            self.graph = graph
         self.nodes = nodes
         self.intermediate_nodes = intermediate_nodes
         self.default_off_graph_circuity = default_off_graph_circuity
@@ -1531,30 +1532,8 @@ class GeoGraph(
             True if intermediate_nodes is not None else False
         )
         self.geograph_units = geograph_units
-        self.__warm__ = False
+        self.geokdtree = GeoKDTree(points=self.nodes)
         self.__original_graph_length__ = len(self.graph_object.graph)
-
-    def warmup(self):
-        """
-        Function:
-
-        - Warm up the GeoGraph object by creating the GeoKDTree and CacheGraph objects
-        - This is done automatically the first time a shortest path is calculated or distance matrix is generated
-        - It can be done manually to avoid the overhead of doing it during the first shortest path / distance matrix calculation
-        - This makes installation and importing the package much faster
-            - This overhead is then moved to the first time a shortest path / distance matrix is calculated or when this method is called
-
-        Required Arguments:
-
-        - None
-
-        Returns:
-
-        - None
-        """
-        if not self.__warm__:
-            self.geokdtree = GeoKDTree(points=self.nodes)
-            self.__warm__ = True
 
     def validate_nodes(self) -> None:
         """
@@ -1782,7 +1761,6 @@ class GeoGraph(
         algorithm_kwargs = (
             algorithm_kwargs if algorithm_kwargs is not None else dict()
         )
-        self.warmup()
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = self.graph_object.graph
         elif isinstance(algorithm_fn, str) and hasattr(
@@ -2018,7 +1996,6 @@ class GeoGraph(
             ...
         ]
         """
-        self.warmup()
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(
             distance=1,
