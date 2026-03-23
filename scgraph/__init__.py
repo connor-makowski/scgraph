@@ -415,7 +415,6 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.json')
 |---|---|
 | `save_as_geojson(filename)` | Save as GeoJSON (interoperable, larger file) |
 | `save_as_graphjson(filename)` | Save as SCGraph JSON (compact, fast reload) |
-| `save_as_geograph(name)` | Save as importable Python module |
 | `load_geograph(name)` | Load a built-in geograph by name (cached download) |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |

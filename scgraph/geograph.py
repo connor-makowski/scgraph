@@ -18,49 +18,6 @@ from scgraph import Graph
 
 class GeoGraphIO:
     # Save Methods
-    def save_as_geograph(
-        self, name: str, save_intermediate_nodes: bool = True
-    ) -> None:
-        """
-        Function:
-
-        - Save the current geograph as an importable python file
-
-        Required Arguments:
-
-        - `name`
-            - Type: str
-            - What: The name of the geograph and file
-            - EG: 'custom'
-                - Stored as: 'custom.py'
-                    - In your current directory
-                - Import as: 'from .custom import custom'
-
-        Optional Arguments:
-
-        - `save_intermediate_nodes`
-            - Type: bool
-            - What: Whether to include the intermediate nodes in the saved geograph file (if they exist)
-            - Default: True
-        """
-        self.validate_nodes()
-        self.graph_object.validate(check_symmetry=False, check_connected=False)
-        args = {
-            "graph": self.graph_object.graph,
-            "nodes": self.nodes,
-            "default_off_graph_circuity": self.default_off_graph_circuity,
-            "default_node_addition_circuity": self.default_node_addition_circuity,
-            "geograph_units": self.geograph_units,
-        }
-        if self.intermediate_nodes is not None and save_intermediate_nodes:
-            args["intermediate_nodes"] = self.intermediate_nodes
-        with open(name + ".py", "w") as f:
-            f.write("from scgraph import GeoGraph\n")
-            for arg_name, arg_value in args.items():
-                f.write(f"{arg_name}={str(arg_value)}\n")
-            f.write(
-                f"{name} = GeoGraph({", ".join([f"{k}={k}" for k in args.keys()])})"
-            )
 
     def save_as_geojson(
         self,
