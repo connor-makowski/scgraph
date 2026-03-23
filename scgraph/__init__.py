@@ -41,7 +41,7 @@ If you use SCGraph in your research, please cite:
 pip install scgraph
 ```
 
-A C++ extension is compiled automatically if a compiler is available (~10x speedup on core algorithms). To verify: `from scgraph.utils import cpp_check; cpp_check()`.
+A C++ extension is compiled automatically if a C++ compiler is available (~10x speedup on core algorithms). To verify: `from scgraph.utils import cpp_check; cpp_check()`.
 
 To skip the C++ build:
 
@@ -56,7 +56,7 @@ set SKBUILD_CMAKE_ARGS=-DSKIP_CPP_BUILD=ON && pip install scgraph
 
 ---
 
-## Quick Start
+## Quick Start: Using Built-in GeoGraphs
 
 Get the shortest maritime path between Shanghai and Savannah, GA:
 
@@ -80,6 +80,58 @@ The output dictionary always contains:
 | `length` | Distance along the shortest path in the requested `output_units` |
 | `coordinate_path` | List of `[latitude, longitude]` pairs making up the path |
 
+
+### Built-in Geographs
+All built-in geographs measure distances in kilometers and are downloaded on first use and cached locally.
+
+| Name | Load Key | Description | Attribution |
+|---|---|---|---|
+| `marnet` | `GeoGraph.load_geograph("marnet")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
+| `oak_ridge_maritime` | `GeoGraph.load_geograph("oak_ridge_maritime")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
+| `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
+| `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
+| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
+| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+
+## Quick Start: OSMNx Integration
+
+Route on any OpenStreetMap network (including bike, drive, and walk) using [OSMNx](https://osmnx.readthedocs.io/). This example finds the fastest and shortest bike paths between two points in Somerville and Cambridge, MA, then cross-evaluates each path's time and distance:
+
+```py
+import osmnx as ox
+from scgraph import GeoGraph
+
+# Download the bike network for Somerville and Cambridge, MA
+G = ox.graph_from_place(
+    ['Somerville, Massachusetts, USA', 'Cambridge, Massachusetts, USA'],
+    network_type='bike'
+)
+G = ox.add_edge_speeds(G)
+G = ox.add_edge_travel_times(G)
+
+# Build a time-based and a distance-based GeoGraph from the same OSMNx graph
+geograph_time     = GeoGraph.load_from_osmnx_graph(G, weight_key='travel_time')
+geograph_distance = GeoGraph.load_from_osmnx_graph(G, weight_key='length')
+
+origin      = {'latitude': 42.3601, 'longitude': -71.0942}  # MIT campus
+destination = {'latitude': 42.3876, 'longitude': -71.0995}  # Somerville City Hall
+
+time_result     = geograph_time.get_shortest_path(origin_node=origin, destination_node=destination, output_path=True)
+distance_result = geograph_distance.get_shortest_path(origin_node=origin, destination_node=destination, output_path=True)
+
+# Cross-evaluate: get the distance of the time-optimal path, and vice versa
+time_path_distance_km = geograph_distance.get_path_weight(time_result)
+distance_path_time_s  = geograph_time.get_path_weight(distance_result)
+
+print(f"Time-optimal path:     {time_result['length']:.1f} s  |  {time_path_distance_km:.3f} km")
+print(f"Distance-optimal path: {distance_path_time_s:.1f} s  |  {distance_result['length']:.3f} km")
+# Time-optimal path:     340.9 s  |  3.920 km
+# Distance-optimal path: 369.3 s  |  3.605 km
+```
+
+See the [OSMNx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) for a full example with folium map visualization.
+
 ---
 
 # Core Concepts
@@ -97,7 +149,7 @@ When you call `get_shortest_path`, SCGraph:
 
 This means you never need to worry about whether your start/end points are "in" the network. SCGraph handles that automatically.
 
-### Graph Structure
+## Graph Structure
 
 Internally, a graph is represented as a list of adjacency dicts:
 
@@ -110,6 +162,54 @@ graph = [
 ```
 
 Nodes are identified by their zero-based index. Edge weights are typically distances in kilometers for GeoGraphs.
+
+---
+
+# Algorithm Reference
+
+## Graph Algorithms
+
+All algorithms are available on `Graph` objects and accessible from `GeoGraph` via `algorithm_fn`:
+
+| `algorithm_fn` | Description | Time Complexity |
+|---|---|---|
+| `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights (default) | O((n+m) log n) |
+| `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
+| `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
+| `'bellman_ford'` | Bellman-Ford; supports negative weights, slower than Dijkstra | O(n·m) |
+| `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) / [Implementation](https://github.com/connor-makowski/bmsspy) | O(m log^(2/3)(n)) |
+| `'cached_shortest_path'` | Caches shortest path tree from origin; near-instant repeated queries | O((n+m) log n) first, O(1) after |
+| `'contraction_hierarchy'` | Bidirectional Dijkstra on preprocessed CH graph; fast arbitrary queries | O(k log k) per query |
+
+## Performance Guide
+
+| Scenario | Recommended Approach |
+|---|---|
+| Single query | `dijkstra` (default) |
+| Repeated queries from one origin | `cached_shortest_path` |
+| Large distance matrix (same graph) | `distance_matrix` method |
+| Many arbitrary queries on a fixed graph | `contraction_hierarchy` |
+| Graph with negative weights | `dijkstra_negative` |
+
+## Heuristic Functions (for A*)
+
+GeoGraph provides built-in heuristics for A*:
+
+```py
+my_geograph = GeoGraph.load_geograph("marnet")  # or any other geograph
+
+output = my_geograph.get_shortest_path(
+    origin_node={"latitude": 42.29, "longitude": -85.58},
+    destination_node={"latitude": 42.33, "longitude": -83.05},
+    algorithm_fn='a_star',
+    algorithm_kwargs={"heuristic_fn": my_geograph.haversine},
+)
+```
+
+| Method | Description |
+|---|---|
+| `my_geograph.haversine` | Great-circle distance heuristic (accurate) |
+| `my_geograph.cheap_ruler` | Fast approximate distance (Mapbox method) |
 
 ---
 
@@ -156,18 +256,7 @@ output = marnet_geograph.get_shortest_path(
 )
 ```
 
-Available algorithm strings:
-
-| `algorithm_fn` | Description |
-|---|---|
-| `'dijkstra'` | Standard Dijkstra (default) |
-| `'a_star'` | A* with optional heuristic function |
-| `'bellman_ford'` | Bellman-Ford (supports negative weights) |
-| `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) and [BMSSP Implementation](https://github.com/connor-makowski/bmsspy) |
-| `'cached_shortest_path'` | Caches the shortest path tree for fast repeated queries from the same origin |
-| `'contraction_hierarchy'` | Bidirectional Dijkstra on a preprocessed CH graph. Very fast for arbitrary queries |
-
-You can also pass any callable that matches the `Graph` method signature.
+See the [Algorithm Reference](#algorithm-reference) for all available algorithms and when to use them. You can also pass any callable that matches the `Graph` method signature.
 
 ## Cached Queries (Same Origin, Many Destinations)
 
@@ -253,21 +342,9 @@ output = marnet_geograph.get_shortest_path(
 
 ---
 
-# Built-in GeoGraphs
+# Loading GeoGraphs
 
-All built-in geographs measure distances in kilometers and are downloaded on first use and cached locally.
-
-| Name | Load Key | Description | Attribution |
-|---|---|---|---|
-| `marnet` | `GeoGraph.load_geograph("marnet")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
-| `oak_ridge_maritime` | `GeoGraph.load_geograph("oak_ridge_maritime")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
-| `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
-| `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
-| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
-| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
-| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
-
-## Loading and Cache Management
+## Built-in Geographs: Cache Management
 
 Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads are instant and require no network access.
 
@@ -304,9 +381,7 @@ The cache location defaults to the platform-appropriate directory:
 | macOS | `~/Library/Caches/scgraph/` |
 | Windows | `%LOCALAPPDATA%\\scgraph\\` |
 
----
-
-# Loading Graphs from OSMNx
+## Loading from OSMNx
 
 SCGraph integrates directly with [OSMNx](https://osmnx.readthedocs.io/) — load any OpenStreetMap network and convert it to a `GeoGraph` in two lines:
 
@@ -341,9 +416,7 @@ print(output['length'])
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
 | `silent` | `False` | Suppress progress output |
 
----
-
-# Building GeoGraphs from OSM Data (Without OSMNx)
+## Building from OSM Data (Without OSMNx)
 
 You can also build geographs from raw OpenStreetMap `.pbf` files. This approach works well for large regions or full-planet routing.
 
@@ -610,56 +683,6 @@ print(output['length'])
 
 ---
 
-# Algorithm Reference
-
-## Graph Algorithms
-
-All algorithms are available on `Graph` objects and accessible from `GeoGraph` via `algorithm_fn`:
-
-| Algorithm | `algorithm_fn` string | Use Case |
-|---|---|---|
-| `dijkstra` | `'dijkstra'` | General purpose; non-negative weights |
-| `dijkstra_negative` | `'dijkstra_negative'` | Negative edge weights; cycle detection |
-| `a_star` | `'a_star'` | Faster than Dijkstra with a good heuristic |
-| `bellman_ford` | `'bellman_ford'` | Negative weights; slower than Dijkstra |
-| `bmssp` | `'bmssp'` | [BMSSP](https://arxiv.org/pdf/2504.17033) + [Implementation](https://github.com/connor-makowski/bmsspy) |
-| `cached_shortest_path` | `'cached_shortest_path'` | Fast repeated queries from same origin |
-| `contraction_hierarchy` | `'contraction_hierarchy'` | Fast arbitrary queries after one-time preprocessing |
-
-## Heuristic Functions (for A*)
-
-GeoGraph provides built-in heuristics for A*:
-
-```py
-my_geograph = GeoGraph.load_geograph("marnet")  # or any other geograph
-
-output = my_geograph.get_shortest_path(
-    origin_node={"latitude": 42.29, "longitude": -85.58},
-    destination_node={"latitude": 42.33, "longitude": -83.05},
-    algorithm_fn='a_star',
-    algorithm_kwargs={"heuristic_fn": my_geograph.haversine},
-)
-```
-
-| Method | Description |
-|---|---|
-| `my_geograph.haversine` | Great-circle distance heuristic (accurate) |
-| `my_geograph.cheap_ruler` | Fast approximate distance (Mapbox method) |
-
-## Shortest Path Tree
-
-Compute the full shortest path tree from an origin for inspection or custom use:
-
-```py
-tree = graph.get_shortest_path_tree(origin_id=0)
-# {'origin_id': 0, 'predecessors': [...], 'distance_matrix': [...]}
-
-path = graph.get_tree_path(origin_id=0, destination_id=5, tree_data=tree)
-# {'path': [...], 'length': float}
-```
-
----
-
 # Distance Utilities
 
 ```py
@@ -682,60 +705,9 @@ dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
 ### Google Colab Notebooks
 
 - [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb) — Basic usage, visualization
+- [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) — Load OSM data, solve for time and distance on bike networks
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb) — Export multiple routes as GeoJSON
 - [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) — Add/remove nodes and edges
-
-### Multi-Path GeoJSON Output
-
-Generate a GeoJSON file with multiple routes and custom properties:
-
-```py
-from scgraph import GeoGraph
-
-marnet_geograph = GeoGraph.load_geograph("marnet")
-
-routes = [
-    {
-        "geograph": marnet_geograph,
-        "origin": {"latitude": 31.23, "longitude": 121.47},
-        "destination": {"latitude": 32.08, "longitude": -81.09},
-        "properties": {"name": "Shanghai to Savannah"},
-    },
-    {
-        "geograph": marnet_geograph,
-        "origin": {"latitude": 22.30, "longitude": 114.17},
-        "destination": {"latitude": 51.50, "longitude": -0.13},
-        "properties": {"name": "Hong Kong to London"},
-    },
-]
-
-geojson = GeoGraph.get_multi_path_geojson(
-    routes=routes,
-    filename="routes.geojson",
-)
-```
-
----
-
-# Performance Guide
-
-| Scenario | Recommended Approach |
-|---|---|
-| Single query | `dijkstra` (default) |
-| Repeated queries from one origin | `cached_shortest_path` |
-| Large distance matrix (same graph) | `distance_matrix()` method |
-| Many arbitrary queries on a fixed graph | `contraction_hierarchy` |
-| Speed-critical with a geographic heuristic | `a_star` with `haversine` heuristic |
-
-**Algorithm complexity**:
-
-| Algorithm | Time Complexity | Notes |
-|---|---|---|
-| Dijkstra | O((n+m) log n) | General purpose |
-| A* | O((n+m) log n) | Faster in practice with good heuristic |
-| Bellman-Ford | O(n·m) | Only needed for negative weights |
-| Cached SP | O((n+m) log n) first, O(1) after | Per-origin caching |
-| Contraction Hierarchy | O(k log k) per query | After O(n log n) preprocessing |
 
 ---
 

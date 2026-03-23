@@ -17,7 +17,7 @@ def haversine(
     origin: list[float | int],
     destination: list[float | int],
     units: str = "km",
-    circuity: [float | int] = 1,
+    circuity: float | int = 1,
 ):
     """
     Function:

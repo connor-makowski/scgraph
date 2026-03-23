@@ -1323,12 +1323,12 @@ class GeoGraphUtils:
             off_graph_circuity = self.default_off_graph_circuity
         path = path_result.get("path")
         coordinate_path = path_result.get("coordinate_path")
-        assert path is not None, (
-            "path_result must contain a 'path' key; call get_shortest_path with output_path=True"
-        )
-        assert coordinate_path is not None, (
-            "path_result must contain a 'coordinate_path' key"
-        )
+        assert (
+            path is not None
+        ), "path_result must contain a 'path' key; call get_shortest_path with output_path=True"
+        assert (
+            coordinate_path is not None
+        ), "path_result must contain a 'coordinate_path' key"
 
         origin = coordinate_path[0]
         destination = coordinate_path[-1]
