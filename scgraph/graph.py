@@ -1,3 +1,4 @@
+import math
 from heapq import heappop, heappush
 from typing import Any
 from scgraph.graph_utils import GraphUtils, GraphModifiers
@@ -176,6 +177,116 @@ class GraphAlgorithms:
                         predecessor[connected_id] = current_id
                         heappush(open_leaves, (possible_distance, connected_id))
         if current_id != destination_id:
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        return {
+            "path": self.__reconstruct_path__(destination_id, predecessor),
+            "length": distance_matrix[destination_id],
+        }
+
+    def dijkstra_buckets(
+        self,
+        origin_id: int | set[int],
+        destination_id: int,
+        max_edge_weight: int | float | None = None,
+    ) -> dict:
+        """
+        Function:
+
+        - Identify the shortest path between two nodes in a sparse network graph using Dijkstra's algorithm with buckets (Dial's algorithm)
+        - This is particularly efficient for graphs where most edge weights are >= 1 and the maximum edge weight is small
+        - This implementation safely supports non-integer weights
+        - Return a dictionary of various path information including:
+            - `path`: A list of node ids in the order they are visited
+            - `length`: The length of the path from the origin node to the destination node
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+
+        Optional Arguments:
+
+        - `max_edge_weight`
+            - Type: int | float | None
+            - What: The maximum edge weight in the graph. If None, it will be calculated.
+            - Default: None
+        """
+        # Input Validation
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+
+        if max_edge_weight is None:
+            max_edge_weight = 0
+            for node_edges in self.graph:
+                if node_edges:
+                    m = max(node_edges.values())
+                    if m > max_edge_weight:
+                        max_edge_weight = m
+        max_edge_weight = math.ceil(max_edge_weight)
+
+        # Variable Initialization
+        distance_matrix = [float("inf")] * len(self.graph)
+        predecessor = [-1] * len(self.graph)
+        num_buckets = max_edge_weight + 1
+        buckets = [[] for _ in range(num_buckets)]
+
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
+            buckets[0].append(oid)
+
+        current_dist = 0
+        nodes_in_buckets = len(origin_ids)
+
+        while nodes_in_buckets > 0:
+            bucket_idx = current_dist % num_buckets
+            while not buckets[bucket_idx]:
+                current_dist += 1
+                bucket_idx = current_dist % num_buckets
+                if nodes_in_buckets == 0:
+                    break
+                # If we've already found a path shorter than the current bucket minimum, we can exit
+                if distance_matrix[destination_id] < current_dist:
+                    break
+
+            if (
+                nodes_in_buckets == 0
+                or distance_matrix[destination_id] < current_dist
+            ):
+                break
+
+            current_id = buckets[bucket_idx].pop()
+            nodes_in_buckets -= 1
+
+            # Skip if we found a better path already (lazy removal)
+            if distance_matrix[current_id] < current_dist:
+                continue
+
+            # Note: We do not break immediately if current_id == destination_id
+            # because weights < 1 might allow a shorter path to be found within the same bucket.
+            # The loop terminates when current_dist > distance_matrix[destination_id].
+
+            for connected_id, connected_distance in self.graph[
+                current_id
+            ].items():
+                possible_distance = (
+                    distance_matrix[current_id] + connected_distance
+                )
+                if possible_distance < distance_matrix[connected_id]:
+                    distance_matrix[connected_id] = possible_distance
+                    predecessor[connected_id] = current_id
+                    buckets[int(possible_distance) % num_buckets].append(
+                        connected_id
+                    )
+                    nodes_in_buckets += 1
+
+        if distance_matrix[destination_id] == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )

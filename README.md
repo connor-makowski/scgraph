@@ -173,6 +173,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | `algorithm_fn` | Description | Time Complexity |
 |---|---|---|
 | `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights (default) | O((n+m) log n) |
+| `'dijkstra_buckets'` | Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights (ideally >= 1) | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
 | `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
 | `'bellman_ford'` | Bellman-Ford; supports negative weights, slower than Dijkstra | O(n·m) |
@@ -185,6 +186,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | Scenario | Recommended Approach |
 |---|---|
 | Single query | `dijkstra` (default) |
+| Weights generally >= 1 | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
 | Many arbitrary queries on a fixed graph | `contraction_hierarchy` |
