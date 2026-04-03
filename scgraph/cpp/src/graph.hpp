@@ -25,6 +25,8 @@ public:
 
     // Shortest path algorithms
     GraphResult dijkstra(const std::variant<int, std::set<int>>& origin_id, int destination_id);
+    GraphResult dijkstra_buckets(const std::variant<int, std::set<int>>& origin_id, int destination_id,
+                                 std::optional<double> max_edge_weight = std::nullopt);
     GraphResult dijkstra_negative(const std::variant<int, std::set<int>>& origin_id, int destination_id,
                                   std::optional<int> cycle_check_iterations = std::nullopt);
     GraphResult a_star(const std::variant<int, std::set<int>>& origin_id, int destination_id,

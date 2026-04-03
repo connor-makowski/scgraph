@@ -139,6 +139,78 @@ GraphResult Graph::dijkstra(const std::variant<int, std::set<int>>& origin_id, i
     };
 }
 
+GraphResult Graph::dijkstra_buckets(const std::variant<int, std::set<int>>& origin_id, int destination_id,
+                                     std::optional<double> max_edge_weight) {
+    input_check(origin_id, destination_id);
+    auto origin_ids = get_origin_ids(origin_id);
+
+    double max_weight = 0.0;
+    if (max_edge_weight.has_value()) {
+        max_weight = max_edge_weight.value();
+    } else {
+        for (const auto& node_edges : graph) {
+            for (const auto& [connected_id, connected_distance] : node_edges) {
+                if (connected_distance > max_weight) {
+                    max_weight = connected_distance;
+                }
+            }
+        }
+    }
+    int num_buckets = static_cast<int>(std::ceil(max_weight)) + 1;
+
+    const size_t n = graph.size();
+    std::vector<double> distance_matrix(n, std::numeric_limits<double>::infinity());
+    std::vector<int> predecessor(n, -1);
+    std::vector<std::vector<int>> buckets(num_buckets);
+
+    for (int oid : origin_ids) {
+        distance_matrix[oid] = 0.0;
+        buckets[0].push_back(oid);
+    }
+
+    int current_dist = 0;
+    size_t nodes_in_buckets = origin_ids.size();
+
+    while (nodes_in_buckets > 0) {
+        int bucket_idx = current_dist % num_buckets;
+        while (buckets[bucket_idx].empty()) {
+            current_dist++;
+            bucket_idx = current_dist % num_buckets;
+            if (nodes_in_buckets == 0) break;
+            if (distance_matrix[destination_id] < static_cast<double>(current_dist)) break;
+        }
+
+        if (nodes_in_buckets == 0 || distance_matrix[destination_id] < static_cast<double>(current_dist)) break;
+
+        int current_id = buckets[bucket_idx].back();
+        buckets[bucket_idx].pop_back();
+        nodes_in_buckets--;
+
+        if (distance_matrix[current_id] < static_cast<double>(current_dist)) {
+            continue;
+        }
+
+        for (const auto& [connected_id, connected_distance] : graph[current_id]) {
+            double possible_distance = distance_matrix[current_id] + connected_distance;
+            if (possible_distance < distance_matrix[connected_id]) {
+                distance_matrix[connected_id] = possible_distance;
+                predecessor[connected_id] = current_id;
+                buckets[static_cast<int>(possible_distance) % num_buckets].push_back(connected_id);
+                nodes_in_buckets++;
+            }
+        }
+    }
+
+    if (distance_matrix[destination_id] == std::numeric_limits<double>::infinity()) {
+        throw std::runtime_error("The origin and destination nodes are not connected.");
+    }
+
+    return GraphResult{
+        reconstruct_path(destination_id, predecessor),
+        distance_matrix[destination_id]
+    };
+}
+
 GraphResult Graph::dijkstra_negative(const std::variant<int, std::set<int>>& origin_id, int destination_id,
                                      std::optional<int> cycle_check_iterations) {
     input_check(origin_id, destination_id);
