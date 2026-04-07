@@ -3,6 +3,7 @@ from heapq import heappop, heappush
 from typing import Any
 from scgraph.graph_utils import GraphUtils, GraphModifiers
 from scgraph.contraction_hierarchies import CHGraph
+from scgraph.transit_node_routing import TNRGraph
 from bmsspy import Bmssp
 
 
@@ -639,6 +640,52 @@ class GraphAlgorithms:
             self.__ch_graph__ = CHGraph(
                 graph=self.graph, heuristic_fn=heuristic_fn, **ch_graph_kwargs
             )
+
+    def create_tnr_hierarchy(
+        self, num_transit_nodes: int = 100, tnr_graph_kwargs: dict = None
+    ) -> Any:
+        """
+        Function:
+
+        - Create a Transit Node Routing (TNR) graph from the current Graph object
+        - The TNR graph is stored as an instance variable `self.__tnr_graph__`
+
+        Optional Arguments:
+
+        - `num_transit_nodes`:
+            - Type: int
+            - What: The number of transit nodes to use
+            - Default: 100
+        """
+        if not hasattr(self, "__tnr_graph__"):
+            tnr_graph_kwargs = (
+                tnr_graph_kwargs if tnr_graph_kwargs is not None else dict()
+            )
+            self.__tnr_graph__ = TNRGraph(
+                graph=self.graph,
+                num_transit_nodes=num_transit_nodes,
+                **tnr_graph_kwargs,
+            )
+        return self.__tnr_graph__
+
+    def tnr(self, origin_id: int, destination_id: int, **kwargs) -> dict:
+        """
+        Function:
+
+        - Perform a Transit Node Routing (TNR) search on the graph
+        - Automatically creates the TNR hierarchy if it doesn't exist
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node
+        """
+        self.create_tnr_hierarchy()
+        return self.__tnr_graph__.search(origin_id, destination_id)
 
     def contraction_hierarchy(
         self, origin_id: int, destination_id: int, length_only: bool = False

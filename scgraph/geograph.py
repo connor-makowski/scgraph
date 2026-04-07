@@ -1652,6 +1652,10 @@ class GeoGraph(
                       (called automatically on first use if not already done)
                     - Very fast for arbitrary origin-destination queries on large graphs
                     - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
+                - 'tnr' -> TNRGraph.search
+                    - Transit Node Routing; extremely fast for global queries on large graphs
+                    - Requires preprocessing via TNRGraph initialization or create_tnr_hierarchy()
+                    - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
                 - Any callable that accepts:
                     - `graph`: The graph (list[dict[int, int | float]]) to perform the shortest path on
                     - `origin_id`: The id of the origin node
@@ -1772,6 +1776,7 @@ class GeoGraph(
         if algorithm_fn in [
             self.graph_object.cached_shortest_path,
             self.graph_object.contraction_hierarchy,
+            self.graph_object.tnr
         ]:
             assert (
                 node_addition_type == "kdclosest"
