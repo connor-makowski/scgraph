@@ -95,9 +95,6 @@ class TNRGraphPreprocessing:
         distances = {node_id: 0}
         open_leaves = [(0, node_id)]
 
-        # We use the upward graphs from CH
-        graph = self.forward_graph if forward else self.backward_graph
-
         while open_leaves:
             dist, current_id = heapq.heappop(open_leaves)
             if dist > distances.get(current_id, float("inf")):
@@ -162,7 +159,11 @@ class TNRGraphPreprocessing:
 
 class TNRGraphAlgorithms:
     def __local_search__(
-        self, origin_id: int, destination_id: int, upper_bound: float, length_only: bool
+        self,
+        origin_id: int,
+        destination_id: int,
+        upper_bound: float,
+        length_only: bool,
     ) -> Optional[dict]:
         forward_distances = {origin_id: 0}
         forward_parent = {origin_id: -1}
@@ -177,7 +178,9 @@ class TNRGraphAlgorithms:
 
         while forward_open_leaves or backward_open_leaves:
             if forward_open_leaves:
-                current_distance, current_id = heapq.heappop(forward_open_leaves)
+                current_distance, current_id = heapq.heappop(
+                    forward_open_leaves
+                )
                 if current_distance > best_dist:
                     forward_open_leaves = []
                 elif current_id not in self.transit_nodes:
@@ -189,20 +192,35 @@ class TNRGraphAlgorithms:
                     )
 
                     for neighbor_id, weight in neighbors.items():
-                        if self.__get_rank__(neighbor_id) <= current_rank and neighbor_id < self.nodes_count:
+                        if (
+                            self.__get_rank__(neighbor_id) <= current_rank
+                            and neighbor_id < self.nodes_count
+                        ):
                             continue
                         new_dist = current_distance + weight
-                        if new_dist < forward_distances.get(neighbor_id, float("inf")):
+                        if new_dist < forward_distances.get(
+                            neighbor_id, float("inf")
+                        ):
                             forward_distances[neighbor_id] = new_dist
                             if not length_only:
                                 forward_parent[neighbor_id] = current_id
-                            heapq.heappush(forward_open_leaves, (new_dist, neighbor_id))
-                            if neighbor_id in backward_distances and new_dist + backward_distances[neighbor_id] < best_dist:
-                                best_dist = new_dist + backward_distances[neighbor_id]
+                            heapq.heappush(
+                                forward_open_leaves, (new_dist, neighbor_id)
+                            )
+                            if (
+                                neighbor_id in backward_distances
+                                and new_dist + backward_distances[neighbor_id]
+                                < best_dist
+                            ):
+                                best_dist = (
+                                    new_dist + backward_distances[neighbor_id]
+                                )
                                 meeting_node = neighbor_id
 
             if backward_open_leaves:
-                current_distance, current_id = heapq.heappop(backward_open_leaves)
+                current_distance, current_id = heapq.heappop(
+                    backward_open_leaves
+                )
                 if current_distance > best_dist:
                     backward_open_leaves = []
                 elif current_id not in self.transit_nodes:
@@ -214,20 +232,41 @@ class TNRGraphAlgorithms:
                     )
 
                     for neighbor_id, weight in neighbors.items():
-                        if self.__get_rank__(neighbor_id) <= current_rank and neighbor_id < self.nodes_count:
+                        if (
+                            self.__get_rank__(neighbor_id) <= current_rank
+                            and neighbor_id < self.nodes_count
+                        ):
                             continue
                         new_dist = current_distance + weight
-                        if new_dist < backward_distances.get(neighbor_id, float("inf")):
+                        if new_dist < backward_distances.get(
+                            neighbor_id, float("inf")
+                        ):
                             backward_distances[neighbor_id] = new_dist
                             if not length_only:
                                 backward_parent[neighbor_id] = current_id
-                            heapq.heappush(backward_open_leaves, (new_dist, neighbor_id))
-                            if neighbor_id in forward_distances and new_dist + forward_distances[neighbor_id] < best_dist:
-                                best_dist = new_dist + forward_distances[neighbor_id]
+                            heapq.heappush(
+                                backward_open_leaves, (new_dist, neighbor_id)
+                            )
+                            if (
+                                neighbor_id in forward_distances
+                                and new_dist + forward_distances[neighbor_id]
+                                < best_dist
+                            ):
+                                best_dist = (
+                                    new_dist + forward_distances[neighbor_id]
+                                )
                                 meeting_node = neighbor_id
 
-            forward_min = forward_open_leaves[0][0] if forward_open_leaves else float("inf")
-            backward_min = backward_open_leaves[0][0] if backward_open_leaves else float("inf")
+            forward_min = (
+                forward_open_leaves[0][0]
+                if forward_open_leaves
+                else float("inf")
+            )
+            backward_min = (
+                backward_open_leaves[0][0]
+                if backward_open_leaves
+                else float("inf")
+            )
             if forward_min > best_dist and backward_min > best_dist:
                 break
 
@@ -236,21 +275,33 @@ class TNRGraphAlgorithms:
 
         if meeting_node != -1:
             path = self.__reconstruct_ch_path__(
-                origin_id, destination_id, meeting_node, forward_parent, backward_parent
+                origin_id,
+                destination_id,
+                meeting_node,
+                forward_parent,
+                backward_parent,
             )
             return {"path": path, "length": best_dist}
 
         return None
 
     def search(
-        self, origin_id: int, destination_id: int, length_only: bool = False, **kwargs
+        self,
+        origin_id: int,
+        destination_id: int,
+        length_only: bool = False,
+        **kwargs,
     ) -> dict[str, Any]:
         """
         Function:
         - Perform a TNR search with a highly pruned local CH fallback
         """
         if origin_id == destination_id:
-            return {"length": 0} if length_only else {"path": [origin_id], "length": 0}
+            return (
+                {"length": 0}
+                if length_only
+                else {"path": [origin_id], "length": 0}
+            )
 
         # Access Nodes for origin/destination
         if origin_id < self.nodes_count:
@@ -275,15 +326,20 @@ class TNRGraphAlgorithms:
 
         # Locality Filter / Correctness Check
         if length_only:
-            return self.__local_search__(origin_id, destination_id, best_dist, True)
+            return self.__local_search__(
+                origin_id, destination_id, best_dist, True
+            )
 
-        local_res = self.__local_search__(origin_id, destination_id, best_dist, False)
+        local_res = self.__local_search__(
+            origin_id, destination_id, best_dist, False
+        )
         if local_res is not None:
             return local_res
 
         # Reconstructing path from transit pairs is complex without unpacking tables.
         # Fall back to a standard CH search if global TNR path is needed.
         return CHGraph.search(self, origin_id, destination_id)
+
 
 class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
     def __init__(

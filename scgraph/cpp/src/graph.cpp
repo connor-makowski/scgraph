@@ -17,10 +17,11 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
     }
 }
 
-// Override reset_cache to also clear __ch_graph__
+// Override reset_cache to also clear __ch_graph__ and __tnr_graph__
 void Graph::reset_cache() {
     GraphUtils::reset_cache();
     __ch_graph__ = nullptr;
+    __tnr_graph__ = nullptr;
 }
 
 // Tree algorithms
@@ -450,4 +451,20 @@ GraphResult Graph::contraction_hierarchy(int origin_id, int destination_id) {
         create_contraction_hierarchy();
     }
     return __ch_graph__->get_shortest_path(origin_id, destination_id);
+}
+
+std::shared_ptr<TNRGraph> Graph::create_tnr_hierarchy(int num_transit_nodes, std::function<double(CHGraph*, int)> heuristic_fn) {
+    __tnr_graph__ = std::make_shared<TNRGraph>(get_graph(), num_transit_nodes, heuristic_fn);
+    return __tnr_graph__;
+}
+
+void Graph::set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph) {
+    __tnr_graph__ = tnr_graph;
+}
+
+GraphResult Graph::tnr(int origin_id, int destination_id, bool length_only) {
+    if (__tnr_graph__ == nullptr) {
+        throw std::runtime_error("TNRGraph has not been set. Use set_tnr_graph() first.");
+    }
+    return __tnr_graph__->search(origin_id, destination_id, length_only);
 }

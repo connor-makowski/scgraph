@@ -1776,7 +1776,7 @@ class GeoGraph(
         if algorithm_fn in [
             self.graph_object.cached_shortest_path,
             self.graph_object.contraction_hierarchy,
-            self.graph_object.tnr
+            self.graph_object.tnr,
         ]:
             assert (
                 node_addition_type == "kdclosest"

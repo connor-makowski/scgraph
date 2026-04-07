@@ -736,10 +736,10 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py), in
 """
 
 try:
-    from scgraph.cpp import Graph, CHGraph
+    from scgraph.cpp import Graph, CHGraph, TNRGraph
 except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph
-from scgraph.transit_node_routing import TNRGraph
+    from scgraph.transit_node_routing import TNRGraph
 from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
