@@ -1,5 +1,5 @@
 import json
-import heapq
+from heapq import heappush, heappop
 from typing import Any, Optional
 from scgraph.contraction_hierarchies import CHGraph
 
@@ -96,7 +96,7 @@ class TNRGraphPreprocessing:
         open_leaves = [(0, node_id)]
 
         while open_leaves:
-            dist, current_id = heapq.heappop(open_leaves)
+            dist, current_id = heappop(open_leaves)
             if dist > distances.get(current_id, float("inf")):
                 continue
 
@@ -115,7 +115,7 @@ class TNRGraphPreprocessing:
                 new_dist = dist + weight
                 if new_dist < distances.get(neighbor_id, float("inf")):
                     distances[neighbor_id] = new_dist
-                    heapq.heappush(open_leaves, (new_dist, neighbor_id))
+                    heappush(open_leaves, (new_dist, neighbor_id))
         return access_nodes
 
     def __preprocess_tnr__(self, num_transit_nodes: int):
@@ -178,7 +178,7 @@ class TNRGraphAlgorithms:
 
         while forward_open_leaves or backward_open_leaves:
             if forward_open_leaves:
-                current_distance, current_id = heapq.heappop(
+                current_distance, current_id = heappop(
                     forward_open_leaves
                 )
                 if current_distance > best_dist:
@@ -204,7 +204,7 @@ class TNRGraphAlgorithms:
                             forward_distances[neighbor_id] = new_dist
                             if not length_only:
                                 forward_parent[neighbor_id] = current_id
-                            heapq.heappush(
+                            heappush(
                                 forward_open_leaves, (new_dist, neighbor_id)
                             )
                             if (
@@ -218,7 +218,7 @@ class TNRGraphAlgorithms:
                                 meeting_node = neighbor_id
 
             if backward_open_leaves:
-                current_distance, current_id = heapq.heappop(
+                current_distance, current_id = heappop(
                     backward_open_leaves
                 )
                 if current_distance > best_dist:
@@ -244,7 +244,7 @@ class TNRGraphAlgorithms:
                             backward_distances[neighbor_id] = new_dist
                             if not length_only:
                                 backward_parent[neighbor_id] = current_id
-                            heapq.heappush(
+                            heappush(
                                 backward_open_leaves, (new_dist, neighbor_id)
                             )
                             if (
