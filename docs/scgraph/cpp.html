@@ -82,6 +82,9 @@
                                 <a class="function" href="#Graph.dijkstra">dijkstra</a>
                         </li>
                         <li>
+                                <a class="function" href="#Graph.dijkstra_buckets">dijkstra_buckets</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#Graph.dijkstra_negative">dijkstra_negative</a>
                         </li>
                         <li>
@@ -101,6 +104,15 @@
                         </li>
                         <li>
                                 <a class="function" href="#Graph.contraction_hierarchy">contraction_hierarchy</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Graph.create_tnr_hierarchy">create_tnr_hierarchy</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Graph.set_tnr_graph">set_tnr_graph</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Graph.tnr">tnr</a>
                         </li>
                 </ul>
 
@@ -150,13 +162,46 @@
                 </ul>
 
             </li>
+            <li>
+                    <a class="class" href="#TNRGraph">TNRGraph</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#TNRGraph.__init__">TNRGraph</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TNRGraph.search">search</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TNRGraph.get_shortest_path">get_shortest_path</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TNRGraph.transit_nodes">transit_nodes</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TNRGraph.distance_table">distance_table</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TNRGraph.forward_access_nodes">forward_access_nodes</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TNRGraph.backward_access_nodes">backward_access_nodes</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#TNRGraph.save_as_tnrjson">save_as_tnrjson</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#TNRGraph.load_from_tnrjson">load_from_tnrjson</a>
+                        </li>
+                </ul>
+
+            </li>
     </ul>
 
 
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
-        <option value="3.1.1">3.1.1</option>
+        <option value="3.2.0">3.2.0</option>
         <option value="2.15.0">2.15.0</option>
         <option value="1.5.2">1.5.2</option>
         <option value="0.3.0">0.3.0</option>
@@ -488,6 +533,23 @@
 
 
                             </div>
+                            <div id="Graph.dijkstra_buckets" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dijkstra_buckets</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Graph.dijkstra_buckets"></a>
+    
+            <div class="docstring"><p>dijkstra_buckets(self, origin_id: int | collections.abc.Set[int], destination_id: int, max_edge_weight: float | None = None) -> dict</p>
+
+<p>Find shortest path using Dijkstra with buckets</p>
+</div>
+
+
+                            </div>
                             <div id="Graph.dijkstra_negative" class="classattr">
                                 <div class="attr function">
             
@@ -600,9 +662,60 @@
     </div>
     <a class="headerlink" href="#Graph.contraction_hierarchy"></a>
     
-            <div class="docstring"><p>contraction_hierarchy(self, origin_id: int, destination_id: int, length_only: bool = False) -> dict</p>
+            <div class="docstring"><p>contraction_hierarchy(self, origin_id: int, destination_id: int) -> dict</p>
 
 <p>Get shortest path using Contraction Hierarchies</p>
+</div>
+
+
+                            </div>
+                            <div id="Graph.create_tnr_hierarchy" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">create_tnr_hierarchy</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Graph.create_tnr_hierarchy"></a>
+    
+            <div class="docstring"><p>create_tnr_hierarchy(self, num_transit_nodes: int = 100, heuristic_fn: collections.abc.Callable[[<a href="#CHGraph">scgraph.cpp.CHGraph</a>, int], float] | None = None) -> <a href="#TNRGraph">scgraph.cpp.TNRGraph</a></p>
+
+<p>Create a Transit Node Routing (TNR) graph</p>
+</div>
+
+
+                            </div>
+                            <div id="Graph.set_tnr_graph" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">set_tnr_graph</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Graph.set_tnr_graph"></a>
+    
+            <div class="docstring"><p>set_tnr_graph(self, tnr_graph: <a href="#TNRGraph">scgraph.cpp.TNRGraph</a>) -> None</p>
+
+<p>Set the TNRGraph object for the graph</p>
+</div>
+
+
+                            </div>
+                            <div id="Graph.tnr" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">tnr</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Graph.tnr"></a>
+    
+            <div class="docstring"><p>tnr(self, origin_id: int, destination_id: int, length_only: bool = False) -> dict</p>
+
+<p>Get shortest path using Transit Node Routing</p>
 </div>
 
 
@@ -819,6 +932,181 @@ __init__(self, nodes_count: int, ranks: collections.abc.Sequence[int], forward_g
     
     
 
+                            </div>
+                </section>
+                <section id="TNRGraph">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">TNRGraph</span><wbr>(<span class="base"><a href="#CHGraph">CHGraph</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph"></a>
+    
+    
+
+                            <div id="TNRGraph.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">TNRGraph</span><span class="signature pdoc-code condensed">()</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.__init__"></a>
+    
+            <div class="docstring"><p>__init__(self, graph: collections.abc.Sequence[collections.abc.Mapping[int, float]], num_transit_nodes: int = 100, heuristic_fn: collections.abc.Callable[[<a href="#CHGraph">scgraph.cpp.CHGraph</a>, int], float] | None = None) -> None
+__init__(self, nodes_count: int, ranks: collections.abc.Sequence[int], forward_graph: collections.abc.Sequence[collections.abc.Mapping[int, float]], backward_graph: collections.abc.Sequence[collections.abc.Mapping[int, float]], shortcuts: collections.abc.Mapping[tuple[int, int], int], original_graph: collections.abc.Sequence[collections.abc.Mapping[int, float]] | None, transit_nodes: collections.abc.Set[int], distance_table: collections.abc.Mapping[tuple[int, int], float], forward_access_nodes: collections.abc.Sequence[collections.abc.Mapping[int, float]], backward_access_nodes: collections.abc.Sequence[collections.abc.Mapping[int, float]]) -> None</p>
+
+<p>Overloaded function.</p>
+
+<ol>
+<li><code>__init__(self, graph: collections.abc.Sequence[collections.abc.Mapping[int, float]], num_transit_nodes: int = 100, heuristic_fn: collections.abc.Callable[[<a href="#CHGraph">scgraph.cpp.CHGraph</a>, int], float] | None = None) -&gt; None</code></li>
+</ol>
+
+<p>Initialize and preprocess a TNRGraph</p>
+
+<ol start="2">
+<li><code>__init__(self, nodes_count: int, ranks: collections.abc.Sequence[int], forward_graph: collections.abc.Sequence[collections.abc.Mapping[int, float]], backward_graph: collections.abc.Sequence[collections.abc.Mapping[int, float]], shortcuts: collections.abc.Mapping[tuple[int, int], int], original_graph: collections.abc.Sequence[collections.abc.Mapping[int, float]] | None, transit_nodes: collections.abc.Set[int], distance_table: collections.abc.Mapping[tuple[int, int], float], forward_access_nodes: collections.abc.Sequence[collections.abc.Mapping[int, float]], backward_access_nodes: collections.abc.Sequence[collections.abc.Mapping[int, float]]) -&gt; None</code></li>
+</ol>
+
+<p>Initialize a TNRGraph from pre-calculated data</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.search" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">search</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.search"></a>
+    
+            <div class="docstring"><p>search(self, origin_id: int, destination_id: int, length_only: bool = False) -> dict</p>
+
+<p>Perform a bidirectional search on the TNR</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.get_shortest_path" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_shortest_path</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.get_shortest_path"></a>
+    
+            <div class="docstring"><p>get_shortest_path(self, origin_id: int, destination_id: int, length_only: bool = False) -> dict</p>
+
+<p>Wrapper for search to match scgraph naming conventions</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.transit_nodes" class="classattr">
+                                <div class="attr variable">
+            <span class="name">transit_nodes</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.transit_nodes"></a>
+    
+            <div class="docstring"><p>(self) -> set[int]</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.distance_table" class="classattr">
+                                <div class="attr variable">
+            <span class="name">distance_table</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.distance_table"></a>
+    
+            <div class="docstring"><p>(self) -> dict</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.forward_access_nodes" class="classattr">
+                                <div class="attr variable">
+            <span class="name">forward_access_nodes</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.forward_access_nodes"></a>
+    
+            <div class="docstring"><p>(self) -> list[dict[int, float]]</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.backward_access_nodes" class="classattr">
+                                <div class="attr variable">
+            <span class="name">backward_access_nodes</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.backward_access_nodes"></a>
+    
+            <div class="docstring"><p>(self) -> list[dict[int, float]]</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.save_as_tnrjson" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">save_as_tnrjson</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">unknown</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.save_as_tnrjson"></a>
+    
+            <div class="docstring"><p>save_as_tnrjson(self, filename: str) -> None</p>
+
+<p>Save the current TNRGraph as a JSON file.</p>
+</div>
+
+
+                            </div>
+                            <div id="TNRGraph.load_from_tnrjson" class="classattr">
+                                <div class="attr variable">
+            <span class="name">load_from_tnrjson</span>        =
+<span class="default_value">&lt;nanobind.nb_func object&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#TNRGraph.load_from_tnrjson"></a>
+    
+    
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#CHGraph">CHGraph</a></dt>
+                                <dd id="TNRGraph.add_node" class="function"><a href="#CHGraph.add_node">add_node</a></dd>
+                <dd id="TNRGraph.nodes_count" class="variable"><a href="#CHGraph.nodes_count">nodes_count</a></dd>
+                <dd id="TNRGraph.ranks" class="variable"><a href="#CHGraph.ranks">ranks</a></dd>
+                <dd id="TNRGraph.forward_graph" class="variable"><a href="#CHGraph.forward_graph">forward_graph</a></dd>
+                <dd id="TNRGraph.backward_graph" class="variable"><a href="#CHGraph.backward_graph">backward_graph</a></dd>
+                <dd id="TNRGraph.shortcuts" class="variable"><a href="#CHGraph.shortcuts">shortcuts</a></dd>
+                <dd id="TNRGraph.original_graph" class="variable"><a href="#CHGraph.original_graph">original_graph</a></dd>
+                <dd id="TNRGraph.graph" class="variable"><a href="#CHGraph.graph">graph</a></dd>
+                <dd id="TNRGraph.save_as_chjson" class="function"><a href="#CHGraph.save_as_chjson">save_as_chjson</a></dd>
+                <dd id="TNRGraph.load_from_chjson" class="variable"><a href="#CHGraph.load_from_chjson">load_from_chjson</a></dd>
+
+            </div>
+                                </dl>
                             </div>
                 </section>
     </main>

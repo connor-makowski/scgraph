@@ -30,46 +30,46 @@ Marnet Graph Tests:
 Graph Validation: PASS
 Dijkstra: PASS
 A*: PASS
-Contraction Hierarchies Preprocessing: 2795.3374ms
+Contraction Hierarchies Preprocessing: 2843.9567ms
 Contraction Hierarchies: PASS
 
 ===============
 Marnet Time Tests:
 ===============
-Graph Validation: 1.9376ms
-Dijkstra 1: 0.0241ms
-Dijkstra 2: 0.1271ms
-Dijkstra 3: 0.6456ms
-A* 1: 0.0436ms
-A* 2: 0.308ms
-A* 3: 1.6391ms
-Contraction Hierarchies 1: 0.0234ms
-Contraction Hierarchies 2: 0.1137ms
-Contraction Hierarchies 3: 0.1752ms
+Graph Validation: 1.8818ms
+Dijkstra 1: 0.0203ms
+Dijkstra 2: 0.1216ms
+Dijkstra 3: 0.648ms
+A* 1: 0.0398ms
+A* 2: 0.2935ms
+A* 3: 1.6367ms
+Contraction Hierarchies 1: 0.0191ms
+Contraction Hierarchies 2: 0.0978ms
+Contraction Hierarchies 3: 0.1566ms
 
 ===============
 Scale Time Tests:
 ===============
 
 Graph Size: 100
-Graph Validation (100): 0.0029ms
-Dijkstra (100): 0.0114ms
-A* (100): 0.0212ms
+Graph Validation (100): 0.0026ms
+Dijkstra (100): 0.011ms
+A* (100): 0.0207ms
 
 Graph Size: 1000
-Graph Validation (1000): 0.0079ms
-Dijkstra (1000): 0.042ms
-A* (1000): 0.2053ms
+Graph Validation (1000): 0.0067ms
+Dijkstra (1000): 0.0441ms
+A* (1000): 0.1786ms
 
 Graph Size: 10000
-Graph Validation (10000): 0.098ms
-Dijkstra (10000): 0.386ms
-A* (10000): 1.9407ms
+Graph Validation (10000): 0.1063ms
+Dijkstra (10000): 0.3858ms
+A* (10000): 1.8985ms
 
 Graph Size: 100000
-Graph Validation (100000): 1.0819ms
-Dijkstra (100000): 3.9318ms
-A* (100000): 19.5386ms
+Graph Validation (100000): 1.076ms
+Dijkstra (100000): 3.9008ms
+A* (100000): 18.5204ms
 
 ===============
 Basic GeoGraph Tests:
@@ -93,14 +93,14 @@ BMSSP: PASS
 ===============
 Marnet GeoGraph Time Tests:
 ===============
-Graph Validation: 1.7326ms
-Node Validation: 4.1959ms
-Dijkstra: 1.1218ms
-A*-haversine: 3.3381ms
-A*-cheap_ruler: 3.9289ms
-Cached Shortest Path Tree First Call: 1.2794ms
-Cached Shortest Path Tree Second Call: 0.0155ms
-BMSSP: 13.581ms
+Graph Validation: 1.7996ms
+Node Validation: 3.9415ms
+Dijkstra: 1.0931ms
+A*-haversine: 3.2473ms
+A*-cheap_ruler: 3.9673ms
+Cached Shortest Path Tree First Call: 1.2875ms
+Cached Shortest Path Tree Second Call: 0.0145ms
+BMSSP: 13.7908ms
 
 ===============
 GeoGraph Iteration Test:
@@ -120,12 +120,12 @@ BMSSP: PASS
 ===============
 Oak Ridge GeoGraph Time Tests:
 ===============
-Graph Validation: 0.3283ms
-Node Validation: 3.9065ms
-Dijkstra: 0.6566ms
-A*-haversine: 3.8333ms
-A*-cheap_ruler: 4.523ms
-BMSSP: 12.8939ms
+Graph Validation: 0.3092ms
+Node Validation: 3.7799ms
+Dijkstra: 0.6516ms
+A*-haversine: 3.7992ms
+A*-cheap_ruler: 4.5595ms
+BMSSP: 13.1826ms
 
 ===============
 North America Rail GeoGraph Tests:
@@ -140,12 +140,12 @@ BMSSP: PASS
 ===============
 North America Rail GeoGraph Time Tests:
 ===============
-Graph Validation: 0.3185ms
-Node Validation: 3.5627ms
-Dijkstra: 0.9594ms
-A*-haversine: 7.9045ms
-A*-cheap_ruler: 10.1202ms
-BMSSP: 17.7252ms
+Graph Validation: 0.3035ms
+Node Validation: 3.4471ms
+Dijkstra: 0.9367ms
+A*-haversine: 8.1394ms
+A*-cheap_ruler: 10.3102ms
+BMSSP: 16.9051ms
 
 ===============
 US Freeway GeoGraph Tests:
@@ -160,12 +160,12 @@ BMSSP: PASS
 ===============
 US Freeway GeoGraph Time Tests:
 ===============
-Graph Validation: 0.2346ms
-Node Validation: 5.2667ms
-Dijkstra: 1.0681ms
-A*-haversine: 5.5118ms
-A*-cheap_ruler: 9.4125ms
-BMSSP: 21.9581ms
+Graph Validation: 0.2606ms
+Node Validation: 4.9891ms
+Dijkstra: 1.0791ms
+A*-haversine: 5.6973ms
+A*-cheap_ruler: 9.9521ms
+BMSSP: 24.2279ms
 
 ===============
 External Saving, Modification and Loading Tests:
@@ -180,23 +180,23 @@ Basic GridGraph Test: PASS
 ===============
 Cache + GridGraph Tests:
 ===============
-300x300 Graph Creation Time:  448.0729103088379 ms
-A* Output Time:  18.19896697998047 ms
-Dijkstra Output Time:  7.775306701660156 ms
-Shortest Path Tree + Output Time:  8.958816528320312 ms
-Cached Shortest Path Tree Output Time:  0.13208389282226562 ms
+300x300 Graph Creation Time:  459.5377445220947 ms
+A* Output Time:  17.654895782470703 ms
+Dijkstra Output Time:  7.8258514404296875 ms
+Shortest Path Tree + Output Time:  9.384632110595703 ms
+Cached Shortest Path Tree Output Time:  0.13017654418945312 ms
 
 GridGraph + Cache Test: PASS
 
 ===============
 GridGraph Import Export Tests:
 ===============
-GridGraph Creation Time: 445.562363 ms
-GridGraph First Shortest Path Time (caching results): 10.248899 ms
-GridGraph Export Time: 238.496304 ms
-GridGraph Import Time: 177.644730 ms
-GridGraph Imported Shortest Path Time (using cached distance matrix): 0.155687 ms
-GridGraph Imported Shortest Path Time (without using cache): 0.116348 ms
+GridGraph Creation Time: 465.841532 ms
+GridGraph First Shortest Path Time (caching results): 10.257244 ms
+GridGraph Export Time: 242.271185 ms
+GridGraph Import Time: 173.085928 ms
+GridGraph Imported Shortest Path Time (using cached distance matrix): 0.160933 ms
+GridGraph Imported Shortest Path Time (without using cache): 0.081062 ms
 GridGraph Import Export Test: PASS
 
 ===============
@@ -210,11 +210,11 @@ Helper Tests:
 Basic Visvalingam Test: PASS
 
 Scale Testing Visvalingam (should be O(n log n))...
-n=10:     visvalingam: 0.0293ms
-n=100:    visvalingam: 0.2573ms
-n=1000:   visvalingam: 3.0122ms
-n=10000:  visvalingam: 35.5058ms
-n=100000: visvalingam: 529.0244ms
+n=10:     visvalingam: 0.0279ms
+n=100:    visvalingam: 0.2596ms
+n=1000:   visvalingam: 3.0732ms
+n=10000:  visvalingam: 38.6684ms
+n=100000: visvalingam: 535.7063ms
 
 ===============
 GeoGraph Merge Tests:
@@ -224,10 +224,10 @@ Merge Test: PASS
 ===============
 Import Timing:
 ===============
-Loading Marnet took 57.9293 ms
-Loading North America Rail took 41.0244 ms
-Loading Oak Ridge Maritime took 46.3514 ms
-Loading US Freeway took 72.2258 ms
+Loading Marnet took 58.0065 ms
+Loading North America Rail took 42.0434 ms
+Loading Oak Ridge Maritime took 46.7529 ms
+Loading US Freeway took 69.8006 ms
 
 ===============
 GeoGraph Cache Tests:
@@ -237,12 +237,12 @@ Geograph Cache Test: PASS
 ===============
 GeoGraph Cache Timing Tests:
 ===============
-GeoGraph single uncached time: 0.9198ms
-GeoGraph single cached time: 0.0355ms
-GeoGraph single cached length only time: 0.0181ms
-GeoGraph uncached time: 144.5806ms
-GeoGraph cached time: 5.9943ms
-GeoGraph cached length only time: 2.8832ms
+GeoGraph single uncached time: 0.9ms
+GeoGraph single cached time: 0.0367ms
+GeoGraph single cached length only time: 0.0186ms
+GeoGraph uncached time: 140.249ms
+GeoGraph cached time: 6.0434ms
+GeoGraph cached length only time: 2.944ms
 
 ===============
 GeoGraph Distance Matrix Tests:
@@ -252,12 +252,12 @@ Distance matrix test: PASS
 ===============
 GeoGraph Distance Matrix Timing Tests:
 ===============
-Haversine distance (25 nodes, 625 distances): 0.4661ms total, 0.7458us/distance
-Distance matrix (25 nodes, 625 distances): 30.6101ms total, 48.9761us/distance
-Haversine distance (100 nodes, 10000 distances): 7.3068ms total, 0.7307us/distance
-Distance matrix (100 nodes, 10000 distances): 99.2482ms total, 9.9248us/distance
-Haversine distance (400 nodes, 160000 distances): 126.2367ms total, 0.789us/distance
-Distance matrix (400 nodes, 160000 distances): 388.6597ms total, 2.4291us/distance
+Haversine distance (25 nodes, 625 distances): 0.4673ms total, 0.7477us/distance
+Distance matrix (25 nodes, 625 distances): 30.3152ms total, 48.5043us/distance
+Haversine distance (100 nodes, 10000 distances): 7.3001ms total, 0.73us/distance
+Distance matrix (100 nodes, 10000 distances): 93.6811ms total, 9.3681us/distance
+Haversine distance (400 nodes, 160000 distances): 118.495ms total, 0.7406us/distance
+Distance matrix (400 nodes, 160000 distances): 364.5732ms total, 2.2786us/distance
 
 ===============
 BMSSP Tests:
@@ -271,13 +271,13 @@ BMSSP 5 (us_freeway): PASS
 ===============
 BMSSP Time Tests:
 ===============
-BMSSP 1 (marnet): 14.8702ms
-BMSSP 2 (marnet): 14.8945ms
-BMSSP 3 (marnet): 13.8731ms
-BMSSP 4 (us_freeway): 22.0668ms
-BMSSP 5 (us_freeway): 22.9049ms
-Shortest Path Tree Comparison (marnet): 2.2573ms
-Shortest Path Tree Comparison (us_freeway): 1.9941ms
+BMSSP 1 (marnet): 14.4506ms
+BMSSP 2 (marnet): 14.6892ms
+BMSSP 3 (marnet): 14.0836ms
+BMSSP 4 (us_freeway): 22.3525ms
+BMSSP 5 (us_freeway): 22.532ms
+Shortest Path Tree Comparison (marnet): 2.0719ms
+Shortest Path Tree Comparison (us_freeway): 1.8349ms
 
 ===============
 Symmetry + Connectivity Validation Tests:
@@ -323,12 +323,12 @@ BMSSP: PASS
 ===============
 World Highways and Marnet GeoGraph Time Tests:
 ===============
-Graph Validation: 27.3862ms
-Node Validation: 230.9213ms
-Dijkstra: 17.5593ms
-A*-haversine: 49.8734ms
-A*-cheap_ruler: 78.4516ms
-BMSSP: 1209.461ms
+Graph Validation: 26.0811ms
+Node Validation: 221.0548ms
+Dijkstra: 16.7239ms
+A*-haversine: 50.5149ms
+A*-cheap_ruler: 77.9371ms
+BMSSP: 1205.399ms
 
 ===============
 GeoGraph Load/Cache Tests:
@@ -341,3 +341,99 @@ load_geograph returns a GeoGraph: PASS
 marnet is cached after load: PASS
 load_geograph from cache returns a GeoGraph: PASS
 marnet is not cached after clear: PASS
+
+===============
+Dijkstra Buckets Performance Test:
+===============
+
+--- Testing 200x200 Grid (Int weights 1-10) ---
+Graph size: 40000 nodes
+Python Dijkstra time: 0.0389s
+Python Dijkstra Buckets time: 0.0316s
+200x200 Grid (Int weights 1-10) - Python Dijkstra vs Buckets: PASS
+SUCCESS (PY): Buckets was 1.23x faster
+C++ Dijkstra time: 0.0054s
+C++ Dijkstra Buckets time: 0.0016s
+200x200 Grid (Int weights 1-10) - C++ Dijkstra vs Buckets: PASS
+200x200 Grid (Int weights 1-10) - Python vs C++ Buckets: PASS
+SUCCESS (CPP): Buckets was 3.30x faster
+Overall C++ Buckets Speedup over Python Buckets: 19.21x
+
+--- Testing 200x200 Grid (Float weights 0.1-10.0) ---
+Graph size: 40000 nodes
+Python Dijkstra time: 0.0368s
+Python Dijkstra Buckets time: 0.0334s
+200x200 Grid (Float weights 0.1-10.0) - Python Dijkstra vs Buckets: PASS
+SUCCESS (PY): Buckets was 1.10x faster
+C++ Dijkstra time: 0.0042s
+C++ Dijkstra Buckets time: 0.0017s
+200x200 Grid (Float weights 0.1-10.0) - C++ Dijkstra vs Buckets: PASS
+200x200 Grid (Float weights 0.1-10.0) - Python vs C++ Buckets: PASS
+SUCCESS (CPP): Buckets was 2.53x faster
+Overall C++ Buckets Speedup over Python Buckets: 20.08x
+
+--- Testing GeoGraph: Marnet (Original Floats) ---
+Graph size: 11062 nodes
+Python Dijkstra time: 0.0099s
+Python Dijkstra Buckets time: 0.0152s
+GeoGraph: Marnet (Original Floats) - Python Dijkstra vs Buckets: PASS
+INFO (PY): Buckets was 1.53x slower
+C++ Dijkstra time: 0.0013s
+C++ Dijkstra Buckets time: 0.0012s
+GeoGraph: Marnet (Original Floats) - C++ Dijkstra vs Buckets: PASS
+GeoGraph: Marnet (Original Floats) - Python vs C++ Buckets: PASS
+SUCCESS (CPP): Buckets was 1.07x faster
+Overall C++ Buckets Speedup over Python Buckets: 12.32x
+
+--- Testing GeoGraph: US Freeway (Original Floats) ---
+Graph size: 14591 nodes
+Python Dijkstra time: 0.0098s
+Python Dijkstra Buckets time: 0.0099s
+GeoGraph: US Freeway (Original Floats) - Python Dijkstra vs Buckets: PASS
+INFO (PY): Buckets was 1.01x slower
+C++ Dijkstra time: 0.0009s
+C++ Dijkstra Buckets time: 0.0005s
+GeoGraph: US Freeway (Original Floats) - C++ Dijkstra vs Buckets: PASS
+GeoGraph: US Freeway (Original Floats) - Python vs C++ Buckets: PASS
+SUCCESS (CPP): Buckets was 1.78x faster
+Overall C++ Buckets Speedup over Python Buckets: 19.76x
+
+===============
+TNR Tests:
+===============
+
+Testing TNR Basic (Python)...
+Path: [0, 2, 1, 3, 5], Length: 10
+TNR Basic Passed (Python)!
+
+Testing TNR Basic (C++)...
+Path: [0, 2, 1, 3, 5], Length: 10.0
+TNR Basic Passed (C++)!
+
+Testing TNR with GeoGraph (Marnet) - Python...
+TNR Preprocessing took: 28.42s
+Dijkstra took: 0.0110s, Length: 19072.829330647808
+CH (path) took: 0.0021s, Length: 19072.82933064781
+TNR (path) took: 0.0057s, Length: 19072.82933064781
+TNR (length_only) took: 0.0047s, Length: 19072.82933064781
+TNR Speedup over Dijkstra (path): 1.95x
+TNR Speedup over CH (path): 0.38x
+TNR Speedup over CH (length_only): 0.45x
+TNR GeoGraph Passed (Python)!
+
+Testing TNR with GeoGraph (Marnet) - C++...
+TNR Preprocessing took: 4.38s
+Dijkstra took: 0.0016s, Length: 19072.829330647808
+CH (path) took: 0.0004s, Length: 19072.82933064781
+TNR (path) took: 0.0007s, Length: 19072.82933064781
+TNR (length_only) took: 0.0004s, Length: 19072.82933064781
+TNR Speedup over Dijkstra (path): 2.21x
+TNR Speedup over CH (path): 0.59x
+TNR Speedup over CH (length_only): 1.05x
+TNR GeoGraph Passed (C++)!
+
+Testing TNR Save/Load (Python)...
+TNR Save/Load Passed (Python)!
+
+Testing TNR Save/Load (C++)...
+TNR Save/Load Passed (C++)!

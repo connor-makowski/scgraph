@@ -1,7 +1,7 @@
 # SCGraph
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/)
+[![PyPI Downloads](https://static.pepy.tech/badge/scgraph)](https://pepy.tech/project/scgraph/)
 
 **A high-performance, lightweight Python library for shortest path routing on geographic and supply chain networks.**
 
@@ -173,21 +173,24 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | `algorithm_fn` | Description | Time Complexity |
 |---|---|---|
 | `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights (default) | O((n+m) log n) |
+| `'dijkstra_buckets'` | Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights (ideally >= 1) | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
 | `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
 | `'bellman_ford'` | Bellman-Ford; supports negative weights, slower than Dijkstra | O(n·m) |
 | `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) / [Implementation](https://github.com/connor-makowski/bmsspy) | O(m log^(2/3)(n)) |
 | `'cached_shortest_path'` | Caches shortest path tree from origin; near-instant repeated queries | O((n+m) log n) first, O(1) after |
 | `'contraction_hierarchy'` | Bidirectional Dijkstra on preprocessed CH graph; fast arbitrary queries | O(k log k) per query |
+| `'tnr'` | [Transit Node Routing](https://en.wikipedia.org/wiki/Transit_node_routing); extremely fast for global queries | O(1) per query (global) |
 
 ## Performance Guide
 
 | Scenario | Recommended Approach |
 |---|---|
 | Single query | `dijkstra` (default) |
+| Weights generally >= 1 | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
-| Many arbitrary queries on a fixed graph | `contraction_hierarchy` |
+| Many arbitrary queries on a fixed graph | `contraction_hierarchy` or `tnr` |
 | Graph with negative weights | `dijkstra_negative` |
 
 ## Heuristic Functions (for A*)
