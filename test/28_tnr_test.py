@@ -11,6 +11,8 @@ try:
 except ImportError:
     has_cpp = False
 
+print("\n===============\nTNR Tests:\n===============")
+
 
 def test_tnr_basic():
     def run_basic(TNRGraphClass, name):
@@ -132,7 +134,6 @@ def test_tnr_save_load():
     run_save_load(PyTNRGraph, "Python")
     if has_cpp:
         run_save_load(CppTNRGraph, "C++")
-
 
 if __name__ == "__main__":
     test_tnr_basic()

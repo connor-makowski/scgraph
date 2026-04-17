@@ -149,5 +149,3 @@ for name, rel_path in geograph_files:
         )
     else:
         print(f"\nSkipping {name} - file not found at {rel_path}")
-
-print("\nPerformance testing complete.")
