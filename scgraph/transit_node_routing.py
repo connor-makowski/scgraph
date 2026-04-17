@@ -139,22 +139,26 @@ class TNRGraphPreprocessing:
             for i in range(self.nodes_count)
         ]
 
-        # 3. Compute Distance Table between transit nodes
+        # 3. Compute Distance Table using full Dijkstra on original_graph (one tree per transit origin)
         self.distance_table = {}
         t_nodes_list = list(self.transit_nodes)
+        n = len(self.original_graph)
 
-        # Note: This is O(T^2) which is slow for Python.
-        # For a production implementation, we'd use many-to-one Dijkstra.
         for origin in t_nodes_list:
-            # We use CH search for distance
-            # This can be optimized by using a simpler Dijkstra if we're only going transit-to-transit
-            for target in t_nodes_list:
-                if origin == target:
-                    self.distance_table[(origin, target)] = 0
+            dist = [float("inf")] * n
+            dist[origin] = 0
+            open_leaves = [(0, origin)]
+            while open_leaves:
+                d, u = heappop(open_leaves)
+                if d > dist[u]:
                     continue
-                # Bidirectional CH search is very fast
-                res = CHGraph.search(self, origin, target)
-                self.distance_table[(origin, target)] = res["length"]
+                for v, w in self.original_graph[u].items():
+                    nd = d + w
+                    if nd < dist[v]:
+                        dist[v] = nd
+                        heappush(open_leaves, (nd, v))
+            for target in t_nodes_list:
+                self.distance_table[(origin, target)] = dist[target]
 
 
 class TNRGraphAlgorithms:

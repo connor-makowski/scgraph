@@ -66,15 +66,28 @@ TNRGraph::TNRGraph(const std::vector<std::unordered_map<int, double>>& graph,
         backward_access_nodes[i] = compute_access_nodes(i, false);
     }
 
-    // 3. Compute Distance Table
+    // 3. Compute Distance Table using full Dijkstra on original_graph (one tree per transit origin)
+    size_t n = original_graph.size();
     for (int origin : transit_nodes) {
-        for (int target : transit_nodes) {
-            if (origin == target) {
-                distance_table[{origin, target}] = 0.0;
-            } else {
-                auto res = CHGraph::search(origin, target);
-                distance_table[{origin, target}] = res.length;
+        std::vector<double> dist(n, std::numeric_limits<double>::infinity());
+        dist[origin] = 0.0;
+        using PQItem = std::pair<double, int>;
+        std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> pq;
+        pq.push({0.0, origin});
+        while (!pq.empty()) {
+            auto [d, u] = pq.top();
+            pq.pop();
+            if (d > dist[u]) continue;
+            for (const auto& [v, w] : original_graph[u]) {
+                double nd = d + w;
+                if (nd < dist[v]) {
+                    dist[v] = nd;
+                    pq.push({nd, v});
+                }
             }
+        }
+        for (int target : transit_nodes) {
+            distance_table[{origin, target}] = dist[target];
         }
     }
 }

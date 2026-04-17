@@ -464,7 +464,7 @@ void Graph::set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph) {
 
 GraphResult Graph::tnr(int origin_id, int destination_id, bool length_only) {
     if (__tnr_graph__ == nullptr) {
-        throw std::runtime_error("TNRGraph has not been set. Use set_tnr_graph() first.");
+        create_tnr_hierarchy();
     }
     return __tnr_graph__->search(origin_id, destination_id, length_only);
 }
