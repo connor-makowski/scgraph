@@ -64,6 +64,18 @@ validate(
     expected=expected,
 )
 
+validate(
+    name="TNR",
+    realized=graph.tnr(origin_id=0, destination_id=5),
+    expected=expected,
+)
+
+validate(
+    name="Dijkstra Buckets",
+    realized=graph.dijkstra_buckets(origin_id=0, destination_id=5),
+    expected=expected,
+)
+
 
 print("\n===============\nDisconnected Graph Tests:\n===============")
 
@@ -136,6 +148,18 @@ validate(
 validate(
     name="Contraction Hierarchy",
     realized=graph.contraction_hierarchy(origin_id=0, destination_id=5),
+    expected=expected,
+)
+
+validate(
+    name="TNR",
+    realized=graph.tnr(origin_id=0, destination_id=5),
+    expected=expected,
+)
+
+validate(
+    name="Dijkstra Buckets",
+    realized=graph.dijkstra_buckets(origin_id=0, destination_id=5),
     expected=expected,
 )
 
