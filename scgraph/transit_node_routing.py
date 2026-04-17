@@ -178,9 +178,7 @@ class TNRGraphAlgorithms:
 
         while forward_open_leaves or backward_open_leaves:
             if forward_open_leaves:
-                current_distance, current_id = heappop(
-                    forward_open_leaves
-                )
+                current_distance, current_id = heappop(forward_open_leaves)
                 if current_distance > best_dist:
                     forward_open_leaves = []
                 elif current_id not in self.transit_nodes:
@@ -218,9 +216,7 @@ class TNRGraphAlgorithms:
                                 meeting_node = neighbor_id
 
             if backward_open_leaves:
-                current_distance, current_id = heappop(
-                    backward_open_leaves
-                )
+                current_distance, current_id = heappop(backward_open_leaves)
                 if current_distance > best_dist:
                     backward_open_leaves = []
                 elif current_id not in self.transit_nodes:

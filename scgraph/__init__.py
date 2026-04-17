@@ -2,7 +2,7 @@
 # SCGraph
 [![PyPI version](https://badge.fury.io/py/scgraph.svg)](https://badge.fury.io/py/scgraph)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PyPI Downloads](https://pepy.tech/badge/scgraph)](https://pypi.org/project/scgraph/)
+[![PyPI Downloads](https://static.pepy.tech/badge/scgraph)](https://pepy.tech/project/scgraph/)
 
 **A high-performance, lightweight Python library for shortest path routing on geographic and supply chain networks.**
 
@@ -736,10 +736,9 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py), in
 """
 
 try:
-    from scgraph.cpp import Graph, CHGraph, TNRGraph
+    from scgraph.cpp import Graph, CHGraph
 except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph
-    from scgraph.transit_node_routing import TNRGraph
 from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
