@@ -70,6 +70,7 @@ else()
         scgraph/cpp/src/graph.cpp
         scgraph/cpp/src/graph_utils.cpp
         scgraph/cpp/src/contraction_hierarchies.cpp
+        scgraph/cpp/src/transit_node_routing.cpp
     )
 
 

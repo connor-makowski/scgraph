@@ -180,6 +180,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | `'bmssp'` | [BMSSP Algorithm](https://arxiv.org/pdf/2504.17033) / [Implementation](https://github.com/connor-makowski/bmsspy) | O(m log^(2/3)(n)) |
 | `'cached_shortest_path'` | Caches shortest path tree from origin; near-instant repeated queries | O((n+m) log n) first, O(1) after |
 | `'contraction_hierarchy'` | Bidirectional Dijkstra on preprocessed CH graph; fast arbitrary queries | O(k log k) per query |
+| `'tnr'` | [Transit Node Routing](https://en.wikipedia.org/wiki/Transit_node_routing); extremely fast for global queries | O(1) per query (global) |
 
 ## Performance Guide
 
@@ -189,7 +190,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | Weights generally >= 1 | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
-| Many arbitrary queries on a fixed graph | `contraction_hierarchy` |
+| Many arbitrary queries on a fixed graph | `contraction_hierarchy` or `tnr` |
 | Graph with negative weights | `dijkstra_negative` |
 
 ## Heuristic Functions (for A*)

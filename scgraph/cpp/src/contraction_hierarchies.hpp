@@ -8,7 +8,7 @@
 #include "graph_utils.hpp"
 
 class CHGraph {
-private:
+protected:
     int nodes_count;
     std::vector<int> ranks;
     std::vector<std::unordered_map<int, double>> forward_graph;
