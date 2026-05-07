@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
+#include <functional>
 
 TNRGraph::TNRGraph(const std::vector<std::unordered_map<int, double>>& graph,
                    int num_transit_nodes,

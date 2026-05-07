@@ -49,7 +49,11 @@ else()
     # OPTIMIZATION FLAGS
     # -----------------------------
     set(CMAKE_BUILD_TYPE Release)
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
+    else()
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
+    endif()
 
     # -----------------------------
     # Find Packages

@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <algorithm>
 #include <iostream>
+#include <cmath>
+#include <functional>
 
 // Constructor
 Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate)

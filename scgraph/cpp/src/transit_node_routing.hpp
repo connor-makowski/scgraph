@@ -4,6 +4,7 @@
 #include <utility>
 #include <set>
 #include <optional>
+#include <functional>
 #include "contraction_hierarchies.hpp"
 
 class TNRGraph : public CHGraph {
