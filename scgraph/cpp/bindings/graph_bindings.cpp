@@ -10,6 +10,9 @@
 #include <nanobind/stl/tuple.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/operators.h>
+#include <string>
+#include <stdexcept>
+#include <memory>
 #include "../src/graph.hpp"
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"

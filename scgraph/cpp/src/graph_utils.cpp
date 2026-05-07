@@ -1,6 +1,7 @@
 #include "graph_utils.hpp"
 #include <stdexcept>
 #include <algorithm>
+#include <string>
 
 std::set<int> get_origin_ids(const std::variant<int, std::set<int>>& origin_id) {
     if (std::holds_alternative<int>(origin_id)) {

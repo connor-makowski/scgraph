@@ -5,6 +5,7 @@
 #include <string>
 #include <functional>
 #include <optional>
+#include <tuple>
 #include "graph_utils.hpp"
 
 class CHGraph {
