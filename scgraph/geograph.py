@@ -1943,15 +1943,16 @@ class GeoGraph(
         except Exception as e:
             # Cleanup temp nodes from the graph
             self.__cleanup_temp_nodes__()
-            print("An error occurred while calculating the shortest path:")
-            print("This is likely caused by a disconnect in the graph.")
-            print(
-                "You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180."
+            print_console(
+                (
+                    "An error occurred while calculating the shortest path:\n"
+                    "This is likely caused by a disconnect in the graph.\n"
+                    "You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180.\n"
+                    "This will, however, result in a much longer runtime per shortest path query.\n"
+                    "If not in an exception block, see the stacktrace below for more details:\n"
+                 ),
+                silent=silent,
             )
-            print(
-                "This will, however, result in a much longer runtime per shortest path query."
-            )
-            print("See the stacktrace below for more details:")
             raise e
 
     def distance_matrix(
