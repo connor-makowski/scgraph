@@ -737,6 +737,107 @@ class GeoGraphModifiers:
             symmetric=symmetric,
         )
 
+    def add_coord_edge(
+        self,
+        origin_coord_dict: dict[str, float | int],
+        destination_coord_dict: dict[str, float | int],
+        symmetric: bool = True,
+        distance: float | int | None = None,
+        circuity: float | int = 1,
+    ) -> None:
+        """
+        Function:
+
+        - Add an edge to the graph between two nodes specified by their coordinates
+        - Finds the closest nodes in the graph to the provided coordinates and adds an edge between them
+
+        Required Arguments:
+
+        - `origin_coord_dict`
+            - Type: dict
+            - What: A dictionary with the keys 'latitude' and 'longitude' for the origin node
+            - Note: The function will find the closest node in the graph to these coordinates and use that as the origin node for the edge
+        - `destination_coord_dict`
+            - Type: dict
+            - What: A dictionary with the keys 'latitude' and 'longitude' for the destination node
+            - Note: The function will find the closest node in the graph to these coordinates and use that as the destination node for the edge
+
+        Optional Arguments:
+
+        - `symmetric`
+            - Type: bool
+            - What: Whether to add the edge in both directions
+            - Default: True
+        - `distance`
+            - Type: int | float | None
+            - What: The distance to use for the edge. If None, the haversine distance between the origin and destination nodes (the closest nodes to the provided ones) will be used (with circuity applied)
+            - Default: None
+        - `circuity`
+            - Type: int | float
+            - What: The circuity to apply to the distance calculation if distance is None
+            - Default: 1
+        """
+        assert isinstance(
+            origin_coord_dict, dict
+        ), "Origin node must be a dictionary"
+        assert isinstance(
+            destination_coord_dict, dict
+        ), "Destination node must be a dictionary"
+        assert (
+            "latitude" in origin_coord_dict.keys()
+        ), "Origin node must have a latitude"
+        assert (
+            "longitude" in origin_coord_dict.keys()
+        ), "Origin node must have a longitude"
+        assert (
+            "latitude" in destination_coord_dict.keys()
+        ), "Destination node must have a latitude"
+        assert (
+            "longitude" in destination_coord_dict.keys()
+        ), "Destination node must have a longitude"
+        assert (
+            origin_coord_dict["latitude"] >= -90
+            and origin_coord_dict["latitude"] <= 90
+        ), "Origin latitude must be between -90 and 90"
+        assert (
+            origin_coord_dict["longitude"] >= -180
+            and origin_coord_dict["longitude"] <= 180
+        ), "Origin longitude must be between -180 and 180"
+        assert (
+            destination_coord_dict["latitude"] >= -90
+            and destination_coord_dict["latitude"] <= 90
+        ), "Destination latitude must be between -90 and 90"
+        assert (
+            destination_coord_dict["longitude"] >= -180
+            and destination_coord_dict["longitude"] <= 180
+        ), "Destination longitude must be between -180 and 180"
+        origin_node = [
+            origin_coord_dict["latitude"],
+            origin_coord_dict["longitude"],
+        ]
+        destination_node = [
+            destination_coord_dict["latitude"],
+            destination_coord_dict["longitude"],
+        ]
+        closest_origin_idx = self.geokdtree.closest_idx(point=origin_node)
+        closest_destination_idx = self.geokdtree.closest_idx(
+            point=destination_node
+        )
+        if distance is None:
+            distance = (
+                haversine(
+                    self.nodes[closest_origin_idx],
+                    self.nodes[closest_destination_idx],
+                )
+                * circuity
+            )
+        self.add_edge(
+            origin_id=closest_origin_idx,
+            destination_id=closest_destination_idx,
+            distance=distance,
+            symmetric=symmetric,
+        )
+
     def add_coord_node(
         self,
         coord_dict: dict[str, float | int],
@@ -819,7 +920,7 @@ class GeoGraphModifiers:
         ), "Longitude must be between -180 and 180"
         node = [coord_dict["latitude"], coord_dict["longitude"]]
         if auto_edge:
-            assert circuity > 1, "Circuity must be greater than 1"
+            assert circuity >= 1, "Circuity must be greater than or equal to 1"
             assert node_addition_type in [
                 "quadrant",
                 "all",
@@ -901,8 +1002,8 @@ class GeoGraphModifiers:
             self.graph_object.graph
         ), "Destination node does not exist"
         self.add_edge(
-            origin_idx=origin_idx,
-            destination_idx=destination_idx,
+            origin_id=origin_idx,
+            destination_id=destination_idx,
             distance=haversine(
                 self.nodes[origin_idx], self.nodes[destination_idx]
             ),
@@ -1950,7 +2051,7 @@ class GeoGraph(
                     "You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180.\n"
                     "This will, however, result in a much longer runtime per shortest path query.\n"
                     "If not in an exception block, see the stacktrace below for more details:\n"
-                 ),
+                ),
                 silent=silent,
             )
             raise e

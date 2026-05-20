@@ -5,8 +5,8 @@ print("\n===============\nSilent GeoGraph Tests:\n===============")
 
 # Two isolated clusters with no path between them
 nodes = [
-    [0.0, 0.0],    # 0 — cluster A
-    [0.1, 0.1],    # 1 — cluster A
+    [0.0, 0.0],  # 0 — cluster A
+    [0.1, 0.1],  # 1 — cluster A
     [50.0, 50.0],  # 2 — cluster B
     [50.1, 50.1],  # 3 — cluster B
 ]
@@ -29,7 +29,9 @@ except Exception:
     pass
 finally:
     sys.stdout = sys.__stdout__
-assert buf.getvalue() == "", f"Expected no output with silent=True, got: {buf.getvalue()!r}"
+assert (
+    buf.getvalue() == ""
+), f"Expected no output with silent=True, got: {buf.getvalue()!r}"
 
 # silent=False — output expected
 buf = io.StringIO()
