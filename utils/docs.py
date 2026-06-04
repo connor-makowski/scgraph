@@ -7,7 +7,7 @@ root = Path(__file__).parent.parent
 scgraph = root / "scgraph" / "__init__.py"
 
 
-VERSION = "3.3.0"
+VERSION = "3.4.0"
 OLD_DOC_VERSIONS = ["2.15.0", "1.5.2", "0.3.0"]
 
 env = {
@@ -44,7 +44,7 @@ def generate_docs(version):
 
 
 # Build __init__.py from README
-readme = (root / "README.md").read_text()
+readme = (root / "README.md").read_text().replace("\\","\\\\")
 
 init_setup = """
 try:
