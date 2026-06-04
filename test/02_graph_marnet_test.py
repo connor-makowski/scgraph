@@ -15,7 +15,9 @@ def test_graph_validation(marnet_graph):
 
 
 def test_dijkstra(marnet_graph):
-    assert_result(marnet_graph.dijkstra(origin_id=0, destination_id=5), _EXPECTED)
+    assert_result(
+        marnet_graph.dijkstra(origin_id=0, destination_id=5), _EXPECTED
+    )
 
 
 def test_a_star(marnet_graph):
@@ -25,5 +27,6 @@ def test_a_star(marnet_graph):
 def test_contraction_hierarchy(marnet_graph):
     marnet_graph.create_contraction_hierarchy()
     assert_result(
-        marnet_graph.contraction_hierarchy(origin_id=0, destination_id=5), _EXPECTED
+        marnet_graph.contraction_hierarchy(origin_id=0, destination_id=5),
+        _EXPECTED,
     )

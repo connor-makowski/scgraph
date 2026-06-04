@@ -33,9 +33,7 @@ _SYMMETRIC_DISCONNECTED = Graph(
         {6: 3},
     ]
 )
-_ONE_WAY_DISCONNECTED = Graph(
-    [{1: 5}, {2: 2}, {3: 4}, {}]
-)
+_ONE_WAY_DISCONNECTED = Graph([{1: 5}, {2: 2}, {3: 4}, {}])
 
 
 def test_symmetric_connected_both():
@@ -65,9 +63,13 @@ def test_disconnected_symmetry_passes():
 
 def test_disconnected_connectivity_raises():
     with pytest.raises(Exception):
-        _SYMMETRIC_DISCONNECTED.validate(check_symmetry=False, check_connected=True)
+        _SYMMETRIC_DISCONNECTED.validate(
+            check_symmetry=False, check_connected=True
+        )
 
 
 def test_one_way_disconnected_raises():
     with pytest.raises(Exception):
-        _ONE_WAY_DISCONNECTED.validate(check_symmetry=False, check_connected=True)
+        _ONE_WAY_DISCONNECTED.validate(
+            check_symmetry=False, check_connected=True
+        )

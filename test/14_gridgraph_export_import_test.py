@@ -50,7 +50,9 @@ def test_import_cached_path_matches(exported_grid):
         output_coordinate_path="list_of_lists",
         cache=True,
     )
-    assert round(original_output["length"], 4) == round(imported_output["length"], 4)
+    assert round(original_output["length"], 4) == round(
+        imported_output["length"], 4
+    )
 
 
 def test_import_cached_is_fast(exported_grid):
@@ -65,6 +67,6 @@ def test_import_cached_is_fast(exported_grid):
     )
     elapsed = time.time() - start
     epxectation = 0.0005 if has_cpp() else 0.010
-    assert elapsed < epxectation, (
-        f"Cached lookup took {elapsed*1000:.3f}ms — cache may not be working"
-    )
+    assert (
+        elapsed < epxectation
+    ), f"Cached lookup took {elapsed*1000:.3f}ms — cache may not be working"

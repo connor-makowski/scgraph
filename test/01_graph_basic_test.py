@@ -48,7 +48,9 @@ def test_bellman_ford(graph):
 
 def test_a_star(graph):
     assert_result(
-        graph.a_star(origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0),
+        graph.a_star(
+            origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
+        ),
         _EXPECTED,
     )
 
@@ -79,7 +81,9 @@ def test_tnr(graph):
 
 
 def test_dijkstra_buckets(graph):
-    assert_result(graph.dijkstra_buckets(origin_id=0, destination_id=5), _EXPECTED)
+    assert_result(
+        graph.dijkstra_buckets(origin_id=0, destination_id=5), _EXPECTED
+    )
 
 
 def test_disconnected_connection_raises(disconnected_graph):
@@ -100,7 +104,8 @@ def test_disconnected_dijkstra(disconnected_graph):
 
 def test_disconnected_bellman_ford(disconnected_graph):
     assert_result(
-        disconnected_graph.bellman_ford(origin_id=0, destination_id=5), _EXPECTED
+        disconnected_graph.bellman_ford(origin_id=0, destination_id=5),
+        _EXPECTED,
     )
 
 
@@ -143,7 +148,8 @@ def test_disconnected_tnr(disconnected_graph):
 
 def test_disconnected_dijkstra_buckets(disconnected_graph):
     assert_result(
-        disconnected_graph.dijkstra_buckets(origin_id=0, destination_id=5), _EXPECTED
+        disconnected_graph.dijkstra_buckets(origin_id=0, destination_id=5),
+        _EXPECTED,
     )
 
 

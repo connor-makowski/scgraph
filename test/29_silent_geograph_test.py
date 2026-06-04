@@ -36,4 +36,6 @@ def test_non_silent_produces_output():
         pass
     finally:
         sys.stdout = sys.__stdout__
-    assert buf.getvalue() != "", "Expected output with silent=False but got none"
+    assert (
+        buf.getvalue() != ""
+    ), "Expected output with silent=False but got none"

@@ -23,7 +23,9 @@ def test_distance_matrix_matches_shortest_path(us_freeway):
         {"longitude": coord[1], "latitude": coord[0]}
         for coord in _CITIES.values()
     ]
-    dm = us_freeway.distance_matrix(city_nodes, off_graph_circuity=1, output_units="km")
+    dm = us_freeway.distance_matrix(
+        city_nodes, off_graph_circuity=1, output_units="km"
+    )
     direct = us_freeway.get_shortest_path(
         origin_node=city_nodes[0], destination_node=city_nodes[1]
     )

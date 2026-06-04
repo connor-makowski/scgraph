@@ -32,7 +32,9 @@ _EXPECTED = {
 
 
 def test_graph_validation(world_highways_and_marnet):
-    world_highways_and_marnet.validate(check_symmetry=True, check_connected=False)
+    world_highways_and_marnet.validate(
+        check_symmetry=True, check_connected=False
+    )
 
 
 def test_node_validation(world_highways_and_marnet):
@@ -56,7 +58,9 @@ def test_a_star_haversine(world_highways_and_marnet):
             origin_node=_ORIGIN,
             destination_node=_DESTINATION,
             algorithm_fn="a_star",
-            algorithm_kwargs={"heuristic_fn": world_highways_and_marnet.haversine},
+            algorithm_kwargs={
+                "heuristic_fn": world_highways_and_marnet.haversine
+            },
         ),
         _EXPECTED,
     )
@@ -68,7 +72,9 @@ def test_a_star_cheap_ruler(world_highways_and_marnet):
             origin_node=_ORIGIN,
             destination_node=_DESTINATION,
             algorithm_fn="a_star",
-            algorithm_kwargs={"heuristic_fn": world_highways_and_marnet.cheap_ruler},
+            algorithm_kwargs={
+                "heuristic_fn": world_highways_and_marnet.cheap_ruler
+            },
         ),
         _EXPECTED,
     )

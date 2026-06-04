@@ -36,8 +36,12 @@ def _test_geograph(graph_class):
     geo.graph_object.create_contraction_hierarchy()
     origin = {"latitude": 31.23, "longitude": 121.47}
     destination = {"latitude": 32.08, "longitude": -81.09}
-    dijkstra = geo.get_shortest_path(origin, destination, algorithm_fn="dijkstra")
-    ch = geo.get_shortest_path(origin, destination, algorithm_fn="contraction_hierarchy")
+    dijkstra = geo.get_shortest_path(
+        origin, destination, algorithm_fn="dijkstra"
+    )
+    ch = geo.get_shortest_path(
+        origin, destination, algorithm_fn="contraction_hierarchy"
+    )
     tnr = geo.get_shortest_path(origin, destination, algorithm_fn="tnr")
     tnr_len = geo.get_shortest_path(
         origin, destination, algorithm_fn="tnr", length_only=True

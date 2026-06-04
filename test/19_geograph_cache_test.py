@@ -31,9 +31,14 @@ def test_cached_results_match_uncached(us_freeway):
                 origin, dest, algorithm_fn="cached_shortest_path"
             )["length"]
             cached_len_only = us_freeway.get_shortest_path(
-                origin, dest, algorithm_fn="cached_shortest_path", length_only=True
+                origin,
+                dest,
+                algorithm_fn="cached_shortest_path",
+                length_only=True,
             )["length"]
-            assert abs(length - cached) + abs(length - cached_len_only) <= 0.001, (
+            assert (
+                abs(length - cached) + abs(length - cached_len_only) <= 0.001
+            ), (
                 f"{city1} -> {city2}: uncached={length}, cached={cached}, "
                 f"cached_len_only={cached_len_only}"
             )
