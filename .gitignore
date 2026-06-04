@@ -8,3 +8,5 @@ build/
 utils/*.geojson
 ignore
 .venv
+.nox
+.pytest_cache
