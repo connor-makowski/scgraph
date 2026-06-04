@@ -1,12 +1,8 @@
-from pamda import pamda
-from scgraph import GeoGraph
-from scgraph.utils import validate, time_test
+from helpers import assert_result
 
-north_america_rail_geograph = GeoGraph.load_geograph("north_america_rail")
-
-print("\n===============\nNorth America Rail GeoGraph Tests:\n===============")
-
-expected = {
+_ORIGIN = {"longitude": -102.352, "latitude": 48.325}
+_DESTINATION = {"longitude": -102.651, "latitude": 48.561}
+_EXPECTED = {
     "length": 39.9236,
     "coordinate_path": [
         [48.325, -102.352],
@@ -18,131 +14,55 @@ expected = {
 }
 
 
-# Stanley ND
-origin_node = {"longitude": -102.352, "latitude": 48.325}
-# Powers Lake ND
-destination_node = {"longitude": -102.651, "latitude": 48.561}
-
-validate(
-    name="Graph Validation",
-    realized=north_america_rail_geograph.validate(
-        check_symmetry=True, check_connected=False
-    ),
-    expected=None,
-)
-validate(
-    name="Node Validation",
-    realized=north_america_rail_geograph.validate_nodes(),
-    expected=None,
-)
-
-validate(
-    name="Dijkstra",
-    realized=north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-haversine",
-    realized=north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": north_america_rail_geograph.haversine
-        },
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-cheap_ruler",
-    realized=north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": north_america_rail_geograph.cheap_ruler
-        },
-    ),
-    expected=expected,
-)
-
-validate(
-    name="BMSSP",
-    realized=north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
-    ),
-    expected=expected,
-)
-
-print(
-    "\n===============\nNorth America Rail GeoGraph Time Tests:\n==============="
-)
-
-time_test(
-    "Graph Validation",
-    north_america_rail_geograph.validate,
-    kwargs={"check_symmetry": True, "check_connected": False},
-)
-time_test(
-    "Node Validation",
-    north_america_rail_geograph.validate_nodes,
-)
-
-# Seattle
-origin_node = {"latitude": 47.6, "longitude": -122.33}
-# Miami
-destination_node = {"latitude": 25.78, "longitude": -80.21}
+def test_graph_validation(north_america_rail):
+    north_america_rail.validate(check_symmetry=True, check_connected=False)
 
 
-def dijkstra():
-    north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
+def test_node_validation(north_america_rail):
+    north_america_rail.validate_nodes()
+
+
+def test_dijkstra(north_america_rail):
+    assert_result(
+        north_america_rail.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="dijkstra",
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_haversine():
-    north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": north_america_rail_geograph.haversine
-        },
+def test_a_star_haversine(north_america_rail):
+    assert_result(
+        north_america_rail.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": north_america_rail.haversine},
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_cheap_ruler():
-    north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": north_america_rail_geograph.cheap_ruler
-        },
+def test_a_star_cheap_ruler(north_america_rail):
+    assert_result(
+        north_america_rail.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": north_america_rail.cheap_ruler},
+        ),
+        _EXPECTED,
     )
 
 
-def bmssp():
-    north_america_rail_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
+def test_bmssp(north_america_rail):
+    assert_result(
+        north_america_rail.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="bmssp",
+        ),
+        _EXPECTED,
     )
-
-
-time_test("Dijkstra", dijkstra)
-time_test("A*-haversine", a_star_haversine)
-time_test("A*-cheap_ruler", a_star_cheap_ruler)
-time_test("BMSSP", bmssp)
-
-# north_america_rail_geograph.save_as_geojson('north_america_rail.geojson')

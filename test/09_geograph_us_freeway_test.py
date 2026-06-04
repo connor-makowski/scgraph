@@ -1,11 +1,8 @@
-from scgraph import GeoGraph
-from scgraph.utils import validate, time_test
+from helpers import assert_result
 
-us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
-
-print("\n===============\nUS Freeway GeoGraph Tests:\n===============")
-
-expected = {
+_ORIGIN = {"longitude": -85.158, "latitude": 41.129}
+_DESTINATION = {"longitude": -84.996, "latitude": 42.297}
+_EXPECTED = {
     "length": 138.6748,
     "coordinate_path": [
         [41.129, -85.158],
@@ -35,117 +32,55 @@ expected = {
 }
 
 
-# Fort Wayne IN
-origin_node = {"longitude": -85.158, "latitude": 41.129}
-# Marshall MI
-destination_node = {"longitude": -84.996, "latitude": 42.297}
-
-validate(
-    name="Graph Validation",
-    realized=us_freeway_geograph.validate(
-        check_symmetry=True, check_connected=False
-    ),
-    expected=None,
-)
-validate(
-    name="Node Validation",
-    realized=us_freeway_geograph.validate_nodes(),
-    expected=None,
-)
-
-validate(
-    name="Dijkstra",
-    realized=us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-haversine",
-    realized=us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.haversine},
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-cheap_ruler",
-    realized=us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.cheap_ruler},
-    ),
-    expected=expected,
-)
-
-validate(
-    name="BMSSP",
-    realized=us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
-    ),
-    expected=expected,
-)
+def test_graph_validation(us_freeway):
+    us_freeway.validate(check_symmetry=True, check_connected=False)
 
 
-print("\n===============\nUS Freeway GeoGraph Time Tests:\n===============")
-
-time_test(
-    "Graph Validation",
-    us_freeway_geograph.validate,
-    kwargs={"check_symmetry": True, "check_connected": False},
-)
-time_test("Node Validation", us_freeway_geograph.validate_nodes)
-
-# Seattle
-origin_node = {"latitude": 47.6, "longitude": -122.33}
-# Miami
-destination_node = {"latitude": 25.78, "longitude": -80.21}
+def test_node_validation(us_freeway):
+    us_freeway.validate_nodes()
 
 
-def dijkstra():
-    us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
+def test_dijkstra(us_freeway):
+    assert_result(
+        us_freeway.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="dijkstra",
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_haversine():
-    us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.haversine},
+def test_a_star_haversine(us_freeway):
+    assert_result(
+        us_freeway.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": us_freeway.haversine},
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_cheap_ruler():
-    us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": us_freeway_geograph.cheap_ruler},
+def test_a_star_cheap_ruler(us_freeway):
+    assert_result(
+        us_freeway.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": us_freeway.cheap_ruler},
+        ),
+        _EXPECTED,
     )
 
 
-def bmssp():
-    us_freeway_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
+def test_bmssp(us_freeway):
+    assert_result(
+        us_freeway.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="bmssp",
+        ),
+        _EXPECTED,
     )
-
-
-time_test("Dijkstra", dijkstra)
-time_test("A*-haversine", a_star_haversine)
-time_test("A*-cheap_ruler", a_star_cheap_ruler)
-time_test("BMSSP", bmssp)

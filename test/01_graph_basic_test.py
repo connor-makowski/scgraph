@@ -1,173 +1,152 @@
+import pytest
 from scgraph import Graph
-from scgraph.utils import validate
+from helpers import assert_result
 
-print("\n===============\nBasic Graph Tests:\n===============")
-
-graph = Graph(
-    [
-        {1: 5, 2: 1},
-        {0: 5, 2: 2, 3: 1},
-        {0: 1, 1: 2, 3: 4, 4: 8},
-        {1: 1, 2: 4, 4: 3, 5: 6},
-        {2: 8, 3: 3},
-        {3: 6},
-    ]
-)
-
-expected = {"path": [0, 2, 1, 3, 5], "length": 10}
-
-validate(
-    name="Graph Validation",
-    realized=graph.validate(),
-    expected=None,
-)
-
-validate(
-    name="Dijkstra",
-    realized=graph.dijkstra(origin_id=0, destination_id=5),
-    expected=expected,
-)
-
-validate(
-    name="Bellman-Ford",
-    realized=graph.bellman_ford(origin_id=0, destination_id=5),
-    expected=expected,
-)
-
-validate(
-    name="A*",
-    realized=graph.a_star(
-        origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
-    ),
-    expected=expected,
-)
-
-validate(
-    name="BMSSP",
-    realized=graph.bmssp(0, 5),
-    expected=expected,
-)
-
-validate(
-    name="Shortest Path Tree",
-    realized=graph.get_tree_path(
-        origin_id=0,
-        destination_id=5,
-        tree_data=graph.get_shortest_path_tree(origin_id=0),
-    ),
-    expected=expected,
-)
-
-validate(
-    name="Contraction Hierarchy",
-    realized=graph.contraction_hierarchy(origin_id=0, destination_id=5),
-    expected=expected,
-)
-
-validate(
-    name="TNR",
-    realized=graph.tnr(origin_id=0, destination_id=5),
-    expected=expected,
-)
-
-validate(
-    name="Dijkstra Buckets",
-    realized=graph.dijkstra_buckets(origin_id=0, destination_id=5),
-    expected=expected,
-)
+_GRAPH_DATA = [
+    {1: 5, 2: 1},
+    {0: 5, 2: 2, 3: 1},
+    {0: 1, 1: 2, 3: 4, 4: 8},
+    {1: 1, 2: 4, 4: 3, 5: 6},
+    {2: 8, 3: 3},
+    {3: 6},
+]
+_DISCONNECTED_DATA = [
+    {1: 5, 2: 1},
+    {0: 5, 2: 2, 3: 1},
+    {0: 1, 1: 2, 3: 4, 4: 8},
+    {1: 1, 2: 4, 4: 3, 5: 6},
+    {2: 8, 3: 3},
+    {3: 6},
+    {7: 1},
+    {8: 1},
+    {6: 1},
+]
+_EXPECTED = {"path": [0, 2, 1, 3, 5], "length": 10}
 
 
-print("\n===============\nDisconnected Graph Tests:\n===============")
+@pytest.fixture(scope="module")
+def graph():
+    return Graph(_GRAPH_DATA)
 
-graph = Graph(
-    [
-        {1: 5, 2: 1},
-        {0: 5, 2: 2, 3: 1},
-        {0: 1, 1: 2, 3: 4, 4: 8},
-        {1: 1, 2: 4, 4: 3, 5: 6},
-        {2: 8, 3: 3},
-        {3: 6},
-        # Make a disconnected graph
-        {7: 1},
-        {8: 1},
-        {6: 1},
-    ]
-)
 
-expected = {"path": [0, 2, 1, 3, 5], "length": 10}
+@pytest.fixture(scope="module")
+def disconnected_graph():
+    return Graph(_DISCONNECTED_DATA)
 
-# This is not a connected or symmetric graph, both should raise errors
-try:
-    graph.validate(check_connected=True, check_symmetry=False)
-    print("Graph Connection Check: Fail")
-except Exception as e:
-    print("Graph Connection Check: Pass")
 
-try:
-    graph.validate(check_connected=False, check_symmetry=True)
-    print("Graph Symmetry Check: Fail")
-except Exception as e:
-    print("Graph Symmetry Check: Pass")
+def test_validation(graph):
+    graph.validate()
 
-validate(
-    name="Dijkstra",
-    realized=graph.dijkstra(origin_id=0, destination_id=5),
-    expected=expected,
-)
 
-validate(
-    name="Bellman-Ford",
-    realized=graph.bellman_ford(origin_id=0, destination_id=5),
-    expected=expected,
-)
+def test_dijkstra(graph):
+    assert_result(graph.dijkstra(origin_id=0, destination_id=5), _EXPECTED)
 
-validate(
-    name="A*",
-    realized=graph.a_star(
-        origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
-    ),
-    expected=expected,
-)
 
-validate(
-    name="BMSSP",
-    realized=graph.bmssp(0, 5),
-    expected=expected,
-)
+def test_bellman_ford(graph):
+    assert_result(graph.bellman_ford(origin_id=0, destination_id=5), _EXPECTED)
 
-validate(
-    name="Shortest Path Tree",
-    realized=graph.get_tree_path(
-        origin_id=0,
-        destination_id=5,
-        tree_data=graph.get_shortest_path_tree(origin_id=0),
-    ),
-    expected=expected,
-)
 
-validate(
-    name="Contraction Hierarchy",
-    realized=graph.contraction_hierarchy(origin_id=0, destination_id=5),
-    expected=expected,
-)
+def test_a_star(graph):
+    assert_result(
+        graph.a_star(origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0),
+        _EXPECTED,
+    )
 
-validate(
-    name="TNR",
-    realized=graph.tnr(origin_id=0, destination_id=5),
-    expected=expected,
-)
 
-validate(
-    name="Dijkstra Buckets",
-    realized=graph.dijkstra_buckets(origin_id=0, destination_id=5),
-    expected=expected,
-)
+def test_bmssp(graph):
+    assert_result(graph.bmssp(0, 5), _EXPECTED)
 
-empty_graph = Graph([])
 
-try:
-    # Empty graph should raise an exception regardless of checks, since it has no nodes
-    empty_graph.validate(check_symmetry=True, check_connected=True)
-    print("Empty Graph: Fail")
-except Exception as e:
-    print(f"Empty Graph: Pass")
+def test_shortest_path_tree(graph):
+    assert_result(
+        graph.get_tree_path(
+            origin_id=0,
+            destination_id=5,
+            tree_data=graph.get_shortest_path_tree(origin_id=0),
+        ),
+        _EXPECTED,
+    )
+
+
+def test_contraction_hierarchy(graph):
+    assert_result(
+        graph.contraction_hierarchy(origin_id=0, destination_id=5), _EXPECTED
+    )
+
+
+def test_tnr(graph):
+    assert_result(graph.tnr(origin_id=0, destination_id=5), _EXPECTED)
+
+
+def test_dijkstra_buckets(graph):
+    assert_result(graph.dijkstra_buckets(origin_id=0, destination_id=5), _EXPECTED)
+
+
+def test_disconnected_connection_raises(disconnected_graph):
+    with pytest.raises(Exception):
+        disconnected_graph.validate(check_connected=True, check_symmetry=False)
+
+
+def test_disconnected_symmetry_raises(disconnected_graph):
+    with pytest.raises(Exception):
+        disconnected_graph.validate(check_connected=False, check_symmetry=True)
+
+
+def test_disconnected_dijkstra(disconnected_graph):
+    assert_result(
+        disconnected_graph.dijkstra(origin_id=0, destination_id=5), _EXPECTED
+    )
+
+
+def test_disconnected_bellman_ford(disconnected_graph):
+    assert_result(
+        disconnected_graph.bellman_ford(origin_id=0, destination_id=5), _EXPECTED
+    )
+
+
+def test_disconnected_a_star(disconnected_graph):
+    assert_result(
+        disconnected_graph.a_star(
+            origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
+        ),
+        _EXPECTED,
+    )
+
+
+def test_disconnected_bmssp(disconnected_graph):
+    assert_result(disconnected_graph.bmssp(0, 5), _EXPECTED)
+
+
+def test_disconnected_shortest_path_tree(disconnected_graph):
+    assert_result(
+        disconnected_graph.get_tree_path(
+            origin_id=0,
+            destination_id=5,
+            tree_data=disconnected_graph.get_shortest_path_tree(origin_id=0),
+        ),
+        _EXPECTED,
+    )
+
+
+def test_disconnected_contraction_hierarchy(disconnected_graph):
+    assert_result(
+        disconnected_graph.contraction_hierarchy(origin_id=0, destination_id=5),
+        _EXPECTED,
+    )
+
+
+def test_disconnected_tnr(disconnected_graph):
+    assert_result(
+        disconnected_graph.tnr(origin_id=0, destination_id=5), _EXPECTED
+    )
+
+
+def test_disconnected_dijkstra_buckets(disconnected_graph):
+    assert_result(
+        disconnected_graph.dijkstra_buckets(origin_id=0, destination_id=5), _EXPECTED
+    )
+
+
+def test_empty_graph_validation_raises():
+    with pytest.raises(Exception):
+        Graph([]).validate(check_symmetry=True, check_connected=True)

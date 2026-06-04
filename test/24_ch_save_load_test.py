@@ -1,11 +1,9 @@
-from scgraph import CHGraph
-from scgraph.utils import validate
-import os
 import json
+import pytest
+from scgraph import CHGraph
+from helpers import assert_result
 
-print("\n===============\nCH Save/Load Tests:\n===============")
-
-graph_data = [
+_GRAPH_DATA = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
     {0: 1, 1: 2, 3: 4, 4: 8},
@@ -14,38 +12,38 @@ graph_data = [
     {3: 6},
 ]
 
-ch_graph = CHGraph(graph_data)
-filename = "test_graph.chjson"
-ch_graph.save_as_chjson(filename)
-loaded_ch = CHGraph.load_from_chjson(filename)
 
-validate(
-    name="CH Save/Load - Ranks Match",
-    realized=loaded_ch.ranks,
-    expected=ch_graph.ranks,
-)
+@pytest.fixture(scope="module")
+def ch_graph_and_result():
+    g = CHGraph(_GRAPH_DATA)
+    return g, g.search(0, 5)
 
-output_orig = ch_graph.search(0, 5)
 
-validate(
-    name="CH Save/Load - Search Result Match",
-    realized=loaded_ch.search(0, 5),
-    expected=output_orig,
-)
+def test_save_load_ranks(tmp_path, ch_graph_and_result):
+    original, expected = ch_graph_and_result
+    path = str(tmp_path / "test.chjson")
+    original.save_as_chjson(path)
+    loaded = CHGraph.load_from_chjson(path)
+    assert loaded.ranks == original.ranks
 
-with open(filename, "r") as f:
-    data = json.load(f)
-data["original_graph"] = None
-with open("test_no_orig.chjson", "w") as f:
-    json.dump(data, f)
 
-validate(
-    name="CH Save/Load - No Original Graph Search",
-    realized=CHGraph.load_from_chjson("test_no_orig.chjson").search(0, 5),
-    expected=output_orig,
-)
+def test_save_load_search_result(tmp_path, ch_graph_and_result):
+    original, expected = ch_graph_and_result
+    path = str(tmp_path / "test.chjson")
+    original.save_as_chjson(path)
+    loaded = CHGraph.load_from_chjson(path)
+    assert_result(loaded.search(0, 5), expected)
 
-if os.path.exists(filename):
-    os.remove(filename)
-if os.path.exists("test_no_orig.chjson"):
-    os.remove("test_no_orig.chjson")
+
+def test_load_without_original_graph(tmp_path, ch_graph_and_result):
+    original, expected = ch_graph_and_result
+    path = str(tmp_path / "test.chjson")
+    original.save_as_chjson(path)
+    no_orig_path = str(tmp_path / "test_no_orig.chjson")
+    with open(path) as f:
+        data = json.load(f)
+    data["original_graph"] = None
+    with open(no_orig_path, "w") as f:
+        json.dump(data, f)
+    loaded = CHGraph.load_from_chjson(no_orig_path)
+    assert_result(loaded.search(0, 5), expected)

@@ -1,11 +1,8 @@
-from scgraph import GeoGraph
-from scgraph.utils import validate, time_test
+from helpers import assert_result
 
-oak_ridge_maritime_geograph = GeoGraph.load_geograph("oak_ridge_maritime")
-
-print("\n===============\nOak Ridge GeoGraph Tests:\n===============")
-
-expected = {
+_ORIGIN = {"latitude": 30, "longitude": 160}
+_DESTINATION = {"latitude": 30, "longitude": -160}
+_EXPECTED = {
     "length": 3894.053,
     "coordinate_path": [
         [30, 160],
@@ -21,124 +18,56 @@ expected = {
     ],
 }
 
-origin_node = {"latitude": 30, "longitude": 160}
-destination_node = {"latitude": 30, "longitude": -160}
 
-validate(
-    name="Graph Validation",
-    realized=oak_ridge_maritime_geograph.validate(
-        check_symmetry=True, check_connected=False
-    ),
-    expected=None,
-)
-validate(
-    name="Node Validation",
-    realized=oak_ridge_maritime_geograph.validate_nodes(),
-    expected=None,
-)
-
-validate(
-    name="Dijkstra",
-    realized=oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-haversine",
-    realized=oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": oak_ridge_maritime_geograph.haversine
-        },
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-cheap_ruler",
-    realized=oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler
-        },
-    ),
-    expected=expected,
-)
-
-validate(
-    name="BMSSP",
-    realized=oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
-    ),
-    expected=expected,
-)
-
-print("\n===============\nOak Ridge GeoGraph Time Tests:\n===============")
-
-time_test(
-    "Graph Validation",
-    oak_ridge_maritime_geograph.validate,
-    kwargs={"check_symmetry": True, "check_connected": False},
-)
-time_test(
-    "Node Validation",
-    oak_ridge_maritime_geograph.validate_nodes,
-)
-
-origin_node = {"latitude": 31.23, "longitude": 121.47}
-destination_node = {"latitude": 32.08, "longitude": -81.09}
+def test_graph_validation(oak_ridge_maritime):
+    oak_ridge_maritime.validate(check_symmetry=True, check_connected=False)
 
 
-def dijkstra():
-    oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
+def test_node_validation(oak_ridge_maritime):
+    oak_ridge_maritime.validate_nodes()
+
+
+def test_dijkstra(oak_ridge_maritime):
+    assert_result(
+        oak_ridge_maritime.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="dijkstra",
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_haversine():
-    oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": oak_ridge_maritime_geograph.haversine
-        },
+def test_a_star_haversine(oak_ridge_maritime):
+    assert_result(
+        oak_ridge_maritime.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": oak_ridge_maritime.haversine},
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_cheap_ruler():
-    oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={
-            "heuristic_fn": oak_ridge_maritime_geograph.cheap_ruler
-        },
+def test_a_star_cheap_ruler(oak_ridge_maritime):
+    assert_result(
+        oak_ridge_maritime.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": oak_ridge_maritime.cheap_ruler},
+        ),
+        _EXPECTED,
     )
 
 
-def bmssp():
-    oak_ridge_maritime_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
+def test_bmssp(oak_ridge_maritime):
+    assert_result(
+        oak_ridge_maritime.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="bmssp",
+        ),
+        _EXPECTED,
     )
-
-
-time_test("Dijkstra", dijkstra)
-time_test("A*-haversine", a_star_haversine)
-time_test("A*-cheap_ruler", a_star_cheap_ruler)
-time_test("BMSSP", bmssp)
-# oak_ridge_maritime_geograph.save_as_geojson('oak_ridge_maritime.geojson')

@@ -1,14 +1,15 @@
+import pytest
+from scgraph.graph import Graph
+from helpers import assert_result
+
 try:
     from scgraph.cpp import Graph as CPPGraph
+
+    HAS_CPP = True
 except ImportError:
-    CPPGraph = None
+    HAS_CPP = False
 
-from scgraph.graph import Graph
-from scgraph.utils import validate
-
-print("\n===============\nCH Graph Tests:\n===============")
-
-graph_data = [
+_GRAPH_DATA = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
     {0: 1, 1: 2, 3: 4, 4: 8},
@@ -18,39 +19,31 @@ graph_data = [
 ]
 
 
-def test_ch_graph(graph_class, name):
-    graph_obj = graph_class(graph_data)
-    graph_obj.create_contraction_hierarchy(
-        # heuristic_fn=...
+def _run_ch_tests(graph_class):
+    g = graph_class(_GRAPH_DATA)
+    g.create_contraction_hierarchy()
+    assert_result(
+        g.contraction_hierarchy(origin_id=0, destination_id=5),
+        {"path": [0, 2, 1, 3, 5], "length": 10},
     )
-
-    validate(
-        name=f"{name} - Search 0 to 5",
-        realized=graph_obj.contraction_hierarchy(origin_id=0, destination_id=5),
-        expected={"path": [0, 2, 1, 3, 5], "length": 10},
+    assert_result(
+        g.contraction_hierarchy(origin_id=5, destination_id=0),
+        {"path": [5, 3, 1, 2, 0], "length": 10},
     )
-
-    validate(
-        name=f"{name} - Search 5 to 0",
-        realized=graph_obj.contraction_hierarchy(origin_id=5, destination_id=0),
-        expected={"path": [5, 3, 1, 2, 0], "length": 10},
+    assert_result(
+        g.contraction_hierarchy(origin_id=4, destination_id=0),
+        {"path": [4, 3, 1, 2, 0], "length": 7},
     )
-
-    validate(
-        name=f"{name} - Search 4 to 0",
-        realized=graph_obj.contraction_hierarchy(origin_id=4, destination_id=0),
-        expected={"path": [4, 3, 1, 2, 0], "length": 7},
-    )
-
-    validate(
-        name=f"{name} - Search Same Node",
-        realized=graph_obj.contraction_hierarchy(origin_id=2, destination_id=2),
-        expected={"path": [2], "length": 0},
+    assert_result(
+        g.contraction_hierarchy(origin_id=2, destination_id=2),
+        {"path": [2], "length": 0},
     )
 
 
-test_ch_graph(Graph, "Python CH based Graph")
-if CPPGraph:
-    test_ch_graph(CPPGraph, "C++ CH based Graph")
-else:
-    print("C++ not available, skipping C++ CH Graph tests.")
+def test_python_ch_graph():
+    _run_ch_tests(Graph)
+
+
+@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
+def test_cpp_ch_graph():
+    _run_ch_tests(CPPGraph)

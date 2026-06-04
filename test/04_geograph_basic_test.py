@@ -1,8 +1,8 @@
+import pytest
 from scgraph import GeoGraph
-from scgraph.utils import validate
+from helpers import assert_result
 
-print("\n===============\nBasic GeoGraph Tests:\n===============")
-nodes = [
+_NODES = [
     [0, 0],
     [0, 1],
     [1, 0],
@@ -10,7 +10,7 @@ nodes = [
     [1, 2],
     [2, 1],
 ]
-graph = [
+_GRAPH = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
     {0: 1, 1: 2, 3: 4, 4: 8},
@@ -18,33 +18,30 @@ graph = [
     {2: 8, 3: 3},
     {3: 6},
 ]
-
-expected = {
+_EXPECTED = {
     "coordinate_path": [[0, 0], [0, 0], [1, 0], [0, 1], [1, 1], [2, 1], [2, 1]],
     "length": 10,
 }
 
-my_graph = GeoGraph(nodes=nodes, graph=graph)
 
-origin_node = {"latitude": 0, "longitude": 0}
-destination_node = {"latitude": 2, "longitude": 1}
+@pytest.fixture(scope="module")
+def basic_geograph():
+    return GeoGraph(nodes=_NODES, graph=_GRAPH)
 
-validate(
-    name="GeoGraph Graph Validation",
-    realized=my_graph.validate(),
-    expected=None,
-)
 
-validate(
-    name="GeoGraph Node Validation",
-    realized=my_graph.validate_nodes(),
-    expected=None,
-)
+def test_graph_validation(basic_geograph):
+    basic_geograph.validate()
 
-validate(
-    name="GeoGraph Shortest Path",
-    realized=my_graph.get_shortest_path(
-        origin_node=origin_node, destination_node=destination_node
-    ),
-    expected=expected,
-)
+
+def test_node_validation(basic_geograph):
+    basic_geograph.validate_nodes()
+
+
+def test_shortest_path(basic_geograph):
+    assert_result(
+        basic_geograph.get_shortest_path(
+            origin_node={"latitude": 0, "longitude": 0},
+            destination_node={"latitude": 2, "longitude": 1},
+        ),
+        _EXPECTED,
+    )

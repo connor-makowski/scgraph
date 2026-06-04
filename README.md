@@ -715,17 +715,22 @@ dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
 
 # Development
 
-Make sure Docker is installed and running on a Unix system (Linux, macOS, WSL2).
+Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`. Install them with:
+
+```bash
+uv sync --extra dev
+```
 
 | Command | Description |
 |---|---|
-| `./run.sh` | Create a Docker container and drop into a shell |
-| `./run.sh test` | Run all tests |
-| `./run.sh test test/01_graph_basic_test.py` | Run a specific test file |
-| `./run.sh prettify` | Prettify the code |
-| `./run.sh docs` | Update the docs |
+| `uv run pytest` | Run all tests |
+| `uv run pytest test/NN_*.py` | Run a specific test file |
+| `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
+| `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
+| `uv run utils/benchmark.py` | Run all benchmarks, output `benchmark_results.json` |
+| `uv run utils/prettify.py` | Format with autoflake + black |
 
-You can modify the `Dockerfile` to test against different Python versions.
+For full developer documentation see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ---
 

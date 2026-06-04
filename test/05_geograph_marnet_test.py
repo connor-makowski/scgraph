@@ -1,12 +1,8 @@
-from scgraph import GeoGraph
-from scgraph.utils import validate, time_test
+from helpers import assert_result
 
-marnet_geograph = GeoGraph.load_geograph("marnet")
-
-
-print("\n===============\nMarnet GeoGraph Tests:\n===============")
-
-expected = {
+_ORIGIN = {"latitude": 30, "longitude": 160}
+_DESTINATION = {"latitude": 30, "longitude": -160}
+_EXPECTED = {
     "length": 4477.148,
     "coordinate_path": [
         [30, 160],
@@ -27,158 +23,78 @@ expected = {
     ],
 }
 
-origin_node = {"latitude": 30, "longitude": 160}
-destination_node = {"latitude": 30, "longitude": -160}
 
-validate(
-    name="Graph Validation",
-    realized=marnet_geograph.validate(
-        check_symmetry=True, check_connected=True
-    ),
-    expected=None,
-)
-validate(
-    name="Node Validation",
-    realized=marnet_geograph.validate_nodes(),
-    expected=None,
-)
-
-validate(
-    name="Dijkstra",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-haversine",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
-    ),
-    expected=expected,
-)
-
-validate(
-    name="A*-cheap_ruler",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
-    ),
-    expected=expected,
-)
-
-validate(
-    name="Cached Shortest Path Tree First Call",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="cached_shortest_path",
-    ),
-    expected=expected,
-)
-
-validate(
-    name="Cached Shortest Path Tree Second Call",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="cached_shortest_path",
-    ),
-    expected=expected,
-)
-
-validate(
-    name="BMSSP",
-    realized=marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
-    ),
-    expected=expected,
-)
-
-print("\n===============\nMarnet GeoGraph Time Tests:\n===============")
-
-time_test(
-    "Graph Validation",
-    marnet_geograph.validate,
-    kwargs={"check_symmetry": True, "check_connected": True},
-)
-time_test("Node Validation", marnet_geograph.validate_nodes)
-
-# Note: These must be different than the above calls to ensure caching testing works correctly
-origin_node = {"latitude": 31.23, "longitude": 121.47}
-destination_node = {"latitude": 32.08, "longitude": -81.09}
+def test_graph_validation(marnet):
+    marnet.validate(check_symmetry=True, check_connected=True)
 
 
-def dijkstra():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="dijkstra",
+def test_node_validation(marnet):
+    marnet.validate_nodes()
+
+
+def test_dijkstra(marnet):
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="dijkstra",
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_haversine():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
+def test_a_star_haversine(marnet):
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": marnet.haversine},
+        ),
+        _EXPECTED,
     )
 
 
-def a_star_cheap_ruler():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": marnet_geograph.cheap_ruler},
+def test_a_star_cheap_ruler(marnet):
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": marnet.cheap_ruler},
+        ),
+        _EXPECTED,
     )
 
 
-def cached_shortest_path_tree_first_call():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="cached_shortest_path",
+def test_cached_shortest_path_first_call(marnet):
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="cached_shortest_path",
+        ),
+        _EXPECTED,
     )
 
 
-def cached_shortest_path_tree_second_call():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="cached_shortest_path",
+def test_cached_shortest_path_second_call(marnet):
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="cached_shortest_path",
+        ),
+        _EXPECTED,
     )
 
 
-def bmssp():
-    marnet_geograph.get_shortest_path(
-        origin_node=origin_node,
-        destination_node=destination_node,
-        algorithm_fn="bmssp",
+def test_bmssp(marnet):
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="bmssp",
+        ),
+        _EXPECTED,
     )
-
-
-time_test("Dijkstra", dijkstra)
-time_test("A*-haversine", a_star_haversine)
-time_test("A*-cheap_ruler", a_star_cheap_ruler)
-time_test(
-    "Cached Shortest Path Tree First Call", cached_shortest_path_tree_first_call
-)
-time_test(
-    "Cached Shortest Path Tree Second Call",
-    cached_shortest_path_tree_second_call,
-)
-time_test("BMSSP", bmssp)
-
-# marnet_geograph.save_as_geojson('marnet.geojson')

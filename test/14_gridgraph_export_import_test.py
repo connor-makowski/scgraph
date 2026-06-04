@@ -1,93 +1,70 @@
+import pytest
 from scgraph import GridGraph
-from time import time
+from scgraph.utils import has_cpp
 
-print("\n===============\nGridGraph Import Export Tests:\n===============")
+_X_SIZE = 300
+_Y_SIZE = 300
+_BLOCKS = [(5, i) for i in range(3, _Y_SIZE)]
+_SHAPE = [(0, 0), (0, 1), (1, 0), (1, 1)]
+_ORIGIN = {"x": 1, "y": 8}
+_DEST = {"x": 8, "y": 8}
 
-print_timings = True
 
-x_size = 300
-y_size = 300
-blocks = [(5, i) for i in range(3, y_size)]
-shape = [(0, 0), (0, 1), (1, 0), (1, 1)]
-
-graph_creating_start_time = time()
-gridGraph = GridGraph(
-    x_size=x_size,
-    y_size=y_size,
-    blocks=blocks,
-    shape=shape,
-    add_exterior_walls=True,
-)
-if print_timings:
-    print(
-        f"GridGraph Creation Time: {(time() - graph_creating_start_time)*1000:.6f} ms"
+@pytest.fixture(scope="module")
+def exported_grid(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("gridgraph")
+    grid = GridGraph(
+        x_size=_X_SIZE,
+        y_size=_Y_SIZE,
+        blocks=_BLOCKS,
+        shape=_SHAPE,
+        add_exterior_walls=True,
     )
-
-first_shortest_path_start_time = time()
-output = gridGraph.get_shortest_path(
-    origin_node={"x": 1, "y": 8},
-    destination_node={"x": 8, "y": 8},
-    output_coordinate_path="list_of_lists",
-    cache=True,
-)
-if print_timings:
-    print(
-        f"GridGraph First Shortest Path Time (caching results): {(time() - first_shortest_path_start_time)*1000:.6f} ms"
+    grid.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        cache=True,
     )
+    export_path = str(tmp / "test.gridgraph")
+    grid.export_object(filename=export_path)
+    return GridGraph.import_object(filename=export_path)
 
-# Export the graph to a file
-export_start_time = time()
-gridGraph.export_object(
-    filename="/tmp/export.gridgraph",
-)
-if print_timings:
-    print(f"GridGraph Export Time: {(time() - export_start_time)*1000:.6f} ms")
 
-import_start_time = time()
-new_gridGraph = GridGraph.import_object(
-    filename="/tmp/export.gridgraph",
-)
-if print_timings:
-    print(f"GridGraph Import Time: {(time() - import_start_time)*1000:.6f} ms")
-
-imported_shortest_path_start_time = time()
-output = new_gridGraph.get_shortest_path(
-    origin_node={"x": 1, "y": 8},
-    destination_node={"x": 8, "y": 8},
-    output_coordinate_path="list_of_lists",
-    cache=True,
-)
-imported_shortest_path_time = time() - imported_shortest_path_start_time
-if print_timings:
-    print(
-        f"GridGraph Imported Shortest Path Time (using cached distance matrix): {(imported_shortest_path_time)*1000:.6f} ms"
+def test_import_cached_path_matches(exported_grid):
+    original = GridGraph(
+        x_size=_X_SIZE,
+        y_size=_Y_SIZE,
+        blocks=_BLOCKS,
+        shape=_SHAPE,
+        add_exterior_walls=True,
     )
-
-uncached_shortest_path_start_time = time()
-output = new_gridGraph.get_shortest_path(
-    origin_node={"x": 1, "y": 8},
-    destination_node={"x": 8, "y": 8},
-    output_coordinate_path="list_of_lists",
-    cache=False,
-)
-uncached_shortest_path_time = time() - uncached_shortest_path_start_time
-if print_timings:
-    print(
-        f"GridGraph Imported Shortest Path Time (without using cache): {(uncached_shortest_path_time)*1000:.6f} ms"
+    original_output = original.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
     )
-
-
-success = True
-if (
-    imported_shortest_path_time
-    > 0.000500  # 500 us threshold (runs in ~50 us normally)
-):  # liberal 1ms threshold - It normally clocks around 40µs
-    print(
-        "Imported shortest path time is too long - Check if the graph was cached / imported correctly"
+    imported_output = exported_grid.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        cache=True,
     )
-    success = False
+    assert round(original_output["length"], 4) == round(imported_output["length"], 4)
 
-if success == False:
-    print("GridGraph Import Export Test: FAIL")
-else:
-    print("GridGraph Import Export Test: PASS")
+
+def test_import_cached_is_fast(exported_grid):
+    import time
+
+    start = time.time()
+    exported_grid.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        cache=True,
+    )
+    elapsed = time.time() - start
+    epxectation = 0.0005 if has_cpp() else 0.010
+    assert elapsed < epxectation, (
+        f"Cached lookup took {elapsed*1000:.3f}ms — cache may not be working"
+    )
