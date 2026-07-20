@@ -11,6 +11,10 @@ build-backend = "scikit_build_core.build"
 build.verbose = false
 build-dir = "build/{wheel_tag}"
 
+[[tool.scikit-build.overrides]]
+if.failed = true
+wheel.cmake = false
+
 [tool.scikit-build.sdist]
 exclude = ["*"]
 include = [
