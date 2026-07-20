@@ -87,7 +87,7 @@
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
-        <option value="3.4.0">3.4.0</option>
+        <option value="3.4.1">3.4.1</option>
         <option value="2.15.0">2.15.0</option>
         <option value="1.5.2">1.5.2</option>
         <option value="0.3.0">0.3.0</option>
@@ -486,32 +486,36 @@
 </span><span id="L-346"><a href="#L-346"><span class="linenos">346</span></a>
 </span><span id="L-347"><a href="#L-347"><span class="linenos">347</span></a><span class="k">def</span><span class="w"> </span><span class="nf">has_cpp</span><span class="p">():</span>
 </span><span id="L-348"><a href="#L-348"><span class="linenos">348</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="L-349"><a href="#L-349"><span class="linenos">349</span></a>        <span class="k">return</span> <span class="kc">True</span>
-</span><span id="L-350"><a href="#L-350"><span class="linenos">350</span></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-</span><span id="L-351"><a href="#L-351"><span class="linenos">351</span></a>        <span class="k">return</span> <span class="kc">False</span>
-</span><span id="L-352"><a href="#L-352"><span class="linenos">352</span></a>
-</span><span id="L-353"><a href="#L-353"><span class="linenos">353</span></a>
-</span><span id="L-354"><a href="#L-354"><span class="linenos">354</span></a><span class="k">def</span><span class="w"> </span><span class="nf">cpp_check</span><span class="p">():</span>
-</span><span id="L-355"><a href="#L-355"><span class="linenos">355</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="L-356"><a href="#L-356"><span class="linenos">356</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using C++ &amp; Python implementation of SCGraph.&quot;</span><span class="p">)</span>
-</span><span id="L-357"><a href="#L-357"><span class="linenos">357</span></a>    <span class="k">except</span><span class="p">:</span>
-</span><span id="L-358"><a href="#L-358"><span class="linenos">358</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using Pure Python implementation of SCGraph.&quot;</span><span class="p">)</span>
+</span><span id="L-349"><a href="#L-349"><span class="linenos">349</span></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>  <span class="c1"># noqa: F401</span>
+</span><span id="L-350"><a href="#L-350"><span class="linenos">350</span></a>
+</span><span id="L-351"><a href="#L-351"><span class="linenos">351</span></a>        <span class="k">return</span> <span class="kc">True</span>
+</span><span id="L-352"><a href="#L-352"><span class="linenos">352</span></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="L-353"><a href="#L-353"><span class="linenos">353</span></a>        <span class="k">return</span> <span class="kc">False</span>
+</span><span id="L-354"><a href="#L-354"><span class="linenos">354</span></a>
+</span><span id="L-355"><a href="#L-355"><span class="linenos">355</span></a>
+</span><span id="L-356"><a href="#L-356"><span class="linenos">356</span></a><span class="k">def</span><span class="w"> </span><span class="nf">cpp_check</span><span class="p">():</span>
+</span><span id="L-357"><a href="#L-357"><span class="linenos">357</span></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="L-358"><a href="#L-358"><span class="linenos">358</span></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>  <span class="c1"># noqa: F401</span>
 </span><span id="L-359"><a href="#L-359"><span class="linenos">359</span></a>
-</span><span id="L-360"><a href="#L-360"><span class="linenos">360</span></a>
-</span><span id="L-361"><a href="#L-361"><span class="linenos">361</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
-</span><span id="L-362"><a href="#L-362"><span class="linenos">362</span></a>    <span class="n">system</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
-</span><span id="L-363"><a href="#L-363"><span class="linenos">363</span></a>    <span class="k">if</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">:</span>
-</span><span id="L-364"><a href="#L-364"><span class="linenos">364</span></a>        <span class="n">local_app_data</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LOCALAPPDATA&quot;</span><span class="p">)</span>
-</span><span id="L-365"><a href="#L-365"><span class="linenos">365</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="L-366"><a href="#L-366"><span class="linenos">366</span></a>            <span class="n">Path</span><span class="p">(</span><span class="n">local_app_data</span><span class="p">)</span>
-</span><span id="L-367"><a href="#L-367"><span class="linenos">367</span></a>            <span class="k">if</span> <span class="n">local_app_data</span>
-</span><span id="L-368"><a href="#L-368"><span class="linenos">368</span></a>            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;AppData&quot;</span> <span class="o">/</span> <span class="s2">&quot;Local&quot;</span>
-</span><span id="L-369"><a href="#L-369"><span class="linenos">369</span></a>        <span class="p">)</span>
-</span><span id="L-370"><a href="#L-370"><span class="linenos">370</span></a>        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
-</span><span id="L-371"><a href="#L-371"><span class="linenos">371</span></a>    <span class="k">elif</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Darwin&quot;</span><span class="p">:</span>
-</span><span id="L-372"><a href="#L-372"><span class="linenos">372</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;Library&quot;</span><span class="p">,</span> <span class="s2">&quot;Caches&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
-</span><span id="L-373"><a href="#L-373"><span class="linenos">373</span></a>    <span class="k">else</span><span class="p">:</span>
-</span><span id="L-374"><a href="#L-374"><span class="linenos">374</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;.cache&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="L-360"><a href="#L-360"><span class="linenos">360</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using C++ &amp; Python implementation of SCGraph.&quot;</span><span class="p">)</span>
+</span><span id="L-361"><a href="#L-361"><span class="linenos">361</span></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="L-362"><a href="#L-362"><span class="linenos">362</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using Pure Python implementation of SCGraph.&quot;</span><span class="p">)</span>
+</span><span id="L-363"><a href="#L-363"><span class="linenos">363</span></a>
+</span><span id="L-364"><a href="#L-364"><span class="linenos">364</span></a>
+</span><span id="L-365"><a href="#L-365"><span class="linenos">365</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+</span><span id="L-366"><a href="#L-366"><span class="linenos">366</span></a>    <span class="n">system</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
+</span><span id="L-367"><a href="#L-367"><span class="linenos">367</span></a>    <span class="k">if</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">:</span>
+</span><span id="L-368"><a href="#L-368"><span class="linenos">368</span></a>        <span class="n">local_app_data</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LOCALAPPDATA&quot;</span><span class="p">)</span>
+</span><span id="L-369"><a href="#L-369"><span class="linenos">369</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="L-370"><a href="#L-370"><span class="linenos">370</span></a>            <span class="n">Path</span><span class="p">(</span><span class="n">local_app_data</span><span class="p">)</span>
+</span><span id="L-371"><a href="#L-371"><span class="linenos">371</span></a>            <span class="k">if</span> <span class="n">local_app_data</span>
+</span><span id="L-372"><a href="#L-372"><span class="linenos">372</span></a>            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;AppData&quot;</span> <span class="o">/</span> <span class="s2">&quot;Local&quot;</span>
+</span><span id="L-373"><a href="#L-373"><span class="linenos">373</span></a>        <span class="p">)</span>
+</span><span id="L-374"><a href="#L-374"><span class="linenos">374</span></a>        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="L-375"><a href="#L-375"><span class="linenos">375</span></a>    <span class="k">elif</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Darwin&quot;</span><span class="p">:</span>
+</span><span id="L-376"><a href="#L-376"><span class="linenos">376</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;Library&quot;</span><span class="p">,</span> <span class="s2">&quot;Caches&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="L-377"><a href="#L-377"><span class="linenos">377</span></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="L-378"><a href="#L-378"><span class="linenos">378</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;.cache&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 
@@ -1300,9 +1304,11 @@ A* as this method can overestimate distances, especially near the Earth's poles.
     <a class="headerlink" href="#has_cpp"></a>
             <div class="pdoc-code codehilite"><pre><span></span><span id="has_cpp-348"><a href="#has_cpp-348"><span class="linenos">348</span></a><span class="k">def</span><span class="w"> </span><span class="nf">has_cpp</span><span class="p">():</span>
 </span><span id="has_cpp-349"><a href="#has_cpp-349"><span class="linenos">349</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="has_cpp-350"><a href="#has_cpp-350"><span class="linenos">350</span></a>        <span class="k">return</span> <span class="kc">True</span>
-</span><span id="has_cpp-351"><a href="#has_cpp-351"><span class="linenos">351</span></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-</span><span id="has_cpp-352"><a href="#has_cpp-352"><span class="linenos">352</span></a>        <span class="k">return</span> <span class="kc">False</span>
+</span><span id="has_cpp-350"><a href="#has_cpp-350"><span class="linenos">350</span></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>  <span class="c1"># noqa: F401</span>
+</span><span id="has_cpp-351"><a href="#has_cpp-351"><span class="linenos">351</span></a>
+</span><span id="has_cpp-352"><a href="#has_cpp-352"><span class="linenos">352</span></a>        <span class="k">return</span> <span class="kc">True</span>
+</span><span id="has_cpp-353"><a href="#has_cpp-353"><span class="linenos">353</span></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="has_cpp-354"><a href="#has_cpp-354"><span class="linenos">354</span></a>        <span class="k">return</span> <span class="kc">False</span>
 </span></pre></div>
 
 
@@ -1320,11 +1326,13 @@ A* as this method can overestimate distances, especially near the Earth's poles.
 
     </div>
     <a class="headerlink" href="#cpp_check"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="cpp_check-355"><a href="#cpp_check-355"><span class="linenos">355</span></a><span class="k">def</span><span class="w"> </span><span class="nf">cpp_check</span><span class="p">():</span>
-</span><span id="cpp_check-356"><a href="#cpp_check-356"><span class="linenos">356</span></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="cpp_check-357"><a href="#cpp_check-357"><span class="linenos">357</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using C++ &amp; Python implementation of SCGraph.&quot;</span><span class="p">)</span>
-</span><span id="cpp_check-358"><a href="#cpp_check-358"><span class="linenos">358</span></a>    <span class="k">except</span><span class="p">:</span>
-</span><span id="cpp_check-359"><a href="#cpp_check-359"><span class="linenos">359</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using Pure Python implementation of SCGraph.&quot;</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="cpp_check-357"><a href="#cpp_check-357"><span class="linenos">357</span></a><span class="k">def</span><span class="w"> </span><span class="nf">cpp_check</span><span class="p">():</span>
+</span><span id="cpp_check-358"><a href="#cpp_check-358"><span class="linenos">358</span></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="cpp_check-359"><a href="#cpp_check-359"><span class="linenos">359</span></a>        <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>  <span class="c1"># noqa: F401</span>
+</span><span id="cpp_check-360"><a href="#cpp_check-360"><span class="linenos">360</span></a>
+</span><span id="cpp_check-361"><a href="#cpp_check-361"><span class="linenos">361</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using C++ &amp; Python implementation of SCGraph.&quot;</span><span class="p">)</span>
+</span><span id="cpp_check-362"><a href="#cpp_check-362"><span class="linenos">362</span></a>    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="cpp_check-363"><a href="#cpp_check-363"><span class="linenos">363</span></a>        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Using Pure Python implementation of SCGraph.&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 
@@ -1342,20 +1350,20 @@ A* as this method can overestimate distances, especially near the Earth's poles.
 
     </div>
     <a class="headerlink" href="#get_default_cache_path"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_default_cache_path-362"><a href="#get_default_cache_path-362"><span class="linenos">362</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
-</span><span id="get_default_cache_path-363"><a href="#get_default_cache_path-363"><span class="linenos">363</span></a>    <span class="n">system</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
-</span><span id="get_default_cache_path-364"><a href="#get_default_cache_path-364"><span class="linenos">364</span></a>    <span class="k">if</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">:</span>
-</span><span id="get_default_cache_path-365"><a href="#get_default_cache_path-365"><span class="linenos">365</span></a>        <span class="n">local_app_data</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LOCALAPPDATA&quot;</span><span class="p">)</span>
-</span><span id="get_default_cache_path-366"><a href="#get_default_cache_path-366"><span class="linenos">366</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="get_default_cache_path-367"><a href="#get_default_cache_path-367"><span class="linenos">367</span></a>            <span class="n">Path</span><span class="p">(</span><span class="n">local_app_data</span><span class="p">)</span>
-</span><span id="get_default_cache_path-368"><a href="#get_default_cache_path-368"><span class="linenos">368</span></a>            <span class="k">if</span> <span class="n">local_app_data</span>
-</span><span id="get_default_cache_path-369"><a href="#get_default_cache_path-369"><span class="linenos">369</span></a>            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;AppData&quot;</span> <span class="o">/</span> <span class="s2">&quot;Local&quot;</span>
-</span><span id="get_default_cache_path-370"><a href="#get_default_cache_path-370"><span class="linenos">370</span></a>        <span class="p">)</span>
-</span><span id="get_default_cache_path-371"><a href="#get_default_cache_path-371"><span class="linenos">371</span></a>        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
-</span><span id="get_default_cache_path-372"><a href="#get_default_cache_path-372"><span class="linenos">372</span></a>    <span class="k">elif</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Darwin&quot;</span><span class="p">:</span>
-</span><span id="get_default_cache_path-373"><a href="#get_default_cache_path-373"><span class="linenos">373</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;Library&quot;</span><span class="p">,</span> <span class="s2">&quot;Caches&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
-</span><span id="get_default_cache_path-374"><a href="#get_default_cache_path-374"><span class="linenos">374</span></a>    <span class="k">else</span><span class="p">:</span>
-</span><span id="get_default_cache_path-375"><a href="#get_default_cache_path-375"><span class="linenos">375</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;.cache&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_default_cache_path-366"><a href="#get_default_cache_path-366"><span class="linenos">366</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+</span><span id="get_default_cache_path-367"><a href="#get_default_cache_path-367"><span class="linenos">367</span></a>    <span class="n">system</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span>
+</span><span id="get_default_cache_path-368"><a href="#get_default_cache_path-368"><span class="linenos">368</span></a>    <span class="k">if</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Windows&quot;</span><span class="p">:</span>
+</span><span id="get_default_cache_path-369"><a href="#get_default_cache_path-369"><span class="linenos">369</span></a>        <span class="n">local_app_data</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;LOCALAPPDATA&quot;</span><span class="p">)</span>
+</span><span id="get_default_cache_path-370"><a href="#get_default_cache_path-370"><span class="linenos">370</span></a>        <span class="n">base</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="get_default_cache_path-371"><a href="#get_default_cache_path-371"><span class="linenos">371</span></a>            <span class="n">Path</span><span class="p">(</span><span class="n">local_app_data</span><span class="p">)</span>
+</span><span id="get_default_cache_path-372"><a href="#get_default_cache_path-372"><span class="linenos">372</span></a>            <span class="k">if</span> <span class="n">local_app_data</span>
+</span><span id="get_default_cache_path-373"><a href="#get_default_cache_path-373"><span class="linenos">373</span></a>            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">&quot;AppData&quot;</span> <span class="o">/</span> <span class="s2">&quot;Local&quot;</span>
+</span><span id="get_default_cache_path-374"><a href="#get_default_cache_path-374"><span class="linenos">374</span></a>        <span class="p">)</span>
+</span><span id="get_default_cache_path-375"><a href="#get_default_cache_path-375"><span class="linenos">375</span></a>        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="get_default_cache_path-376"><a href="#get_default_cache_path-376"><span class="linenos">376</span></a>    <span class="k">elif</span> <span class="n">system</span> <span class="o">==</span> <span class="s2">&quot;Darwin&quot;</span><span class="p">:</span>
+</span><span id="get_default_cache_path-377"><a href="#get_default_cache_path-377"><span class="linenos">377</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;Library&quot;</span><span class="p">,</span> <span class="s2">&quot;Caches&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
+</span><span id="get_default_cache_path-378"><a href="#get_default_cache_path-378"><span class="linenos">378</span></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="get_default_cache_path-379"><a href="#get_default_cache_path-379"><span class="linenos">379</span></a>        <span class="k">return</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span><span class="o">.</span><span class="n">joinpath</span><span class="p">(</span><span class="s2">&quot;.cache&quot;</span><span class="p">,</span> <span class="s2">&quot;scgraph&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 

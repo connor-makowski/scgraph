@@ -350,9 +350,9 @@ wheels = [
 
 [[package]]
 name = "geokdtree"
-version = "1.2.3"
+version = "1.2.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/da/d5/9ffb34f3aead2129c7131db4f356f77070ca91d38e1ec4b61b48d5d91e89/geokdtree-1.2.3.tar.gz", hash = "sha256:1eeefd31eb4d4df1427735a2697d2842d2ef8af2cb6239a7dbfd93ec776dc7b9", size = 19174202, upload-time = "2026-05-07T20:56:38.917Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3a/a2/8075730dcb1c3c6f383ce34d36be3a5c7dcffe1cf8a69bd826191b67865e/geokdtree-1.2.4.tar.gz", hash = "sha256:dc10c9d4dd6164210f6fbaf8b81aac3cf912edcb512108954a5983947ad5ade2", size = 10992, upload-time = "2026-07-20T17:53:03.516Z" }
 
 [[package]]
 name = "humanize"
@@ -902,7 +902,7 @@ wheels = [
 
 [[package]]
 name = "scgraph"
-version = "3.4.0"
+version = "3.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "bmsspy" },
@@ -929,7 +929,7 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.1.0" },
     { name = "bmsspy", specifier = ">=2.2.1,<3.0.0" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.2.2" },
-    { name = "geokdtree", specifier = "==1.2.3" },
+    { name = "geokdtree", specifier = "==1.2.4" },
     { name = "nox", marker = "extra == 'dev'", specifier = ">=2026.4.10" },
     { name = "nox-uv", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "pamda", marker = "extra == 'dev'", specifier = ">=2.10.0" },
