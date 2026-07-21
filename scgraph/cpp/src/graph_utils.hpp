@@ -51,11 +51,13 @@ protected:
     bool symmetric_check() const;
 
 public:
+    virtual ~GraphUtils() = default;
+
     // Validation
     void validate(bool check_symmetry = true, bool check_connected = true);
 
     // Cache management
-    void reset_cache();
+    virtual void reset_cache();
 
     // Access
     const std::unordered_map<int, double> get(int idx) const;

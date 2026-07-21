@@ -21,7 +21,7 @@ public:
     explicit Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate = false);
 
     // Override reset_cache to also clear ch_graph and tnr_graph
-    void reset_cache();
+    void reset_cache() override;
 
     // Tree algorithms
     TreeData get_shortest_path_tree(const std::variant<int, std::set<int>>& origin_id);

@@ -332,6 +332,7 @@ class GraphModifiers:
         if symmetric:
             for dest_id, distance in node_dict.items():
                 self.graph[dest_id][new_node_id] = distance
+        self.reset_cache()
         return new_node_id
 
     def add_edge(
@@ -369,6 +370,7 @@ class GraphModifiers:
         self.graph[origin_id][destination_id] = distance
         if symmetric:
             self.graph[destination_id][origin_id] = distance
+        self.reset_cache()
 
     def remove_node(
         self, symmetric_node: bool = False
@@ -400,7 +402,9 @@ class GraphModifiers:
             for origin_dict in self.graph:
                 if node_id in origin_dict:
                     origin_dict.pop(node_id)
-        return self.graph.pop()
+        removed_node = self.graph.pop()
+        self.reset_cache()
+        return removed_node
 
     def remove_edge(
         self, origin_id: int, destination_id: int, symmetric: bool = False
@@ -433,4 +437,6 @@ class GraphModifiers:
         ), "Destination node id is not in the graph"
         if symmetric:
             self.graph[destination_id].pop(origin_id, None)
-        return self.graph[origin_id].pop(destination_id, None)
+        res = self.graph[origin_id].pop(destination_id, None)
+        self.reset_cache()
+        return res

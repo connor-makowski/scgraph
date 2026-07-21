@@ -787,3 +787,10 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
         self.reset_cache()
         if validate:
             self.validate()
+
+    def reset_cache(self) -> None:
+        super().reset_cache()
+        if hasattr(self, "__ch_graph__"):
+            delattr(self, "__ch_graph__")
+        if hasattr(self, "__tnr_graph__"):
+            delattr(self, "__tnr_graph__")
