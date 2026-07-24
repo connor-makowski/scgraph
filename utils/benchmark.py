@@ -11,7 +11,9 @@ import json
 import random
 import time
 
-from scgraph import GeoGraph, Graph
+from scgraph import GeoGraph
+# Make sure this is imported from scgrpah.graph since from scgrpah can import cpp
+from scgraph.graph import Graph
 from scgraph.helpers.visvalingam import visvalingam
 from scgraph.utils import haversine
 
@@ -517,6 +519,39 @@ def _bench_dijkstra_buckets(geos):
     return result
 
 
+def _bench_reduction(geos):
+    print("  reduction...")
+    marnet_data = geos["marnet"].graph
+    us_freeway_data = geos["us_freeway"].graph
+
+    result = {}
+
+    # Define runs for Python
+    py_marnet = Graph(marnet_data)
+    result["marnet_python_dijkstra_ms"] = _bench(py_marnet.dijkstra, 100, 7999)
+    result["marnet_python_reduce_preprocessing_ms"] = _bench(py_marnet.reduce)
+    result["marnet_python_reduce_dijkstra_ms"] = _bench(py_marnet.dijkstra, 100, 7999)
+
+    py_freeway = Graph(us_freeway_data)
+    result["us_freeway_python_dijkstra_ms"] = _bench(py_freeway.dijkstra, 1000, 9770)
+    result["us_freeway_python_reduce_preprocessing_ms"] = _bench(py_freeway.reduce)
+    result["us_freeway_python_reduce_dijkstra_ms"] = _bench(py_freeway.dijkstra, 1000, 9770)
+
+    # Define runs for C++
+    if HAS_CPP:
+        cpp_marnet = CppGraph(marnet_data)
+        result["marnet_cpp_dijkstra_ms"] = _bench(cpp_marnet.dijkstra, 100, 7999)
+        result["marnet_cpp_reduce_preprocessing_ms"] = _bench(cpp_marnet.reduce)
+        result["marnet_cpp_reduce_dijkstra_ms"] = _bench(cpp_marnet.dijkstra, 100, 7999)
+
+        cpp_freeway = CppGraph(us_freeway_data)
+        result["us_freeway_cpp_dijkstra_ms"] = _bench(cpp_freeway.dijkstra, 1000, 9770)
+        result["us_freeway_cpp_reduce_preprocessing_ms"] = _bench(cpp_freeway.reduce)
+        result["us_freeway_cpp_reduce_dijkstra_ms"] = _bench(cpp_freeway.dijkstra, 1000, 9770)
+
+    return result
+
+
 def _bench_tnr():
     print("  tnr...")
     from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
@@ -615,6 +650,9 @@ def run_benchmarks():
 
     print("Running Dijkstra Buckets benchmarks...")
     results["dijkstra_buckets"] = _bench_dijkstra_buckets(geos)
+
+    print("Running Reduction benchmarks...")
+    results["reduction"] = _bench_reduction(geos)
 
     print("Running TNR benchmarks (slow)...")
     results["tnr"] = _bench_tnr()

@@ -8,26 +8,44 @@
 #include <iostream>
 #include <cmath>
 #include <functional>
+#include <tuple>
+#include <set>
 
 // Constructor
 Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate)
-    : GraphUtils() {
+    : GraphReducer() {
     graph = serialize_graph(graph_data);
-    GraphUtils::reset_cache();
+    GraphReducer::reset_cache();
     if (validate) {
         this->validate();
     }
 }
 
-// Override reset_cache to also clear __ch_graph__ and __tnr_graph__
+// Override reset_cache to also clear __ch_graph__, __tnr_graph__, and reduction data
 void Graph::reset_cache() {
-    GraphUtils::reset_cache();
+    GraphReducer::reset_cache();
     __ch_graph__ = nullptr;
     __tnr_graph__ = nullptr;
 }
 
 // Tree algorithms
 TreeData Graph::get_shortest_path_tree(const std::variant<int, std::set<int>>& origin_id) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, std::nullopt);
+        TreeData res;
+        try {
+            has_reduced_graph = false;
+            res = get_shortest_path_tree(origin_id);
+            has_reduced_graph = true;
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
     input_check(origin_id, 0);
     auto origin_ids = get_origin_ids(origin_id);
 
@@ -96,11 +114,32 @@ GraphResult Graph::get_tree_path(int origin_id, int destination_id, const TreeDa
     }
 
     std::reverse(current_path.begin(), current_path.end());
-    return GraphResult{current_path, destination_distance};
+    GraphResult res{current_path, destination_distance};
+    if (has_reduced_graph) {
+        res.path = expand_path(res.path);
+    }
+    return res;
 }
 
 // Shortest path algorithms
 GraphResult Graph::dijkstra(const std::variant<int, std::set<int>>& origin_id, int destination_id) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, destination_id);
+        GraphResult res;
+        try {
+            has_reduced_graph = false;
+            res = dijkstra(origin_id, destination_id);
+            has_reduced_graph = true;
+            res.path = expand_path(res.path);
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
     input_check(origin_id, destination_id);
     auto origin_ids = get_origin_ids(origin_id);
 
@@ -144,6 +183,23 @@ GraphResult Graph::dijkstra(const std::variant<int, std::set<int>>& origin_id, i
 
 GraphResult Graph::dijkstra_buckets(const std::variant<int, std::set<int>>& origin_id, int destination_id,
                                      std::optional<double> max_edge_weight) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, destination_id);
+        GraphResult res;
+        try {
+            has_reduced_graph = false;
+            res = dijkstra_buckets(origin_id, destination_id, max_edge_weight);
+            has_reduced_graph = true;
+            res.path = expand_path(res.path);
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
     input_check(origin_id, destination_id);
     auto origin_ids = get_origin_ids(origin_id);
 
@@ -216,6 +272,23 @@ GraphResult Graph::dijkstra_buckets(const std::variant<int, std::set<int>>& orig
 
 GraphResult Graph::dijkstra_negative(const std::variant<int, std::set<int>>& origin_id, int destination_id,
                                      std::optional<int> cycle_check_iterations) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, destination_id);
+        GraphResult res;
+        try {
+            has_reduced_graph = false;
+            res = dijkstra_negative(origin_id, destination_id, cycle_check_iterations);
+            has_reduced_graph = true;
+            res.path = expand_path(res.path);
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
     input_check(origin_id, destination_id);
     auto origin_ids = get_origin_ids(origin_id);
 
@@ -267,7 +340,24 @@ GraphResult Graph::dijkstra_negative(const std::variant<int, std::set<int>>& ori
 }
 
 GraphResult Graph::a_star(const std::variant<int, std::set<int>>& origin_id, int destination_id,
-                         std::function<double(int, int)> heuristic_fn) {
+                          std::function<double(int, int)> heuristic_fn) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, destination_id);
+        GraphResult res;
+        try {
+            has_reduced_graph = false;
+            res = a_star(origin_id, destination_id, heuristic_fn);
+            has_reduced_graph = true;
+            res.path = expand_path(res.path);
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
     if (!heuristic_fn) {
         return dijkstra(origin_id, destination_id);
     }
@@ -327,6 +417,23 @@ GraphResult Graph::a_star(const std::variant<int, std::set<int>>& origin_id, int
 }
 
 GraphResult Graph::bellman_ford(const std::variant<int, std::set<int>>& origin_id, int destination_id) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, destination_id);
+        GraphResult res;
+        try {
+            has_reduced_graph = false;
+            res = bellman_ford(origin_id, destination_id);
+            has_reduced_graph = true;
+            res.path = expand_path(res.path);
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
     input_check(origin_id, destination_id);
     auto origin_ids = get_origin_ids(origin_id);
 
@@ -369,6 +476,23 @@ GraphResult Graph::bellman_ford(const std::variant<int, std::set<int>>& origin_i
 }
 
 GraphResult Graph::bmssp(const std::variant<int, std::set<int>>& origin_id, int destination_id) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, destination_id);
+        GraphResult res;
+        try {
+            has_reduced_graph = false;
+            res = bmssp(origin_id, destination_id);
+            has_reduced_graph = true;
+            res.path = expand_path(res.path);
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
     input_check(origin_id, destination_id);
     auto origin_ids = get_origin_ids(origin_id);
 
@@ -436,6 +560,16 @@ GraphResult Graph::bmssp(const std::variant<int, std::set<int>>& origin_id, int 
 }
 
 GraphResult Graph::cached_shortest_path(int origin_id, int destination_id, bool length_only) {
+    if (has_reduced_graph) {
+        if (is_reduced[origin_id] || is_reduced[destination_id]) {
+            auto res = this->dijkstra(origin_id, destination_id);
+            if (length_only) {
+                res.path = {};
+            }
+            return res;
+        }
+    }
+
     if (cache[origin_id].predecessors.empty()) {
         cache[origin_id] = get_shortest_path_tree(origin_id);
     }
@@ -449,6 +583,12 @@ std::shared_ptr<CHGraph> Graph::create_contraction_hierarchy(std::function<doubl
 }
 
 GraphResult Graph::contraction_hierarchy(int origin_id, int destination_id) {
+    if (has_reduced_graph) {
+        if (is_reduced[origin_id] || is_reduced[destination_id]) {
+            return this->dijkstra(origin_id, destination_id);
+        }
+    }
+
     if (__ch_graph__ == nullptr) {
         create_contraction_hierarchy();
     }
@@ -465,6 +605,16 @@ void Graph::set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph) {
 }
 
 GraphResult Graph::tnr(int origin_id, int destination_id, bool length_only) {
+    if (has_reduced_graph) {
+        if (is_reduced[origin_id] || is_reduced[destination_id]) {
+            auto res = this->dijkstra(origin_id, destination_id);
+            if (length_only) {
+                res.path = {};
+            }
+            return res;
+        }
+    }
+
     if (__tnr_graph__ == nullptr) {
         create_tnr_hierarchy();
     }

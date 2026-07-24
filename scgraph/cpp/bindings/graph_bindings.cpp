@@ -71,6 +71,46 @@ NB_MODULE(cpp, m) {
              "Get the number of nodes in the graph")
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
+        .def("reduce", &Graph::reduce,
+             "Reduce the graph by bypassing pass-through nodes")
+        .def_prop_ro("reduced_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            std::vector<std::unordered_map<int, double>> res(self.size());
+            const auto& rg = self.get_reduced_graph_internal();
+            for (size_t i = 0; i < rg.size(); ++i) {
+                for (const auto& edge : rg[i]) {
+                    res[i][edge.first] = edge.second;
+                }
+            }
+            return res;
+        })
+        .def_prop_ro("is_reduced", [](const Graph& self) -> std::optional<std::vector<bool>> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            return self.get_is_reduced_internal();
+        })
+        .def_prop_ro("reduced_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            nb::list res;
+            const auto& rgc = self.get_reduced_graph_connections_internal();
+            for (size_t i = 0; i < rgc.size(); ++i) {
+                if (rgc[i].empty()) {
+                    res.append(nb::none());
+                } else {
+                    nb::dict d;
+                    for (const auto& [k, v] : rgc[i]) {
+                        d[nb::cast(k)] = v;
+                    }
+                    res.append(d);
+                }
+            }
+            return res;
+        })
 
         // Cache IO
         // get_cache: returns a list matching the Python convention where uncached

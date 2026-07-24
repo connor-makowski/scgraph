@@ -7,11 +7,12 @@
 #include <variant>
 #include <memory>
 #include "graph_utils.hpp"
+#include "graph_reducer.hpp"
 
 #include "contraction_hierarchies.hpp"
 #include "transit_node_routing.hpp"
 
-class Graph : public GraphUtils {
+class Graph : public GraphReducer {
 private:
     std::shared_ptr<CHGraph> __ch_graph__ = nullptr;
     std::shared_ptr<TNRGraph> __tnr_graph__ = nullptr;

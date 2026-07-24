@@ -5,9 +5,11 @@ from scgraph.graph_utils import GraphUtils, GraphModifiers
 from scgraph.contraction_hierarchies import CHGraph
 from scgraph.transit_node_routing import TNRGraph
 from bmsspy import Bmssp
+from scgraph.graph_reducer import GraphReducer, use_reduced
 
 
 class GraphTrees:
+    @use_reduced
     def get_shortest_path_tree(self, origin_id: int | set[int]) -> dict:
         """
         Function:
@@ -35,9 +37,10 @@ class GraphTrees:
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
 
         # Variable Initialization
-        distance_matrix = [float("inf")] * len(self.graph)
+        graph = self.graph
+        distance_matrix = [float("inf")] * len(graph)
         open_leaves = []
-        predecessor = [-1] * len(self.graph)
+        predecessor = [-1] * len(graph)
 
         for oid in origin_ids:
             distance_matrix[oid] = 0
@@ -45,9 +48,7 @@ class GraphTrees:
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
-            for connected_id, connected_distance in self.graph[
-                current_id
-            ].items():
+            for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
@@ -60,6 +61,7 @@ class GraphTrees:
             "distance_matrix": distance_matrix,
         }
 
+    @use_reduced
     def get_tree_path(
         self,
         origin_id: int,
@@ -124,6 +126,7 @@ class GraphTrees:
 
 
 class GraphAlgorithms:
+    @use_reduced
     def dijkstra(
         self,
         origin_id: int | set[int],
@@ -155,8 +158,9 @@ class GraphAlgorithms:
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
         # Variable Initialization
-        distance_matrix = [float("inf")] * len(self.graph)
-        predecessor = [-1] * len(self.graph)
+        graph = self.graph
+        distance_matrix = [float("inf")] * len(graph)
+        predecessor = [-1] * len(graph)
         open_leaves = []
 
         for oid in origin_ids:
@@ -169,7 +173,7 @@ class GraphAlgorithms:
                 break
             # Technically, the next line is not necessary but can help with performance
             if current_distance == distance_matrix[current_id]:
-                for connected_id, connected_distance in self.graph[
+                for connected_id, connected_distance in graph[
                     current_id
                 ].items():
                     possible_distance = current_distance + connected_distance
@@ -187,6 +191,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
+    @use_reduced
     def dijkstra_buckets(
         self,
         origin_id: int | set[int],
@@ -222,10 +227,11 @@ class GraphAlgorithms:
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        graph = self.graph
 
         if max_edge_weight is None:
             max_edge_weight = 0
-            for node_edges in self.graph:
+            for node_edges in graph:
                 if node_edges:
                     m = max(node_edges.values())
                     if m > max_edge_weight:
@@ -233,8 +239,8 @@ class GraphAlgorithms:
         max_edge_weight = math.ceil(max_edge_weight)
 
         # Variable Initialization
-        distance_matrix = [float("inf")] * len(self.graph)
-        predecessor = [-1] * len(self.graph)
+        distance_matrix = [float("inf")] * len(graph)
+        predecessor = [-1] * len(graph)
         num_buckets = max_edge_weight + 1
         buckets = [[] for _ in range(num_buckets)]
 
@@ -273,9 +279,7 @@ class GraphAlgorithms:
             # because weights < 1 might allow a shorter path to be found within the same bucket.
             # The loop terminates when current_dist > distance_matrix[destination_id].
 
-            for connected_id, connected_distance in self.graph[
-                current_id
-            ].items():
+            for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = (
                     distance_matrix[current_id] + connected_distance
                 )
@@ -297,6 +301,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
+    @use_reduced
     def dijkstra_negative(
         self,
         origin_id: int | set[int],
@@ -336,10 +341,11 @@ class GraphAlgorithms:
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        graph = self.graph
 
         # Variable Initialization
-        distance_matrix = [float("inf")] * len(self.graph)
-        predecessor = [-1] * len(self.graph)
+        distance_matrix = [float("inf")] * len(graph)
+        predecessor = [-1] * len(graph)
         open_leaves = []
 
         for oid in origin_ids:
@@ -349,7 +355,7 @@ class GraphAlgorithms:
         # Cycle iteration Variables
         cycle_iteration = 0
         if cycle_check_iterations is None:
-            cycle_check_iterations = len(self.graph)
+            cycle_check_iterations = len(graph)
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
@@ -361,7 +367,7 @@ class GraphAlgorithms:
                     self.__cycle_check__(
                         predecessor_matrix=predecessor, node_id=current_id
                     )
-                for connected_id, connected_distance in self.graph[
+                for connected_id, connected_distance in graph[
                     current_id
                 ].items():
                     possible_distance = current_distance + connected_distance
@@ -380,6 +386,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
+    @use_reduced
     def a_star(
         self,
         origin_id: int | set[int],
@@ -422,12 +429,13 @@ class GraphAlgorithms:
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
 
         # Variable Initialization
-        distance_matrix = [float("inf")] * len(self.graph)
+        graph = self.graph
+        distance_matrix = [float("inf")] * len(graph)
         # Using a visited matrix does add a tad bit of overhead but avoids revisiting nodes
         # and does not require anything extra to be stored in the heap
-        visited = [0] * len(self.graph)
+        visited = [0] * len(graph)
         open_leaves = []
-        predecessor = [-1] * len(self.graph)
+        predecessor = [-1] * len(graph)
 
         for oid in origin_ids:
             distance_matrix[oid] = 0
@@ -441,9 +449,7 @@ class GraphAlgorithms:
                 continue
             visited[current_id] = 1
             current_distance = distance_matrix[current_id]
-            for connected_id, connected_distance in self.graph[
-                current_id
-            ].items():
+            for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
@@ -466,6 +472,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
+    @use_reduced
     def bellman_ford(
         self,
         origin_id: int | set[int],
@@ -495,18 +502,20 @@ class GraphAlgorithms:
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        graph = self.graph
+
         # Variable Initialization
-        distance_matrix = [float("inf")] * len(self.graph)
-        predecessor = [-1] * len(self.graph)
+        distance_matrix = [float("inf")] * len(graph)
+        predecessor = [-1] * len(graph)
 
         for oid in origin_ids:
             distance_matrix[oid] = 0
 
-        len_graph = len(self.graph)
+        len_graph = len(graph)
         for i in range(len_graph):
-            for current_id in range(len(self.graph)):
+            for current_id in range(len(graph)):
                 current_distance = distance_matrix[current_id]
-                for connected_id, connected_distance in self.graph[
+                for connected_id, connected_distance in graph[
                     current_id
                 ].items():
                     possible_distance = current_distance + connected_distance
@@ -528,6 +537,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
+    @use_reduced
     def bmssp(
         self,
         origin_id: int | set[int],
@@ -577,6 +587,7 @@ class GraphAlgorithms:
             "length": output["length"],
         }
 
+    @use_reduced
     def cached_shortest_path(
         self,
         origin_id: int,
@@ -668,6 +679,7 @@ class GraphAlgorithms:
             )
         return self.__tnr_graph__
 
+    @use_reduced
     def tnr(self, origin_id: int, destination_id: int, **kwargs) -> dict:
         """
         Function:
@@ -687,6 +699,7 @@ class GraphAlgorithms:
         self.create_tnr_hierarchy()
         return self.__tnr_graph__.search(origin_id, destination_id)
 
+    @use_reduced
     def contraction_hierarchy(
         self, origin_id: int, destination_id: int, length_only: bool = False
     ) -> dict[str, Any]:
@@ -714,7 +727,9 @@ class GraphAlgorithms:
         return self.__ch_graph__.search(origin_id, destination_id)
 
 
-class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
+class Graph(
+    GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms, GraphReducer
+):
     def __init__(self, graph: list[dict[int, int | float]], validate=False):
         """
         Function:
@@ -794,3 +809,6 @@ class Graph(GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms):
             delattr(self, "__ch_graph__")
         if hasattr(self, "__tnr_graph__"):
             delattr(self, "__tnr_graph__")
+        self.reduced_graph = None
+        self.reduced_graph_connections = None
+        self.is_reduced = None
