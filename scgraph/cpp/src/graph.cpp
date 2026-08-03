@@ -577,8 +577,8 @@ GraphResult Graph::cached_shortest_path(int origin_id, int destination_id, bool 
     return get_tree_path(origin_id, destination_id, cache[origin_id], length_only);
 }
 
-std::shared_ptr<CHGraph> Graph::create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn) {
-    __ch_graph__ = std::make_shared<CHGraph>(get_graph(), heuristic_fn);
+std::shared_ptr<CHGraph> Graph::create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) {
+    __ch_graph__ = std::make_shared<CHGraph>(get_graph(), settled_limit, heuristic_fn);
     return __ch_graph__;
 }
 
@@ -595,8 +595,8 @@ GraphResult Graph::contraction_hierarchy(int origin_id, int destination_id) {
     return __ch_graph__->get_shortest_path(origin_id, destination_id);
 }
 
-std::shared_ptr<TNRGraph> Graph::create_tnr_hierarchy(int num_transit_nodes, std::function<double(CHGraph*, int)> heuristic_fn) {
-    __tnr_graph__ = std::make_shared<TNRGraph>(get_graph(), num_transit_nodes, heuristic_fn);
+std::shared_ptr<TNRGraph> Graph::create_tnr_hierarchy(int num_transit_nodes, std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) {
+    __tnr_graph__ = std::make_shared<TNRGraph>(get_graph(), settled_limit, num_transit_nodes, heuristic_fn);
     return __tnr_graph__;
 }
 

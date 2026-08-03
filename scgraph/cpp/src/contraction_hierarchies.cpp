@@ -6,8 +6,9 @@
 #include <stdexcept>
 
 CHGraph::CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
+                 int settled_limit,
                  std::function<double(CHGraph*, int)> heuristic_fn)
-    : nodes_count(graph.size()), original_graph(graph), contracted_count(0) {
+    : nodes_count(graph.size()), original_graph(graph), contracted_count(0), settled_limit(settled_limit) {
 
     ranks.assign(nodes_count, -1);
     forward_graph.assign(nodes_count, {});
@@ -22,6 +23,10 @@ CHGraph::CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
         }
     }
 
+    witness_distances.assign(nodes_count, std::numeric_limits<double>::infinity());
+    witness_targets.assign(nodes_count, std::numeric_limits<double>::infinity());
+    witness_resolved.assign(nodes_count, false);
+
     preprocess(heuristic_fn);
 }
 
@@ -30,9 +35,10 @@ CHGraph::CHGraph(int nodes_count,
                  const std::vector<std::unordered_map<int, double>>& forward_graph,
                  const std::vector<std::unordered_map<int, double>>& backward_graph,
                  const std::unordered_map<std::pair<int, int>, int, pair_hash>& shortcuts,
-                 const std::optional<std::vector<std::unordered_map<int, double>>>& original_graph)
+                 const std::optional<std::vector<std::unordered_map<int, double>>>& original_graph,
+                 int settled_limit)
     : nodes_count(nodes_count), ranks(ranks), forward_graph(forward_graph),
-      backward_graph(backward_graph), shortcuts(shortcuts) {
+      backward_graph(backward_graph), shortcuts(shortcuts), settled_limit(settled_limit) {
     if (original_graph.has_value()) {
         this->original_graph = original_graph.value();
     } else {
@@ -47,32 +53,54 @@ double CHGraph::get_rank(int node_id) const {
     return std::numeric_limits<double>::infinity();
 }
 
-std::unordered_map<int, double> CHGraph::witness_search(int start_node, int avoid_node, double max_dist) const {
-    std::unordered_map<int, double> distances;
-    distances[start_node] = 0;
+const std::vector<double>& CHGraph::witness_search(int start_node, int avoid_node, double max_dist, size_t num_targets) const {
+    witness_distances[start_node] = 0.0;
+    witness_visited.push_back(start_node);
 
     using PQItem = std::pair<double, int>;
     std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> open_leaves;
     open_leaves.push({0.0, start_node});
+
+    int settled_count = 0;
+    size_t resolved_count = 0;
 
     while (!open_leaves.empty()) {
         auto [current_distance, current_id] = open_leaves.top();
         open_leaves.pop();
 
         if (current_distance > max_dist) continue;
-        if (distances.find(current_id) != distances.end() && current_distance > distances.at(current_id)) continue;
+        if (current_distance > witness_distances[current_id]) continue;
+
+        if (witness_targets[current_id] != std::numeric_limits<double>::infinity() && current_distance <= witness_targets[current_id]) {
+            if (!witness_resolved[current_id]) {
+                witness_resolved[current_id] = true;
+                resolved_count++;
+                if (resolved_count == num_targets) {
+                    break;
+                }
+            }
+        }
+
+        settled_count++;
+        if (settled_count > settled_limit) {
+            break;
+        }
 
         for (const auto& [neighbor_id, weight] : contracting_graph[current_id]) {
             if (neighbor_id == avoid_node || (neighbor_id < static_cast<int>(contracted.size()) && contracted[neighbor_id])) continue;
 
             double possible_distance = current_distance + weight;
-            if (possible_distance <= max_dist && (distances.find(neighbor_id) == distances.end() || possible_distance < distances.at(neighbor_id))) {
-                distances[neighbor_id] = possible_distance;
+            if (possible_distance <= max_dist && possible_distance < witness_distances[neighbor_id]) {
+                if (witness_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                    witness_visited.push_back(neighbor_id);
+                }
+                witness_distances[neighbor_id] = possible_distance;
                 open_leaves.push({possible_distance, neighbor_id});
             }
         }
     }
-    return distances;
+
+    return witness_distances;
 }
 
 std::pair<int, std::vector<std::tuple<int, int, double, int>>> CHGraph::count_shortcuts(int node_id) const {
@@ -84,29 +112,44 @@ std::pair<int, std::vector<std::tuple<int, int, double, int>>> CHGraph::count_sh
         if (contracted[in_neighbor_id]) continue;
 
         double max_dist = 0;
-        std::unordered_map<int, double> targets;
         for (const auto& [out_neighbor_id, out_weight] : out_neighbors) {
             if (contracted[out_neighbor_id] || in_neighbor_id == out_neighbor_id) continue;
             double shortcut_distance = in_weight + out_weight;
-            targets[out_neighbor_id] = shortcut_distance;
+            witness_targets[out_neighbor_id] = shortcut_distance;
+            witness_target_ids.push_back(out_neighbor_id);
             max_dist = std::max(max_dist, shortcut_distance);
         }
 
-        if (targets.empty()) continue;
+        if (witness_target_ids.empty()) continue;
 
-        auto distances = witness_search(in_neighbor_id, node_id, max_dist);
+        const auto& distances = witness_search(in_neighbor_id, node_id, max_dist, witness_target_ids.size());
 
-        for (const auto& [out_neighbor_id, shortcut_distance] : targets) {
-            if (distances.find(out_neighbor_id) == distances.end() || distances.at(out_neighbor_id) > shortcut_distance + 1e-9) {
+        for (int out_neighbor_id : witness_target_ids) {
+            double shortcut_distance = witness_targets[out_neighbor_id];
+            if (!witness_resolved[out_neighbor_id] || distances[out_neighbor_id] > shortcut_distance + 1e-9) {
                 found_shortcuts.emplace_back(in_neighbor_id, out_neighbor_id, shortcut_distance, node_id);
             }
         }
+
+        for (int v : witness_visited) {
+            witness_distances[v] = std::numeric_limits<double>::infinity();
+        }
+        witness_visited.clear();
+
+        for (int t : witness_target_ids) {
+            witness_targets[t] = std::numeric_limits<double>::infinity();
+            witness_resolved[t] = false;
+        }
+        witness_target_ids.clear();
     }
     return {static_cast<int>(found_shortcuts.size()), found_shortcuts};
 }
 
 double CHGraph::default_heuristic(int node_id) const {
-    auto [shortcuts_needed, _] = count_shortcuts(node_id);
+    auto [shortcuts_needed, found_shortcuts] = count_shortcuts(node_id);
+    shortcuts_cache_node = node_id;
+    shortcuts_cache = std::move(found_shortcuts);
+
     int in_edges = contracting_inverse_graph[node_id].size();
     int out_edges = contracting_graph[node_id].size();
     int edge_diff = shortcuts_needed - in_edges - out_edges;
@@ -123,6 +166,9 @@ double CHGraph::default_heuristic(int node_id) const {
 }
 
 void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
+    shortcuts_cache_node = -1;
+    shortcuts_cache.clear();
+
     if (!heuristic_fn) {
         heuristic_fn = [](CHGraph* g, int node_id) { return g->default_heuristic(node_id); };
     }
@@ -130,7 +176,8 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
     using PQItem = std::pair<double, int>;
     std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> open_leaves;
     for (int node_id = 0; node_id < nodes_count; ++node_id) {
-        open_leaves.push({heuristic_fn(this, node_id), node_id});
+        double initial_val = contracting_graph[node_id].size() + contracting_inverse_graph[node_id].size();
+        open_leaves.push({initial_val, node_id});
     }
 
     int rank = 0;
@@ -150,7 +197,13 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         contracted[node_id] = true;
         contracted_count++;
 
-        auto [_, found_shortcuts] = count_shortcuts(node_id);
+        std::vector<std::tuple<int, int, double, int>> found_shortcuts;
+        if (shortcuts_cache_node == node_id) {
+            found_shortcuts = std::move(shortcuts_cache);
+        } else {
+            found_shortcuts = count_shortcuts(node_id).second;
+        }
+
         for (const auto& [origin_id, destination_id, distance, via_node_id] : found_shortcuts) {
             if (contracting_graph[origin_id].find(destination_id) == contracting_graph[origin_id].end() || distance < contracting_graph[origin_id][destination_id]) {
                 contracting_graph[origin_id][destination_id] = distance;

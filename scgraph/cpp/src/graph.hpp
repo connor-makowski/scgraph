@@ -43,11 +43,11 @@ public:
     GraphResult cached_shortest_path(int origin_id, int destination_id, bool length_only = false);
 
     // Contraction Hierarchies
-    std::shared_ptr<CHGraph> create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
+    std::shared_ptr<CHGraph> create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50);
     GraphResult contraction_hierarchy(int origin_id, int destination_id);
 
     // Transit Node Routing
-    std::shared_ptr<TNRGraph> create_tnr_hierarchy(int num_transit_nodes = 100, std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
+    std::shared_ptr<TNRGraph> create_tnr_hierarchy(int num_transit_nodes = 100, std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50);
     void set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph);
     GraphResult tnr(int origin_id, int destination_id, bool length_only = false);
 

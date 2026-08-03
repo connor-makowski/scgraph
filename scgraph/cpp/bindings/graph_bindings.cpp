@@ -245,7 +245,7 @@ NB_MODULE(cpp, m) {
 
         // Contraction Hierarchies
         .def("create_contraction_hierarchy", &Graph::create_contraction_hierarchy,
-             nb::arg("heuristic_fn") = nullptr,
+             nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
              "Create a Contraction Hierarchies (CH) graph")
         .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id) -> nb::dict {
             return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id));
@@ -254,7 +254,7 @@ NB_MODULE(cpp, m) {
 
         // Transit Node Routing
         .def("create_tnr_hierarchy", &Graph::create_tnr_hierarchy,
-             nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
+             nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
              "Create a Transit Node Routing (TNR) graph")
         .def("set_tnr_graph", &Graph::set_tnr_graph, nb::arg("tnr_graph"),
              "Set the TNRGraph object for the graph")
@@ -265,16 +265,18 @@ NB_MODULE(cpp, m) {
 
     // CHGraph class
     nb::class_<CHGraph>(m, "CHGraph")
-        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, std::function<double(CHGraph*, int)>>(),
-             nb::arg("graph"), nb::arg("heuristic_fn") = nullptr,
+        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, std::function<double(CHGraph*, int)>>(),
+             nb::arg("graph"), nb::arg("settled_limit") = 50, nb::arg("heuristic_fn") = nullptr,
              "Initialize and preprocess a CHGraph")
         .def(nb::init<int, const std::vector<int>&, 
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::unordered_map<std::pair<int, int>, int, pair_hash>&,
-                      const std::optional<std::vector<std::unordered_map<int, double>>>&>(),
+                      const std::optional<std::vector<std::unordered_map<int, double>>>&,
+                      int>(),
              nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
              nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
+             nb::arg("settled_limit") = 50,
              "Initialize a CHGraph from pre-calculated data")
         .def("add_node", &CHGraph::add_node,
              nb::arg("node_dict") = std::unordered_map<int, double>{},
@@ -384,11 +386,10 @@ NB_MODULE(cpp, m) {
 
             // TNRGraph class
             nb::class_<TNRGraph, CHGraph>(m, "TNRGraph")
-                .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, std::function<double(CHGraph*, int)>>(),
-                     nb::arg("graph"), nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
+                .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, int, std::function<double(CHGraph*, int)>>(),
+                     nb::arg("graph"), nb::arg("settled_limit") = 50, nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
                      "Initialize and preprocess a TNRGraph")
                 .def(nb::init<int, const std::vector<int>&, 
- 
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::unordered_map<std::pair<int, int>, int, pair_hash>&,
@@ -396,11 +397,13 @@ NB_MODULE(cpp, m) {
                       const std::set<int>&,
                       const std::unordered_map<std::pair<int, int>, double, pair_hash>&,
                       const std::vector<std::unordered_map<int, double>>&,
-                      const std::vector<std::unordered_map<int, double>>&>(),
+                      const std::vector<std::unordered_map<int, double>>&,
+                      int>(),
              nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
              nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
              nb::arg("transit_nodes"), nb::arg("distance_table"),
              nb::arg("forward_access_nodes"), nb::arg("backward_access_nodes"),
+             nb::arg("settled_limit") = 50,
              "Initialize a TNRGraph from pre-calculated data")
             .def("search", [](TNRGraph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
             return graph_result_to_dict(self.search(origin_id, destination_id, length_only));

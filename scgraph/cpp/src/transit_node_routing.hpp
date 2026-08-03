@@ -14,12 +14,19 @@ private:
     std::vector<std::unordered_map<int, double>> forward_access_nodes;
     std::vector<std::unordered_map<int, double>> backward_access_nodes;
 
+    // Fast lookup cache for queries
+    std::vector<int> transit_node_to_local_idx;
+    std::vector<double> distance_table_flat;
+    int num_transit = 0;
+
     // Helper methods
+    void initialize_fast_lookup();
     std::optional<GraphResult> local_search(int origin_id, int destination_id, double upper_bound, bool length_only) const;
 
 public:
     // Constructor for preprocessing
     TNRGraph(const std::vector<std::unordered_map<int, double>>& graph,
+             int settled_limit = 50,
              int num_transit_nodes = 100,
              std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
 
@@ -33,7 +40,8 @@ public:
              const std::set<int>& transit_nodes,
              const std::unordered_map<std::pair<int, int>, double, pair_hash>& distance_table,
              const std::vector<std::unordered_map<int, double>>& forward_access_nodes,
-             const std::vector<std::unordered_map<int, double>>& backward_access_nodes);
+             const std::vector<std::unordered_map<int, double>>& backward_access_nodes,
+             int settled_limit = 50);
 
     // Search
     GraphResult search(int origin_id, int destination_id, bool length_only = false) const;

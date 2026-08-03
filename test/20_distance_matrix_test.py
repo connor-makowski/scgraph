@@ -1,6 +1,5 @@
 import time
 
-
 _CITIES = {
     "Los Angeles": (34.0522, -118.2437),
     "New York City": (40.7128, -74.0060),
@@ -38,7 +37,6 @@ def test_distance_matrix_matches_shortest_path(us_freeway):
 if __name__ == "__main__":
     from scgraph import GeoGraph
 
-
     geograph = GeoGraph.load_geograph("us_freeway")
     now = time.perf_counter()
     test_distance_matrix_matches_shortest_path(geograph)
@@ -46,8 +44,12 @@ if __name__ == "__main__":
 
     now = time.perf_counter()
     geograph.graph_object.reduce()
-    print(f"Time taken to reduce graph: {time.perf_counter() - now:.2f} seconds")
+    print(
+        f"Time taken to reduce graph: {time.perf_counter() - now:.2f} seconds"
+    )
 
     now = time.perf_counter()
     test_distance_matrix_matches_shortest_path(geograph)
-    print(f"Time taken after reduction: {time.perf_counter() - now:.2f} seconds")
+    print(
+        f"Time taken after reduction: {time.perf_counter() - now:.2f} seconds"
+    )

@@ -107,18 +107,26 @@ class CHGraphPreprocessing:
 
         - The heuristic value for the node as an int or float
         """
-        shortcuts_needed, _ = self.__count_shortcuts__(node_id)
-        in_edges = len(self.contracting_inverse_graph[node_id])
-        out_edges = len(self.contracting_graph[node_id])
+        contracting_graph = self.contracting_graph
+        contracting_inverse_graph = self.contracting_inverse_graph
+        contracted = self.contracted
+
+        shortcuts_needed, found_shortcuts = self.__count_shortcuts__(node_id)
+        # Cache shortcuts so __preprocess__ can reuse them without re-running __count_shortcuts__
+        self._shortcuts_cache_node = node_id
+        self._shortcuts_cache = found_shortcuts
+
+        in_edges = len(contracting_inverse_graph[node_id])
+        out_edges = len(contracting_graph[node_id])
         edge_diff = shortcuts_needed - in_edges - out_edges
 
         # Count neighbors that are already contracted
         contracted_neighbors = 0
-        for neighbor in self.contracting_graph[node_id]:
-            if self.contracted[neighbor]:
+        for neighbor in contracting_graph[node_id]:
+            if contracted[neighbor]:
                 contracted_neighbors += 1
-        for neighbor in self.contracting_inverse_graph[node_id]:
-            if self.contracted[neighbor]:
+        for neighbor in contracting_inverse_graph[node_id]:
+            if contracted[neighbor]:
                 contracted_neighbors += 1
 
         return edge_diff + contracted_neighbors
@@ -146,37 +154,45 @@ class CHGraphPreprocessing:
         shortcuts = []
         in_neighbors = self.contracting_inverse_graph[node_id]
         out_neighbors = self.contracting_graph[node_id]
+        contracted = self.contracted
 
         for in_neighbor_id, in_weight in in_neighbors.items():
-            if self.contracted[in_neighbor_id]:
+            if contracted[in_neighbor_id]:
                 continue
 
             # Max distance we care about for witness search from in_neighbor_id
             max_dist = 0
-            targets = {}
+            witness_targets = {}
+            witness_target_ids = []
             for out_neighbor_id, out_weight in out_neighbors.items():
                 if (
-                    self.contracted[out_neighbor_id]
+                    contracted[out_neighbor_id]
                     or in_neighbor_id == out_neighbor_id
                 ):
                     continue
                 shortcut_distance = in_weight + out_weight
-                targets[out_neighbor_id] = shortcut_distance
+                witness_targets[out_neighbor_id] = shortcut_distance
+                witness_target_ids.append(out_neighbor_id)
                 if shortcut_distance > max_dist:
                     max_dist = shortcut_distance
 
-            if not targets:
+            if not witness_target_ids:
                 continue
 
             # Witness search from in_neighbor_id
             distances = self.__witness_search__(
-                in_neighbor_id, node_id, max_dist
+                in_neighbor_id,
+                node_id,
+                max_dist,
+                witness_targets,
+                witness_target_ids,
             )
 
-            for out_neighbor_id, shortcut_distance in targets.items():
+            for out_neighbor_id in witness_target_ids:
+                shortcut_distance = witness_targets[out_neighbor_id]
                 if (
-                    distances.get(out_neighbor_id, float("inf"))
-                    > shortcut_distance + 1e-9
+                    out_neighbor_id not in distances
+                    or distances[out_neighbor_id] > shortcut_distance + 1e-9
                 ):
                     shortcuts.append(
                         (
@@ -190,8 +206,13 @@ class CHGraphPreprocessing:
         return len(shortcuts), shortcuts
 
     def __witness_search__(
-        self, start_node: int, avoid_node: int, max_dist: int | float
-    ) -> dict[int, int | float]:
+        self,
+        start_node: int,
+        avoid_node: int,
+        max_dist: int | float,
+        targets: dict[int, float],
+        target_ids: list[int],
+    ) -> dict[int, float]:
         """
         Function:
 
@@ -213,31 +234,50 @@ class CHGraphPreprocessing:
 
         Returns:
 
-        - A dictionary mapping reachable node ids to their shortest distances from start_node
+        - A dict of shortest distances from start_node to visited nodes
         """
-        distances = {start_node: 0}
-        open_leaves = [(0, start_node)]
+        distances = {start_node: 0.0}
+        resolved = set()
+        contracting_graph = self.contracting_graph
+        contracted = self.contracted
+        settled_limit = self.settled_limit
+        _inf = float("inf")
+
+        open_leaves = [(0.0, start_node)]
+        settled_count = 0
+        num_targets = len(target_ids)
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
             if current_distance > max_dist:
                 continue
-            if current_distance > distances.get(current_id, float("inf")):
+            if current_distance > distances.get(current_id, _inf):
                 continue
 
-            for neighbor_id, weight in self.contracting_graph[
-                current_id
-            ].items():
-                if neighbor_id == avoid_node or self.contracted[neighbor_id]:
+            if (
+                current_id in targets
+                and current_distance <= targets[current_id]
+            ):
+                if current_id not in resolved:
+                    resolved.add(current_id)
+                    if len(resolved) == num_targets:
+                        break
+
+            settled_count += 1
+            if settled_count > settled_limit:
+                break
+
+            for neighbor_id, weight in contracting_graph[current_id].items():
+                if neighbor_id == avoid_node or contracted[neighbor_id]:
                     continue
                 possible_distance = current_distance + weight
                 if (
                     possible_distance <= max_dist
-                    and possible_distance
-                    < distances.get(neighbor_id, float("inf"))
+                    and possible_distance < distances.get(neighbor_id, _inf)
                 ):
                     distances[neighbor_id] = possible_distance
                     heappush(open_leaves, (possible_distance, neighbor_id))
+
         return distances
 
     def __preprocess__(
@@ -261,12 +301,24 @@ class CHGraphPreprocessing:
 
         - None
         """
+        self._shortcuts_cache_node = -1
+        self._shortcuts_cache = []
+
         if heuristic_fn is None:
             heuristic_fn = lambda g, n: g.default_heuristic(n)
 
+        contracting_graph = self.contracting_graph
+        contracting_inverse_graph = self.contracting_inverse_graph
+        ranks = self.ranks
+        contracted = self.contracted
+        shortcuts = self.shortcuts
+
         open_leaves = []
         for node_id in range(self.nodes_count):
-            heappush(open_leaves, (heuristic_fn(self, node_id), node_id))
+            initial_val = len(contracting_graph[node_id]) + len(
+                contracting_inverse_graph[node_id]
+            )
+            heappush(open_leaves, (initial_val, node_id))
 
         rank = 0
         while open_leaves:
@@ -279,35 +331,42 @@ class CHGraphPreprocessing:
                 continue
 
             # Contract node_id
-            self.ranks[node_id] = rank
+            ranks[node_id] = rank
             rank += 1
-            self.contracted[node_id] = True
+            contracted[node_id] = True
             self.contracted_count += 1
 
-            _, shortcuts = self.__count_shortcuts__(node_id)
+            # Reuse shortcuts cached by the heuristic call above (default_heuristic stores them)
+            if self._shortcuts_cache_node == node_id:
+                found_shortcuts = self._shortcuts_cache
+            else:
+                _, found_shortcuts = self.__count_shortcuts__(node_id)
 
             # Add shortcuts to the contracting graph
-            for origin_id, destination_id, distance, via_node_id in shortcuts:
-                if distance < self.contracting_graph[origin_id].get(
+            for (
+                origin_id,
+                destination_id,
+                distance,
+                via_node_id,
+            ) in found_shortcuts:
+                if distance < contracting_graph[origin_id].get(
                     destination_id, float("inf")
                 ):
-                    self.contracting_graph[origin_id][destination_id] = distance
-                    self.contracting_inverse_graph[destination_id][
+                    contracting_graph[origin_id][destination_id] = distance
+                    contracting_inverse_graph[destination_id][
                         origin_id
                     ] = distance
-                    self.shortcuts[(origin_id, destination_id)] = via_node_id
+                    shortcuts[(origin_id, destination_id)] = via_node_id
 
         # Build final forward and backward graphs
         for origin_id in range(self.nodes_count):
-            for destination_id, weight in self.contracting_graph[
-                origin_id
-            ].items():
-                if self.ranks[origin_id] < self.ranks[destination_id]:
+            for destination_id, weight in contracting_graph[origin_id].items():
+                if ranks[origin_id] < ranks[destination_id]:
                     self.forward_graph[origin_id][destination_id] = weight
-            for destination_id, weight in self.contracting_inverse_graph[
+            for destination_id, weight in contracting_inverse_graph[
                 origin_id
             ].items():
-                if self.ranks[origin_id] < self.ranks[destination_id]:
+                if ranks[origin_id] < ranks[destination_id]:
                     self.backward_graph[origin_id][destination_id] = weight
 
 
@@ -639,6 +698,7 @@ class CHGraph(
         shortcuts: Optional[dict[Union[str, tuple[int, int]], int]] = None,
         nodes_count: Optional[int] = None,
         original_graph: Optional[list[dict[int, int | float]]] = None,
+        settled_limit: int = 50,
     ):
         """
         Function:
@@ -685,6 +745,7 @@ class CHGraph(
         """
         # Set original_graph from either 'graph' or 'original_graph'
         self.original_graph = graph if graph is not None else original_graph
+        self.settled_limit = settled_limit
 
         if all(
             x is not None

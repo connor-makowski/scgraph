@@ -629,7 +629,7 @@ class GraphAlgorithms:
         )
 
     def create_contraction_hierarchy(
-        self, heuristic_fn=None, ch_graph_kwargs=None
+        self, heuristic_fn=None, ch_graph_kwargs=None, settled_limit: int = 50
     ) -> Any:
         """
         Function:
@@ -643,17 +643,29 @@ class GraphAlgorithms:
             - Type: function or None
             - What: A heuristic function for CH preprocessing
             - Default: None (uses default heuristic)
+
+        - `settled_limit`:
+            - Type: int
+            - What: The settled count limit for witness search
+            - Default: 50
         """
         if not hasattr(self, "__ch_graph__"):
             ch_graph_kwargs = (
                 ch_graph_kwargs if ch_graph_kwargs is not None else dict()
             )
             self.__ch_graph__ = CHGraph(
-                graph=self.graph, heuristic_fn=heuristic_fn, **ch_graph_kwargs
+                graph=self.graph,
+                settled_limit=settled_limit,
+                heuristic_fn=heuristic_fn,
+                **ch_graph_kwargs,
             )
+        return self.__ch_graph__
 
     def create_tnr_hierarchy(
-        self, num_transit_nodes: int = 100, tnr_graph_kwargs: dict = None
+        self,
+        num_transit_nodes: int = 100,
+        tnr_graph_kwargs: dict = None,
+        settled_limit: int = 50,
     ) -> Any:
         """
         Function:
@@ -667,6 +679,11 @@ class GraphAlgorithms:
             - Type: int
             - What: The number of transit nodes to use
             - Default: 100
+
+        - `settled_limit`:
+            - Type: int
+            - What: The settled count limit for witness search
+            - Default: 50
         """
         if not hasattr(self, "__tnr_graph__"):
             tnr_graph_kwargs = (
@@ -674,6 +691,7 @@ class GraphAlgorithms:
             )
             self.__tnr_graph__ = TNRGraph(
                 graph=self.graph,
+                settled_limit=settled_limit,
                 num_transit_nodes=num_transit_nodes,
                 **tnr_graph_kwargs,
             )
@@ -696,7 +714,7 @@ class GraphAlgorithms:
             - Type: int
             - What: The id of the destination node
         """
-        self.create_tnr_hierarchy()
+        self.create_tnr_hierarchy(50)
         return self.__tnr_graph__.search(origin_id, destination_id)
 
     @use_reduced
@@ -723,7 +741,7 @@ class GraphAlgorithms:
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
         # Ensure that the CH graph is created and warmed up
-        self.create_contraction_hierarchy()
+        self.create_contraction_hierarchy(50)
         return self.__ch_graph__.search(origin_id, destination_id)
 
 
