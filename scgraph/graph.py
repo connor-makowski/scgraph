@@ -741,7 +741,7 @@ class GraphAlgorithms:
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
         # Ensure that the CH graph is created and warmed up
-        self.create_contraction_hierarchy(50)
+        self.create_contraction_hierarchy()
         return self.__ch_graph__.search(origin_id, destination_id)
 
 

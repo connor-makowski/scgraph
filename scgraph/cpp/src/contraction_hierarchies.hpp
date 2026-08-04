@@ -30,6 +30,12 @@ protected:
     mutable std::vector<bool> witness_resolved;
     mutable int shortcuts_cache_node = -1;
     mutable std::vector<std::tuple<int, int, double, int>> shortcuts_cache;
+    mutable std::vector<std::vector<std::tuple<int, int, double, int>>> shortcuts_cache_table;
+    mutable std::vector<double> query_f_distances;
+    mutable std::vector<double> query_b_distances;
+    mutable std::vector<int> query_f_parents;
+    mutable std::vector<int> query_b_parents;
+    mutable std::vector<int> query_visited;
 
     // Helper methods
     double get_rank(int node_id) const;
@@ -38,8 +44,8 @@ protected:
     double default_heuristic(int node_id) const;
     void preprocess(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
     std::vector<int> reconstruct_ch_path(int origin_id, int destination_id, int meeting_node,
-                                        const std::unordered_map<int, int>& forward_parent,
-                                        const std::unordered_map<int, int>& backward_parent) const;
+                                        const std::vector<int>& forward_parent,
+                                        const std::vector<int>& backward_parent) const;
     std::vector<int> unpack_shortcut(int origin_id, int destination_id) const;
 
 public:

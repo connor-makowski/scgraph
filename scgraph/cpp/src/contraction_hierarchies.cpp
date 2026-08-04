@@ -115,6 +115,13 @@ std::pair<int, std::vector<std::tuple<int, int, double, int>>> CHGraph::count_sh
         for (const auto& [out_neighbor_id, out_weight] : out_neighbors) {
             if (contracted[out_neighbor_id] || in_neighbor_id == out_neighbor_id) continue;
             double shortcut_distance = in_weight + out_weight;
+
+            // Direct edge check
+            auto it = contracting_graph[in_neighbor_id].find(out_neighbor_id);
+            if (it != contracting_graph[in_neighbor_id].end() && it->second <= shortcut_distance + 1e-9) {
+                continue;
+            }
+
             witness_targets[out_neighbor_id] = shortcut_distance;
             witness_target_ids.push_back(out_neighbor_id);
             max_dist = std::max(max_dist, shortcut_distance);
@@ -147,8 +154,12 @@ std::pair<int, std::vector<std::tuple<int, int, double, int>>> CHGraph::count_sh
 
 double CHGraph::default_heuristic(int node_id) const {
     auto [shortcuts_needed, found_shortcuts] = count_shortcuts(node_id);
-    shortcuts_cache_node = node_id;
-    shortcuts_cache = std::move(found_shortcuts);
+    if (node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size())) {
+        shortcuts_cache_table[node_id] = std::move(found_shortcuts);
+    } else {
+        shortcuts_cache_node = node_id;
+        shortcuts_cache = std::move(found_shortcuts);
+    }
 
     int in_edges = contracting_inverse_graph[node_id].size();
     int out_edges = contracting_graph[node_id].size();
@@ -168,10 +179,13 @@ double CHGraph::default_heuristic(int node_id) const {
 void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
     shortcuts_cache_node = -1;
     shortcuts_cache.clear();
+    shortcuts_cache_table.assign(nodes_count, {});
 
     if (!heuristic_fn) {
         heuristic_fn = [](CHGraph* g, int node_id) { return g->default_heuristic(node_id); };
     }
+
+    std::vector<bool> up_to_date(nodes_count, false);
 
     using PQItem = std::pair<double, int>;
     std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> open_leaves;
@@ -185,11 +199,16 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         auto [heuristic_value, node_id] = open_leaves.top();
         open_leaves.pop();
 
-        // Lazy update
-        double updated_heuristic = heuristic_fn(this, node_id);
-        if (!open_leaves.empty() && updated_heuristic > open_leaves.top().first + 1e-9) {
-            open_leaves.push({updated_heuristic, node_id});
-            continue;
+        if (contracted[node_id]) continue;
+
+        double current_heuristic = heuristic_value;
+        if (!up_to_date[node_id]) {
+            current_heuristic = heuristic_fn(this, node_id);
+            up_to_date[node_id] = true;
+            if (!open_leaves.empty() && current_heuristic > open_leaves.top().first + 1e-9) {
+                open_leaves.push({current_heuristic, node_id});
+                continue;
+            }
         }
 
         // Contract node_id
@@ -198,7 +217,9 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         contracted_count++;
 
         std::vector<std::tuple<int, int, double, int>> found_shortcuts;
-        if (shortcuts_cache_node == node_id) {
+        if (node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size())) {
+            found_shortcuts = std::move(shortcuts_cache_table[node_id]);
+        } else if (shortcuts_cache_node == node_id) {
             found_shortcuts = std::move(shortcuts_cache);
         } else {
             found_shortcuts = count_shortcuts(node_id).second;
@@ -209,6 +230,18 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
                 contracting_graph[origin_id][destination_id] = distance;
                 contracting_inverse_graph[destination_id][origin_id] = distance;
                 shortcuts[{origin_id, destination_id}] = via_node_id;
+            }
+        }
+
+        // Mark remaining neighbors as dirty
+        for (const auto& [neighbor_id, _] : contracting_graph[node_id]) {
+            if (neighbor_id < nodes_count && !contracted[neighbor_id]) {
+                up_to_date[neighbor_id] = false;
+            }
+        }
+        for (const auto& [neighbor_id, _] : contracting_inverse_graph[node_id]) {
+            if (neighbor_id < nodes_count && !contracted[neighbor_id]) {
+                up_to_date[neighbor_id] = false;
             }
         }
     }
@@ -242,12 +275,23 @@ GraphResult CHGraph::search(int origin_id, int destination_id) const {
         return {{origin_id}, 0.0};
     }
 
-    std::unordered_map<int, double> forward_distances, backward_distances;
-    std::unordered_map<int, int> forward_parent, backward_parent;
-    forward_distances[origin_id] = 0.0;
-    forward_parent[origin_id] = -1;
-    backward_distances[destination_id] = 0.0;
-    backward_parent[destination_id] = -1;
+    int max_node_id = std::max(origin_id, destination_id);
+    int current_sz = static_cast<int>(query_f_distances.size());
+    if (max_node_id >= current_sz) {
+        int new_sz = max_node_id + 1;
+        query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+        query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+        query_f_parents.resize(new_sz, -1);
+        query_b_parents.resize(new_sz, -1);
+    }
+
+    query_f_distances[origin_id] = 0.0;
+    query_f_parents[origin_id] = -1;
+    query_visited.push_back(origin_id);
+
+    query_b_distances[destination_id] = 0.0;
+    query_b_parents[destination_id] = -1;
+    query_visited.push_back(destination_id);
 
     using PQItem = std::pair<double, int>;
     std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> forward_open_leaves, backward_open_leaves;
@@ -263,20 +307,50 @@ GraphResult CHGraph::search(int origin_id, int destination_id) const {
             forward_open_leaves.pop();
 
             if (current_distance <= best_dist) {
-                double current_rank = get_rank(current_id);
-                const auto& neighbors = (current_id < nodes_count) ? forward_graph[current_id] : original_graph[current_id];
-                for (const auto& [neighbor_id, weight] : neighbors) {
-                    double neighbor_rank = get_rank(neighbor_id);
-                    if (neighbor_rank <= current_rank && neighbor_id < nodes_count) continue;
-
-                    double new_dist = current_distance + weight;
-                    if (forward_distances.find(neighbor_id) == forward_distances.end() || new_dist < forward_distances[neighbor_id]) {
-                        forward_distances[neighbor_id] = new_dist;
-                        forward_parent[neighbor_id] = current_id;
-                        forward_open_leaves.push({new_dist, neighbor_id});
-                        if (backward_distances.find(neighbor_id) != backward_distances.end() && new_dist + backward_distances[neighbor_id] < best_dist) {
-                            best_dist = new_dist + backward_distances[neighbor_id];
-                            meeting_node = neighbor_id;
+                if (current_id < nodes_count) {
+                    for (const auto& [neighbor_id, weight] : forward_graph[current_id]) {
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_f_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_f_distances[neighbor_id]) {
+                            query_f_distances[neighbor_id] = new_dist;
+                            query_f_parents[neighbor_id] = current_id;
+                            forward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_b_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
+                        }
+                    }
+                } else {
+                    for (const auto& [neighbor_id, weight] : original_graph[current_id]) {
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_f_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_f_distances[neighbor_id]) {
+                            query_f_distances[neighbor_id] = new_dist;
+                            query_f_parents[neighbor_id] = current_id;
+                            forward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_b_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
                         }
                     }
                 }
@@ -290,20 +364,50 @@ GraphResult CHGraph::search(int origin_id, int destination_id) const {
             backward_open_leaves.pop();
 
             if (current_distance <= best_dist) {
-                double current_rank = get_rank(current_id);
-                const auto& neighbors = (current_id < nodes_count) ? backward_graph[current_id] : original_graph[current_id];
-                for (const auto& [neighbor_id, weight] : neighbors) {
-                    double neighbor_rank = get_rank(neighbor_id);
-                    if (neighbor_rank <= current_rank && neighbor_id < nodes_count) continue;
-
-                    double new_dist = current_distance + weight;
-                    if (backward_distances.find(neighbor_id) == backward_distances.end() || new_dist < backward_distances[neighbor_id]) {
-                        backward_distances[neighbor_id] = new_dist;
-                        backward_parent[neighbor_id] = current_id;
-                        backward_open_leaves.push({new_dist, neighbor_id});
-                        if (forward_distances.find(neighbor_id) != forward_distances.end() && new_dist + forward_distances[neighbor_id] < best_dist) {
-                            best_dist = new_dist + forward_distances[neighbor_id];
-                            meeting_node = neighbor_id;
+                if (current_id < nodes_count) {
+                    for (const auto& [neighbor_id, weight] : backward_graph[current_id]) {
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_b_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_b_distances[neighbor_id]) {
+                            query_b_distances[neighbor_id] = new_dist;
+                            query_b_parents[neighbor_id] = current_id;
+                            backward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_f_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
+                        }
+                    }
+                } else {
+                    for (const auto& [neighbor_id, weight] : original_graph[current_id]) {
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_b_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_b_distances[neighbor_id]) {
+                            query_b_distances[neighbor_id] = new_dist;
+                            query_b_parents[neighbor_id] = current_id;
+                            backward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_f_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
                         }
                     }
                 }
@@ -318,29 +422,45 @@ GraphResult CHGraph::search(int origin_id, int destination_id) const {
     }
 
     if (meeting_node == -1) {
+        for (int v : query_visited) {
+            query_f_distances[v] = std::numeric_limits<double>::infinity();
+            query_b_distances[v] = std::numeric_limits<double>::infinity();
+            query_f_parents[v] = -1;
+            query_b_parents[v] = -1;
+        }
+        query_visited.clear();
         throw std::runtime_error("No path found between origin and destination");
     }
 
-    std::vector<int> path = reconstruct_ch_path(origin_id, destination_id, meeting_node, forward_parent, backward_parent);
+    std::vector<int> path = reconstruct_ch_path(origin_id, destination_id, meeting_node, query_f_parents, query_b_parents);
+
+    for (int v : query_visited) {
+        query_f_distances[v] = std::numeric_limits<double>::infinity();
+        query_b_distances[v] = std::numeric_limits<double>::infinity();
+        query_f_parents[v] = -1;
+        query_b_parents[v] = -1;
+    }
+    query_visited.clear();
+
     return {path, best_dist};
 }
 
 std::vector<int> CHGraph::reconstruct_ch_path(int origin_id, int destination_id, int meeting_node,
-                                            const std::unordered_map<int, int>& forward_parent,
-                                            const std::unordered_map<int, int>& backward_parent) const {
+                                            const std::vector<int>& forward_parent,
+                                            const std::vector<int>& backward_parent) const {
     std::vector<int> forward_path;
     int current_id = meeting_node;
     while (current_id != -1) {
         forward_path.push_back(current_id);
-        current_id = forward_parent.count(current_id) ? forward_parent.at(current_id) : -1;
+        current_id = (current_id < static_cast<int>(forward_parent.size())) ? forward_parent[current_id] : -1;
     }
     std::reverse(forward_path.begin(), forward_path.end());
 
     std::vector<int> backward_path;
-    current_id = backward_parent.count(meeting_node) ? backward_parent.at(meeting_node) : -1;
+    current_id = (meeting_node < static_cast<int>(backward_parent.size())) ? backward_parent[meeting_node] : -1;
     while (current_id != -1) {
         backward_path.push_back(current_id);
-        current_id = backward_parent.count(current_id) ? backward_parent.at(current_id) : -1;
+        current_id = (current_id < static_cast<int>(backward_parent.size())) ? backward_parent[current_id] : -1;
     }
 
     std::vector<int> contracted_path = forward_path;

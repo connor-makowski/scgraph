@@ -96,6 +96,8 @@ class TNRGraphPreprocessing:
         - Perform a restricted upward CH search to find the first transit nodes encountered
         """
         access_nodes = {}
+        if node_id >= len(distances):
+            distances.extend([float("inf")] * (node_id - len(distances) + 1))
         distances[node_id] = 0.0
         visited.append(node_id)
         open_leaves = [(0, node_id)]
@@ -109,14 +111,23 @@ class TNRGraphPreprocessing:
                 continue
 
             # If we hit a transit node, we stop searching this branch
-            if transit_nodes_bool[current_id]:
+            if current_id < self.nodes_count and transit_nodes_bool[current_id]:
                 if dist < access_nodes.get(current_id, _inf):
                     access_nodes[current_id] = dist
                 continue
 
-            # Check neighbors in the upward graph (always preprocessed nodes here)
-            for neighbor_id, weight in graph[current_id].items():
+            # Check neighbors in the upward graph
+            neighbors = (
+                self.original_graph[current_id]
+                if current_id >= self.nodes_count
+                else graph[current_id]
+            )
+            for neighbor_id, weight in neighbors.items():
                 new_dist = dist + weight
+                if neighbor_id >= len(distances):
+                    distances.extend(
+                        [float("inf")] * (neighbor_id - len(distances) + 1)
+                    )
                 if new_dist < distances[neighbor_id]:
                     if distances[neighbor_id] == _inf:
                         visited.append(neighbor_id)
@@ -166,6 +177,8 @@ class TNRGraphPreprocessing:
         t_nodes_list = list(self.transit_nodes)
         n = len(self.original_graph)
 
+        # Optimization: Allocate dist once outside the loop and use a visited list to reset
+        # only the modified entries, bypassing the overhead of full list allocation on every run.
         dist = [float("inf")] * n
         visited = []
         for origin in t_nodes_list:
@@ -215,75 +228,130 @@ class TNRGraphAlgorithms:
                 if current_distance > best_dist:
                     forward_open_leaves = []
                 elif current_id not in self.transit_nodes:
-                    current_rank = self.__get_rank__(current_id)
-                    neighbors = (
-                        self.forward_graph[current_id]
-                        if current_id < self.nodes_count
-                        else self.original_graph[current_id]
-                    )
-
-                    for neighbor_id, weight in neighbors.items():
-                        if (
-                            self.__get_rank__(neighbor_id) <= current_rank
-                            and neighbor_id < self.nodes_count
-                        ):
-                            continue
-                        new_dist = current_distance + weight
-                        if new_dist < forward_distances.get(
-                            neighbor_id, float("inf")
-                        ):
-                            forward_distances[neighbor_id] = new_dist
-                            if not length_only:
-                                forward_parent[neighbor_id] = current_id
-                            heappush(
-                                forward_open_leaves, (new_dist, neighbor_id)
-                            )
-                            if (
-                                neighbor_id in backward_distances
-                                and new_dist + backward_distances[neighbor_id]
-                                < best_dist
+                    # Optimization: Split edge relaxation loops based on node status.
+                    # Since forward_graph only contains upward rank edges, we bypass rank checks completely.
+                    if current_id < self.nodes_count:
+                        for neighbor_id, weight in self.forward_graph[
+                            current_id
+                        ].items():
+                            new_dist = current_distance + weight
+                            if new_dist < forward_distances.get(
+                                neighbor_id, float("inf")
                             ):
-                                best_dist = (
-                                    new_dist + backward_distances[neighbor_id]
+                                forward_distances[neighbor_id] = new_dist
+                                if not length_only:
+                                    forward_parent[neighbor_id] = current_id
+                                heappush(
+                                    forward_open_leaves, (new_dist, neighbor_id)
                                 )
-                                meeting_node = neighbor_id
+                                if (
+                                    neighbor_id in backward_distances
+                                    and new_dist
+                                    + backward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + backward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
+                    else:
+                        current_rank = self.__get_rank__(current_id)
+                        for neighbor_id, weight in self.original_graph[
+                            current_id
+                        ].items():
+                            if (
+                                self.__get_rank__(neighbor_id) <= current_rank
+                                and neighbor_id < self.nodes_count
+                            ):
+                                continue
+                            new_dist = current_distance + weight
+                            if new_dist < forward_distances.get(
+                                neighbor_id, float("inf")
+                            ):
+                                forward_distances[neighbor_id] = new_dist
+                                if not length_only:
+                                    forward_parent[neighbor_id] = current_id
+                                heappush(
+                                    forward_open_leaves, (new_dist, neighbor_id)
+                                )
+                                if (
+                                    neighbor_id in backward_distances
+                                    and new_dist
+                                    + backward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + backward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
 
             if backward_open_leaves:
                 current_distance, current_id = heappop(backward_open_leaves)
                 if current_distance > best_dist:
                     backward_open_leaves = []
                 elif current_id not in self.transit_nodes:
-                    current_rank = self.__get_rank__(current_id)
-                    neighbors = (
-                        self.backward_graph[current_id]
-                        if current_id < self.nodes_count
-                        else self.original_graph[current_id]
-                    )
-
-                    for neighbor_id, weight in neighbors.items():
-                        if (
-                            self.__get_rank__(neighbor_id) <= current_rank
-                            and neighbor_id < self.nodes_count
-                        ):
-                            continue
-                        new_dist = current_distance + weight
-                        if new_dist < backward_distances.get(
-                            neighbor_id, float("inf")
-                        ):
-                            backward_distances[neighbor_id] = new_dist
-                            if not length_only:
-                                backward_parent[neighbor_id] = current_id
-                            heappush(
-                                backward_open_leaves, (new_dist, neighbor_id)
-                            )
-                            if (
-                                neighbor_id in forward_distances
-                                and new_dist + forward_distances[neighbor_id]
-                                < best_dist
+                    # Optimization: Split edge relaxation loops based on node status.
+                    # Since backward_graph only contains upward rank edges, we bypass rank checks completely.
+                    if current_id < self.nodes_count:
+                        for neighbor_id, weight in self.backward_graph[
+                            current_id
+                        ].items():
+                            new_dist = current_distance + weight
+                            if new_dist < backward_distances.get(
+                                neighbor_id, float("inf")
                             ):
-                                best_dist = (
-                                    new_dist + forward_distances[neighbor_id]
+                                backward_distances[neighbor_id] = new_dist
+                                if not length_only:
+                                    backward_parent[neighbor_id] = current_id
+                                heappush(
+                                    backward_open_leaves,
+                                    (new_dist, neighbor_id),
                                 )
+                                if (
+                                    neighbor_id in forward_distances
+                                    and new_dist
+                                    + forward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + forward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
+                    else:
+                        current_rank = self.__get_rank__(current_id)
+                        for neighbor_id, weight in self.original_graph[
+                            current_id
+                        ].items():
+                            if (
+                                self.__get_rank__(neighbor_id) <= current_rank
+                                and neighbor_id < self.nodes_count
+                            ):
+                                continue
+                            new_dist = current_distance + weight
+                            if new_dist < backward_distances.get(
+                                neighbor_id, float("inf")
+                            ):
+                                backward_distances[neighbor_id] = new_dist
+                                if not length_only:
+                                    backward_parent[neighbor_id] = current_id
+                                heappush(
+                                    backward_open_leaves,
+                                    (new_dist, neighbor_id),
+                                )
+                                if (
+                                    neighbor_id in forward_distances
+                                    and new_dist
+                                    + forward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + forward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
                                 meeting_node = neighbor_id
 
             forward_min = (

@@ -4,6 +4,7 @@
 #include <limits>
 #include <iostream>
 #include <functional>
+#include <thread>
 
 TNRGraph::TNRGraph(const std::vector<std::unordered_map<int, double>>& graph,
                    int settled_limit,
@@ -24,100 +25,146 @@ TNRGraph::TNRGraph(const std::vector<std::unordered_map<int, double>>& graph,
         transit_nodes.insert(sorted_nodes[i]);
     }
 
-    // 2. Compute Access Nodes
+    // 2. Compute Access Nodes in Parallel
     forward_access_nodes.assign(nodes_count, {});
     backward_access_nodes.assign(nodes_count, {});
 
-    std::vector<double> distances(nodes_count, std::numeric_limits<double>::infinity());
-    std::vector<int> visited_nodes;
     std::vector<bool> is_transit(nodes_count, false);
     for (int tn : transit_nodes) {
         is_transit[tn] = true;
     }
 
-    auto compute_access_nodes = [this, &distances, &visited_nodes, &is_transit](int node_id, bool forward) {
-        std::unordered_map<int, double> access_nodes;
-        distances[node_id] = 0.0;
-        visited_nodes.push_back(node_id);
-        using PQItem = std::pair<double, int>;
-        std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> open_leaves;
-        open_leaves.push({0.0, node_id});
+    unsigned int num_threads = std::thread::hardware_concurrency();
+    if (num_threads == 0) num_threads = 4;
 
-        while (!open_leaves.empty()) {
-            auto [dist, current_id] = open_leaves.top();
-            open_leaves.pop();
+    std::vector<std::thread> threads;
+    threads.reserve(num_threads);
 
-            if (dist > distances[current_id]) {
-                continue;
-            }
+    for (unsigned int thread_idx = 0; thread_idx < num_threads; ++thread_idx) {
+        threads.emplace_back([this, thread_idx, num_threads, &is_transit]() {
+            std::vector<double> distances(nodes_count, std::numeric_limits<double>::infinity());
+            std::vector<int> visited_nodes;
 
-            if (is_transit[current_id]) {
-                if (access_nodes.find(current_id) == access_nodes.end() || dist < access_nodes[current_id]) {
-                    access_nodes[current_id] = dist;
-                }
-                continue;
-            }
+            auto local_compute_access_nodes = [this, &distances, &visited_nodes, &is_transit](int node_id, bool forward) {
+                std::unordered_map<int, double> access_nodes;
+                distances[node_id] = 0.0;
+                visited_nodes.push_back(node_id);
+                using PQItem = std::pair<double, int>;
+                std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> open_leaves;
+                open_leaves.push({0.0, node_id});
 
-            const auto& neighbors = forward ? forward_graph[current_id] : backward_graph[current_id];
-            for (const auto& [neighbor_id, weight] : neighbors) {
-                double new_dist = dist + weight;
-                if (new_dist < distances[neighbor_id]) {
-                    if (distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
-                        visited_nodes.push_back(neighbor_id);
+                while (!open_leaves.empty()) {
+                    auto [dist, current_id] = open_leaves.top();
+                    open_leaves.pop();
+
+                    if (dist > distances[current_id]) {
+                        continue;
                     }
-                    distances[neighbor_id] = new_dist;
-                    open_leaves.push({new_dist, neighbor_id});
+
+                    if (is_transit[current_id]) {
+                        if (access_nodes.find(current_id) == access_nodes.end() || dist < access_nodes[current_id]) {
+                            access_nodes[current_id] = dist;
+                        }
+                        continue;
+                    }
+
+                    const auto& neighbors = forward ? forward_graph[current_id] : backward_graph[current_id];
+                    for (const auto& [neighbor_id, weight] : neighbors) {
+                        double new_dist = dist + weight;
+                        if (new_dist < distances[neighbor_id]) {
+                            if (distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                                visited_nodes.push_back(neighbor_id);
+                            }
+                            distances[neighbor_id] = new_dist;
+                            open_leaves.push({new_dist, neighbor_id});
+                        }
+                    }
                 }
+
+                for (int v : visited_nodes) {
+                    distances[v] = std::numeric_limits<double>::infinity();
+                }
+                visited_nodes.clear();
+
+                return access_nodes;
+            };
+
+            for (int i = thread_idx; i < nodes_count; i += num_threads) {
+                forward_access_nodes[i] = local_compute_access_nodes(i, true);
+                backward_access_nodes[i] = local_compute_access_nodes(i, false);
             }
-        }
-
-        for (int v : visited_nodes) {
-            distances[v] = std::numeric_limits<double>::infinity();
-        }
-        visited_nodes.clear();
-
-        return access_nodes;
-    };
-
-    for (int i = 0; i < nodes_count; ++i) {
-        forward_access_nodes[i] = compute_access_nodes(i, true);
-        backward_access_nodes[i] = compute_access_nodes(i, false);
+        });
     }
 
-    // 3. Compute Distance Table using full Dijkstra on original_graph (one tree per transit origin)
-    size_t n = original_graph.size();
-    std::vector<double> dist(n, std::numeric_limits<double>::infinity());
-    std::vector<int> visited;
-    for (int origin : transit_nodes) {
-        dist[origin] = 0.0;
-        visited.push_back(origin);
-        using PQItem = std::pair<double, int>;
-        std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> pq;
-        pq.push({0.0, origin});
-        while (!pq.empty()) {
-            auto [d, u] = pq.top();
-            pq.pop();
-            if (d > dist[u]) continue;
-            for (const auto& [v, w] : original_graph[u]) {
-                double nd = d + w;
-                if (nd < dist[v]) {
-                    if (dist[v] == std::numeric_limits<double>::infinity()) {
-                        visited.push_back(v);
-                    }
-                    dist[v] = nd;
-                    pq.push({nd, v});
-                }
-            }
+    for (auto& t : threads) {
+        if (t.joinable()) {
+            t.join();
         }
-        for (int target : transit_nodes) {
-            distance_table[{origin, target}] = dist[target];
-        }
-        for (int v : visited) {
-            dist[v] = std::numeric_limits<double>::infinity();
-        }
-        visited.clear();
     }
-    initialize_fast_lookup();
+
+    // 3. Compute Distance Table in Parallel
+    num_transit = transit_nodes.size();
+    transit_node_to_local_idx.assign(nodes_count, -1);
+    std::vector<int> transit_nodes_vec(transit_nodes.begin(), transit_nodes.end());
+    for (int i = 0; i < num_transit; ++i) {
+        transit_node_to_local_idx[transit_nodes_vec[i]] = i;
+    }
+    distance_table_flat.assign(num_transit * num_transit, std::numeric_limits<double>::infinity());
+
+    std::vector<std::thread> dt_threads;
+    dt_threads.reserve(num_threads);
+
+    for (unsigned int thread_idx = 0; thread_idx < num_threads; ++thread_idx) {
+        dt_threads.emplace_back([this, thread_idx, num_threads, &transit_nodes_vec]() {
+            size_t n = original_graph.size();
+            std::vector<double> dist(n, std::numeric_limits<double>::infinity());
+            std::vector<int> visited;
+
+            for (int origin_idx = thread_idx; origin_idx < num_transit; origin_idx += num_threads) {
+                int origin = transit_nodes_vec[origin_idx];
+                dist[origin] = 0.0;
+                visited.push_back(origin);
+                using PQItem = std::pair<double, int>;
+                std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> pq;
+                pq.push({0.0, origin});
+                while (!pq.empty()) {
+                    auto [d, u] = pq.top();
+                    pq.pop();
+                    if (d > dist[u]) continue;
+                    for (const auto& [v, w] : original_graph[u]) {
+                        double nd = d + w;
+                        if (nd < dist[v]) {
+                            if (dist[v] == std::numeric_limits<double>::infinity()) {
+                                visited.push_back(v);
+                            }
+                            dist[v] = nd;
+                            pq.push({nd, v});
+                        }
+                    }
+                }
+                for (int target_idx = 0; target_idx < num_transit; ++target_idx) {
+                    int target = transit_nodes_vec[target_idx];
+                    distance_table_flat[origin_idx * num_transit + target_idx] = dist[target];
+                }
+                for (int v : visited) {
+                    dist[v] = std::numeric_limits<double>::infinity();
+                }
+                visited.clear();
+            }
+        });
+    }
+
+    for (auto& t : dt_threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    for (int i = 0; i < num_transit; ++i) {
+        for (int j = 0; j < num_transit; ++j) {
+            distance_table[{transit_nodes_vec[i], transit_nodes_vec[j]}] = distance_table_flat[i * num_transit + j];
+        }
+    }
 }
 
 TNRGraph::TNRGraph(int nodes_count,
@@ -157,12 +204,23 @@ void TNRGraph::initialize_fast_lookup() {
 }
 
 std::optional<GraphResult> TNRGraph::local_search(int origin_id, int destination_id, double upper_bound, bool length_only) const {
-    std::unordered_map<int, double> forward_distances, backward_distances;
-    std::unordered_map<int, int> forward_parent, backward_parent;
-    forward_distances[origin_id] = 0.0;
-    if (!length_only) forward_parent[origin_id] = -1;
-    backward_distances[destination_id] = 0.0;
-    if (!length_only) backward_parent[destination_id] = -1;
+    int max_node_id = std::max(origin_id, destination_id);
+    int current_sz = static_cast<int>(query_f_distances.size());
+    if (max_node_id >= current_sz) {
+        int new_sz = max_node_id + 1;
+        query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+        query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+        query_f_parents.resize(new_sz, -1);
+        query_b_parents.resize(new_sz, -1);
+    }
+
+    query_f_distances[origin_id] = 0.0;
+    if (!length_only) query_f_parents[origin_id] = -1;
+    query_visited.push_back(origin_id);
+
+    query_b_distances[destination_id] = 0.0;
+    if (!length_only) query_b_parents[destination_id] = -1;
+    query_visited.push_back(destination_id);
 
     using PQItem = std::pair<double, int>;
     std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> forward_open_leaves, backward_open_leaves;
@@ -180,20 +238,54 @@ std::optional<GraphResult> TNRGraph::local_search(int origin_id, int destination
             if (current_distance > best_dist) {
                 while (!forward_open_leaves.empty()) forward_open_leaves.pop();
             } else if (current_id < 0 || current_id >= nodes_count || transit_node_to_local_idx[current_id] == -1) {
-                double current_rank = get_rank(current_id);
-                const auto& neighbors = (current_id < nodes_count) ? forward_graph[current_id] : original_graph[current_id];
-                for (const auto& [neighbor_id, weight] : neighbors) {
-                    double neighbor_rank = get_rank(neighbor_id);
-                    if (neighbor_rank <= current_rank && neighbor_id < nodes_count) continue;
+                if (current_id < nodes_count) {
+                    for (const auto& [neighbor_id, weight] : forward_graph[current_id]) {
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_f_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_f_distances[neighbor_id]) {
+                            query_f_distances[neighbor_id] = new_dist;
+                            if (!length_only) query_f_parents[neighbor_id] = current_id;
+                            forward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_b_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
+                        }
+                    }
+                } else {
+                    double current_rank = get_rank(current_id);
+                    for (const auto& [neighbor_id, weight] : original_graph[current_id]) {
+                        double neighbor_rank = get_rank(neighbor_id);
+                        if (neighbor_rank <= current_rank && neighbor_id < nodes_count) continue;
 
-                    double new_dist = current_distance + weight;
-                    if (forward_distances.find(neighbor_id) == forward_distances.end() || new_dist < forward_distances[neighbor_id]) {
-                        forward_distances[neighbor_id] = new_dist;
-                        if (!length_only) forward_parent[neighbor_id] = current_id;
-                        forward_open_leaves.push({new_dist, neighbor_id});
-                        if (backward_distances.find(neighbor_id) != backward_distances.end() && new_dist + backward_distances[neighbor_id] < best_dist) {
-                            best_dist = new_dist + backward_distances[neighbor_id];
-                            meeting_node = neighbor_id;
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_f_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_f_distances[neighbor_id]) {
+                            query_f_distances[neighbor_id] = new_dist;
+                            if (!length_only) query_f_parents[neighbor_id] = current_id;
+                            forward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_b_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_b_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_b_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
                         }
                     }
                 }
@@ -207,20 +299,54 @@ std::optional<GraphResult> TNRGraph::local_search(int origin_id, int destination
             if (current_distance > best_dist) {
                 while (!backward_open_leaves.empty()) backward_open_leaves.pop();
             } else if (current_id < 0 || current_id >= nodes_count || transit_node_to_local_idx[current_id] == -1) {
-                double current_rank = get_rank(current_id);
-                const auto& neighbors = (current_id < nodes_count) ? backward_graph[current_id] : original_graph[current_id];
-                for (const auto& [neighbor_id, weight] : neighbors) {
-                    double neighbor_rank = get_rank(neighbor_id);
-                    if (neighbor_rank <= current_rank && neighbor_id < nodes_count) continue;
+                if (current_id < nodes_count) {
+                    for (const auto& [neighbor_id, weight] : backward_graph[current_id]) {
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_b_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_b_distances[neighbor_id]) {
+                            query_b_distances[neighbor_id] = new_dist;
+                            if (!length_only) query_b_parents[neighbor_id] = current_id;
+                            backward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_f_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
+                        }
+                    }
+                } else {
+                    double current_rank = get_rank(current_id);
+                    for (const auto& [neighbor_id, weight] : original_graph[current_id]) {
+                        double neighbor_rank = get_rank(neighbor_id);
+                        if (neighbor_rank <= current_rank && neighbor_id < nodes_count) continue;
 
-                    double new_dist = current_distance + weight;
-                    if (backward_distances.find(neighbor_id) == backward_distances.end() || new_dist < backward_distances[neighbor_id]) {
-                        backward_distances[neighbor_id] = new_dist;
-                        if (!length_only) backward_parent[neighbor_id] = current_id;
-                        backward_open_leaves.push({new_dist, neighbor_id});
-                        if (forward_distances.find(neighbor_id) != forward_distances.end() && new_dist + forward_distances[neighbor_id] < best_dist) {
-                            best_dist = new_dist + forward_distances[neighbor_id];
-                            meeting_node = neighbor_id;
+                        double new_dist = current_distance + weight;
+                        if (neighbor_id >= static_cast<int>(query_f_distances.size())) {
+                            int new_sz = neighbor_id + 1;
+                            query_f_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_b_distances.resize(new_sz, std::numeric_limits<double>::infinity());
+                            query_f_parents.resize(new_sz, -1);
+                            query_b_parents.resize(new_sz, -1);
+                        }
+                        if (query_b_distances[neighbor_id] == std::numeric_limits<double>::infinity()) {
+                            query_visited.push_back(neighbor_id);
+                        }
+                        if (new_dist < query_b_distances[neighbor_id]) {
+                            query_b_distances[neighbor_id] = new_dist;
+                            if (!length_only) query_b_parents[neighbor_id] = current_id;
+                            backward_open_leaves.push({new_dist, neighbor_id});
+                            if (query_f_distances[neighbor_id] != std::numeric_limits<double>::infinity() && new_dist + query_f_distances[neighbor_id] < best_dist) {
+                                best_dist = new_dist + query_f_distances[neighbor_id];
+                                meeting_node = neighbor_id;
+                            }
                         }
                     }
                 }
@@ -232,16 +358,25 @@ std::optional<GraphResult> TNRGraph::local_search(int origin_id, int destination
         if (forward_min > best_dist && backward_min > best_dist) break;
     }
 
-    if (length_only) {
-        return GraphResult{{}, best_dist};
-    }
-
+    std::optional<GraphResult> res = std::nullopt;
     if (meeting_node != -1) {
-        std::vector<int> path = reconstruct_ch_path(origin_id, destination_id, meeting_node, forward_parent, backward_parent);
-        return GraphResult{path, best_dist};
+        if (length_only) {
+            res = GraphResult{{}, best_dist};
+        } else {
+            std::vector<int> path = reconstruct_ch_path(origin_id, destination_id, meeting_node, query_f_parents, query_b_parents);
+            res = GraphResult{path, best_dist};
+        }
     }
 
-    return std::nullopt;
+    for (int v : query_visited) {
+        query_f_distances[v] = std::numeric_limits<double>::infinity();
+        query_b_distances[v] = std::numeric_limits<double>::infinity();
+        query_f_parents[v] = -1;
+        query_b_parents[v] = -1;
+    }
+    query_visited.clear();
+
+    return res;
 }
 
 GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only) const {
@@ -249,11 +384,13 @@ GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only
         return {{origin_id}, 0.0};
     }
 
-    std::unordered_map<int, double> f_access, b_access;
+    std::unordered_map<int, double> f_access_temp, b_access_temp;
+    const std::unordered_map<int, double>* f_access = nullptr;
+    const std::unordered_map<int, double>* b_access = nullptr;
 
     // Forward Access Nodes
     if (origin_id < nodes_count) {
-        f_access = forward_access_nodes[origin_id];
+        f_access = &forward_access_nodes[origin_id];
     } else {
         // Compute for added node
         std::unordered_map<int, double> distances;
@@ -265,15 +402,15 @@ GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only
             auto [current_distance, current_id] = open_leaves.top();
             open_leaves.pop();
             if (current_id >= 0 && current_id < nodes_count && transit_node_to_local_idx[current_id] != -1) {
-                if (f_access.find(current_id) == f_access.end() || current_distance < f_access[current_id]) {
-                    f_access[current_id] = current_distance;
+                if (f_access_temp.find(current_id) == f_access_temp.end() || current_distance < f_access_temp[current_id]) {
+                    f_access_temp[current_id] = current_distance;
                 }
                 continue;
             }
             double current_rank = get_rank(current_id);
             const auto& neighbors = (current_id < nodes_count) ? forward_graph[current_id] : original_graph[current_id];
             for (const auto& [neighbor_id, weight] : neighbors) {
-                if (get_rank(neighbor_id) <= current_rank && neighbor_id < nodes_count) continue;
+                if (current_id < nodes_count && get_rank(neighbor_id) <= current_rank && neighbor_id < nodes_count) continue;
                 double new_dist = current_distance + weight;
                 if (distances.find(neighbor_id) == distances.end() || new_dist < distances[neighbor_id]) {
                     distances[neighbor_id] = new_dist;
@@ -281,11 +418,12 @@ GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only
                 }
             }
         }
+        f_access = &f_access_temp;
     }
- 
+
     // Backward Access Nodes
     if (destination_id < nodes_count) {
-        b_access = backward_access_nodes[destination_id];
+        b_access = &backward_access_nodes[destination_id];
     } else {
         // Compute for added node
         std::unordered_map<int, double> distances;
@@ -297,15 +435,15 @@ GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only
             auto [current_distance, current_id] = open_leaves.top();
             open_leaves.pop();
             if (current_id >= 0 && current_id < nodes_count && transit_node_to_local_idx[current_id] != -1) {
-                if (b_access.find(current_id) == b_access.end() || current_distance < b_access[current_id]) {
-                    b_access[current_id] = current_distance;
+                if (b_access_temp.find(current_id) == b_access_temp.end() || current_distance < b_access_temp[current_id]) {
+                    b_access_temp[current_id] = current_distance;
                 }
                 continue;
             }
             double current_rank = get_rank(current_id);
             const auto& neighbors = (current_id < nodes_count) ? backward_graph[current_id] : original_graph[current_id];
             for (const auto& [neighbor_id, weight] : neighbors) {
-                if (get_rank(neighbor_id) <= current_rank && neighbor_id < nodes_count) continue;
+                if (current_id < nodes_count && get_rank(neighbor_id) <= current_rank && neighbor_id < nodes_count) continue;
                 double new_dist = current_distance + weight;
                 if (distances.find(neighbor_id) == distances.end() || new_dist < distances[neighbor_id]) {
                     distances[neighbor_id] = new_dist;
@@ -313,13 +451,14 @@ GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only
                 }
             }
         }
+        b_access = &b_access_temp;
     }
 
     double best_dist = std::numeric_limits<double>::infinity();
-    for (const auto& [t_f, d_f] : f_access) {
+    for (const auto& [t_f, d_f] : *f_access) {
         int u = (t_f >= 0 && t_f < nodes_count) ? transit_node_to_local_idx[t_f] : -1;
         if (u == -1) continue;
-        for (const auto& [t_b, d_b] : b_access) {
+        for (const auto& [t_b, d_b] : *b_access) {
             int v = (t_b >= 0 && t_b < nodes_count) ? transit_node_to_local_idx[t_b] : -1;
             if (v == -1) continue;
             double d_table = distance_table_flat[u * num_transit + v];
