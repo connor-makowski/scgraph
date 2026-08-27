@@ -747,5 +747,5 @@ except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph
 
-from scgraph.geograph import GeoGraph
+from scgraph.geograph import GeoGraph, LazyGeoGraph
 from scgraph.grid import GridGraph

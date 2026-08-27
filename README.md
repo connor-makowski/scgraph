@@ -383,6 +383,16 @@ The cache location defaults to the platform-appropriate directory:
 | macOS | `~/Library/Caches/scgraph/` |
 | Windows | `%LOCALAPPDATA%\scgraph\` |
 
+### `load_geograph` Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `name` | required | Name of the built-in geograph (e.g. `'marnet'`, `'us_freeway'`) |
+| `cache_dir` | `None` | Custom directory for downloaded files; defaults to the OS cache dir above |
+| `geograph_url` | `'https://raw.githubusercontent.com/...'` | Base URL for fetching geographs |
+| `reduce` | `True` | Reduce the graph upon loading to accelerate shortest path queries |
+| `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
+
 ## Loading from OSMNx
 
 SCGraph integrates directly with [OSMNx](https://osmnx.readthedocs.io/) — load any OpenStreetMap network and convert it to a `GeoGraph` in two lines:
@@ -417,6 +427,8 @@ print(output['length'])
 | `off_graph_travel_speed` | `None` | Speed (km/h) for off-graph connections; used to convert time-based weights to distances |
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
 | `silent` | `False` | Suppress progress output |
+| `reduce` | `True` | Reduce the graph upon loading to accelerate shortest path queries |
+| `lazy` | `False` | Defer loading until the geograph is first accessed |
 
 ## Building from OSM Data (Without OSMNx)
 
