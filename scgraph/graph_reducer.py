@@ -169,15 +169,24 @@ class GraphReducer:
 
         - The return value of the wrapped routing algorithm (typically a dict with 'path' and 'length')
         """
-        origin_id = kwargs.get("origin_id")
-        if origin_id is None and len(args) > 0:
-            origin_id = args[0]
+        if func.__name__.startswith("create_"):
+            origin_id = None
+            destination_id = None
+        else:
+            origin_id = kwargs.get("origin_id")
+            if origin_id is None and len(args) > 0:
+                origin_id = args[0]
 
-        destination_id = kwargs.get("destination_id")
-        if destination_id is None and len(args) > 1:
-            destination_id = args[1]
+            destination_id = kwargs.get("destination_id")
+            if destination_id is None and len(args) > 1:
+                destination_id = args[1]
 
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        if origin_id is None:
+            origin_ids = set()
+        elif isinstance(origin_id, int):
+            origin_ids = {origin_id}
+        else:
+            origin_ids = set(origin_id)
 
         target_nodes = set(origin_ids)
         if destination_id is not None:
@@ -241,37 +250,7 @@ class GraphReducer:
         original_graph = self.graph
         self.graph = self.reduced_graph
         try:
-            if nodes_to_process and func.__name__ == "cached_shortest_path":
-                length_only = (
-                    kwargs.get("length_only", False)
-                    if "length_only" in kwargs
-                    else (args[2] if len(args) > 2 else False)
-                )
-                shortest_path_tree = self.get_shortest_path_tree(
-                    origin_id=origin_id
-                )
-                res = self.get_tree_path(
-                    origin_id=origin_id,
-                    destination_id=destination_id,
-                    tree_data=shortest_path_tree,
-                    length_only=length_only,
-                )
-            elif nodes_to_process and func.__name__ in (
-                "contraction_hierarchy",
-                "tnr",
-            ):
-                length_only = (
-                    kwargs.get("length_only", False)
-                    if "length_only" in kwargs
-                    else (args[2] if len(args) > 2 else False)
-                )
-                res = self.dijkstra(
-                    origin_id=origin_id, destination_id=destination_id
-                )
-                if length_only:
-                    res = {"length": res["length"]}
-            else:
-                res = func(self, *args, **kwargs)
+            res = func(self, *args, **kwargs)
 
             if isinstance(res, dict) and "path" in res:
                 res["path"] = self.__expand_path__(res["path"])

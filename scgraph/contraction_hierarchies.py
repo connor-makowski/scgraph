@@ -504,7 +504,9 @@ class CHGraphAlgorithms:
                     neighbors[neighbor_id] = weight
             return neighbors
 
-    def search(self, origin_id: int, destination_id: int) -> dict[str, Any]:
+    def search(
+        self, origin_id: int, destination_id: int, length_only: bool = False
+    ) -> dict[str, Any]:
         """
         Function:
 
@@ -519,14 +521,25 @@ class CHGraphAlgorithms:
             - Type: int
             - What: The id of the destination node
 
+        Optional Arguments:
+
+        - `length_only`
+            - Type: bool
+            - What: If True, only returns the length of the path
+            - Default: False
+
         Returns:
 
         - A dictionary with the following keys:
-            - `path`: A list of node ids representing the shortest path
+            - `path`: A list of node ids representing the shortest path (omitted if length_only=True)
             - `length`: The total length of the shortest path
         """
         if origin_id == destination_id:
-            return {"path": [origin_id], "length": 0}
+            return (
+                {"length": 0}
+                if length_only
+                else {"path": [origin_id], "length": 0}
+            )
 
         # Forward search state
         forward_distances = {origin_id: 0}
@@ -673,6 +686,9 @@ class CHGraphAlgorithms:
 
         if meeting_node == -1:
             raise Exception("No path found between origin and destination")
+
+        if length_only:
+            return {"length": best_dist}
 
         path = self.__reconstruct_ch_path__(
             origin_id,

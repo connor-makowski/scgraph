@@ -381,7 +381,7 @@ std::optional<GraphResult> TNRGraph::local_search(int origin_id, int destination
 
 GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only) const {
     if (origin_id == destination_id) {
-        return {{origin_id}, 0.0};
+        return {length_only ? std::vector<int>{} : std::vector<int>{origin_id}, 0.0};
     }
 
     std::unordered_map<int, double> f_access_temp, b_access_temp;
@@ -476,7 +476,10 @@ GraphResult TNRGraph::search(int origin_id, int destination_id, bool length_only
         return local_res.value();
     }
 
+    if (length_only) {
+        return {{}, best_dist};
+    }
+
     // Fallback to CH search for path reconstruction if global TNR path was found but local search failed
-    // (should only happen if length_only=false and meeting_node was not found in local search)
     return CHGraph::search(origin_id, destination_id);
 }

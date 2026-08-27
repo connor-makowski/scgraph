@@ -116,6 +116,30 @@ Located in `scgraph/cpp/`, compiled via scikit-build-core + nanobind:
 - Skip C++ build: `SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"`
 - C++20 standard, compiled with `-O3 -march=native`
 
+#### Debugging C++ Builds & Compiler Errors
+
+By default, `pyproject.toml` contains a build fallback:
+```toml
+[[tool.scikit-build.overrides]]
+if.failed = true
+wheel.cmake = false
+```
+When C++ compilation fails, `scikit-build-core` silently falls back to building a pure Python wheel, so `uv sync` may appear to succeed while `has_cpp()` returns `False`.
+
+To surface compiler errors and debug the C++ build:
+
+1. **Verbose build command (recommended)**:
+   ```bash
+   uv sync --extra dev --reinstall-package scgraph -v --config-setting=build.verbose=true
+   ```
+   Or set debug logging:
+   ```bash
+   uv sync --extra dev --reinstall-package scgraph --config-setting=logging.level=DEBUG
+   ```
+
+2. **Disable fallback override in `pyproject.toml`**:
+   Temporarily comment out the `[[tool.scikit-build.overrides]]` section and set `build.verbose = true` under `[tool.scikit-build]`. Running `uv sync --extra dev --reinstall-package scgraph` will then immediately fail with the exact C++ compiler error and line number.
+
 ---
 
 ## Test Structure

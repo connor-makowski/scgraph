@@ -30,22 +30,6 @@ void Graph::reset_cache() {
 
 // Tree algorithms
 TreeData Graph::get_shortest_path_tree(const std::variant<int, std::set<int>>& origin_id) {
-    if (has_reduced_graph) {
-        auto restore = prepare_query_graph(origin_id, std::nullopt);
-        TreeData res;
-        try {
-            has_reduced_graph = false;
-            res = get_shortest_path_tree(origin_id);
-            has_reduced_graph = true;
-        } catch (...) {
-            has_reduced_graph = true;
-            restore_query_graph(restore);
-            throw;
-        }
-        restore_query_graph(restore);
-        return res;
-    }
-
     input_check(origin_id, 0);
     auto origin_ids = get_origin_ids(origin_id);
 
@@ -114,11 +98,7 @@ GraphResult Graph::get_tree_path(int origin_id, int destination_id, const TreeDa
     }
 
     std::reverse(current_path.begin(), current_path.end());
-    GraphResult res{current_path, destination_distance};
-    if (has_reduced_graph) {
-        res.path = expand_path(res.path);
-    }
-    return res;
+    return GraphResult{current_path, destination_distance};
 }
 
 // Shortest path algorithms
@@ -560,16 +540,6 @@ GraphResult Graph::bmssp(const std::variant<int, std::set<int>>& origin_id, int 
 }
 
 GraphResult Graph::cached_shortest_path(int origin_id, int destination_id, bool length_only) {
-    if (has_reduced_graph) {
-        if (is_reduced[origin_id] || is_reduced[destination_id]) {
-            auto res = this->dijkstra(origin_id, destination_id);
-            if (length_only) {
-                res.path = {};
-            }
-            return res;
-        }
-    }
-
     if (cache[origin_id].predecessors.empty()) {
         cache[origin_id] = get_shortest_path_tree(origin_id);
     }
@@ -582,17 +552,15 @@ std::shared_ptr<CHGraph> Graph::create_contraction_hierarchy(std::function<doubl
     return __ch_graph__;
 }
 
-GraphResult Graph::contraction_hierarchy(int origin_id, int destination_id) {
-    if (has_reduced_graph) {
-        if (is_reduced[origin_id] || is_reduced[destination_id]) {
-            return this->dijkstra(origin_id, destination_id);
-        }
-    }
-
+GraphResult Graph::contraction_hierarchy(int origin_id, int destination_id, bool length_only) {
     if (__ch_graph__ == nullptr) {
         create_contraction_hierarchy();
     }
-    return __ch_graph__->get_shortest_path(origin_id, destination_id);
+    auto res = __ch_graph__->get_shortest_path(origin_id, destination_id);
+    if (length_only) {
+        res.path = {};
+    }
+    return res;
 }
 
 std::shared_ptr<TNRGraph> Graph::create_tnr_hierarchy(int num_transit_nodes, std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) {
@@ -605,16 +573,6 @@ void Graph::set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph) {
 }
 
 GraphResult Graph::tnr(int origin_id, int destination_id, bool length_only) {
-    if (has_reduced_graph) {
-        if (is_reduced[origin_id] || is_reduced[destination_id]) {
-            auto res = this->dijkstra(origin_id, destination_id);
-            if (length_only) {
-                res.path = {};
-            }
-            return res;
-        }
-    }
-
     if (__tnr_graph__ == nullptr) {
         create_tnr_hierarchy();
     }

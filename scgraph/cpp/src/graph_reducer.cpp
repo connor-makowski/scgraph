@@ -281,3 +281,16 @@ std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) {
     }
     return new_path;
 }
+
+std::vector<std::unordered_map<int, double>> GraphReducer::get_reduced_graph() const {
+    std::vector<std::unordered_map<int, double>> result;
+    result.reserve(reduced_graph.size());
+    for (size_t i = 0; i < reduced_graph.size(); ++i) {
+        std::unordered_map<int, double> adj;
+        for (const auto& [v, w] : reduced_graph[i]) {
+            adj[v] = w;
+        }
+        result.push_back(std::move(adj));
+    }
+    return result;
+}

@@ -44,7 +44,7 @@ public:
 
     // Contraction Hierarchies
     std::shared_ptr<CHGraph> create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50);
-    GraphResult contraction_hierarchy(int origin_id, int destination_id);
+    GraphResult contraction_hierarchy(int origin_id, int destination_id, bool length_only = false);
 
     // Transit Node Routing
     std::shared_ptr<TNRGraph> create_tnr_hierarchy(int num_transit_nodes = 100, std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50);

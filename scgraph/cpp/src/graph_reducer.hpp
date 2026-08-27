@@ -33,6 +33,7 @@ public:
     const std::vector<std::vector<std::pair<int, double>>>& get_reduced_graph_internal() const { return reduced_graph; }
     const std::vector<bool>& get_is_reduced_internal() const { return is_reduced; }
     const std::vector<std::unordered_map<int, std::vector<int>>>& get_reduced_graph_connections_internal() const { return reduced_graph_connections; }
+    std::vector<std::unordered_map<int, double>> get_reduced_graph() const;
 
     // reduce method
     void reduce();

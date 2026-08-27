@@ -9,7 +9,6 @@ from scgraph.graph_reducer import GraphReducer, use_reduced
 
 
 class GraphTrees:
-    @use_reduced
     def get_shortest_path_tree(self, origin_id: int | set[int]) -> dict:
         """
         Function:
@@ -61,7 +60,6 @@ class GraphTrees:
             "distance_matrix": distance_matrix,
         }
 
-    @use_reduced
     def get_tree_path(
         self,
         origin_id: int,
@@ -587,7 +585,6 @@ class GraphAlgorithms:
             "length": output["length"],
         }
 
-    @use_reduced
     def cached_shortest_path(
         self,
         origin_id: int,
@@ -697,8 +694,13 @@ class GraphAlgorithms:
             )
         return self.__tnr_graph__
 
-    @use_reduced
-    def tnr(self, origin_id: int, destination_id: int, **kwargs) -> dict:
+    def tnr(
+        self,
+        origin_id: int,
+        destination_id: int,
+        length_only: bool = False,
+        **kwargs,
+    ) -> dict:
         """
         Function:
 
@@ -713,11 +715,19 @@ class GraphAlgorithms:
         - `destination_id`
             - Type: int
             - What: The id of the destination node
+
+        Optional Arguments:
+
+        - `length_only`
+            - Type: bool
+            - What: If True, only returns the length of the path
+            - Default: False
         """
         self.create_tnr_hierarchy(50)
-        return self.__tnr_graph__.search(origin_id, destination_id)
+        return self.__tnr_graph__.search(
+            origin_id, destination_id, length_only=length_only
+        )
 
-    @use_reduced
     def contraction_hierarchy(
         self, origin_id: int, destination_id: int, length_only: bool = False
     ) -> dict[str, Any]:
@@ -734,15 +744,16 @@ class GraphAlgorithms:
 
         Optional:
 
-        - length_only: If True, only returns the length of the path (not implemented yet)
+        - length_only: If True, only returns the length of the path
 
         Returns:
 
         - A dictionary with 'path' and 'length' keys containing the shortest path and its length
         """
-        # Ensure that the CH graph is created and warmed up
         self.create_contraction_hierarchy()
-        return self.__ch_graph__.search(origin_id, destination_id)
+        return self.__ch_graph__.search(
+            origin_id, destination_id, length_only=length_only
+        )
 
 
 class Graph(

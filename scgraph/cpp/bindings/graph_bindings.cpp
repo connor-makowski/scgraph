@@ -247,9 +247,9 @@ NB_MODULE(cpp, m) {
         .def("create_contraction_hierarchy", &Graph::create_contraction_hierarchy,
              nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
              "Create a Contraction Hierarchies (CH) graph")
-        .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id) -> nb::dict {
-            return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id));
-        }, nb::arg("origin_id"), nb::arg("destination_id"),
+        .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
+            return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id, length_only));
+        }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
            "Get shortest path using Contraction Hierarchies")
 
         // Transit Node Routing
