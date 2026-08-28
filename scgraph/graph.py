@@ -250,39 +250,48 @@ class GraphAlgorithms:
 
         best_dist = float("inf")
         meeting_node = -1
+        inf = float("inf")
+        push = heappush
+        pop = heappop
 
         while forward_open and backward_open:
-            if forward_open[0][0] + backward_open[0][0] >= best_dist:
+            top_fwd = forward_open[0][0]
+            top_bwd = backward_open[0][0]
+            if top_fwd + top_bwd >= best_dist:
                 break
 
-            if forward_open[0][0] <= backward_open[0][0]:
-                cur_d, u = heappop(forward_open)
-                if cur_d == forward_dist[u]:
-                    for v, w in graph[u].items():
-                        new_d = cur_d + w
-                        if new_d < forward_dist[v]:
-                            forward_dist[v] = new_d
-                            forward_pred[v] = u
-                            heappush(forward_open, (new_d, v))
-                            if backward_dist[v] < float("inf"):
-                                total_d = new_d + backward_dist[v]
-                                if total_d < best_dist:
-                                    best_dist = total_d
-                                    meeting_node = v
+            if top_fwd <= top_bwd:
+                cur_d, u = pop(forward_open)
+                if cur_d > forward_dist[u]:
+                    continue
+                for v, w in graph[u].items():
+                    new_d = cur_d + w
+                    if new_d < forward_dist[v]:
+                        forward_dist[v] = new_d
+                        forward_pred[v] = u
+                        push(forward_open, (new_d, v))
+                        b_d = backward_dist[v]
+                        if b_d < inf:
+                            total_d = new_d + b_d
+                            if total_d < best_dist:
+                                best_dist = total_d
+                                meeting_node = v
             else:
-                cur_d, v = heappop(backward_open)
-                if cur_d == backward_dist[v]:
-                    for u, w in inverse_graph[v].items():
-                        new_d = cur_d + w
-                        if new_d < backward_dist[u]:
-                            backward_dist[u] = new_d
-                            backward_pred[u] = v
-                            heappush(backward_open, (new_d, u))
-                            if forward_dist[u] < float("inf"):
-                                total_d = forward_dist[u] + new_d
-                                if total_d < best_dist:
-                                    best_dist = total_d
-                                    meeting_node = u
+                cur_d, v = pop(backward_open)
+                if cur_d > backward_dist[v]:
+                    continue
+                for u, w in inverse_graph[v].items():
+                    new_d = cur_d + w
+                    if new_d < backward_dist[u]:
+                        backward_dist[u] = new_d
+                        backward_pred[u] = v
+                        push(backward_open, (new_d, u))
+                        f_d = forward_dist[u]
+                        if f_d < inf:
+                            total_d = f_d + new_d
+                            if total_d < best_dist:
+                                best_dist = total_d
+                                meeting_node = u
 
         if meeting_node == -1 or best_dist == float("inf"):
             raise Exception(

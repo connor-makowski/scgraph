@@ -81,10 +81,24 @@ void GraphUtils::cycle_check(const std::vector<int>& predecessor_matrix, int nod
 
 void GraphUtils::ensure_inverse_graph() {
     if (inverse_graph_computed) return;
-    inverse_graph.assign(graph.size(), {});
-    for (size_t origin_id = 0; origin_id < graph.size(); ++origin_id) {
+    const size_t n = graph.size();
+    inverse_graph.assign(n, {});
+    std::vector<size_t> in_degrees(n, 0);
+    for (size_t origin_id = 0; origin_id < n; ++origin_id) {
         for (const auto& [dest_id, distance] : graph[origin_id]) {
-            inverse_graph[dest_id].emplace_back(static_cast<int>(origin_id), distance);
+            if (dest_id >= 0 && static_cast<size_t>(dest_id) < n) {
+                in_degrees[dest_id]++;
+            }
+        }
+    }
+    for (size_t i = 0; i < n; ++i) {
+        inverse_graph[i].reserve(in_degrees[i]);
+    }
+    for (size_t origin_id = 0; origin_id < n; ++origin_id) {
+        for (const auto& [dest_id, distance] : graph[origin_id]) {
+            if (dest_id >= 0 && static_cast<size_t>(dest_id) < n) {
+                inverse_graph[dest_id].emplace_back(static_cast<int>(origin_id), distance);
+            }
         }
     }
     inverse_graph_computed = true;
