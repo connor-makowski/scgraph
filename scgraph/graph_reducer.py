@@ -70,10 +70,9 @@ class GraphReducer:
         - None
         """
         self.reset_cache()
-        if iterations == 0 or iterations is False:
+        if iterations == 0:
             return
 
-        iterations = 1 if iterations is True else int(iterations)
         self.__ensure_inverse_graph__()
 
         # 1. Identify pass-through nodes iteratively

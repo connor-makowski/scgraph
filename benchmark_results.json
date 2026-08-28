@@ -1,202 +1,202 @@
 {
   "bmssp": {
-    "marnet_0_5_ms": 25.6047,
-    "marnet_100_7999_ms": 28.1551,
-    "marnet_4022_8342_ms": 26.8412,
-    "marnet_spt_ms": 2.1322,
-    "us_freeway_0_5_ms": 47.086,
-    "us_freeway_4022_8342_ms": 44.728,
-    "us_freeway_spt_ms": 1.8895
+    "marnet_0_5_ms": 15.2891,
+    "marnet_100_7999_ms": 33.8032,
+    "marnet_4022_8342_ms": 31.4927,
+    "marnet_spt_ms": 2.1436,
+    "us_freeway_0_5_ms": 11.9503,
+    "us_freeway_4022_8342_ms": 12.8973,
+    "us_freeway_spt_ms": 1.9546
   },
   "cache_geograph": {
-    "all_cached_length_only_ms": 2.2967,
-    "all_cached_ms": 21.2717,
-    "all_uncached_ms": 165.1928,
-    "single_cached_length_only_ms": 0.0148,
-    "single_cached_ms": 1.2677,
-    "single_uncached_ms": 2.3663
+    "all_cached_length_only_ms": 2.3105,
+    "all_cached_ms": 21.1322,
+    "all_uncached_ms": 31.3194,
+    "single_cached_length_only_ms": 0.0155,
+    "single_cached_ms": 1.092,
+    "single_uncached_ms": 0.4787
   },
   "cpp": true,
   "dijkstra_buckets": {
-    "200x200_float_cpp_buckets_ms": 1.7078,
-    "200x200_float_cpp_dijkstra_ms": 6.5813,
-    "200x200_float_python_buckets_ms": 27.71,
-    "200x200_float_python_dijkstra_ms": 31.6522,
-    "200x200_int_cpp_buckets_ms": 2.5785,
-    "200x200_int_cpp_dijkstra_ms": 8.889,
-    "200x200_int_python_buckets_ms": 27.6413,
-    "200x200_int_python_dijkstra_ms": 33.8175,
-    "marnet_cpp_buckets_ms": 2.0645,
-    "marnet_cpp_dijkstra_ms": 1.4336,
-    "marnet_python_buckets_ms": 8.9183,
-    "marnet_python_dijkstra_ms": 6.5958,
-    "us_freeway_cpp_buckets_ms": 0.5388,
-    "us_freeway_cpp_dijkstra_ms": 1.0381,
-    "us_freeway_python_buckets_ms": 8.317,
-    "us_freeway_python_dijkstra_ms": 6.9993
+    "200x200_float_cpp_buckets_ms": 1.704,
+    "200x200_float_cpp_dijkstra_ms": 4.905,
+    "200x200_float_python_buckets_ms": 29.7456,
+    "200x200_float_python_dijkstra_ms": 31.1565,
+    "200x200_int_cpp_buckets_ms": 1.6587,
+    "200x200_int_cpp_dijkstra_ms": 5.0015,
+    "200x200_int_python_buckets_ms": 26.4637,
+    "200x200_int_python_dijkstra_ms": 36.9346,
+    "marnet_cpp_buckets_ms": 1.169,
+    "marnet_cpp_dijkstra_ms": 1.3463,
+    "marnet_python_buckets_ms": 12.7075,
+    "marnet_python_dijkstra_ms": 6.8686,
+    "us_freeway_cpp_buckets_ms": 0.5233,
+    "us_freeway_cpp_dijkstra_ms": 1.2758,
+    "us_freeway_python_buckets_ms": 11.8604,
+    "us_freeway_python_dijkstra_ms": 6.6156
   },
   "distance_matrix": {
     "10x10": {
-      "distance_matrix_ms": 87.4517,
-      "haversine_ms": 5.7983
+      "distance_matrix_ms": 89.9365,
+      "haversine_ms": 5.8968
     },
     "20x20": {
-      "distance_matrix_ms": 318.5573,
-      "haversine_ms": 94.1701
+      "distance_matrix_ms": 325.6266,
+      "haversine_ms": 99.2239
     },
     "5x5": {
-      "distance_matrix_ms": 27.9627,
-      "haversine_ms": 0.3734
+      "distance_matrix_ms": 29.2909,
+      "haversine_ms": 0.3967
     }
   },
   "geograph_import": {
-    "marnet_ms": 133.5754,
-    "north_america_rail_ms": 252.3015,
-    "oak_ridge_maritime_ms": 311.3039,
-    "us_freeway_ms": 290.1845
+    "marnet_ms": 167.5351,
+    "north_america_rail_ms": 303.7958,
+    "oak_ridge_maritime_ms": 365.0265,
+    "us_freeway_ms": 571.6262
   },
   "geograph_marnet": {
-    "a_star_cheap_ruler_ms": 3.3467,
-    "a_star_haversine_ms": 2.6603,
-    "bidirectional_dijkstra_ms": 4.0512,
-    "bmssp_ms": 31.1806,
-    "cached_spt_first_ms": 1.9593,
-    "cached_spt_second_ms": 0.0346,
-    "dijkstra_ms": 1.1883,
-    "node_validation_ms": 3.8006,
-    "validation_ms": 0.596
+    "a_star_cheap_ruler_ms": 3.2353,
+    "a_star_haversine_ms": 2.5032,
+    "bidirectional_dijkstra_ms": 1.0521,
+    "bmssp_ms": 30.266,
+    "cached_spt_first_ms": 1.7407,
+    "cached_spt_second_ms": 0.0141,
+    "dijkstra_ms": 1.8454,
+    "node_validation_ms": 3.8066,
+    "validation_ms": 0.6146
   },
   "geograph_north_america_rail": {
-    "a_star_cheap_ruler_ms": 8.5139,
-    "a_star_haversine_ms": 6.506,
-    "bidirectional_dijkstra_ms": 3.8881,
-    "bmssp_ms": 38.0743,
-    "dijkstra_ms": 1.0626,
-    "node_validation_ms": 3.1629,
-    "validation_ms": 0.3405
+    "a_star_cheap_ruler_ms": 6.5649,
+    "a_star_haversine_ms": 5.2032,
+    "bidirectional_dijkstra_ms": 1.0009,
+    "bmssp_ms": 20.9725,
+    "dijkstra_ms": 1.9934,
+    "node_validation_ms": 3.4871,
+    "validation_ms": 0.3219
   },
   "geograph_oak_ridge_maritime": {
-    "a_star_cheap_ruler_ms": 3.561,
-    "a_star_haversine_ms": 3.1056,
-    "bidirectional_dijkstra_ms": 3.1013,
-    "bmssp_ms": 32.7222,
-    "dijkstra_ms": 0.6938,
-    "node_validation_ms": 3.6414,
-    "validation_ms": 0.3943
+    "a_star_cheap_ruler_ms": 1.6685,
+    "a_star_haversine_ms": 1.4539,
+    "bidirectional_dijkstra_ms": 0.4458,
+    "bmssp_ms": 13.6011,
+    "dijkstra_ms": 0.5918,
+    "node_validation_ms": 3.5584,
+    "validation_ms": 0.3383
   },
   "geograph_us_freeway": {
-    "a_star_cheap_ruler_ms": 7.7503,
-    "a_star_haversine_ms": 5.0428,
-    "bidirectional_dijkstra_ms": 5.6107,
-    "bmssp_ms": 46.1094,
-    "dijkstra_ms": 1.0953,
-    "node_validation_ms": 4.6151,
-    "validation_ms": 0.2708
+    "a_star_cheap_ruler_ms": 2.6443,
+    "a_star_haversine_ms": 1.3561,
+    "bidirectional_dijkstra_ms": 0.4249,
+    "bmssp_ms": 14.6153,
+    "dijkstra_ms": 0.6242,
+    "node_validation_ms": 4.7593,
+    "validation_ms": 0.2861
   },
   "geograph_world_highways_marnet": {
-    "a_star_cheap_ruler_ms": 65.7125,
-    "a_star_haversine_ms": 42.3861,
-    "bidirectional_dijkstra_ms": 94.702,
-    "bmssp_ms": 2006.6142,
-    "dijkstra_ms": 17.6625,
-    "node_validation_ms": 192.2617,
-    "validation_ms": 27.534
+    "a_star_cheap_ruler_ms": 53.6854,
+    "a_star_haversine_ms": 34.0488,
+    "bidirectional_dijkstra_ms": 19.4132,
+    "bmssp_ms": 1684.4316,
+    "dijkstra_ms": 14.2527,
+    "node_validation_ms": 198.2942,
+    "validation_ms": 29.6042
   },
   "graph_marnet": {
-    "a_star_1_ms": 0.1333,
-    "a_star_2_ms": 1.0817,
-    "a_star_3_ms": 5.4035,
-    "bidirectional_dijkstra_1_ms": 0.1554,
-    "bidirectional_dijkstra_2_ms": 0.2642,
-    "bidirectional_dijkstra_3_ms": 2.7893,
-    "contraction_hierarchy_1_ms": 0.1976,
-    "contraction_hierarchy_2_ms": 0.2542,
-    "contraction_hierarchy_3_ms": 1.081,
-    "dijkstra_1_ms": 0.1197,
-    "dijkstra_2_ms": 0.7877,
-    "dijkstra_3_ms": 4.2477,
-    "validation_ms": 26.8281
+    "a_star_1_ms": 0.1032,
+    "a_star_2_ms": 1.3266,
+    "a_star_3_ms": 6.2678,
+    "bidirectional_dijkstra_1_ms": 0.2604,
+    "bidirectional_dijkstra_2_ms": 0.2937,
+    "bidirectional_dijkstra_3_ms": 3.2678,
+    "contraction_hierarchy_1_ms": 0.2029,
+    "contraction_hierarchy_2_ms": 0.3068,
+    "contraction_hierarchy_3_ms": 1.1311,
+    "dijkstra_1_ms": 0.124,
+    "dijkstra_2_ms": 0.8357,
+    "dijkstra_3_ms": 4.5555,
+    "validation_ms": 28.5394
   },
   "graph_scale": {
     "n_100": {
-      "a_star_ms": 0.0708,
-      "bidirectional_dijkstra_ms": 0.7193,
-      "dijkstra_ms": 0.0753,
-      "validation_ms": 0.1602
+      "a_star_ms": 0.072,
+      "bidirectional_dijkstra_ms": 0.133,
+      "dijkstra_ms": 0.0787,
+      "validation_ms": 0.1628
     },
     "n_1000": {
-      "a_star_ms": 0.6976,
-      "bidirectional_dijkstra_ms": 1.4546,
-      "dijkstra_ms": 0.6573,
-      "validation_ms": 1.5528
+      "a_star_ms": 0.6998,
+      "bidirectional_dijkstra_ms": 1.518,
+      "dijkstra_ms": 0.6571,
+      "validation_ms": 1.5576
     },
     "n_10000": {
-      "a_star_ms": 7.628,
-      "bidirectional_dijkstra_ms": 14.5037,
-      "dijkstra_ms": 7.0021,
-      "validation_ms": 15.9085
+      "a_star_ms": 8.014,
+      "bidirectional_dijkstra_ms": 16.1047,
+      "dijkstra_ms": 7.3867,
+      "validation_ms": 17.4179
     },
     "n_100000": {
-      "a_star_ms": 76.8375,
-      "bidirectional_dijkstra_ms": 154.8595,
-      "dijkstra_ms": 71.3995,
-      "validation_ms": 158.5591
+      "a_star_ms": 82.2208,
+      "bidirectional_dijkstra_ms": 160.646,
+      "dijkstra_ms": 74.434,
+      "validation_ms": 159.4393
     }
   },
   "gridgraph_300x300_cache": {
-    "a_star_ms": 10.1998,
-    "cached_spt_ms": 0.0923,
-    "creation_ms": 472.3232,
-    "dijkstra_ms": 9.0983,
-    "spt_ms": 8.9619
+    "a_star_ms": 11.6634,
+    "cached_spt_ms": 0.0949,
+    "creation_ms": 496.001,
+    "dijkstra_ms": 8.7526,
+    "spt_ms": 7.7813
   },
   "gridgraph_300x300_export_import": {
-    "creation_ms": 447.9287,
-    "export_ms": 225.3022,
-    "first_spt_ms": 0.5195,
-    "import_ms": 192.8298,
-    "imported_cached_spt_ms": 0.123,
-    "imported_uncached_spt_ms": 0.0591
+    "creation_ms": 479.2855,
+    "export_ms": 233.9864,
+    "first_spt_ms": 0.1521,
+    "import_ms": 181.4153,
+    "imported_cached_spt_ms": 0.145,
+    "imported_uncached_spt_ms": 0.0584
   },
   "reduction": {
-    "marnet_cpp_bidirectional_dijkstra_ms": 1.8103,
-    "marnet_cpp_dijkstra_ms": 0.1547,
-    "marnet_cpp_reduce_bidirectional_dijkstra_ms": 0.0358,
-    "marnet_cpp_reduce_dijkstra_ms": 0.2739,
-    "marnet_cpp_reduce_preprocessing_ms": 43.4909,
-    "marnet_python_bidirectional_dijkstra_ms": 4.5514,
-    "marnet_python_dijkstra_ms": 1.1232,
-    "marnet_python_reduce_bidirectional_dijkstra_ms": 0.15,
-    "marnet_python_reduce_dijkstra_ms": 1.7831,
-    "marnet_python_reduce_preprocessing_ms": 105.4571,
-    "us_freeway_cpp_bidirectional_dijkstra_ms": 2.3398,
-    "us_freeway_cpp_dijkstra_ms": 1.0784,
-    "us_freeway_cpp_reduce_bidirectional_dijkstra_ms": 0.3889,
-    "us_freeway_cpp_reduce_dijkstra_ms": 0.4194,
-    "us_freeway_cpp_reduce_preprocessing_ms": 186.2514,
-    "us_freeway_python_bidirectional_dijkstra_ms": 18.0259,
-    "us_freeway_python_dijkstra_ms": 9.6529,
-    "us_freeway_python_reduce_bidirectional_dijkstra_ms": 1.7886,
-    "us_freeway_python_reduce_dijkstra_ms": 2.0263,
-    "us_freeway_python_reduce_preprocessing_ms": 556.195
+    "marnet_cpp_bidirectional_dijkstra_ms": 1.2665,
+    "marnet_cpp_dijkstra_ms": 0.1376,
+    "marnet_cpp_reduce_bidirectional_dijkstra_ms": 0.0286,
+    "marnet_cpp_reduce_dijkstra_ms": 0.3104,
+    "marnet_cpp_reduce_preprocessing_ms": 43.1249,
+    "marnet_python_bidirectional_dijkstra_ms": 5.0941,
+    "marnet_python_dijkstra_ms": 1.4331,
+    "marnet_python_reduce_bidirectional_dijkstra_ms": 0.1454,
+    "marnet_python_reduce_dijkstra_ms": 1.4913,
+    "marnet_python_reduce_preprocessing_ms": 108.0058,
+    "us_freeway_cpp_bidirectional_dijkstra_ms": 2.4104,
+    "us_freeway_cpp_dijkstra_ms": 1.0848,
+    "us_freeway_cpp_reduce_bidirectional_dijkstra_ms": 0.4134,
+    "us_freeway_cpp_reduce_dijkstra_ms": 0.4537,
+    "us_freeway_cpp_reduce_preprocessing_ms": 192.7361,
+    "us_freeway_python_bidirectional_dijkstra_ms": 16.7813,
+    "us_freeway_python_dijkstra_ms": 9.4659,
+    "us_freeway_python_reduce_bidirectional_dijkstra_ms": 1.9319,
+    "us_freeway_python_reduce_dijkstra_ms": 1.8618,
+    "us_freeway_python_reduce_preprocessing_ms": 589.7019
   },
   "tnr": {
-    "cpp_ch_ms": 0.4232,
-    "cpp_dijkstra_ms": 2.1513,
-    "cpp_preprocessing_ms": 1414.1469,
-    "cpp_tnr_length_only_ms": 0.1333,
-    "cpp_tnr_path_ms": 0.3266,
-    "python_ch_ms": 1.4074,
-    "python_dijkstra_ms": 7.1437,
-    "python_preprocessing_ms": 9952.1189,
-    "python_tnr_length_only_ms": 0.7651,
-    "python_tnr_path_ms": 2.5136
+    "cpp_ch_ms": 0.4263,
+    "cpp_dijkstra_ms": 1.7383,
+    "cpp_preprocessing_ms": 1492.9683,
+    "cpp_tnr_length_only_ms": 0.1559,
+    "cpp_tnr_path_ms": 0.3607,
+    "python_ch_ms": 1.4639,
+    "python_dijkstra_ms": 8.1127,
+    "python_preprocessing_ms": 10784.2975,
+    "python_tnr_length_only_ms": 0.7617,
+    "python_tnr_path_ms": 2.6462
   },
   "visvalingam": {
-    "n_100000_ms": 479.9099,
-    "n_10000_ms": 27.3795,
-    "n_1000_ms": 2.161,
-    "n_100_ms": 0.1736,
-    "n_10_ms": 0.0401
+    "n_100000_ms": 453.1515,
+    "n_10000_ms": 28.4946,
+    "n_1000_ms": 2.254,
+    "n_100_ms": 0.1757,
+    "n_10_ms": 0.0412
   }
 }

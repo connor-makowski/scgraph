@@ -34,7 +34,9 @@ def test_reduce_load_geograph_default_false():
 
 def test_reduce_load_geograph_true():
     with tempfile.TemporaryDirectory() as tmp:
-        geo = GeoGraph.load_geograph("marnet", cache_dir=tmp, reduce_iterations=1)
+        geo = GeoGraph.load_geograph(
+            "marnet", cache_dir=tmp, reduce_iterations=1
+        )
         assert getattr(geo.graph_object, "reduced_graph", None) is not None
 
 
@@ -132,7 +134,9 @@ def test_reduce_load_from_osmnx_true():
 
 def test_geograph_reduce_method():
     with tempfile.TemporaryDirectory() as tmp:
-        geo = GeoGraph.load_geograph("marnet", cache_dir=tmp, reduce_iterations=0)
+        geo = GeoGraph.load_geograph(
+            "marnet", cache_dir=tmp, reduce_iterations=0
+        )
         assert getattr(geo.graph_object, "reduced_graph", None) is None
         geo.reduce()
         assert getattr(geo.graph_object, "reduced_graph", None) is not None
