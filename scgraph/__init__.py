@@ -741,8 +741,12 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py), in
 
 """
 
+from scgraph.graph_reducer import algorithm
+
 try:
     from scgraph.cpp import Graph, CHGraph
+
+    Graph.algorithm = staticmethod(algorithm)
 except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph

@@ -15,6 +15,10 @@ class GraphUtils:
         self.__graph__ = value
 
     @property
+    def unreduced_graph(self) -> list[dict[int, int | float]]:
+        return getattr(self, "__graph__", None)
+
+    @property
     def inverse_graph(self) -> list[dict[int, int | float]] | None:
         return (
             self.reduced_inverse_graph
@@ -87,8 +91,9 @@ class GraphUtils:
             self.__graph__[path[i]][path[i + 1]] for i in range(len(path) - 1)
         )
 
+    @staticmethod
     def __reconstruct_path__(
-        self, destination_id: int, predecessor: list[int]
+        destination_id: int, predecessor: list[int]
     ) -> list[int]:
         """
         Function:

@@ -71,6 +71,8 @@ NB_MODULE(cpp, m) {
              "Get the number of nodes in the graph")
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
+        .def_prop_ro("unreduced_graph", &Graph::get_graph,
+             "Get the unreduced graph adjacency list")
         .def("reduce", &Graph::reduce,
              "Reduce the graph by bypassing pass-through nodes")
         .def_prop_ro("reduced_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
@@ -110,6 +112,9 @@ NB_MODULE(cpp, m) {
         .def("is_same_chain", &Graph::is_same_chain,
              nb::arg("origin_id"), nb::arg("destination_id"),
              "Check if origin and destination belong to the same reduced chain")
+        .def("expand_path", &Graph::expand_path,
+             nb::arg("path"),
+             "Expand a path of reduced graph nodes")
         .def_prop_ro("reduced_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
             if (!self.get_has_reduced_graph()) {
                 return std::nullopt;

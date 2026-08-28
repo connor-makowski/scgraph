@@ -5,7 +5,7 @@ from scgraph.graph_utils import GraphUtils, GraphModifiers
 from scgraph.contraction_hierarchies import CHGraph
 from scgraph.transit_node_routing import TNRGraph
 from bmsspy import Bmssp
-from scgraph.graph_reducer import GraphReducer, use_reduced
+from scgraph.graph_reducer import GraphReducer, algorithm
 
 
 class GraphTrees:
@@ -127,7 +127,7 @@ class GraphTrees:
 
 
 class GraphAlgorithms:
-    @use_reduced
+    @algorithm
     def dijkstra(
         self,
         origin_id: int | set[int],
@@ -192,7 +192,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
-    @use_reduced
+    @algorithm(bidirectional=True)
     def bidirectional_dijkstra(
         self,
         origin_id: int | set[int],
@@ -310,7 +310,7 @@ class GraphAlgorithms:
             "length": best_dist,
         }
 
-    @use_reduced
+    @algorithm
     def dijkstra_buckets(
         self,
         origin_id: int | set[int],
@@ -420,7 +420,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
-    @use_reduced
+    @algorithm
     def dijkstra_negative(
         self,
         origin_id: int | set[int],
@@ -505,7 +505,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
-    @use_reduced
+    @algorithm
     def a_star(
         self,
         origin_id: int | set[int],
@@ -591,7 +591,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
-    @use_reduced
+    @algorithm
     def bellman_ford(
         self,
         origin_id: int | set[int],
@@ -658,7 +658,7 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
-    @use_reduced
+    @algorithm
     def bmssp(
         self,
         origin_id: int | set[int],
@@ -708,7 +708,7 @@ class GraphAlgorithms:
             "length": output["length"],
         }
 
-    @use_reduced
+    @algorithm
     def cached_shortest_path(
         self,
         origin_id: int,
@@ -723,29 +723,41 @@ class GraphAlgorithms:
         - Uses the get_shortest_path_tree (Dijkstra) and get_tree_path functions internally
         - Stores cached shortest path trees in a list (self.__cache__) where the index corresponds to the origin node id
         - Note: If you modify this graph after caching shortest path trees, the cached trees may become invalid
-            - You can reset the cache by calling self.reset_cache()
-            - For efficiency, the cache is not automatically reset when the graph is modified
-            - This logic must be handled by the user
 
-        Requires:
+        Required Arguments:
 
-        - origin_id: The id of the origin node
-        - destination_id: The id of the destination node
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
 
-        Optional:
+        Optional Arguments:
 
-        - length_only: If True, only returns the length of the path
+        - `length_only`
+            - Type: bool
+            - What: If True, only returns the length of the path
+            - Default: False
+
+        Returns:
+
+        - A dictionary with the following keys:
+            - `path`: A list of node ids in the order they are visited from the origin node to the destination node
+            - `length`: The length of the path from the origin node to the destination node
         """
-        shortest_path_tree = self.__cache__[origin_id]
-        if shortest_path_tree == 0:
-            shortest_path_tree = self.get_shortest_path_tree(
+        # Input Validation
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+
+        # Main function
+        if self.__cache__[origin_id] == 0:
+            self.__cache__[origin_id] = self.get_shortest_path_tree(
                 origin_id=origin_id
             )
-            self.__cache__[origin_id] = shortest_path_tree
         return self.get_tree_path(
             origin_id=origin_id,
             destination_id=destination_id,
-            tree_data=shortest_path_tree,
+            tree_data=self.__cache__[origin_id],
             length_only=length_only,
         )
 
@@ -827,7 +839,7 @@ class GraphAlgorithms:
             )
         return self.__tnr_graph__
 
-    @use_reduced
+    @algorithm(bidirectional=True)
     def tnr(
         self,
         origin_id: int,
@@ -862,7 +874,7 @@ class GraphAlgorithms:
             origin_id, destination_id, length_only=length_only
         )
 
-    @use_reduced
+    @algorithm(bidirectional=True)
     def contraction_hierarchy(
         self, origin_id: int, destination_id: int, length_only: bool = False
     ) -> dict[str, Any]:
@@ -894,6 +906,8 @@ class GraphAlgorithms:
 class Graph(
     GraphUtils, GraphModifiers, GraphTrees, GraphAlgorithms, GraphReducer
 ):
+    algorithm = staticmethod(algorithm)
+
     def __init__(self, graph: list[dict[int, int | float]], validate=False):
         """
         Function:

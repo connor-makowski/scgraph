@@ -22,10 +22,10 @@ protected:
     std::vector<std::vector<std::pair<int, double>>> reduced_inverse_graph;
     std::vector<std::unordered_map<int, std::vector<int>>> reduced_inverse_graph_connections;
 
-    std::vector<int> expand_path(const std::vector<int>& path) const;
-
 public:
     virtual ~GraphReducer() = default;
+
+    std::vector<int> expand_path(const std::vector<int>& path) const;
 
     // Getters for python bindings
     bool get_has_reduced_graph() const { return has_reduced_graph; }

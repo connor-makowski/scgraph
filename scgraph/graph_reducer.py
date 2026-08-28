@@ -2,14 +2,47 @@ from heapq import heappop, heappush
 from functools import wraps
 
 
-def use_reduced(func):
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if getattr(self, "reduced_graph", None) is None:
-            return func(self, *args, **kwargs)
-        return self.__run_with_reduced__(func, *args, **kwargs)
+def algorithm(
+    func=None,
+    *,
+    bidirectional: bool = False,
+    name: str | None = None,
+):
+    """
+    Function:
 
-    return wrapper
+    - Decorator and registration helper for graph shortest path algorithms.
+    - Transparently enables graph reduction support (same-chain handling, boundary entry solving, path expansion).
+    - Can be used as a method decorator `@Graph.algorithm` or `@Graph.algorithm(bidirectional=True)`.
+    - Can register external algorithms onto Graph via `@Graph.algorithm(name="custom_algo")`.
+    """
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(self, *args, **kwargs):
+            if getattr(self, "reduced_graph", None) is None:
+                return fn(self, *args, **kwargs)
+            return GraphReducer.run_with_reduced(
+                self, fn, *args, is_bidirectional=bidirectional, **kwargs
+            )
+
+        wrapper.__is_graph_algorithm__ = True
+        wrapper.__bidirectional__ = bidirectional
+
+        if name is not None:
+            import scgraph.graph as _graph_mod
+
+            if hasattr(_graph_mod, "Graph"):
+                setattr(_graph_mod.Graph, name, wrapper)
+
+        return wrapper
+
+    if func is not None and callable(func):
+        return decorator(func)
+    return decorator
+
+
+use_reduced = algorithm
 
 
 class GraphReducer:
@@ -165,7 +198,9 @@ class GraphReducer:
             ch, n
         )
 
-    def __run_with_reduced__(self, func, *args, **kwargs):
+    def run_with_reduced(
+        self, func, *args, is_bidirectional: bool = False, **kwargs
+    ):
         """
         Function:
 
@@ -197,8 +232,8 @@ class GraphReducer:
             origin_id, destination_id
         ):
             length_only = kwargs.get("length_only", False)
-            res = self.__dijkstra_on_graph__(
-                self.__graph__, origin_id, destination_id
+            res = GraphReducer.dijkstra_on_graph(
+                self.unreduced_graph, origin_id, destination_id
             )
             if length_only:
                 res.pop("path", None)
@@ -207,21 +242,27 @@ class GraphReducer:
         is_reduced = self.is_reduced
 
         # 2. Bidirectional algorithms, Contraction Hierarchies, and Transit Node Routing
-        if func.__name__ in (
-            "bidirectional_dijkstra",
-            "contraction_hierarchy",
-            "tnr",
-        ):
+        is_bidirectional = (
+            is_bidirectional
+            or getattr(func, "__bidirectional__", False)
+            or func.__name__
+            in (
+                "bidirectional_dijkstra",
+                "contraction_hierarchy",
+                "tnr",
+            )
+        )
+        if is_bidirectional:
             res = func(self, *args, **kwargs)
             if isinstance(res, dict) and "path" in res:
-                res["path"] = self.__expand_path__(res["path"])
+                res["path"] = self.expand_path(res["path"])
             return res
 
         # 3. One-sided algorithms with unreduced destination (or None)
         if destination_id is None or not is_reduced[destination_id]:
             res = func(self, *args, **kwargs)
             if isinstance(res, dict) and "path" in res:
-                res["path"] = self.__expand_path__(res["path"])
+                res["path"] = self.expand_path(res["path"])
             return res
 
         # 4. One-sided algorithm with reduced destination
@@ -259,7 +300,7 @@ class GraphReducer:
             )
 
         if "path" in best_res:
-            expanded_path = self.__expand_path__(best_res["path"])
+            expanded_path = self.expand_path(best_res["path"])
             tail = []
             if (
                 self.reduced_inverse_graph_connections is not None
@@ -278,8 +319,10 @@ class GraphReducer:
             "length": best_length,
         }
 
-    def __dijkstra_on_graph__(
-        self,
+    __run_with_reduced__ = run_with_reduced
+
+    @staticmethod
+    def dijkstra_on_graph(
         graph: list[dict[int, float]],
         origin_id: int | set[int],
         destination_id: int,
@@ -317,12 +360,21 @@ class GraphReducer:
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
+        path = []
+        curr = destination_id
+        while curr != -1:
+            path.append(curr)
+            curr = predecessor[curr]
+        path.reverse()
+
         return {
-            "path": self.__reconstruct_path__(destination_id, predecessor),
+            "path": path,
             "length": distance_matrix[destination_id],
         }
 
-    def __expand_path__(self, path: list[int]) -> list[int]:
+    __dijkstra_on_graph__ = dijkstra_on_graph
+
+    def expand_path(self, path: list[int]) -> list[int]:
         """
         Function:
 
