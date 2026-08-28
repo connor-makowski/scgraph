@@ -46,46 +46,118 @@ use_reduced = algorithm
 
 
 class GraphReducer:
-    def reduce(self) -> None:
+    def reduce(self, iterations: int = 1) -> None:
         """
         Function:
 
         - Reduce the graph by bypassing pass-through nodes and summing intermediate weights.
-        - Sets self.reduced_graph, self.reduced_graph_connections, and self.is_reduced.
+        - Supports iterative reduction passes.
+        - Sets self.reduced_graph, self.reduced_graph_connections, self.reduced_inverse_graph,
+          self.reduced_inverse_graph_connections, self.reduced_node_chain_ids, and self.is_reduced.
 
-        Required Arguments:
+        Optional Arguments:
 
-        - None
+        - `iterations`:
+            - Type: int
+            - What: Number of reduction iterations to perform.
+              - `0`: No reduction is done.
+              - `-1`: Reduce iteratively until convergence (no new nodes can be reduced).
+              - `> 0`: Reduce iteratively up to the minimum of convergence and the specified count.
+            - Default: 1
 
         Returns:
 
         - None
         """
         self.reset_cache()
+        if iterations == 0 or iterations is False:
+            return
+
+        iterations = 1 if iterations is True else int(iterations)
         self.__ensure_inverse_graph__()
 
-        # 1. Identify pass-through nodes
-        self.is_reduced = [False] * len(self.__graph__)
+        # 1. Identify pass-through nodes iteratively
         graph = self.__graph__
         inverse_graph = self.__inverse_graph__
-        is_reduced = self.is_reduced
+        n = len(graph)
+        is_reduced = [False] * n
 
-        for u in range(len(graph)):
-            out_dict = graph[u]
-            in_dict = inverse_graph[u]
+        current_iter = 0
+        while True:
+            newly_reduced_count = 0
+            if current_iter == 0:
+                for u in range(n):
+                    out_dict = graph[u]
+                    in_dict = inverse_graph[u]
 
-            out_len = len(out_dict) - (1 if u in out_dict else 0)
-            if out_len == 1:
-                in_len = len(in_dict) - (1 if u in in_dict else 0)
-                if in_len >= 1:
-                    is_reduced[u] = True
-            elif out_len == 2:
-                in_len = len(in_dict) - (1 if u in in_dict else 0)
-                if in_len > 0:
-                    outflows = {v for v in out_dict if v != u}
-                    inflows = {v for v in in_dict if v != u}
-                    if inflows.issubset(outflows):
-                        is_reduced[u] = True
+                    out_len = len(out_dict) - (1 if u in out_dict else 0)
+                    if out_len == 1:
+                        in_len = len(in_dict) - (1 if u in in_dict else 0)
+                        if in_len >= 1:
+                            is_reduced[u] = True
+                            newly_reduced_count += 1
+                    elif out_len == 2:
+                        in_len = len(in_dict) - (1 if u in in_dict else 0)
+                        if in_len > 0:
+                            outflows = {v for v in out_dict if v != u}
+                            inflows = {v for v in in_dict if v != u}
+                            if inflows.issubset(outflows):
+                                is_reduced[u] = True
+                                newly_reduced_count += 1
+            else:
+                # Subsequent iterations: find pass-through nodes on current reduced topology
+                for u in range(n):
+                    if is_reduced[u]:
+                        continue
+
+                    # Outflows from u through is_reduced nodes
+                    outflows = set()
+                    queue = [u]
+                    visited = {u}
+                    while queue:
+                        curr = queue.pop()
+                        if curr != u and not is_reduced[curr]:
+                            outflows.add(curr)
+                            continue
+                        for v in graph[curr]:
+                            if v not in visited:
+                                visited.add(v)
+                                queue.append(v)
+
+                    # Inflows to u through is_reduced nodes
+                    inflows = set()
+                    queue = [u]
+                    visited = {u}
+                    while queue:
+                        curr = queue.pop()
+                        if curr != u and not is_reduced[curr]:
+                            inflows.add(curr)
+                            continue
+                        for v in inverse_graph[curr]:
+                            if v not in visited:
+                                visited.add(v)
+                                queue.append(v)
+
+                    out_len = len(outflows)
+                    in_len = len(inflows)
+                    if out_len == 1:
+                        if in_len >= 1:
+                            is_reduced[u] = True
+                            newly_reduced_count += 1
+                    elif out_len == 2:
+                        if in_len > 0:
+                            if inflows.issubset(outflows):
+                                is_reduced[u] = True
+                                newly_reduced_count += 1
+
+            current_iter += 1
+
+            if newly_reduced_count == 0:
+                break
+            if iterations != -1 and current_iter >= iterations:
+                break
+
+        self.is_reduced = is_reduced
 
         # 2. Assign chain IDs to connected components of reduced nodes
         self.reduced_node_chain_ids = [None] * len(graph)

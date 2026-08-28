@@ -73,7 +73,7 @@ NB_MODULE(cpp, m) {
              "Get the entire graph adjacency list")
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
              "Get the unreduced graph adjacency list")
-        .def("reduce", &Graph::reduce,
+        .def("reduce", &Graph::reduce, nb::arg("iterations") = 1,
              "Reduce the graph by bypassing pass-through nodes")
         .def_prop_ro("reduced_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
             if (!self.get_has_reduced_graph()) {

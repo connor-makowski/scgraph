@@ -16,55 +16,151 @@ void GraphReducer::reset_cache() {
     reduced_inverse_graph_connections.clear();
 }
 
-void GraphReducer::reduce() {
+void GraphReducer::reduce(int iterations) {
     this->reset_cache();
+    if (iterations == 0) {
+        return;
+    }
     this->ensure_inverse_graph();
 
     size_t n = graph.size();
     is_reduced.assign(n, false);
 
-    for (size_t u = 0; u < n; ++u) {
-        // Count outflows excluding self-loop
-        size_t outflows_len = 0;
-        for (const auto& edge : graph[u]) {
-            if (edge.first != (int)u) {
-                outflows_len++;
-            }
-        }
-
-        size_t inflows_len = 0;
-        for (const auto& edge : inverse_graph[u]) {
-            if (edge.first != (int)u) {
-                inflows_len++;
-            }
-        }
-
-        if (outflows_len == 1) {
-            if (inflows_len >= 1) {
-                is_reduced[u] = true;
-            }
-        } else if (outflows_len == 2) {
-            if (inflows_len > 0) {
-                // Get set of outflows and inflows
-                std::set<int> outflows;
+    int current_iter = 0;
+    while (true) {
+        size_t newly_reduced_count = 0;
+        if (current_iter == 0) {
+            for (size_t u = 0; u < n; ++u) {
+                // Count outflows excluding self-loop
+                size_t outflows_len = 0;
                 for (const auto& edge : graph[u]) {
                     if (edge.first != (int)u) {
-                        outflows.insert(edge.first);
+                        outflows_len++;
                     }
                 }
-                bool subset = true;
+
+                size_t inflows_len = 0;
                 for (const auto& edge : inverse_graph[u]) {
                     if (edge.first != (int)u) {
-                        if (outflows.find(edge.first) == outflows.end()) {
-                            subset = false;
-                            break;
+                        inflows_len++;
+                    }
+                }
+
+                if (outflows_len == 1) {
+                    if (inflows_len >= 1) {
+                        is_reduced[u] = true;
+                        newly_reduced_count++;
+                    }
+                } else if (outflows_len == 2) {
+                    if (inflows_len > 0) {
+                        // Get set of outflows and inflows
+                        std::set<int> outflows;
+                        for (const auto& edge : graph[u]) {
+                            if (edge.first != (int)u) {
+                                outflows.insert(edge.first);
+                            }
+                        }
+                        bool subset = true;
+                        for (const auto& edge : inverse_graph[u]) {
+                            if (edge.first != (int)u) {
+                                if (outflows.find(edge.first) == outflows.end()) {
+                                    subset = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (subset) {
+                            is_reduced[u] = true;
+                            newly_reduced_count++;
                         }
                     }
                 }
-                if (subset) {
-                    is_reduced[u] = true;
+            }
+        } else {
+            // Subsequent iterations: identify pass-through nodes on current reduced topology
+            for (size_t u = 0; u < n; ++u) {
+                if (is_reduced[u]) {
+                    continue;
+                }
+
+                // Outflows from u through is_reduced nodes
+                std::set<int> outflows;
+                {
+                    std::vector<int> q = {(int)u};
+                    std::vector<bool> visited(n, false);
+                    visited[u] = true;
+                    while (!q.empty()) {
+                        int curr = q.back();
+                        q.pop_back();
+                        if (curr != (int)u && !is_reduced[curr]) {
+                            outflows.insert(curr);
+                            continue;
+                        }
+                        for (const auto& edge : graph[curr]) {
+                            int v = edge.first;
+                            if (v >= 0 && v < (int)n && !visited[v]) {
+                                visited[v] = true;
+                                q.push_back(v);
+                            }
+                        }
+                    }
+                }
+
+                // Inflows to u through is_reduced nodes
+                std::set<int> inflows;
+                {
+                    std::vector<int> q = {(int)u};
+                    std::vector<bool> visited(n, false);
+                    visited[u] = true;
+                    while (!q.empty()) {
+                        int curr = q.back();
+                        q.pop_back();
+                        if (curr != (int)u && !is_reduced[curr]) {
+                            inflows.insert(curr);
+                            continue;
+                        }
+                        for (const auto& edge : inverse_graph[curr]) {
+                            int v = edge.first;
+                            if (v >= 0 && v < (int)n && !visited[v]) {
+                                visited[v] = true;
+                                q.push_back(v);
+                            }
+                        }
+                    }
+                }
+
+                size_t outflows_len = outflows.size();
+                size_t inflows_len = inflows.size();
+
+                if (outflows_len == 1) {
+                    if (inflows_len >= 1) {
+                        is_reduced[u] = true;
+                        newly_reduced_count++;
+                    }
+                } else if (outflows_len == 2) {
+                    if (inflows_len > 0) {
+                        bool subset = true;
+                        for (int in_v : inflows) {
+                            if (outflows.find(in_v) == outflows.end()) {
+                                subset = false;
+                                break;
+                            }
+                        }
+                        if (subset) {
+                            is_reduced[u] = true;
+                            newly_reduced_count++;
+                        }
+                    }
                 }
             }
+        }
+
+        current_iter++;
+        if (newly_reduced_count == 0) {
+            break;
+        }
+        if (iterations != -1 && current_iter >= iterations) {
+            break;
         }
     }
 

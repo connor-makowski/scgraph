@@ -178,7 +178,7 @@ class GeoGraphIO:
         min_points=3,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
-        reduce: bool = True,
+        reduce_iterations: int = 0,
         lazy: bool = False,
     ):
         """
@@ -227,10 +227,10 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the geojson
             - Default: False
-        - `reduce`
-            - Type: bool
-            - What: Whether to reduce the graph upon loading to speed up shortest path queries
-            - Default: True
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
         - `lazy`
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
@@ -245,7 +245,7 @@ class GeoGraphIO:
                     min_points=min_points,
                     load_intermediate_nodes=load_intermediate_nodes,
                     silent=silent,
-                    reduce=reduce,
+                    reduce_iterations=reduce_iterations,
                     lazy=False,
                 )
             )
@@ -261,14 +261,13 @@ class GeoGraphIO:
             graph=data["graph"],
             nodes=data["nodes"],
         )
-        if reduce:
-            geograph.graph_object.reduce()
+        geograph.graph_object.reduce(reduce_iterations)
         return geograph
 
     @staticmethod
     def load_from_graphjson(
         filename: str,
-        reduce: bool = True,
+        reduce_iterations: int = 0,
         lazy: bool = False,
     ) -> "GeoGraph":
         """
@@ -287,10 +286,10 @@ class GeoGraphIO:
 
         Optional Arguments:
 
-        - `reduce`
-            - Type: bool
-            - What: Whether to reduce the graph upon loading to speed up shortest path queries
-            - Default: True
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
         - `lazy`
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
@@ -304,7 +303,7 @@ class GeoGraphIO:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_graphjson(
                     filename=filename,
-                    reduce=reduce,
+                    reduce_iterations=reduce_iterations,
                     lazy=False,
                 )
             )
@@ -322,8 +321,7 @@ class GeoGraphIO:
             {int(k): v for k, v in item.items()} for item in data["graph"]
         ]
         geograph = GeoGraph(**data)
-        if reduce:
-            geograph.graph_object.reduce()
+        geograph.graph_object.reduce(reduce_iterations)
         return geograph
 
     @staticmethod
@@ -363,7 +361,7 @@ class GeoGraphIO:
         name: str,
         cache_dir: str | None = None,
         geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs",
-        reduce: bool = True,
+        reduce_iterations: int = 0,
         lazy: bool = False,
     ) -> "GeoGraph":
         """
@@ -392,10 +390,10 @@ class GeoGraphIO:
         - `geograph_url`
             - Type: str
             - What: The base URL where the built-in geograph .graphjson files are hosted
-        - `reduce`
-            - Type: bool
-            - What: Whether to reduce the graph upon loading to speed up shortest path queries
-            - Default: True
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
         - `lazy`
             - Type: bool
             - What: Whether to delay loading/fetching the geograph until its first use
@@ -407,7 +405,7 @@ class GeoGraphIO:
                     name=name,
                     cache_dir=cache_dir,
                     geograph_url=geograph_url,
-                    reduce=reduce,
+                    reduce_iterations=reduce_iterations,
                     lazy=False,
                 )
             )
@@ -423,7 +421,7 @@ class GeoGraphIO:
                 name, cached_file, geograph_url
             )
         return GeoGraph.load_from_graphjson(
-            str(cached_file), reduce=reduce, lazy=False
+            str(cached_file), reduce_iterations=reduce_iterations, lazy=False
         )
 
     @staticmethod
@@ -516,7 +514,7 @@ class GeoGraphIO:
         off_graph_travel_speed: int | float | None = None,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
-        reduce: bool = True,
+        reduce_iterations: int = 0,
         lazy: bool = False,
     ):
         """
@@ -574,10 +572,10 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the graph
             - Default: False
-        - `reduce`
-            - Type: bool
-            - What: Whether to reduce the graph upon loading to speed up shortest path queries
-            - Default: True
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
         - `lazy`
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
@@ -594,7 +592,7 @@ class GeoGraphIO:
                     off_graph_travel_speed=off_graph_travel_speed,
                     load_intermediate_nodes=load_intermediate_nodes,
                     silent=silent,
-                    reduce=reduce,
+                    reduce_iterations=reduce_iterations,
                     lazy=False,
                 )
             )
@@ -651,8 +649,7 @@ class GeoGraphIO:
         # TODO: Handle time based geograph units in a better way by default.
         # See: self.geograph_units
         geograph = GeoGraph(graph=graph, nodes=nodes, **kwargs)
-        if reduce:
-            geograph.graph_object.reduce()
+        geograph.graph_object.reduce(reduce_iterations)
         return geograph
 
     # Misc IO Methods
@@ -1737,15 +1734,26 @@ class GeoGraph(
         self.geokdtree = GeoKDTree(points=self.nodes)
         self.__original_graph_length__ = len(self.graph_object.graph)
 
-    def reduce(self) -> None:
+    def reduce(self, iterations: int = 1) -> None:
         """
         Function:
 
         - Reduce the graph by bypassing pass-through nodes and summing intermediate weights.
         - Precomputes and sets reduced graph structures on self.graph_object for faster queries.
-        - Returns None
+
+        Optional Arguments:
+
+        - `iterations`:
+            - Type: int
+            - What: Number of reduction iterations to perform. If -1, reduces iteratively until convergence. If 0, no reduction is done.
+            - Default: 1
+
+        Returns:
+
+        - None
         """
-        self.graph_object.reduce()
+        if iterations != 0:
+            self.graph_object.reduce(iterations)
 
     def validate_nodes(self) -> None:
         """

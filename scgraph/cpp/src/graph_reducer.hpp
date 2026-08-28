@@ -47,7 +47,7 @@ public:
     std::shared_ptr<TNRGraph> create_tnr_graph(int num_transit_nodes = 100, std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50) const;
 
     // reduce method
-    void reduce();
+    void reduce(int iterations = 1);
 
     // Override reset_cache to clear reduction data
     void reset_cache() override;
