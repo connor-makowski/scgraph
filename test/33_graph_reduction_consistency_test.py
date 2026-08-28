@@ -83,7 +83,7 @@ def run_network_test(geograph_name):
     dm_nodes = [
         {"latitude": geograph.nodes[i][0], "longitude": geograph.nodes[i][1]}
         for i in range(
-            0, min(1000, g_large.size()), max(1, g_large.size() // 500)
+            0, min(1000, len(g_large.graph)), max(1, len(g_large.graph) // 500)
         )
     ][:10]
 
