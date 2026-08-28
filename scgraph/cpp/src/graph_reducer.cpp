@@ -2,6 +2,8 @@
 #include <algorithm>
 #include <tuple>
 #include "graph_reducer.hpp"
+#include "contraction_hierarchies.hpp"
+#include "transit_node_routing.hpp"
 
 void GraphReducer::reset_cache() {
     GraphUtils::reset_cache();
@@ -10,6 +12,8 @@ void GraphReducer::reset_cache() {
     reduced_node_chain_ids.clear();
     reduced_graph.clear();
     reduced_graph_connections.clear();
+    reduced_inverse_graph.clear();
+    reduced_inverse_graph_connections.clear();
 }
 
 void GraphReducer::reduce() {
@@ -93,16 +97,12 @@ void GraphReducer::reduce() {
         }
     }
 
+    // 3. Build reduced graph and connections (outbound from all nodes)
     reduced_graph.assign(n, std::vector<std::pair<int, double>>());
     reduced_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
 
     for (size_t A = 0; A < n; ++A) {
-        if (is_reduced[A]) {
-            continue;
-        }
-
         std::unordered_map<int, double> best_dist;
-        // Priority queue element: (distance, (node, path))
         using PQElement = std::tuple<double, int, std::vector<int>>;
         std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
 
@@ -141,155 +141,56 @@ void GraphReducer::reduce() {
         }
     }
 
+    // 4. Build reduced inverse graph and connections (inbound into all nodes)
+    reduced_inverse_graph.assign(n, std::vector<std::pair<int, double>>());
+    reduced_inverse_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
+
+    for (size_t B = 0; B < n; ++B) {
+        std::unordered_map<int, double> best_dist;
+        using PQElement = std::tuple<double, int, std::vector<int>>;
+        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
+
+        open_leaves.push({0.0, (int)B, {}});
+
+        while (!open_leaves.empty()) {
+            auto [dist, u, path] = open_leaves.top();
+            open_leaves.pop();
+
+            if (best_dist.find(u) != best_dist.end() && best_dist[u] <= dist) {
+                continue;
+            }
+            best_dist[u] = dist;
+
+            if (u != (int)B && !is_reduced[u]) {
+                // Boundary non-reduced node reaching B.
+                reduced_inverse_graph[B].push_back({u, dist});
+                std::vector<int> fwd_path = path;
+                std::reverse(fwd_path.begin(), fwd_path.end());
+                if (!fwd_path.empty()) {
+                    reduced_inverse_graph_connections[B][u] = fwd_path;
+                }
+                continue;
+            }
+
+            for (const auto& edge : inverse_graph[u]) {
+                int v = edge.first;
+                double w = edge.second;
+                double new_dist = dist + w;
+                if (best_dist.find(v) == best_dist.end() || new_dist < best_dist[v]) {
+                    std::vector<int> new_path = (u == (int)B) ? std::vector<int>{} : path;
+                    if (u != (int)B) {
+                        new_path.push_back(u);
+                    }
+                    open_leaves.push({new_dist, v, new_path});
+                }
+            }
+        }
+    }
+
     has_reduced_graph = true;
 }
 
-std::unordered_map<int, std::pair<double, std::vector<int>>> GraphReducer::get_temp_connections(
-    int start_node, const std::string& direction, const std::set<int>& target_nodes) {
-
-    const auto& adj_graph = (direction == "out") ? graph : inverse_graph;
-
-    std::unordered_map<int, double> best_dist;
-    using PQElement = std::tuple<double, int, std::vector<int>>;
-    std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
-
-    open_leaves.push({0.0, start_node, {}});
-
-    std::unordered_map<int, std::pair<double, std::vector<int>>> connections;
-
-    while (!open_leaves.empty()) {
-        auto [dist, u, path] = open_leaves.top();
-        open_leaves.pop();
-
-        if (best_dist.find(u) != best_dist.end() && best_dist[u] <= dist) {
-            continue;
-        }
-        best_dist[u] = dist;
-
-        if (u != start_node && (!is_reduced[u] || target_nodes.find(u) != target_nodes.end())) {
-            connections[u] = {dist, path};
-            continue;
-        }
-
-        for (const auto& edge : adj_graph[u]) {
-            int v = edge.first;
-            double w = edge.second;
-            double new_dist = dist + w;
-            if (best_dist.find(v) == best_dist.end() || new_dist < best_dist[v]) {
-                std::vector<int> new_path = (u == start_node) ? std::vector<int>{} : path;
-                if (u != start_node) {
-                    new_path.push_back(u);
-                }
-                open_leaves.push({new_dist, v, new_path});
-            }
-        }
-    }
-
-    return connections;
-}
-
-GraphReducer::RestoreData GraphReducer::prepare_query_graph(const std::variant<int, std::set<int>>& origin_id, std::optional<int> destination_id) {
-    std::set<int> origin_ids = get_origin_ids(origin_id);
-    std::set<int> target_nodes = origin_ids;
-    if (destination_id.has_value()) {
-        target_nodes.insert(destination_id.value());
-    }
-
-    std::set<int> nodes_to_process;
-    for (int oid : origin_ids) {
-        if (is_reduced[oid]) {
-            nodes_to_process.insert(oid);
-        }
-    }
-    if (destination_id.has_value() && is_reduced[destination_id.value()]) {
-        nodes_to_process.insert(destination_id.value());
-    }
-
-    RestoreData restore;
-
-    if (!nodes_to_process.empty()) {
-        this->ensure_inverse_graph();
-        for (int node : nodes_to_process) {
-            // Outgoing
-            auto outgoing = get_temp_connections(node, "out", target_nodes);
-            if (std::find_if(restore.graph_restore.begin(), restore.graph_restore.end(),
-                             [node](const auto& p) { return p.first == node; }) == restore.graph_restore.end()) {
-                restore.graph_restore.push_back({node, reduced_graph[node]});
-            }
-            for (const auto& [v, data] : outgoing) {
-                double dist = data.first;
-                const auto& path = data.second;
-                // Add to reduced_graph
-                // Check if v already exists in reduced_graph[node]
-                auto it = std::find_if(reduced_graph[node].begin(), reduced_graph[node].end(),
-                                       [v](const auto& p) { return p.first == v; });
-                if (it != reduced_graph[node].end()) {
-                    it->second = dist;
-                } else {
-                    reduced_graph[node].push_back({v, dist});
-                }
-
-                if (!path.empty()) {
-                    if (std::find_if(restore.connections_restore.begin(), restore.connections_restore.end(),
-                                     [node](const auto& p) { return p.first == node; }) == restore.connections_restore.end()) {
-                        restore.connections_restore.push_back({node, reduced_graph_connections[node]});
-                    }
-                    reduced_graph_connections[node][v] = path;
-                }
-            }
-
-            // Incoming
-            auto incoming = get_temp_connections(node, "in", target_nodes);
-            for (const auto& [u, data] : incoming) {
-                double dist = data.first;
-                auto path = data.second;
-                std::reverse(path.begin(), path.end()); // forward path
-
-                if (std::find_if(restore.graph_restore.begin(), restore.graph_restore.end(),
-                                 [u](const auto& p) { return p.first == u; }) == restore.graph_restore.end()) {
-                    restore.graph_restore.push_back({u, reduced_graph[u]});
-                }
-                auto it = std::find_if(reduced_graph[u].begin(), reduced_graph[u].end(),
-                                       [node](const auto& p) { return p.first == node; });
-                if (it != reduced_graph[u].end()) {
-                    it->second = dist;
-                } else {
-                    reduced_graph[u].push_back({node, dist});
-                }
-
-                if (!path.empty()) {
-                    if (std::find_if(restore.connections_restore.begin(), restore.connections_restore.end(),
-                                     [u](const auto& p) { return p.first == u; }) == restore.connections_restore.end()) {
-                        restore.connections_restore.push_back({u, reduced_graph_connections[u]});
-                    }
-                    reduced_graph_connections[u][node] = path;
-                }
-            }
-        }
-    }
-
-    // Swap graph with reduced graph
-    std::swap(graph, reduced_graph);
-    inverse_graph_computed = false; // invalidate inverse graph cache since graph was modified/swapped
-
-    return restore;
-}
-
-void GraphReducer::restore_query_graph(const RestoreData& restore) {
-    // Swap back graph
-    std::swap(graph, reduced_graph);
-    inverse_graph_computed = false;
-
-    // Restore original nodes/connections in reduced_graph
-    for (const auto& [node, edges] : restore.graph_restore) {
-        reduced_graph[node] = edges;
-    }
-    for (const auto& [node, conns] : restore.connections_restore) {
-        reduced_graph_connections[node] = conns;
-    }
-}
-
-std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) {
+std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) const {
     if (!has_reduced_graph) {
         return path;
     }
@@ -298,10 +199,19 @@ std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) {
         int u = path[i];
         int v = path[i + 1];
         new_path.push_back(u);
-        if (u < (int)reduced_graph_connections.size()) {
+        bool expanded = false;
+        if (u >= 0 && u < (int)reduced_graph_connections.size()) {
             const auto& conns = reduced_graph_connections[u];
             auto it = conns.find(v);
             if (it != conns.end()) {
+                new_path.insert(new_path.end(), it->second.begin(), it->second.end());
+                expanded = true;
+            }
+        }
+        if (!expanded && v >= 0 && v < (int)reduced_inverse_graph_connections.size()) {
+            const auto& inv_conns = reduced_inverse_graph_connections[v];
+            auto it = inv_conns.find(u);
+            if (it != inv_conns.end()) {
                 new_path.insert(new_path.end(), it->second.begin(), it->second.end());
             }
         }
@@ -318,6 +228,19 @@ std::vector<std::unordered_map<int, double>> GraphReducer::get_reduced_graph() c
     for (size_t i = 0; i < reduced_graph.size(); ++i) {
         std::unordered_map<int, double> adj;
         for (const auto& [v, w] : reduced_graph[i]) {
+            adj[v] = w;
+        }
+        result.push_back(std::move(adj));
+    }
+    return result;
+}
+
+std::vector<std::unordered_map<int, double>> GraphReducer::get_reduced_inverse_graph() const {
+    std::vector<std::unordered_map<int, double>> result;
+    result.reserve(reduced_inverse_graph.size());
+    for (size_t i = 0; i < reduced_inverse_graph.size(); ++i) {
+        std::unordered_map<int, double> adj;
+        for (const auto& [v, w] : reduced_inverse_graph[i]) {
             adj[v] = w;
         }
         result.push_back(std::move(adj));
@@ -352,4 +275,32 @@ bool GraphReducer::is_same_chain(const std::variant<int, std::set<int>>& origin_
         }
         return false;
     }
+}
+
+std::function<double(CHGraph*, int)> GraphReducer::wrap_heuristic(std::function<double(CHGraph*, int)> heuristic_fn) const {
+    if (!has_reduced_graph) {
+        return heuristic_fn;
+    }
+    if (!heuristic_fn) {
+        return [this](CHGraph* ch, int node_id) {
+            return (is_reduced[node_id] ? 0.0 : 1000000.0) + ch->default_heuristic(node_id);
+        };
+    }
+    return [this, heuristic_fn](CHGraph* ch, int node_id) {
+        return (is_reduced[node_id] ? 0.0 : 1000000.0) + heuristic_fn(ch, node_id);
+    };
+}
+
+std::shared_ptr<CHGraph> GraphReducer::create_ch_graph(std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) const {
+    if (has_reduced_graph) {
+        return std::make_shared<CHGraph>(get_reduced_graph(), settled_limit, wrap_heuristic(heuristic_fn), get_reduced_inverse_graph());
+    }
+    return std::make_shared<CHGraph>(get_graph(), settled_limit, heuristic_fn);
+}
+
+std::shared_ptr<TNRGraph> GraphReducer::create_tnr_graph(int num_transit_nodes, std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) const {
+    if (has_reduced_graph) {
+        return std::make_shared<TNRGraph>(get_reduced_graph(), settled_limit, num_transit_nodes, wrap_heuristic(heuristic_fn), get_reduced_inverse_graph());
+    }
+    return std::make_shared<TNRGraph>(get_graph(), settled_limit, num_transit_nodes, heuristic_fn);
 }

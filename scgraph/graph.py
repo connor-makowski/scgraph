@@ -9,7 +9,10 @@ from scgraph.graph_reducer import GraphReducer, use_reduced
 
 
 class GraphTrees:
-    def get_shortest_path_tree(self, origin_id: int | set[int]) -> dict:
+    def get_shortest_path_tree(
+        self,
+        origin_id: int | set[int],
+    ) -> dict:
         """
         Function:
 
@@ -631,6 +634,8 @@ class GraphAlgorithms:
         for i in range(len_graph):
             for current_id in range(len(graph)):
                 current_distance = distance_matrix[current_id]
+                if current_distance == float("inf"):
+                    continue
                 for connected_id, connected_distance in graph[
                     current_id
                 ].items():
@@ -686,16 +691,16 @@ class GraphAlgorithms:
             - What: Whether to convert the graph to a constant degree 2 graph prior to running the BMSSPy algorithm
             - Default: True
 
-
         Optional Arguments:
 
         - None
         """
-        bmssp_graph = Bmssp(
-            graph=self.graph,
-            use_constant_degree_graph=use_constant_degree_graph,
-        )
-        output = bmssp_graph.solve(
+        if not hasattr(self, "__bmssp_graph__"):
+            self.__bmssp_graph__ = Bmssp(
+                graph=self.graph,
+                use_constant_degree_graph=use_constant_degree_graph,
+            )
+        output = self.__bmssp_graph__.solve(
             origin_id=origin_id, destination_id=destination_id
         )
         return {
@@ -703,6 +708,7 @@ class GraphAlgorithms:
             "length": output["length"],
         }
 
+    @use_reduced
     def cached_shortest_path(
         self,
         origin_id: int,
@@ -750,7 +756,7 @@ class GraphAlgorithms:
         Function:
 
         - Create a Contraction Hierarchies (CH) graph from the current Graph object
-        - The CH graph is stored as an instance variable `self.ch_graph`
+        - The CH graph is stored as an instance variable `self.__ch_graph__`
 
         Optional Arguments:
 
@@ -770,8 +776,9 @@ class GraphAlgorithms:
             )
             self.__ch_graph__ = CHGraph(
                 graph=self.graph,
+                inverse_graph=self.inverse_graph,
                 settled_limit=settled_limit,
-                heuristic_fn=heuristic_fn,
+                heuristic_fn=self.wrap_heuristic(heuristic_fn),
                 **ch_graph_kwargs,
             )
         return self.__ch_graph__
@@ -781,6 +788,7 @@ class GraphAlgorithms:
         num_transit_nodes: int = 100,
         tnr_graph_kwargs: dict = None,
         settled_limit: int = 50,
+        heuristic_fn=None,
     ) -> Any:
         """
         Function:
@@ -799,6 +807,11 @@ class GraphAlgorithms:
             - Type: int
             - What: The settled count limit for witness search
             - Default: 50
+
+        - `heuristic_fn`:
+            - Type: function or None
+            - What: A heuristic function for TNR/CH preprocessing
+            - Default: None
         """
         if not hasattr(self, "__tnr_graph__"):
             tnr_graph_kwargs = (
@@ -806,12 +819,15 @@ class GraphAlgorithms:
             )
             self.__tnr_graph__ = TNRGraph(
                 graph=self.graph,
+                inverse_graph=self.inverse_graph,
                 settled_limit=settled_limit,
                 num_transit_nodes=num_transit_nodes,
+                heuristic_fn=self.wrap_heuristic(heuristic_fn),
                 **tnr_graph_kwargs,
             )
         return self.__tnr_graph__
 
+    @use_reduced
     def tnr(
         self,
         origin_id: int,
@@ -846,6 +862,7 @@ class GraphAlgorithms:
             origin_id, destination_id, length_only=length_only
         )
 
+    @use_reduced
     def contraction_hierarchy(
         self, origin_id: int, destination_id: int, length_only: bool = False
     ) -> dict[str, Any]:
@@ -956,7 +973,11 @@ class Graph(
             delattr(self, "__ch_graph__")
         if hasattr(self, "__tnr_graph__"):
             delattr(self, "__tnr_graph__")
+        if hasattr(self, "__bmssp_graph__"):
+            delattr(self, "__bmssp_graph__")
         self.reduced_graph = None
         self.reduced_graph_connections = None
+        self.reduced_inverse_graph = None
+        self.reduced_inverse_graph_connections = None
         self.is_reduced = None
         self.reduced_node_chain_ids = None

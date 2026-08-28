@@ -17,6 +17,13 @@ private:
     std::shared_ptr<CHGraph> __ch_graph__ = nullptr;
     std::shared_ptr<TNRGraph> __tnr_graph__ = nullptr;
 
+    template <typename QueryFn>
+    GraphResult run_query_with_reducer(
+        const std::variant<int, std::set<int>>& origin_id,
+        int destination_id,
+        QueryFn&& query_fn
+    );
+
 public:
     // Constructor
     explicit Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate = false);
@@ -51,5 +58,4 @@ public:
     std::shared_ptr<TNRGraph> create_tnr_hierarchy(int num_transit_nodes = 100, std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50);
     void set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph);
     GraphResult tnr(int origin_id, int destination_id, bool length_only = false);
-
 };

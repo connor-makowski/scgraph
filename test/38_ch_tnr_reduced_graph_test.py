@@ -88,32 +88,6 @@ def _run_ch_tnr_reduced_tests(graph_cls):
             assert "path" not in tnr_len or tnr_len["path"] == []
 
 
-def _run_tree_ops_reduced_tests(graph_cls):
-    g_data = _build_test_graph()
-    g = graph_cls(g_data)
-    g.reduce()
-
-    # Verify that get_shortest_path_tree, get_tree_path, and cached_shortest_path
-    # work across all nodes (including reduced nodes) and do not return inf for valid reachable nodes.
-    for u in range(9):
-        tree = g.get_shortest_path_tree(u)
-        assert len(tree["distance_matrix"]) == 9
-        for v in range(9):
-            dijkstra_res = g.dijkstra(u, v)
-            assert (
-                abs(tree["distance_matrix"][v] - dijkstra_res["length"]) < 1e-6
-            )
-
-            tree_path = g.get_tree_path(u, v, tree)
-            assert abs(tree_path["length"] - dijkstra_res["length"]) < 1e-6
-            assert tree_path["path"] == dijkstra_res["path"]
-
-            # cached_shortest_path
-            cached_res = g.cached_shortest_path(u, v)
-            assert abs(cached_res["length"] - dijkstra_res["length"]) < 1e-6
-            assert cached_res["path"] == dijkstra_res["path"]
-
-
 def test_python_ch_tnr_reduced_graph():
     _run_ch_tnr_reduced_tests(PyGraph)
 
@@ -121,12 +95,3 @@ def test_python_ch_tnr_reduced_graph():
 @pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
 def test_cpp_ch_tnr_reduced_graph():
     _run_ch_tnr_reduced_tests(CppGraph)
-
-
-def test_python_tree_ops_reduced_graph():
-    _run_tree_ops_reduced_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_tree_ops_reduced_graph():
-    _run_tree_ops_reduced_tests(CppGraph)

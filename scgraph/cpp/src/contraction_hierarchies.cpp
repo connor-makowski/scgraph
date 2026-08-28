@@ -7,7 +7,8 @@
 
 CHGraph::CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
                  int settled_limit,
-                 std::function<double(CHGraph*, int)> heuristic_fn)
+                 std::function<double(CHGraph*, int)> heuristic_fn,
+                 const std::optional<std::vector<std::unordered_map<int, double>>>& inverse_graph)
     : nodes_count(graph.size()), original_graph(graph), contracted_count(0), settled_limit(settled_limit) {
 
     ranks.assign(nodes_count, -1);
@@ -16,10 +17,14 @@ CHGraph::CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
     contracted.assign(nodes_count, false);
 
     contracting_graph = original_graph;
-    contracting_inverse_graph.assign(nodes_count, {});
-    for (int origin_id = 0; origin_id < nodes_count; ++origin_id) {
-        for (const auto& [destination_id, weight] : original_graph[origin_id]) {
-            contracting_inverse_graph[destination_id][origin_id] = weight;
+    if (inverse_graph.has_value()) {
+        contracting_inverse_graph = inverse_graph.value();
+    } else {
+        contracting_inverse_graph.assign(nodes_count, {});
+        for (int origin_id = 0; origin_id < nodes_count; ++origin_id) {
+            for (const auto& [destination_id, weight] : original_graph[origin_id]) {
+                contracting_inverse_graph[destination_id][origin_id] = weight;
+            }
         }
     }
 

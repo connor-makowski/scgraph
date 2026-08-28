@@ -1792,7 +1792,7 @@ class GeoGraph(
         origin_node: dict[str, float | int],
         destination_node: dict[str, float | int],
         output_units: str = "km",
-        algorithm_fn: str = "dijkstra",
+        algorithm_fn: str = "bidirectional_dijkstra",
         algorithm_kwargs: dict = None,
         off_graph_circuity: float | int = 1,
         node_addition_type: str = "kdclosest",
@@ -1841,10 +1841,12 @@ class GeoGraph(
         - `algorithm_fn`
             - Type: str | callable
             - What: The algorithm to use for shortest path calculation. Can be a string name of a method on the underlying Graph object, or any callable.
-            - Default: 'dijkstra'
+            - Default: 'bidirectional_dijkstra'
             - Options:
                 - 'dijkstra' -> GraphAlgorithms.dijkstra
                     - Standard Dijkstra's algorithm; general purpose for non-negative edge weights
+                - 'bidirectional_dijkstra' -> GraphAlgorithms.bidirectional_dijkstra
+                    - Bidirectional Dijkstra's algorithm; searches from both origin and destination simultaneously, typically faster than standard Dijkstra for point-to-point queries
                 - 'dijkstra_negative' -> GraphAlgorithms.dijkstra_negative
                     - Modified Dijkstra supporting negative edge weights; detects negative cycles
                 - 'a_star' -> GraphAlgorithms.a_star

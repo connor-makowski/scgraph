@@ -28,7 +28,8 @@ public:
     TNRGraph(const std::vector<std::unordered_map<int, double>>& graph,
              int settled_limit = 50,
              int num_transit_nodes = 100,
-             std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
+             std::function<double(CHGraph*, int)> heuristic_fn = nullptr,
+             const std::optional<std::vector<std::unordered_map<int, double>>>& inverse_graph = std::nullopt);
 
     // Constructor for loading from saved state
     TNRGraph(int nodes_count,

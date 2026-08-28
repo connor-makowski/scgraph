@@ -8,11 +8,11 @@ def run_network_test(geograph_name):
     print(f"Loading {geograph_name} geograph...")
     geograph = GeoGraph.load_geograph(geograph_name)
     g_large = geograph.graph_object
-    print(f"Loaded! Graph has {g_large.size()} nodes.")
+    print(f"Loaded! Graph has {len(g_large.graph)} nodes.")
 
     # Pick 5 OD pairs
     origins = [0, 1000, 5000, 10000, 11000]
-    origins = [o for o in origins if o < g_large.size()]
+    origins = [o for o in origins if o < len(g_large.graph)]
     pairs = []
     for org in origins:
         tree = g_large.get_shortest_path_tree(org)

@@ -129,6 +129,38 @@ NB_MODULE(cpp, m) {
             }
             return res;
         })
+        .def_prop_ro("reduced_inverse_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            std::vector<std::unordered_map<int, double>> res(self.size());
+            const auto& rig = self.get_reduced_inverse_graph_internal();
+            for (size_t i = 0; i < rig.size(); ++i) {
+                for (const auto& edge : rig[i]) {
+                    res[i][edge.first] = edge.second;
+                }
+            }
+            return res;
+        })
+        .def_prop_ro("reduced_inverse_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            nb::list res;
+            const auto& rigc = self.get_reduced_inverse_graph_connections_internal();
+            for (size_t i = 0; i < rigc.size(); ++i) {
+                if (rigc[i].empty()) {
+                    res.append(nb::none());
+                } else {
+                    nb::dict d;
+                    for (const auto& [k, v] : rigc[i]) {
+                        d[nb::cast(k)] = v;
+                    }
+                    res.append(d);
+                }
+            }
+            return res;
+        })
 
         // Cache IO
         // get_cache: returns a list matching the Python convention where uncached

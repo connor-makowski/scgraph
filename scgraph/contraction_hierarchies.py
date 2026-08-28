@@ -810,6 +810,7 @@ class CHGraph(
         nodes_count: Optional[int] = None,
         original_graph: Optional[list[dict[int, int | float]]] = None,
         settled_limit: int = 50,
+        inverse_graph: Optional[list[dict[int, int | float]]] = None,
     ):
         """
         Function:
@@ -856,6 +857,7 @@ class CHGraph(
         """
         # Set original_graph from either 'graph' or 'original_graph'
         self.original_graph = graph if graph is not None else original_graph
+        self.__graph__ = self.original_graph
         self.settled_limit = settled_limit
 
         if all(
@@ -899,14 +901,19 @@ class CHGraph(
 
             # Working copy of the graph for contraction
             self.contracting_graph = [d.copy() for d in self.original_graph]
-            self.contracting_inverse_graph = [
-                {} for _ in range(self.nodes_count)
-            ]
-            for origin_id, edges in enumerate(self.original_graph):
-                for destination_id, weight in edges.items():
-                    self.contracting_inverse_graph[destination_id][
-                        origin_id
-                    ] = weight
+            if inverse_graph is not None:
+                self.contracting_inverse_graph = [
+                    d.copy() for d in inverse_graph
+                ]
+            else:
+                self.contracting_inverse_graph = [
+                    {} for _ in range(self.nodes_count)
+                ]
+                for origin_id, edges in enumerate(self.original_graph):
+                    for destination_id, weight in edges.items():
+                        self.contracting_inverse_graph[destination_id][
+                            origin_id
+                        ] = weight
 
             self.contracted = [False] * self.nodes_count
             self.contracted_count = 0

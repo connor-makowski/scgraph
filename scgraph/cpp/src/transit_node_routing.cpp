@@ -9,8 +9,9 @@
 TNRGraph::TNRGraph(const std::vector<std::unordered_map<int, double>>& graph,
                    int settled_limit,
                    int num_transit_nodes,
-                   std::function<double(CHGraph*, int)> heuristic_fn)
-    : CHGraph(graph, settled_limit, heuristic_fn) {
+                   std::function<double(CHGraph*, int)> heuristic_fn,
+                   const std::optional<std::vector<std::unordered_map<int, double>>>& inverse_graph)
+    : CHGraph(graph, settled_limit, heuristic_fn, inverse_graph) {
     // 1. Select Transit Nodes
     std::vector<int> sorted_nodes(nodes_count);
     for (int i = 0; i < nodes_count; ++i) {

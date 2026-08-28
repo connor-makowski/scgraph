@@ -448,6 +448,7 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
         graph: Optional[list[dict[int, int | float]]] = None,
         num_transit_nodes: int = 100,
         settled_limit: int = 50,
+        inverse_graph: Optional[list[dict[int, int | float]]] = None,
         **kwargs,
     ):
         """
@@ -491,7 +492,12 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
             super().__init__(settled_limit=settled_limit, **ch_data)
         else:
             # Preprocess from original graph
-            super().__init__(settled_limit=settled_limit, graph=graph)
+            super().__init__(
+                settled_limit=settled_limit,
+                graph=graph,
+                inverse_graph=inverse_graph,
+                **kwargs,
+            )
             self.__preprocess_tnr__(num_transit_nodes)
 
     def get_shortest_path(

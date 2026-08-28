@@ -5,8 +5,7 @@ from functools import wraps
 def use_reduced(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        reduced_graph = getattr(self, "reduced_graph", None)
-        if reduced_graph is None:
+        if getattr(self, "reduced_graph", None) is None:
             return func(self, *args, **kwargs)
         return self.__run_with_reduced__(func, *args, **kwargs)
 
@@ -33,9 +32,9 @@ class GraphReducer:
         self.__ensure_inverse_graph__()
 
         # 1. Identify pass-through nodes
-        self.is_reduced = [False] * len(self.graph)
-        graph = self.graph
-        inverse_graph = self.inverse_graph
+        self.is_reduced = [False] * len(self.__graph__)
+        graph = self.__graph__
+        inverse_graph = self.__inverse_graph__
         is_reduced = self.is_reduced
 
         for u in range(len(graph)):
@@ -83,16 +82,13 @@ class GraphReducer:
                             queue.append(v)
                 current_chain_id += 1
 
-        # 3. Build reduced graph and connections
+        # 3. Build reduced graph and connections (outbound from all nodes)
         self.reduced_graph = [{} for _ in range(len(graph))]
         self.reduced_graph_connections = [None] * len(graph)
         reduced_graph = self.reduced_graph
         reduced_graph_connections = self.reduced_graph_connections
 
         for A in range(len(graph)):
-            if is_reduced[A]:
-                continue
-
             best_dist = {}
             open_leaves = [(0, A, [])]
 
@@ -103,7 +99,7 @@ class GraphReducer:
                 best_dist[u] = dist
 
                 if u != A and not is_reduced[u]:
-                    # This is a boundary non-reduced node. Record connection.
+                    # Boundary non-reduced node. Record connection.
                     reduced_graph[A][u] = dist
                     if path:
                         if reduced_graph_connections[A] is None:
@@ -117,75 +113,66 @@ class GraphReducer:
                         new_path = path if u == A else path + [u]
                         heappush(open_leaves, (new_dist, v, new_path))
 
-    def __get_temp_connections__(
-        self,
-        start_node: int,
-        direction: str = "out",
-        target_nodes: set[int] = None,
-    ) -> dict:
+        # 4. Build reduced inverse graph and connections (inbound into all nodes)
+        self.reduced_inverse_graph = [{} for _ in range(len(graph))]
+        self.reduced_inverse_graph_connections = [None] * len(graph)
+        reduced_inverse_graph = self.reduced_inverse_graph
+        reduced_inverse_graph_connections = (
+            self.reduced_inverse_graph_connections
+        )
+
+        for B in range(len(graph)):
+            best_dist = {}
+            open_leaves = [(0, B, [])]
+
+            while open_leaves:
+                dist, u, path = heappop(open_leaves)
+                if u in best_dist and best_dist[u] <= dist:
+                    continue
+                best_dist[u] = dist
+
+                if u != B and not is_reduced[u]:
+                    # Boundary non-reduced node reaching B
+                    reduced_inverse_graph[B][u] = dist
+                    fwd_path = list(reversed(path))
+                    if fwd_path:
+                        if reduced_inverse_graph_connections[B] is None:
+                            reduced_inverse_graph_connections[B] = {}
+                        reduced_inverse_graph_connections[B][u] = fwd_path
+                    continue
+
+                for v, w in inverse_graph[u].items():
+                    new_dist = dist + w
+                    if v not in best_dist or new_dist < best_dist[v]:
+                        new_path = path if u == B else path + [u]
+                        heappush(open_leaves, (new_dist, v, new_path))
+
+    def wrap_heuristic(self, heuristic_fn=None):
         """
         Function:
 
-        - Find temporary connections into or out of a node by traversing pass-through nodes
-          until a boundary node (non-reduced or target node) is reached.
-
-        Required Arguments:
-
-        - `start_node`
-            - Type: int
-            - What: The node to start traversing from
-
-        Optional Arguments:
-
-        - `direction`
-            - Type: str
-            - What: Direction of traversal ("out" for forward, "in" for backward)
-            - Default: "out"
-        - `target_nodes`
-            - Type: set[int]
-            - What: Nodes that must act as non-reduced boundaries even if they are reduced
-            - Default: None
-
-        Returns:
-
-        - A dictionary of connection destination keys mapped to their shortest distances and intermediate path lists.
+        - Wrap a CH/TNR heuristic function to contract reduced nodes before non-reduced nodes.
         """
-        if target_nodes is None:
-            target_nodes = set()
-
-        adj_graph = self.graph if direction == "out" else self.inverse_graph
+        if not getattr(self, "is_reduced", None):
+            return heuristic_fn
+        if heuristic_fn is None:
+            is_reduced = self.is_reduced
+            return lambda ch, n: (
+                0 if is_reduced[n] else 1000000
+            ) + ch.default_heuristic(n)
         is_reduced = self.is_reduced
-
-        best_dist = {}
-        open_leaves = [(0, start_node, [])]
-
-        connections = {}
-
-        while open_leaves:
-            dist, u, path = heappop(open_leaves)
-            if u in best_dist and best_dist[u] <= dist:
-                continue
-            best_dist[u] = dist
-
-            if u != start_node and (not is_reduced[u] or u in target_nodes):
-                connections[u] = (dist, path)
-                continue
-
-            for v, w in adj_graph[u].items():
-                new_dist = dist + w
-                if v not in best_dist or new_dist < best_dist[v]:
-                    new_path = path if u == start_node else path + [u]
-                    heappush(open_leaves, (new_dist, v, new_path))
-
-        return connections
+        return lambda ch, n: (0 if is_reduced[n] else 1000000) + heuristic_fn(
+            ch, n
+        )
 
     def __run_with_reduced__(self, func, *args, **kwargs):
         """
         Function:
 
         - Run a graph routing function on the reduced graph.
-        - Applies query-specific temporary modifications if the origin or destination is reduced,
-          and automatically reconstructs the full path afterward.
+        - Same-chain queries route directly on the unreduced graph.
+        - Bidirectional algorithms route on reduced_graph and reduced_inverse_graph.
+        - One-sided algorithms with reduced destination solve via boundary entry nodes from reduced_inverse_graph.
 
         Required Arguments:
 
@@ -197,105 +184,149 @@ class GraphReducer:
 
         - The return value of the wrapped routing algorithm (typically a dict with 'path' and 'length')
         """
-        if func.__name__.startswith("create_"):
-            origin_id = None
-            destination_id = None
-        else:
-            origin_id = kwargs.get("origin_id")
-            if origin_id is None and len(args) > 0:
-                origin_id = args[0]
+        origin_id = kwargs.get("origin_id")
+        if origin_id is None and len(args) > 0:
+            origin_id = args[0]
 
-            destination_id = kwargs.get("destination_id")
-            if destination_id is None and len(args) > 1:
-                destination_id = args[1]
+        destination_id = kwargs.get("destination_id")
+        if destination_id is None and len(args) > 1:
+            destination_id = args[1]
 
-        if origin_id is None:
-            origin_ids = set()
-        elif isinstance(origin_id, int):
-            origin_ids = {origin_id}
-        else:
-            origin_ids = set(origin_id)
-
-        target_nodes = set(origin_ids)
-        if destination_id is not None:
-            target_nodes.add(destination_id)
+        # 1. Same-chain check: solve on unreduced graph with dijkstra
+        if destination_id is not None and self.is_same_chain(
+            origin_id, destination_id
+        ):
+            length_only = kwargs.get("length_only", False)
+            res = self.__dijkstra_on_graph__(
+                self.__graph__, origin_id, destination_id
+            )
+            if length_only:
+                res.pop("path", None)
+            return res
 
         is_reduced = self.is_reduced
-        nodes_to_process = set()
-        for oid in origin_ids:
-            if is_reduced[oid]:
-                nodes_to_process.add(oid)
-        if destination_id is not None and is_reduced[destination_id]:
-            nodes_to_process.add(destination_id)
 
-        restore_reduced_graph = {}
-        restore_reduced_graph_connections = {}
-
-        if nodes_to_process:
-            self.__ensure_inverse_graph__()
-            reduced_graph = self.reduced_graph
-            reduced_graph_connections = self.reduced_graph_connections
-            for node in nodes_to_process:
-                # Outgoing
-                outgoing = self.__get_temp_connections__(
-                    node, direction="out", target_nodes=target_nodes
-                )
-                if node not in restore_reduced_graph:
-                    restore_reduced_graph[node] = dict(reduced_graph[node])
-                for v, (dist, path) in outgoing.items():
-                    reduced_graph[node][v] = dist
-                    if path:
-                        if node not in restore_reduced_graph_connections:
-                            restore_reduced_graph_connections[node] = (
-                                dict(reduced_graph_connections[node])
-                                if reduced_graph_connections[node] is not None
-                                else None
-                            )
-                        if reduced_graph_connections[node] is None:
-                            reduced_graph_connections[node] = {}
-                        reduced_graph_connections[node][v] = path
-
-                # Incoming
-                incoming = self.__get_temp_connections__(
-                    node, direction="in", target_nodes=target_nodes
-                )
-                for u, (dist, path) in incoming.items():
-                    forward_path = list(reversed(path))
-                    if u not in restore_reduced_graph:
-                        restore_reduced_graph[u] = dict(reduced_graph[u])
-                    reduced_graph[u][node] = dist
-                    if forward_path:
-                        if u not in restore_reduced_graph_connections:
-                            restore_reduced_graph_connections[u] = (
-                                dict(reduced_graph_connections[u])
-                                if reduced_graph_connections[u] is not None
-                                else None
-                            )
-                        if reduced_graph_connections[u] is None:
-                            reduced_graph_connections[u] = {}
-                        reduced_graph_connections[u][node] = forward_path
-
-        original_graph = self.graph
-        self.graph = self.reduced_graph
-        try:
+        # 2. Bidirectional algorithms, Contraction Hierarchies, and Transit Node Routing
+        if func.__name__ in (
+            "bidirectional_dijkstra",
+            "contraction_hierarchy",
+            "tnr",
+        ):
             res = func(self, *args, **kwargs)
-
             if isinstance(res, dict) and "path" in res:
                 res["path"] = self.__expand_path__(res["path"])
-        finally:
-            self.graph = original_graph
-            for u, val in restore_reduced_graph.items():
-                self.reduced_graph[u] = val
-            for u, val in restore_reduced_graph_connections.items():
-                self.reduced_graph_connections[u] = val
+            return res
 
-        return res
+        # 3. One-sided algorithms with unreduced destination (or None)
+        if destination_id is None or not is_reduced[destination_id]:
+            res = func(self, *args, **kwargs)
+            if isinstance(res, dict) and "path" in res:
+                res["path"] = self.__expand_path__(res["path"])
+            return res
+
+        # 4. One-sided algorithm with reduced destination
+        entry_nodes = self.reduced_inverse_graph[destination_id]
+        if not entry_nodes:
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        best_length = float("inf")
+        best_res = None
+        best_entry = None
+
+        for entry_u, entry_dist in entry_nodes.items():
+            try:
+                call_kwargs = dict(kwargs)
+                call_args = list(args)
+                if "destination_id" in call_kwargs:
+                    call_kwargs["destination_id"] = entry_u
+                elif len(call_args) > 1:
+                    call_args[1] = entry_u
+
+                res_u = func(self, *call_args, **call_kwargs)
+                total_dist = res_u["length"] + entry_dist
+                if total_dist < best_length:
+                    best_length = total_dist
+                    best_res = res_u
+                    best_entry = entry_u
+            except Exception:
+                continue
+
+        if best_res is None or best_length == float("inf"):
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        if "path" in best_res:
+            expanded_path = self.__expand_path__(best_res["path"])
+            tail = []
+            if (
+                self.reduced_inverse_graph_connections is not None
+                and self.reduced_inverse_graph_connections[destination_id]
+                is not None
+            ):
+                tail = self.reduced_inverse_graph_connections[
+                    destination_id
+                ].get(best_entry, [])
+            full_path = expanded_path + tail + [destination_id]
+            return {
+                "path": full_path,
+                "length": best_length,
+            }
+        return {
+            "length": best_length,
+        }
+
+    def __dijkstra_on_graph__(
+        self,
+        graph: list[dict[int, float]],
+        origin_id: int | set[int],
+        destination_id: int,
+    ) -> dict:
+        """
+        Function:
+
+        - Internal Dijkstra solver on a specified graph dictionary list (used for same-chain routing on unreduced graph).
+        """
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        distance_matrix = [float("inf")] * len(graph)
+        predecessor = [-1] * len(graph)
+        open_leaves = []
+
+        for oid in origin_ids:
+            distance_matrix[oid] = 0
+            heappush(open_leaves, (0, oid))
+
+        while open_leaves:
+            current_distance, current_id = heappop(open_leaves)
+            if current_id == destination_id:
+                break
+            if current_distance == distance_matrix[current_id]:
+                for (
+                    connected_id,
+                    connected_distance,
+                ) in graph[current_id].items():
+                    possible_distance = current_distance + connected_distance
+                    if possible_distance < distance_matrix[connected_id]:
+                        distance_matrix[connected_id] = possible_distance
+                        predecessor[connected_id] = current_id
+                        heappush(open_leaves, (possible_distance, connected_id))
+        if current_id != destination_id:
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        return {
+            "path": self.__reconstruct_path__(destination_id, predecessor),
+            "length": distance_matrix[destination_id],
+        }
 
     def __expand_path__(self, path: list[int]) -> list[int]:
         """
         Function:
 
-        - Expand a path of non-pass-through nodes to restore all intermediate pass-through nodes.
+        - Expand a path of reduced graph nodes to restore all intermediate pass-through nodes.
 
         Required Arguments:
 
@@ -307,8 +338,9 @@ class GraphReducer:
 
         - The fully expanded path matching the original graph
         """
-        conns = getattr(self, "reduced_graph_connections", None)
-        if conns is None:
+        fwd_conns = getattr(self, "reduced_graph_connections", None)
+        inv_conns = getattr(self, "reduced_inverse_graph_connections", None)
+        if fwd_conns is None and inv_conns is None:
             return path
         new_path = []
         append = new_path.append
@@ -317,9 +349,18 @@ class GraphReducer:
             u = path[i]
             v = path[i + 1]
             append(u)
-            u_conn = conns[u]
-            if u_conn is not None:
-                pass_throughs = u_conn.get(v)
+            expanded = False
+            if fwd_conns is not None and fwd_conns[u] is not None:
+                pass_throughs = fwd_conns[u].get(v)
+                if pass_throughs:
+                    extend(pass_throughs)
+                    expanded = True
+            if (
+                not expanded
+                and inv_conns is not None
+                and inv_conns[v] is not None
+            ):
+                pass_throughs = inv_conns[v].get(u)
                 if pass_throughs:
                     extend(pass_throughs)
         if path:
