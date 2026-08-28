@@ -959,3 +959,4 @@ class Graph(
         self.reduced_graph = None
         self.reduced_graph_connections = None
         self.is_reduced = None
+        self.reduced_node_chain_ids = None

@@ -7,6 +7,7 @@ void GraphReducer::reset_cache() {
     GraphUtils::reset_cache();
     has_reduced_graph = false;
     is_reduced.clear();
+    reduced_node_chain_ids.clear();
     reduced_graph.clear();
     reduced_graph_connections.clear();
 }
@@ -60,6 +61,35 @@ void GraphReducer::reduce() {
                     is_reduced[u] = true;
                 }
             }
+        }
+    }
+
+    // Assign chain IDs to connected components of reduced nodes
+    reduced_node_chain_ids.assign(n, -1);
+    int current_chain_id = 0;
+    for (size_t u = 0; u < n; ++u) {
+        if (is_reduced[u] && reduced_node_chain_ids[u] == -1) {
+            std::vector<int> q = {(int)u};
+            reduced_node_chain_ids[u] = current_chain_id;
+            while (!q.empty()) {
+                int curr = q.back();
+                q.pop_back();
+                for (const auto& edge : graph[curr]) {
+                    int v = edge.first;
+                    if (v != curr && v >= 0 && v < (int)n && is_reduced[v] && reduced_node_chain_ids[v] == -1) {
+                        reduced_node_chain_ids[v] = current_chain_id;
+                        q.push_back(v);
+                    }
+                }
+                for (const auto& edge : inverse_graph[curr]) {
+                    int v = edge.first;
+                    if (v != curr && v >= 0 && v < (int)n && is_reduced[v] && reduced_node_chain_ids[v] == -1) {
+                        reduced_node_chain_ids[v] = current_chain_id;
+                        q.push_back(v);
+                    }
+                }
+            }
+            current_chain_id++;
         }
     }
 
@@ -293,4 +323,33 @@ std::vector<std::unordered_map<int, double>> GraphReducer::get_reduced_graph() c
         result.push_back(std::move(adj));
     }
     return result;
+}
+
+bool GraphReducer::is_same_chain(const std::variant<int, std::set<int>>& origin_id, std::optional<int> destination_id) const {
+    if (!destination_id.has_value() || reduced_node_chain_ids.empty()) {
+        return false;
+    }
+    int dest = destination_id.value();
+    if (dest < 0 || dest >= (int)reduced_node_chain_ids.size()) {
+        return false;
+    }
+    int dest_chain = reduced_node_chain_ids[dest];
+    if (dest_chain == -1) {
+        return false;
+    }
+    if (std::holds_alternative<int>(origin_id)) {
+        int orig = std::get<int>(origin_id);
+        if (orig >= 0 && orig < (int)reduced_node_chain_ids.size()) {
+            return reduced_node_chain_ids[orig] == dest_chain;
+        }
+        return false;
+    } else {
+        const auto& origins = std::get<std::set<int>>(origin_id);
+        for (int orig : origins) {
+            if (orig >= 0 && orig < (int)reduced_node_chain_ids.size() && reduced_node_chain_ids[orig] == dest_chain) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

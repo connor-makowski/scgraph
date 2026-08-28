@@ -92,6 +92,24 @@ NB_MODULE(cpp, m) {
             }
             return self.get_is_reduced_internal();
         })
+        .def_prop_ro("reduced_node_chain_ids", [](const Graph& self) -> std::optional<nb::list> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            nb::list res;
+            const auto& chain_ids = self.get_reduced_node_chain_ids_internal();
+            for (int cid : chain_ids) {
+                if (cid == -1) {
+                    res.append(nb::none());
+                } else {
+                    res.append(cid);
+                }
+            }
+            return res;
+        })
+        .def("is_same_chain", &Graph::is_same_chain,
+             nb::arg("origin_id"), nb::arg("destination_id"),
+             "Check if origin and destination belong to the same reduced chain")
         .def_prop_ro("reduced_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
             if (!self.get_has_reduced_graph()) {
                 return std::nullopt;

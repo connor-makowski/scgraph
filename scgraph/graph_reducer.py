@@ -55,7 +55,35 @@ class GraphReducer:
                     if inflows.issubset(outflows):
                         is_reduced[u] = True
 
-        # 2. Build reduced graph and connections
+        # 2. Assign chain IDs to connected components of reduced nodes
+        self.reduced_node_chain_ids = [None] * len(graph)
+        reduced_node_chain_ids = self.reduced_node_chain_ids
+        current_chain_id = 0
+        for u in range(len(graph)):
+            if is_reduced[u] and reduced_node_chain_ids[u] is None:
+                queue = [u]
+                reduced_node_chain_ids[u] = current_chain_id
+                while queue:
+                    curr = queue.pop()
+                    for v in graph[curr]:
+                        if (
+                            v != curr
+                            and is_reduced[v]
+                            and reduced_node_chain_ids[v] is None
+                        ):
+                            reduced_node_chain_ids[v] = current_chain_id
+                            queue.append(v)
+                    for v in inverse_graph[curr]:
+                        if (
+                            v != curr
+                            and is_reduced[v]
+                            and reduced_node_chain_ids[v] is None
+                        ):
+                            reduced_node_chain_ids[v] = current_chain_id
+                            queue.append(v)
+                current_chain_id += 1
+
+        # 3. Build reduced graph and connections
         self.reduced_graph = [{} for _ in range(len(graph))]
         self.reduced_graph_connections = [None] * len(graph)
         reduced_graph = self.reduced_graph
@@ -297,3 +325,46 @@ class GraphReducer:
         if path:
             append(path[-1])
         return new_path
+
+    def is_same_chain(
+        self,
+        origin_id: int | set[int] | list[int],
+        destination_id: int | None,
+    ) -> bool:
+        """
+        Function:
+
+        - Check whether any origin node and the destination node belong to the same reduced chain.
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int | set[int] | list[int]
+            - What: The id(s) of the origin node(s)
+        - `destination_id`
+            - Type: int | None
+            - What: The id of the destination node
+
+        Returns:
+
+        - True if both origin and destination are reduced nodes and share the same chain_id, False otherwise.
+        """
+        reduced_node_chain_ids = getattr(self, "reduced_node_chain_ids", None)
+        if reduced_node_chain_ids is None or destination_id is None:
+            return False
+        if destination_id < 0 or destination_id >= len(reduced_node_chain_ids):
+            return False
+        dest_chain = reduced_node_chain_ids[destination_id]
+        if dest_chain is None:
+            return False
+        if isinstance(origin_id, int):
+            if 0 <= origin_id < len(reduced_node_chain_ids):
+                return reduced_node_chain_ids[origin_id] == dest_chain
+            return False
+        for oid in origin_id:
+            if (
+                0 <= oid < len(reduced_node_chain_ids)
+                and reduced_node_chain_ids[oid] == dest_chain
+            ):
+                return True
+        return False
