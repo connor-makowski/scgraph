@@ -190,6 +190,124 @@ class GraphAlgorithms:
         }
 
     @use_reduced
+    def bidirectional_dijkstra(
+        self,
+        origin_id: int | set[int],
+        destination_id: int,
+    ) -> dict:
+        """
+        Function:
+
+        - Identify the shortest path between two nodes in a sparse network graph using a bidirectional Dijkstra algorithm
+
+        - Return a dictionary of various path information including:
+            - `path`: A list of node ids in the order they are visited
+            - `length`: The length of the path from the origin node to the destination node
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+
+        Optional Arguments:
+
+        - None
+        """
+        # Input Validation
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+
+        if destination_id in origin_ids:
+            return {"path": [destination_id], "length": 0}
+
+        self.__ensure_inverse_graph__()
+
+        graph = self.graph
+        inverse_graph = self.inverse_graph
+        num_nodes = len(graph)
+
+        forward_dist = [float("inf")] * num_nodes
+        forward_pred = [-1] * num_nodes
+        forward_open = []
+
+        backward_dist = [float("inf")] * num_nodes
+        backward_pred = [-1] * num_nodes
+        backward_open = []
+
+        for oid in origin_ids:
+            forward_dist[oid] = 0
+            heappush(forward_open, (0, oid))
+
+        backward_dist[destination_id] = 0
+        heappush(backward_open, (0, destination_id))
+
+        best_dist = float("inf")
+        meeting_node = -1
+
+        while forward_open and backward_open:
+            if forward_open[0][0] + backward_open[0][0] >= best_dist:
+                break
+
+            if forward_open[0][0] <= backward_open[0][0]:
+                cur_d, u = heappop(forward_open)
+                if cur_d == forward_dist[u]:
+                    for v, w in graph[u].items():
+                        new_d = cur_d + w
+                        if new_d < forward_dist[v]:
+                            forward_dist[v] = new_d
+                            forward_pred[v] = u
+                            heappush(forward_open, (new_d, v))
+                            if backward_dist[v] < float("inf"):
+                                total_d = new_d + backward_dist[v]
+                                if total_d < best_dist:
+                                    best_dist = total_d
+                                    meeting_node = v
+            else:
+                cur_d, v = heappop(backward_open)
+                if cur_d == backward_dist[v]:
+                    for u, w in inverse_graph[v].items():
+                        new_d = cur_d + w
+                        if new_d < backward_dist[u]:
+                            backward_dist[u] = new_d
+                            backward_pred[u] = v
+                            heappush(backward_open, (new_d, u))
+                            if forward_dist[u] < float("inf"):
+                                total_d = forward_dist[u] + new_d
+                                if total_d < best_dist:
+                                    best_dist = total_d
+                                    meeting_node = u
+
+        if meeting_node == -1 or best_dist == float("inf"):
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        forward_path = []
+        curr = meeting_node
+        while curr != -1:
+            forward_path.append(curr)
+            if curr in origin_ids:
+                break
+            curr = forward_pred[curr]
+        forward_path.reverse()
+
+        backward_path = []
+        curr = meeting_node
+        while curr != destination_id and curr != -1:
+            curr = backward_pred[curr]
+            if curr != -1:
+                backward_path.append(curr)
+
+        return {
+            "path": forward_path + backward_path,
+            "length": best_dist,
+        }
+
+    @use_reduced
     def dijkstra_buckets(
         self,
         origin_id: int | set[int],

@@ -161,6 +161,133 @@ GraphResult Graph::dijkstra(const std::variant<int, std::set<int>>& origin_id, i
     };
 }
 
+GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>& origin_id, int destination_id) {
+    if (has_reduced_graph) {
+        auto restore = prepare_query_graph(origin_id, destination_id);
+        GraphResult res;
+        try {
+            has_reduced_graph = false;
+            res = bidirectional_dijkstra(origin_id, destination_id);
+            has_reduced_graph = true;
+            res.path = expand_path(res.path);
+        } catch (...) {
+            has_reduced_graph = true;
+            restore_query_graph(restore);
+            throw;
+        }
+        restore_query_graph(restore);
+        return res;
+    }
+
+    input_check(origin_id, destination_id);
+    auto origin_ids = get_origin_ids(origin_id);
+
+    if (origin_ids.count(destination_id) > 0) {
+        return GraphResult{{destination_id}, 0.0};
+    }
+
+    this->ensure_inverse_graph();
+
+    const size_t n = graph.size();
+    std::vector<double> forward_dist(n, std::numeric_limits<double>::infinity());
+    std::vector<int> forward_pred(n, -1);
+
+    std::vector<double> backward_dist(n, std::numeric_limits<double>::infinity());
+    std::vector<int> backward_pred(n, -1);
+
+    using PQElement = std::pair<double, int>;
+    std::priority_queue<PQElement, std::vector<PQElement>, std::greater<>> forward_open;
+    std::priority_queue<PQElement, std::vector<PQElement>, std::greater<>> backward_open;
+
+    for (int oid : origin_ids) {
+        forward_dist[oid] = 0.0;
+        forward_open.emplace(0.0, oid);
+    }
+
+    backward_dist[destination_id] = 0.0;
+    backward_open.emplace(0.0, destination_id);
+
+    double best_dist = std::numeric_limits<double>::infinity();
+    int meeting_node = -1;
+
+    while (!forward_open.empty() && !backward_open.empty()) {
+        if (forward_open.top().first + backward_open.top().first >= best_dist) {
+            break;
+        }
+
+        if (forward_open.top().first <= backward_open.top().first) {
+            auto [cur_d, u] = forward_open.top();
+            forward_open.pop();
+
+            if (cur_d == forward_dist[u]) {
+                for (const auto& [v, w] : graph[u]) {
+                    const double new_d = cur_d + w;
+                    if (new_d < forward_dist[v]) {
+                        forward_dist[v] = new_d;
+                        forward_pred[v] = u;
+                        forward_open.emplace(new_d, v);
+                        if (backward_dist[v] < std::numeric_limits<double>::infinity()) {
+                            const double total_d = new_d + backward_dist[v];
+                            if (total_d < best_dist) {
+                                best_dist = total_d;
+                                meeting_node = v;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            auto [cur_d, v] = backward_open.top();
+            backward_open.pop();
+
+            if (cur_d == backward_dist[v]) {
+                for (const auto& [u, w] : inverse_graph[v]) {
+                    const double new_d = cur_d + w;
+                    if (new_d < backward_dist[u]) {
+                        backward_dist[u] = new_d;
+                        backward_pred[u] = v;
+                        backward_open.emplace(new_d, u);
+                        if (forward_dist[u] < std::numeric_limits<double>::infinity()) {
+                            const double total_d = forward_dist[u] + new_d;
+                            if (total_d < best_dist) {
+                                best_dist = total_d;
+                                meeting_node = u;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
+        throw std::runtime_error("The origin and destination nodes are not connected.");
+    }
+
+    std::vector<int> forward_path;
+    int curr = meeting_node;
+    while (curr != -1) {
+        forward_path.push_back(curr);
+        if (origin_ids.count(curr) > 0) {
+            break;
+        }
+        curr = forward_pred[curr];
+    }
+    std::reverse(forward_path.begin(), forward_path.end());
+
+    std::vector<int> backward_path;
+    curr = meeting_node;
+    while (curr != destination_id && curr != -1) {
+        curr = backward_pred[curr];
+        if (curr != -1) {
+            backward_path.push_back(curr);
+        }
+    }
+
+    forward_path.insert(forward_path.end(), backward_path.begin(), backward_path.end());
+    return GraphResult{forward_path, best_dist};
+}
+
 GraphResult Graph::dijkstra_buckets(const std::variant<int, std::set<int>>& origin_id, int destination_id,
                                      std::optional<double> max_edge_weight) {
     if (has_reduced_graph) {

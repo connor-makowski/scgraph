@@ -24,6 +24,7 @@ def run_network_test(geograph_name):
 
     algorithms = [
         "dijkstra",
+        "bidirectional_dijkstra",
         "dijkstra_buckets",
         "dijkstra_negative",
         "a_star",

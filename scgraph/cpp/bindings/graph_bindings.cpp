@@ -187,6 +187,13 @@ NB_MODULE(cpp, m) {
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using Dijkstra's algorithm")
 
+        .def("bidirectional_dijkstra", [](Graph& self,
+                                          const std::variant<int, std::set<int>>& origin_id,
+                                          int destination_id) -> nb::dict {
+            return graph_result_to_dict(self.bidirectional_dijkstra(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           "Find shortest path using bidirectional Dijkstra's algorithm")
+
         .def("dijkstra_buckets", [](Graph& self,
                                     const std::variant<int, std::set<int>>& origin_id,
                                     int destination_id,

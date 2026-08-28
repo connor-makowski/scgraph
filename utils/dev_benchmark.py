@@ -63,6 +63,17 @@ def benchmark_graph(graph_name, adj_list):
     if py_dijkstra_query_times:
         print(f"  Python Dijkstra Baseline Avg (x{len(py_dijkstra_query_times)}) : {sum(py_dijkstra_query_times)/len(py_dijkstra_query_times)*1000:.2f} ms", flush=True)
 
+    py_bidirectional_query_times = []
+    for u, v in successful_queries:
+        try:
+            start = time.perf_counter()
+            py_base_graph.bidirectional_dijkstra(u, v)
+            py_bidirectional_query_times.append(time.perf_counter() - start)
+        except Exception:
+            pass
+    if py_bidirectional_query_times:
+        print(f"  Python Bidirectional Dijkstra Avg (x{len(py_bidirectional_query_times)}) : {sum(py_bidirectional_query_times)/len(py_bidirectional_query_times)*1000:.2f} ms", flush=True)
+
     if py_ch_query_times:
         print(f"  Finished: Python CH Queries Avg (x{len(successful_queries)}) : {sum(py_ch_query_times)/len(successful_queries)*1000:.2f} ms", flush=True)
     else:
@@ -99,6 +110,17 @@ def benchmark_graph(graph_name, adj_list):
                 pass
         if cpp_dijkstra_query_times:
             print(f"  C++ Dijkstra Baseline Avg (x{len(cpp_dijkstra_query_times)})    : {sum(cpp_dijkstra_query_times)/len(cpp_dijkstra_query_times)*1000:.2f} ms", flush=True)
+
+        cpp_bidirectional_query_times = []
+        for u, v in successful_queries:
+            try:
+                start = time.perf_counter()
+                cpp_base_graph.bidirectional_dijkstra(u, v)
+                cpp_bidirectional_query_times.append(time.perf_counter() - start)
+            except Exception:
+                pass
+        if cpp_bidirectional_query_times:
+            print(f"  C++ Bidirectional Dijkstra Avg (x{len(cpp_bidirectional_query_times)})    : {sum(cpp_bidirectional_query_times)/len(cpp_bidirectional_query_times)*1000:.2f} ms", flush=True)
 
         # C++ CH
         # For very large graphs like world highways (300k+ nodes), even C++ preprocessing can be slow/memory intensive.

@@ -61,6 +61,15 @@ def _bench_graph_marnet(geo):
         "dijkstra_3_ms": _bench(
             graph.dijkstra, origin_id=4022, destination_id=8342
         ),
+        "bidirectional_dijkstra_1_ms": _bench(
+            graph.bidirectional_dijkstra, origin_id=0, destination_id=5
+        ),
+        "bidirectional_dijkstra_2_ms": _bench(
+            graph.bidirectional_dijkstra, origin_id=100, destination_id=7999
+        ),
+        "bidirectional_dijkstra_3_ms": _bench(
+            graph.bidirectional_dijkstra, origin_id=4022, destination_id=8342
+        ),
         "a_star_1_ms": _bench(
             graph.a_star,
             origin_id=0,
@@ -112,6 +121,9 @@ def _bench_graph_scale():
             "dijkstra_ms": _bench(
                 graph.dijkstra, origin_id=0, destination_id=size - 1
             ),
+            "bidirectional_dijkstra_ms": _bench(
+                graph.bidirectional_dijkstra, origin_id=0, destination_id=size - 1
+            ),
             "a_star_ms": _bench(
                 graph.a_star,
                 origin_id=0,
@@ -134,6 +146,12 @@ def _bench_geograph_network(geo, name, origin, destination):
             origin_node=origin,
             destination_node=destination,
             algorithm_fn="dijkstra",
+        ),
+        "bidirectional_dijkstra_ms": _bench(
+            geo.get_shortest_path,
+            origin_node=origin,
+            destination_node=destination,
+            algorithm_fn="bidirectional_dijkstra",
         ),
         "a_star_haversine_ms": _bench(
             geo.get_shortest_path,
@@ -529,25 +547,69 @@ def _bench_reduction(geos):
     # Define runs for Python
     py_marnet = Graph(marnet_data)
     result["marnet_python_dijkstra_ms"] = _bench(py_marnet.dijkstra, 100, 7999)
+    result["marnet_python_bidirectional_dijkstra_ms"] = _bench(
+        py_marnet.bidirectional_dijkstra, 100, 7999
+    )
     result["marnet_python_reduce_preprocessing_ms"] = _bench(py_marnet.reduce)
-    result["marnet_python_reduce_dijkstra_ms"] = _bench(py_marnet.dijkstra, 100, 7999)
+    result["marnet_python_reduce_dijkstra_ms"] = _bench(
+        py_marnet.dijkstra, 100, 7999
+    )
+    result["marnet_python_reduce_bidirectional_dijkstra_ms"] = _bench(
+        py_marnet.bidirectional_dijkstra, 100, 7999
+    )
 
     py_freeway = Graph(us_freeway_data)
-    result["us_freeway_python_dijkstra_ms"] = _bench(py_freeway.dijkstra, 1000, 9770)
-    result["us_freeway_python_reduce_preprocessing_ms"] = _bench(py_freeway.reduce)
-    result["us_freeway_python_reduce_dijkstra_ms"] = _bench(py_freeway.dijkstra, 1000, 9770)
+    result["us_freeway_python_dijkstra_ms"] = _bench(
+        py_freeway.dijkstra, 1000, 9770
+    )
+    result["us_freeway_python_bidirectional_dijkstra_ms"] = _bench(
+        py_freeway.bidirectional_dijkstra, 1000, 9770
+    )
+    result["us_freeway_python_reduce_preprocessing_ms"] = _bench(
+        py_freeway.reduce
+    )
+    result["us_freeway_python_reduce_dijkstra_ms"] = _bench(
+        py_freeway.dijkstra, 1000, 9770
+    )
+    result["us_freeway_python_reduce_bidirectional_dijkstra_ms"] = _bench(
+        py_freeway.bidirectional_dijkstra, 1000, 9770
+    )
 
     # Define runs for C++
     if HAS_CPP:
         cpp_marnet = CppGraph(marnet_data)
-        result["marnet_cpp_dijkstra_ms"] = _bench(cpp_marnet.dijkstra, 100, 7999)
-        result["marnet_cpp_reduce_preprocessing_ms"] = _bench(cpp_marnet.reduce)
-        result["marnet_cpp_reduce_dijkstra_ms"] = _bench(cpp_marnet.dijkstra, 100, 7999)
+        result["marnet_cpp_dijkstra_ms"] = _bench(
+            cpp_marnet.dijkstra, 100, 7999
+        )
+        result["marnet_cpp_bidirectional_dijkstra_ms"] = _bench(
+            cpp_marnet.bidirectional_dijkstra, 100, 7999
+        )
+        result["marnet_cpp_reduce_preprocessing_ms"] = _bench(
+            cpp_marnet.reduce
+        )
+        result["marnet_cpp_reduce_dijkstra_ms"] = _bench(
+            cpp_marnet.dijkstra, 100, 7999
+        )
+        result["marnet_cpp_reduce_bidirectional_dijkstra_ms"] = _bench(
+            cpp_marnet.bidirectional_dijkstra, 100, 7999
+        )
 
         cpp_freeway = CppGraph(us_freeway_data)
-        result["us_freeway_cpp_dijkstra_ms"] = _bench(cpp_freeway.dijkstra, 1000, 9770)
-        result["us_freeway_cpp_reduce_preprocessing_ms"] = _bench(cpp_freeway.reduce)
-        result["us_freeway_cpp_reduce_dijkstra_ms"] = _bench(cpp_freeway.dijkstra, 1000, 9770)
+        result["us_freeway_cpp_dijkstra_ms"] = _bench(
+            cpp_freeway.dijkstra, 1000, 9770
+        )
+        result["us_freeway_cpp_bidirectional_dijkstra_ms"] = _bench(
+            cpp_freeway.bidirectional_dijkstra, 1000, 9770
+        )
+        result["us_freeway_cpp_reduce_preprocessing_ms"] = _bench(
+            cpp_freeway.reduce
+        )
+        result["us_freeway_cpp_reduce_dijkstra_ms"] = _bench(
+            cpp_freeway.dijkstra, 1000, 9770
+        )
+        result["us_freeway_cpp_reduce_bidirectional_dijkstra_ms"] = _bench(
+            cpp_freeway.bidirectional_dijkstra, 1000, 9770
+        )
 
     return result
 
