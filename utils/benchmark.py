@@ -36,67 +36,93 @@ def _bench(fn, *args, **kwargs):
 def _load_geographs():
     print("Loading geographs...")
     return {
-        "marnet": GeoGraph.load_geograph("marnet"),
-        "us_freeway": GeoGraph.load_geograph("us_freeway"),
-        "oak_ridge_maritime": GeoGraph.load_geograph("oak_ridge_maritime"),
-        "north_america_rail": GeoGraph.load_geograph("north_america_rail"),
+        "marnet": GeoGraph.load_geograph("marnet", reduce_iterations=0),
+        "us_freeway": GeoGraph.load_geograph("us_freeway", reduce_iterations=0),
+        "oak_ridge_maritime": GeoGraph.load_geograph(
+            "oak_ridge_maritime", reduce_iterations=0
+        ),
+        "north_america_rail": GeoGraph.load_geograph(
+            "north_america_rail", reduce_iterations=0
+        ),
         "world_highways_and_marnet": GeoGraph.load_geograph(
-            "world_highways_and_marnet"
+            "world_highways_and_marnet", reduce_iterations=0
         ),
     }
 
 
 def _bench_graph_marnet(geo):
     print("  graph_marnet...")
-    graph = Graph(geo.graph_object.graph)
+    geo.graph_object.reset_cache()
+    graph_data = geo.graph_object.unreduced_graph or geo.graph_object.graph
+    graph = Graph(graph_data)
+    graph.reset_cache()
+
+    validation_ms = _bench(
+        graph.validate, check_symmetry=True, check_connected=True
+    )
+    dijkstra_1_ms = _bench(graph.dijkstra, origin_id=0, destination_id=5)
+    dijkstra_2_ms = _bench(
+        graph.dijkstra, origin_id=100, destination_id=7999
+    )
+    dijkstra_3_ms = _bench(
+        graph.dijkstra, origin_id=4022, destination_id=8342
+    )
+    bidir_1_ms = _bench(
+        graph.bidirectional_dijkstra, origin_id=0, destination_id=5
+    )
+    bidir_2_ms = _bench(
+        graph.bidirectional_dijkstra, origin_id=100, destination_id=7999
+    )
+    bidir_3_ms = _bench(
+        graph.bidirectional_dijkstra, origin_id=4022, destination_id=8342
+    )
+    a_star_1_ms = _bench(
+        graph.a_star,
+        origin_id=0,
+        destination_id=5,
+        heuristic_fn=lambda x, y: 0,
+    )
+    a_star_2_ms = _bench(
+        graph.a_star,
+        origin_id=100,
+        destination_id=7999,
+        heuristic_fn=lambda x, y: 0,
+    )
+    a_star_3_ms = _bench(
+        graph.a_star,
+        origin_id=4022,
+        destination_id=8342,
+        heuristic_fn=lambda x, y: 0,
+    )
+
     graph.create_contraction_hierarchy()
+    ch_1_ms = _bench(
+        graph.contraction_hierarchy, origin_id=0, destination_id=5
+    )
+    ch_2_ms = _bench(
+        graph.contraction_hierarchy, origin_id=100, destination_id=7999
+    )
+    ch_3_ms = _bench(
+        graph.contraction_hierarchy, origin_id=4022, destination_id=8342
+    )
+
+    graph.reset_cache()
+    geo.graph_object.reset_cache()
+
     return {
-        "validation_ms": _bench(
-            graph.validate, check_symmetry=True, check_connected=True
-        ),
-        "dijkstra_1_ms": _bench(graph.dijkstra, origin_id=0, destination_id=5),
-        "dijkstra_2_ms": _bench(
-            graph.dijkstra, origin_id=100, destination_id=7999
-        ),
-        "dijkstra_3_ms": _bench(
-            graph.dijkstra, origin_id=4022, destination_id=8342
-        ),
-        "bidirectional_dijkstra_1_ms": _bench(
-            graph.bidirectional_dijkstra, origin_id=0, destination_id=5
-        ),
-        "bidirectional_dijkstra_2_ms": _bench(
-            graph.bidirectional_dijkstra, origin_id=100, destination_id=7999
-        ),
-        "bidirectional_dijkstra_3_ms": _bench(
-            graph.bidirectional_dijkstra, origin_id=4022, destination_id=8342
-        ),
-        "a_star_1_ms": _bench(
-            graph.a_star,
-            origin_id=0,
-            destination_id=5,
-            heuristic_fn=lambda x, y: 0,
-        ),
-        "a_star_2_ms": _bench(
-            graph.a_star,
-            origin_id=100,
-            destination_id=7999,
-            heuristic_fn=lambda x, y: 0,
-        ),
-        "a_star_3_ms": _bench(
-            graph.a_star,
-            origin_id=4022,
-            destination_id=8342,
-            heuristic_fn=lambda x, y: 0,
-        ),
-        "contraction_hierarchy_1_ms": _bench(
-            graph.contraction_hierarchy, origin_id=0, destination_id=5
-        ),
-        "contraction_hierarchy_2_ms": _bench(
-            graph.contraction_hierarchy, origin_id=100, destination_id=7999
-        ),
-        "contraction_hierarchy_3_ms": _bench(
-            graph.contraction_hierarchy, origin_id=4022, destination_id=8342
-        ),
+        "validation_ms": validation_ms,
+        "dijkstra_1_ms": dijkstra_1_ms,
+        "dijkstra_2_ms": dijkstra_2_ms,
+        "dijkstra_3_ms": dijkstra_3_ms,
+        "bidirectional_dijkstra_1_ms": bidir_1_ms,
+        "bidirectional_dijkstra_2_ms": bidir_2_ms,
+        "bidirectional_dijkstra_3_ms": bidir_3_ms,
+        "a_star_1_ms": a_star_1_ms,
+        "a_star_2_ms": a_star_2_ms,
+        "a_star_3_ms": a_star_3_ms,
+        "contraction_hierarchy_1_ms": ch_1_ms,
+        "contraction_hierarchy_2_ms": ch_2_ms,
+        "contraction_hierarchy_3_ms": ch_3_ms,
     }
 
 
@@ -114,29 +140,39 @@ def _bench_graph_scale():
     result = {}
     for size in [100, 1000, 10000, 100000]:
         graph = gen_graph(size)
+        graph.reset_cache()
+        val_ms = _bench(
+            graph.validate, check_symmetry=False, check_connected=False
+        )
+        graph.reset_cache()
+        dijk_ms = _bench(
+            graph.dijkstra, origin_id=0, destination_id=size - 1
+        )
+        graph.reset_cache()
+        bidijk_ms = _bench(
+            graph.bidirectional_dijkstra, origin_id=0, destination_id=size - 1
+        )
+        graph.reset_cache()
+        astar_ms = _bench(
+            graph.a_star,
+            origin_id=0,
+            destination_id=size - 1,
+            heuristic_fn=lambda x, y: 0,
+        )
+        graph.reset_cache()
         result[f"n_{size}"] = {
-            "validation_ms": _bench(
-                graph.validate, check_symmetry=False, check_connected=False
-            ),
-            "dijkstra_ms": _bench(
-                graph.dijkstra, origin_id=0, destination_id=size - 1
-            ),
-            "bidirectional_dijkstra_ms": _bench(
-                graph.bidirectional_dijkstra, origin_id=0, destination_id=size - 1
-            ),
-            "a_star_ms": _bench(
-                graph.a_star,
-                origin_id=0,
-                destination_id=size - 1,
-                heuristic_fn=lambda x, y: 0,
-            ),
+            "validation_ms": val_ms,
+            "dijkstra_ms": dijk_ms,
+            "bidirectional_dijkstra_ms": bidijk_ms,
+            "a_star_ms": astar_ms,
         }
     return result
 
 
 def _bench_geograph_network(geo, name, origin, destination):
     print(f"  geograph_{name}...")
-    return {
+    geo.graph_object.reset_cache()
+    res = {
         "validation_ms": _bench(
             geo.validate, check_symmetry=True, check_connected=False
         ),
@@ -174,13 +210,17 @@ def _bench_geograph_network(geo, name, origin, destination):
             algorithm_fn="bmssp",
         ),
     }
+    geo.graph_object.reset_cache()
+    return res
 
 
 def _bench_geograph_marnet(geo):
     print("  geograph_marnet...")
     origin = {"latitude": 31.23, "longitude": 121.47}
     destination = {"latitude": 32.08, "longitude": -81.09}
+    geo.graph_object.reset_cache()
     base = _bench_geograph_network(geo, "marnet_base", origin, destination)
+    geo.graph_object.reset_cache()
     base["cached_spt_first_ms"] = _bench(
         geo.get_shortest_path,
         origin_node=origin,
@@ -193,6 +233,7 @@ def _bench_geograph_marnet(geo):
         destination_node=destination,
         algorithm_fn="cached_shortest_path",
     )
+    geo.graph_object.reset_cache()
     return base
 
 
@@ -200,7 +241,9 @@ def _bench_bmssp(geos):
     print("  bmssp...")
     mg = geos["marnet"].graph_object
     uf = geos["us_freeway"].graph_object
-    return {
+    mg.reset_cache()
+    uf.reset_cache()
+    res = {
         "marnet_0_5_ms": _bench(mg.bmssp, origin_id=0, destination_id=5),
         "marnet_100_7999_ms": _bench(mg.bmssp, origin_id=100, destination_id=7999),
         "marnet_4022_8342_ms": _bench(
@@ -213,6 +256,9 @@ def _bench_bmssp(geos):
         ),
         "us_freeway_spt_ms": _bench(uf.get_shortest_path_tree, origin_id=0),
     }
+    mg.reset_cache()
+    uf.reset_cache()
+    return res
 
 
 def _bench_cache(geo):
@@ -268,26 +314,38 @@ def _bench_cache(geo):
                         length_only=True,
                     )
 
+    geo.graph_object.reset_cache()
+    single_uncached_ms = _bench(
+        geo.get_shortest_path, origin_node=la, destination_node=nyc
+    )
+    geo.graph_object.reset_cache()
+    single_cached_ms = _bench(
+        geo.get_shortest_path,
+        origin_node=la,
+        destination_node=nyc,
+        algorithm_fn="cached_shortest_path",
+    )
+    single_cached_length_only_ms = _bench(
+        geo.get_shortest_path,
+        origin_node=la,
+        destination_node=nyc,
+        algorithm_fn="cached_shortest_path",
+        length_only=True,
+    )
+    geo.graph_object.reset_cache()
+    all_uncached_ms = _bench(uncached)
+    geo.graph_object.reset_cache()
+    all_cached_ms = _bench(cached)
+    all_cached_length_only_ms = _bench(cached_len)
+    geo.graph_object.reset_cache()
+
     return {
-        "single_uncached_ms": _bench(
-            geo.get_shortest_path, origin_node=la, destination_node=nyc
-        ),
-        "single_cached_ms": _bench(
-            geo.get_shortest_path,
-            origin_node=la,
-            destination_node=nyc,
-            algorithm_fn="cached_shortest_path",
-        ),
-        "single_cached_length_only_ms": _bench(
-            geo.get_shortest_path,
-            origin_node=la,
-            destination_node=nyc,
-            algorithm_fn="cached_shortest_path",
-            length_only=True,
-        ),
-        "all_uncached_ms": _bench(uncached),
-        "all_cached_ms": _bench(cached),
-        "all_cached_length_only_ms": _bench(cached_len),
+        "single_uncached_ms": single_uncached_ms,
+        "single_cached_ms": single_cached_ms,
+        "single_cached_length_only_ms": single_cached_length_only_ms,
+        "all_uncached_ms": all_uncached_ms,
+        "all_cached_ms": all_cached_ms,
+        "all_cached_length_only_ms": all_cached_length_only_ms,
     }
 
 
@@ -321,15 +379,20 @@ def _bench_distance_matrix(geo):
     result = {}
     for n in [5, 10, 20]:
         nodes = get_nodes(n)
+        geo.graph_object.reset_cache()
+        haversine_ms = _bench(run_haversine, nodes)
+        geo.graph_object.reset_cache()
+        dm_ms = _bench(
+            geo.distance_matrix,
+            nodes,
+            off_graph_circuity=1,
+            output_units="km",
+        )
         result[f"{n}x{n}"] = {
-            "haversine_ms": _bench(run_haversine, nodes),
-            "distance_matrix_ms": _bench(
-                geo.distance_matrix,
-                nodes,
-                off_graph_circuity=1,
-                output_units="km",
-            ),
+            "haversine_ms": haversine_ms,
+            "distance_matrix_ms": dm_ms,
         }
+    geo.graph_object.reset_cache()
     return result
 
 
@@ -516,36 +579,58 @@ def _bench_dijkstra_buckets(geos):
 
     for label, data in [("200x200_int", int_data), ("200x200_float", float_data)]:
         py = Graph(data)
+        py.reset_cache()
         result[f"{label}_python_dijkstra_ms"] = _bench(py.dijkstra, 0, dest)
+        py.reset_cache()
         result[f"{label}_python_buckets_ms"] = _bench(py.dijkstra_buckets, 0, dest)
+        py.reset_cache()
         if HAS_CPP:
             cpp = CppGraph(data)
+            cpp.reset_cache()
             result[f"{label}_cpp_dijkstra_ms"] = _bench(cpp.dijkstra, 0, dest)
+            cpp.reset_cache()
             result[f"{label}_cpp_buckets_ms"] = _bench(cpp.dijkstra_buckets, 0, dest)
+            cpp.reset_cache()
 
     for name, geo in [("marnet", geos["marnet"]), ("us_freeway", geos["us_freeway"])]:
-        graph_data = geo.graph_object.graph
+        geo.graph_object.reset_cache()
+        graph_data = geo.graph_object.unreduced_graph or geo.graph_object.graph
         half = len(graph_data) // 2
         py = Graph(graph_data)
+        py.reset_cache()
         result[f"{name}_python_dijkstra_ms"] = _bench(py.dijkstra, 0, half)
+        py.reset_cache()
         result[f"{name}_python_buckets_ms"] = _bench(py.dijkstra_buckets, 0, half)
+        py.reset_cache()
         if HAS_CPP:
             cpp = CppGraph(graph_data)
+            cpp.reset_cache()
             result[f"{name}_cpp_dijkstra_ms"] = _bench(cpp.dijkstra, 0, half)
+            cpp.reset_cache()
             result[f"{name}_cpp_buckets_ms"] = _bench(cpp.dijkstra_buckets, 0, half)
+            cpp.reset_cache()
+        geo.graph_object.reset_cache()
 
     return result
 
 
 def _bench_reduction(geos):
     print("  reduction...")
-    marnet_data = geos["marnet"].graph
-    us_freeway_data = geos["us_freeway"].graph
+    for g in geos.values():
+        g.graph_object.reset_cache()
+
+    marnet_data = (
+        geos["marnet"].graph_object.unreduced_graph or geos["marnet"].graph
+    )
+    us_freeway_data = (
+        geos["us_freeway"].graph_object.unreduced_graph or geos["us_freeway"].graph
+    )
 
     result = {}
 
     # Define runs for Python
     py_marnet = Graph(marnet_data)
+    py_marnet.reset_cache()
     result["marnet_python_dijkstra_ms"] = _bench(py_marnet.dijkstra, 100, 7999)
     result["marnet_python_bidirectional_dijkstra_ms"] = _bench(
         py_marnet.bidirectional_dijkstra, 100, 7999
@@ -557,8 +642,10 @@ def _bench_reduction(geos):
     result["marnet_python_reduce_bidirectional_dijkstra_ms"] = _bench(
         py_marnet.bidirectional_dijkstra, 100, 7999
     )
+    py_marnet.reset_cache()
 
     py_freeway = Graph(us_freeway_data)
+    py_freeway.reset_cache()
     result["us_freeway_python_dijkstra_ms"] = _bench(
         py_freeway.dijkstra, 1000, 9770
     )
@@ -574,10 +661,12 @@ def _bench_reduction(geos):
     result["us_freeway_python_reduce_bidirectional_dijkstra_ms"] = _bench(
         py_freeway.bidirectional_dijkstra, 1000, 9770
     )
+    py_freeway.reset_cache()
 
     # Define runs for C++
     if HAS_CPP:
         cpp_marnet = CppGraph(marnet_data)
+        cpp_marnet.reset_cache()
         result["marnet_cpp_dijkstra_ms"] = _bench(
             cpp_marnet.dijkstra, 100, 7999
         )
@@ -593,8 +682,10 @@ def _bench_reduction(geos):
         result["marnet_cpp_reduce_bidirectional_dijkstra_ms"] = _bench(
             cpp_marnet.bidirectional_dijkstra, 100, 7999
         )
+        cpp_marnet.reset_cache()
 
         cpp_freeway = CppGraph(us_freeway_data)
+        cpp_freeway.reset_cache()
         result["us_freeway_cpp_dijkstra_ms"] = _bench(
             cpp_freeway.dijkstra, 1000, 9770
         )
@@ -610,13 +701,16 @@ def _bench_reduction(geos):
         result["us_freeway_cpp_reduce_bidirectional_dijkstra_ms"] = _bench(
             cpp_freeway.bidirectional_dijkstra, 1000, 9770
         )
+        cpp_freeway.reset_cache()
+
+    for g in geos.values():
+        g.graph_object.reset_cache()
 
     return result
 
 
 def _bench_tnr():
     print("  tnr...")
-    from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
     from scgraph.graph import Graph as PyGraph
 
     origin = {"latitude": 31.23, "longitude": 121.47}
@@ -629,14 +723,24 @@ def _bench_tnr():
     ]:
         if not tnr_available:
             continue
-        geo = GeoGraph.load_geograph("marnet")
-        geo.graph_object = graph_class(graph=geo.graph)
-        result[f"{impl_name}_preprocessing_ms"] = _bench(
-            geo.graph_object.create_tnr_hierarchy, num_transit_nodes=100
+        geo = GeoGraph.load_geograph("marnet", reduce_iterations=0)
+        geo.graph_object = graph_class(
+            graph=geo.graph_object.unreduced_graph or geo.graph
         )
+        geo.graph_object.reset_cache()
+
+        # Baseline dijkstra on clean, unreduced graph before preprocessing
         result[f"{impl_name}_dijkstra_ms"] = _bench(
             geo.get_shortest_path, origin, destination, algorithm_fn="dijkstra"
         )
+        geo.graph_object.reset_cache()
+
+        # Preprocess TNR
+        result[f"{impl_name}_preprocessing_ms"] = _bench(
+            geo.graph_object.create_tnr_hierarchy, num_transit_nodes=100
+        )
+
+        # Preprocess CH and query CH
         geo.graph_object.create_contraction_hierarchy()
         result[f"{impl_name}_ch_ms"] = _bench(
             geo.get_shortest_path,
@@ -644,6 +748,8 @@ def _bench_tnr():
             destination,
             algorithm_fn="contraction_hierarchy",
         )
+
+        # Query TNR
         result[f"{impl_name}_tnr_path_ms"] = _bench(
             geo.get_shortest_path, origin, destination, algorithm_fn="tnr"
         )
@@ -654,6 +760,7 @@ def _bench_tnr():
             algorithm_fn="tnr",
             length_only=True,
         )
+        geo.graph_object.reset_cache()
 
     return result
 
@@ -662,15 +769,18 @@ def run_benchmarks():
     geos = _load_geographs()
     results = {}
 
-    results['cpp'] = HAS_CPP
+    results["cpp"] = HAS_CPP
 
-    print(f"\nSCGgaph ({"cpp" if HAS_CPP else "python"}) benchmarks:")
+    print(f"\nSCGraph ({'cpp' if HAS_CPP else 'python'}) benchmarks:")
 
     print("Running graph benchmarks...")
     results["graph_marnet"] = _bench_graph_marnet(geos["marnet"])
     results["graph_scale"] = _bench_graph_scale()
 
     print("Running geograph benchmarks...")
+    for g in geos.values():
+        g.graph_object.reset_cache()
+
     results["geograph_marnet"] = _bench_geograph_marnet(geos["marnet"])
     results["geograph_oak_ridge_maritime"] = _bench_geograph_network(
         geos["oak_ridge_maritime"],
@@ -698,6 +808,9 @@ def run_benchmarks():
     )
 
     print("Running algorithm benchmarks...")
+    for g in geos.values():
+        g.graph_object.reset_cache()
+
     results["bmssp"] = _bench_bmssp(geos)
     results["cache_geograph"] = _bench_cache(geos["us_freeway"])
     results["distance_matrix"] = _bench_distance_matrix(geos["us_freeway"])
@@ -711,13 +824,25 @@ def run_benchmarks():
     results["geograph_import"] = _bench_import()
 
     print("Running Dijkstra Buckets benchmarks...")
+    for g in geos.values():
+        g.graph_object.reset_cache()
+
     results["dijkstra_buckets"] = _bench_dijkstra_buckets(geos)
 
     print("Running Reduction benchmarks...")
+    for g in geos.values():
+        g.graph_object.reset_cache()
+
     results["reduction"] = _bench_reduction(geos)
 
     print("Running TNR benchmarks (slow)...")
+    for g in geos.values():
+        g.graph_object.reset_cache()
+
     results["tnr"] = _bench_tnr()
+
+    for g in geos.values():
+        g.graph_object.reset_cache()
 
     return results
 
