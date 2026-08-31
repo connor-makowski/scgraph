@@ -803,8 +803,7 @@ uv sync --extra dev
 | `uv run pytest test/NN_*.py` | Run a specific test file |
 | `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
-| `uv run utils/benchmark.py` | Run all benchmarks, output `benchmark_results.json` |
-| `uv run utils/bench.py` | Run quick benchmarks, output `benchmark.md` |
+| `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `uv run utils/prettify.py` | Format with autoflake + black |
 
 For full developer documentation see [DEVELOPMENT.md](DEVELOPMENT.md).

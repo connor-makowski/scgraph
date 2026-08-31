@@ -45,8 +45,7 @@ test/
   conftest.py                    # pytest session fixtures for shared geographs
   helpers.py                     # assert_result() helper used by test files
 utils/
-  benchmark.py                   # Standalone benchmark runner; outputs benchmark_results.json
-  bench.py                       # Quick markdown benchmark generator; outputs benchmark.md
+  bench.py                       # Fast benchmark runner (<30s); outputs benchmark.md
   prettify.py                    # autoflake (unused imports) + black (line-length=88)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
 noxfile.py                       # nox sessions: runs pytest across Python 3.11–3.14
@@ -65,15 +64,14 @@ publish.sh                       # PyPI publishing script — DO NOT RUN
 | `uv run pytest test/NN_*.py` | Run a specific test file |
 | `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
-| `uv run utils/benchmark.py` | Run all benchmarks, output `benchmark_results.json` |
-| `uv run utils/bench.py` | Run quick benchmarks, output `benchmark.md` |
+| `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `uv run utils/prettify.py` | Format with autoflake + black |
 
 Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`. Install them with `uv sync --extra dev`.
 
 > **Note:** If the root-owned `build/` directory causes a permission error on a fresh install, run `sudo rm -rf build/cp314-cp314-linux_x86_64` then `uv sync --extra dev` to rebuild.
 
-**Benchmarks** (`utils/benchmark.py`, `utils/bench.py`): Runs timing benchmarks and writes nested JSON or Markdown summaries. Commit `benchmark_results.json` to track performance changes via `git diff`. TNR benchmarks are slow (~30s Python, ~4s C++).
+**Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`.
 
 **Docs**: **DO NOT generate docs**. Docs are regenerated and versioned at release time by the user only.
 
