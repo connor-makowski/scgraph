@@ -272,14 +272,14 @@ from scgraph import GeoGraph
 
 marnet_geograph = GeoGraph.load_geograph("marnet")
 
-# First call: computes and caches the shortest path tree (~same cost as dijkstra)
+# First call: computes and caches the shortest path tree (~same cost as dijkstra without an early termination)
 output1 = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai
     destination_node={"latitude": 32.08, "longitude": -81.09}, # Savannah, GA
     algorithm_fn='cached_shortest_path',
 )
 
-# Subsequent calls to the same origin are near-instant
+# Subsequent calls to the same origin are near-instant (O(1) lookup)
 output2 = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai (same)
     destination_node={"latitude": 51.50, "longitude": -0.13},  # London
@@ -338,7 +338,7 @@ print(output['length'])
 
 Key features of graph reduction:
 - **Zero inaccuracy**: Paths and lengths are guaranteed to be mathematically identical to the unreduced graph.
-- **Same-chain routing**: If origin and destination fall on the same contracted chain, ther original graph is used with the standard dijkstra algorithm. 
+- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm. 
 - **Iterative reduction**: Pass `iterations=-1` to reduce iteratively until full convergence (simplifying sub-chains created after initial contraction).
 
 ## Lazy Loading
@@ -398,7 +398,7 @@ output = marnet_geograph.get_shortest_path(
 
 ## Built-in Geographs: Cache Management
 
-Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads are instant and require no network access.
+Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access.
 
 ```py
 from scgraph import GeoGraph
