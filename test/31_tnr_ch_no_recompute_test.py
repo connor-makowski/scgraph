@@ -5,6 +5,7 @@ from scgraph.graph import Graph as PyGraph
 
 try:
     from scgraph.cpp import Graph as CppGraph
+
     HAS_CPP = True
 except ImportError:
     HAS_CPP = False

@@ -107,18 +107,30 @@ class CHGraphPreprocessing:
 
         - The heuristic value for the node as an int or float
         """
-        shortcuts_needed, _ = self.__count_shortcuts__(node_id)
-        in_edges = len(self.contracting_inverse_graph[node_id])
-        out_edges = len(self.contracting_graph[node_id])
+        contracting_graph = self.contracting_graph
+        contracting_inverse_graph = self.contracting_inverse_graph
+        contracted = self.contracted
+
+        shortcuts_needed, found_shortcuts = self.__count_shortcuts__(node_id)
+        if hasattr(self, "_shortcuts_cache_table") and 0 <= node_id < len(
+            self._shortcuts_cache_table
+        ):
+            self._shortcuts_cache_table[node_id] = found_shortcuts
+        else:
+            self._shortcuts_cache_node = node_id
+            self._shortcuts_cache = found_shortcuts
+
+        in_edges = len(contracting_inverse_graph[node_id])
+        out_edges = len(contracting_graph[node_id])
         edge_diff = shortcuts_needed - in_edges - out_edges
 
         # Count neighbors that are already contracted
         contracted_neighbors = 0
-        for neighbor in self.contracting_graph[node_id]:
-            if self.contracted[neighbor]:
+        for neighbor in contracting_graph[node_id]:
+            if contracted[neighbor]:
                 contracted_neighbors += 1
-        for neighbor in self.contracting_inverse_graph[node_id]:
-            if self.contracted[neighbor]:
+        for neighbor in contracting_inverse_graph[node_id]:
+            if contracted[neighbor]:
                 contracted_neighbors += 1
 
         return edge_diff + contracted_neighbors
@@ -146,37 +158,54 @@ class CHGraphPreprocessing:
         shortcuts = []
         in_neighbors = self.contracting_inverse_graph[node_id]
         out_neighbors = self.contracting_graph[node_id]
+        contracted = self.contracted
 
         for in_neighbor_id, in_weight in in_neighbors.items():
-            if self.contracted[in_neighbor_id]:
+            if contracted[in_neighbor_id]:
                 continue
 
             # Max distance we care about for witness search from in_neighbor_id
             max_dist = 0
-            targets = {}
+            witness_targets = {}
+            witness_target_ids = []
             for out_neighbor_id, out_weight in out_neighbors.items():
                 if (
-                    self.contracted[out_neighbor_id]
+                    contracted[out_neighbor_id]
                     or in_neighbor_id == out_neighbor_id
                 ):
                     continue
                 shortcut_distance = in_weight + out_weight
-                targets[out_neighbor_id] = shortcut_distance
+
+                # Direct edge check
+                if out_neighbor_id in self.contracting_graph[in_neighbor_id]:
+                    if (
+                        self.contracting_graph[in_neighbor_id][out_neighbor_id]
+                        <= shortcut_distance + 1e-9
+                    ):
+                        continue
+
+                witness_targets[out_neighbor_id] = shortcut_distance
+                witness_target_ids.append(out_neighbor_id)
                 if shortcut_distance > max_dist:
                     max_dist = shortcut_distance
 
-            if not targets:
+            if not witness_target_ids:
                 continue
 
             # Witness search from in_neighbor_id
             distances = self.__witness_search__(
-                in_neighbor_id, node_id, max_dist
+                in_neighbor_id,
+                node_id,
+                max_dist,
+                witness_targets,
+                witness_target_ids,
             )
 
-            for out_neighbor_id, shortcut_distance in targets.items():
+            for out_neighbor_id in witness_target_ids:
+                shortcut_distance = witness_targets[out_neighbor_id]
                 if (
-                    distances.get(out_neighbor_id, float("inf"))
-                    > shortcut_distance + 1e-9
+                    not self._witness_resolved[out_neighbor_id]
+                    or distances[out_neighbor_id] > shortcut_distance + 1e-9
                 ):
                     shortcuts.append(
                         (
@@ -187,11 +216,24 @@ class CHGraphPreprocessing:
                         )
                     )
 
+            # Cleanup search state
+            for v in self._witness_visited:
+                self._witness_distances[v] = float("inf")
+            self._witness_visited.clear()
+
+            for t in witness_target_ids:
+                self._witness_resolved[t] = False
+
         return len(shortcuts), shortcuts
 
     def __witness_search__(
-        self, start_node: int, avoid_node: int, max_dist: int | float
-    ) -> dict[int, int | float]:
+        self,
+        start_node: int,
+        avoid_node: int,
+        max_dist: int | float,
+        targets: dict[int, float],
+        target_ids: list[int],
+    ) -> list[float]:
         """
         Function:
 
@@ -213,32 +255,59 @@ class CHGraphPreprocessing:
 
         Returns:
 
-        - A dictionary mapping reachable node ids to their shortest distances from start_node
+        - A list of shortest distances from start_node to visited nodes
         """
-        distances = {start_node: 0}
-        open_leaves = [(0, start_node)]
+        witness_distances = self._witness_distances
+        witness_resolved = self._witness_resolved
+        witness_visited = self._witness_visited
+        contracting_graph = self.contracting_graph
+        contracted = self.contracted
+        settled_limit = self.settled_limit
+        _inf = float("inf")
+
+        witness_distances[start_node] = 0.0
+        witness_visited.append(start_node)
+
+        open_leaves = [(0.0, start_node)]
+        settled_count = 0
+        resolved_count = 0
+        num_targets = len(target_ids)
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
             if current_distance > max_dist:
                 continue
-            if current_distance > distances.get(current_id, float("inf")):
+            if current_distance > witness_distances[current_id]:
                 continue
 
-            for neighbor_id, weight in self.contracting_graph[
-                current_id
-            ].items():
-                if neighbor_id == avoid_node or self.contracted[neighbor_id]:
+            if (
+                current_id in targets
+                and current_distance <= targets[current_id]
+            ):
+                if not witness_resolved[current_id]:
+                    witness_resolved[current_id] = True
+                    resolved_count += 1
+                    if resolved_count == num_targets:
+                        break
+
+            settled_count += 1
+            if settled_count > settled_limit:
+                break
+
+            for neighbor_id, weight in contracting_graph[current_id].items():
+                if neighbor_id == avoid_node or contracted[neighbor_id]:
                     continue
                 possible_distance = current_distance + weight
                 if (
                     possible_distance <= max_dist
-                    and possible_distance
-                    < distances.get(neighbor_id, float("inf"))
+                    and possible_distance < witness_distances[neighbor_id]
                 ):
-                    distances[neighbor_id] = possible_distance
+                    if witness_distances[neighbor_id] == _inf:
+                        witness_visited.append(neighbor_id)
+                    witness_distances[neighbor_id] = possible_distance
                     heappush(open_leaves, (possible_distance, neighbor_id))
-        return distances
+
+        return witness_distances
 
     def __preprocess__(
         self, heuristic_fn: Optional[Callable[[Any, int], int | float]] = None
@@ -261,53 +330,102 @@ class CHGraphPreprocessing:
 
         - None
         """
+        self._shortcuts_cache_node = -1
+        self._shortcuts_cache = []
+        self._shortcuts_cache_table = [[] for _ in range(self.nodes_count)]
+        self._witness_distances = [float("inf")] * self.nodes_count
+        self._witness_resolved = [False] * self.nodes_count
+        self._witness_visited = []
+
         if heuristic_fn is None:
             heuristic_fn = lambda g, n: g.default_heuristic(n)
 
+        contracting_graph = self.contracting_graph
+        contracting_inverse_graph = self.contracting_inverse_graph
+        ranks = self.ranks
+        contracted = self.contracted
+        shortcuts = self.shortcuts
+
+        up_to_date = [False] * self.nodes_count
+
         open_leaves = []
         for node_id in range(self.nodes_count):
-            heappush(open_leaves, (heuristic_fn(self, node_id), node_id))
+            initial_val = len(contracting_graph[node_id]) + len(
+                contracting_inverse_graph[node_id]
+            )
+            heappush(open_leaves, (initial_val, node_id))
 
         rank = 0
         while open_leaves:
             heuristic_value, node_id = heappop(open_leaves)
 
-            # Lazy update
-            updated_heuristic = heuristic_fn(self, node_id)
-            if open_leaves and updated_heuristic > open_leaves[0][0]:
-                heappush(open_leaves, (updated_heuristic, node_id))
+            if contracted[node_id]:
                 continue
 
+            current_heuristic = heuristic_value
+            if not up_to_date[node_id]:
+                current_heuristic = heuristic_fn(self, node_id)
+                up_to_date[node_id] = True
+                if open_leaves and current_heuristic > open_leaves[0][0]:
+                    heappush(open_leaves, (current_heuristic, node_id))
+                    continue
+
             # Contract node_id
-            self.ranks[node_id] = rank
+            ranks[node_id] = rank
             rank += 1
-            self.contracted[node_id] = True
+            contracted[node_id] = True
             self.contracted_count += 1
 
-            _, shortcuts = self.__count_shortcuts__(node_id)
+            # Reuse shortcuts cached by the heuristic call above (default_heuristic stores them)
+            if (
+                0 <= node_id < len(self._shortcuts_cache_table)
+                and self._shortcuts_cache_table[node_id]
+            ):
+                found_shortcuts = self._shortcuts_cache_table[node_id]
+            elif self._shortcuts_cache_node == node_id:
+                found_shortcuts = self._shortcuts_cache
+            else:
+                _, found_shortcuts = self.__count_shortcuts__(node_id)
 
             # Add shortcuts to the contracting graph
-            for origin_id, destination_id, distance, via_node_id in shortcuts:
-                if distance < self.contracting_graph[origin_id].get(
+            for (
+                origin_id,
+                destination_id,
+                distance,
+                via_node_id,
+            ) in found_shortcuts:
+                if distance < contracting_graph[origin_id].get(
                     destination_id, float("inf")
                 ):
-                    self.contracting_graph[origin_id][destination_id] = distance
-                    self.contracting_inverse_graph[destination_id][
+                    contracting_graph[origin_id][destination_id] = distance
+                    contracting_inverse_graph[destination_id][
                         origin_id
                     ] = distance
-                    self.shortcuts[(origin_id, destination_id)] = via_node_id
+                    shortcuts[(origin_id, destination_id)] = via_node_id
+
+            # Mark remaining neighbors as dirty
+            for neighbor_id in contracting_graph[node_id]:
+                if (
+                    neighbor_id < self.nodes_count
+                    and not contracted[neighbor_id]
+                ):
+                    up_to_date[neighbor_id] = False
+            for neighbor_id in contracting_inverse_graph[node_id]:
+                if (
+                    neighbor_id < self.nodes_count
+                    and not contracted[neighbor_id]
+                ):
+                    up_to_date[neighbor_id] = False
 
         # Build final forward and backward graphs
         for origin_id in range(self.nodes_count):
-            for destination_id, weight in self.contracting_graph[
-                origin_id
-            ].items():
-                if self.ranks[origin_id] < self.ranks[destination_id]:
+            for destination_id, weight in contracting_graph[origin_id].items():
+                if ranks[origin_id] < ranks[destination_id]:
                     self.forward_graph[origin_id][destination_id] = weight
-            for destination_id, weight in self.contracting_inverse_graph[
+            for destination_id, weight in contracting_inverse_graph[
                 origin_id
             ].items():
-                if self.ranks[origin_id] < self.ranks[destination_id]:
+                if ranks[origin_id] < ranks[destination_id]:
                     self.backward_graph[origin_id][destination_id] = weight
 
 
@@ -386,7 +504,9 @@ class CHGraphAlgorithms:
                     neighbors[neighbor_id] = weight
             return neighbors
 
-    def search(self, origin_id: int, destination_id: int) -> dict[str, Any]:
+    def search(
+        self, origin_id: int, destination_id: int, length_only: bool = False
+    ) -> dict[str, Any]:
         """
         Function:
 
@@ -401,14 +521,25 @@ class CHGraphAlgorithms:
             - Type: int
             - What: The id of the destination node
 
+        Optional Arguments:
+
+        - `length_only`
+            - Type: bool
+            - What: If True, only returns the length of the path
+            - Default: False
+
         Returns:
 
         - A dictionary with the following keys:
-            - `path`: A list of node ids representing the shortest path
+            - `path`: A list of node ids representing the shortest path (omitted if length_only=True)
             - `length`: The total length of the shortest path
         """
         if origin_id == destination_id:
-            return {"path": [origin_id], "length": 0}
+            return (
+                {"length": 0}
+                if length_only
+                else {"path": [origin_id], "length": 0}
+            )
 
         # Forward search state
         forward_distances = {origin_id: 0}
@@ -430,37 +561,56 @@ class CHGraphAlgorithms:
                 if current_distance > best_dist:
                     forward_open_leaves = []  # Done with forward search
                 else:
-                    # Get upward neighbors
-                    current_rank = self.__get_rank__(current_id)
+                    # Optimization: Split edge relaxation loops based on node status.
+                    # Since forward_graph only contains upward rank edges, we bypass rank checks completely.
                     if current_id < self.nodes_count:
-                        neighbors = self.forward_graph[current_id]
-                    else:
-                        neighbors = self.original_graph[current_id]
-
-                    for neighbor_id, weight in neighbors.items():
-                        if (
-                            self.__get_rank__(neighbor_id) <= current_rank
-                            and neighbor_id < self.nodes_count
-                        ):
-                            continue
-                        new_dist = current_distance + weight
-                        if new_dist < forward_distances.get(
-                            neighbor_id, float("inf")
-                        ):
-                            forward_distances[neighbor_id] = new_dist
-                            forward_parent[neighbor_id] = current_id
-                            heappush(
-                                forward_open_leaves, (new_dist, neighbor_id)
-                            )
-                            if (
-                                neighbor_id in backward_distances
-                                and new_dist + backward_distances[neighbor_id]
-                                < best_dist
+                        for neighbor_id, weight in self.forward_graph[
+                            current_id
+                        ].items():
+                            new_dist = current_distance + weight
+                            if new_dist < forward_distances.get(
+                                neighbor_id, float("inf")
                             ):
-                                best_dist = (
-                                    new_dist + backward_distances[neighbor_id]
+                                forward_distances[neighbor_id] = new_dist
+                                forward_parent[neighbor_id] = current_id
+                                heappush(
+                                    forward_open_leaves, (new_dist, neighbor_id)
                                 )
-                                meeting_node = neighbor_id
+                                if (
+                                    neighbor_id in backward_distances
+                                    and new_dist
+                                    + backward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + backward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
+                    else:
+                        for neighbor_id, weight in self.original_graph[
+                            current_id
+                        ].items():
+                            new_dist = current_distance + weight
+                            if new_dist < forward_distances.get(
+                                neighbor_id, float("inf")
+                            ):
+                                forward_distances[neighbor_id] = new_dist
+                                forward_parent[neighbor_id] = current_id
+                                heappush(
+                                    forward_open_leaves, (new_dist, neighbor_id)
+                                )
+                                if (
+                                    neighbor_id in backward_distances
+                                    and new_dist
+                                    + backward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + backward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
 
             # Backward step
             if backward_open_leaves:
@@ -468,41 +618,58 @@ class CHGraphAlgorithms:
                 if current_distance > best_dist:
                     backward_open_leaves = []  # Done with backward search
                 else:
-                    # Get upward neighbors (in backward graph)
-                    current_rank = self.__get_rank__(current_id)
+                    # Optimization: Split edge relaxation loops based on node status.
+                    # Since backward_graph only contains upward rank edges, we bypass rank checks completely.
                     if current_id < self.nodes_count:
-                        neighbors = self.backward_graph[current_id]
-                    else:
-                        # For nodes added after preprocessing, we use the original graph
-                        # because they were added symmetrically or we need to find who connects to them.
-                        # In GeoGraph, origin/dest connect TO the graph.
-                        # So for backward search from destination, we look at its neighbors.
-                        neighbors = self.original_graph[current_id]
-
-                    for neighbor_id, weight in neighbors.items():
-                        if (
-                            self.__get_rank__(neighbor_id) <= current_rank
-                            and neighbor_id < self.nodes_count
-                        ):
-                            continue
-                        new_dist = current_distance + weight
-                        if new_dist < backward_distances.get(
-                            neighbor_id, float("inf")
-                        ):
-                            backward_distances[neighbor_id] = new_dist
-                            backward_parent[neighbor_id] = current_id
-                            heappush(
-                                backward_open_leaves, (new_dist, neighbor_id)
-                            )
-                            if (
-                                neighbor_id in forward_distances
-                                and new_dist + forward_distances[neighbor_id]
-                                < best_dist
+                        for neighbor_id, weight in self.backward_graph[
+                            current_id
+                        ].items():
+                            new_dist = current_distance + weight
+                            if new_dist < backward_distances.get(
+                                neighbor_id, float("inf")
                             ):
-                                best_dist = (
-                                    new_dist + forward_distances[neighbor_id]
+                                backward_distances[neighbor_id] = new_dist
+                                backward_parent[neighbor_id] = current_id
+                                heappush(
+                                    backward_open_leaves,
+                                    (new_dist, neighbor_id),
                                 )
-                                meeting_node = neighbor_id
+                                if (
+                                    neighbor_id in forward_distances
+                                    and new_dist
+                                    + forward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + forward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
+                    else:
+                        for neighbor_id, weight in self.original_graph[
+                            current_id
+                        ].items():
+                            new_dist = current_distance + weight
+                            if new_dist < backward_distances.get(
+                                neighbor_id, float("inf")
+                            ):
+                                backward_distances[neighbor_id] = new_dist
+                                backward_parent[neighbor_id] = current_id
+                                heappush(
+                                    backward_open_leaves,
+                                    (new_dist, neighbor_id),
+                                )
+                                if (
+                                    neighbor_id in forward_distances
+                                    and new_dist
+                                    + forward_distances[neighbor_id]
+                                    < best_dist
+                                ):
+                                    best_dist = (
+                                        new_dist
+                                        + forward_distances[neighbor_id]
+                                    )
+                                    meeting_node = neighbor_id
 
             forward_min = (
                 forward_open_leaves[0][0]
@@ -519,6 +686,9 @@ class CHGraphAlgorithms:
 
         if meeting_node == -1:
             raise Exception("No path found between origin and destination")
+
+        if length_only:
+            return {"length": best_dist}
 
         path = self.__reconstruct_ch_path__(
             origin_id,
@@ -639,6 +809,8 @@ class CHGraph(
         shortcuts: Optional[dict[Union[str, tuple[int, int]], int]] = None,
         nodes_count: Optional[int] = None,
         original_graph: Optional[list[dict[int, int | float]]] = None,
+        settled_limit: int = 50,
+        inverse_graph: Optional[list[dict[int, int | float]]] = None,
     ):
         """
         Function:
@@ -685,6 +857,8 @@ class CHGraph(
         """
         # Set original_graph from either 'graph' or 'original_graph'
         self.original_graph = graph if graph is not None else original_graph
+        self.__graph__ = self.original_graph
+        self.settled_limit = settled_limit
 
         if all(
             x is not None
@@ -727,14 +901,19 @@ class CHGraph(
 
             # Working copy of the graph for contraction
             self.contracting_graph = [d.copy() for d in self.original_graph]
-            self.contracting_inverse_graph = [
-                {} for _ in range(self.nodes_count)
-            ]
-            for origin_id, edges in enumerate(self.original_graph):
-                for destination_id, weight in edges.items():
-                    self.contracting_inverse_graph[destination_id][
-                        origin_id
-                    ] = weight
+            if inverse_graph is not None:
+                self.contracting_inverse_graph = [
+                    d.copy() for d in inverse_graph
+                ]
+            else:
+                self.contracting_inverse_graph = [
+                    {} for _ in range(self.nodes_count)
+                ]
+                for origin_id, edges in enumerate(self.original_graph):
+                    for destination_id, weight in edges.items():
+                        self.contracting_inverse_graph[destination_id][
+                            origin_id
+                        ] = weight
 
             self.contracted = [False] * self.nodes_count
             self.contracted_count = 0

@@ -42,6 +42,12 @@ def test_dijkstra(graph):
     assert_result(graph.dijkstra(origin_id=0, destination_id=5), _EXPECTED)
 
 
+def test_bidirectional_dijkstra(graph):
+    assert_result(
+        graph.bidirectional_dijkstra(origin_id=0, destination_id=5), _EXPECTED
+    )
+
+
 def test_bellman_ford(graph):
     assert_result(graph.bellman_ford(origin_id=0, destination_id=5), _EXPECTED)
 

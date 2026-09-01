@@ -2,6 +2,34 @@ from typing import Literal
 
 
 class GraphUtils:
+    @property
+    def graph(self) -> list[dict[int, int | float]]:
+        return (
+            self.reduced_graph
+            if getattr(self, "reduced_graph", None) is not None
+            else getattr(self, "__graph__", None)
+        )
+
+    @graph.setter
+    def graph(self, value: list[dict[int, int | float]]) -> None:
+        self.__graph__ = value
+
+    @property
+    def unreduced_graph(self) -> list[dict[int, int | float]]:
+        return getattr(self, "__graph__", None)
+
+    @property
+    def inverse_graph(self) -> list[dict[int, int | float]] | None:
+        return (
+            self.reduced_inverse_graph
+            if getattr(self, "reduced_inverse_graph", None) is not None
+            else getattr(self, "__inverse_graph__", None)
+        )
+
+    @inverse_graph.setter
+    def inverse_graph(self, value: list[dict[int, int | float]] | None) -> None:
+        self.__inverse_graph__ = value
+
     def __input_check__(
         self,
         origin_id: int | set[int],
@@ -60,42 +88,43 @@ class GraphUtils:
         - The total weight of the path as an int or float
         """
         return sum(
-            self.graph[path[i]][path[i + 1]] for i in range(len(path) - 1)
+            self.__graph__[path[i]][path[i + 1]] for i in range(len(path) - 1)
         )
 
+    @staticmethod
     def __reconstruct_path__(
-        self, destination_id: int, predecessor: list[int]
+        destination_id: int, predecessor: list[int]
     ) -> list[int]:
         """
         Function:
 
-        - Reconstruct the shortest path from the destination node to the origin node
-        - Return the reconstructed path in the correct order
-        - Given the predecessor list, this function reconstructs the path
+        - Reconstruct the path from the origin node to the destination node using the predecessor matrix
+        - Returns a list of node ids in the order they are visited
 
         Required Arguments:
 
-        - `destination_id`
+        - `destination_id`:
             - Type: int
             - What: The id of the destination node from the graph dictionary to end the shortest path at
-        - `predecessor`
+        - `predecessor`:
             - Type: list[int]
-            - What: The predecessor list that was used to compute the shortest path
-            - This list is used to reconstruct the path from the destination node to the origin node
-            - Note: Nodes with no predecessor should be -1
+            - What: A list where the index represents the node id and the value at that index is the predecessor node id
 
         Optional Arguments:
 
         - None
         """
-        output_path = [destination_id]
-        while predecessor[destination_id] != -1:
-            destination_id = predecessor[destination_id]
-            output_path.append(destination_id)
-        output_path.reverse()
-        return output_path
+        current_id = destination_id
+        path = [destination_id]
+        while predecessor[current_id] != -1:
+            current_id = predecessor[current_id]
+            path.append(current_id)
+        path.reverse()
+        return path
 
-    def __cycle_check__(self, predecessor_matrix, node_id):
+    def __check_predecessor_loop__(
+        self, predecessor_matrix: list[int], node_id: int
+    ) -> None:
         """
         Function:
 
@@ -126,19 +155,21 @@ class GraphUtils:
                     f"Cycle detected in the graph at node {node_id}"
                 )
 
-    def __ensure_inverse_graph__(self) -> list[dict[int, int | float]]:
+    def __ensure_inverse_graph__(self) -> None:
         """
         Function:
 
-        - Ensure the inverse of the graph as self.inverse_graph is computed and stored
+        - Ensure the inverse of the graph as self.__inverse_graph__ is computed and stored
             - The inverse of the graph is a graph where all edges are reversed
             - This is useful for checking the connectivity of the graph and for algorithms that require the inverse graph
         """
-        if not hasattr(self, "inverse_graph"):
-            self.inverse_graph = [dict() for _ in range(len(self.graph))]
-            for origin_id, origin_dict in enumerate(self.graph):
+        if getattr(self, "__inverse_graph__", None) is None:
+            self.__inverse_graph__ = [
+                dict() for _ in range(len(self.__graph__))
+            ]
+            for origin_id, origin_dict in enumerate(self.__graph__):
                 for destination_id, distance in origin_dict.items():
-                    self.inverse_graph[destination_id][origin_id] = distance
+                    self.__inverse_graph__[destination_id][origin_id] = distance
 
     def __connected_check__(self, origin_id: int = 0) -> bool:
         """
@@ -155,22 +186,25 @@ class GraphUtils:
         """
         self.__ensure_inverse_graph__()
 
-        visited = [0] * len(self.graph)
+        graph = self.__graph__
+        inverse_graph = self.__inverse_graph__
+
+        visited = [0] * len(graph)
         open_leaves = [origin_id]
 
         while open_leaves:
             current_id = open_leaves.pop()
             visited[current_id] = 1
-            for connected_id in self.graph[current_id]:
+            for connected_id in graph[current_id]:
                 if visited[connected_id] == 0:
                     open_leaves.append(connected_id)
 
-        inverse_visited = [0] * len(self.inverse_graph)
+        inverse_visited = [0] * len(inverse_graph)
         inverse_open_leaves = [origin_id]
         while inverse_open_leaves:
             current_id = inverse_open_leaves.pop()
             inverse_visited[current_id] = 1
-            for connected_id in self.inverse_graph[current_id]:
+            for connected_id in inverse_graph[current_id]:
                 if inverse_visited[connected_id] == 0:
                     inverse_open_leaves.append(connected_id)
 
@@ -183,9 +217,10 @@ class GraphUtils:
         - Return True if this graph is symmetric and False if it is not
             - A graph is symmetric if for every edge from node A to node B, there is an edge from node B to node A with the same distance
         """
-        for origin_id, origin_dict in enumerate(self.graph):
+        graph = self.__graph__
+        for origin_id, origin_dict in enumerate(graph):
             for destination_id, distance in origin_dict.items():
-                if distance != self.graph[destination_id].get(origin_id, None):
+                if distance != graph[destination_id].get(origin_id, None):
                     return False
         return True
 
@@ -210,11 +245,12 @@ class GraphUtils:
             - What: Whether to check that the graph is fully connected
             - Default: True
         """
-        assert isinstance(self.graph, list), "Your graph must be a list"
-        len_graph = len(self.graph)
+        graph = self.__graph__
+        assert isinstance(graph, list), "Your graph must be a list"
+        len_graph = len(graph)
         if len_graph == 0:
             raise Exception("The provided graph must contain at least one node")
-        for origin_id, origin_dict in enumerate(self.graph):
+        for origin_id, origin_dict in enumerate(graph):
             assert isinstance(
                 origin_dict, dict
             ), f"Your graph must be a list of dictionaries but the value for origin {origin_id} is not a dictionary"
@@ -246,7 +282,7 @@ class GraphUtils:
         - Reset the cached shortest path trees
             - This is useful if the graph has been modified and the cached shortest path trees are no longer valid
         """
-        self.__cache__ = [0] * len(self.graph)
+        self.__cache__ = [0] * len(self.__graph__)
 
     def get_cache(self) -> list[dict | None]:
         """
@@ -278,7 +314,7 @@ class GraphUtils:
         """
         assert isinstance(new_cache, list), "Cache must be a list"
         assert len(new_cache) == len(
-            self.graph
+            self.__graph__
         ), "Cache must be the same length as the graph"
         self.__cache__ = new_cache
 
@@ -298,7 +334,7 @@ class GraphUtils:
 
         - The adjacency dictionary for the specified node
         """
-        return self.graph[idx]
+        return self.__graph__[idx]
 
 
 class GraphModifiers:
@@ -327,11 +363,11 @@ class GraphModifiers:
         - The id of the newly added node
         """
         node_dict = node_dict if node_dict is not None else dict()
-        self.graph.append(node_dict)
-        new_node_id = len(self.graph) - 1
+        self.__graph__.append(node_dict)
+        new_node_id = len(self.__graph__) - 1
         if symmetric:
             for dest_id, distance in node_dict.items():
-                self.graph[dest_id][new_node_id] = distance
+                self.__graph__[dest_id][new_node_id] = distance
         self.reset_cache()
         return new_node_id
 
@@ -363,13 +399,15 @@ class GraphModifiers:
             - What: Whether to add the edge symmetrically (i.e., add an edge from destination to origin as well)
             - Default: False
         """
-        assert origin_id < len(self.graph), "Origin node id is not in the graph"
+        assert origin_id < len(
+            self.__graph__
+        ), "Origin node id is not in the graph"
         assert destination_id < len(
-            self.graph
+            self.__graph__
         ), "Destination node id is not in the graph"
-        self.graph[origin_id][destination_id] = distance
+        self.__graph__[origin_id][destination_id] = distance
         if symmetric:
-            self.graph[destination_id][origin_id] = distance
+            self.__graph__[destination_id][origin_id] = distance
         self.reset_cache()
 
     def remove_node(
@@ -393,16 +431,16 @@ class GraphModifiers:
 
         - The dictionary of edges for this node that were removed from the graph
         """
-        assert len(self.graph) > 0, "Graph is empty, cannot remove node"
-        node_id = len(self.graph) - 1
+        assert len(self.__graph__) > 0, "Graph is empty, cannot remove node"
+        node_id = len(self.__graph__) - 1
         if symmetric_node:
-            for dest_id in self.graph[node_id].keys():
-                self.graph[dest_id].pop(node_id, None)
+            for dest_id in self.__graph__[node_id].keys():
+                self.__graph__[dest_id].pop(node_id, None)
         else:
-            for origin_dict in self.graph:
+            for origin_dict in self.__graph__:
                 if node_id in origin_dict:
                     origin_dict.pop(node_id)
-        removed_node = self.graph.pop()
+        removed_node = self.__graph__.pop()
         self.reset_cache()
         return removed_node
 
@@ -431,12 +469,14 @@ class GraphModifiers:
 
         - The distance of the removed edge from origin to destination, or None if the edge did not exist
         """
-        assert origin_id < len(self.graph), "Origin node id is not in the graph"
+        assert origin_id < len(
+            self.__graph__
+        ), "Origin node id is not in the graph"
         assert destination_id < len(
-            self.graph
+            self.__graph__
         ), "Destination node id is not in the graph"
         if symmetric:
-            self.graph[destination_id].pop(origin_id, None)
-        res = self.graph[origin_id].pop(destination_id, None)
+            self.__graph__[destination_id].pop(origin_id, None)
+        res = self.__graph__[origin_id].pop(destination_id, None)
         self.reset_cache()
         return res

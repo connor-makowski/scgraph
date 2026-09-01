@@ -8,3 +8,7 @@ def test_cpp_availability():
     assert (
         has_cpp() == should_have_cpp
     ), f"Expected C++ availability to be {should_have_cpp} but got {has_cpp()} instead"
+
+
+if __name__ == "__main__":
+    test_cpp_availability()

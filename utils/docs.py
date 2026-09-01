@@ -7,7 +7,7 @@ root = Path(__file__).parent.parent
 scgraph = root / "scgraph" / "__init__.py"
 
 
-VERSION = "3.4.1"
+VERSION = "3.5.0"
 OLD_DOC_VERSIONS = ["2.15.0", "1.5.2", "0.3.0"]
 
 env = {
@@ -47,12 +47,16 @@ def generate_docs(version):
 readme = (root / "README.md").read_text().replace("\\","\\\\")
 
 init_setup = """
+from scgraph.graph_reducer import algorithm
+
 try:
     from scgraph.cpp import Graph, CHGraph
+    # Assign the python algorithm function to the cpp graph class
+    Graph.algorithm = staticmethod(algorithm)
 except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph
-    
+
 from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
 """
