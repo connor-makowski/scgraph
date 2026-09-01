@@ -80,21 +80,22 @@
             <h2>Submodules</h2>
             <ul>
                     <li><a href="scgraph/contraction_hierarchies.html">contraction_hierarchies</a></li>
-                    <li><a href="scgraph/cpp.html">cpp</a></li>
                     <li><a href="scgraph/geograph.html">geograph</a></li>
                     <li><a href="scgraph/graph.html">graph</a></li>
+                    <li><a href="scgraph/graph_reducer.html">graph_reducer</a></li>
                     <li><a href="scgraph/graph_utils.html">graph_utils</a></li>
                     <li><a href="scgraph/grid.html">grid</a></li>
                     <li><a href="scgraph/helpers.html">helpers</a></li>
                     <li><a href="scgraph/transit_node_routing.html">transit_node_routing</a></li>
                     <li><a href="scgraph/utils.html">utils</a></li>
+                    <li><a href="scgraph/cpp.html">cpp</a></li>
             </ul>
 
 
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
-        <option value="3.4.1">3.4.1</option>
+        <option value="3.5.0">3.5.0</option>
         <option value="2.15.0">2.15.0</option>
         <option value="1.5.2">1.5.2</option>
         <option value="0.3.0">0.3.0</option>
@@ -1971,14 +1972,18 @@ mapshaper<span class="w"> </span>michigan_roads_simple.geojson<span class="w"> <
 </span><span id="L-741"><a href="#L-741"><span class="linenos">741</span></a>
 </span><span id="L-742"><a href="#L-742"><span class="linenos">742</span></a><span class="sd">&quot;&quot;&quot;</span>
 </span><span id="L-743"><a href="#L-743"><span class="linenos">743</span></a>
-</span><span id="L-744"><a href="#L-744"><span class="linenos">744</span></a><span class="k">try</span><span class="p">:</span>
-</span><span id="L-745"><a href="#L-745"><span class="linenos">745</span></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">CHGraph</span>
-</span><span id="L-746"><a href="#L-746"><span class="linenos">746</span></a><span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-</span><span id="L-747"><a href="#L-747"><span class="linenos">747</span></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.graph</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>
-</span><span id="L-748"><a href="#L-748"><span class="linenos">748</span></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.contraction_hierarchies</span><span class="w"> </span><span class="kn">import</span> <span class="n">CHGraph</span>
-</span><span id="L-749"><a href="#L-749"><span class="linenos">749</span></a>    
-</span><span id="L-750"><a href="#L-750"><span class="linenos">750</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.geograph</span><span class="w"> </span><span class="kn">import</span> <span class="n">GeoGraph</span>
-</span><span id="L-751"><a href="#L-751"><span class="linenos">751</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridGraph</span>
+</span><span id="L-744"><a href="#L-744"><span class="linenos">744</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.graph_reducer</span><span class="w"> </span><span class="kn">import</span> <span class="n">algorithm</span>
+</span><span id="L-745"><a href="#L-745"><span class="linenos">745</span></a>
+</span><span id="L-746"><a href="#L-746"><span class="linenos">746</span></a><span class="k">try</span><span class="p">:</span>
+</span><span id="L-747"><a href="#L-747"><span class="linenos">747</span></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.cpp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span><span class="p">,</span> <span class="n">CHGraph</span>
+</span><span id="L-748"><a href="#L-748"><span class="linenos">748</span></a>    <span class="c1"># Assign the python algorithm function to the cpp graph class</span>
+</span><span id="L-749"><a href="#L-749"><span class="linenos">749</span></a>    <span class="n">Graph</span><span class="o">.</span><span class="n">algorithm</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">algorithm</span><span class="p">)</span>
+</span><span id="L-750"><a href="#L-750"><span class="linenos">750</span></a><span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+</span><span id="L-751"><a href="#L-751"><span class="linenos">751</span></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.graph</span><span class="w"> </span><span class="kn">import</span> <span class="n">Graph</span>
+</span><span id="L-752"><a href="#L-752"><span class="linenos">752</span></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.contraction_hierarchies</span><span class="w"> </span><span class="kn">import</span> <span class="n">CHGraph</span>
+</span><span id="L-753"><a href="#L-753"><span class="linenos">753</span></a>
+</span><span id="L-754"><a href="#L-754"><span class="linenos">754</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.geograph</span><span class="w"> </span><span class="kn">import</span> <span class="n">GeoGraph</span>
+</span><span id="L-755"><a href="#L-755"><span class="linenos">755</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">scgraph.grid</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridGraph</span>
 </span></pre></div>
 
 
