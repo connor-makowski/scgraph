@@ -178,6 +178,8 @@ class GeoGraphIO:
         min_points=3,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
     ):
         """
         Function:
@@ -225,7 +227,28 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the geojson
             - Default: False
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay loading the geograph until its first use
+            - Default: False
         """
+        if lazy:
+            return LazyGeoGraph(
+                lambda: GeoGraph.load_from_geojson(
+                    filename=filename,
+                    precision=precision,
+                    pct_to_keep=pct_to_keep,
+                    min_points=min_points,
+                    load_intermediate_nodes=load_intermediate_nodes,
+                    silent=silent,
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            )
         data = parse_geojson(
             filename_in=filename,
             precision=precision,
@@ -234,13 +257,19 @@ class GeoGraphIO:
             # load_intermediate_nodes=load_intermediate_nodes,
             silent=silent,
         )
-        return GeoGraph(
+        geograph = GeoGraph(
             graph=data["graph"],
             nodes=data["nodes"],
         )
+        geograph.graph_object.reduce(reduce_iterations)
+        return geograph
 
     @staticmethod
-    def load_from_graphjson(filename: str) -> "GeoGraph":
+    def load_from_graphjson(
+        filename: str,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
+    ) -> "GeoGraph":
         """
         Function:
 
@@ -255,10 +284,29 @@ class GeoGraphIO:
                 - Stored as: 'custom.json'
                     - In your current directory
 
+        Optional Arguments:
+
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay loading the geograph until its first use
+            - Default: False
+
         Returns:
 
         - A GeoGraph object with the graph and nodes loaded from the JSON file
         """
+        if lazy:
+            return LazyGeoGraph(
+                lambda: GeoGraph.load_from_graphjson(
+                    filename=filename,
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            )
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
         with open(filename, "r") as f:
@@ -272,7 +320,9 @@ class GeoGraphIO:
         data["graph"] = [
             {int(k): v for k, v in item.items()} for item in data["graph"]
         ]
-        return GeoGraph(**data)
+        geograph = GeoGraph(**data)
+        geograph.graph_object.reduce(reduce_iterations)
+        return geograph
 
     @staticmethod
     def __fetch_geograph_to_cache__(
@@ -311,6 +361,8 @@ class GeoGraphIO:
         name: str,
         cache_dir: str | None = None,
         geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs",
+        reduce_iterations: int = 0,
+        lazy: bool = False,
     ) -> "GeoGraph":
         """
         Function:
@@ -338,7 +390,25 @@ class GeoGraphIO:
         - `geograph_url`
             - Type: str
             - What: The base URL where the built-in geograph .graphjson files are hosted
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay loading/fetching the geograph until its first use
+            - Default: False
         """
+        if lazy:
+            return LazyGeoGraph(
+                lambda: GeoGraph.load_geograph(
+                    name=name,
+                    cache_dir=cache_dir,
+                    geograph_url=geograph_url,
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            )
         cache_path = (
             Path(cache_dir)
             if cache_dir is not None
@@ -350,7 +420,9 @@ class GeoGraphIO:
             GeoGraph.__fetch_geograph_to_cache__(
                 name, cached_file, geograph_url
             )
-        return GeoGraph.load_from_graphjson(str(cached_file))
+        return GeoGraph.load_from_graphjson(
+            str(cached_file), reduce_iterations=reduce_iterations, lazy=False
+        )
 
     @staticmethod
     def list_geographs(
@@ -442,6 +514,8 @@ class GeoGraphIO:
         off_graph_travel_speed: int | float | None = None,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
     ):
         """
         Function:
@@ -498,8 +572,30 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the graph
             - Default: False
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay loading the geograph until its first use
+            - Default: False
 
         """
+        if lazy:
+            return LazyGeoGraph(
+                lambda: GeoGraph.load_from_osmnx_graph(
+                    osmnx_graph=osmnx_graph,
+                    coord_precision=coord_precision,
+                    weight_precision=weight_precision,
+                    weight_key=weight_key,
+                    off_graph_travel_speed=off_graph_travel_speed,
+                    load_intermediate_nodes=load_intermediate_nodes,
+                    silent=silent,
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            )
         node_list = list(osmnx_graph.nodes)
         node_to_idx = {node: i for i, node in enumerate(node_list)}
 
@@ -552,7 +648,9 @@ class GeoGraphIO:
 
         # TODO: Handle time based geograph units in a better way by default.
         # See: self.geograph_units
-        return GeoGraph(graph=graph, nodes=nodes, **kwargs)
+        geograph = GeoGraph(graph=graph, nodes=nodes, **kwargs)
+        geograph.graph_object.reduce(reduce_iterations)
+        return geograph
 
     # Misc IO Methods
     @staticmethod
@@ -1636,6 +1734,27 @@ class GeoGraph(
         self.geokdtree = GeoKDTree(points=self.nodes)
         self.__original_graph_length__ = len(self.graph_object.graph)
 
+    def reduce(self, iterations: int = 1) -> None:
+        """
+        Function:
+
+        - Reduce the graph by bypassing pass-through nodes and summing intermediate weights.
+        - Precomputes and sets reduced graph structures on self.graph_object for faster queries.
+
+        Optional Arguments:
+
+        - `iterations`:
+            - Type: int
+            - What: Number of reduction iterations to perform. If -1, reduces iteratively until convergence. If 0, no reduction is done.
+            - Default: 1
+
+        Returns:
+
+        - None
+        """
+        if iterations != 0:
+            self.graph_object.reduce(iterations)
+
     def validate_nodes(self) -> None:
         """
 
@@ -1681,7 +1800,7 @@ class GeoGraph(
         origin_node: dict[str, float | int],
         destination_node: dict[str, float | int],
         output_units: str = "km",
-        algorithm_fn: str = "dijkstra",
+        algorithm_fn: str = "bidirectional_dijkstra",
         algorithm_kwargs: dict = None,
         off_graph_circuity: float | int = 1,
         node_addition_type: str = "kdclosest",
@@ -1730,10 +1849,12 @@ class GeoGraph(
         - `algorithm_fn`
             - Type: str | callable
             - What: The algorithm to use for shortest path calculation. Can be a string name of a method on the underlying Graph object, or any callable.
-            - Default: 'dijkstra'
+            - Default: 'bidirectional_dijkstra'
             - Options:
                 - 'dijkstra' -> GraphAlgorithms.dijkstra
                     - Standard Dijkstra's algorithm; general purpose for non-negative edge weights
+                - 'bidirectional_dijkstra' -> GraphAlgorithms.bidirectional_dijkstra
+                    - Bidirectional Dijkstra's algorithm; searches from both origin and destination simultaneously, typically faster than standard Dijkstra for point-to-point queries
                 - 'dijkstra_negative' -> GraphAlgorithms.dijkstra_negative
                     - Modified Dijkstra supporting negative edge weights; detects negative cycles
                 - 'a_star' -> GraphAlgorithms.a_star
@@ -2151,3 +2272,64 @@ class GeoGraph(
                     )
 
         return output_matrix
+
+
+class LazyGeoGraph(GeoGraph):
+    """
+    A lazy-loading proxy for GeoGraph that delays loading/fetching the graph
+    until its first attribute access or method invocation.
+    """
+
+    def __init__(self, loader_fn) -> None:
+        object.__setattr__(self, "_loader_fn", loader_fn)
+        object.__setattr__(self, "_initialized", False)
+
+    def _load(self) -> "GeoGraph":
+        if not object.__getattribute__(self, "_initialized"):
+            loader_fn = object.__getattribute__(self, "_loader_fn")
+            real_geo = loader_fn()
+            object.__setattr__(self, "_initialized", True)
+            object.__getattribute__(self, "__dict__").update(real_geo.__dict__)
+        return self
+
+    def load(self) -> "GeoGraph":
+        """Explicitly load the underlying GeoGraph if not already loaded."""
+        return self._load()
+
+    def __getattribute__(self, name: str):
+        if name in (
+            "_loader_fn",
+            "_initialized",
+            "_load",
+            "load",
+            "__class__",
+        ):
+            return object.__getattribute__(self, name)
+        if not object.__getattribute__(self, "_initialized"):
+            object.__getattribute__(self, "_load")()
+        return object.__getattribute__(self, name)
+
+    def __setattr__(self, name: str, value) -> None:
+        if name in ("_loader_fn", "_initialized"):
+            object.__setattr__(self, name, value)
+        else:
+            if not object.__getattribute__(self, "_initialized"):
+                object.__getattribute__(self, "_load")()
+            super().__setattr__(name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in ("_loader_fn", "_initialized"):
+            object.__delattr__(self, name)
+        else:
+            if not object.__getattribute__(self, "_initialized"):
+                object.__getattribute__(self, "_load")()
+            super().__delattr__(name)
+
+    def __repr__(self) -> str:
+        if not object.__getattribute__(self, "_initialized"):
+            return f"<LazyGeoGraph (not loaded) at {hex(id(self))}>"
+        return f"<LazyGeoGraph (loaded) at {hex(id(self))}>"
+
+    def __dir__(self) -> list[str]:
+        self._load()
+        return super().__dir__()

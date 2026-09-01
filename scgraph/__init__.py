@@ -8,7 +8,7 @@
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
-SCGraph provides fast, flexible shortest path routing for road, rail, maritime, and custom networks. It ships with prebuilt geographic networks, supports arbitrary graph construction and OSMNx integration, and scales from simple point-to-point queries to massive distance matrices. It also supports optional C++ acceleration and Contraction Hierarchy preprocessing for large-scale applications.
+SCGraph provides fast, flexible shortest path routing for road, rail, maritime, and custom networks. It ships with prebuilt geographic networks, supports arbitrary graph construction and OSMNx integration, and scales from simple point-to-point queries to massive distance matrices. It also supports graph reduction, lazy loading, optional C++ acceleration, and Contraction Hierarchy preprocessing for large-scale applications.
 
 - **Docs**: https://connor-makowski.github.io/scgraph/scgraph.html
 - **Paper**: https://ssrn.com/abstract=5388845
@@ -174,6 +174,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | `algorithm_fn` | Description | Time Complexity |
 |---|---|---|
 | `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights (default) | O((n+m) log n) |
+| `'bidirectional_dijkstra'` | Bidirectional Dijkstra; simultaneous search from origin and destination | O((n+m) log n) |
 | `'dijkstra_buckets'` | Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights (ideally >= 1) | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
 | `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
@@ -187,12 +188,14 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 | Scenario | Recommended Approach |
 |---|---|
-| Single query | `dijkstra` (default) |
+| Single query | `dijkstra` (default) or `bidirectional_dijkstra` |
+| Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for 2–4x faster queries |
 | Weights generally >= 1 | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
 | Many arbitrary queries on a fixed graph | `contraction_hierarchy` or `tnr` |
 | Graph with negative weights | `dijkstra_negative` |
+| Fast app startup / multi-network loading | `GeoGraph.load_geograph(..., lazy=True)` |
 
 ## Heuristic Functions (for A*)
 
@@ -270,14 +273,14 @@ from scgraph import GeoGraph
 
 marnet_geograph = GeoGraph.load_geograph("marnet")
 
-# First call: computes and caches the shortest path tree (~same cost as dijkstra)
+# First call: computes and caches the shortest path tree (~same cost as dijkstra without an early termination)
 output1 = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai
     destination_node={"latitude": 32.08, "longitude": -81.09}, # Savannah, GA
     algorithm_fn='cached_shortest_path',
 )
 
-# Subsequent calls to the same origin are near-instant
+# Subsequent calls to the same origin are near-instant (O(1) lookup)
 output2 = marnet_geograph.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai (same)
     destination_node={"latitude": 51.50, "longitude": -0.13},  # London
@@ -311,6 +314,53 @@ matrix = us_freeway_geograph.distance_matrix(cities, output_units='km')
 ```
 
 For large matrices, throughput can approach 500 nanoseconds per distance query.
+
+## Graph Reduction
+
+Sparse networks (highways, rail lines, shipping corridors) often contain long chains of intermediate nodes with only two connections (degree 2). Graph reduction compresses these chains into single composite edges while preserving exact distances and full path reconstruction:
+
+```py
+from scgraph import GeoGraph
+
+us_freeway = GeoGraph.load_geograph("us_freeway")
+
+# Reduce the graph by bypassing pass-through chains (e.g. simplifies ~88% of nodes on us_freeway)
+us_freeway.reduce(iterations=1)
+
+# All standard algorithms (dijkstra, bidirectional_dijkstra, a_star, etc.)
+# automatically execute on the reduced graph and expand paths back to original coordinates:
+output = us_freeway.get_shortest_path(
+    origin_node={"latitude": 34.05, "longitude": -118.24},  # Los Angeles
+    destination_node={"latitude": 40.71, "longitude": -74.01},  # New York City
+    algorithm_fn='bidirectional_dijkstra',
+)
+print(output['length'])
+```
+
+Key features of graph reduction:
+- **Zero inaccuracy**: Paths and lengths are guaranteed to be mathematically identical to the unreduced graph.
+- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm. 
+- **Iterative reduction**: Pass `iterations=-1` to reduce iteratively until full convergence (simplifying sub-chains created after initial contraction).
+
+## Lazy Loading
+
+To avoid upfront downloading, parsing, or memory overhead when defining multiple networks or optimizing startup latency, use `lazy=True`:
+
+```py
+from scgraph import GeoGraph
+
+# Returns a LazyGeoGraph proxy immediately without downloading or parsing
+world_net = GeoGraph.load_geograph("world_highways_and_marnet", lazy=True)
+
+# The network is downloaded and instantiated only when first queried:
+output = world_net.get_shortest_path(
+    origin_node={"latitude": 31.23, "longitude": 121.47},
+    destination_node={"latitude": 32.08, "longitude": -81.09},
+)
+
+# Or explicitly load the graph at any time:
+world_net.load()
+```
 
 ## Node Addition Options
 
@@ -349,7 +399,7 @@ output = marnet_geograph.get_shortest_path(
 
 ## Built-in Geographs: Cache Management
 
-Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads are instant and require no network access.
+Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access.
 
 ```py
 from scgraph import GeoGraph
@@ -383,6 +433,16 @@ The cache location defaults to the platform-appropriate directory:
 | Linux | `~/.cache/scgraph/` |
 | macOS | `~/Library/Caches/scgraph/` |
 | Windows | `%LOCALAPPDATA%\\scgraph\\` |
+
+### `load_geograph` Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `name` | required | Name of the built-in geograph (e.g. `'marnet'`, `'us_freeway'`) |
+| `cache_dir` | `None` | Custom directory for downloaded files; defaults to the OS cache dir above |
+| `geograph_url` | `'https://raw.githubusercontent.com/...'` | Base URL for fetching geographs |
+| `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
+| `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
 
 ## Loading from OSMNx
 
@@ -418,6 +478,8 @@ print(output['length'])
 | `off_graph_travel_speed` | `None` | Speed (km/h) for off-graph connections; used to convert time-based weights to distances |
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
 | `silent` | `False` | Suppress progress output |
+| `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
+| `lazy` | `False` | Defer loading until the geograph is first accessed |
 
 ## Building from OSM Data (Without OSMNx)
 
@@ -520,6 +582,20 @@ graph.validate()
 
 output = graph.dijkstra(origin_id=0, destination_id=5)
 print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
+
+# Reduce the graph (contracts pass-through nodes):
+graph.reduce(iterations=1)
+
+# Custom algorithm decorator with automated reduced graph support:
+@Graph.algorithm
+def custom_solver(self, origin_id: int, destination_id: int) -> dict:
+    # Standard single-sided algorithm implementation using self.graph
+    ...
+
+@Graph.algorithm(bidirectional=True)
+def custom_bidirectional_solver(self, origin_id: int, destination_id: int) -> dict:
+    # Bidirectional algorithm using self.graph and self.inverse_graph
+    ...
 ```
 
 ## Custom GeoGraph
@@ -728,7 +804,7 @@ uv sync --extra dev
 | `uv run pytest test/NN_*.py` | Run a specific test file |
 | `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
-| `uv run utils/benchmark.py` | Run all benchmarks, output `benchmark_results.json` |
+| `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `uv run utils/prettify.py` | Format with autoflake + black |
 
 For full developer documentation see [DEVELOPMENT.md](DEVELOPMENT.md).
@@ -741,12 +817,16 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py), in
 
 """
 
+from scgraph.graph_reducer import algorithm
+
 try:
     from scgraph.cpp import Graph, CHGraph
+    # Assign the python algorithm function to the cpp graph class
+    Graph.algorithm = staticmethod(algorithm)
 except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph
-    
+
 from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
 

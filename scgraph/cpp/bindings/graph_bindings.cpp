@@ -71,6 +71,101 @@ NB_MODULE(cpp, m) {
              "Get the number of nodes in the graph")
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
+        .def_prop_ro("unreduced_graph", &Graph::get_graph,
+             "Get the unreduced graph adjacency list")
+        .def("reduce", &Graph::reduce, nb::arg("iterations") = 1,
+             "Reduce the graph by bypassing pass-through nodes")
+        .def_prop_ro("reduced_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            std::vector<std::unordered_map<int, double>> res(self.size());
+            const auto& rg = self.get_reduced_graph_internal();
+            for (size_t i = 0; i < rg.size(); ++i) {
+                for (const auto& edge : rg[i]) {
+                    res[i][edge.first] = edge.second;
+                }
+            }
+            return res;
+        })
+        .def_prop_ro("is_reduced", [](const Graph& self) -> std::optional<std::vector<bool>> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            return self.get_is_reduced_internal();
+        })
+        .def_prop_ro("reduced_node_chain_ids", [](const Graph& self) -> std::optional<nb::list> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            nb::list res;
+            const auto& chain_ids = self.get_reduced_node_chain_ids_internal();
+            for (int cid : chain_ids) {
+                if (cid == -1) {
+                    res.append(nb::none());
+                } else {
+                    res.append(cid);
+                }
+            }
+            return res;
+        })
+        .def("is_same_chain", &Graph::is_same_chain,
+             nb::arg("origin_id"), nb::arg("destination_id"),
+             "Check if origin and destination belong to the same reduced chain")
+        .def("expand_path", &Graph::expand_path,
+             nb::arg("path"),
+             "Expand a path of reduced graph nodes")
+        .def_prop_ro("reduced_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            nb::list res;
+            const auto& rgc = self.get_reduced_graph_connections_internal();
+            for (size_t i = 0; i < rgc.size(); ++i) {
+                if (rgc[i].empty()) {
+                    res.append(nb::none());
+                } else {
+                    nb::dict d;
+                    for (const auto& [k, v] : rgc[i]) {
+                        d[nb::cast(k)] = v;
+                    }
+                    res.append(d);
+                }
+            }
+            return res;
+        })
+        .def_prop_ro("reduced_inverse_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            std::vector<std::unordered_map<int, double>> res(self.size());
+            const auto& rig = self.get_reduced_inverse_graph_internal();
+            for (size_t i = 0; i < rig.size(); ++i) {
+                for (const auto& edge : rig[i]) {
+                    res[i][edge.first] = edge.second;
+                }
+            }
+            return res;
+        })
+        .def_prop_ro("reduced_inverse_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
+            if (!self.get_has_reduced_graph()) {
+                return std::nullopt;
+            }
+            nb::list res;
+            const auto& rigc = self.get_reduced_inverse_graph_connections_internal();
+            for (size_t i = 0; i < rigc.size(); ++i) {
+                if (rigc[i].empty()) {
+                    res.append(nb::none());
+                } else {
+                    nb::dict d;
+                    for (const auto& [k, v] : rigc[i]) {
+                        d[nb::cast(k)] = v;
+                    }
+                    res.append(d);
+                }
+            }
+            return res;
+        })
 
         // Cache IO
         // get_cache: returns a list matching the Python convention where uncached
@@ -147,6 +242,13 @@ NB_MODULE(cpp, m) {
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using Dijkstra's algorithm")
 
+        .def("bidirectional_dijkstra", [](Graph& self,
+                                          const std::variant<int, std::set<int>>& origin_id,
+                                          int destination_id) -> nb::dict {
+            return graph_result_to_dict(self.bidirectional_dijkstra(origin_id, destination_id));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           "Find shortest path using bidirectional Dijkstra's algorithm")
+
         .def("dijkstra_buckets", [](Graph& self,
                                     const std::variant<int, std::set<int>>& origin_id,
                                     int destination_id,
@@ -205,16 +307,16 @@ NB_MODULE(cpp, m) {
 
         // Contraction Hierarchies
         .def("create_contraction_hierarchy", &Graph::create_contraction_hierarchy,
-             nb::arg("heuristic_fn") = nullptr,
+             nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
              "Create a Contraction Hierarchies (CH) graph")
-        .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id) -> nb::dict {
-            return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id));
-        }, nb::arg("origin_id"), nb::arg("destination_id"),
+        .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
+            return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id, length_only));
+        }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
            "Get shortest path using Contraction Hierarchies")
 
         // Transit Node Routing
         .def("create_tnr_hierarchy", &Graph::create_tnr_hierarchy,
-             nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
+             nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
              "Create a Transit Node Routing (TNR) graph")
         .def("set_tnr_graph", &Graph::set_tnr_graph, nb::arg("tnr_graph"),
              "Set the TNRGraph object for the graph")
@@ -225,16 +327,18 @@ NB_MODULE(cpp, m) {
 
     // CHGraph class
     nb::class_<CHGraph>(m, "CHGraph")
-        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, std::function<double(CHGraph*, int)>>(),
-             nb::arg("graph"), nb::arg("heuristic_fn") = nullptr,
+        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, std::function<double(CHGraph*, int)>>(),
+             nb::arg("graph"), nb::arg("settled_limit") = 50, nb::arg("heuristic_fn") = nullptr,
              "Initialize and preprocess a CHGraph")
         .def(nb::init<int, const std::vector<int>&, 
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::unordered_map<std::pair<int, int>, int, pair_hash>&,
-                      const std::optional<std::vector<std::unordered_map<int, double>>>&>(),
+                      const std::optional<std::vector<std::unordered_map<int, double>>>&,
+                      int>(),
              nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
              nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
+             nb::arg("settled_limit") = 50,
              "Initialize a CHGraph from pre-calculated data")
         .def("add_node", &CHGraph::add_node,
              nb::arg("node_dict") = std::unordered_map<int, double>{},
@@ -344,11 +448,10 @@ NB_MODULE(cpp, m) {
 
             // TNRGraph class
             nb::class_<TNRGraph, CHGraph>(m, "TNRGraph")
-                .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, std::function<double(CHGraph*, int)>>(),
-                     nb::arg("graph"), nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
+                .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, int, std::function<double(CHGraph*, int)>>(),
+                     nb::arg("graph"), nb::arg("settled_limit") = 50, nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
                      "Initialize and preprocess a TNRGraph")
                 .def(nb::init<int, const std::vector<int>&, 
- 
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::unordered_map<std::pair<int, int>, int, pair_hash>&,
@@ -356,11 +459,13 @@ NB_MODULE(cpp, m) {
                       const std::set<int>&,
                       const std::unordered_map<std::pair<int, int>, double, pair_hash>&,
                       const std::vector<std::unordered_map<int, double>>&,
-                      const std::vector<std::unordered_map<int, double>>&>(),
+                      const std::vector<std::unordered_map<int, double>>&,
+                      int>(),
              nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
              nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
              nb::arg("transit_nodes"), nb::arg("distance_table"),
              nb::arg("forward_access_nodes"), nb::arg("backward_access_nodes"),
+             nb::arg("settled_limit") = 50,
              "Initialize a TNRGraph from pre-calculated data")
             .def("search", [](TNRGraph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
             return graph_result_to_dict(self.search(origin_id, destination_id, length_only));

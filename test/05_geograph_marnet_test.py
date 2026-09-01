@@ -98,3 +98,14 @@ def test_bmssp(marnet):
         ),
         _EXPECTED,
     )
+
+
+def test_bidirectional_dijkstra(marnet):
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node=_ORIGIN,
+            destination_node=_DESTINATION,
+            algorithm_fn="bidirectional_dijkstra",
+        ),
+        _EXPECTED,
+    )

@@ -22,22 +22,39 @@ protected:
     std::vector<std::unordered_map<int, double>> contracting_inverse_graph;
     std::vector<bool> contracted;
     int contracted_count;
+    int settled_limit;
+    mutable std::vector<double> witness_distances;
+    mutable std::vector<int> witness_visited;
+    mutable std::vector<double> witness_targets;
+    mutable std::vector<int> witness_target_ids;
+    mutable std::vector<bool> witness_resolved;
+    mutable int shortcuts_cache_node = -1;
+    mutable std::vector<std::tuple<int, int, double, int>> shortcuts_cache;
+    mutable std::vector<std::vector<std::tuple<int, int, double, int>>> shortcuts_cache_table;
+    mutable std::vector<double> query_f_distances;
+    mutable std::vector<double> query_b_distances;
+    mutable std::vector<int> query_f_parents;
+    mutable std::vector<int> query_b_parents;
+    mutable std::vector<int> query_visited;
 
     // Helper methods
     double get_rank(int node_id) const;
-    std::unordered_map<int, double> witness_search(int start_node, int avoid_node, double max_dist) const;
+    const std::vector<double>& witness_search(int start_node, int avoid_node, double max_dist, size_t num_targets) const;
     std::pair<int, std::vector<std::tuple<int, int, double, int>>> count_shortcuts(int node_id) const;
-    double default_heuristic(int node_id) const;
     void preprocess(std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
     std::vector<int> reconstruct_ch_path(int origin_id, int destination_id, int meeting_node,
-                                        const std::unordered_map<int, int>& forward_parent,
-                                        const std::unordered_map<int, int>& backward_parent) const;
+                                        const std::vector<int>& forward_parent,
+                                        const std::vector<int>& backward_parent) const;
     std::vector<int> unpack_shortcut(int origin_id, int destination_id) const;
 
 public:
+    double default_heuristic(int node_id) const;
+
     // Constructors
     CHGraph(const std::vector<std::unordered_map<int, double>>& graph,
-            std::function<double(CHGraph*, int)> heuristic_fn = nullptr);
+            int settled_limit = 50,
+            std::function<double(CHGraph*, int)> heuristic_fn = nullptr,
+            const std::optional<std::vector<std::unordered_map<int, double>>>& inverse_graph = std::nullopt);
 
     // Constructor for loading from saved state
     CHGraph(int nodes_count,
@@ -45,7 +62,8 @@ public:
             const std::vector<std::unordered_map<int, double>>& forward_graph,
             const std::vector<std::unordered_map<int, double>>& backward_graph,
             const std::unordered_map<std::pair<int, int>, int, pair_hash>& shortcuts,
-            const std::optional<std::vector<std::unordered_map<int, double>>>& original_graph);
+            const std::optional<std::vector<std::unordered_map<int, double>>>& original_graph,
+            int settled_limit = 50);
 
     // Graph modification
     int add_node(const std::unordered_map<int, double>& node_dict = {}, bool symmetric = false);
