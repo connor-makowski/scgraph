@@ -1,7 +1,8 @@
 import json
 import tempfile
 from pathlib import Path
-from scgraph import GeoGraph, LazyGeoGraph
+from scgraph import GeoGraph
+from scgraph.geograph import LazyGeoGraph
 from helpers import assert_result
 
 

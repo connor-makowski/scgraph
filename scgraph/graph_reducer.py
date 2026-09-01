@@ -42,9 +42,6 @@ def algorithm(
     return decorator
 
 
-use_reduced = algorithm
-
-
 class GraphReducer:
     def reduce(self, iterations: int = 1) -> None:
         """

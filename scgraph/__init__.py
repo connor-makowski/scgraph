@@ -745,11 +745,11 @@ from scgraph.graph_reducer import algorithm
 
 try:
     from scgraph.cpp import Graph, CHGraph
-
+    # Assign the python algorithm function to the cpp graph class
     Graph.algorithm = staticmethod(algorithm)
 except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph
 
-from scgraph.geograph import GeoGraph, LazyGeoGraph
+from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
