@@ -21,8 +21,7 @@ BENCHMARK_MD_PATH = Path(__file__).resolve().parent.parent / "benchmark.md"
 
 
 def bench_geograph_loading():
-    """Benchmark 1: Built-in GeoGraph Load Times & Network Specs."""
-    print("\n[1/5] Benchmarking Built-in GeoGraph Loading & Reduction Specs...")
+    """Benchmark 1 & 2: Built-in GeoGraph Load Times (Unreduced & Reduced)."""
     networks = [
         ("oak_ridge_maritime", "Oak Ridge Maritime"),
         ("north_america_rail", "North America Rail"),
@@ -32,57 +31,90 @@ def bench_geograph_loading():
     ]
 
     loaded_geos = {}
-    table_data = []
+    t1_data = []
+    t2_data = []
 
+    print("\n[1/6] Benchmarking Built-in GeoGraph Loading (Unreduced)...")
     for net_key, net_label in networks:
         t0 = time.perf_counter()
         geo = GeoGraph.load_geograph(net_key, reduce_iterations=0)
         dt_load_ms = (time.perf_counter() - t0) * 1000
 
-        # Measure 1-pass reduction
-        t_red = time.perf_counter()
-        geo_red = GeoGraph.load_geograph(net_key, reduce_iterations=1)
-        dt_red_ms = (time.perf_counter() - t_red) * 1000
-
         num_nodes = len(geo.graph)
         num_edges = sum(len(edges) for edges in geo.graph)
-        g_red_obj = geo_red.graph_object
-        reduced_chains = sum(
-            1 for c in getattr(g_red_obj, "reduced_node_chain_ids", []) if c
-        )
-        pct_reduced = (
-            (reduced_chains / num_nodes) * 100 if num_nodes > 0 else 0.0
-        )
 
-        loaded_geos[net_key] = {
-            "original": geo,
-            "reduced": geo_red,
-        }
-
-        table_data.append(
+        loaded_geos[net_key] = {"original": geo}
+        t1_data.append(
             {
                 "key": net_key,
                 "label": net_label,
                 "nodes": num_nodes,
                 "edges": num_edges,
                 "load_ms": dt_load_ms,
-                "reduced_nodes": num_nodes - reduced_chains,
-                "simplified_nodes": reduced_chains,
-                "reduction_pct": pct_reduced,
             }
         )
         print(
             f"  - {net_label:<30} {num_nodes:>7,} nodes | "
-            f"Load: {dt_load_ms:7.2f} ms | "
-            f"Simplified: {reduced_chains:>7,} ({pct_reduced:5.1f}%)"
+            f"{num_edges:>9,} edges | "
+            f"Load: {dt_load_ms:7.2f} ms"
         )
 
-    return loaded_geos, table_data
+    print(
+        "\n[2/6] Benchmarking Built-in GeoGraph Loading & Reduction (Reduced)..."
+    )
+    for idx, (net_key, net_label) in enumerate(networks):
+        num_nodes = t1_data[idx]["nodes"]
+        num_edges = t1_data[idx]["edges"]
+
+        t_red = time.perf_counter()
+        geo_red = GeoGraph.load_geograph(net_key, reduce_iterations=1)
+        dt_red_ms = (time.perf_counter() - t_red) * 1000
+
+        loaded_geos[net_key]["reduced"] = geo_red
+
+        g_red_obj = geo_red.graph_object
+        is_red = g_red_obj.is_reduced
+        rg = g_red_obj.reduced_graph
+
+        eff_nodes = sum(1 for r in is_red if not r)
+        eff_edges = sum(len(rg[i]) for i, r in enumerate(is_red) if not r)
+
+        node_red_pct = (
+            ((num_nodes - eff_nodes) / num_nodes) * 100
+            if num_nodes > 0
+            else 0.0
+        )
+        edge_red_pct = (
+            ((num_edges - eff_edges) / num_edges) * 100
+            if num_edges > 0
+            else 0.0
+        )
+
+        t2_data.append(
+            {
+                "key": net_key,
+                "label": net_label,
+                "effective_nodes": eff_nodes,
+                "effective_edges": eff_edges,
+                "load_ms": dt_red_ms,
+                "node_reduction_pct": node_red_pct,
+                "edge_reduction_pct": edge_red_pct,
+            }
+        )
+        print(
+            f"  - {net_label:<30} {eff_nodes:>7,} eff nodes | "
+            f"{eff_edges:>9,} eff edges | "
+            f"Load: {dt_red_ms:7.2f} ms | "
+            f"Node Red: {node_red_pct:5.1f}% | "
+            f"Edge Red: {edge_red_pct:5.1f}%"
+        )
+
+    return loaded_geos, t1_data, t2_data
 
 
 def bench_geograph_queries(loaded_geos):
-    """Benchmark 2: Shortest Path Algorithm Performance on GeoGraphs."""
-    print("\n[2/5] Benchmarking Shortest Path Query Algorithms on GeoGraphs...")
+    """Benchmark 3: Shortest Path Algorithm Performance on GeoGraphs."""
+    print("\n[3/6] Benchmarking Shortest Path Query Algorithms on GeoGraphs...")
     query_configs = [
         (
             "marnet",
@@ -197,8 +229,8 @@ def bench_geograph_queries(loaded_geos):
 
 
 def bench_gridgraphs():
-    """Benchmark 3: GridGraph Pathfinding & Obstacle Performance."""
-    print("\n[3/5] Benchmarking GridGraph Generation & Pathfinding...")
+    """Benchmark 4: GridGraph Pathfinding & Obstacle Performance."""
+    print("\n[4/6] Benchmarking GridGraph Generation & Pathfinding...")
     configs = [
         ("50x50 Open Grid", 50, [], None),
         ("100x100 Open Grid", 100, [], None),
@@ -275,8 +307,8 @@ def bench_gridgraphs():
 
 
 def bench_hierarchical_routing(loaded_geos):
-    """Benchmark 4: Hierarchical Preprocessing & Routing (CH & TNR)."""
-    print("\n[4/5] Benchmarking Hierarchical Routing (CH & TNR)...")
+    """Benchmark 5: Hierarchical Preprocessing & Routing (CH & TNR)."""
+    print("\n[5/6] Benchmarking Hierarchical Routing (CH & TNR)...")
     targets = [
         (
             "marnet",
@@ -408,8 +440,8 @@ def bench_hierarchical_routing(loaded_geos):
 
 
 def bench_specialized_features(loaded_geos):
-    """Benchmark 5: Specialized Features (Distance Matrix, Trees, BMSSP, Visvalingam)."""
-    print("\n[5/5] Benchmarking Specialized Features & Tree Operations...")
+    """Benchmark 6: Specialized Features (Distance Matrix, Trees, BMSSP, Visvalingam)."""
+    print("\n[6/6] Benchmarking Specialized Features & Tree Operations...")
     table_data = []
 
     # 1. Distance Matrix (100 points = 10,000 pairs on us_freeway)
@@ -519,7 +551,9 @@ def bench_specialized_features(loaded_geos):
     return table_data
 
 
-def generate_markdown(t1_data, t2_data, t3_data, t4_data, t5_data, total_sec):
+def generate_markdown(
+    t1_data, t2_data, t3_data, t4_data, t5_data, t6_data, total_sec
+):
     cpp_status = (
         "Enabled (`nanobind` C++20)" if has_cpp() else "Disabled (Pure Python)"
     )
@@ -533,26 +567,40 @@ def generate_markdown(t1_data, t2_data, t3_data, t4_data, t5_data, total_sec):
         f"- **C++ Acceleration**: {cpp_status}",
         f"- **Total Suite Execution Time**: {total_sec:.2f}s",
         "",
-        "## 1. Built-in GeoGraph Load Times & Reduction Specs",
+        "## 1. Built-in GeoGraph Load Times (Unreduced)",
         "",
-        "| Network | Nodes | Edges | Load Time (ms) | Reduced Nodes (1-Pass) | Chain Reduction |",
-        "|---|---|---|---|---|---|",
+        "| Network | Nodes | Edges | Load Time (ms) |",
+        "|---|---|---|---|",
     ]
     for r in t1_data:
         lines.append(
-            f"| `{r['key']}` | {r['nodes']:,} | {r['edges']:,} | {r['load_ms']:.2f} | {r['reduced_nodes']:,} | **{r['reduction_pct']:.1f}% simplified** |"
+            f"| `{r['key']}` | {r['nodes']:,} | {r['edges']:,} | {r['load_ms']:.2f} |"
         )
 
     lines.extend(
         [
             "",
-            "## 2. Shortest Path Query Performance on GeoGraphs",
+            "## 2. Built-in GeoGraph Load Times & Reduction Specs (Reduced)",
+            "",
+            "| Reduced Network | Effective Nodes | Effective Edges | Load Time (ms) | Node Reduction % | Edge Reduction % |",
+            "|---|---|---|---|---|---|",
+        ]
+    )
+    for r in t2_data:
+        lines.append(
+            f"| `{r['key']}` | {r['effective_nodes']:,} | {r['effective_edges']:,} | {r['load_ms']:.2f} | **{r['node_reduction_pct']:.1f}%** | **{r['edge_reduction_pct']:.1f}%** |"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 3. Shortest Path Query Performance on GeoGraphs",
             "",
             "| Graph | State | Nodes | Dijkstra (ms) | BiDijkstra (ms) | A* Haversine (ms) | Buckets (ms) |",
             "|---|---|---|---|---|---|---|",
         ]
     )
-    for r in t2_data:
+    for r in t3_data:
         dijk = r["timings"]["dijkstra"]
         bidir = r["timings"]["bidirectional_dijkstra"]
         astar = r["timings"]["a_star"]
@@ -564,13 +612,13 @@ def generate_markdown(t1_data, t2_data, t3_data, t4_data, t5_data, total_sec):
     lines.extend(
         [
             "",
-            "## 3. GridGraph Pathfinding & Obstacle Performance",
+            "## 4. GridGraph Pathfinding & Obstacle Performance",
             "",
             "| Configuration | Nodes | Creation (ms) | Dijkstra (ms) | A* Manhattan (ms) | Buckets (ms) |",
             "|---|---|---|---|---|---|",
         ]
     )
-    for r in t3_data:
+    for r in t4_data:
         lines.append(
             f"| {r['config']} | {r['nodes']:,} | {r['creation_ms']:.2f} | {r['dijkstra_ms']:.4f} | {r['a_star_ms']:.4f} | {r['buckets_ms']:.4f} |"
         )
@@ -578,13 +626,13 @@ def generate_markdown(t1_data, t2_data, t3_data, t4_data, t5_data, total_sec):
     lines.extend(
         [
             "",
-            "## 4. Hierarchical Preprocessing & Routing (CH & TNR)",
+            "## 5. Hierarchical Preprocessing & Routing (CH & TNR)",
             "",
             "| Graph | State | Baseline Dijkstra (ms) | CH Prep (ms) | CH Query (ms) | CH Speedup | TNR Prep (ms) | TNR Query (ms) | TNR Speedup |",
             "|---|---|---|---|---|---|---|---|---|",
         ]
     )
-    for r in t4_data:
+    for r in t5_data:
         lines.append(
             f"| `{r['graph']}` | {r['state']} | {r['dijkstra_ms']:.4f} | {r['ch_prep_ms']:.2f} | {r['ch_query_ms']:.4f} | **{r['ch_speedup']}** | {r['tnr_prep_ms']:.2f} | {r['tnr_query_ms']:.4f} | **{r['tnr_speedup']}** |"
         )
@@ -592,13 +640,13 @@ def generate_markdown(t1_data, t2_data, t3_data, t4_data, t5_data, total_sec):
     lines.extend(
         [
             "",
-            "## 5. Specialized Features & Operations",
+            "## 6. Specialized Features & Operations",
             "",
             "| Feature / Operation | Target / Input | Execution Time (ms) | Notes / Throughput |",
             "|---|---|---|---|",
         ]
     )
-    for r in t5_data:
+    for r in t6_data:
         lines.append(
             f"| {r['feature']} | {r['target']} | {r['time_ms']:.3f} | {r['notes']} |"
         )
@@ -617,16 +665,16 @@ def run():
 
     t_suite_start = time.perf_counter()
 
-    loaded_geos, t1_data = bench_geograph_loading()
-    t2_data = bench_geograph_queries(loaded_geos)
-    t3_data = bench_gridgraphs()
-    t4_data = bench_hierarchical_routing(loaded_geos)
-    t5_data = bench_specialized_features(loaded_geos)
+    loaded_geos, t1_data, t2_data = bench_geograph_loading()
+    t3_data = bench_geograph_queries(loaded_geos)
+    t4_data = bench_gridgraphs()
+    t5_data = bench_hierarchical_routing(loaded_geos)
+    t6_data = bench_specialized_features(loaded_geos)
 
     total_suite_sec = time.perf_counter() - t_suite_start
 
     md_content = generate_markdown(
-        t1_data, t2_data, t3_data, t4_data, t5_data, total_suite_sec
+        t1_data, t2_data, t3_data, t4_data, t5_data, t6_data, total_suite_sec
     )
     with open(BENCHMARK_MD_PATH, "w") as f:
         f.write(md_content)
