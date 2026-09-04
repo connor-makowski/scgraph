@@ -30,12 +30,13 @@ def _test_basic(tnr_class):
 
 
 def _test_geograph(graph_class):
-    geo = GeoGraph.load_geograph("marnet")
+    geo = GeoGraph.load_geograph("us_freeway")
     geo.graph_object = graph_class(graph=geo.graph)
     geo.graph_object.create_tnr_hierarchy(num_transit_nodes=100)
     geo.graph_object.create_contraction_hierarchy()
-    origin = {"latitude": 31.23, "longitude": 121.47}
-    destination = {"latitude": 32.08, "longitude": -81.09}
+    # Boston to NYC
+    origin = {"latitude": 42.36, "longitude": -71.06}
+    destination = {"latitude": 40.71, "longitude": -74.01}
     dijkstra = geo.get_shortest_path(
         origin, destination, algorithm_fn="dijkstra"
     )
