@@ -405,6 +405,8 @@ class GraphModifiers:
         assert destination_id < len(
             self.__graph__
         ), "Destination node id is not in the graph"
+        if origin_id == destination_id:
+            return
         self.__graph__[origin_id][destination_id] = distance
         if symmetric:
             self.__graph__[destination_id][origin_id] = distance

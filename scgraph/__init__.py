@@ -339,7 +339,7 @@ print(output['length'])
 
 Key features of graph reduction:
 - **Zero inaccuracy**: Paths and lengths are guaranteed to be mathematically identical to the unreduced graph.
-- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm. 
+- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm.
 - **Iterative reduction**: Pass `iterations=-1` to reduce iteratively until full convergence (simplifying sub-chains created after initial contraction).
 
 ## Lazy Loading
@@ -821,6 +821,7 @@ from scgraph.graph_reducer import algorithm
 
 try:
     from scgraph.cpp import Graph, CHGraph
+
     # Assign the python algorithm function to the cpp graph class
     Graph.algorithm = staticmethod(algorithm)
 except ImportError:
@@ -829,4 +830,3 @@ except ImportError:
 
 from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
-

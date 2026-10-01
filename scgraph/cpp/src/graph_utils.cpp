@@ -252,6 +252,9 @@ void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bo
     if (destination_id >= static_cast<int>(graph.size())) {
         throw std::out_of_range("Destination node id is not in the graph");
     }
+    if (origin_id == destination_id) {
+        return;
+    }
 
     bool found = false;
     for (auto& [dest, dist] : graph[origin_id]) {

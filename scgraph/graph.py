@@ -251,8 +251,6 @@ class GraphAlgorithms:
         best_dist = float("inf")
         meeting_node = -1
         inf = float("inf")
-        push = heappush
-        pop = heappop
 
         while forward_open and backward_open:
             top_fwd = forward_open[0][0]
@@ -261,7 +259,7 @@ class GraphAlgorithms:
                 break
 
             if top_fwd <= top_bwd:
-                cur_d, u = pop(forward_open)
+                cur_d, u = heappop(forward_open)
                 if cur_d > forward_dist[u]:
                     continue
                 for v, w in graph[u].items():
@@ -269,15 +267,16 @@ class GraphAlgorithms:
                     if new_d < forward_dist[v]:
                         forward_dist[v] = new_d
                         forward_pred[v] = u
-                        push(forward_open, (new_d, v))
                         b_d = backward_dist[v]
                         if b_d < inf:
                             total_d = new_d + b_d
                             if total_d < best_dist:
                                 best_dist = total_d
                                 meeting_node = v
+                        if new_d + top_bwd < best_dist:
+                            heappush(forward_open, (new_d, v))
             else:
-                cur_d, v = pop(backward_open)
+                cur_d, v = heappop(backward_open)
                 if cur_d > backward_dist[v]:
                     continue
                 for u, w in inverse_graph[v].items():
@@ -285,13 +284,14 @@ class GraphAlgorithms:
                     if new_d < backward_dist[u]:
                         backward_dist[u] = new_d
                         backward_pred[u] = v
-                        push(backward_open, (new_d, u))
                         f_d = forward_dist[u]
                         if f_d < inf:
                             total_d = f_d + new_d
                             if total_d < best_dist:
                                 best_dist = total_d
                                 meeting_node = u
+                        if new_d + top_fwd < best_dist:
+                            heappush(backward_open, (new_d, u))
 
         if meeting_node == -1 or best_dist == float("inf"):
             raise Exception(
@@ -429,6 +429,183 @@ class GraphAlgorithms:
             "length": distance_matrix[destination_id],
         }
 
+    @algorithm(bidirectional=True)
+    def bidirectional_buckets(
+        self,
+        origin_id: int | set[int],
+        destination_id: int,
+        max_edge_weight: int | float | None = None,
+    ) -> dict:
+        """
+        Function:
+
+        - Identify the shortest path between two nodes in a sparse network graph using a bidirectional Dijkstra algorithm with buckets (Dial's algorithm)
+        - This is particularly efficient for graphs where most edge weights are >= 1 and the maximum edge weight is small
+        - This implementation safely supports non-integer weights
+        - Return a dictionary of various path information including:
+            - `path`: A list of node ids in the order they are visited
+            - `length`: The length of the path from the origin node to the destination node
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int | set[int]
+            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node from the graph dictionary to end the shortest path at
+
+        Optional Arguments:
+
+        - `max_edge_weight`
+            - Type: int | float | None
+            - What: The maximum edge weight in the graph. If None, it will be calculated.
+            - Default: None
+        """
+        # Input Validation
+        self.__input_check__(origin_id=origin_id, destination_id=destination_id)
+        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+
+        if destination_id in origin_ids:
+            return {"path": [destination_id], "length": 0}
+
+        self.__ensure_inverse_graph__()
+
+        graph = self.graph
+        inverse_graph = self.inverse_graph
+        num_nodes = len(graph)
+
+        if max_edge_weight is None:
+            max_edge_weight = 0
+            for node_edges in graph:
+                if node_edges:
+                    m = max(node_edges.values())
+                    if m > max_edge_weight:
+                        max_edge_weight = m
+        max_edge_weight = math.ceil(max_edge_weight)
+
+        num_buckets = max_edge_weight + 1
+        forward_dist = [float("inf")] * num_nodes
+        forward_pred = [-1] * num_nodes
+        forward_buckets = [[] for _ in range(num_buckets)]
+
+        backward_dist = [float("inf")] * num_nodes
+        backward_pred = [-1] * num_nodes
+        backward_buckets = [[] for _ in range(num_buckets)]
+
+        for oid in origin_ids:
+            forward_dist[oid] = 0
+            forward_buckets[0].append(oid)
+
+        backward_dist[destination_id] = 0
+        backward_buckets[0].append(destination_id)
+
+        fwd_current_dist = 0
+        bwd_current_dist = 0
+        fwd_nodes_in_buckets = len(origin_ids)
+        bwd_nodes_in_buckets = 1
+
+        best_dist = float("inf")
+        meeting_node = -1
+        inf = float("inf")
+
+        while fwd_nodes_in_buckets > 0 and bwd_nodes_in_buckets > 0:
+            fwd_bucket_idx = fwd_current_dist % num_buckets
+            while not forward_buckets[fwd_bucket_idx]:
+                fwd_current_dist += 1
+                fwd_bucket_idx = fwd_current_dist % num_buckets
+                if fwd_nodes_in_buckets == 0:
+                    break
+                if fwd_current_dist + bwd_current_dist >= best_dist:
+                    break
+
+            bwd_bucket_idx = bwd_current_dist % num_buckets
+            while not backward_buckets[bwd_bucket_idx]:
+                bwd_current_dist += 1
+                bwd_bucket_idx = bwd_current_dist % num_buckets
+                if bwd_nodes_in_buckets == 0:
+                    break
+                if fwd_current_dist + bwd_current_dist >= best_dist:
+                    break
+
+            if (
+                fwd_nodes_in_buckets == 0
+                or bwd_nodes_in_buckets == 0
+                or fwd_current_dist + bwd_current_dist >= best_dist
+            ):
+                break
+
+            if fwd_current_dist <= bwd_current_dist:
+                u = forward_buckets[fwd_bucket_idx].pop()
+                fwd_nodes_in_buckets -= 1
+
+                if forward_dist[u] < fwd_current_dist:
+                    continue
+
+                cur_d = forward_dist[u]
+                for v, w in graph[u].items():
+                    new_d = cur_d + w
+                    if new_d < forward_dist[v]:
+                        forward_dist[v] = new_d
+                        forward_pred[v] = u
+                        b_d = backward_dist[v]
+                        if b_d < inf:
+                            total_d = new_d + b_d
+                            if total_d < best_dist:
+                                best_dist = total_d
+                                meeting_node = v
+                        if new_d + bwd_current_dist < best_dist:
+                            forward_buckets[int(new_d) % num_buckets].append(v)
+                            fwd_nodes_in_buckets += 1
+            else:
+                v = backward_buckets[bwd_bucket_idx].pop()
+                bwd_nodes_in_buckets -= 1
+
+                if backward_dist[v] < bwd_current_dist:
+                    continue
+
+                cur_d = backward_dist[v]
+                for u, w in inverse_graph[v].items():
+                    new_d = cur_d + w
+                    if new_d < backward_dist[u]:
+                        backward_dist[u] = new_d
+                        backward_pred[u] = v
+                        f_d = forward_dist[u]
+                        if f_d < inf:
+                            total_d = f_d + new_d
+                            if total_d < best_dist:
+                                best_dist = total_d
+                                meeting_node = u
+                        if new_d + fwd_current_dist < best_dist:
+                            backward_buckets[int(new_d) % num_buckets].append(u)
+                            bwd_nodes_in_buckets += 1
+
+        if meeting_node == -1 or best_dist == float("inf"):
+            raise Exception(
+                "Something went wrong, the origin and destination nodes are not connected."
+            )
+
+        forward_path = []
+        curr = meeting_node
+        while curr != -1:
+            forward_path.append(curr)
+            if curr in origin_ids:
+                break
+            curr = forward_pred[curr]
+        forward_path.reverse()
+
+        backward_path = []
+        curr = meeting_node
+        while curr != destination_id and curr != -1:
+            curr = backward_pred[curr]
+            if curr != -1:
+                backward_path.append(curr)
+
+        return {
+            "path": forward_path + backward_path,
+            "length": best_dist,
+        }
+
     @algorithm
     def dijkstra_negative(
         self,
@@ -492,7 +669,7 @@ class GraphAlgorithms:
                 cycle_iteration += 1
                 if cycle_iteration >= cycle_check_iterations:
                     cycle_iteration = 0  # Reset the cycle iteration counter
-                    self.__cycle_check__(
+                    self.__check_predecessor_loop__(
                         predecessor_matrix=predecessor, node_id=current_id
                     )
                 for connected_id, connected_distance in graph[

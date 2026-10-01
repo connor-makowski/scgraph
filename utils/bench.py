@@ -156,6 +156,7 @@ def bench_geograph_queries(loaded_geos):
         ("bidirectional_dijkstra", "BiDijkstra", {}),
         ("a_star", "A*", "haversine"),
         ("dijkstra_buckets", "Buckets", {}),
+        ("bidirectional_buckets", "BiBuckets", {}),
     ]
 
     table_data = []
@@ -217,12 +218,14 @@ def bench_geograph_queries(loaded_geos):
             bidir = row["timings"]["bidirectional_dijkstra"]
             astar = row["timings"]["a_star"]
             buck = row["timings"]["dijkstra_buckets"]
+            bibuck = row["timings"]["bidirectional_buckets"]
             print(
                 f"  - {display_name:<26} ({state_label:<8}) | "
                 f"Dijkstra: {dijk:7.3f} ms | "
                 f"BiDijkstra: {bidir:7.3f} ms | "
                 f"A*: {astar:7.3f} ms | "
-                f"Buckets: {buck:7.3f} ms"
+                f"Buckets: {buck:7.3f} ms | "
+                f"BiBuckets: {bibuck:7.3f} ms"
             )
 
     return table_data
@@ -286,6 +289,12 @@ def bench_gridgraphs():
         )
         dt_buck_ms = (time.perf_counter() - t_buck) * 1000
 
+        t_bibuck = time.perf_counter()
+        grid.get_shortest_path(
+            orig, dest, algorithm_fn="bidirectional_buckets", cache=False
+        )
+        dt_bibuck_ms = (time.perf_counter() - t_bibuck) * 1000
+
         row = {
             "config": name,
             "nodes": len(grid.graph),
@@ -293,6 +302,7 @@ def bench_gridgraphs():
             "dijkstra_ms": dt_dijk_ms,
             "a_star_ms": dt_astar_ms,
             "buckets_ms": dt_buck_ms,
+            "bibuckets_ms": dt_bibuck_ms,
         }
         table_data.append(row)
         print(
@@ -300,7 +310,8 @@ def bench_gridgraphs():
             f"Create: {dt_create_ms:6.2f} ms | "
             f"Dijkstra: {dt_dijk_ms:6.3f} ms | "
             f"A* Manhattan: {dt_astar_ms:6.3f} ms | "
-            f"Buckets: {dt_buck_ms:6.3f} ms"
+            f"Buckets: {dt_buck_ms:6.3f} ms | "
+            f"BiBuckets: {dt_bibuck_ms:6.3f} ms"
         )
 
     return table_data
@@ -596,8 +607,8 @@ def generate_markdown(
             "",
             "## 3. Shortest Path Query Performance on GeoGraphs",
             "",
-            "| Graph | State | Nodes | Dijkstra (ms) | BiDijkstra (ms) | A* Haversine (ms) | Buckets (ms) |",
-            "|---|---|---|---|---|---|---|",
+            "| Graph | State | Nodes | Dijkstra (ms) | BiDijkstra (ms) | A* Haversine (ms) | Buckets (ms) | BiBuckets (ms) |",
+            "|---|---|---|---|---|---|---|---|",
         ]
     )
     for r in t3_data:
@@ -605,8 +616,9 @@ def generate_markdown(
         bidir = r["timings"]["bidirectional_dijkstra"]
         astar = r["timings"]["a_star"]
         buck = r["timings"]["dijkstra_buckets"]
+        bibuck = r["timings"]["bidirectional_buckets"]
         lines.append(
-            f"| `{r['graph']}` | {r['state']} | {r['nodes']:,} | {dijk:.4f} | {bidir:.4f} | {astar:.4f} | {buck:.4f} |"
+            f"| `{r['graph']}` | {r['state']} | {r['nodes']:,} | {dijk:.4f} | {bidir:.4f} | {astar:.4f} | {buck:.4f} | {bibuck:.4f} |"
         )
 
     lines.extend(
@@ -614,13 +626,13 @@ def generate_markdown(
             "",
             "## 4. GridGraph Pathfinding & Obstacle Performance",
             "",
-            "| Configuration | Nodes | Creation (ms) | Dijkstra (ms) | A* Manhattan (ms) | Buckets (ms) |",
-            "|---|---|---|---|---|---|",
+            "| Configuration | Nodes | Creation (ms) | Dijkstra (ms) | A* Manhattan (ms) | Buckets (ms) | BiBuckets (ms) |",
+            "|---|---|---|---|---|---|---|",
         ]
     )
     for r in t4_data:
         lines.append(
-            f"| {r['config']} | {r['nodes']:,} | {r['creation_ms']:.2f} | {r['dijkstra_ms']:.4f} | {r['a_star_ms']:.4f} | {r['buckets_ms']:.4f} |"
+            f"| {r['config']} | {r['nodes']:,} | {r['creation_ms']:.2f} | {r['dijkstra_ms']:.4f} | {r['a_star_ms']:.4f} | {r['buckets_ms']:.4f} | {r['bibuckets_ms']:.4f} |"
         )
 
     lines.extend(

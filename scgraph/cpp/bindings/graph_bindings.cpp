@@ -258,6 +258,15 @@ NB_MODULE(cpp, m) {
            nb::arg("max_edge_weight") = nb::none(),
            "Find shortest path using Dijkstra with buckets")
 
+        .def("bidirectional_buckets", [](Graph& self,
+                                         const std::variant<int, std::set<int>>& origin_id,
+                                         int destination_id,
+                                         std::optional<double> max_edge_weight) -> nb::dict {
+            return graph_result_to_dict(self.bidirectional_buckets(origin_id, destination_id, max_edge_weight));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           nb::arg("max_edge_weight") = nb::none(),
+           "Find shortest path using bidirectional Dijkstra with buckets")
+
         .def("dijkstra_negative", [](Graph& self,
 
                                      const std::variant<int, std::set<int>>& origin_id,

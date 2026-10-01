@@ -307,13 +307,15 @@ GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>
                             state[v].forward_dist = new_d;
                             state[v].forward_pred = u;
                             state[v].forward_stamp = stamp;
-                            forward_open.emplace(new_d, v);
                             if (state[v].backward_stamp == stamp) {
                                 const double total_d = new_d + state[v].backward_dist;
                                 if (total_d < best_dist) {
                                     best_dist = total_d;
                                     meeting_node = v;
                                 }
+                            }
+                            if (new_d + top_bwd < best_dist) {
+                                forward_open.emplace(new_d, v);
                             }
                         }
                     }
@@ -329,13 +331,15 @@ GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>
                             state[u].backward_dist = new_d;
                             state[u].backward_pred = v;
                             state[u].backward_stamp = stamp;
-                            backward_open.emplace(new_d, u);
                             if (state[u].forward_stamp == stamp) {
                                 const double total_d = state[u].forward_dist + new_d;
                                 if (total_d < best_dist) {
                                     best_dist = total_d;
                                     meeting_node = u;
                                 }
+                            }
+                            if (new_d + top_fwd < best_dist) {
+                                backward_open.emplace(new_d, u);
                             }
                         }
                     }
@@ -462,6 +466,195 @@ GraphResult Graph::dijkstra_buckets(const std::variant<int, std::set<int>>& orig
     };
 
     return run_query_with_reducer(origin_id, destination_id, run_buckets);
+}
+
+GraphResult Graph::bidirectional_buckets(const std::variant<int, std::set<int>>& origin_id, int destination_id,
+                                         std::optional<double> max_edge_weight) {
+    input_check(origin_id, destination_id);
+    auto origin_ids = get_origin_ids(origin_id);
+
+    if (origin_ids.count(destination_id) > 0) {
+        return GraphResult{{destination_id}, 0.0};
+    }
+
+    auto run_bidir_buckets = [&origin_ids, max_edge_weight](
+        const std::vector<std::vector<std::pair<int, double>>>& fwd_g,
+        const std::vector<std::vector<std::pair<int, double>>>& inv_g,
+        int dest
+    ) -> GraphResult {
+        double max_weight = 0.0;
+        if (max_edge_weight.has_value()) {
+            max_weight = max_edge_weight.value();
+        } else {
+            for (const auto& node_edges : fwd_g) {
+                for (const auto& [connected_id, connected_distance] : node_edges) {
+                    if (connected_distance > max_weight) {
+                        max_weight = connected_distance;
+                    }
+                }
+            }
+        }
+        int num_buckets = static_cast<int>(std::ceil(max_weight)) + 1;
+
+        const size_t n = fwd_g.size();
+        if (tl_bidir_state.size() < n) {
+            tl_bidir_state.resize(n);
+        }
+
+        tl_bidir_stamp++;
+        if (tl_bidir_stamp == 0) {
+            std::fill(tl_bidir_state.begin(), tl_bidir_state.end(), BidirNodeState{});
+            tl_bidir_stamp = 1;
+        }
+        const uint32_t stamp = tl_bidir_stamp;
+        auto* state = tl_bidir_state.data();
+
+        std::vector<std::vector<int>> forward_buckets(num_buckets);
+        std::vector<std::vector<int>> backward_buckets(num_buckets);
+
+        for (int oid : origin_ids) {
+            state[oid].forward_dist = 0.0;
+            state[oid].forward_pred = -1;
+            state[oid].forward_stamp = stamp;
+            forward_buckets[0].push_back(oid);
+        }
+
+        state[dest].backward_dist = 0.0;
+        state[dest].backward_pred = -1;
+        state[dest].backward_stamp = stamp;
+        backward_buckets[0].push_back(dest);
+
+        int fwd_current_dist = 0;
+        int bwd_current_dist = 0;
+        size_t fwd_nodes_in_buckets = origin_ids.size();
+        size_t bwd_nodes_in_buckets = 1;
+
+        double best_dist = std::numeric_limits<double>::infinity();
+        int meeting_node = -1;
+
+        while (fwd_nodes_in_buckets > 0 && bwd_nodes_in_buckets > 0) {
+            int fwd_bucket_idx = fwd_current_dist % num_buckets;
+            while (forward_buckets[fwd_bucket_idx].empty()) {
+                fwd_current_dist++;
+                fwd_bucket_idx = fwd_current_dist % num_buckets;
+                if (fwd_nodes_in_buckets == 0) break;
+                if (static_cast<double>(fwd_current_dist + bwd_current_dist) >= best_dist) break;
+            }
+
+            int bwd_bucket_idx = bwd_current_dist % num_buckets;
+            while (backward_buckets[bwd_bucket_idx].empty()) {
+                bwd_current_dist++;
+                bwd_bucket_idx = bwd_current_dist % num_buckets;
+                if (bwd_nodes_in_buckets == 0) break;
+                if (static_cast<double>(fwd_current_dist + bwd_current_dist) >= best_dist) break;
+            }
+
+            if (fwd_nodes_in_buckets == 0 || bwd_nodes_in_buckets == 0 ||
+                static_cast<double>(fwd_current_dist + bwd_current_dist) >= best_dist) {
+                break;
+            }
+
+            if (fwd_current_dist <= bwd_current_dist) {
+                int u = forward_buckets[fwd_bucket_idx].back();
+                forward_buckets[fwd_bucket_idx].pop_back();
+                fwd_nodes_in_buckets--;
+
+                if (state[u].forward_stamp == stamp && state[u].forward_dist < static_cast<double>(fwd_current_dist)) {
+                    continue;
+                }
+
+                double cur_d = state[u].forward_dist;
+                for (const auto& [v, w] : fwd_g[u]) {
+                    double new_d = cur_d + w;
+                    if (state[v].forward_stamp != stamp || new_d < state[v].forward_dist) {
+                        state[v].forward_dist = new_d;
+                        state[v].forward_pred = u;
+                        state[v].forward_stamp = stamp;
+                        if (state[v].backward_stamp == stamp) {
+                            double total_d = new_d + state[v].backward_dist;
+                            if (total_d < best_dist) {
+                                best_dist = total_d;
+                                meeting_node = v;
+                            }
+                        }
+                        if (new_d + static_cast<double>(bwd_current_dist) < best_dist) {
+                            forward_buckets[static_cast<int>(new_d) % num_buckets].push_back(v);
+                            fwd_nodes_in_buckets++;
+                        }
+                    }
+                }
+            } else {
+                int v = backward_buckets[bwd_bucket_idx].back();
+                backward_buckets[bwd_bucket_idx].pop_back();
+                bwd_nodes_in_buckets--;
+
+                if (state[v].backward_stamp == stamp && state[v].backward_dist < static_cast<double>(bwd_current_dist)) {
+                    continue;
+                }
+
+                double cur_d = state[v].backward_dist;
+                for (const auto& [u, w] : inv_g[v]) {
+                    double new_d = cur_d + w;
+                    if (state[u].backward_stamp != stamp || new_d < state[u].backward_dist) {
+                        state[u].backward_dist = new_d;
+                        state[u].backward_pred = v;
+                        state[u].backward_stamp = stamp;
+                        if (state[u].forward_stamp == stamp) {
+                            double total_d = state[u].forward_dist + new_d;
+                            if (total_d < best_dist) {
+                                best_dist = total_d;
+                                meeting_node = u;
+                            }
+                        }
+                        if (new_d + static_cast<double>(fwd_current_dist) < best_dist) {
+                            backward_buckets[static_cast<int>(new_d) % num_buckets].push_back(u);
+                            bwd_nodes_in_buckets++;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
+            throw std::runtime_error("The origin and destination nodes are not connected.");
+        }
+
+        std::vector<int> forward_path;
+        int curr = meeting_node;
+        while (curr != -1) {
+            forward_path.push_back(curr);
+            if (origin_ids.count(curr) > 0) {
+                break;
+            }
+            curr = (state[curr].forward_stamp == stamp) ? state[curr].forward_pred : -1;
+        }
+        std::reverse(forward_path.begin(), forward_path.end());
+
+        std::vector<int> backward_path;
+        curr = meeting_node;
+        while (curr != dest && curr != -1) {
+            curr = (state[curr].backward_stamp == stamp) ? state[curr].backward_pred : -1;
+            if (curr != -1) {
+                backward_path.push_back(curr);
+            }
+        }
+
+        forward_path.insert(forward_path.end(), backward_path.begin(), backward_path.end());
+        return GraphResult{forward_path, best_dist};
+    };
+
+    if (has_reduced_graph) {
+        if (is_same_chain(origin_id, destination_id)) {
+            this->ensure_inverse_graph();
+            return run_bidir_buckets(this->graph, this->inverse_graph, destination_id);
+        }
+        GraphResult res = run_bidir_buckets(this->reduced_graph, this->reduced_inverse_graph, destination_id);
+        res.path = expand_path(res.path);
+        return res;
+    }
+
+    this->ensure_inverse_graph();
+    return run_bidir_buckets(this->graph, this->inverse_graph, destination_id);
 }
 
 GraphResult Graph::dijkstra_negative(const std::variant<int, std::set<int>>& origin_id, int destination_id,

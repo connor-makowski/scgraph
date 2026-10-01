@@ -316,6 +316,7 @@ class GraphReducer:
             or func.__name__
             in (
                 "bidirectional_dijkstra",
+                "bidirectional_buckets",
                 "contraction_hierarchy",
                 "tnr",
             )
