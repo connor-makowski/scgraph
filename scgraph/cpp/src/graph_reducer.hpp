@@ -21,6 +21,7 @@ protected:
     std::vector<std::unordered_map<int, std::vector<int>>> reduced_graph_connections;
     std::vector<std::vector<std::pair<int, double>>> reduced_inverse_graph;
     std::vector<std::unordered_map<int, std::vector<int>>> reduced_inverse_graph_connections;
+    double reduced_max_edge_weight = 0.0;
 
 public:
     virtual ~GraphReducer() = default;

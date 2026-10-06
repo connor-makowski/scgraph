@@ -14,6 +14,7 @@ void GraphReducer::reset_cache() {
     reduced_graph_connections.clear();
     reduced_inverse_graph.clear();
     reduced_inverse_graph_connections.clear();
+    reduced_max_edge_weight = 0.0;
 }
 
 void GraphReducer::reduce(int iterations) {
@@ -284,6 +285,13 @@ void GraphReducer::reduce(int iterations) {
     }
 
     has_reduced_graph = true;
+    for (const auto& edges : reduced_graph) {
+        for (const auto& [destination_id, weight] : edges) {
+            if (weight > reduced_max_edge_weight) {
+                reduced_max_edge_weight = weight;
+            }
+        }
+    }
 }
 
 std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) const {

@@ -3,11 +3,19 @@
 #include <algorithm>
 #include <string>
 
-std::set<int> get_origin_ids(const std::variant<int, std::set<int>>& origin_id) {
+std::vector<int> get_origin_ids(const std::variant<int, std::set<int>>& origin_id) {
     if (std::holds_alternative<int>(origin_id)) {
         return {std::get<int>(origin_id)};
     }
-    return std::get<std::set<int>>(origin_id);
+    const auto& origins = std::get<std::set<int>>(origin_id);
+    return std::vector<int>(origins.begin(), origins.end());
+}
+
+bool origin_id_contains(const std::variant<int, std::set<int>>& origin_id, int node_id) {
+    if (std::holds_alternative<int>(origin_id)) {
+        return std::get<int>(origin_id) == node_id;
+    }
+    return std::get<std::set<int>>(origin_id).count(node_id) != 0;
 }
 
 std::vector<std::vector<std::pair<int, double>>> GraphUtils::serialize_graph(
@@ -40,11 +48,16 @@ std::unordered_map<int, double> GraphUtils::get_adjacency_dict(int idx) const {
 }
 
 void GraphUtils::input_check(const std::variant<int, std::set<int>>& origin_id, int destination_id) const {
-    auto origin_ids = get_origin_ids(origin_id);
-
-    for (int oid : origin_ids) {
+    if (std::holds_alternative<int>(origin_id)) {
+        int oid = std::get<int>(origin_id);
         if (oid < 0 || oid >= static_cast<int>(graph.size())) {
             throw std::invalid_argument("Origin node (" + std::to_string(oid) + ") is not in this graph");
+        }
+    } else {
+        for (int oid : std::get<std::set<int>>(origin_id)) {
+            if (oid < 0 || oid >= static_cast<int>(graph.size())) {
+                throw std::invalid_argument("Origin node (" + std::to_string(oid) + ") is not in this graph");
+            }
         }
     }
 
@@ -104,18 +117,33 @@ void GraphUtils::ensure_inverse_graph() {
     inverse_graph_computed = true;
 }
 
+double GraphUtils::get_max_edge_weight() const {
+    if (!max_edge_weight_computed) {
+        for (const auto& edges : graph) {
+            for (const auto& [destination_id, weight] : edges) {
+                if (weight > max_edge_weight_cache) {
+                    max_edge_weight_cache = weight;
+                }
+            }
+        }
+        max_edge_weight_computed = true;
+    }
+    return max_edge_weight_cache;
+}
+
 bool GraphUtils::connected_check(int origin_id) {
     ensure_inverse_graph();
 
     // Forward traversal
     std::vector<int> visited(graph.size(), 0);
     std::vector<int> open_leaves = {origin_id};
+    visited[origin_id] = 1;
     while (!open_leaves.empty()) {
         int current_id = open_leaves.back();
         open_leaves.pop_back();
-        visited[current_id] = 1;
         for (const auto& [connected_id, _] : graph[current_id]) {
             if (visited[connected_id] == 0) {
+                visited[connected_id] = 1;
                 open_leaves.push_back(connected_id);
             }
         }
@@ -124,12 +152,13 @@ bool GraphUtils::connected_check(int origin_id) {
     // Inverse traversal
     std::vector<int> inverse_visited(inverse_graph.size(), 0);
     std::vector<int> inverse_open_leaves = {origin_id};
+    inverse_visited[origin_id] = 1;
     while (!inverse_open_leaves.empty()) {
         int current_id = inverse_open_leaves.back();
         inverse_open_leaves.pop_back();
-        inverse_visited[current_id] = 1;
         for (const auto& [connected_id, _] : inverse_graph[current_id]) {
             if (inverse_visited[connected_id] == 0) {
+                inverse_visited[connected_id] = 1;
                 inverse_open_leaves.push_back(connected_id);
             }
         }
@@ -185,6 +214,8 @@ void GraphUtils::validate(bool check_symmetry, bool check_connected) {
 void GraphUtils::reset_cache() {
     cache.clear();
     cache.resize(graph.size());
+    max_edge_weight_cache = 0.0;
+    max_edge_weight_computed = false;
 }
 
 const std::unordered_map<int, double> GraphUtils::get(int idx) const {

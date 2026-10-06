@@ -160,6 +160,18 @@ struct DijkstraNodeState {
 
 thread_local std::vector<DijkstraNodeState> tl_dijkstra_state;
 thread_local uint32_t tl_dijkstra_stamp = 0;
+thread_local std::vector<std::pair<double, int>> tl_dijkstra_open;
+
+struct AStarNodeState {
+    double dist;
+    int pred;
+    uint32_t stamp = 0;
+    uint32_t closed_stamp = 0;
+};
+
+thread_local std::vector<AStarNodeState> tl_astar_state;
+thread_local uint32_t tl_astar_stamp = 0;
+thread_local std::vector<std::pair<double, int>> tl_astar_open;
 
 struct BidirNodeState {
     double forward_dist;
@@ -172,6 +184,8 @@ struct BidirNodeState {
 
 thread_local std::vector<BidirNodeState> tl_bidir_state;
 thread_local uint32_t tl_bidir_stamp = 0;
+thread_local std::vector<std::pair<double, int>> tl_bidir_forward_open;
+thread_local std::vector<std::pair<double, int>> tl_bidir_backward_open;
 }
 
 // Shortest path algorithms
@@ -195,19 +209,22 @@ GraphResult Graph::dijkstra(const std::variant<int, std::set<int>>& origin_id, i
         const uint32_t stamp = tl_dijkstra_stamp;
         auto* state = tl_dijkstra_state.data();
 
-        using PQElement = std::pair<double, int>;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<>> open_leaves;
+        auto& open_leaves = tl_dijkstra_open;
+        open_leaves.clear();
+        const std::greater<> compare;
 
         for (int oid : origin_ids) {
             state[oid].dist = 0.0;
             state[oid].pred = -1;
             state[oid].stamp = stamp;
-            open_leaves.emplace(0.0, oid);
+            open_leaves.emplace_back(0.0, oid);
+            std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
         }
 
         while (!open_leaves.empty()) {
-            auto [current_distance, current_id] = open_leaves.top();
-            open_leaves.pop();
+            std::pop_heap(open_leaves.begin(), open_leaves.end(), compare);
+            auto [current_distance, current_id] = open_leaves.back();
+            open_leaves.pop_back();
 
             if (state[current_id].stamp == stamp && current_distance > state[current_id].dist) continue;
             if (current_id == dest) break;
@@ -217,7 +234,8 @@ GraphResult Graph::dijkstra(const std::variant<int, std::set<int>>& origin_id, i
                     state[connected_id].dist = possible_distance;
                     state[connected_id].pred = current_id;
                     state[connected_id].stamp = stamp;
-                    open_leaves.emplace(possible_distance, connected_id);
+                    open_leaves.emplace_back(possible_distance, connected_id);
+                    std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
                 }
             }
         }
@@ -248,11 +266,11 @@ GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>
     input_check(origin_id, destination_id);
     auto origin_ids = get_origin_ids(origin_id);
 
-    if (origin_ids.count(destination_id) > 0) {
+    if (origin_id_contains(origin_id, destination_id)) {
         return GraphResult{{destination_id}, 0.0};
     }
 
-    auto run_bidir = [&origin_ids](
+    auto run_bidir = [&origin_ids, &origin_id](
         const std::vector<std::vector<std::pair<int, double>>>& fwd_g,
         const std::vector<std::vector<std::pair<int, double>>>& inv_g,
         int dest
@@ -270,35 +288,40 @@ GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>
         const uint32_t stamp = tl_bidir_stamp;
         auto* state = tl_bidir_state.data();
 
-        using PQElement = std::pair<double, int>;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<>> forward_open;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<>> backward_open;
+        auto& forward_open = tl_bidir_forward_open;
+        auto& backward_open = tl_bidir_backward_open;
+        forward_open.clear();
+        backward_open.clear();
+        const std::greater<> compare;
 
         for (int oid : origin_ids) {
             state[oid].forward_dist = 0.0;
             state[oid].forward_pred = -1;
             state[oid].forward_stamp = stamp;
-            forward_open.emplace(0.0, oid);
+            forward_open.emplace_back(0.0, oid);
+            std::push_heap(forward_open.begin(), forward_open.end(), compare);
         }
 
         state[dest].backward_dist = 0.0;
         state[dest].backward_pred = -1;
         state[dest].backward_stamp = stamp;
-        backward_open.emplace(0.0, dest);
+        backward_open.emplace_back(0.0, dest);
+        std::push_heap(backward_open.begin(), backward_open.end(), compare);
 
         double best_dist = std::numeric_limits<double>::infinity();
         int meeting_node = -1;
 
         while (!forward_open.empty() && !backward_open.empty()) {
-            const double top_fwd = forward_open.top().first;
-            const double top_bwd = backward_open.top().first;
+            const double top_fwd = forward_open.front().first;
+            const double top_bwd = backward_open.front().first;
             if (top_fwd + top_bwd >= best_dist) {
                 break;
             }
 
             if (top_fwd <= top_bwd) {
-                auto [cur_d, u] = forward_open.top();
-                forward_open.pop();
+                std::pop_heap(forward_open.begin(), forward_open.end(), compare);
+                auto [cur_d, u] = forward_open.back();
+                forward_open.pop_back();
 
                 if (state[u].forward_stamp == stamp && cur_d == state[u].forward_dist) {
                     for (const auto& [v, w] : fwd_g[u]) {
@@ -315,14 +338,16 @@ GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>
                                 }
                             }
                             if (new_d + top_bwd < best_dist) {
-                                forward_open.emplace(new_d, v);
+                                forward_open.emplace_back(new_d, v);
+                                std::push_heap(forward_open.begin(), forward_open.end(), compare);
                             }
                         }
                     }
                 }
             } else {
-                auto [cur_d, v] = backward_open.top();
-                backward_open.pop();
+                std::pop_heap(backward_open.begin(), backward_open.end(), compare);
+                auto [cur_d, v] = backward_open.back();
+                backward_open.pop_back();
 
                 if (state[v].backward_stamp == stamp && cur_d == state[v].backward_dist) {
                     for (const auto& [u, w] : inv_g[v]) {
@@ -339,7 +364,8 @@ GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>
                                 }
                             }
                             if (new_d + top_fwd < best_dist) {
-                                backward_open.emplace(new_d, u);
+                                backward_open.emplace_back(new_d, u);
+                                std::push_heap(backward_open.begin(), backward_open.end(), compare);
                             }
                         }
                     }
@@ -355,7 +381,7 @@ GraphResult Graph::bidirectional_dijkstra(const std::variant<int, std::set<int>>
         int curr = meeting_node;
         while (curr != -1) {
             forward_path.push_back(curr);
-            if (origin_ids.count(curr) > 0) {
+            if (origin_id_contains(origin_id, curr)) {
                 break;
             }
             curr = (state[curr].forward_stamp == stamp) ? state[curr].forward_pred : -1;
@@ -401,14 +427,10 @@ GraphResult Graph::dijkstra_buckets(const std::variant<int, std::set<int>>& orig
         double max_weight = 0.0;
         if (max_edge_weight.has_value()) {
             max_weight = max_edge_weight.value();
+        } else if (&g == &this->reduced_graph) {
+            max_weight = this->reduced_max_edge_weight;
         } else {
-            for (const auto& node_edges : g) {
-                for (const auto& [connected_id, connected_distance] : node_edges) {
-                    if (connected_distance > max_weight) {
-                        max_weight = connected_distance;
-                    }
-                }
-            }
+            max_weight = this->get_max_edge_weight();
         }
         int num_buckets = static_cast<int>(std::ceil(max_weight)) + 1;
 
@@ -473,11 +495,11 @@ GraphResult Graph::bidirectional_buckets(const std::variant<int, std::set<int>>&
     input_check(origin_id, destination_id);
     auto origin_ids = get_origin_ids(origin_id);
 
-    if (origin_ids.count(destination_id) > 0) {
+    if (origin_id_contains(origin_id, destination_id)) {
         return GraphResult{{destination_id}, 0.0};
     }
 
-    auto run_bidir_buckets = [&origin_ids, max_edge_weight](
+    auto run_bidir_buckets = [this, &origin_id, &origin_ids, max_edge_weight](
         const std::vector<std::vector<std::pair<int, double>>>& fwd_g,
         const std::vector<std::vector<std::pair<int, double>>>& inv_g,
         int dest
@@ -485,14 +507,10 @@ GraphResult Graph::bidirectional_buckets(const std::variant<int, std::set<int>>&
         double max_weight = 0.0;
         if (max_edge_weight.has_value()) {
             max_weight = max_edge_weight.value();
+        } else if (&fwd_g == &this->reduced_graph) {
+            max_weight = this->reduced_max_edge_weight;
         } else {
-            for (const auto& node_edges : fwd_g) {
-                for (const auto& [connected_id, connected_distance] : node_edges) {
-                    if (connected_distance > max_weight) {
-                        max_weight = connected_distance;
-                    }
-                }
-            }
+            max_weight = this->get_max_edge_weight();
         }
         int num_buckets = static_cast<int>(std::ceil(max_weight)) + 1;
 
@@ -623,7 +641,7 @@ GraphResult Graph::bidirectional_buckets(const std::variant<int, std::set<int>>&
         int curr = meeting_node;
         while (curr != -1) {
             forward_path.push_back(curr);
-            if (origin_ids.count(curr) > 0) {
+            if (origin_id_contains(origin_id, curr)) {
                 break;
             }
             curr = (state[curr].forward_stamp == stamp) ? state[curr].forward_pred : -1;
@@ -730,42 +748,57 @@ GraphResult Graph::a_star(const std::variant<int, std::set<int>>& origin_id, int
         auto origin_ids = get_origin_ids(orig);
 
         size_t n = g.size();
-        std::vector<double> distance_matrix(n, std::numeric_limits<double>::infinity());
-        std::vector<int> visited(n, 0);
-        std::vector<int> predecessor(n, -1);
+        if (tl_astar_state.size() < n) {
+            tl_astar_state.resize(n);
+        }
 
-        using PQElement = std::pair<double, int>;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
+        tl_astar_stamp++;
+        if (tl_astar_stamp == 0) {
+            std::fill(tl_astar_state.begin(), tl_astar_state.end(), AStarNodeState{});
+            tl_astar_stamp = 1;
+        }
+        const uint32_t stamp = tl_astar_stamp;
+        auto* state = tl_astar_state.data();
+
+        auto& open_leaves = tl_astar_open;
+        open_leaves.clear();
+        const std::greater<> compare;
 
         for (int oid : origin_ids) {
-            distance_matrix[oid] = 0.0;
-            open_leaves.push({0.0, oid});
+            state[oid].dist = 0.0;
+            state[oid].pred = -1;
+            state[oid].stamp = stamp;
+            open_leaves.emplace_back(0.0, oid);
+            std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
         }
 
         int current_id = -1;
         while (!open_leaves.empty()) {
-            current_id = open_leaves.top().second;
-            open_leaves.pop();
+            std::pop_heap(open_leaves.begin(), open_leaves.end(), compare);
+            current_id = open_leaves.back().second;
+            open_leaves.pop_back();
 
             if (current_id == dest) {
                 break;
             }
 
-            if (visited[current_id] == 1) {
+            if (state[current_id].closed_stamp == stamp) {
                 continue;
             }
-            visited[current_id] = 1;
+            state[current_id].closed_stamp = stamp;
 
-            double current_distance = distance_matrix[current_id];
+            double current_distance = state[current_id].dist;
             for (const auto& [connected_id, connected_distance] : g[current_id]) {
                 double possible_distance = current_distance + connected_distance;
-                if (possible_distance < distance_matrix[connected_id]) {
-                    distance_matrix[connected_id] = possible_distance;
-                    predecessor[connected_id] = current_id;
-                    open_leaves.push({
+                if (state[connected_id].stamp != stamp || possible_distance < state[connected_id].dist) {
+                    state[connected_id].dist = possible_distance;
+                    state[connected_id].pred = current_id;
+                    state[connected_id].stamp = stamp;
+                    open_leaves.emplace_back(
                         possible_distance + heuristic_fn(connected_id, dest),
                         connected_id
-                    });
+                    );
+                    std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
                 }
             }
         }
@@ -774,10 +807,15 @@ GraphResult Graph::a_star(const std::variant<int, std::set<int>>& origin_id, int
             throw std::runtime_error("The origin and destination nodes are not connected.");
         }
 
-        return GraphResult{
-            reconstruct_path(dest, predecessor),
-            distance_matrix[dest]
-        };
+        std::vector<int> path;
+        int path_node = dest;
+        path.push_back(path_node);
+        while (state[path_node].pred != -1) {
+            path_node = state[path_node].pred;
+            path.push_back(path_node);
+        }
+        std::reverse(path.begin(), path.end());
+        return GraphResult{path, state[dest].dist};
     };
 
     return run_query_with_reducer(origin_id, destination_id, run_astar);
@@ -800,6 +838,7 @@ GraphResult Graph::bellman_ford(const std::variant<int, std::set<int>>& origin_i
         }
 
         for (size_t i = 0; i < n; ++i) {
+            bool updated = false;
             for (size_t current_id = 0; current_id < n; ++current_id) {
                 double current_distance = distance_matrix[current_id];
                 if (current_distance == std::numeric_limits<double>::infinity()) {
@@ -811,11 +850,15 @@ GraphResult Graph::bellman_ford(const std::variant<int, std::set<int>>& origin_i
                     if (possible_distance < distance_matrix[connected_id]) {
                         distance_matrix[connected_id] = possible_distance;
                         predecessor[connected_id] = current_id;
+                        updated = true;
                         if (i == n - 1) {
                             throw std::runtime_error("Graph contains a negative weight cycle");
                         }
                     }
                 }
+            }
+            if (!updated) {
+                break;
             }
         }
 

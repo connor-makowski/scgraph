@@ -26,7 +26,8 @@ struct pair_hash {
 };
 
 // Helper function to get set from variant
-std::set<int> get_origin_ids(const std::variant<int, std::set<int>>& origin_id);
+std::vector<int> get_origin_ids(const std::variant<int, std::set<int>>& origin_id);
+bool origin_id_contains(const std::variant<int, std::set<int>>& origin_id, int node_id);
 
 class GraphUtils {
 protected:
@@ -36,6 +37,8 @@ protected:
     std::vector<std::vector<std::pair<int, double>>> inverse_graph;
     bool inverse_graph_computed = false;
     std::vector<TreeData> cache;
+    mutable double max_edge_weight_cache = 0.0;
+    mutable bool max_edge_weight_computed = false;
 
     // Helper methods for conversion
     static std::vector<std::vector<std::pair<int, double>>> serialize_graph(
@@ -47,6 +50,7 @@ protected:
     std::vector<int> reconstruct_path(int destination_id, const std::vector<int>& predecessor) const;
     void cycle_check(const std::vector<int>& predecessor_matrix, int node_id) const;
     void ensure_inverse_graph();
+    double get_max_edge_weight() const;
     bool connected_check(int origin_id = 0);
     bool symmetric_check() const;
 

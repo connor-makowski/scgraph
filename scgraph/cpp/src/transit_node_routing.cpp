@@ -223,8 +223,10 @@ std::optional<GraphResult> TNRGraph::local_search(int origin_id, int destination
     if (!length_only) query_b_parents[destination_id] = -1;
     query_visited.push_back(destination_id);
 
-    using PQItem = std::pair<double, int>;
-    std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>> forward_open_leaves, backward_open_leaves;
+    auto& forward_open_leaves = query_forward_open;
+    auto& backward_open_leaves = query_backward_open;
+    forward_open_leaves.clear();
+    backward_open_leaves.clear();
     forward_open_leaves.push({0.0, origin_id});
     backward_open_leaves.push({0.0, destination_id});
 

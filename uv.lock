@@ -975,12 +975,9 @@ wheels = [
 
 [[package]]
 name = "type-enforced"
-version = "2.6.0"
+version = "2.12.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7e/ba/e68f33858c8c9bd19dd3843afb79f197f26db189e274911fb04aa1295fcf/type_enforced-2.6.0.tar.gz", hash = "sha256:6b423841fe93e4032b0c58b726cde146ad589c0f9279b65b7de52863e538565b", size = 34142, upload-time = "2026-06-04T14:22:57.425Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/0a/239c377caa1724b5bcf7b08c1995a3c612c8f938d0eb3ba00e57115d3ed7/type_enforced-2.6.0-py3-none-any.whl", hash = "sha256:80df9904e504192271636514f61338e62c2a5b20fbd91f8f7db3c8e9fa5fa7cc", size = 24400, upload-time = "2026-06-04T14:22:51.829Z" },
-]
+sdist = { url = "https://files.pythonhosted.org/packages/87/b0/1c60c21748a5d0f3f090bdf349ee95966db5092e331d9dc973e2db855819/type_enforced-2.12.3.tar.gz", hash = "sha256:e8356113b551565d7051cbabf0a4a8a4b4a8f37e8f8005ddd4c39afce43bfc5c", size = 64356, upload-time = "2026-09-30T20:07:32.763Z" }
 
 [[package]]
 name = "urllib3"
