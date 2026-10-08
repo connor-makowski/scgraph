@@ -84,7 +84,7 @@ from scgraph.grid import GridGraph
 """
 
 scgraph.write_text(
-    f'"""\n{readme}\n"""\n\n{init_setup}'
+    f'r"""\n{readme}\n"""\n\n{init_setup}'
 )
 
 # Update the versions manifest loaded dynamically by client-side JS

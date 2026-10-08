@@ -40,18 +40,33 @@ If you use SCGraph in your research, please cite:
 pip install scgraph
 ```
 
-A C++ extension is compiled automatically if a C++ compiler is available (~10x speedup on core algorithms). To verify: `from scgraph.utils import cpp_check; cpp_check()`.
+### Pure Python Installation (Skip Binary Builds)
 
-To skip the C++ build:
+If you want to install `scgraph` in pure Python mode without compiling or using binary extensions (or in environments without a C++ compiler):
 
-```bash
-# macOS / Linux / WSL2
-export SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON" && pip install scgraph
-# Windows (PowerShell)
-$env:SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"; pip install scgraph
-# Windows (CMD)
-set SKBUILD_CMAKE_ARGS=-DSKIP_CPP_BUILD=ON && pip install scgraph
-```
+- **Linux / macOS / WSL2**:
+  ```bash
+  SCGRAPH_NO_BUILD=1 pip install --no-binary scgraph scgraph
+  ```
+  Or with `uv`:
+  ```bash
+  SCGRAPH_NO_BUILD=1 uv pip install --no-binary scgraph scgraph
+  ```
+
+- **Windows (PowerShell)**:
+  ```powershell
+  $env:SCGRAPH_NO_BUILD="1"
+  pip install --no-binary scgraph scgraph
+  ```
+
+- **Windows (CMD)**:
+  ```cmd
+  set SCGRAPH_NO_BUILD=1
+  pip install --no-binary scgraph scgraph
+  ```
+
+#### Automatic Fallback
+When building from source, if a C++ compiler is not available or compilation fails, `scgraph` will automatically fall back to a pure Python implementation.
 
 ---
 
