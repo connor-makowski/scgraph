@@ -14,6 +14,7 @@ void GraphReducer::reset_cache() {
     reduced_graph_connections.clear();
     reduced_inverse_graph.clear();
     reduced_inverse_graph_connections.clear();
+    reduced_max_edge_weight = 0.0;
 }
 
 void GraphReducer::reduce(int iterations) {
@@ -284,6 +285,13 @@ void GraphReducer::reduce(int iterations) {
     }
 
     has_reduced_graph = true;
+    for (const auto& edges : reduced_graph) {
+        for (const auto& [destination_id, weight] : edges) {
+            if (weight > reduced_max_edge_weight) {
+                reduced_max_edge_weight = weight;
+            }
+        }
+    }
 }
 
 std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) const {
@@ -344,33 +352,28 @@ std::vector<std::unordered_map<int, double>> GraphReducer::get_reduced_inverse_g
     return result;
 }
 
-bool GraphReducer::is_same_chain(const std::variant<int, std::set<int>>& origin_id, std::optional<int> destination_id) const {
+bool GraphReducer::is_same_chain(const NodeIdVariant& origin_id, const std::optional<NodeIdVariant>& destination_id) const {
     if (!destination_id.has_value() || reduced_node_chain_ids.empty()) {
         return false;
     }
-    int dest = destination_id.value();
-    if (dest < 0 || dest >= (int)reduced_node_chain_ids.size()) {
-        return false;
-    }
-    int dest_chain = reduced_node_chain_ids[dest];
-    if (dest_chain == -1) {
-        return false;
-    }
-    if (std::holds_alternative<int>(origin_id)) {
-        int orig = std::get<int>(origin_id);
-        if (orig >= 0 && orig < (int)reduced_node_chain_ids.size()) {
-            return reduced_node_chain_ids[orig] == dest_chain;
+    auto orig_ids = get_node_ids(origin_id);
+    auto dest_ids = get_node_ids(destination_id.value());
+
+    for (int orig : orig_ids) {
+        if (orig < 0 || orig >= (int)reduced_node_chain_ids.size()) {
+            continue;
         }
-        return false;
-    } else {
-        const auto& origins = std::get<std::set<int>>(origin_id);
-        for (int orig : origins) {
-            if (orig >= 0 && orig < (int)reduced_node_chain_ids.size() && reduced_node_chain_ids[orig] == dest_chain) {
+        int orig_chain = reduced_node_chain_ids[orig];
+        if (orig_chain == -1) {
+            continue;
+        }
+        for (int dest : dest_ids) {
+            if (dest >= 0 && dest < (int)reduced_node_chain_ids.size() && reduced_node_chain_ids[dest] == orig_chain) {
                 return true;
             }
         }
-        return false;
     }
+    return false;
 }
 
 std::function<double(CHGraph*, int)> GraphReducer::wrap_heuristic(std::function<double(CHGraph*, int)> heuristic_fn) const {

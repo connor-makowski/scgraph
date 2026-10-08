@@ -7,13 +7,15 @@
 #include <optional>
 #include <functional>
 
+using NodeIdVariant = std::variant<int, std::unordered_map<int, double>, std::set<int>>;
+
 struct GraphResult {
     std::vector<int> path;
     double length;
 };
 
 struct TreeData {
-    std::variant<int, std::set<int>> origin_id;
+    NodeIdVariant origin_id;
     std::vector<int> predecessors;
     std::vector<double> distance_matrix;
 };
@@ -25,8 +27,12 @@ struct pair_hash {
     }
 };
 
-// Helper function to get set from variant
-std::set<int> get_origin_ids(const std::variant<int, std::set<int>>& origin_id);
+// Helper functions to get IDs and entries from variant
+std::vector<int> get_node_ids(const NodeIdVariant& node_id);
+std::vector<std::pair<int, double>> get_node_entries(const NodeIdVariant& node_id);
+bool node_variant_contains(const NodeIdVariant& node_variant, int node_id);
+std::vector<int> get_origin_ids(const NodeIdVariant& origin_id);
+bool origin_id_contains(const NodeIdVariant& origin_id, int node_id);
 
 class GraphUtils {
 protected:
@@ -36,6 +42,8 @@ protected:
     std::vector<std::vector<std::pair<int, double>>> inverse_graph;
     bool inverse_graph_computed = false;
     std::vector<TreeData> cache;
+    mutable double max_edge_weight_cache = 0.0;
+    mutable bool max_edge_weight_computed = false;
 
     // Helper methods for conversion
     static std::vector<std::vector<std::pair<int, double>>> serialize_graph(
@@ -43,10 +51,11 @@ protected:
     std::unordered_map<int, double> get_adjacency_dict(int idx) const;
 
     // Utility methods
-    void input_check(const std::variant<int, std::set<int>>& origin_id, int destination_id) const;
+    void input_check(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id) const;
     std::vector<int> reconstruct_path(int destination_id, const std::vector<int>& predecessor) const;
     void cycle_check(const std::vector<int>& predecessor_matrix, int node_id) const;
     void ensure_inverse_graph();
+    double get_max_edge_weight() const;
     bool connected_check(int origin_id = 0);
     bool symmetric_check() const;
 

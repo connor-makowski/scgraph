@@ -37,34 +37,28 @@ def _run_no_recompute_test(graph_class):
     destination = {"latitude": 1.1, "longitude": 1.1}
 
     # 1. Test Contraction Hierarchy (CH)
-    t0 = time.perf_counter()
-    geo.graph_object.create_contraction_hierarchy()
-    t_ch_preprocess = time.perf_counter() - t0
+    ch_before = geo.graph_object.create_contraction_hierarchy()
+    assert ch_before is not None
 
-    t1 = time.perf_counter()
     res_ch = geo.get_shortest_path(
         origin, destination, algorithm_fn="contraction_hierarchy"
     )
-    t_ch_query = time.perf_counter() - t1
-
-    # Query must be significantly faster than preprocessing (at least 5x faster)
-    assert (
-        t_ch_query < t_ch_preprocess / 5
-    ), f"CH query took {t_ch_query}s, preprocessing took {t_ch_preprocess}s (recomputed?)"
+    # Verify the cached CH hierarchy was reused and not recomputed
+    ch_after = geo.graph_object.create_contraction_hierarchy()
+    if hasattr(geo.graph_object, "__ch_graph__"):
+        assert geo.graph_object.__ch_graph__ is ch_before
+    assert ch_after is ch_before
 
     # 2. Test Transit Node Routing (TNR)
-    t2 = time.perf_counter()
-    geo.graph_object.create_tnr_hierarchy(num_transit_nodes=20)
-    t_tnr_preprocess = time.perf_counter() - t2
+    tnr_before = geo.graph_object.create_tnr_hierarchy(num_transit_nodes=20)
+    assert tnr_before is not None
 
-    t3 = time.perf_counter()
     res_tnr = geo.get_shortest_path(origin, destination, algorithm_fn="tnr")
-    t_tnr_query = time.perf_counter() - t3
-
-    # Query must be significantly faster than preprocessing (at least 5x faster)
-    assert (
-        t_tnr_query < t_tnr_preprocess / 5
-    ), f"TNR query took {t_tnr_query}s, preprocessing took {t_tnr_preprocess}s (recomputed?)"
+    # Verify the cached TNR hierarchy was reused and not recomputed
+    tnr_after = geo.graph_object.create_tnr_hierarchy(num_transit_nodes=20)
+    if hasattr(geo.graph_object, "__tnr_graph__"):
+        assert geo.graph_object.__tnr_graph__ is tnr_before
+    assert tnr_after is tnr_before
 
     # Verify correctness
     dijkstra = geo.get_shortest_path(

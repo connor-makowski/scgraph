@@ -128,7 +128,7 @@ def run_network_test(geograph_name):
 
 def test_reduction_consistency():
     run_network_test("us_freeway")
-    run_network_test("world_highways")
+    run_network_test("marnet")
 
 
 if __name__ == "__main__":

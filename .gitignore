@@ -10,3 +10,4 @@ ignore
 .venv
 .nox
 .pytest_cache
+dist/

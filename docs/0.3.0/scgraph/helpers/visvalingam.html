@@ -48,37 +48,60 @@
 <footer>
 <select id="version-selector">
     <option value="latest">latest</option>
-        <option value="3.5.0">3.5.0</option>
-        <option value="2.15.0">2.15.0</option>
-        <option value="1.5.2">1.5.2</option>
-        <option value="0.3.0">0.3.0</option>
 </select>
 <script>
     var split_at = "/docs/";
     if (window.location.href.includes('github.io')) {
         split_at = "github.io/scgraph/";
     }
+    var base_url = window.location.href.split(split_at)[0] + split_at;
+
     // Set the currently selected option to be equivalent to that of the url version.
     var version = 'latest';
     var version_path = window.location.href.split(split_at)[1];
-    if (version_path.includes('/')) {
-        if (version_path.split('/')[0].match(/^\d+\.\d+\.\d+$/)) {
-            version = version_path.split('/')[0];
+    if (version_path && version_path.includes('/')) {
+        var potential_version = version_path.split('/')[0];
+        if (potential_version.match(/^\d+\.\d+\.\d+$/)) {
+            version = potential_version;
         }
     }
-    document.getElementById('version-selector').value = version;
 
-    document.getElementById('version-selector').onchange = function() {
-        var version = this.value;
-        if (version == 'latest') {
-            var new_url = '';
-        } else {
-            var new_url = version + '/';
-        }
-        var url = window.location.href.split(split_at)[0] + split_at + new_url + 'index.html';
-        console.log(url);
-        window.location.href = url;
+    var selector = document.getElementById('version-selector');
+
+    function populateVersions(versions) {
+        selector.innerHTML = '<option value="latest">latest</option>';
+        versions.forEach(function(v) {
+            var opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = v;
+            selector.appendChild(opt);
+        });
+        selector.value = version;
     }
+
+    // Load versions.js via script tag (works seamlessly across file://, localhost, and GitHub Pages with zero CORS restrictions)
+    var script = document.createElement('script');
+    script.src = base_url + 'versions.js';
+    script.onload = function() {
+        if (window.DOC_VERSIONS) {
+            populateVersions(window.DOC_VERSIONS);
+        }
+    };
+    script.onerror = function() {
+        // Fallback to fetch versions.json if versions.js is not loaded
+        fetch(base_url + 'versions.json')
+            .then(function(r) { return r.json(); })
+            .then(populateVersions)
+            .catch(function(e) { console.warn('Could not load doc versions:', e); });
+    };
+    document.head.appendChild(script);
+
+    selector.onchange = function() {
+        var selectedVersion = this.value;
+        var new_url = (selectedVersion === 'latest') ? '' : selectedVersion + '/';
+        var url = window.location.href.split(split_at)[0] + split_at + new_url + 'index.html';
+        window.location.href = url;
+    };
 </script>
 </footer>
 
@@ -107,7 +130,7 @@
 </span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a>    <span class="n">p2</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a>    <span class="n">p3</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a><span class="sd">    Calculate the 2x the area of the triangle formed by points p1, p2, and p3.</span>
 </span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a><span class="sd">    This is done using the determinant method, which is efficient.</span>
 </span><span id="L-12"><a href="#L-12"><span class="linenos"> 12</span></a>
@@ -120,7 +143,7 @@
 </span><span id="L-19"><a href="#L-19"><span class="linenos"> 19</span></a><span class="sd">    Returns:</span>
 </span><span id="L-20"><a href="#L-20"><span class="linenos"> 20</span></a>
 </span><span id="L-21"><a href="#L-21"><span class="linenos"> 21</span></a><span class="sd">    - The 2x the area of the triangle formed by the three points.</span>
-</span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a><span class="sd">    """</span>
 </span><span id="L-23"><a href="#L-23"><span class="linenos"> 23</span></a>    <span class="k">return</span> <span class="nb">abs</span><span class="p">(</span>
 </span><span id="L-24"><a href="#L-24"><span class="linenos"> 24</span></a>        <span class="n">p1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">p2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p3</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 </span><span id="L-25"><a href="#L-25"><span class="linenos"> 25</span></a>        <span class="o">+</span> <span class="n">p2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">p3</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p1</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
@@ -133,7 +156,7 @@
 </span><span id="L-32"><a href="#L-32"><span class="linenos"> 32</span></a>    <span class="n">p2</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-33"><a href="#L-33"><span class="linenos"> 33</span></a>    <span class="n">p3</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-34"><a href="#L-34"><span class="linenos"> 34</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="L-35"><a href="#L-35"><span class="linenos"> 35</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-35"><a href="#L-35"><span class="linenos"> 35</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="L-36"><a href="#L-36"><span class="linenos"> 36</span></a><span class="sd">    Calculate the square of the length of the shortest edge of the angle formed by points p1, p2, and p3.</span>
 </span><span id="L-37"><a href="#L-37"><span class="linenos"> 37</span></a>
 </span><span id="L-38"><a href="#L-38"><span class="linenos"> 38</span></a><span class="sd">    The edge between p2 and p3 is not considered for the min edge as it is not part of the actual angle.</span>
@@ -147,7 +170,7 @@
 </span><span id="L-46"><a href="#L-46"><span class="linenos"> 46</span></a><span class="sd">    Returns:</span>
 </span><span id="L-47"><a href="#L-47"><span class="linenos"> 47</span></a>
 </span><span id="L-48"><a href="#L-48"><span class="linenos"> 48</span></a><span class="sd">    - The square of the length of the shortest edge of the angle formed by the three points with the vertex at p2.</span>
-</span><span id="L-49"><a href="#L-49"><span class="linenos"> 49</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-49"><a href="#L-49"><span class="linenos"> 49</span></a><span class="sd">    """</span>
 </span><span id="L-50"><a href="#L-50"><span class="linenos"> 50</span></a>    <span class="n">edge1_sq</span> <span class="o">=</span> <span class="p">(</span><span class="n">p1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">p2</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">p1</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p2</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span>
 </span><span id="L-51"><a href="#L-51"><span class="linenos"> 51</span></a>    <span class="n">edge2_sq</span> <span class="o">=</span> <span class="p">(</span><span class="n">p2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">p3</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">p2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p3</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span>
 </span><span id="L-52"><a href="#L-52"><span class="linenos"> 52</span></a>    <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">edge1_sq</span><span class="p">,</span> <span class="n">edge2_sq</span><span class="p">)</span>
@@ -158,7 +181,7 @@
 </span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a>    <span class="n">p2</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a>    <span class="n">p3</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a><span class="sd">    Calculate the 2x the area of the triangle formed by points p1, p2, and p3,</span>
 </span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a><span class="sd">    plus the square of the length of the shortest edge.</span>
 </span><span id="L-63"><a href="#L-63"><span class="linenos"> 63</span></a>
@@ -177,7 +200,7 @@
 </span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a><span class="sd">    Returns:</span>
 </span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a>
 </span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a><span class="sd">    - The 2x the area of the triangle formed by the three points plus the square of the length of the shortest edge of the angle.</span>
-</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a><span class="sd">    """</span>
 </span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a>    <span class="k">return</span> <span class="n">triangle_area</span><span class="p">(</span><span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">p3</span><span class="p">)</span> <span class="o">+</span> <span class="n">min_edge</span><span class="p">(</span><span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">p3</span><span class="p">)</span>
 </span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a>
 </span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a>
@@ -187,7 +210,7 @@
 </span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a>    <span class="n">min_points</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
 </span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a>    <span class="n">weight_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">triangle_area</span><span class="p">,</span>
 </span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]:</span>
-</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a><span class="sd">    Simplify a linestring using Visvalingam-Whyatt algorithm.</span>
 </span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a>
 </span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a><span class="sd">    Args:</span>
@@ -205,9 +228,9 @@
 </span><span id="L-104"><a href="#L-104"><span class="linenos">104</span></a><span class="sd">    Returns:</span>
 </span><span id="L-105"><a href="#L-105"><span class="linenos">105</span></a>
 </span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a><span class="sd">    - A simplified list of coordinates [x, y] of at least `min_points` long.</span>
-</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a><span class="sd">    """</span>
 </span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a>    <span class="n">pct_to_keep</span> <span class="o">=</span> <span class="n">pct_to_keep</span> <span class="o">/</span> <span class="mf">100.0</span>
-</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a>    <span class="k">assert</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pct_to_keep</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;pct_to_keep must be between 0 and 100&quot;</span>
+</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a>    <span class="k">assert</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pct_to_keep</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"pct_to_keep must be between 0 and 100"</span>
 </span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a>    <span class="n">nodes_to_keep</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
 </span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a>        <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">pct_to_keep</span><span class="p">))</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="n">min_points</span>
 </span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a>    <span class="p">)</span>
@@ -280,7 +303,7 @@
 </span><span id="triangle_area-7"><a href="#triangle_area-7"><span class="linenos"> 7</span></a>    <span class="n">p2</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="triangle_area-8"><a href="#triangle_area-8"><span class="linenos"> 8</span></a>    <span class="n">p3</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="triangle_area-9"><a href="#triangle_area-9"><span class="linenos"> 9</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="triangle_area-10"><a href="#triangle_area-10"><span class="linenos">10</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="triangle_area-10"><a href="#triangle_area-10"><span class="linenos">10</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="triangle_area-11"><a href="#triangle_area-11"><span class="linenos">11</span></a><span class="sd">    Calculate the 2x the area of the triangle formed by points p1, p2, and p3.</span>
 </span><span id="triangle_area-12"><a href="#triangle_area-12"><span class="linenos">12</span></a><span class="sd">    This is done using the determinant method, which is efficient.</span>
 </span><span id="triangle_area-13"><a href="#triangle_area-13"><span class="linenos">13</span></a>
@@ -293,7 +316,7 @@
 </span><span id="triangle_area-20"><a href="#triangle_area-20"><span class="linenos">20</span></a><span class="sd">    Returns:</span>
 </span><span id="triangle_area-21"><a href="#triangle_area-21"><span class="linenos">21</span></a>
 </span><span id="triangle_area-22"><a href="#triangle_area-22"><span class="linenos">22</span></a><span class="sd">    - The 2x the area of the triangle formed by the three points.</span>
-</span><span id="triangle_area-23"><a href="#triangle_area-23"><span class="linenos">23</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="triangle_area-23"><a href="#triangle_area-23"><span class="linenos">23</span></a><span class="sd">    """</span>
 </span><span id="triangle_area-24"><a href="#triangle_area-24"><span class="linenos">24</span></a>    <span class="k">return</span> <span class="nb">abs</span><span class="p">(</span>
 </span><span id="triangle_area-25"><a href="#triangle_area-25"><span class="linenos">25</span></a>        <span class="n">p1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">p2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p3</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 </span><span id="triangle_area-26"><a href="#triangle_area-26"><span class="linenos">26</span></a>        <span class="o">+</span> <span class="n">p2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">p3</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p1</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
@@ -338,7 +361,7 @@ This is done using the determinant method, which is efficient.</p>
 </span><span id="min_edge-33"><a href="#min_edge-33"><span class="linenos">33</span></a>    <span class="n">p2</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="min_edge-34"><a href="#min_edge-34"><span class="linenos">34</span></a>    <span class="n">p3</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="min_edge-35"><a href="#min_edge-35"><span class="linenos">35</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="min_edge-36"><a href="#min_edge-36"><span class="linenos">36</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="min_edge-36"><a href="#min_edge-36"><span class="linenos">36</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="min_edge-37"><a href="#min_edge-37"><span class="linenos">37</span></a><span class="sd">    Calculate the square of the length of the shortest edge of the angle formed by points p1, p2, and p3.</span>
 </span><span id="min_edge-38"><a href="#min_edge-38"><span class="linenos">38</span></a>
 </span><span id="min_edge-39"><a href="#min_edge-39"><span class="linenos">39</span></a><span class="sd">    The edge between p2 and p3 is not considered for the min edge as it is not part of the actual angle.</span>
@@ -352,7 +375,7 @@ This is done using the determinant method, which is efficient.</p>
 </span><span id="min_edge-47"><a href="#min_edge-47"><span class="linenos">47</span></a><span class="sd">    Returns:</span>
 </span><span id="min_edge-48"><a href="#min_edge-48"><span class="linenos">48</span></a>
 </span><span id="min_edge-49"><a href="#min_edge-49"><span class="linenos">49</span></a><span class="sd">    - The square of the length of the shortest edge of the angle formed by the three points with the vertex at p2.</span>
-</span><span id="min_edge-50"><a href="#min_edge-50"><span class="linenos">50</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="min_edge-50"><a href="#min_edge-50"><span class="linenos">50</span></a><span class="sd">    """</span>
 </span><span id="min_edge-51"><a href="#min_edge-51"><span class="linenos">51</span></a>    <span class="n">edge1_sq</span> <span class="o">=</span> <span class="p">(</span><span class="n">p1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">p2</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">p1</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p2</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span>
 </span><span id="min_edge-52"><a href="#min_edge-52"><span class="linenos">52</span></a>    <span class="n">edge2_sq</span> <span class="o">=</span> <span class="p">(</span><span class="n">p2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">p3</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">p2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">p3</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span>
 </span><span id="min_edge-53"><a href="#min_edge-53"><span class="linenos">53</span></a>    <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">edge1_sq</span><span class="p">,</span> <span class="n">edge2_sq</span><span class="p">)</span>
@@ -396,7 +419,7 @@ This is done using the determinant method, which is efficient.</p>
 </span><span id="triangle_area_plus_min_edge-58"><a href="#triangle_area_plus_min_edge-58"><span class="linenos">58</span></a>    <span class="n">p2</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="triangle_area_plus_min_edge-59"><a href="#triangle_area_plus_min_edge-59"><span class="linenos">59</span></a>    <span class="n">p3</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">],</span>
 </span><span id="triangle_area_plus_min_edge-60"><a href="#triangle_area_plus_min_edge-60"><span class="linenos">60</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">:</span>
-</span><span id="triangle_area_plus_min_edge-61"><a href="#triangle_area_plus_min_edge-61"><span class="linenos">61</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="triangle_area_plus_min_edge-61"><a href="#triangle_area_plus_min_edge-61"><span class="linenos">61</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="triangle_area_plus_min_edge-62"><a href="#triangle_area_plus_min_edge-62"><span class="linenos">62</span></a><span class="sd">    Calculate the 2x the area of the triangle formed by points p1, p2, and p3,</span>
 </span><span id="triangle_area_plus_min_edge-63"><a href="#triangle_area_plus_min_edge-63"><span class="linenos">63</span></a><span class="sd">    plus the square of the length of the shortest edge.</span>
 </span><span id="triangle_area_plus_min_edge-64"><a href="#triangle_area_plus_min_edge-64"><span class="linenos">64</span></a>
@@ -415,7 +438,7 @@ This is done using the determinant method, which is efficient.</p>
 </span><span id="triangle_area_plus_min_edge-77"><a href="#triangle_area_plus_min_edge-77"><span class="linenos">77</span></a><span class="sd">    Returns:</span>
 </span><span id="triangle_area_plus_min_edge-78"><a href="#triangle_area_plus_min_edge-78"><span class="linenos">78</span></a>
 </span><span id="triangle_area_plus_min_edge-79"><a href="#triangle_area_plus_min_edge-79"><span class="linenos">79</span></a><span class="sd">    - The 2x the area of the triangle formed by the three points plus the square of the length of the shortest edge of the angle.</span>
-</span><span id="triangle_area_plus_min_edge-80"><a href="#triangle_area_plus_min_edge-80"><span class="linenos">80</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="triangle_area_plus_min_edge-80"><a href="#triangle_area_plus_min_edge-80"><span class="linenos">80</span></a><span class="sd">    """</span>
 </span><span id="triangle_area_plus_min_edge-81"><a href="#triangle_area_plus_min_edge-81"><span class="linenos">81</span></a>    <span class="k">return</span> <span class="n">triangle_area</span><span class="p">(</span><span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">p3</span><span class="p">)</span> <span class="o">+</span> <span class="n">min_edge</span><span class="p">(</span><span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">,</span> <span class="n">p3</span><span class="p">)</span>
 </span></pre></div>
 
@@ -463,7 +486,7 @@ but would otherwise be simplified too aggressively.</p>
 </span><span id="visvalingam-87"><a href="#visvalingam-87"><span class="linenos"> 87</span></a>    <span class="n">min_points</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
 </span><span id="visvalingam-88"><a href="#visvalingam-88"><span class="linenos"> 88</span></a>    <span class="n">weight_fn</span><span class="p">:</span> <span class="nb">callable</span> <span class="o">=</span> <span class="n">triangle_area</span><span class="p">,</span>
 </span><span id="visvalingam-89"><a href="#visvalingam-89"><span class="linenos"> 89</span></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">float</span><span class="p">]]:</span>
-</span><span id="visvalingam-90"><a href="#visvalingam-90"><span class="linenos"> 90</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="visvalingam-90"><a href="#visvalingam-90"><span class="linenos"> 90</span></a><span class="w">    </span><span class="sd">"""</span>
 </span><span id="visvalingam-91"><a href="#visvalingam-91"><span class="linenos"> 91</span></a><span class="sd">    Simplify a linestring using Visvalingam-Whyatt algorithm.</span>
 </span><span id="visvalingam-92"><a href="#visvalingam-92"><span class="linenos"> 92</span></a>
 </span><span id="visvalingam-93"><a href="#visvalingam-93"><span class="linenos"> 93</span></a><span class="sd">    Args:</span>
@@ -481,9 +504,9 @@ but would otherwise be simplified too aggressively.</p>
 </span><span id="visvalingam-105"><a href="#visvalingam-105"><span class="linenos">105</span></a><span class="sd">    Returns:</span>
 </span><span id="visvalingam-106"><a href="#visvalingam-106"><span class="linenos">106</span></a>
 </span><span id="visvalingam-107"><a href="#visvalingam-107"><span class="linenos">107</span></a><span class="sd">    - A simplified list of coordinates [x, y] of at least `min_points` long.</span>
-</span><span id="visvalingam-108"><a href="#visvalingam-108"><span class="linenos">108</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="visvalingam-108"><a href="#visvalingam-108"><span class="linenos">108</span></a><span class="sd">    """</span>
 </span><span id="visvalingam-109"><a href="#visvalingam-109"><span class="linenos">109</span></a>    <span class="n">pct_to_keep</span> <span class="o">=</span> <span class="n">pct_to_keep</span> <span class="o">/</span> <span class="mf">100.0</span>
-</span><span id="visvalingam-110"><a href="#visvalingam-110"><span class="linenos">110</span></a>    <span class="k">assert</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pct_to_keep</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;pct_to_keep must be between 0 and 100&quot;</span>
+</span><span id="visvalingam-110"><a href="#visvalingam-110"><span class="linenos">110</span></a>    <span class="k">assert</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pct_to_keep</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"pct_to_keep must be between 0 and 100"</span>
 </span><span id="visvalingam-111"><a href="#visvalingam-111"><span class="linenos">111</span></a>    <span class="n">nodes_to_keep</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
 </span><span id="visvalingam-112"><a href="#visvalingam-112"><span class="linenos">112</span></a>        <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">pct_to_keep</span><span class="p">))</span> <span class="o">+</span> <span class="mi">2</span><span class="p">,</span> <span class="n">min_points</span>
 </span><span id="visvalingam-113"><a href="#visvalingam-113"><span class="linenos">113</span></a>    <span class="p">)</span>

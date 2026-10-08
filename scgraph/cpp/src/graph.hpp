@@ -19,8 +19,8 @@ private:
 
     template <typename QueryFn>
     GraphResult run_query_with_reducer(
-        const std::variant<int, std::set<int>>& origin_id,
-        int destination_id,
+        const NodeIdVariant& origin_id,
+        const NodeIdVariant& destination_id,
         QueryFn&& query_fn
     );
 
@@ -32,30 +32,32 @@ public:
     void reset_cache() override;
 
     // Tree algorithms
-    TreeData get_shortest_path_tree(const std::variant<int, std::set<int>>& origin_id);
-    GraphResult get_tree_path(int origin_id, int destination_id, const TreeData& tree_data, bool length_only = false);
+    TreeData get_shortest_path_tree(const NodeIdVariant& origin_id);
+    GraphResult get_tree_path(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, const TreeData& tree_data, bool length_only = false);
 
     // Shortest path algorithms
-    GraphResult dijkstra(const std::variant<int, std::set<int>>& origin_id, int destination_id);
-    GraphResult bidirectional_dijkstra(const std::variant<int, std::set<int>>& origin_id, int destination_id);
-    GraphResult dijkstra_buckets(const std::variant<int, std::set<int>>& origin_id, int destination_id,
+    GraphResult dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id);
+    GraphResult bidirectional_dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id);
+    GraphResult dijkstra_buckets(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
                                  std::optional<double> max_edge_weight = std::nullopt);
-    GraphResult dijkstra_negative(const std::variant<int, std::set<int>>& origin_id, int destination_id,
+    GraphResult bidirectional_buckets(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
+                                      std::optional<double> max_edge_weight = std::nullopt);
+    GraphResult dijkstra_negative(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
                                   std::optional<int> cycle_check_iterations = std::nullopt);
-    GraphResult a_star(const std::variant<int, std::set<int>>& origin_id, int destination_id,
+    GraphResult a_star(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
                       std::function<double(int, int)> heuristic_fn = nullptr);
-    GraphResult bellman_ford(const std::variant<int, std::set<int>>& origin_id, int destination_id);
-    GraphResult bmssp(const std::variant<int, std::set<int>>& origin_id, int destination_id);
+    GraphResult bellman_ford(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id);
+    GraphResult bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id);
 
     // Cached shortest path
-    GraphResult cached_shortest_path(int origin_id, int destination_id, bool length_only = false);
+    GraphResult cached_shortest_path(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false);
 
     // Contraction Hierarchies
     std::shared_ptr<CHGraph> create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50);
-    GraphResult contraction_hierarchy(int origin_id, int destination_id, bool length_only = false);
+    GraphResult contraction_hierarchy(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false);
 
     // Transit Node Routing
     std::shared_ptr<TNRGraph> create_tnr_hierarchy(int num_transit_nodes = 100, std::function<double(CHGraph*, int)> heuristic_fn = nullptr, int settled_limit = 50);
     void set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph);
-    GraphResult tnr(int origin_id, int destination_id, bool length_only = false);
+    GraphResult tnr(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false);
 };

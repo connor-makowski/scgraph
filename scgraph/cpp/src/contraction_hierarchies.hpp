@@ -6,6 +6,7 @@
 #include <functional>
 #include <optional>
 #include <tuple>
+#include <queue>
 #include "graph_utils.hpp"
 
 class CHGraph {
@@ -36,6 +37,15 @@ protected:
     mutable std::vector<int> query_f_parents;
     mutable std::vector<int> query_b_parents;
     mutable std::vector<int> query_visited;
+    struct ReusablePriorityQueue : std::priority_queue<
+        std::pair<double, int>,
+        std::vector<std::pair<double, int>>,
+        std::greater<std::pair<double, int>>
+    > {
+        void clear() { this->c.clear(); }
+    };
+    mutable ReusablePriorityQueue query_forward_open;
+    mutable ReusablePriorityQueue query_backward_open;
 
     // Helper methods
     double get_rank(int node_id) const;
@@ -69,9 +79,9 @@ public:
     int add_node(const std::unordered_map<int, double>& node_dict = {}, bool symmetric = false);
 
     // Search
-    GraphResult search(int origin_id, int destination_id) const;
-    GraphResult get_shortest_path(int origin_id, int destination_id) const {
-        return search(origin_id, destination_id);
+    GraphResult search(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false) const;
+    GraphResult get_shortest_path(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false) const {
+        return search(origin_id, destination_id, length_only);
     }
 
     // Accessors for serialization

@@ -172,9 +172,10 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 | `algorithm_fn` | Description | Time Complexity |
 |---|---|---|
-| `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights (default) | O((n+m) log n) |
+| `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights | O((n+m) log n) |
 | `'bidirectional_dijkstra'` | Bidirectional Dijkstra; simultaneous search from origin and destination | O((n+m) log n) |
 | `'dijkstra_buckets'` | Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights (ideally >= 1) | O(n+m+W) |
+| `'bidirectional_buckets'` | Bidirectional Dijkstra (default for geographs) with buckets (Dial's algorithm); efficient for non-negative weights | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
 | `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
 | `'bellman_ford'` | Bellman-Ford; supports negative weights, slower than Dijkstra | O(n·m) |
@@ -187,7 +188,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 | Scenario | Recommended Approach |
 |---|---|
-| Single query | `dijkstra` (default) or `bidirectional_dijkstra` |
+| Single query | `dijkstra`, `bidirectional_buckets` or `bidirectional_dijkstra` |
 | Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for 2–4x faster queries |
 | Weights generally >= 1 | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
@@ -382,15 +383,10 @@ output = marnet_geograph.get_shortest_path(
 
 | `node_addition_type` | Description |
 |---|---|
-| `'kdclosest'` | Closest node via KD-tree (default, fastest) |
-| `'closest'` | Closest node via brute force |
-| `'quadrant'` | Closest node in each of 4 quadrants |
+| `'closest'` / `'kdclosest'` | Closest node via GeoKDTree (default) |
+| `'quadrant'` / `'kdquadrant'` | Closest node in each quadrant via GeoKDTree |
 | `'all'` | All nodes within the bound |
 
-| `node_addition_math` | Description |
-|---|---|
-| `'euclidean'` | Fast planar distance (default) |
-| `'haversine'` | Accurate great-circle distance |
 
 ---
 

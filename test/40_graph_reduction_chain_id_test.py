@@ -45,8 +45,9 @@ def _build_test_graphs(graph_cls):
         108: {11: 1.0, 126: 1.0, 127: 1.0},
         109: {11: 1.0, 128: 1.0, 129: 1.0},
     }
-    for i in range(110, 130):
-        data[i] = {i - 10: 1.0}
+    for i in range(110, 130, 2):
+        data[i] = {i - 10: 1.0, i + 1: 1.0}
+        data[i + 1] = {i - 10: 1.0, i: 1.0}
 
     # Convert to contiguous list
     max_node = max(data.keys())

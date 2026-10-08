@@ -21,6 +21,7 @@ protected:
     std::vector<std::unordered_map<int, std::vector<int>>> reduced_graph_connections;
     std::vector<std::vector<std::pair<int, double>>> reduced_inverse_graph;
     std::vector<std::unordered_map<int, std::vector<int>>> reduced_inverse_graph_connections;
+    double reduced_max_edge_weight = 0.0;
 
 public:
     virtual ~GraphReducer() = default;
@@ -39,7 +40,7 @@ public:
     std::vector<std::unordered_map<int, double>> get_reduced_inverse_graph() const;
 
     // is_same_chain helper
-    bool is_same_chain(const std::variant<int, std::set<int>>& origin_id, std::optional<int> destination_id) const;
+    bool is_same_chain(const NodeIdVariant& origin_id, const std::optional<NodeIdVariant>& destination_id = std::nullopt) const;
 
     // CH / TNR reduction helpers
     std::function<double(CHGraph*, int)> wrap_heuristic(std::function<double(CHGraph*, int)> heuristic_fn = nullptr) const;
