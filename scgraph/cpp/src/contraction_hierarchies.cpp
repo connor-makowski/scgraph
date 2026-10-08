@@ -275,12 +275,14 @@ int CHGraph::add_node(const std::unordered_map<int, double>& node_dict, bool sym
     return new_node_id;
 }
 
-GraphResult CHGraph::search(int origin_id, int destination_id) const {
-    if (origin_id == destination_id) {
-        return {{origin_id}, 0.0};
-    }
+GraphResult CHGraph::search(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) const {
+    auto origin_entries = get_node_entries(origin_id);
+    auto dest_entries = get_node_entries(destination_id);
 
-    int max_node_id = std::max(origin_id, destination_id);
+    int max_node_id = 0;
+    for (const auto& [oid, _] : origin_entries) max_node_id = std::max(max_node_id, oid);
+    for (const auto& [did, _] : dest_entries) max_node_id = std::max(max_node_id, did);
+
     int current_sz = static_cast<int>(query_f_distances.size());
     if (max_node_id >= current_sz) {
         int new_sz = max_node_id + 1;
@@ -290,23 +292,46 @@ GraphResult CHGraph::search(int origin_id, int destination_id) const {
         query_b_parents.resize(new_sz, -1);
     }
 
-    query_f_distances[origin_id] = 0.0;
-    query_f_parents[origin_id] = -1;
-    query_visited.push_back(origin_id);
-
-    query_b_distances[destination_id] = 0.0;
-    query_b_parents[destination_id] = -1;
-    query_visited.push_back(destination_id);
-
     auto& forward_open_leaves = query_forward_open;
     auto& backward_open_leaves = query_backward_open;
     forward_open_leaves.clear();
     backward_open_leaves.clear();
-    forward_open_leaves.push({0.0, origin_id});
-    backward_open_leaves.push({0.0, destination_id});
+
+    for (const auto& [oid, odist] : origin_entries) {
+        if (odist < query_f_distances[oid]) {
+            if (query_f_distances[oid] == std::numeric_limits<double>::infinity() &&
+                query_b_distances[oid] == std::numeric_limits<double>::infinity()) {
+                query_visited.push_back(oid);
+            }
+            query_f_distances[oid] = odist;
+            query_f_parents[oid] = -1;
+            forward_open_leaves.push({odist, oid});
+        }
+    }
+
+    for (const auto& [did, ddist] : dest_entries) {
+        if (ddist < query_b_distances[did]) {
+            if (query_f_distances[did] == std::numeric_limits<double>::infinity() &&
+                query_b_distances[did] == std::numeric_limits<double>::infinity()) {
+                query_visited.push_back(did);
+            }
+            query_b_distances[did] = ddist;
+            query_b_parents[did] = -1;
+            backward_open_leaves.push({ddist, did});
+        }
+    }
 
     double best_dist = std::numeric_limits<double>::infinity();
     int meeting_node = -1;
+
+    for (const auto& [oid, odist] : origin_entries) {
+        for (const auto& [did, ddist] : dest_entries) {
+            if (oid == did && odist + ddist < best_dist) {
+                best_dist = odist + ddist;
+                meeting_node = oid;
+            }
+        }
+    }
 
     while (!forward_open_leaves.empty() || !backward_open_leaves.empty()) {
         if (!forward_open_leaves.empty()) {
@@ -439,7 +464,10 @@ GraphResult CHGraph::search(int origin_id, int destination_id) const {
         throw std::runtime_error("No path found between origin and destination");
     }
 
-    std::vector<int> path = reconstruct_ch_path(origin_id, destination_id, meeting_node, query_f_parents, query_b_parents);
+    std::vector<int> path;
+    if (!length_only) {
+        path = reconstruct_ch_path(0, 0, meeting_node, query_f_parents, query_b_parents);
+    }
 
     for (int v : query_visited) {
         query_f_distances[v] = std::numeric_limits<double>::infinity();

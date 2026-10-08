@@ -21,7 +21,7 @@ private:
 
     // Helper methods
     void initialize_fast_lookup();
-    std::optional<GraphResult> local_search(int origin_id, int destination_id, double upper_bound, bool length_only) const;
+    std::optional<GraphResult> local_search(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, double upper_bound, bool length_only) const;
 
 public:
     // Constructor for preprocessing
@@ -45,7 +45,10 @@ public:
              int settled_limit = 50);
 
     // Search
-    GraphResult search(int origin_id, int destination_id, bool length_only = false) const;
+    GraphResult search(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false) const;
+    GraphResult get_shortest_path(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false) const {
+        return search(origin_id, destination_id, length_only);
+    }
     
     // Accessors for serialization (optional, but good to have)
     const std::set<int>& get_transit_nodes() const { return transit_nodes; }

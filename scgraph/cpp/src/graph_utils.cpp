@@ -3,19 +3,61 @@
 #include <algorithm>
 #include <string>
 
-std::vector<int> get_origin_ids(const std::variant<int, std::set<int>>& origin_id) {
-    if (std::holds_alternative<int>(origin_id)) {
-        return {std::get<int>(origin_id)};
+std::vector<int> get_node_ids(const NodeIdVariant& node_id) {
+    if (std::holds_alternative<int>(node_id)) {
+        return {std::get<int>(node_id)};
+    } else if (std::holds_alternative<std::set<int>>(node_id)) {
+        const auto& origins = std::get<std::set<int>>(node_id);
+        return std::vector<int>(origins.begin(), origins.end());
+    } else {
+        const auto& node_map = std::get<std::unordered_map<int, double>>(node_id);
+        std::vector<int> res;
+        res.reserve(node_map.size());
+        for (const auto& [k, v] : node_map) {
+            res.push_back(k);
+        }
+        return res;
     }
-    const auto& origins = std::get<std::set<int>>(origin_id);
-    return std::vector<int>(origins.begin(), origins.end());
 }
 
-bool origin_id_contains(const std::variant<int, std::set<int>>& origin_id, int node_id) {
-    if (std::holds_alternative<int>(origin_id)) {
-        return std::get<int>(origin_id) == node_id;
+std::vector<std::pair<int, double>> get_node_entries(const NodeIdVariant& node_id) {
+    if (std::holds_alternative<int>(node_id)) {
+        return {{std::get<int>(node_id), 0.0}};
+    } else if (std::holds_alternative<std::set<int>>(node_id)) {
+        const auto& origins = std::get<std::set<int>>(node_id);
+        std::vector<std::pair<int, double>> res;
+        res.reserve(origins.size());
+        for (int k : origins) {
+            res.emplace_back(k, 0.0);
+        }
+        return res;
+    } else {
+        const auto& node_map = std::get<std::unordered_map<int, double>>(node_id);
+        std::vector<std::pair<int, double>> res;
+        res.reserve(node_map.size());
+        for (const auto& [k, v] : node_map) {
+            res.emplace_back(k, v);
+        }
+        return res;
     }
-    return std::get<std::set<int>>(origin_id).count(node_id) != 0;
+}
+
+bool node_variant_contains(const NodeIdVariant& node_variant, int node_id) {
+    if (std::holds_alternative<int>(node_variant)) {
+        return std::get<int>(node_variant) == node_id;
+    } else if (std::holds_alternative<std::set<int>>(node_variant)) {
+        return std::get<std::set<int>>(node_variant).count(node_id) != 0;
+    } else {
+        return std::get<std::unordered_map<int, double>>(node_variant).count(node_id) != 0;
+    }
+}
+
+std::vector<int> get_origin_ids(const NodeIdVariant& origin_id) {
+    return get_node_ids(origin_id);
+}
+
+bool origin_id_contains(const NodeIdVariant& origin_id, int node_id) {
+    return node_variant_contains(origin_id, node_id);
 }
 
 std::vector<std::vector<std::pair<int, double>>> GraphUtils::serialize_graph(
@@ -47,23 +89,23 @@ std::unordered_map<int, double> GraphUtils::get_adjacency_dict(int idx) const {
     return result;
 }
 
-void GraphUtils::input_check(const std::variant<int, std::set<int>>& origin_id, int destination_id) const {
-    if (std::holds_alternative<int>(origin_id)) {
-        int oid = std::get<int>(origin_id);
-        if (oid < 0 || oid >= static_cast<int>(graph.size())) {
-            throw std::invalid_argument("Origin node (" + std::to_string(oid) + ") is not in this graph");
+void GraphUtils::input_check(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id) const {
+    auto validate_variant = [this](const NodeIdVariant& v, const std::string& name) {
+        auto entries = get_node_entries(v);
+        if (entries.empty()) {
+            throw std::invalid_argument(name + " must not be empty");
         }
-    } else {
-        for (int oid : std::get<std::set<int>>(origin_id)) {
-            if (oid < 0 || oid >= static_cast<int>(graph.size())) {
-                throw std::invalid_argument("Origin node (" + std::to_string(oid) + ") is not in this graph");
+        for (const auto& [node, dist] : entries) {
+            if (node < 0 || node >= static_cast<int>(graph.size())) {
+                throw std::invalid_argument(name + " node (" + std::to_string(node) + ") is not in this graph");
+            }
+            if (dist < 0.0) {
+                throw std::invalid_argument(name + " distance for node (" + std::to_string(node) + ") must be a non-negative number");
             }
         }
-    }
-
-    if (destination_id < 0 || destination_id >= static_cast<int>(graph.size())) {
-        throw std::invalid_argument("Destination node (" + std::to_string(destination_id) + ") is not in this graph");
-    }
+    };
+    validate_variant(origin_id, "Origin");
+    validate_variant(destination_id, "Destination");
 }
 
 std::vector<int> GraphUtils::reconstruct_path(int destination_id, const std::vector<int>& predecessor) const {

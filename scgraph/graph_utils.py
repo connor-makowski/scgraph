@@ -1,4 +1,19 @@
 from typing import Literal
+import math
+
+
+def normalize_node_input(
+    node_input: int | set[int] | dict[int, int | float],
+) -> dict[int, float]:
+    if isinstance(node_input, int):
+        return {node_input: 0.0}
+    elif isinstance(node_input, set):
+        return {oid: 0.0 for oid in node_input}
+    elif isinstance(node_input, dict):
+        return {oid: float(dist) for oid, dist in node_input.items()}
+    raise ValueError(
+        "node_input must be an int, set of ints, or dict mapping int to float"
+    )
 
 
 class GraphUtils:
@@ -32,8 +47,8 @@ class GraphUtils:
 
     def __input_check__(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
     ) -> None:
         """
         Function:
@@ -44,32 +59,49 @@ class GraphUtils:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
         - None
         """
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
-        assert isinstance(
-            origin_ids, set
-        ), "origin_id must be an integer or a set of integers"
+        num_nodes = len(self.graph)
 
-        for oid in origin_ids:
-            if not isinstance(oid, int) and oid < len(self.graph) and oid >= 0:
-                raise Exception(f"Origin node ({oid}) is not in this graph")
-        if (
-            not isinstance(destination_id, int)
-            and origin_id < len(self.graph)
-            and origin_id >= 0
-        ):
-            raise Exception(
-                f"Destination node ({destination_id}) is not in this graph"
-            )
+        def _validate_node_arg(arg, name):
+            if isinstance(arg, int):
+                if not (0 <= arg < num_nodes):
+                    raise Exception(f"{name} node ({arg}) is not in this graph")
+            elif isinstance(arg, set):
+                if len(arg) == 0:
+                    raise Exception(f"{name} set cannot be empty")
+                for oid in arg:
+                    if not (isinstance(oid, int) and 0 <= oid < num_nodes):
+                        raise Exception(
+                            f"{name} node ({oid}) is not in this graph"
+                        )
+            elif isinstance(arg, dict):
+                if len(arg) == 0:
+                    raise Exception(f"{name} dictionary cannot be empty")
+                for oid, dist in arg.items():
+                    if not (isinstance(oid, int) and 0 <= oid < num_nodes):
+                        raise Exception(
+                            f"{name} node ({oid}) is not in this graph"
+                        )
+                    if not (isinstance(dist, (int, float)) and dist >= 0):
+                        raise Exception(
+                            f"{name} distance for node ({oid}) must be a non-negative number"
+                        )
+            else:
+                raise Exception(
+                    f"{name} must be an integer, a set of integers, or a dict mapping node integers to distances"
+                )
+
+        _validate_node_arg(origin_id, "Origin")
+        _validate_node_arg(destination_id, "Destination")
 
     def get_path_weight(self, path: list[int]) -> int | float:
         """
@@ -223,6 +255,27 @@ class GraphUtils:
                 if distance != graph[destination_id].get(origin_id, None):
                     return False
         return True
+
+    def __get_max_edge_weight__(
+        self,
+        max_edge_weight: int | float | None,
+    ) -> int:
+        """Infer and round up the maximum edge weight for bucket allocation."""
+        if max_edge_weight is not None:
+            return math.ceil(max_edge_weight)
+        cached_max_edge_weight = getattr(self, "__max_edge_weight__", None)
+        if cached_max_edge_weight is None:
+            graph = self.graph
+            max_edge_weight = max(
+                0,
+                max(
+                    (max(edges.values()) for edges in graph if edges),
+                    default=0,
+                ),
+            )
+            cached_max_edge_weight = math.ceil(max_edge_weight)
+            self.__max_edge_weight__ = cached_max_edge_weight
+        return cached_max_edge_weight
 
     def validate(
         self,

@@ -79,9 +79,9 @@ public:
     int add_node(const std::unordered_map<int, double>& node_dict = {}, bool symmetric = false);
 
     // Search
-    GraphResult search(int origin_id, int destination_id) const;
-    GraphResult get_shortest_path(int origin_id, int destination_id) const {
-        return search(origin_id, destination_id);
+    GraphResult search(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false) const;
+    GraphResult get_shortest_path(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only = false) const {
+        return search(origin_id, destination_id, length_only);
     }
 
     // Accessors for serialization

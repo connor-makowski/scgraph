@@ -214,3 +214,17 @@ def test_cpp_buckets_grid_float():
     dijkstra = g.dijkstra(0, len(data) - 1)
     buckets = g.bidirectional_buckets(0, len(data) - 1)
     assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
+
+
+def test_geograph_default_algorithm_bibuckets(marnet):
+    origin = {"latitude": 30.0, "longitude": 160.0}
+    dest = {"latitude": 30.0, "longitude": -160.0}
+
+    # Default call should use bidirectional_buckets
+    res_default = marnet.get_shortest_path(origin, dest)
+
+    res_explicit = marnet.get_shortest_path(
+        origin, dest, algorithm_fn="bidirectional_buckets"
+    )
+
+    assert_result(res_default, res_explicit)

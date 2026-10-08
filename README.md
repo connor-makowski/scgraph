@@ -382,15 +382,10 @@ output = marnet_geograph.get_shortest_path(
 
 | `node_addition_type` | Description |
 |---|---|
-| `'kdclosest'` | Closest node via KD-tree (default, fastest) |
-| `'closest'` | Closest node via brute force |
-| `'quadrant'` | Closest node in each of 4 quadrants |
+| `'closest'` / `'kdclosest'` | Closest node via GeoKDTree (default) |
+| `'quadrant'` / `'kdquadrant'` | Closest node in each quadrant via GeoKDTree |
 | `'all'` | All nodes within the bound |
 
-| `node_addition_math` | Description |
-|---|---|
-| `'euclidean'` | Fast planar distance (default) |
-| `'haversine'` | Accurate great-circle distance |
 
 ---
 

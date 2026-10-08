@@ -17,6 +17,34 @@ from scgraph import Graph
 
 
 class GeoGraphIO:
+    def __get_edge_coordinates__(
+        self,
+        origin_idx: int,
+        destination_idx: int,
+        sequence: str,
+        save_intermediate_nodes: bool,
+    ) -> list[list[float | int]]:
+        """Build the coordinates for one exported edge."""
+        origin = self.nodes[origin_idx]
+        destination = self.nodes[destination_idx]
+        if sequence == "lon_lat":
+            coordinates = [[origin[1], origin[0]]]
+            final_coordinate = [destination[1], destination[0]]
+        else:
+            coordinates = [origin]
+            final_coordinate = destination
+
+        if self.intermediate_nodes is not None and save_intermediate_nodes:
+            coordinates.extend(
+                self.__get_intermediate_nodes__(
+                    origin_idx=origin_idx,
+                    destination_idx=destination_idx,
+                    sequence=sequence,
+                )
+            )
+        coordinates.append(final_coordinate)
+        return coordinates
+
     # Save Methods
 
     def save_as_geojson(
@@ -53,29 +81,15 @@ class GeoGraphIO:
         if compact:
             multiline = []
             for origin_idx, destinations in enumerate(graph):
-                for destination_idx, distance in destinations.items():
-                    new_subline = [
-                        [self.nodes[origin_idx][1], self.nodes[origin_idx][0]]
-                    ]
-                    if (
-                        self.intermediate_nodes is not None
-                        and save_intermediate_nodes
-                    ):
-                        im_pts = self.__get_intermediate_nodes__(
-                            origin_idx=origin_idx,
-                            destination_idx=destination_idx,
-                            sequence="lon_lat",
+                for destination_idx in destinations:
+                    multiline.append(
+                        self.__get_edge_coordinates__(
+                            origin_idx,
+                            destination_idx,
+                            "lon_lat",
+                            save_intermediate_nodes,
                         )
-                        if im_pts:
-                            new_subline.extend(im_pts)
-                    new_subline.append(
-                        [
-                            self.nodes[destination_idx][1],
-                            self.nodes[destination_idx][0],
-                        ]
                     )
-
-                    multiline.append(new_subline)
             out_dict = {
                 "type": "GeometryCollection",
                 "geometries": [
@@ -90,21 +104,6 @@ class GeoGraphIO:
             features = []
             for origin_idx, destinations in enumerate(graph):
                 for destination_idx, distance in destinations.items():
-                    origin = self.nodes[origin_idx]
-                    destination = self.nodes[destination_idx]
-                    new_subline = [[origin[1], origin[0]]]
-                    if (
-                        self.intermediate_nodes is not None
-                        and save_intermediate_nodes
-                    ):
-                        im_pts = self.__get_intermediate_nodes__(
-                            origin_idx=origin_idx,
-                            destination_idx=destination_idx,
-                            sequence="lon_lat",
-                        )
-                        if im_pts:
-                            new_subline.extend(im_pts)
-                    new_subline.append([destination[1], destination[0]])
                     features.append(
                         {
                             "type": "Feature",
@@ -115,7 +114,12 @@ class GeoGraphIO:
                             },
                             "geometry": {
                                 "type": "LineString",
-                                "coordinates": new_subline,
+                                "coordinates": self.__get_edge_coordinates__(
+                                    origin_idx,
+                                    destination_idx,
+                                    "lon_lat",
+                                    save_intermediate_nodes,
+                                ),
                             },
                         }
                     )
@@ -975,19 +979,13 @@ class GeoGraphModifiers:
             - What: The type of edge creation to use
             - Default: 'quadrant'
             - Options:
-                - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
-                - 'closest': Add only the closest node to the distance matrix for this node
+                - 'quadrant' / 'kdquadrant': Add the closest node in each quadrant using GeoKDTree
+                - 'closest' / 'kdclosest': Add only the closest node using GeoKDTree
                 - 'all': Add all nodes to the distance matrix for this node
-                - 'kdclosest': Add the closest node using a KD-Tree
         - `node_addition_math`
             - Type: str
-            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
+            - What: Retained for compatibility; ignored by GeoKDTree selection
             - Default: 'euclidean'
-            - Options:
-                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
-                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
-            - Notes:
-                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
         - `lat_lon_bound`
             - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
@@ -1024,11 +1022,8 @@ class GeoGraphModifiers:
                 "all",
                 "closest",
                 "kdclosest",
-            ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest']"
-            assert node_addition_math in [
-                "euclidean",
-                "haversine",
-            ], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+                "kdquadrant",
+            ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['kdclosest', 'closest', 'kdquadrant', 'quadrant', 'all']"
             assert isinstance(
                 lat_lon_bound, (int, float)
             ), "Lat_lon_bound must be a number"
@@ -1038,7 +1033,6 @@ class GeoGraphModifiers:
                 node=node,
                 circuity=circuity,
                 node_addition_type=node_addition_type,
-                node_addition_math=node_addition_math,
                 lat_lon_bound=lat_lon_bound,
                 silent=silent,
             )
@@ -1229,20 +1223,25 @@ class GeoGraphModifiers:
 
 
 class GeoGraphUtils:
+    def __get_quadrant_node_indices__(self, node: list) -> set[int]:
+        indices = self.geokdtree.closest_idx_per_quadrant(point=node)
+        node_indices = {idx for idx in indices.values() if idx is not None}
+        if not node_indices:
+            node_indices.add(self.geokdtree.closest_idx(point=node))
+        return node_indices
+
     def __get_node_distances__(
         self,
         node: list,
         circuity: float | int,
         node_addition_type: str,
-        node_addition_math: str,
         lat_lon_bound: float | int,
         silent: bool = False,
     ) -> dict[int, float]:
         """
         Function:
 
-        - Get the distances between a node other connected nodes in the graph
-        - This is used to determine the closest node to add to the graph when adding a new node
+        - Get distances from a new node to graph nodes selected for connection
 
         Required Arguments:
 
@@ -1258,21 +1257,11 @@ class GeoGraphUtils:
             - Type: str
             - What: The type of node addition to use
             - Options:
-                - 'kdclosest': Add the closest node using a KD-Tree
-                - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
-                - 'closest': Add only the closest node to the distance matrix for this node
-                - 'all': Add all nodes to the distance matrix for this node
+                - 'closest' / 'kdclosest': Connect to the nearest node using GeoKDTree
+                - 'quadrant' / 'kdquadrant': Connect to nearest nodes in each quadrant using GeoKDTree
+                - 'all': Connect to every node inside the latitude/longitude bound
             - Notes:
-                - If you are using 'kdclosest', the lat_lon_bound is ignored as the KD-Tree is globally built
-        - `node_addition_math`
-            - Type: str
-            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
-            - Default: 'euclidean'
-            - Options:
-                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
-                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
-            - Notes:
-                - Once the closest node (or closest quadrant node) is determined, the haversine distance (with circuity) is used to calculate the distance between the nodes when adding it to the graph.
+                - GeoKDTree searches the full graph; the bound applies only to 'all'
         - `lat_lon_bound`
             - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
@@ -1284,21 +1273,30 @@ class GeoGraphUtils:
             - What: Whether to suppress output messages
             - Default: False
         """
-        if node_addition_type == "kdclosest":
+        if node_addition_type in ["kdclosest", "closest"]:
             closest_idx = self.geokdtree.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
-                closest_idx: haversine(node, closest_point, circuity=circuity),
+                closest_idx: haversine(
+                    node,
+                    closest_point,
+                    circuity=circuity,
+                    units=self.geograph_units,
+                ),
             }
-        assert node_addition_type in [
-            "quadrant",
-            "all",
-            "closest",
-        ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['quadrant', 'all', 'closest', 'kdclosest']"
-        assert node_addition_math in [
-            "euclidean",
-            "haversine",
-        ], f"Invalid node addition math provided ({node_addition_math}), valid options are: ['euclidean', 'haversine']"
+        if node_addition_type in ["kdquadrant", "quadrant"]:
+            return {
+                idx: haversine(
+                    node,
+                    self.nodes[idx],
+                    circuity=circuity,
+                    units=self.geograph_units,
+                )
+                for idx in self.__get_quadrant_node_indices__(node)
+            }
+        assert (
+            node_addition_type == "all"
+        ), f"Invalid node addition type provided ({node_addition_type})"
         # Get only bounded nodes
         # Find the only keep nodes that are within the bounding latitude
         top_lat = node[0] + lat_lon_bound
@@ -1324,39 +1322,21 @@ class GeoGraphUtils:
             closest_idx = self.geokdtree.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
-                closest_idx: round(
-                    haversine(node, closest_point, circuity=circuity), 4
+                closest_idx: haversine(
+                    node,
+                    closest_point,
+                    circuity=circuity,
+                    units=self.geograph_units,
                 )
             }
-        if node_addition_type == "all":
-            return {
-                node_idx: round(haversine(node, node_i, circuity=circuity), 4)
-                for node_idx, node_i in nodes.items()
-            }
-        if node_addition_math == "haversine":
-            dist_fn = lambda x: haversine(node, x, circuity=circuity)
-        elif node_addition_math == "euclidean":
-            # Note this is squared euclidean distance since it is not used except for comparison
-            dist_fn = lambda x: (node[0] - x[0]) ** 2 + (node[1] - x[1]) ** 2
-        if node_addition_type == "closest":
-            quadrant_fn = lambda x, y: "all"
-        else:
-            quadrant_fn = lambda x, y: ("n" if x[0] - y[0] > 0 else "s") + (
-                "e" if x[1] - y[1] > 0 else "w"
-            )
-        min_diffs = {}
-        min_diffs_idx = {}
-        for node_idx, node_i in nodes.items():
-            quadrant = quadrant_fn(node_i, node)
-            dist = dist_fn(node_i)
-            if dist < min_diffs.get(quadrant, float("inf")):
-                min_diffs[quadrant] = dist
-                min_diffs_idx[quadrant] = node_idx
         return {
-            node_idx: round(
-                haversine(node, self.nodes[node_idx], circuity=circuity), 4
+            node_idx: haversine(
+                node,
+                node_i,
+                circuity=circuity,
+                units=self.geograph_units,
             )
-            for node_idx in min_diffs_idx.values()
+            for node_idx, node_i in nodes.items()
         }
 
     def __get_intermediate_nodes__(
@@ -1428,15 +1408,6 @@ class GeoGraphUtils:
             raise ValueError(
                 "Invalid output_format. Must be one of 'list_of_lists', 'list_of_lists_long_first', or 'list_of_dicts'"
             )
-
-    def __cleanup_temp_nodes__(self):
-        """
-        Function:
-
-        - Remove any temporary nodes that were added to the graph during shortest path calculations
-        """
-        while len(self.graph_object.graph) > self.__original_graph_length__:
-            self.remove_coord_node()
 
     def __get_coordinate_path__(
         self, path: list[int], get_intermediate_nodes: bool = False
@@ -1795,12 +1766,63 @@ class GeoGraph(
             ]
         ), "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
 
+    def __get_node_addition_type__(self, node_addition_type):
+        if node_addition_type == "kdclosest":
+            return "closest"
+        elif node_addition_type == "kdquadrant":
+            return "quadrant"
+        if node_addition_type not in ["closest", "quadrant", "all"]:
+            raise ValueError(
+                "node_addition_type must be one of 'kdclosest', 'kdquadrant', 'closest', 'quadrant', or 'all'"
+            )
+        return node_addition_type
+
+    def __snap_node__(
+        self,
+        node,
+        circuity,
+        node_addition_type,
+        lat_lon_bound,
+        silent=False,
+    ):
+        if node_addition_type == "closest":
+            idx = self.geokdtree.closest_idx(point=node)
+            return {
+                idx: haversine(
+                    node,
+                    self.nodes[idx],
+                    circuity=circuity,
+                    units=self.geograph_units,
+                )
+            }
+        elif node_addition_type == "quadrant":
+            return {
+                idx: haversine(
+                    node,
+                    self.nodes[idx],
+                    circuity=circuity,
+                    units=self.geograph_units,
+                )
+                for idx in self.__get_quadrant_node_indices__(node)
+            }
+        else:
+            return self.__get_node_distances__(
+                node=node,
+                circuity=circuity,
+                node_addition_type=node_addition_type,
+                lat_lon_bound=lat_lon_bound,
+                silent=silent,
+            )
+        raise ValueError(
+            "node_addition_type must be one of 'closest', 'quadrant', or 'all'"
+        )
+
     def get_shortest_path(
         self,
         origin_node: dict[str, float | int],
         destination_node: dict[str, float | int],
         output_units: str = "km",
-        algorithm_fn: str = "bidirectional_dijkstra",
+        algorithm_fn: str = "bidirectional_buckets",
         algorithm_kwargs: dict = None,
         off_graph_circuity: float | int = 1,
         node_addition_type: str = "kdclosest",
@@ -1849,12 +1871,16 @@ class GeoGraph(
         - `algorithm_fn`
             - Type: str | callable
             - What: The algorithm to use for shortest path calculation. Can be a string name of a method on the underlying Graph object, or any callable.
-            - Default: 'bidirectional_dijkstra'
+            - Default: 'bidirectional_buckets'
             - Options:
+                - 'bidirectional_buckets' -> GraphAlgorithms.bidirectional_buckets
+                    - Bidirectional Dijkstra with buckets (Dial's algorithm); default algorithm for GeoGraphs, very fast for sparse spatial networks
                 - 'dijkstra' -> GraphAlgorithms.dijkstra
                     - Standard Dijkstra's algorithm; general purpose for non-negative edge weights
                 - 'bidirectional_dijkstra' -> GraphAlgorithms.bidirectional_dijkstra
-                    - Bidirectional Dijkstra's algorithm; searches from both origin and destination simultaneously, typically faster than standard Dijkstra for point-to-point queries
+                    - Bidirectional Dijkstra's algorithm; searches from both origin and destination simultaneously
+                - 'dijkstra_buckets' -> GraphAlgorithms.dijkstra_buckets
+                    - Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights
                 - 'dijkstra_negative' -> GraphAlgorithms.dijkstra_negative
                     - Modified Dijkstra supporting negative edge weights; detects negative cycles
                 - 'a_star' -> GraphAlgorithms.a_star
@@ -1897,11 +1923,10 @@ class GeoGraph(
         - `node_addition_type`
             - Type: str
             - What: The type of node addition to use when adding your origin node to the distance matrix
-            - Default: 'kdclosest' (was 'quadrant' prior to v2.10.0)
+            - Default: 'kdclosest'
             - Options:
-                - 'kdclosest': Add the closest node using a KD-Tree
-                - 'quadrant': Add the closest node in each quadrant (ne, nw, se, sw) to the distance matrix for this node
-                - 'closest': Add only the closest node to the distance matrix for this node
+                - 'kdclosest' / 'closest': Add the closest node using GeoKDTree
+                - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant using GeoKDTree
                 - 'all': Add all nodes within the bounding box to the distance matrix for this node
         - `node_addition_circuity`
             - Type: int | float
@@ -1910,7 +1935,7 @@ class GeoGraph(
             - Note:
                 - This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
                 - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
-                - This is only relevant if `node_addition_type` is set to 'quadrant' or 'all' as it affects the choice on where to enter the graph network
+                - This factor affects 'all' and 'quadrant' connections but is not necessary for 'closest' since there is only one entry point.
                 - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
         - `output_coordinate_path`
             - Type: str
@@ -1927,7 +1952,7 @@ class GeoGraph(
         - `node_addition_lat_lon_bound`
             - Type: int | float | Literal["auto"]
             - What: Forms a bounding box around the origin and destination nodes as they are added to graph
-                - Only points on the current graph inside of this bounding box are considered when updating the distance matrix for the origin or destination nodes
+                - The bound filters candidates only when node_addition_type is 'all'
             - Default: 'auto'
             - If set to 'auto', the bounding box is set based on the distance between the origin and destination nodes capped at `auto_lat_lon_bound_max` for the origin node
             - Note: This is only used when adding a new node (the specified origin and destination) to the graph
@@ -1938,21 +1963,14 @@ class GeoGraph(
             - Note: Only used if `node_addition_lat_lon_bound` is set to 'auto'
         - `node_addition_math`
             - Type: str
-            - What: The math to use when calculating the distance between nodes when determining the closest node (or closest quadrant node) to add to the graph
-            - Default: 'euclidean'
-            - Options:
-                - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not as accurate (especially near the poles)
-                - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points on the earth
-            - Notes:
-                - Only used if `node_addition_type` is set to 'quadrant' or 'closest'
+            - What: Deprecated but kept for backwards compatibility.
         - `destination_node_addition_type`
             - Type: str
             - What: The method to use when adding the destination node to the graph
-            - Default: 'kdclosest' (was 'all' in functionality prior to v2.10.0)
+            - Default: 'kdclosest'
             - Options:
-                - 'kdclosest': Add the closest node using a KD-Tree
-                - 'closest': Add the node to the closest point in the graph
-                - 'quadrant': Add the node to the quadrant it belongs to
+                - 'kdclosest' / 'closest': Add the closest node using GeoKDTree
+                - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant using GeoKDTree
                 - 'all': Add the node to all points in the graph within the bounding box
         - `silent`
             - Type: bool
@@ -1989,40 +2007,29 @@ class GeoGraph(
         )
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = self.graph_object.graph
-        elif isinstance(algorithm_fn, str) and hasattr(
-            self.graph_object, algorithm_fn
-        ):
-            algorithm_fn = getattr(self.graph_object, algorithm_fn)
+        elif isinstance(algorithm_fn, str):
+            if hasattr(self.graph_object, algorithm_fn):
+                algorithm_fn = getattr(self.graph_object, algorithm_fn)
+            else:
+                raise ValueError("algorithm_fn must be a string or callable")
         else:
             raise ValueError("algorithm_fn must be a string or callable")
-        if algorithm_fn in [
-            self.graph_object.cached_shortest_path,
-            self.graph_object.contraction_hierarchy,
-            self.graph_object.tnr,
-        ]:
-            assert (
-                node_addition_type == "kdclosest"
-            ), "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, node_addition_type must be set to 'kdclosest'"
-            assert (
-                destination_node_addition_type == "kdclosest"
-            ), "When using the 'cached_shortest_path' or 'contraction_hierarchy' algorithms, destination_node_addition_type must be set to 'kdclosest'"
-            # Pass length_only to the algorithm kwargs.
-            algorithm_kwargs["length_only"] = length_only
+
+        node_addition_type = self.__get_node_addition_type__(node_addition_type)
+        destination_node_addition_type = self.__get_node_addition_type__(
+            destination_node_addition_type
+        )
+
         # If auto lat lon bounds are needed, then calculate them.
-        if node_addition_lat_lon_bound == "auto":
-            if (
-                node_addition_type != "kdclosest"
-                or destination_node_addition_type != "kdclosest"
-            ):
-                node_addition_lat_lon_bound_destination = (
+        if "all" in [node_addition_type, destination_node_addition_type]:
+            if node_addition_lat_lon_bound == "auto":
+                node_addition_lat_lon_bound = min(
                     get_lat_lon_bound_between_pts(origin_node, destination_node)
-                    * 1.01
-                )
-                node_addition_lat_lon_bound_origin = min(
-                    node_addition_lat_lon_bound_destination,
+                    * 1.01,
                     auto_lat_lon_bound_max,
                 )
         try:
+            # Parse origin and destination
             origin = [
                 origin_node.get("latitude"),
                 origin_node.get("longitude"),
@@ -2031,101 +2038,72 @@ class GeoGraph(
                 destination_node.get("latitude"),
                 destination_node.get("longitude"),
             ]
-            origin_added = True
-            destination_added = True
-            origin_entry_length = 0
-            destination_exit_length = 0
-
-            # If the node addition type is kdclosest, we can get the closest node and distance without adding a new node to the graph.
-            # Otherwise, we need to add a new node to the graph for the origin and destination.
-            if node_addition_type == "kdclosest":
-                origin_id = self.geokdtree.closest_idx(point=origin)
-                origin_entry_length = haversine(
-                    origin,
-                    self.nodes[origin_id],
-                    circuity=off_graph_circuity,
-                    units=self.geograph_units,
-                )
-                origin_added = False
-            else:
-                origin_id = self.add_coord_node(
-                    coord_dict=origin_node,
-                    auto_edge=True,
-                    node_addition_type=node_addition_type,
-                    circuity=node_addition_circuity,
-                    lat_lon_bound=node_addition_lat_lon_bound_origin,
-                    node_addition_math=node_addition_math,
-                    silent=silent,
-                    temp_node=True,
-                )
-            if destination_node_addition_type == "kdclosest":
-                destination_id = self.geokdtree.closest_idx(point=destination)
-                destination_exit_length = haversine(
-                    destination,
-                    self.nodes[destination_id],
-                    circuity=off_graph_circuity,
-                    units=self.geograph_units,
-                )
-                destination_added = False
-            else:
-                destination_id = self.add_coord_node(
-                    coord_dict=destination_node,
-                    auto_edge=True,
-                    node_addition_type=destination_node_addition_type,
-                    circuity=node_addition_circuity,
-                    lat_lon_bound=node_addition_lat_lon_bound_destination,
-                    node_addition_math=node_addition_math,
-                    silent=silent,
-                    temp_node=True,
+            if len(origin) < 1 or len(destination) < 1:
+                raise ValueError(
+                    "Origin and destination must have valid latitude and longitude"
                 )
 
-            # Calculate the shortest path using the specified algorithm function and the origin and destination node ids
-            output = algorithm_fn(
-                origin_id=origin_id,
-                destination_id=destination_id,
-                **algorithm_kwargs,
+            # Get the node addition direct distance between origin and destination
+            direct_node_addition_length = haversine(
+                origin,
+                destination,
+                circuity=node_addition_circuity,
+                units=self.geograph_units,
             )
-            # Handle circuity adjustments, length conversions, and path adjustments for origin and destination additions
-            # Edge case when there is a direct connection between the origin and destination nodes
-            if (
-                origin_added and destination_added and len(output["path"]) == 2
-            ) or len(output.get("path", [])) == 1:
-                output["length"] = haversine(
-                    origin,
-                    destination,
-                    circuity=off_graph_circuity,
-                    units=self.geograph_units,
-                )
-                output["path"] = []
-            # When not an edge case, apply the normal adjustments
-            else:
-                # Handle origin additions:
-                if origin_added:
-                    output["length"] += -self.graph_object.graph[
-                        output["path"][0]
-                    ][output["path"][1]] + haversine(
-                        origin,
-                        self.nodes[output["path"][1]],
-                        circuity=off_graph_circuity,
-                        units=self.geograph_units,
-                    )
-                    output["path"] = output["path"][1:]
-                else:
-                    output["length"] += origin_entry_length
 
-                # Handle destination additions
-                if destination_added:
-                    output["length"] += -self.graph_object.graph[
-                        output["path"][-2]
-                    ][output["path"][-1]] + haversine(
-                        self.nodes[output["path"][-2]],
-                        destination,
-                        circuity=off_graph_circuity,
-                        units=self.geograph_units,
+            # Snap the origin and destination to their nearest nodes in the graph
+            origin_id = self.__snap_node__(
+                node=origin,
+                circuity=node_addition_circuity,
+                node_addition_type=node_addition_type,
+                lat_lon_bound=node_addition_lat_lon_bound,
+                silent=silent,
+            )
+            destination_id = self.__snap_node__(
+                node=destination,
+                circuity=node_addition_circuity,
+                node_addition_type=destination_node_addition_type,
+                lat_lon_bound=node_addition_lat_lon_bound,
+                silent=silent,
+            )
+
+            # Calculate the circuity ratio for the node addition
+            circuity_ratio = (
+                off_graph_circuity / node_addition_circuity
+                if node_addition_circuity != 0
+                else 1.0
+            )
+
+            # If direct distance is better than any entry or exit distance, bypass graph search
+            min_entry_exit = min(
+                min(origin_id.values()), min(destination_id.values())
+            )
+
+            if direct_node_addition_length <= min_entry_exit:
+                output = {
+                    "path": [],
+                    "length": direct_node_addition_length * circuity_ratio,
+                }
+            else:
+                output = algorithm_fn(
+                    origin_id=origin_id,
+                    destination_id=destination_id,
+                    **algorithm_kwargs,
+                )
+                if circuity_ratio != 1.0:
+                    entry_node = (
+                        output["path"][0]
+                        if output.get("path")
+                        else next(iter(origin_id.keys()))
                     )
-                    output["path"] = output["path"][:-1]
-                else:
-                    output["length"] += destination_exit_length
+                    exit_node = (
+                        output["path"][-1]
+                        if output.get("path")
+                        else next(iter(destination_id.keys()))
+                    )
+                    output["length"] += (
+                        origin_id[entry_node] + destination_id[exit_node]
+                    ) * (circuity_ratio - 1.0)
 
             # Convert the length to the desired output units
             output["length"] = distance_converter(
@@ -2158,13 +2136,9 @@ class GeoGraph(
 
             if not output_path:
                 del output["path"]
-            if origin_added or destination_added:
-                self.__cleanup_temp_nodes__()
             return output
 
         except Exception as e:
-            # Cleanup temp nodes from the graph
-            self.__cleanup_temp_nodes__()
             print_console(
                 (
                     "An error occurred while calculating the shortest path:\n"

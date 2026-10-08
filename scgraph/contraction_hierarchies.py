@@ -1,7 +1,11 @@
 import json
-from heapq import heappush, heappop
+from heapq import heappush, heappop, heapify
 from typing import Callable, Any, Optional, Union
-from scgraph.graph_utils import GraphUtils, GraphModifiers
+from scgraph.graph_utils import (
+    GraphUtils,
+    GraphModifiers,
+    normalize_node_input,
+)
 
 
 class CHGraphIO:
@@ -505,7 +509,10 @@ class CHGraphAlgorithms:
             return neighbors
 
     def search(
-        self, origin_id: int, destination_id: int, length_only: bool = False
+        self,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
+        length_only: bool = False,
     ) -> dict[str, Any]:
         """
         Function:
@@ -515,11 +522,11 @@ class CHGraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances)
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances)
 
         Optional Arguments:
 
@@ -531,28 +538,39 @@ class CHGraphAlgorithms:
         Returns:
 
         - A dictionary with the following keys:
-            - `path`: A list of node ids representing the shortest path (omitted if length_only=True)
+            - `path`: A list of node ids representing the shortest path (empty if length_only=True)
             - `length`: The total length of the shortest path
         """
-        if origin_id == destination_id:
-            return (
-                {"length": 0}
-                if length_only
-                else {"path": [origin_id], "length": 0}
-            )
+        origin_dict = normalize_node_input(origin_id)
+        destination_dict = normalize_node_input(destination_id)
 
-        # Forward search state
-        forward_distances = {origin_id: 0}
-        forward_parent = {origin_id: -1}
-        forward_open_leaves = [(0, origin_id)]
-
-        # Backward search state
-        backward_distances = {destination_id: 0}
-        backward_parent = {destination_id: -1}
-        backward_open_leaves = [(0, destination_id)]
-
+        overlap = set(origin_dict.keys()) & set(destination_dict.keys())
         best_dist = float("inf")
         meeting_node = -1
+        if overlap:
+            for node in overlap:
+                dist = origin_dict[node] + destination_dict[node]
+                if dist < best_dist:
+                    best_dist = dist
+                    meeting_node = node
+
+        # Forward search state
+        forward_distances = {node: dist for node, dist in origin_dict.items()}
+        forward_parent = {node: -1 for node in origin_dict}
+        forward_open_leaves = [
+            (dist, node) for node, dist in origin_dict.items()
+        ]
+        heapify(forward_open_leaves)
+
+        # Backward search state
+        backward_distances = {
+            node: dist for node, dist in destination_dict.items()
+        }
+        backward_parent = {node: -1 for node in destination_dict}
+        backward_open_leaves = [
+            (dist, node) for node, dist in destination_dict.items()
+        ]
+        heapify(backward_open_leaves)
 
         while forward_open_leaves or backward_open_leaves:
             # Forward step
@@ -688,7 +706,7 @@ class CHGraphAlgorithms:
             raise Exception("No path found between origin and destination")
 
         if length_only:
-            return {"length": best_dist}
+            return {"path": [], "length": best_dist}
 
         path = self.__reconstruct_ch_path__(
             origin_id,
@@ -925,7 +943,10 @@ class CHGraph(
         return self.original_graph
 
     def get_shortest_path(
-        self, origin_id: int, destination_id: int, **kwargs: Any
+        self,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """
         Function:
@@ -935,11 +956,11 @@ class CHGraph(
         Required Arguments:
 
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The origin node id(s), optionally with starting distances
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The destination node id(s), optionally with exit distances
 
         Returns:
 
@@ -947,4 +968,4 @@ class CHGraph(
             - `path`: A list of node ids representing the shortest path
             - `length`: The total length of the shortest path
         """
-        return self.search(origin_id, destination_id)
+        return self.search(origin_id, destination_id, **kwargs)

@@ -327,94 +327,149 @@ class GraphReducer:
                 res["path"] = self.expand_path(res["path"])
             return res
 
-        # 3. One-sided algorithms with unreduced destination (or None)
-        if destination_id is None or not is_reduced[destination_id]:
+        dest_dict = (
+            {destination_id: 0.0}
+            if isinstance(destination_id, int)
+            else (
+                {did: 0.0 for did in destination_id}
+                if isinstance(destination_id, (set, list))
+                else (
+                    destination_id if isinstance(destination_id, dict) else None
+                )
+            )
+        )
+
+        # 3. One-sided algorithms with unreduced destinations (or None)
+        if dest_dict is None or all(
+            not is_reduced[did] for did in dest_dict.keys()
+        ):
             res = func(self, *args, **kwargs)
             if isinstance(res, dict) and "path" in res:
                 res["path"] = self.expand_path(res["path"])
             return res
 
-        # 4. One-sided algorithm with reduced destination
-        entry_nodes = self.reduced_inverse_graph[destination_id]
-        if not entry_nodes:
+        # 4. One-sided algorithm with reduced destination(s)
+        # Build effective destination dict expanding reduced destination nodes into boundary entries
+        boundary_entries_map = {}
+        effective_dest_dict = {}
+        for did, ddist in dest_dict.items():
+            if not is_reduced[did]:
+                if (
+                    did not in effective_dest_dict
+                    or ddist < effective_dest_dict[did]
+                ):
+                    effective_dest_dict[did] = ddist
+                    boundary_entries_map[did] = (did, did)
+            else:
+                entry_nodes = self.reduced_inverse_graph[did]
+                if not entry_nodes:
+                    continue
+                for entry_u, entry_dist in entry_nodes.items():
+                    tot = ddist + entry_dist
+                    if (
+                        entry_u not in effective_dest_dict
+                        or tot < effective_dest_dict[entry_u]
+                    ):
+                        effective_dest_dict[entry_u] = tot
+                        boundary_entries_map[entry_u] = (did, entry_u)
+
+        if not effective_dest_dict:
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
-        best_length = float("inf")
-        best_res = None
-        best_entry = None
+        call_kwargs = dict(kwargs)
+        call_args = list(args)
+        if "destination_id" in call_kwargs:
+            call_kwargs["destination_id"] = effective_dest_dict
+        elif len(call_args) > 1:
+            call_args[1] = effective_dest_dict
+        else:
+            call_kwargs["destination_id"] = effective_dest_dict
 
-        for entry_u, entry_dist in entry_nodes.items():
-            try:
-                call_kwargs = dict(kwargs)
-                call_args = list(args)
-                if "destination_id" in call_kwargs:
-                    call_kwargs["destination_id"] = entry_u
-                elif len(call_args) > 1:
-                    call_args[1] = entry_u
+        res = func(self, *call_args, **call_kwargs)
+        if not isinstance(res, dict):
+            return res
 
-                res_u = func(self, *call_args, **call_kwargs)
-                total_dist = res_u["length"] + entry_dist
-                if total_dist < best_length:
-                    best_length = total_dist
-                    best_res = res_u
-                    best_entry = entry_u
-            except Exception:
-                continue
+        if "path" in res and res["path"]:
+            expanded_path = self.expand_path(res["path"])
+            reached_boundary = expanded_path[-1]
+            if reached_boundary in boundary_entries_map:
+                orig_did, best_entry = boundary_entries_map[reached_boundary]
+                if orig_did != reached_boundary:
+                    tail = []
+                    if (
+                        self.reduced_inverse_graph_connections is not None
+                        and self.reduced_inverse_graph_connections[orig_did]
+                        is not None
+                    ):
+                        tail = self.reduced_inverse_graph_connections[
+                            orig_did
+                        ].get(best_entry, [])
+                    expanded_path = expanded_path + tail + [orig_did]
+            res["path"] = expanded_path
 
-        if best_res is None or best_length == float("inf"):
-            raise Exception(
-                "Something went wrong, the origin and destination nodes are not connected."
-            )
-
-        if "path" in best_res:
-            expanded_path = self.expand_path(best_res["path"])
-            tail = []
-            if (
-                self.reduced_inverse_graph_connections is not None
-                and self.reduced_inverse_graph_connections[destination_id]
-                is not None
-            ):
-                tail = self.reduced_inverse_graph_connections[
-                    destination_id
-                ].get(best_entry, [])
-            full_path = expanded_path + tail + [destination_id]
-            return {
-                "path": full_path,
-                "length": best_length,
-            }
-        return {
-            "length": best_length,
-        }
+        return res
 
     __run_with_reduced__ = run_with_reduced
 
     @staticmethod
     def dijkstra_on_graph(
         graph: list[dict[int, float]],
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
     ) -> dict:
         """
         Function:
 
         - Internal Dijkstra solver on a specified graph dictionary list (used for same-chain routing on unreduced graph).
         """
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        origin_dict = (
+            {origin_id: 0.0}
+            if isinstance(origin_id, int)
+            else (
+                {oid: 0.0 for oid in origin_id}
+                if isinstance(origin_id, (set, list))
+                else origin_id
+            )
+        )
+        dest_dict = (
+            {destination_id: 0.0}
+            if isinstance(destination_id, int)
+            else (
+                {did: 0.0 for did in destination_id}
+                if isinstance(destination_id, (set, list))
+                else destination_id
+            )
+        )
+
         distance_matrix = [float("inf")] * len(graph)
         predecessor = [-1] * len(graph)
         open_leaves = []
 
-        for oid in origin_ids:
-            distance_matrix[oid] = 0
-            heappush(open_leaves, (0, oid))
+        for oid, odist in origin_dict.items():
+            distance_matrix[oid] = odist
+            heappush(open_leaves, (odist, oid))
+
+        best_dist = float("inf")
+        best_dest_node = -1
+        for did, ddist in dest_dict.items():
+            if did in origin_dict:
+                cand = origin_dict[did] + ddist
+                if cand < best_dist:
+                    best_dist = cand
+                    best_dest_node = did
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
-            if current_id == destination_id:
+            if current_distance >= best_dist:
                 break
             if current_distance == distance_matrix[current_id]:
+                if current_id in dest_dict:
+                    cand = current_distance + dest_dict[current_id]
+                    if cand < best_dist:
+                        best_dist = cand
+                        best_dest_node = current_id
                 for (
                     connected_id,
                     connected_distance,
@@ -423,14 +478,22 @@ class GraphReducer:
                     if possible_distance < distance_matrix[connected_id]:
                         distance_matrix[connected_id] = possible_distance
                         predecessor[connected_id] = current_id
-                        heappush(open_leaves, (possible_distance, connected_id))
-        if current_id != destination_id:
+                        if connected_id in dest_dict:
+                            cand = possible_distance + dest_dict[connected_id]
+                            if cand < best_dist:
+                                best_dist = cand
+                                best_dest_node = connected_id
+                        if possible_distance < best_dist:
+                            heappush(
+                                open_leaves, (possible_distance, connected_id)
+                            )
+        if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
         path = []
-        curr = destination_id
+        curr = best_dest_node
         while curr != -1:
             path.append(curr)
             curr = predecessor[curr]
@@ -438,7 +501,7 @@ class GraphReducer:
 
         return {
             "path": path,
-            "length": distance_matrix[destination_id],
+            "length": best_dist,
         }
 
     __dijkstra_on_graph__ = dijkstra_on_graph
@@ -490,22 +553,24 @@ class GraphReducer:
 
     def is_same_chain(
         self,
-        origin_id: int | set[int] | list[int],
-        destination_id: int | None,
+        origin_id: int | set[int] | list[int] | dict[int, int | float],
+        destination_id: (
+            int | set[int] | list[int] | dict[int, int | float] | None
+        ),
     ) -> bool:
         """
         Function:
 
-        - Check whether any origin node and the destination node belong to the same reduced chain.
+        - Check whether any origin node and any destination node belong to the same reduced chain.
 
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int] | list[int]
+            - Type: int | set[int] | list[int] | dict[int, int | float]
             - What: The id(s) of the origin node(s)
         - `destination_id`
-            - Type: int | None
-            - What: The id of the destination node
+            - Type: int | set[int] | list[int] | dict[int, int | float] | None
+            - What: The id(s) of the destination node(s)
 
         Returns:
 
@@ -514,19 +579,34 @@ class GraphReducer:
         reduced_node_chain_ids = getattr(self, "reduced_node_chain_ids", None)
         if reduced_node_chain_ids is None or destination_id is None:
             return False
-        if destination_id < 0 or destination_id >= len(reduced_node_chain_ids):
-            return False
-        dest_chain = reduced_node_chain_ids[destination_id]
-        if dest_chain is None:
-            return False
-        if isinstance(origin_id, int):
-            if 0 <= origin_id < len(reduced_node_chain_ids):
-                return reduced_node_chain_ids[origin_id] == dest_chain
-            return False
-        for oid in origin_id:
-            if (
-                0 <= oid < len(reduced_node_chain_ids)
-                and reduced_node_chain_ids[oid] == dest_chain
-            ):
-                return True
+
+        orig_ids = (
+            [origin_id]
+            if isinstance(origin_id, int)
+            else (
+                list(origin_id.keys())
+                if isinstance(origin_id, dict)
+                else list(origin_id)
+            )
+        )
+        dest_ids = (
+            [destination_id]
+            if isinstance(destination_id, int)
+            else (
+                list(destination_id.keys())
+                if isinstance(destination_id, dict)
+                else list(destination_id)
+            )
+        )
+
+        n = len(reduced_node_chain_ids)
+        for s in orig_ids:
+            if not (0 <= s < n):
+                continue
+            s_chain = reduced_node_chain_ids[s]
+            if s_chain is None:
+                continue
+            for t in dest_ids:
+                if 0 <= t < n and reduced_node_chain_ids[t] == s_chain:
+                    return True
         return False

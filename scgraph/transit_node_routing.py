@@ -1,7 +1,8 @@
 import json
-from heapq import heappush, heappop
+from heapq import heappush, heappop, heapify
 from typing import Any, Optional
 from scgraph.contraction_hierarchies import CHGraph
+from scgraph.graph_utils import normalize_node_input
 
 
 class TNRGraphIO:
@@ -206,21 +207,39 @@ class TNRGraphPreprocessing:
 class TNRGraphAlgorithms:
     def __local_search__(
         self,
-        origin_id: int,
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         upper_bound: float,
         length_only: bool,
     ) -> Optional[dict]:
-        forward_distances = {origin_id: 0}
-        forward_parent = {origin_id: -1}
-        forward_open_leaves = [(0, origin_id)]
+        origin_dict = normalize_node_input(origin_id)
+        destination_dict = normalize_node_input(destination_id)
 
-        backward_distances = {destination_id: 0}
-        backward_parent = {destination_id: -1}
-        backward_open_leaves = [(0, destination_id)]
-
+        overlap = set(origin_dict.keys()) & set(destination_dict.keys())
         best_dist = upper_bound
         meeting_node = -1
+        if overlap:
+            for node in overlap:
+                dist = origin_dict[node] + destination_dict[node]
+                if dist < best_dist:
+                    best_dist = dist
+                    meeting_node = node
+
+        forward_distances = {node: dist for node, dist in origin_dict.items()}
+        forward_parent = {node: -1 for node in origin_dict}
+        forward_open_leaves = [
+            (dist, node) for node, dist in origin_dict.items()
+        ]
+        heapify(forward_open_leaves)
+
+        backward_distances = {
+            node: dist for node, dist in destination_dict.items()
+        }
+        backward_parent = {node: -1 for node in destination_dict}
+        backward_open_leaves = [
+            (dist, node) for node, dist in destination_dict.items()
+        ]
+        heapify(backward_open_leaves)
 
         while forward_open_leaves or backward_open_leaves:
             if forward_open_leaves:
@@ -368,7 +387,7 @@ class TNRGraphAlgorithms:
                 break
 
         if length_only:
-            return {"length": best_dist}
+            return {"path": [], "length": best_dist}
 
         if meeting_node != -1:
             path = self.__reconstruct_ch_path__(
@@ -384,8 +403,8 @@ class TNRGraphAlgorithms:
 
     def search(
         self,
-        origin_id: int,
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         length_only: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
@@ -393,29 +412,43 @@ class TNRGraphAlgorithms:
         Function:
         - Perform a TNR search with a highly pruned local CH fallback
         """
-        if origin_id == destination_id:
-            return (
-                {"length": 0}
-                if length_only
-                else {"path": [origin_id], "length": 0}
-            )
+        origin_dict = normalize_node_input(origin_id)
+        destination_dict = normalize_node_input(destination_id)
 
         # Access Nodes for origin/destination
-        if origin_id < self.nodes_count:
-            f_access = self.forward_access_nodes[origin_id]
-        else:
-            f_access = self.__compute_access_nodes__(
-                origin_id, True, [float("inf")] * self.nodes_count, []
-            )
+        f_access = {}
+        for s, d_s in origin_dict.items():
+            if s < self.nodes_count:
+                s_access = self.forward_access_nodes[s]
+            else:
+                s_access = self.__compute_access_nodes__(
+                    s, True, [float("inf")] * self.nodes_count, []
+                )
+            for t_f, d_f in s_access.items():
+                tot = d_s + d_f
+                if tot < f_access.get(t_f, float("inf")):
+                    f_access[t_f] = tot
 
-        if destination_id < self.nodes_count:
-            b_access = self.backward_access_nodes[destination_id]
-        else:
-            b_access = self.__compute_access_nodes__(
-                destination_id, False, [float("inf")] * self.nodes_count, []
-            )
+        b_access = {}
+        for t, d_t in destination_dict.items():
+            if t < self.nodes_count:
+                t_access = self.backward_access_nodes[t]
+            else:
+                t_access = self.__compute_access_nodes__(
+                    t, False, [float("inf")] * self.nodes_count, []
+                )
+            for t_b, d_b in t_access.items():
+                tot = d_t + d_b
+                if tot < b_access.get(t_b, float("inf")):
+                    b_access[t_b] = tot
 
         best_dist = float("inf")
+        overlap = set(origin_dict.keys()) & set(destination_dict.keys())
+        if overlap:
+            for node in overlap:
+                dist = origin_dict[node] + destination_dict[node]
+                if dist < best_dist:
+                    best_dist = dist
 
         # Global Query via Distance Table
         for t_f, d_f in f_access.items():
@@ -428,18 +461,18 @@ class TNRGraphAlgorithms:
         # Locality Filter / Correctness Check
         if length_only:
             return self.__local_search__(
-                origin_id, destination_id, best_dist, True
-            )
+                origin_dict, destination_dict, best_dist, True
+            ) or {"path": [], "length": best_dist}
 
         local_res = self.__local_search__(
-            origin_id, destination_id, best_dist, False
+            origin_dict, destination_dict, best_dist, False
         )
         if local_res is not None:
             return local_res
 
         # Reconstructing path from transit pairs is complex without unpacking tables.
         # Fall back to a standard CH search if global TNR path is needed.
-        return CHGraph.search(self, origin_id, destination_id)
+        return CHGraph.search(self, origin_dict, destination_dict)
 
 
 class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
@@ -501,6 +534,9 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
             self.__preprocess_tnr__(num_transit_nodes)
 
     def get_shortest_path(
-        self, origin_id: int, destination_id: int, **kwargs: Any
+        self,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
+        **kwargs: Any,
     ) -> dict[str, Any]:
-        return self.search(origin_id, destination_id)
+        return self.search(origin_id, destination_id, **kwargs)

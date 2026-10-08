@@ -173,7 +173,8 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 | `algorithm_fn` | Description | Time Complexity |
 |---|---|---|
-| `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights (default) | O((n+m) log n) |
+| `'bidirectional_buckets'` | Bidirectional Dijkstra with buckets (Dial's algorithm); default for GeoGraphs | O(n+m+W) |
+| `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights | O((n+m) log n) |
 | `'bidirectional_dijkstra'` | Bidirectional Dijkstra; simultaneous search from origin and destination | O((n+m) log n) |
 | `'dijkstra_buckets'` | Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights (ideally >= 1) | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
@@ -188,9 +189,10 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 | Scenario | Recommended Approach |
 |---|---|
-| Single query | `dijkstra` (default) or `bidirectional_dijkstra` |
+| Single query (GeoGraph) | `bidirectional_buckets` (default) |
+| Single query (Graph) | `dijkstra` (default) or `bidirectional_dijkstra` / `bidirectional_buckets` |
 | Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for 2–4x faster queries |
-| Weights generally >= 1 | `dijkstra_buckets` |
+| Weights generally >= 1 | `bidirectional_buckets` or `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
 | Many arbitrary queries on a fixed graph | `contraction_hierarchy` or `tnr` |
@@ -383,15 +385,11 @@ output = marnet_geograph.get_shortest_path(
 
 | `node_addition_type` | Description |
 |---|---|
-| `'kdclosest'` | Closest node via KD-tree (default, fastest) |
-| `'closest'` | Closest node via brute force |
-| `'quadrant'` | Closest node in each of 4 quadrants |
+| `'closest'` / `'kdclosest'` | Closest node via GeoKDTree (default) |
+| `'quadrant'` / `'kdquadrant'` | Closest node in each quadrant via GeoKDTree |
 | `'all'` | All nodes within the bound |
 
-| `node_addition_math` | Description |
-|---|---|
-| `'euclidean'` | Fast planar distance (default) |
-| `'haversine'` | Accurate great-circle distance |
+`node_addition_math` is retained for compatibility; GeoKDTree handles closest and quadrant selection.
 
 ---
 

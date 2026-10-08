@@ -453,7 +453,7 @@ class GridGraph:
         ),
         output_coordinate_path: str = "list_of_dicts",
         output_path: bool = False,
-        algorithm_fn: str = "dijkstra",
+        algorithm_fn: str = "dijkstra_buckets",
         algorithm_kwargs: dict | None = None,
         **kwargs,
     ) -> dict:
@@ -499,11 +499,44 @@ class GridGraph:
         - `algorithm_fn`
             - Type: str | callable
             - What: The algorithm to use for pathfinding
-            - Default: 'dijkstra'
+            - Default: 'dijkstra_buckets'
             - Options:
-                - 'dijkstra': Standard Dijkstra's algorithm (default)
-                - Any method name from the Graph class (e.g. 'bellman_ford', 'a_star', 'bmssp', 'cached_shortest_path', etc.)
-                - Any user defined function that takes origin_id, destination_id, and **algorithm_kwargs
+                - 'bidirectional_buckets' -> GraphAlgorithms.bidirectional_buckets
+                    - Bidirectional Dijkstra with buckets (Dial's algorithm); default algorithm for GeoGraphs, very fast for sparse spatial networks
+                - 'dijkstra' -> GraphAlgorithms.dijkstra
+                    - Standard Dijkstra's algorithm; general purpose for non-negative edge weights
+                - 'bidirectional_dijkstra' -> GraphAlgorithms.bidirectional_dijkstra
+                    - Bidirectional Dijkstra's algorithm; searches from both origin and destination simultaneously
+                - 'dijkstra_buckets' (or 'buckets') -> GraphAlgorithms.dijkstra_buckets
+                    - Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights
+                - 'dijkstra_negative' -> GraphAlgorithms.dijkstra_negative
+                    - Modified Dijkstra supporting negative edge weights; detects negative cycles
+                - 'a_star' -> GraphAlgorithms.a_star
+                    - A* algorithm; requires a heuristic_fn passed via algorithm_kwargs for speedup
+                - 'bellman_ford' -> GraphAlgorithms.bellman_ford
+                    - Bellman-Ford algorithm; supports negative weights but slower than dijkstra
+                - 'bmssp' -> GraphAlgorithms.bmssp
+                    - BMSSP algorithm; not actually faster in practice than dijkstra but included for completeness
+                - 'cached_shortest_path' -> GraphAlgorithms.cached_shortest_path
+                    - Computes and caches the full shortest path tree from the origin on the first call;
+                      subsequent calls from the same origin node are near-instant
+                    - Only the origin graph node is cached (not the off-graph origin coordinate)
+                    - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
+                - 'contraction_hierarchy' -> GraphAlgorithms.contraction_hierarchy
+                    - Bidirectional Dijkstra on a preprocessed Contraction Hierarchy graph
+                    - Requires one-time preprocessing via graph_object.create_contraction_hierarchy()
+                      (called automatically on first use if not already done)
+                    - Very fast for arbitrary origin-destination queries on large graphs
+                    - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
+                - 'tnr' -> TNRGraph.search
+                    - Transit Node Routing; extremely fast for global queries on large graphs
+                    - Requires preprocessing via TNRGraph initialization or create_tnr_hierarchy()
+                    - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
+                - Any callable that accepts:
+                    - `graph`: The graph (list[dict[int, int | float]]) to perform the shortest path on
+                    - `origin_id`: The id of the origin node
+                    - `destination_id`: The id of the destination node
+                    - `**algorithm_kwargs`: Additional keyword arguments
         - `algorithm_kwargs`
             - Type: dict
             - What: Additional keyword arguments to pass to the algorithm function
@@ -522,10 +555,11 @@ class GridGraph:
             algorithm_kwargs = {}
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = self.graph
-        elif isinstance(algorithm_fn, str) and hasattr(
-            self.graph_object, algorithm_fn
-        ):
-            algorithm_fn = getattr(self.graph_object, algorithm_fn)
+        elif isinstance(algorithm_fn, str):
+            if hasattr(self.graph_object, algorithm_fn):
+                algorithm_fn = getattr(self.graph_object, algorithm_fn)
+            else:
+                raise ValueError("algorithm_fn must be a string or callable")
         else:
             raise ValueError("algorithm_fn must be a string or callable")
 

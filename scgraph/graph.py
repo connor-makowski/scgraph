@@ -1,7 +1,10 @@
-import math
 from heapq import heappop, heappush
 from typing import Any
-from scgraph.graph_utils import GraphUtils, GraphModifiers
+from scgraph.graph_utils import (
+    GraphUtils,
+    GraphModifiers,
+    normalize_node_input,
+)
 from scgraph.contraction_hierarchies import CHGraph
 from scgraph.transit_node_routing import TNRGraph
 from bmsspy import Bmssp
@@ -11,7 +14,7 @@ from scgraph.graph_reducer import GraphReducer, algorithm
 class GraphTrees:
     def get_shortest_path_tree(
         self,
-        origin_id: int | set[int],
+        origin_id: int | set[int] | dict[int, int | float],
     ) -> dict:
         """
         Function:
@@ -21,8 +24,8 @@ class GraphTrees:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the node(s) from which to calculate the shortest path tree
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the node(s) (with optional starting distances) from which to calculate the shortest path tree
 
         Returns:
 
@@ -36,7 +39,7 @@ class GraphTrees:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=0)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        origin_dict = normalize_node_input(origin_id)
 
         # Variable Initialization
         graph = self.graph
@@ -44,9 +47,9 @@ class GraphTrees:
         open_leaves = []
         predecessor = [-1] * len(graph)
 
-        for oid in origin_ids:
-            distance_matrix[oid] = 0
-            heappush(open_leaves, (0, oid))
+        for oid, odist in origin_dict.items():
+            distance_matrix[oid] = odist
+            heappush(open_leaves, (odist, oid))
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
@@ -65,7 +68,7 @@ class GraphTrees:
 
     def get_tree_path(
         self,
-        origin_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
         destination_id: int,
         tree_data: dict,
         length_only: bool = False,
@@ -80,7 +83,7 @@ class GraphTrees:
         Required Arguments:
 
         - `origin_id`
-            - Type: int
+            - Type: int | set[int] | dict[int, int | float]
             - What: The id of the origin node from the graph dictionary to start the shortest path from
             - Note: Since multiple origins are possible, if the origin_id is not a predecessor node of the destination node, the closest origin will be used.
         - `destination_id`
@@ -103,26 +106,43 @@ class GraphTrees:
             - `path`: A list of node ids in the order they are visited from the origin node to the destination node
             - `length`: The length of the path from the origin node to the destination node
         """
-        if tree_data["origin_id"] != origin_id:
-            raise Exception(
-                "The origin node must be the same as the spanning node for this function to work."
-            )
-        destination_distance = tree_data["distance_matrix"][destination_id]
-        if destination_distance == float("inf"):
+        origin_dict = normalize_node_input(origin_id)
+        tree_orig_dict = normalize_node_input(tree_data["origin_id"])
+
+        start_dist = 0.0
+        if len(tree_orig_dict) == 1:
+            tree_root = next(iter(tree_orig_dict.keys()))
+            if tree_root not in origin_dict:
+                raise Exception(
+                    "The origin node must be the same as the spanning node for this function to work."
+                )
+            start_dist = origin_dict[tree_root] - tree_orig_dict[tree_root]
+
+        dest_dict = normalize_node_input(destination_id)
+        best_dist = float("inf")
+        best_dest_node = -1
+        for did, ddist in dest_dict.items():
+            if tree_data["distance_matrix"][did] < float("inf"):
+                tot = start_dist + tree_data["distance_matrix"][did] + ddist
+                if tot < best_dist:
+                    best_dist = tot
+                    best_dest_node = did
+
+        if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
         if length_only:
-            return {"length": destination_distance}
-        current_id = destination_id
-        current_path = [destination_id]
-        while current_id != origin_id and current_id != -1:
+            return {"path": [], "length": best_dist}
+        current_id = best_dest_node
+        current_path = [best_dest_node]
+        while current_id != -1 and tree_data["predecessors"][current_id] != -1:
             current_id = tree_data["predecessors"][current_id]
             current_path.append(current_id)
         current_path.reverse()
         return {
             "path": current_path,
-            "length": destination_distance,
+            "length": best_dist,
         }
 
 
@@ -130,8 +150,8 @@ class GraphAlgorithms:
     @algorithm
     def dijkstra(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
     ) -> dict:
         """
         Function:
@@ -145,11 +165,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
@@ -157,23 +177,38 @@ class GraphAlgorithms:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        origin_dict = normalize_node_input(origin_id)
+        dest_dict = normalize_node_input(destination_id)
+
         # Variable Initialization
         graph = self.graph
         distance_matrix = [float("inf")] * len(graph)
         predecessor = [-1] * len(graph)
         open_leaves = []
 
-        for oid in origin_ids:
-            distance_matrix[oid] = 0
-            heappush(open_leaves, (0, oid))
+        for oid, odist in origin_dict.items():
+            distance_matrix[oid] = odist
+            heappush(open_leaves, (odist, oid))
+
+        best_dist = float("inf")
+        best_dest_node = -1
+        for did, ddist in dest_dict.items():
+            if did in origin_dict:
+                cand = origin_dict[did] + ddist
+                if cand < best_dist:
+                    best_dist = cand
+                    best_dest_node = did
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
-            if current_id == destination_id:
+            if current_distance >= best_dist:
                 break
-            # Technically, the next line is not necessary but can help with performance
             if current_distance == distance_matrix[current_id]:
+                if current_id in dest_dict:
+                    cand = current_distance + dest_dict[current_id]
+                    if cand < best_dist:
+                        best_dist = cand
+                        best_dest_node = current_id
                 for connected_id, connected_distance in graph[
                     current_id
                 ].items():
@@ -181,22 +216,31 @@ class GraphAlgorithms:
                     if possible_distance < distance_matrix[connected_id]:
                         distance_matrix[connected_id] = possible_distance
                         predecessor[connected_id] = current_id
-                        heappush(open_leaves, (possible_distance, connected_id))
-        if current_id != destination_id:
+                        if connected_id in dest_dict:
+                            cand = possible_distance + dest_dict[connected_id]
+                            if cand < best_dist:
+                                best_dist = cand
+                                best_dest_node = connected_id
+                        if possible_distance < best_dist:
+                            heappush(
+                                open_leaves, (possible_distance, connected_id)
+                            )
+
+        if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
         return {
-            "path": self.__reconstruct_path__(destination_id, predecessor),
-            "length": distance_matrix[destination_id],
+            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "length": best_dist,
         }
 
     @algorithm(bidirectional=True)
     def bidirectional_dijkstra(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
     ) -> dict:
         """
         Function:
@@ -210,11 +254,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
@@ -222,10 +266,10 @@ class GraphAlgorithms:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
-
-        if destination_id in origin_ids:
-            return {"path": [destination_id], "length": 0}
+        origin_dict = normalize_node_input(origin_id)
+        dest_dict = normalize_node_input(destination_id)
+        origin_ids = set(origin_dict.keys())
+        dest_ids = set(dest_dict.keys())
 
         self.__ensure_inverse_graph__()
 
@@ -241,16 +285,22 @@ class GraphAlgorithms:
         backward_pred = [-1] * num_nodes
         backward_open = []
 
-        for oid in origin_ids:
-            forward_dist[oid] = 0
-            heappush(forward_open, (0, oid))
-
-        backward_dist[destination_id] = 0
-        heappush(backward_open, (0, destination_id))
-
         best_dist = float("inf")
         meeting_node = -1
         inf = float("inf")
+
+        for oid, odist in origin_dict.items():
+            forward_dist[oid] = odist
+            heappush(forward_open, (odist, oid))
+
+        for did, ddist in dest_dict.items():
+            backward_dist[did] = ddist
+            heappush(backward_open, (ddist, did))
+            if did in origin_dict:
+                cand = origin_dict[did] + ddist
+                if cand < best_dist:
+                    best_dist = cand
+                    meeting_node = did
 
         while forward_open and backward_open:
             top_fwd = forward_open[0][0]
@@ -302,17 +352,19 @@ class GraphAlgorithms:
         curr = meeting_node
         while curr != -1:
             forward_path.append(curr)
-            if curr in origin_ids:
+            if curr in origin_ids and forward_pred[curr] == -1:
                 break
             curr = forward_pred[curr]
         forward_path.reverse()
 
         backward_path = []
         curr = meeting_node
-        while curr != destination_id and curr != -1:
+        while not (curr in dest_ids and backward_pred[curr] == -1):
             curr = backward_pred[curr]
             if curr != -1:
                 backward_path.append(curr)
+            else:
+                break
 
         return {
             "path": forward_path + backward_path,
@@ -322,8 +374,8 @@ class GraphAlgorithms:
     @algorithm
     def dijkstra_buckets(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         max_edge_weight: int | float | None = None,
     ) -> dict:
         """
@@ -339,11 +391,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
@@ -354,17 +406,11 @@ class GraphAlgorithms:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        origin_dict = normalize_node_input(origin_id)
+        dest_dict = normalize_node_input(destination_id)
         graph = self.graph
 
-        if max_edge_weight is None:
-            max_edge_weight = 0
-            for node_edges in graph:
-                if node_edges:
-                    m = max(node_edges.values())
-                    if m > max_edge_weight:
-                        max_edge_weight = m
-        max_edge_weight = math.ceil(max_edge_weight)
+        max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
 
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
@@ -372,12 +418,25 @@ class GraphAlgorithms:
         num_buckets = max_edge_weight + 1
         buckets = [[] for _ in range(num_buckets)]
 
-        for oid in origin_ids:
-            distance_matrix[oid] = 0
-            buckets[0].append(oid)
+        for oid, odist in origin_dict.items():
+            distance_matrix[oid] = odist
+            buckets[int(odist) % num_buckets].append(oid)
 
-        current_dist = 0
-        nodes_in_buckets = len(origin_ids)
+        current_dist = (
+            min(int(odist) for odist in origin_dict.values())
+            if origin_dict
+            else 0
+        )
+        nodes_in_buckets = len(origin_dict)
+
+        best_dist = float("inf")
+        best_dest_node = -1
+        for did, ddist in dest_dict.items():
+            if did in origin_dict:
+                cand = origin_dict[did] + ddist
+                if cand < best_dist:
+                    best_dist = cand
+                    best_dest_node = did
 
         while nodes_in_buckets > 0:
             bucket_idx = current_dist % num_buckets
@@ -387,13 +446,10 @@ class GraphAlgorithms:
                 if nodes_in_buckets == 0:
                     break
                 # If we've already found a path shorter than the current bucket minimum, we can exit
-                if distance_matrix[destination_id] < current_dist:
+                if best_dist < current_dist:
                     break
 
-            if (
-                nodes_in_buckets == 0
-                or distance_matrix[destination_id] < current_dist
-            ):
+            if nodes_in_buckets == 0 or best_dist < current_dist:
                 break
 
             current_id = buckets[bucket_idx].pop()
@@ -403,9 +459,11 @@ class GraphAlgorithms:
             if distance_matrix[current_id] < current_dist:
                 continue
 
-            # Note: We do not break immediately if current_id == destination_id
-            # because weights < 1 might allow a shorter path to be found within the same bucket.
-            # The loop terminates when current_dist > distance_matrix[destination_id].
+            if current_id in dest_dict:
+                cand = distance_matrix[current_id] + dest_dict[current_id]
+                if cand < best_dist:
+                    best_dist = cand
+                    best_dest_node = current_id
 
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = (
@@ -414,26 +472,31 @@ class GraphAlgorithms:
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
                     predecessor[connected_id] = current_id
+                    if connected_id in dest_dict:
+                        cand = possible_distance + dest_dict[connected_id]
+                        if cand < best_dist:
+                            best_dist = cand
+                            best_dest_node = connected_id
                     buckets[int(possible_distance) % num_buckets].append(
                         connected_id
                     )
                     nodes_in_buckets += 1
 
-        if distance_matrix[destination_id] == float("inf"):
+        if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
         return {
-            "path": self.__reconstruct_path__(destination_id, predecessor),
-            "length": distance_matrix[destination_id],
+            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "length": best_dist,
         }
 
     @algorithm(bidirectional=True)
     def bidirectional_buckets(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         max_edge_weight: int | float | None = None,
     ) -> dict:
         """
@@ -449,11 +512,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
@@ -464,10 +527,10 @@ class GraphAlgorithms:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
-
-        if destination_id in origin_ids:
-            return {"path": [destination_id], "length": 0}
+        origin_dict = normalize_node_input(origin_id)
+        dest_dict = normalize_node_input(destination_id)
+        origin_ids = set(origin_dict.keys())
+        dest_ids = set(dest_dict.keys())
 
         self.__ensure_inverse_graph__()
 
@@ -475,14 +538,7 @@ class GraphAlgorithms:
         inverse_graph = self.inverse_graph
         num_nodes = len(graph)
 
-        if max_edge_weight is None:
-            max_edge_weight = 0
-            for node_edges in graph:
-                if node_edges:
-                    m = max(node_edges.values())
-                    if m > max_edge_weight:
-                        max_edge_weight = m
-        max_edge_weight = math.ceil(max_edge_weight)
+        max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
 
         num_buckets = max_edge_weight + 1
         forward_dist = [float("inf")] * num_nodes
@@ -493,21 +549,33 @@ class GraphAlgorithms:
         backward_pred = [-1] * num_nodes
         backward_buckets = [[] for _ in range(num_buckets)]
 
-        for oid in origin_ids:
-            forward_dist[oid] = 0
-            forward_buckets[0].append(oid)
-
-        backward_dist[destination_id] = 0
-        backward_buckets[0].append(destination_id)
-
-        fwd_current_dist = 0
-        bwd_current_dist = 0
-        fwd_nodes_in_buckets = len(origin_ids)
-        bwd_nodes_in_buckets = 1
-
         best_dist = float("inf")
         meeting_node = -1
         inf = float("inf")
+
+        for oid, odist in origin_dict.items():
+            forward_dist[oid] = odist
+            forward_buckets[int(odist) % num_buckets].append(oid)
+
+        for did, ddist in dest_dict.items():
+            backward_dist[did] = ddist
+            backward_buckets[int(ddist) % num_buckets].append(did)
+            if did in origin_dict:
+                cand = origin_dict[did] + ddist
+                if cand < best_dist:
+                    best_dist = cand
+                    meeting_node = did
+
+        fwd_current_dist = (
+            min(int(odist) for odist in origin_dict.values())
+            if origin_dict
+            else 0
+        )
+        bwd_current_dist = (
+            min(int(ddist) for ddist in dest_dict.values()) if dest_dict else 0
+        )
+        fwd_nodes_in_buckets = len(origin_dict)
+        bwd_nodes_in_buckets = len(dest_dict)
 
         while fwd_nodes_in_buckets > 0 and bwd_nodes_in_buckets > 0:
             fwd_bucket_idx = fwd_current_dist % num_buckets
@@ -589,17 +657,19 @@ class GraphAlgorithms:
         curr = meeting_node
         while curr != -1:
             forward_path.append(curr)
-            if curr in origin_ids:
+            if curr in origin_ids and forward_pred[curr] == -1:
                 break
             curr = forward_pred[curr]
         forward_path.reverse()
 
         backward_path = []
         curr = meeting_node
-        while curr != destination_id and curr != -1:
+        while not (curr in dest_ids and backward_pred[curr] == -1):
             curr = backward_pred[curr]
             if curr != -1:
                 backward_path.append(curr)
+            else:
+                break
 
         return {
             "path": forward_path + backward_path,
@@ -609,8 +679,8 @@ class GraphAlgorithms:
     @algorithm
     def dijkstra_negative(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         cycle_check_iterations: int | None = None,
     ) -> dict:
         """
@@ -630,11 +700,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
@@ -645,7 +715,8 @@ class GraphAlgorithms:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        origin_dict = normalize_node_input(origin_id)
+        dest_dict = normalize_node_input(destination_id)
         graph = self.graph
 
         # Variable Initialization
@@ -653,9 +724,9 @@ class GraphAlgorithms:
         predecessor = [-1] * len(graph)
         open_leaves = []
 
-        for oid in origin_ids:
-            distance_matrix[oid] = 0
-            heappush(open_leaves, (0, oid))
+        for oid, odist in origin_dict.items():
+            distance_matrix[oid] = odist
+            heappush(open_leaves, (odist, oid))
 
         # Cycle iteration Variables
         cycle_iteration = 0
@@ -681,21 +752,29 @@ class GraphAlgorithms:
                         predecessor[connected_id] = current_id
                         heappush(open_leaves, (possible_distance, connected_id))
 
-        if distance_matrix[destination_id] == float("inf"):
+        best_dist = float("inf")
+        best_dest_node = -1
+        for did, ddist in dest_dict.items():
+            cand = distance_matrix[did] + ddist
+            if cand < best_dist:
+                best_dist = cand
+                best_dest_node = did
+
+        if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
         return {
-            "path": self.__reconstruct_path__(destination_id, predecessor),
-            "length": distance_matrix[destination_id],
+            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "length": best_dist,
         }
 
     @algorithm
     def a_star(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         heuristic_fn: callable = None,
     ) -> dict:
         """
@@ -709,11 +788,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id of the origin node (or nodes with starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id of the destination node (or nodes with exit distances) from the graph dictionary to end the shortest path at
         - `heuristic_fn`
             - Type: function
             - What: A heuristic function that takes two node ids and returns an estimated distance between them
@@ -731,57 +810,80 @@ class GraphAlgorithms:
             )
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        origin_dict = normalize_node_input(origin_id)
+        dest_dict = normalize_node_input(destination_id)
 
         # Variable Initialization
         graph = self.graph
         distance_matrix = [float("inf")] * len(graph)
-        # Using a visited matrix does add a tad bit of overhead but avoids revisiting nodes
-        # and does not require anything extra to be stored in the heap
         visited = [0] * len(graph)
         open_leaves = []
         predecessor = [-1] * len(graph)
 
-        for oid in origin_ids:
-            distance_matrix[oid] = 0
-            heappush(open_leaves, (0, oid))
+        best_dist = float("inf")
+        best_dest_node = -1
+        for did, ddist in dest_dict.items():
+            if did in origin_dict:
+                cand = origin_dict[did] + ddist
+                if cand < best_dist:
+                    best_dist = cand
+                    best_dest_node = did
+
+        def _h(node):
+            if isinstance(destination_id, int):
+                return heuristic_fn(node, destination_id)
+            return min(heuristic_fn(node, did) for did in dest_dict.keys())
+
+        for oid, odist in origin_dict.items():
+            distance_matrix[oid] = odist
+            heappush(open_leaves, (odist + _h(oid), oid))
 
         while open_leaves:
             current_id = heappop(open_leaves)[1]
-            if current_id == destination_id:
+            if distance_matrix[current_id] >= best_dist:
                 break
             if visited[current_id] == 1:
                 continue
             visited[current_id] = 1
             current_distance = distance_matrix[current_id]
+            if current_id in dest_dict:
+                cand = current_distance + dest_dict[current_id]
+                if cand < best_dist:
+                    best_dist = cand
+                    best_dest_node = current_id
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
                     distance_matrix[connected_id] = possible_distance
                     predecessor[connected_id] = current_id
-                    heappush(
-                        open_leaves,
-                        (
-                            possible_distance
-                            + heuristic_fn(connected_id, destination_id),
-                            connected_id,
-                        ),
-                    )
-        if current_id != destination_id:
+                    if connected_id in dest_dict:
+                        cand = possible_distance + dest_dict[connected_id]
+                        if cand < best_dist:
+                            best_dist = cand
+                            best_dest_node = connected_id
+                    if possible_distance < best_dist:
+                        heappush(
+                            open_leaves,
+                            (
+                                possible_distance + _h(connected_id),
+                                connected_id,
+                            ),
+                        )
+        if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
         return {
-            "path": self.__reconstruct_path__(destination_id, predecessor),
-            "length": distance_matrix[destination_id],
+            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "length": best_dist,
         }
 
     @algorithm
     def bellman_ford(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
     ) -> dict:
         """
         Function:
@@ -794,11 +896,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int | set[int]
-            - What: The id(s) of the origin node(s) from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
@@ -806,15 +908,16 @@ class GraphAlgorithms:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
-        origin_ids = {origin_id} if isinstance(origin_id, int) else origin_id
+        origin_dict = normalize_node_input(origin_id)
+        dest_dict = normalize_node_input(destination_id)
         graph = self.graph
 
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
         predecessor = [-1] * len(graph)
 
-        for oid in origin_ids:
-            distance_matrix[oid] = 0
+        for oid, odist in origin_dict.items():
+            distance_matrix[oid] = odist
 
         len_graph = len(graph)
         for i in range(len_graph):
@@ -833,15 +936,22 @@ class GraphAlgorithms:
                             raise Exception(
                                 "Graph contains a negative weight cycle"
                             )
-        # Check if destination is reachable
-        if distance_matrix[destination_id] == float("inf"):
+        best_dist = float("inf")
+        best_dest_node = -1
+        for did, ddist in dest_dict.items():
+            cand = distance_matrix[did] + ddist
+            if cand < best_dist:
+                best_dist = cand
+                best_dest_node = did
+
+        if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
         return {
-            "path": self.__reconstruct_path__(destination_id, predecessor),
-            "length": distance_matrix[destination_id],
+            "path": self.__reconstruct_path__(best_dest_node, predecessor),
+            "length": best_dist,
         }
 
     @algorithm
@@ -881,6 +991,12 @@ class GraphAlgorithms:
 
         - None
         """
+        if isinstance(origin_id, (set, dict)) or isinstance(
+            destination_id, (set, dict)
+        ):
+            return self.dijkstra(
+                origin_id=origin_id, destination_id=destination_id
+            )
         if not hasattr(self, "__bmssp_graph__"):
             self.__bmssp_graph__ = Bmssp(
                 graph=self.graph,
@@ -897,8 +1013,8 @@ class GraphAlgorithms:
     @algorithm
     def cached_shortest_path(
         self,
-        origin_id: int,
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         length_only: bool = False,
     ):
         """
@@ -913,11 +1029,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node from the graph dictionary to start the shortest path from
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances) from the graph dictionary to start the shortest path from
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node from the graph dictionary to end the shortest path at
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances) from the graph dictionary to end the shortest path at
 
         Optional Arguments:
 
@@ -936,16 +1052,37 @@ class GraphAlgorithms:
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
 
         # Main function
-        if self.__cache__[origin_id] == 0:
-            self.__cache__[origin_id] = self.get_shortest_path_tree(
-                origin_id=origin_id
+        if isinstance(origin_id, int):
+            orig_node = origin_id
+            is_single_origin = True
+        elif isinstance(origin_id, set) and len(origin_id) == 1:
+            orig_node = next(iter(origin_id))
+            is_single_origin = True
+        elif isinstance(origin_id, dict) and len(origin_id) == 1:
+            orig_node = next(iter(origin_id.keys()))
+            is_single_origin = True
+        else:
+            is_single_origin = False
+
+        if is_single_origin:
+            if self.__cache__[orig_node] == 0:
+                self.__cache__[orig_node] = self.get_shortest_path_tree(
+                    origin_id=orig_node
+                )
+            return self.get_tree_path(
+                origin_id=origin_id,
+                destination_id=destination_id,
+                tree_data=self.__cache__[orig_node],
+                length_only=length_only,
             )
-        return self.get_tree_path(
+
+        res = self.dijkstra(
             origin_id=origin_id,
             destination_id=destination_id,
-            tree_data=self.__cache__[origin_id],
-            length_only=length_only,
         )
+        if length_only:
+            res["path"] = []
+        return res
 
     def create_contraction_hierarchy(
         self, heuristic_fn=None, ch_graph_kwargs=None, settled_limit: int = 50
@@ -1028,8 +1165,8 @@ class GraphAlgorithms:
     @algorithm(bidirectional=True)
     def tnr(
         self,
-        origin_id: int,
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         length_only: bool = False,
         **kwargs,
     ) -> dict:
@@ -1042,11 +1179,11 @@ class GraphAlgorithms:
         Required Arguments:
 
         - `origin_id`
-            - Type: int
-            - What: The id of the origin node
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the origin node(s) (with optional starting distances)
         - `destination_id`
-            - Type: int
-            - What: The id of the destination node
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id(s) of the destination node(s) (with optional exit distances)
 
         Optional Arguments:
 
@@ -1062,7 +1199,10 @@ class GraphAlgorithms:
 
     @algorithm(bidirectional=True)
     def contraction_hierarchy(
-        self, origin_id: int, destination_id: int, length_only: bool = False
+        self,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
+        length_only: bool = False,
     ) -> dict[str, Any]:
         """
         Function:
@@ -1072,8 +1212,8 @@ class GraphAlgorithms:
 
         Requires:
 
-        - origin_id: The id of the origin node
-        - destination_id: The id of the destination node
+        - origin_id: The id(s) of the origin node(s) (with optional starting distances)
+        - destination_id: The id(s) of the destination node(s) (with optional exit distances)
 
         Optional:
 
@@ -1175,6 +1315,8 @@ class Graph(
             delattr(self, "__tnr_graph__")
         if hasattr(self, "__bmssp_graph__"):
             delattr(self, "__bmssp_graph__")
+        if hasattr(self, "__max_edge_weight__"):
+            delattr(self, "__max_edge_weight__")
         self.reduced_graph = None
         self.reduced_graph_connections = None
         self.reduced_inverse_graph = None

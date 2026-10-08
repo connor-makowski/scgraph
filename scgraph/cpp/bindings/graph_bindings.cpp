@@ -40,7 +40,7 @@ static nb::dict tree_data_to_dict(const TreeData& t) {
 // Helper function to convert dict to TreeData
 static TreeData dict_to_tree_data(const nb::dict& d) {
     return TreeData{
-        nb::cast<std::variant<int, std::set<int>>>(d["origin_id"]),
+        nb::cast<NodeIdVariant>(d["origin_id"]),
         nb::cast<std::vector<int>>(d["predecessors"]),
         nb::cast<std::vector<double>>(d["distance_matrix"])
     };
@@ -110,7 +110,7 @@ NB_MODULE(cpp, m) {
             return res;
         })
         .def("is_same_chain", &Graph::is_same_chain,
-             nb::arg("origin_id"), nb::arg("destination_id"),
+             nb::arg("origin_id"), nb::arg("destination_id") = nb::none(),
              "Check if origin and destination belong to the same reduced chain")
         .def("expand_path", &Graph::expand_path,
              nb::arg("path"),
@@ -219,13 +219,13 @@ NB_MODULE(cpp, m) {
         // Tree algorithms
         // get_shortest_path_tree: returns a dict to match the Python API
         .def("get_shortest_path_tree", [](Graph& self,
-                                          const std::variant<int, std::set<int>>& origin_id) -> nb::dict {
+                                          const NodeIdVariant& origin_id) -> nb::dict {
             return tree_data_to_dict(self.get_shortest_path_tree(origin_id));
         }, nb::arg("origin_id"),
            "Calculate the shortest path tree using Dijkstra's algorithm")
 
         // get_tree_path: accepts a dict (as returned by get_shortest_path_tree) and returns a dict
-        .def("get_tree_path", [](Graph& self, int origin_id, int destination_id,
+        .def("get_tree_path", [](Graph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
                                   const nb::dict& tree_data, bool length_only) -> nb::dict {
             return graph_result_to_dict(
                 self.get_tree_path(origin_id, destination_id, dict_to_tree_data(tree_data), length_only)
@@ -236,22 +236,22 @@ NB_MODULE(cpp, m) {
 
         // Shortest path algorithms - all return dicts
         .def("dijkstra", [](Graph& self,
-                            const std::variant<int, std::set<int>>& origin_id,
-                            int destination_id) -> nb::dict {
+                            const NodeIdVariant& origin_id,
+                            const NodeIdVariant& destination_id) -> nb::dict {
             return graph_result_to_dict(self.dijkstra(origin_id, destination_id));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using Dijkstra's algorithm")
 
         .def("bidirectional_dijkstra", [](Graph& self,
-                                          const std::variant<int, std::set<int>>& origin_id,
-                                          int destination_id) -> nb::dict {
+                                          const NodeIdVariant& origin_id,
+                                          const NodeIdVariant& destination_id) -> nb::dict {
             return graph_result_to_dict(self.bidirectional_dijkstra(origin_id, destination_id));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using bidirectional Dijkstra's algorithm")
 
         .def("dijkstra_buckets", [](Graph& self,
-                                    const std::variant<int, std::set<int>>& origin_id,
-                                    int destination_id,
+                                    const NodeIdVariant& origin_id,
+                                    const NodeIdVariant& destination_id,
                                     std::optional<double> max_edge_weight) -> nb::dict {
             return graph_result_to_dict(self.dijkstra_buckets(origin_id, destination_id, max_edge_weight));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
@@ -259,8 +259,8 @@ NB_MODULE(cpp, m) {
            "Find shortest path using Dijkstra with buckets")
 
         .def("bidirectional_buckets", [](Graph& self,
-                                         const std::variant<int, std::set<int>>& origin_id,
-                                         int destination_id,
+                                         const NodeIdVariant& origin_id,
+                                         const NodeIdVariant& destination_id,
                                          std::optional<double> max_edge_weight) -> nb::dict {
             return graph_result_to_dict(self.bidirectional_buckets(origin_id, destination_id, max_edge_weight));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
@@ -268,9 +268,8 @@ NB_MODULE(cpp, m) {
            "Find shortest path using bidirectional Dijkstra with buckets")
 
         .def("dijkstra_negative", [](Graph& self,
-
-                                     const std::variant<int, std::set<int>>& origin_id,
-                                     int destination_id,
+                                     const NodeIdVariant& origin_id,
+                                     const NodeIdVariant& destination_id,
                                      std::optional<int> cycle_check_iterations) -> nb::dict {
             return graph_result_to_dict(
                 self.dijkstra_negative(origin_id, destination_id, cycle_check_iterations)
@@ -280,8 +279,8 @@ NB_MODULE(cpp, m) {
            "Find shortest path using Dijkstra with negative cycle detection")
 
         .def("a_star", [](Graph& self,
-                          const std::variant<int, std::set<int>>& origin_id,
-                          int destination_id,
+                          const NodeIdVariant& origin_id,
+                          const NodeIdVariant& destination_id,
                           std::function<double(int, int)> heuristic_fn) -> nb::dict {
             return graph_result_to_dict(self.a_star(origin_id, destination_id, heuristic_fn));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
@@ -289,23 +288,23 @@ NB_MODULE(cpp, m) {
            "Find shortest path using A* algorithm with optional heuristic")
 
         .def("bellman_ford", [](Graph& self,
-                                const std::variant<int, std::set<int>>& origin_id,
-                                int destination_id) -> nb::dict {
+                                const NodeIdVariant& origin_id,
+                                const NodeIdVariant& destination_id) -> nb::dict {
             return graph_result_to_dict(self.bellman_ford(origin_id, destination_id));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using Bellman-Ford algorithm")
 
         .def("bmssp", [](Graph& self,
-                         const std::variant<int, std::set<int>>& origin_id,
-                         int destination_id) -> nb::dict {
+                         const NodeIdVariant& origin_id,
+                         const NodeIdVariant& destination_id) -> nb::dict {
             return graph_result_to_dict(self.bmssp(origin_id, destination_id));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using BMSSP algorithm (falls back to Dijkstra in C++ backend)")
 
         // Cached shortest path
         .def("cached_shortest_path", [](Graph& self,
-                                        int origin_id,
-                                        int destination_id,
+                                        const NodeIdVariant& origin_id,
+                                        const NodeIdVariant& destination_id,
                                         bool length_only) -> nb::dict {
             return graph_result_to_dict(
                 self.cached_shortest_path(origin_id, destination_id, length_only)
@@ -318,7 +317,7 @@ NB_MODULE(cpp, m) {
         .def("create_contraction_hierarchy", &Graph::create_contraction_hierarchy,
              nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
              "Create a Contraction Hierarchies (CH) graph")
-        .def("contraction_hierarchy", [](Graph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
+        .def("contraction_hierarchy", [](Graph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
             return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id, length_only));
         }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
            "Get shortest path using Contraction Hierarchies")
@@ -329,7 +328,7 @@ NB_MODULE(cpp, m) {
              "Create a Transit Node Routing (TNR) graph")
         .def("set_tnr_graph", &Graph::set_tnr_graph, nb::arg("tnr_graph"),
              "Set the TNRGraph object for the graph")
-        .def("tnr", [](Graph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
+        .def("tnr", [](Graph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
             return graph_result_to_dict(self.tnr(origin_id, destination_id, length_only));
         }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
            "Get shortest path using Transit Node Routing");
@@ -353,13 +352,13 @@ NB_MODULE(cpp, m) {
              nb::arg("node_dict") = std::unordered_map<int, double>{},
              nb::arg("symmetric") = false,
              "Add a node to the graph")
-        .def("search", [](CHGraph& self, int origin_id, int destination_id) -> nb::dict {
-            return graph_result_to_dict(self.search(origin_id, destination_id));
-        }, nb::arg("origin_id"), nb::arg("destination_id"),
+        .def("search", [](CHGraph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
+            return graph_result_to_dict(self.search(origin_id, destination_id, length_only));
+        }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
            "Perform a bidirectional search on the CH")
-        .def("get_shortest_path", [](CHGraph& self, int origin_id, int destination_id) -> nb::dict {
-            return graph_result_to_dict(self.get_shortest_path(origin_id, destination_id));
-        }, nb::arg("origin_id"), nb::arg("destination_id"),
+        .def("get_shortest_path", [](CHGraph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
+            return graph_result_to_dict(self.get_shortest_path(origin_id, destination_id, length_only));
+        }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
            "Wrapper for search to match scgraph naming conventions")
         .def_prop_ro("nodes_count", &CHGraph::get_nodes_count)
         .def_prop_ro("ranks", &CHGraph::get_ranks)
@@ -470,18 +469,18 @@ NB_MODULE(cpp, m) {
                       const std::vector<std::unordered_map<int, double>>&,
                       const std::vector<std::unordered_map<int, double>>&,
                       int>(),
-             nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
-             nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
-             nb::arg("transit_nodes"), nb::arg("distance_table"),
-             nb::arg("forward_access_nodes"), nb::arg("backward_access_nodes"),
-             nb::arg("settled_limit") = 50,
-             "Initialize a TNRGraph from pre-calculated data")
-            .def("search", [](TNRGraph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
+              nb::arg("nodes_count"), nb::arg("ranks"), nb::arg("forward_graph"),
+              nb::arg("backward_graph"), nb::arg("shortcuts"), nb::arg("original_graph"),
+              nb::arg("transit_nodes"), nb::arg("distance_table"),
+              nb::arg("forward_access_nodes"), nb::arg("backward_access_nodes"),
+              nb::arg("settled_limit") = 50,
+              "Initialize a TNRGraph from pre-calculated data")
+            .def("search", [](TNRGraph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
             return graph_result_to_dict(self.search(origin_id, destination_id, length_only));
             }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
             "Perform a bidirectional search on the TNR")
-            .def("get_shortest_path", [](TNRGraph& self, int origin_id, int destination_id, bool length_only) -> nb::dict {
-            return graph_result_to_dict(self.search(origin_id, destination_id, length_only));
+            .def("get_shortest_path", [](TNRGraph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
+            return graph_result_to_dict(self.get_shortest_path(origin_id, destination_id, length_only));
             }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
             "Wrapper for search to match scgraph naming conventions")
             .def_prop_ro("transit_nodes", &TNRGraph::get_transit_nodes)
