@@ -447,7 +447,7 @@ def test_geograph_direct_connection_shorter_than_network(marnet):
     when direct haversine * node_addition_circuity is shorter than the network route.
     """
     origin = {"latitude": 30.001, "longitude": 160.001}
-    dest = {"latitude": 30.010, "longitude": 160.010}
+    dest = {"latitude": 30.002, "longitude": 160.001}
 
     # Off graph circuity 1.2, node_addition_circuity 2.0
     res = marnet.get_shortest_path(

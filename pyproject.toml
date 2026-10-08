@@ -4,7 +4,7 @@ target-version = ['py312']
 exclude = '/.*(migrations|__pycache__|geographs).*/'
 
 [build-system]
-requires = ["scikit_build_core", "nanobind"]
+requires = ["scikit-build-core", "nanobind>=3.1.0"]
 build-backend = "scikit_build_core.build"
 
 [tool.scikit-build]
@@ -12,7 +12,12 @@ build.verbose = false
 build-dir = "build/{wheel_tag}"
 
 [[tool.scikit-build.overrides]]
+if.env.SCGRAPH_NO_BUILD = true
+wheel.cmake = false
+
+[[tool.scikit-build.overrides]]
 if.failed = true
+if.not.env.SCGRAPH_REQUIRE_CPP = true
 wheel.cmake = false
 
 [tool.scikit-build.sdist]
@@ -30,7 +35,7 @@ include = [
 
 [project]
 name = "scgraph"
-version = "3.5.0"
+version = "3.6.0b1"
 description = "Determine an approximate distance and route between two points on earth."
 authors = [
     {name="Connor Makowski", email="conmak@mit.edu"}
@@ -65,6 +70,7 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["test"]
 pythonpath = ["test"]
+python_files = ["*_test.py"]
 
 [tool.uv]
 no-build-isolation-package = []
@@ -73,3 +79,16 @@ no-build-isolation-package = []
 "Homepage" = "https://github.com/connor-makowski/scgraph"
 "Bug Tracker" = "https://github.com/connor-makowski/scgraph/issues"
 "Documentation" = "https://connor-makowski.github.io/scgraph/scgraph.html"
+
+[tool.cibuildwheel]
+build = "cp311-* cp312-* cp313-* cp314-*"
+skip = "*-win32 *_i686 pp*"
+test-command = "pytest {project}/test"
+test-requires = ["pytest>=9.0.3"]
+
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.windows]
+repair-wheel-command = ""

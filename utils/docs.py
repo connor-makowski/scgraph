@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -6,14 +7,20 @@ from pathlib import Path
 root = Path(__file__).parent.parent
 scgraph = root / "scgraph" / "__init__.py"
 
-
-VERSION = "3.5.0"
+VERSION = "3.6.0"
 OLD_DOC_VERSIONS = ["2.15.0", "1.5.2", "0.3.0"]
 
-env = {
-    **os.environ,
-    "version_options": " ".join([VERSION] + OLD_DOC_VERSIONS),
-}
+
+def update_versions_manifest():
+    """Write all available documentation versions to docs/versions.json and docs/versions.js."""
+    versions = [VERSION] + OLD_DOC_VERSIONS
+    versions_json = root / "docs" / "versions.json"
+    versions_json.write_text(json.dumps(versions, indent=2) + "\n")
+
+    versions_js = root / "docs" / "versions.js"
+    versions_js.write_text(
+        f"window.DOC_VERSIONS = {json.dumps(versions, indent=2)};\n"
+    )
 
 
 def generate_docs(version):
@@ -21,30 +28,45 @@ def generate_docs(version):
     template_dir = str(root / "doc_template")
 
     if version != "./" and version != VERSION:
-        # Use an isolated environment per old version so their (older)
-        # dependencies don't clobber the current venv.
+        # One-time rebuild of older versions from dist/ tarballs
         tarball = str(root / "dist" / f"scgraph-{version}.tar.gz")
         subprocess.run(
             [
-                "uv", "run", "--isolated",
-                "--with", tarball,
-                "--with", "pdoc",
-                "pdoc", "-o", out_dir, "-t", template_dir, "scgraph",
+                "uv",
+                "run",
+                "--isolated",
+                "--with",
+                tarball,
+                "--with",
+                "pdoc",
+                "pdoc",
+                "-o",
+                out_dir,
+                "-t",
+                template_dir,
+                "scgraph",
             ],
             check=True,
-            env=env,
             cwd=str(root),
         )
     else:
         subprocess.run(
-            [sys.executable, "-m", "pdoc", "-o", out_dir, "-t", template_dir, "scgraph"],
+            [
+                sys.executable,
+                "-m",
+                "pdoc",
+                "-o",
+                out_dir,
+                "-t",
+                template_dir,
+                "./scgraph",
+            ],
             check=True,
-            env=env,
         )
 
 
 # Build __init__.py from README
-readme = (root / "README.md").read_text().replace("\\","\\\\")
+readme = (root / "README.md").read_text()
 
 init_setup = """
 from scgraph.graph_reducer import algorithm
@@ -61,14 +83,20 @@ from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
 """
 
-scgraph.write_text(f'"""\n{readme}\n"""\n{init_setup}\n')
+scgraph.write_text(
+    f'"""\n{readme}\n"""\n\n{init_setup}'
+)
 
+# Update the versions manifest loaded dynamically by client-side JS
+update_versions_manifest()
+
+# Generate current docs
+print(f"Generating docs for current version ({VERSION}) and root...")
 generate_docs("./")
 generate_docs(VERSION)
-for version in OLD_DOC_VERSIONS:
-    generate_docs(version)
 
-# Update Jupyter Notebook
-# jupyter nbconvert --execute example.ipynb --to notebook --inplace
-# jupyter nbconvert --execute example_making_modificaitons --to notebook --inplace
-# rm '=2.0.0'
+# Rebuild old versions if '--rebuild-old' is passed or when executed
+if "--rebuild-old" in sys.argv or "--all" in sys.argv:
+    for version in OLD_DOC_VERSIONS:
+        print(f"Rebuilding docs for version {version}...")
+        generate_docs(version)

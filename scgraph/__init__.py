@@ -173,10 +173,10 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 | `algorithm_fn` | Description | Time Complexity |
 |---|---|---|
-| `'bidirectional_buckets'` | Bidirectional Dijkstra with buckets (Dial's algorithm); default for GeoGraphs | O(n+m+W) |
 | `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights | O((n+m) log n) |
 | `'bidirectional_dijkstra'` | Bidirectional Dijkstra; simultaneous search from origin and destination | O((n+m) log n) |
 | `'dijkstra_buckets'` | Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights (ideally >= 1) | O(n+m+W) |
+| `'bidirectional_buckets'` | Bidirectional Dijkstra (default for geographs) with buckets (Dial's algorithm); efficient for non-negative weights | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
 | `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
 | `'bellman_ford'` | Bellman-Ford; supports negative weights, slower than Dijkstra | O(n·m) |
@@ -189,10 +189,9 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 | Scenario | Recommended Approach |
 |---|---|
-| Single query (GeoGraph) | `bidirectional_buckets` (default) |
-| Single query (Graph) | `dijkstra` (default) or `bidirectional_dijkstra` / `bidirectional_buckets` |
+| Single query | `dijkstra`, `bidirectional_buckets` or `bidirectional_dijkstra` |
 | Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for 2–4x faster queries |
-| Weights generally >= 1 | `bidirectional_buckets` or `dijkstra_buckets` |
+| Weights generally >= 1 | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
 | Many arbitrary queries on a fixed graph | `contraction_hierarchy` or `tnr` |
@@ -341,7 +340,7 @@ print(output['length'])
 
 Key features of graph reduction:
 - **Zero inaccuracy**: Paths and lengths are guaranteed to be mathematically identical to the unreduced graph.
-- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm.
+- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm. 
 - **Iterative reduction**: Pass `iterations=-1` to reduce iteratively until full convergence (simplifying sub-chains created after initial contraction).
 
 ## Lazy Loading
@@ -389,7 +388,6 @@ output = marnet_geograph.get_shortest_path(
 | `'quadrant'` / `'kdquadrant'` | Closest node in each quadrant via GeoKDTree |
 | `'all'` | All nodes within the bound |
 
-`node_addition_math` is retained for compatibility; GeoKDTree handles closest and quadrant selection.
 
 ---
 
@@ -430,7 +428,7 @@ The cache location defaults to the platform-appropriate directory:
 |---|---|
 | Linux | `~/.cache/scgraph/` |
 | macOS | `~/Library/Caches/scgraph/` |
-| Windows | `%LOCALAPPDATA%\\scgraph\\` |
+| Windows | `%LOCALAPPDATA%\scgraph\` |
 
 ### `load_geograph` Parameters
 
@@ -815,11 +813,11 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py), in
 
 """
 
+
 from scgraph.graph_reducer import algorithm
 
 try:
     from scgraph.cpp import Graph, CHGraph
-
     # Assign the python algorithm function to the cpp graph class
     Graph.algorithm = staticmethod(algorithm)
 except ImportError:
