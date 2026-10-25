@@ -596,14 +596,17 @@ print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
 # Reduce the graph (contracts pass-through nodes):
 graph.reduce(iterations=1)
 
-# Custom algorithm decorator with automated reduced graph support:
+# Custom algorithm decorator with automated reduced graph support.
+# On a reduced graph, a destination inside a contracted chain (and, for
+# bidirectional algorithms, an origin) is passed as a {node_id: distance} dict
+# of the chain's boundary nodes.
 @Graph.algorithm
-def custom_solver(self, origin_id: int, destination_id: int) -> dict:
+def custom_solver(self, origin_id: int | dict, destination_id: int | dict) -> dict:
     # Standard single-sided algorithm implementation using self.graph
     ...
 
 @Graph.algorithm(bidirectional=True)
-def custom_bidirectional_solver(self, origin_id: int, destination_id: int) -> dict:
+def custom_bidirectional_solver(self, origin_id: int | dict, destination_id: int | dict) -> dict:
     # Bidirectional algorithm using self.graph and self.inverse_graph
     ...
 ```
