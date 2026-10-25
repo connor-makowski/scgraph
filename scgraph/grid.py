@@ -69,7 +69,7 @@ class GridGraph:
 
         self.x_size = x_size
         self.y_size = y_size
-        self.blocks = blocks
+        self.blocks = list(blocks)
         self.add_exterior_walls = add_exterior_walls
 
         # Update the blocks if add_exterior_walls is True
@@ -551,8 +551,9 @@ class GridGraph:
                 "x": destination_node[0],
                 "y": destination_node[1],
             }
-        if algorithm_kwargs is None:
-            algorithm_kwargs = {}
+        algorithm_kwargs = (
+            dict(algorithm_kwargs) if algorithm_kwargs is not None else dict()
+        )
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = self.graph
         elif isinstance(algorithm_fn, str):

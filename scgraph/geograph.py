@@ -1631,10 +1631,12 @@ class GeoGraph(
         - `graph`
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph
+            - Note: May be kept and modified instead of copied (pure-Python backend; the C++ backend copies it); do not modify it afterwards
         - `nodes`
             - Type: list of lists of ints or floats
             - What: A list of lists where the values are coordinates (latitude then longitude)
             - Note: The length of the nodes list must be the same as that of the graph list
+            - Note: Kept without copying and may be modified by the GeoGraph; do not modify it afterwards
             - Example:
             ```
                 [
@@ -2003,7 +2005,7 @@ class GeoGraph(
             else self.default_node_addition_circuity
         )
         algorithm_kwargs = (
-            algorithm_kwargs if algorithm_kwargs is not None else dict()
+            dict(algorithm_kwargs) if algorithm_kwargs is not None else dict()
         )
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = self.graph_object.graph
