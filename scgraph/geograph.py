@@ -613,7 +613,10 @@ class GeoGraphIO:
             weight = round(
                 float(data.get(weight_key)) / weight_divisor, weight_precision
             )
-            graph[i][j] = min(graph[i].get(j, float("inf")), weight)
+            # Keep only the shortest of parallel edges, with its own geometry
+            if weight >= graph[i].get(j, float("inf")):
+                continue
+            graph[i][j] = weight
             if load_intermediate_nodes and "geometry" in data:
                 intermediate_nodes[i][j] = [
                     [
@@ -622,6 +625,8 @@ class GeoGraphIO:
                     ]
                     for coord in data["geometry"].coords
                 ]
+            elif load_intermediate_nodes:
+                intermediate_nodes[i].pop(j, None)
 
         nodes = [None] * len(node_list)
         for node, data in osmnx_graph.nodes(data=True):
