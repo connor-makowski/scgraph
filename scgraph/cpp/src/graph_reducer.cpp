@@ -198,12 +198,18 @@ void GraphReducer::reduce(int iterations) {
     reduced_graph.assign(n, std::vector<std::pair<int, double>>());
     reduced_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
 
-    for (size_t A = 0; A < n; ++A) {
-        std::unordered_map<int, double> best_dist = {{(int)A, 0.0}};
-        std::unordered_map<int, int> predecessor;
-        using PQElement = std::pair<double, int>;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
+    // Search state shared by the 2n local searches of steps 3-4:
+    // best_dist[v] and predecessor[v] belong to the current search iff seen[v] == stamp
+    std::vector<double> best_dist(n);
+    std::vector<int> predecessor(n);
+    std::vector<size_t> seen(n, 0);
+    size_t stamp = 0;
+    using PQElement = std::pair<double, int>;
+    std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
 
+    for (size_t A = 0; A < n; ++A) {
+        seen[A] = ++stamp;
+        best_dist[A] = 0.0;
         open_leaves.push({0.0, (int)A});
 
         while (!open_leaves.empty()) {
@@ -232,8 +238,8 @@ void GraphReducer::reduce(int iterations) {
                 int v = edge.first;
                 double w = edge.second;
                 double new_dist = dist + w;
-                auto it = best_dist.find(v);
-                if (it == best_dist.end() || new_dist < it->second) {
+                if (seen[v] != stamp || new_dist < best_dist[v]) {
+                    seen[v] = stamp;
                     best_dist[v] = new_dist;
                     predecessor[v] = u;
                     open_leaves.push({new_dist, v});
@@ -247,11 +253,8 @@ void GraphReducer::reduce(int iterations) {
     reduced_inverse_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
 
     for (size_t B = 0; B < n; ++B) {
-        std::unordered_map<int, double> best_dist = {{(int)B, 0.0}};
-        std::unordered_map<int, int> predecessor;
-        using PQElement = std::pair<double, int>;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
-
+        seen[B] = ++stamp;
+        best_dist[B] = 0.0;
         open_leaves.push({0.0, (int)B});
 
         while (!open_leaves.empty()) {
@@ -280,8 +283,8 @@ void GraphReducer::reduce(int iterations) {
                 int v = edge.first;
                 double w = edge.second;
                 double new_dist = dist + w;
-                auto it = best_dist.find(v);
-                if (it == best_dist.end() || new_dist < it->second) {
+                if (seen[v] != stamp || new_dist < best_dist[v]) {
+                    seen[v] = stamp;
                     best_dist[v] = new_dist;
                     predecessor[v] = u;
                     open_leaves.push({new_dist, v});
