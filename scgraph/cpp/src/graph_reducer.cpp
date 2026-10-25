@@ -79,6 +79,9 @@ void GraphReducer::reduce(int iterations) {
             }
         } else {
             // Subsequent iterations: identify pass-through nodes on current reduced topology
+            // A node is visited in the current search iff visited[node] == stamp
+            std::vector<size_t> visited(n, 0);
+            size_t stamp = 0;
             for (size_t u = 0; u < n; ++u) {
                 if (is_reduced[u]) {
                     continue;
@@ -88,8 +91,7 @@ void GraphReducer::reduce(int iterations) {
                 std::set<int> outflows;
                 {
                     std::vector<int> q = {(int)u};
-                    std::vector<bool> visited(n, false);
-                    visited[u] = true;
+                    visited[u] = ++stamp;
                     while (!q.empty()) {
                         int curr = q.back();
                         q.pop_back();
@@ -99,8 +101,8 @@ void GraphReducer::reduce(int iterations) {
                         }
                         for (const auto& edge : graph[curr]) {
                             int v = edge.first;
-                            if (v >= 0 && v < (int)n && !visited[v]) {
-                                visited[v] = true;
+                            if (v >= 0 && v < (int)n && visited[v] != stamp) {
+                                visited[v] = stamp;
                                 q.push_back(v);
                             }
                         }
@@ -111,8 +113,7 @@ void GraphReducer::reduce(int iterations) {
                 std::set<int> inflows;
                 {
                     std::vector<int> q = {(int)u};
-                    std::vector<bool> visited(n, false);
-                    visited[u] = true;
+                    visited[u] = ++stamp;
                     while (!q.empty()) {
                         int curr = q.back();
                         q.pop_back();
@@ -122,8 +123,8 @@ void GraphReducer::reduce(int iterations) {
                         }
                         for (const auto& edge : inverse_graph[curr]) {
                             int v = edge.first;
-                            if (v >= 0 && v < (int)n && !visited[v]) {
-                                visited[v] = true;
+                            if (v >= 0 && v < (int)n && visited[v] != stamp) {
+                                visited[v] = stamp;
                                 q.push_back(v);
                             }
                         }
