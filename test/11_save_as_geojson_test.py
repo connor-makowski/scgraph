@@ -25,18 +25,28 @@ def tmp_graph(tmp_path):
     return GeoGraph(nodes=list(_NODES), graph=list(_GRAPH)), tmp_path
 
 
-def test_save_load_geojson(tmp_graph):
+# Saving must write the original graph, whether or not the geograph was reduced
+@pytest.mark.parametrize("reduce", [False, True])
+def test_save_load_geojson(tmp_graph, reduce):
     geo, tmp = tmp_graph
+    if reduce:
+        geo.reduce()
     geojson_path = str(tmp / "test.geojson")
     geo.save_as_geojson(geojson_path)
     loaded = GeoGraph.load_from_geojson(geojson_path, silent=True)
-    assert geo.nodes == loaded.nodes
+    assert loaded.nodes == _NODES
+    # GeoJSON stores geometries: compare edges, not their recomputed lengths
+    edges = [set(d) for d in loaded.graph_object.graph]
+    assert edges == [set(d) for d in _GRAPH]
 
 
-def test_save_load_graphjson(tmp_graph):
+@pytest.mark.parametrize("reduce", [False, True])
+def test_save_load_graphjson(tmp_graph, reduce):
     geo, tmp = tmp_graph
+    if reduce:
+        geo.reduce()
     graphjson_path = str(tmp / "test.graphjson")
     geo.save_as_graphjson(graphjson_path)
     loaded = GeoGraph.load_from_graphjson(graphjson_path)
-    assert geo.graph_object.graph == loaded.graph_object.graph
-    assert geo.nodes == loaded.nodes
+    assert loaded.graph_object.graph == _GRAPH
+    assert loaded.nodes == _NODES

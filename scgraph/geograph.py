@@ -77,7 +77,7 @@ class GeoGraphIO:
             - Default: False
 
         """
-        graph = self.graph_object.graph
+        graph = self.graph_object.unreduced_graph
         if compact:
             multiline = []
             for origin_idx, destinations in enumerate(graph):
@@ -163,7 +163,7 @@ class GeoGraphIO:
             json.dump(
                 {
                     "type": "GeoGraph",
-                    "graph": self.graph_object.graph,
+                    "graph": self.graph_object.unreduced_graph,
                     "nodes": self.nodes,
                     "default_off_graph_circuity": self.default_off_graph_circuity,
                     "default_node_addition_circuity": self.default_node_addition_circuity,
@@ -1186,7 +1186,7 @@ class GeoGraphModifiers:
             node_connection_mapper[other_node_id] = new_node_id
 
         # Store the modified other geograph graph that include the connection nodes
-        other_graph = deepcopy(other_geograph.graph_object.graph)
+        other_graph = deepcopy(other_geograph.graph_object.unreduced_graph)
         # Add the other graph nodes to the current geograph (removing the connection nodes since they are already added to the current geograph)
         self.nodes += deepcopy(other_geograph.nodes)[
             :original_other_graph_length
@@ -1208,7 +1208,7 @@ class GeoGraphModifiers:
         for idx, node in node_connection_mapper.items():
             node_connection_map[idx] = node
         # Re establish the graph object (To support C++ Graph Objects)
-        graph = self.graph_object.graph
+        graph = self.graph_object.unreduced_graph
         # Fill the current graph with empty dictionaries to match the length of the other graph
         graph.extend(
             [{} for _ in range(len(other_graph) - len(connection_nodes))]
@@ -2006,7 +2006,7 @@ class GeoGraph(
             algorithm_kwargs if algorithm_kwargs is not None else dict()
         )
         if callable(algorithm_fn):
-            algorithm_kwargs["graph"] = self.graph_object.graph
+            algorithm_kwargs["graph"] = self.graph_object.unreduced_graph
         elif isinstance(algorithm_fn, str):
             if hasattr(self.graph_object, algorithm_fn):
                 algorithm_fn = getattr(self.graph_object, algorithm_fn)

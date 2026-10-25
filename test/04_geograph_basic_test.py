@@ -1,5 +1,5 @@
 import pytest
-from scgraph import GeoGraph
+from scgraph import GeoGraph, Graph
 from helpers import assert_result
 
 _NODES = [
@@ -45,3 +45,27 @@ def test_shortest_path(basic_geograph):
         ),
         _EXPECTED,
     )
+
+
+def test_custom_algorithm_on_reduced_geograph():
+    # A custom algorithm must route every pair the same on the reduced graph
+    def custom_dijkstra(origin_id, destination_id, graph):
+        return Graph(graph).dijkstra(origin_id, destination_id)
+
+    unreduced = GeoGraph(nodes=_NODES, graph=_GRAPH)
+    reduced = GeoGraph(nodes=_NODES, graph=_GRAPH)
+    reduced.reduce()
+    for origin in _NODES:
+        for destination in _NODES:
+            if origin == destination:
+                continue
+            query = {
+                "origin_node": {"latitude": origin[0], "longitude": origin[1]},
+                "destination_node": {
+                    "latitude": destination[0],
+                    "longitude": destination[1],
+                },
+                "algorithm_fn": custom_dijkstra,
+            }
+            expected = unreduced.get_shortest_path(**query)
+            assert reduced.get_shortest_path(**query) == expected
