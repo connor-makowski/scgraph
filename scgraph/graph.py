@@ -53,6 +53,8 @@ class GraphTrees:
 
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
+            if current_distance > distance_matrix[current_id]:
+                continue
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
@@ -921,6 +923,7 @@ class GraphAlgorithms:
 
         len_graph = len(graph)
         for i in range(len_graph):
+            updated = False
             for current_id in range(len(graph)):
                 current_distance = distance_matrix[current_id]
                 if current_distance == float("inf"):
@@ -932,10 +935,13 @@ class GraphAlgorithms:
                     if possible_distance < distance_matrix[connected_id]:
                         distance_matrix[connected_id] = possible_distance
                         predecessor[connected_id] = current_id
+                        updated = True
                         if i == len_graph - 1:
                             raise Exception(
                                 "Graph contains a negative weight cycle"
                             )
+            if not updated:
+                break
         best_dist = float("inf")
         best_dest_node = -1
         for did, ddist in dest_dict.items():
