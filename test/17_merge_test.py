@@ -20,7 +20,7 @@ _PORTS = [
 ]
 _ATLANTA = {"latitude": 33.7490, "longitude": -84.3880}
 _LONDON = {"latitude": 51.5074, "longitude": -0.1278}
-_EXPECTED_FREEWAY_LENGTH = 7094.0603
+_EXPECTED_FREEWAY_LENGTH = 7459.1121
 _EXPECTED_MARNET_LENGTH = 8820.8927
 
 
@@ -44,3 +44,16 @@ def test_merge_and_route():
     )
     assert abs(freeway_result["length"] - _EXPECTED_FREEWAY_LENGTH) < 0.1
     assert abs(marnet_result["length"] - _EXPECTED_MARNET_LENGTH) < 0.1
+
+
+def test_merged_nodes_can_be_snapped():
+    # A destination exactly on a node of the merged network snaps to it
+    current = GeoGraph(nodes=[[0, 0], [0, 1]], graph=[{1: 111.2}, {0: 111.2}])
+    other = GeoGraph(nodes=[[0, 10], [0, 11]], graph=[{1: 111.2}, {0: 111.2}])
+    current.merge_with_other_geograph(other, connection_nodes=[[0, 5.5]])
+    output = current.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0},
+        destination_node={"latitude": 0, "longitude": 11},
+        output_path=True,
+    )
+    assert current.nodes[output["path"][-1]] == [0, 11]

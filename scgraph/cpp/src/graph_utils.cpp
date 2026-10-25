@@ -314,6 +314,7 @@ int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool 
         }
     }
 
+    inverse_graph_computed = false;
     reset_cache();
     return new_node_id;
 }
@@ -355,6 +356,7 @@ void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bo
         }
     }
 
+    inverse_graph_computed = false;
     reset_cache();
 }
 
@@ -394,6 +396,7 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
     }
 
     graph.pop_back();
+    inverse_graph_computed = false;
     reset_cache();
 
     return removed_dict;
@@ -429,6 +432,7 @@ std::optional<double> GraphUtils::remove_edge(int origin_id, int destination_id,
         );
     }
 
+    inverse_graph_computed = false;
     reset_cache();
     return result;
 }

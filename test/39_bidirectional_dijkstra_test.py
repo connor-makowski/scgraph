@@ -1,3 +1,4 @@
+from copy import deepcopy
 import pytest
 from scgraph.graph import Graph as PyGraph
 from helpers import assert_result
@@ -90,6 +91,41 @@ def _run_directed_asymmetric_tests(graph_cls):
     assert res_back["path"] == [3, 0, 1]
 
 
+# Each modification changes a shortest path; every pair stays reachable
+_MODIFICATIONS = {
+    "add_node": lambda g: g.add_node({0: 1}, symmetric=True),
+    "add_edge": lambda g: g.add_edge(2, 0, 1),
+    "remove_node": lambda g: g.remove_node(),
+    "remove_edge": lambda g: g.remove_edge(3, 2),
+}
+# (modification, query) cases that read a stale inverse graph without the fix
+# ("reduce": reduce() then dijkstra); the C++ contraction hierarchy does not
+# read it
+_CASES = [
+    (m, q)
+    for m in _MODIFICATIONS
+    for q in ("bidirectional_dijkstra", "bidirectional_buckets")
+] + [("remove_edge", "reduce")]
+_PYTHON_CASES = _CASES + [("add_edge", "contraction_hierarchy")]
+
+
+def _run_after_modification_tests(GraphClass, modification, query):
+    # Queries after a modification must match a graph built from scratch
+    g = GraphClass([{1: 10, 3: 1}, {2: 10}, {0: 10}, {2: 1, 1: 20}])
+    g.bidirectional_dijkstra(0, 2)  # builds the inverse graph
+    _MODIFICATIONS[modification](g)
+    fresh = GraphClass(deepcopy(g.graph))
+    if query == "reduce":
+        g.reduce()
+        fresh.reduce()
+        query = "dijkstra"
+    for origin in range(len(fresh.graph)):
+        for destination in range(len(fresh.graph)):
+            if origin != destination:
+                expected = getattr(fresh, query)(origin, destination)
+                assert getattr(g, query)(origin, destination) == expected
+
+
 def test_python_basic_bidirectional():
     _run_basic_bidirectional_tests(PyGraph)
 
@@ -135,3 +171,14 @@ def test_bidirectional_dijkstra_on_us_freeway(us_freeway):
         bi_res = g.bidirectional_dijkstra(u, v)
         assert abs(d_res["length"] - bi_res["length"]) < 1e-5
         assert abs(g.get_path_weight(bi_res["path"]) - d_res["length"]) < 1e-5
+
+
+@pytest.mark.parametrize("modification, query", _PYTHON_CASES)
+def test_python_after_modification(modification, query):
+    _run_after_modification_tests(PyGraph, modification, query)
+
+
+@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
+@pytest.mark.parametrize("modification, query", _CASES)
+def test_cpp_after_modification(modification, query):
+    _run_after_modification_tests(CppGraph, modification, query)
