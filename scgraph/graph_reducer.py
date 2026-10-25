@@ -190,19 +190,25 @@ class GraphReducer:
         reduced_graph_connections = self.reduced_graph_connections
 
         for A in range(len(graph)):
-            best_dist = {}
-            open_leaves = [(0, A, [])]
+            best_dist = {A: 0}
+            predecessor = {}
+            open_leaves = [(0, A)]
 
             while open_leaves:
-                dist, u, path = heappop(open_leaves)
-                if u in best_dist and best_dist[u] <= dist:
+                dist, u = heappop(open_leaves)
+                if dist > best_dist[u]:
                     continue
-                best_dist[u] = dist
 
                 if u != A and not is_reduced[u]:
                     # Boundary non-reduced node. Record connection.
                     reduced_graph[A][u] = dist
+                    path = []
+                    p = predecessor[u]
+                    while p != A:
+                        path.append(p)
+                        p = predecessor[p]
                     if path:
+                        path.reverse()
                         if reduced_graph_connections[A] is None:
                             reduced_graph_connections[A] = {}
                         reduced_graph_connections[A][u] = path
@@ -211,8 +217,9 @@ class GraphReducer:
                 for v, w in graph[u].items():
                     new_dist = dist + w
                     if v not in best_dist or new_dist < best_dist[v]:
-                        new_path = path if u == A else path + [u]
-                        heappush(open_leaves, (new_dist, v, new_path))
+                        best_dist[v] = new_dist
+                        predecessor[v] = u
+                        heappush(open_leaves, (new_dist, v))
 
         # 4. Build reduced inverse graph and connections (inbound into all nodes)
         self.reduced_inverse_graph = [{} for _ in range(len(graph))]
@@ -223,19 +230,24 @@ class GraphReducer:
         )
 
         for B in range(len(graph)):
-            best_dist = {}
-            open_leaves = [(0, B, [])]
+            best_dist = {B: 0}
+            predecessor = {}
+            open_leaves = [(0, B)]
 
             while open_leaves:
-                dist, u, path = heappop(open_leaves)
-                if u in best_dist and best_dist[u] <= dist:
+                dist, u = heappop(open_leaves)
+                if dist > best_dist[u]:
                     continue
-                best_dist[u] = dist
 
                 if u != B and not is_reduced[u]:
                     # Boundary non-reduced node reaching B
                     reduced_inverse_graph[B][u] = dist
-                    fwd_path = list(reversed(path))
+                    # Walking predecessors from u back to B gives forward order
+                    fwd_path = []
+                    p = predecessor[u]
+                    while p != B:
+                        fwd_path.append(p)
+                        p = predecessor[p]
                     if fwd_path:
                         if reduced_inverse_graph_connections[B] is None:
                             reduced_inverse_graph_connections[B] = {}
@@ -245,8 +257,9 @@ class GraphReducer:
                 for v, w in inverse_graph[u].items():
                     new_dist = dist + w
                     if v not in best_dist or new_dist < best_dist[v]:
-                        new_path = path if u == B else path + [u]
-                        heappush(open_leaves, (new_dist, v, new_path))
+                        best_dist[v] = new_dist
+                        predecessor[v] = u
+                        heappush(open_leaves, (new_dist, v))
 
     def wrap_heuristic(self, heuristic_fn=None):
         """
