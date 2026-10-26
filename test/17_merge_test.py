@@ -1,3 +1,4 @@
+from copy import deepcopy
 from scgraph import GeoGraph
 
 _PORTS = [
@@ -42,18 +43,17 @@ def test_merge_and_route():
     marnet_result = marnet.get_shortest_path(
         origin_node=_ATLANTA, destination_node=_LONDON
     )
+    # The merged GeoGraph must route like a GeoGraph built from scratch on the
+    # merged network (whose constructor indexes every node for snapping)
+    rebuilt = GeoGraph(
+        graph=deepcopy(freeway.graph_object.graph),
+        nodes=deepcopy(freeway.nodes),
+        default_off_graph_circuity=freeway.default_off_graph_circuity,
+        default_node_addition_circuity=freeway.default_node_addition_circuity,
+        geograph_units=freeway.geograph_units,
+    )
+    assert freeway_result == rebuilt.get_shortest_path(
+        origin_node=_ATLANTA, destination_node=_LONDON
+    )
     assert abs(freeway_result["length"] - _EXPECTED_FREEWAY_LENGTH) < 0.1
     assert abs(marnet_result["length"] - _EXPECTED_MARNET_LENGTH) < 0.1
-
-
-def test_merged_nodes_can_be_snapped():
-    # A destination exactly on a node of the merged network snaps to it
-    current = GeoGraph(nodes=[[0, 0], [0, 1]], graph=[{1: 111.2}, {0: 111.2}])
-    other = GeoGraph(nodes=[[0, 10], [0, 11]], graph=[{1: 111.2}, {0: 111.2}])
-    current.merge_with_other_geograph(other, connection_nodes=[[0, 5.5]])
-    output = current.get_shortest_path(
-        origin_node={"latitude": 0, "longitude": 0},
-        destination_node={"latitude": 0, "longitude": 11},
-        output_path=True,
-    )
-    assert current.nodes[output["path"][-1]] == [0, 11]
