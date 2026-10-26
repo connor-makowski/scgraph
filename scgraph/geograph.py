@@ -328,6 +328,11 @@ class GeoGraphIO:
         data["graph"] = [
             {int(k): v for k, v in item.items()} for item in data["graph"]
         ]
+        if data.get("intermediate_nodes") is not None:
+            data["intermediate_nodes"] = [
+                {int(k): v for k, v in item.items()}
+                for item in data["intermediate_nodes"]
+            ]
         geograph = GeoGraph(**data)
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
