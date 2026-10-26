@@ -128,6 +128,35 @@ def test_remove_coord_node_restores_path():
     )
 
 
+def _snapped(g, point):
+    # Node a point is connected to when snapping to the closest node only
+    return g.get_shortest_path(
+        origin_node=point,
+        destination_node=_DEST,
+        node_addition_type="closest",
+        output_path=True,
+    )["path"][0]
+
+
+def test_snapping_follows_added_and_removed_nodes():
+    g = _fresh()
+    near_a = {"latitude": 0.45, "longitude": 0.55}
+    near_b = {"latitude": 0.95, "longitude": -0.95}
+    g.add_coord_node({"latitude": 0.5, "longitude": 0.5})  # node 4: A
+    assert _snapped(g, near_a) == 4
+    # Same number of nodes, node 4 is now B, far from A
+    g.remove_coord_node()
+    g.add_coord_node(
+        {"latitude": 1, "longitude": -1},
+        node_addition_type="all",
+        lat_lon_bound=180,
+    )
+    assert _snapped(g, near_a) == 1
+    assert _snapped(g, near_b) == 4
+    g.remove_coord_node()
+    assert _snapped(g, near_b) == 2
+
+
 def test_add_haversine_edge():
     g = _fresh()
     g.add_haversine_edge(origin_idx=0, destination_idx=3, symmetric=True)

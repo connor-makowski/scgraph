@@ -1047,6 +1047,7 @@ class GeoGraphModifiers:
             node_dict=node_dict, symmetric=True
         )
         self.nodes.append(node)
+        self.geokdtree = None
         return new_node_id
 
     def remove_coord_node(self) -> None:
@@ -1059,6 +1060,7 @@ class GeoGraphModifiers:
         """
         self.remove_node(symmetric_node=True)
         self.nodes.pop()
+        self.geokdtree = None
 
     def add_haversine_edge(
         self,
@@ -1164,11 +1166,17 @@ class GeoGraphModifiers:
         """
         node_connection_mapper = {}
         original_other_graph_length = len(other_geograph.graph_object.graph)
+        # Connection nodes connect to the two networks as they were before
+        # the merge, not to each other
+        current_geokdtree = self.geokdtree
+        other_geokdtree = other_geograph.geokdtree
         for idx, node in enumerate(connection_nodes):
             node_dict = {
                 "latitude": node[0],
                 "longitude": node[1],
             }
+            self.geokdtree = current_geokdtree
+            other_geograph.geokdtree = other_geokdtree
             # Add the connection node to the current geograph
             new_node_id = self.add_coord_node(
                 coord_dict=node_dict,
@@ -1191,6 +1199,7 @@ class GeoGraphModifiers:
         self.nodes += deepcopy(other_geograph.nodes)[
             :original_other_graph_length
         ]
+        self.geokdtree = None
 
         # Clean up the other geograph to remove any appended nodes
         while (
@@ -1220,8 +1229,6 @@ class GeoGraphModifiers:
                     node_connection_map[destination_idx]
                 ] = distance
         self.graph_object = Graph(graph=graph)
-        # Index the merged nodes so that they can be snapped to
-        self.geokdtree = GeoKDTree(points=self.nodes)
 
 
 class GeoGraphUtils:
@@ -1706,6 +1713,17 @@ class GeoGraph(
         self.geograph_units = geograph_units
         self.geokdtree = GeoKDTree(points=self.nodes)
         self.__original_graph_length__ = len(self.graph_object.graph)
+
+    @property
+    def geokdtree(self) -> GeoKDTree:
+        # Rebuilt on first use after nodes were added or removed
+        if self.__geokdtree__ is None:
+            self.__geokdtree__ = GeoKDTree(points=self.nodes)
+        return self.__geokdtree__
+
+    @geokdtree.setter
+    def geokdtree(self, geokdtree: GeoKDTree | None) -> None:
+        self.__geokdtree__ = geokdtree
 
     def reduce(self, iterations: int = 1) -> None:
         """
