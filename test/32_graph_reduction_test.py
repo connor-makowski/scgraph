@@ -16,6 +16,7 @@ def test_graph_reduction():
     assert g.is_reduced == [False, True, True, False]
     assert g.reduced_graph[0] == {3: 18.0}
     assert g.reduced_graph_connections[0] == {3: [1, 2]}
+    assert g.reduced_inverse_graph_connections[3] == {0: [1, 2]}
 
     # Verify routing outputs match
     p_orig = 18.0

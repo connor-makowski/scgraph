@@ -1321,5 +1321,7 @@ class Graph(
         self.reduced_graph_connections = None
         self.reduced_inverse_graph = None
         self.reduced_inverse_graph_connections = None
+        self.__hidden_next__ = None
+        self.__hidden_previous__ = None
         self.is_reduced = None
         self.reduced_node_chain_ids = None

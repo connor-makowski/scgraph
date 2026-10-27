@@ -42,6 +42,56 @@ def algorithm(
     return decorator
 
 
+def hidden_nodes(pointers, node: int, root: int, inverse: bool) -> list[int]:
+    """
+    Function:
+
+    - Hidden nodes of the reduced edge node -> root (root -> node if `inverse`),
+      in path order.
+    - `pointers[x][root]` is the node after x on the path from x to the
+      non-reduced node root (before x on the path from root to x if `inverse`).
+      The pointers toward one root come from one shortest path tree, so
+      following them always ends.
+    """
+    path = []
+    step = pointers[node]
+    while step is not None and root in step:
+        node = step[root]
+        path.append(node)
+        step = pointers[node]
+    if inverse:
+        path.reverse()
+    return path
+
+
+class ReducedConnections:
+    """
+    Read-only view of reduced_graph_connections or
+    reduced_inverse_graph_connections, for callers outside scgraph: each node's
+    entry is built on demand, None or {b: [hidden nodes]} for the reduced edge
+    a -> b (b -> a if `inverse`). Hidden nodes are stored once per chain.
+    """
+
+    def __init__(self, pointers, inverse: bool):
+        self.pointers = pointers
+        self.inverse = inverse
+
+    def __getitem__(self, node: int) -> dict[int, list[int]] | None:
+        roots = self.pointers[node]
+        if roots is None:
+            return None
+        return {
+            root: hidden_nodes(self.pointers, node, root, self.inverse)
+            for root in roots
+        }
+
+    def __len__(self) -> int:
+        return len(self.pointers)
+
+    def __iter__(self):
+        return (self[node] for node in range(len(self.pointers)))
+
+
 class GraphReducer:
     def reduce(self, iterations: int = 1) -> None:
         """
@@ -183,35 +233,37 @@ class GraphReducer:
                             queue.append(v)
                 current_chain_id += 1
 
-        # 3. Build reduced graph and connections (outbound from all nodes)
+        # 3. Build reduced graph (outbound from all nodes). Hidden nodes are
+        # stored as pointers from the searches rooted at non-reduced nodes (see
+        # hidden_nodes): the search from a non-reduced node A gives those of the
+        # reduced_inverse_graph edges A -> B.
         self.reduced_graph = [{} for _ in range(len(graph))]
-        self.reduced_graph_connections = [None] * len(graph)
+        self.__hidden_previous__ = [None] * len(graph)
+        self.reduced_inverse_graph_connections = ReducedConnections(
+            self.__hidden_previous__, inverse=True
+        )
         reduced_graph = self.reduced_graph
-        reduced_graph_connections = self.reduced_graph_connections
+        previous_nodes = self.__hidden_previous__
 
         for A in range(len(graph)):
             best_dist = {A: 0}
             predecessor = {}
             open_leaves = [(0, A)]
+            is_root = not is_reduced[A]
 
             while open_leaves:
                 dist, u = heappop(open_leaves)
                 if dist > best_dist[u]:
                     continue
 
+                if is_root and u != A and predecessor[u] != A:
+                    if previous_nodes[u] is None:
+                        previous_nodes[u] = {}
+                    previous_nodes[u][A] = predecessor[u]
+
                 if u != A and not is_reduced[u]:
                     # Boundary non-reduced node. Record connection.
                     reduced_graph[A][u] = dist
-                    path = []
-                    p = predecessor[u]
-                    while p != A:
-                        path.append(p)
-                        p = predecessor[p]
-                    if path:
-                        path.reverse()
-                        if reduced_graph_connections[A] is None:
-                            reduced_graph_connections[A] = {}
-                        reduced_graph_connections[A][u] = path
                     continue
 
                 for v, w in graph[u].items():
@@ -221,37 +273,36 @@ class GraphReducer:
                         predecessor[v] = u
                         heappush(open_leaves, (new_dist, v))
 
-        # 4. Build reduced inverse graph and connections (inbound into all nodes)
+        # 4. Build reduced inverse graph (inbound into all nodes). The search
+        # from a non-reduced node B gives the hidden nodes of the reduced_graph
+        # edges A -> B.
         self.reduced_inverse_graph = [{} for _ in range(len(graph))]
-        self.reduced_inverse_graph_connections = [None] * len(graph)
-        reduced_inverse_graph = self.reduced_inverse_graph
-        reduced_inverse_graph_connections = (
-            self.reduced_inverse_graph_connections
+        self.__hidden_next__ = [None] * len(graph)
+        self.reduced_graph_connections = ReducedConnections(
+            self.__hidden_next__, inverse=False
         )
+        reduced_inverse_graph = self.reduced_inverse_graph
+        next_nodes = self.__hidden_next__
 
         for B in range(len(graph)):
             best_dist = {B: 0}
             predecessor = {}
             open_leaves = [(0, B)]
+            is_root = not is_reduced[B]
 
             while open_leaves:
                 dist, u = heappop(open_leaves)
                 if dist > best_dist[u]:
                     continue
 
+                if is_root and u != B and predecessor[u] != B:
+                    if next_nodes[u] is None:
+                        next_nodes[u] = {}
+                    next_nodes[u][B] = predecessor[u]
+
                 if u != B and not is_reduced[u]:
                     # Boundary non-reduced node reaching B
                     reduced_inverse_graph[B][u] = dist
-                    # Walking predecessors from u back to B gives forward order
-                    fwd_path = []
-                    p = predecessor[u]
-                    while p != B:
-                        fwd_path.append(p)
-                        p = predecessor[p]
-                    if fwd_path:
-                        if reduced_inverse_graph_connections[B] is None:
-                            reduced_inverse_graph_connections[B] = {}
-                        reduced_inverse_graph_connections[B][u] = fwd_path
                     continue
 
                 for v, w in inverse_graph[u].items():
@@ -410,16 +461,10 @@ class GraphReducer:
             if reached_boundary in boundary_entries_map:
                 orig_did, best_entry = boundary_entries_map[reached_boundary]
                 if orig_did != reached_boundary:
-                    tail = []
-                    if (
-                        self.reduced_inverse_graph_connections is not None
-                        and self.reduced_inverse_graph_connections[orig_did]
-                        is not None
-                    ):
-                        tail = self.reduced_inverse_graph_connections[
-                            orig_did
-                        ].get(best_entry, [])
-                    expanded_path = expanded_path + tail + [orig_did]
+                    # Hidden nodes of the reduced edge best_entry -> orig_did,
+                    # best_entry being the last node of expanded_path
+                    tail = self.expand_path([best_entry, orig_did])[1:]
+                    expanded_path = expanded_path + tail
             res["path"] = expanded_path
 
         return res
@@ -535,10 +580,10 @@ class GraphReducer:
 
         - The fully expanded path matching the original graph
         """
-        fwd_conns = getattr(self, "reduced_graph_connections", None)
-        inv_conns = getattr(self, "reduced_inverse_graph_connections", None)
-        if fwd_conns is None and inv_conns is None:
+        if getattr(self, "reduced_graph", None) is None:
             return path
+        next_nodes = self.__hidden_next__
+        previous_nodes = self.__hidden_previous__
         new_path = []
         append = new_path.append
         extend = new_path.extend
@@ -547,17 +592,12 @@ class GraphReducer:
             v = path[i + 1]
             append(u)
             expanded = False
-            if fwd_conns is not None and fwd_conns[u] is not None:
-                pass_throughs = fwd_conns[u].get(v)
-                if pass_throughs:
-                    extend(pass_throughs)
-                    expanded = True
-            if (
-                not expanded
-                and inv_conns is not None
-                and inv_conns[v] is not None
-            ):
-                pass_throughs = inv_conns[v].get(u)
+            pass_throughs = hidden_nodes(next_nodes, u, v, False)
+            if pass_throughs:
+                extend(pass_throughs)
+                expanded = True
+            if not expanded:
+                pass_throughs = hidden_nodes(previous_nodes, v, u, True)
                 if pass_throughs:
                     extend(pass_throughs)
         if path:
