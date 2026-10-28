@@ -64,35 +64,62 @@ def hidden_nodes(pointers, node: int, root: int, inverse: bool) -> list[int]:
     return path
 
 
-class ReducedConnections:
+def connections(pointers, inverse: bool) -> list[dict[int, list[int]] | None]:
     """
-    Read-only view of reduced_graph_connections or
-    reduced_inverse_graph_connections, for callers outside scgraph: each node's
-    entry is built on demand, None or {b: [hidden nodes]} for the reduced edge
-    a -> b (b -> a if `inverse`). Hidden nodes are stored once per chain.
+    Function:
+
+    - reduced_graph_connections (reduced_inverse_graph_connections if
+      `inverse`) as a list built from the pointers: each node's entry is None
+      or {b: [hidden nodes]} for the reduced edge a -> b (b -> a if `inverse`).
     """
-
-    def __init__(self, pointers, inverse: bool):
-        self.pointers = pointers
-        self.inverse = inverse
-
-    def __getitem__(self, node: int) -> dict[int, list[int]] | None:
-        roots = self.pointers[node]
-        if roots is None:
-            return None
-        return {
-            root: hidden_nodes(self.pointers, node, root, self.inverse)
-            for root in roots
-        }
-
-    def __len__(self) -> int:
-        return len(self.pointers)
-
-    def __iter__(self):
-        return (self[node] for node in range(len(self.pointers)))
+    return [
+        (
+            None
+            if roots is None
+            else {
+                root: hidden_nodes(pointers, node, root, inverse)
+                for root in roots
+            }
+        )
+        for node, roots in enumerate(pointers)
+    ]
 
 
 class GraphReducer:
+    # The two connection lists are built on first read and kept until the next
+    # reduce(): scgraph itself reads the pointers (see hidden_nodes)
+    @property
+    def reduced_graph_connections(
+        self,
+    ) -> list[dict[int, list[int]] | None] | None:
+        if getattr(self, "__reduced_graph_connections__", None) is None:
+            pointers = getattr(self, "__hidden_next__", None)
+            if pointers is None:
+                return None
+            self.__reduced_graph_connections__ = connections(pointers, False)
+        return self.__reduced_graph_connections__
+
+    @reduced_graph_connections.setter
+    def reduced_graph_connections(self, value) -> None:
+        self.__reduced_graph_connections__ = value
+
+    @property
+    def reduced_inverse_graph_connections(
+        self,
+    ) -> list[dict[int, list[int]] | None] | None:
+        if getattr(self, "__reduced_inverse_graph_connections__", None) is None:
+            pointers = getattr(self, "__hidden_previous__", None)
+            if pointers is None:
+                return None
+            self.__reduced_inverse_graph_connections__ = connections(
+                pointers, True
+            )
+        return self.__reduced_inverse_graph_connections__
+
+    @reduced_inverse_graph_connections.setter
+    def reduced_inverse_graph_connections(self, value) -> None:
+        self.__reduced_inverse_graph_connections__ = value
+
     def reduce(self, iterations: int = 1) -> None:
         """
         Function:
@@ -239,9 +266,7 @@ class GraphReducer:
         # reduced_inverse_graph edges A -> B.
         self.reduced_graph = [{} for _ in range(len(graph))]
         self.__hidden_previous__ = [None] * len(graph)
-        self.reduced_inverse_graph_connections = ReducedConnections(
-            self.__hidden_previous__, inverse=True
-        )
+        self.reduced_inverse_graph_connections = None  # rebuilt on first read
         reduced_graph = self.reduced_graph
         previous_nodes = self.__hidden_previous__
 
@@ -278,9 +303,7 @@ class GraphReducer:
         # edges A -> B.
         self.reduced_inverse_graph = [{} for _ in range(len(graph))]
         self.__hidden_next__ = [None] * len(graph)
-        self.reduced_graph_connections = ReducedConnections(
-            self.__hidden_next__, inverse=False
-        )
+        self.reduced_graph_connections = None  # rebuilt on first read
         reduced_inverse_graph = self.reduced_inverse_graph
         next_nodes = self.__hidden_next__
 
