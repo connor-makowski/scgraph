@@ -79,6 +79,8 @@ Dev dependencies are declared in `[project.optional-dependencies] dev` in `pypro
 
 ## Core Architecture
 
+For how scgraph works inside (query, graph reduction, plugging in an algorithm, caches), see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ### Key Classes
 
 **`Graph`** (`graph.py`) — base graph class:
