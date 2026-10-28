@@ -248,14 +248,16 @@ void GraphReducer::reduce(int iterations) {
         }
     }
 
-    // 3. Build reduced graph (outbound from all nodes). Hidden nodes are
-    // stored as pointers from the searches rooted at non-reduced nodes (see
-    // hidden_nodes): the search from a non-reduced node A gives those of the
-    // reduced_inverse_graph edges A -> B.
+    // 3. Search from each non-reduced node A through reduced nodes: it gives the
+    // reduced_graph edges A -> B to non-reduced nodes B, and the
+    // reduced_inverse_graph edges A -> B into reduced nodes B (whose own searches
+    // would cost O(L) each on a chain of L nodes). Hidden nodes are stored as
+    // pointers from these searches (see hidden_nodes).
     reduced_graph.assign(n, std::vector<std::pair<int, double>>());
+    reduced_inverse_graph.assign(n, std::vector<std::pair<int, double>>());
     reduced_inverse_graph_connections.assign(n, std::vector<std::pair<int, int>>());
 
-    // Search state shared by the 2n local searches of steps 3-4:
+    // Search state shared by the local searches of steps 3-4:
     // best_dist[v] and predecessor[v] belong to the current search iff seen[v] == stamp
     std::vector<double> best_dist(n);
     std::vector<int> predecessor(n);
@@ -265,10 +267,12 @@ void GraphReducer::reduce(int iterations) {
     std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
 
     for (size_t A = 0; A < n; ++A) {
+        if (is_reduced[A]) {
+            continue;
+        }
         seen[A] = ++stamp;
         best_dist[A] = 0.0;
         open_leaves.push({0.0, (int)A});
-        bool is_root = !is_reduced[A];
 
         while (!open_leaves.empty()) {
             auto [dist, u] = open_leaves.top();
@@ -278,14 +282,17 @@ void GraphReducer::reduce(int iterations) {
                 continue;
             }
 
-            if (is_root && u != (int)A && predecessor[u] != (int)A) {
-                reduced_inverse_graph_connections[u].push_back({(int)A, predecessor[u]});
-            }
-
-            if (u != (int)A && !is_reduced[u]) {
-                // Boundary non-reduced node. Record connection.
-                reduced_graph[A].push_back({u, dist});
-                continue;
+            if (u != (int)A) {
+                if (predecessor[u] != (int)A) {
+                    reduced_inverse_graph_connections[u].push_back({(int)A, predecessor[u]});
+                }
+                if (is_reduced[u]) {
+                    reduced_inverse_graph[u].push_back({(int)A, dist});
+                } else {
+                    // Boundary non-reduced node. Record connection.
+                    reduced_graph[A].push_back({u, dist});
+                    continue;
+                }
             }
 
             for (const auto& edge : graph[u]) {
@@ -302,17 +309,18 @@ void GraphReducer::reduce(int iterations) {
         }
     }
 
-    // 4. Build reduced inverse graph (inbound into all nodes). The search from
-    // a non-reduced node B gives the hidden nodes of the reduced_graph edges
-    // A -> B.
-    reduced_inverse_graph.assign(n, std::vector<std::pair<int, double>>());
+    // 4. Inverse search into each non-reduced node B: it gives the
+    // reduced_inverse_graph edges A -> B from non-reduced nodes A, and the
+    // reduced_graph edges A -> B from reduced nodes A.
     reduced_graph_connections.assign(n, std::vector<std::pair<int, int>>());
 
     for (size_t B = 0; B < n; ++B) {
+        if (is_reduced[B]) {
+            continue;
+        }
         seen[B] = ++stamp;
         best_dist[B] = 0.0;
         open_leaves.push({0.0, (int)B});
-        bool is_root = !is_reduced[B];
 
         while (!open_leaves.empty()) {
             auto [dist, u] = open_leaves.top();
@@ -322,14 +330,17 @@ void GraphReducer::reduce(int iterations) {
                 continue;
             }
 
-            if (is_root && u != (int)B && predecessor[u] != (int)B) {
-                reduced_graph_connections[u].push_back({(int)B, predecessor[u]});
-            }
-
-            if (u != (int)B && !is_reduced[u]) {
-                // Boundary non-reduced node reaching B.
-                reduced_inverse_graph[B].push_back({u, dist});
-                continue;
+            if (u != (int)B) {
+                if (predecessor[u] != (int)B) {
+                    reduced_graph_connections[u].push_back({(int)B, predecessor[u]});
+                }
+                if (is_reduced[u]) {
+                    reduced_graph[u].push_back({(int)B, dist});
+                } else {
+                    // Boundary non-reduced node reaching B.
+                    reduced_inverse_graph[B].push_back({u, dist});
+                    continue;
+                }
             }
 
             for (const auto& edge : inverse_graph[u]) {
