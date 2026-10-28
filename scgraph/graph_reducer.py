@@ -233,38 +233,44 @@ class GraphReducer:
                             queue.append(v)
                 current_chain_id += 1
 
-        # 3. Build reduced graph (outbound from all nodes). Hidden nodes are
-        # stored as pointers from the searches rooted at non-reduced nodes (see
-        # hidden_nodes): the search from a non-reduced node A gives those of the
-        # reduced_inverse_graph edges A -> B.
+        # 3. Search from each non-reduced node A through reduced nodes: it gives
+        # the reduced_graph edges A -> B to non-reduced nodes B, and the
+        # reduced_inverse_graph edges A -> B into reduced nodes B (whose own
+        # searches would cost O(L) each on a chain of L nodes). Hidden nodes are
+        # stored as pointers from these searches (see hidden_nodes).
         self.reduced_graph = [{} for _ in range(len(graph))]
+        self.reduced_inverse_graph = [{} for _ in range(len(graph))]
         self.__hidden_previous__ = [None] * len(graph)
         self.reduced_inverse_graph_connections = ReducedConnections(
             self.__hidden_previous__, inverse=True
         )
         reduced_graph = self.reduced_graph
+        reduced_inverse_graph = self.reduced_inverse_graph
         previous_nodes = self.__hidden_previous__
 
         for A in range(len(graph)):
+            if is_reduced[A]:
+                continue
             best_dist = {A: 0}
             predecessor = {}
             open_leaves = [(0, A)]
-            is_root = not is_reduced[A]
 
             while open_leaves:
                 dist, u = heappop(open_leaves)
                 if dist > best_dist[u]:
                     continue
 
-                if is_root and u != A and predecessor[u] != A:
-                    if previous_nodes[u] is None:
-                        previous_nodes[u] = {}
-                    previous_nodes[u][A] = predecessor[u]
-
-                if u != A and not is_reduced[u]:
-                    # Boundary non-reduced node. Record connection.
-                    reduced_graph[A][u] = dist
-                    continue
+                if u != A:
+                    if predecessor[u] != A:
+                        if previous_nodes[u] is None:
+                            previous_nodes[u] = {}
+                        previous_nodes[u][A] = predecessor[u]
+                    if is_reduced[u]:
+                        reduced_inverse_graph[u][A] = dist
+                    else:
+                        # Boundary non-reduced node. Record connection.
+                        reduced_graph[A][u] = dist
+                        continue
 
                 for v, w in graph[u].items():
                     new_dist = dist + w
@@ -273,37 +279,38 @@ class GraphReducer:
                         predecessor[v] = u
                         heappush(open_leaves, (new_dist, v))
 
-        # 4. Build reduced inverse graph (inbound into all nodes). The search
-        # from a non-reduced node B gives the hidden nodes of the reduced_graph
-        # edges A -> B.
-        self.reduced_inverse_graph = [{} for _ in range(len(graph))]
+        # 4. Inverse search into each non-reduced node B: it gives the
+        # reduced_inverse_graph edges A -> B from non-reduced nodes A, and the
+        # reduced_graph edges A -> B from reduced nodes A.
         self.__hidden_next__ = [None] * len(graph)
         self.reduced_graph_connections = ReducedConnections(
             self.__hidden_next__, inverse=False
         )
-        reduced_inverse_graph = self.reduced_inverse_graph
         next_nodes = self.__hidden_next__
 
         for B in range(len(graph)):
+            if is_reduced[B]:
+                continue
             best_dist = {B: 0}
             predecessor = {}
             open_leaves = [(0, B)]
-            is_root = not is_reduced[B]
 
             while open_leaves:
                 dist, u = heappop(open_leaves)
                 if dist > best_dist[u]:
                     continue
 
-                if is_root and u != B and predecessor[u] != B:
-                    if next_nodes[u] is None:
-                        next_nodes[u] = {}
-                    next_nodes[u][B] = predecessor[u]
-
-                if u != B and not is_reduced[u]:
-                    # Boundary non-reduced node reaching B
-                    reduced_inverse_graph[B][u] = dist
-                    continue
+                if u != B:
+                    if predecessor[u] != B:
+                        if next_nodes[u] is None:
+                            next_nodes[u] = {}
+                        next_nodes[u][B] = predecessor[u]
+                    if is_reduced[u]:
+                        reduced_graph[u][B] = dist
+                    else:
+                        # Boundary non-reduced node reaching B
+                        reduced_inverse_graph[B][u] = dist
+                        continue
 
                 for v, w in inverse_graph[u].items():
                     new_dist = dist + w
