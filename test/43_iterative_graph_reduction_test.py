@@ -1,3 +1,5 @@
+import random
+from copy import deepcopy
 import pytest
 from scgraph.graph import Graph as PyGraph
 
@@ -7,6 +9,8 @@ try:
     HAS_CPP = True
 except ImportError:
     HAS_CPP = False
+
+GRAPH_CLASSES = [PyGraph] + ([CppGraph] if HAS_CPP else [])
 
 
 def _build_iterative_reducible_graph():
@@ -82,3 +86,56 @@ def test_reduce_iterations_parity():
             py_res = py_g.dijkstra(10, 12)
             cpp_res = cpp_g.dijkstra(10, 12)
             assert py_res == cpp_res
+
+
+def _random_graph(rng):
+    # One-way and two-way edges, self-loops, separate parts
+    n = rng.randint(2, 30)
+    graph = [{} for _ in range(n)]
+    for _ in range(rng.randint(n - 1, 2 * n)):
+        a, b = rng.randrange(n), rng.randrange(n)
+        graph[a][b] = 1
+        if rng.random() < 0.5:
+            graph[b][a] = 1
+    return graph
+
+
+def _flows(u, adjacency, reduced):
+    # Non-reduced nodes reached from u through reduced nodes
+    found, stack, seen = set(), [u], {u}
+    while stack:
+        for v in adjacency[stack.pop()]:
+            if v not in seen:
+                seen.add(v)
+                if reduced[v]:
+                    stack.append(v)
+                else:
+                    found.add(v)
+    return found
+
+
+@pytest.mark.parametrize(
+    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
+)
+def test_reduce_until_no_pass_through_node_is_left(GraphClass):
+    # With iterations=-1, no node left unreduced is a pass-through node: it
+    # does not reach, through reduced nodes, a single node, or two nodes among
+    # which are all the nodes reaching it
+    rng = random.Random(0)
+    for _ in range(200):
+        graph = _random_graph(rng)
+        g = GraphClass(deepcopy(graph))
+        g.reduce(-1)
+        reduced = list(g.is_reduced)
+        inverse = [{} for _ in graph]
+        for u, row in enumerate(graph):
+            for v in row:
+                inverse[v][u] = 1
+        for u in range(len(graph)):
+            if reduced[u]:
+                continue
+            outs = _flows(u, graph, reduced)
+            ins = _flows(u, inverse, reduced)
+            assert not ins or not (
+                len(outs) == 1 or (len(outs) == 2 and ins <= outs)
+            ), (graph, u)
