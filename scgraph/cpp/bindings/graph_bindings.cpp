@@ -51,37 +51,27 @@ static bool is_empty_tree_data(const TreeData& t) {
     return t.predecessors.empty();
 }
 
-// Read-only view of reduced_graph_connections or reduced_inverse_graph_connections,
-// for callers outside scgraph: view[a] builds node a's entry on demand, None or
-// {b: [hidden nodes]}. scgraph itself reads the pointers (GraphReducer::hidden_nodes).
-struct ReducedConnectionsView {
-    const Graph* graph;
-    bool inverse;
-};
+// reduced_graph_connections or reduced_inverse_graph_connections as a list: None or
+// {b: [hidden nodes]} per node, built from the pointers (GraphReducer::hidden_nodes)
+static nb::list reduced_connections(const Graph& graph, bool inverse) {
+    const auto& pointers = inverse ? graph.get_reduced_inverse_graph_connections_internal()
+                                   : graph.get_reduced_graph_connections_internal();
+    nb::list res;
+    for (size_t i = 0; i < pointers.size(); ++i) {
+        if (pointers[i].empty()) {
+            res.append(nb::none());
+        } else {
+            nb::dict d;
+            for (const auto& [root, _] : pointers[i]) {
+                d[nb::cast(root)] = graph.hidden_nodes((int)i, root, inverse);
+            }
+            res.append(d);
+        }
+    }
+    return res;
+}
 
 NB_MODULE(cpp, m) {
-    nb::class_<ReducedConnectionsView>(m, "ReducedConnections")
-        .def("__getitem__", [](const ReducedConnectionsView& self, long node) -> nb::object {
-            long n = self.graph->size();
-            if (node < 0) {
-                node += n;
-            }
-            if (node < 0 || node >= n) {
-                throw nb::index_error();
-            }
-            const auto& pointers = self.inverse ? self.graph->get_reduced_inverse_graph_connections_internal()
-                                                : self.graph->get_reduced_graph_connections_internal();
-            if (node >= (long)pointers.size() || pointers[node].empty()) {
-                return nb::none();
-            }
-            nb::dict d;
-            for (const auto& [root, _] : pointers[node]) {
-                d[nb::cast(root)] = self.graph->hidden_nodes((int)node, root, self.inverse);
-            }
-            return d;
-        })
-        .def("__len__", [](const ReducedConnectionsView& self) { return self.graph->size(); });
-
     // Graph class
     nb::class_<Graph>(m, "Graph")
         // Constructor
@@ -145,12 +135,12 @@ NB_MODULE(cpp, m) {
         .def("expand_path", &Graph::expand_path,
              nb::arg("path"),
              "Expand a path of reduced graph nodes")
-        .def_prop_ro("reduced_graph_connections", [](const Graph& self) -> std::optional<ReducedConnectionsView> {
+        .def_prop_ro("reduced_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
             if (!self.get_has_reduced_graph()) {
                 return std::nullopt;
             }
-            return ReducedConnectionsView{&self, false};
-        }, nb::keep_alive<0, 1>())
+            return reduced_connections(self, false);
+        })
         .def_prop_ro("reduced_inverse_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
             if (!self.get_has_reduced_graph()) {
                 return std::nullopt;
@@ -164,12 +154,12 @@ NB_MODULE(cpp, m) {
             }
             return res;
         })
-        .def_prop_ro("reduced_inverse_graph_connections", [](const Graph& self) -> std::optional<ReducedConnectionsView> {
+        .def_prop_ro("reduced_inverse_graph_connections", [](const Graph& self) -> std::optional<nb::list> {
             if (!self.get_has_reduced_graph()) {
                 return std::nullopt;
             }
-            return ReducedConnectionsView{&self, true};
-        }, nb::keep_alive<0, 1>())
+            return reduced_connections(self, true);
+        })
 
         // Cache IO
         // get_cache: returns a list matching the Python convention where uncached
