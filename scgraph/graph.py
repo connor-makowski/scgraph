@@ -1247,6 +1247,7 @@ class Graph(
             - Type: list of dictionaries with integer keys and integer or float values
             - What: A list of dictionaries where the indicies are origin node ids and the values are dictionaries of destination node indices and graph weights
             - Note: All nodes must be included as origins in the graph regardless of if they have any connected destinations
+            - Note: The Graph may keep and modify this list instead of copying it; do not modify it afterwards (use methods such as `add_edge` instead)
             - EG:
             ```
                 [
