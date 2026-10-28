@@ -51,6 +51,26 @@ static bool is_empty_tree_data(const TreeData& t) {
     return t.predecessors.empty();
 }
 
+// reduced_graph_connections or reduced_inverse_graph_connections as a list: None or
+// {b: [hidden nodes]} per node, built from the pointers (GraphReducer::hidden_nodes)
+static nb::list reduced_connections(const Graph& graph, bool inverse) {
+    const auto& pointers = inverse ? graph.get_reduced_inverse_graph_connections_internal()
+                                   : graph.get_reduced_graph_connections_internal();
+    nb::list res;
+    for (size_t i = 0; i < pointers.size(); ++i) {
+        if (pointers[i].empty()) {
+            res.append(nb::none());
+        } else {
+            nb::dict d;
+            for (const auto& [root, _] : pointers[i]) {
+                d[nb::cast(root)] = graph.hidden_nodes((int)i, root, inverse);
+            }
+            res.append(d);
+        }
+    }
+    return res;
+}
+
 NB_MODULE(cpp, m) {
     // Graph class
     nb::class_<Graph>(m, "Graph")
@@ -119,20 +139,7 @@ NB_MODULE(cpp, m) {
             if (!self.get_has_reduced_graph()) {
                 return std::nullopt;
             }
-            nb::list res;
-            const auto& rgc = self.get_reduced_graph_connections_internal();
-            for (size_t i = 0; i < rgc.size(); ++i) {
-                if (rgc[i].empty()) {
-                    res.append(nb::none());
-                } else {
-                    nb::dict d;
-                    for (const auto& [k, v] : rgc[i]) {
-                        d[nb::cast(k)] = v;
-                    }
-                    res.append(d);
-                }
-            }
-            return res;
+            return reduced_connections(self, false);
         })
         .def_prop_ro("reduced_inverse_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {
             if (!self.get_has_reduced_graph()) {
@@ -151,20 +158,7 @@ NB_MODULE(cpp, m) {
             if (!self.get_has_reduced_graph()) {
                 return std::nullopt;
             }
-            nb::list res;
-            const auto& rigc = self.get_reduced_inverse_graph_connections_internal();
-            for (size_t i = 0; i < rigc.size(); ++i) {
-                if (rigc[i].empty()) {
-                    res.append(nb::none());
-                } else {
-                    nb::dict d;
-                    for (const auto& [k, v] : rigc[i]) {
-                        d[nb::cast(k)] = v;
-                    }
-                    res.append(d);
-                }
-            }
-            return res;
+            return reduced_connections(self, true);
         })
 
         // Cache IO

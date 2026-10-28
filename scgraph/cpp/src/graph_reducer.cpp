@@ -248,9 +248,12 @@ void GraphReducer::reduce(int iterations) {
         }
     }
 
-    // 3. Build reduced graph and connections (outbound from all nodes)
+    // 3. Build reduced graph (outbound from all nodes). Hidden nodes are
+    // stored as pointers from the searches rooted at non-reduced nodes (see
+    // hidden_nodes): the search from a non-reduced node A gives those of the
+    // reduced_inverse_graph edges A -> B.
     reduced_graph.assign(n, std::vector<std::pair<int, double>>());
-    reduced_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
+    reduced_inverse_graph_connections.assign(n, std::vector<std::pair<int, int>>());
 
     // Search state shared by the 2n local searches of steps 3-4:
     // best_dist[v] and predecessor[v] belong to the current search iff seen[v] == stamp
@@ -265,6 +268,7 @@ void GraphReducer::reduce(int iterations) {
         seen[A] = ++stamp;
         best_dist[A] = 0.0;
         open_leaves.push({0.0, (int)A});
+        bool is_root = !is_reduced[A];
 
         while (!open_leaves.empty()) {
             auto [dist, u] = open_leaves.top();
@@ -274,17 +278,13 @@ void GraphReducer::reduce(int iterations) {
                 continue;
             }
 
+            if (is_root && u != (int)A && predecessor[u] != (int)A) {
+                reduced_inverse_graph_connections[u].push_back({(int)A, predecessor[u]});
+            }
+
             if (u != (int)A && !is_reduced[u]) {
                 // Boundary non-reduced node. Record connection.
                 reduced_graph[A].push_back({u, dist});
-                std::vector<int> path;
-                for (int p = predecessor[u]; p != (int)A; p = predecessor[p]) {
-                    path.push_back(p);
-                }
-                if (!path.empty()) {
-                    std::reverse(path.begin(), path.end());
-                    reduced_graph_connections[A][u] = std::move(path);
-                }
                 continue;
             }
 
@@ -302,14 +302,17 @@ void GraphReducer::reduce(int iterations) {
         }
     }
 
-    // 4. Build reduced inverse graph and connections (inbound into all nodes)
+    // 4. Build reduced inverse graph (inbound into all nodes). The search from
+    // a non-reduced node B gives the hidden nodes of the reduced_graph edges
+    // A -> B.
     reduced_inverse_graph.assign(n, std::vector<std::pair<int, double>>());
-    reduced_inverse_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
+    reduced_graph_connections.assign(n, std::vector<std::pair<int, int>>());
 
     for (size_t B = 0; B < n; ++B) {
         seen[B] = ++stamp;
         best_dist[B] = 0.0;
         open_leaves.push({0.0, (int)B});
+        bool is_root = !is_reduced[B];
 
         while (!open_leaves.empty()) {
             auto [dist, u] = open_leaves.top();
@@ -319,17 +322,13 @@ void GraphReducer::reduce(int iterations) {
                 continue;
             }
 
+            if (is_root && u != (int)B && predecessor[u] != (int)B) {
+                reduced_graph_connections[u].push_back({(int)B, predecessor[u]});
+            }
+
             if (u != (int)B && !is_reduced[u]) {
                 // Boundary non-reduced node reaching B.
                 reduced_inverse_graph[B].push_back({u, dist});
-                // Walking predecessors from u back to B gives forward order
-                std::vector<int> fwd_path;
-                for (int p = predecessor[u]; p != (int)B; p = predecessor[p]) {
-                    fwd_path.push_back(p);
-                }
-                if (!fwd_path.empty()) {
-                    reduced_inverse_graph_connections[B][u] = std::move(fwd_path);
-                }
                 continue;
             }
 
@@ -366,27 +365,41 @@ std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) const {
         int u = path[i];
         int v = path[i + 1];
         new_path.push_back(u);
-        bool expanded = false;
-        if (u >= 0 && u < (int)reduced_graph_connections.size()) {
-            const auto& conns = reduced_graph_connections[u];
-            auto it = conns.find(v);
-            if (it != conns.end()) {
-                new_path.insert(new_path.end(), it->second.begin(), it->second.end());
-                expanded = true;
-            }
+        std::vector<int> hidden = hidden_nodes(u, v, false);
+        if (hidden.empty()) {
+            hidden = hidden_nodes(v, u, true);
         }
-        if (!expanded && v >= 0 && v < (int)reduced_inverse_graph_connections.size()) {
-            const auto& inv_conns = reduced_inverse_graph_connections[v];
-            auto it = inv_conns.find(u);
-            if (it != inv_conns.end()) {
-                new_path.insert(new_path.end(), it->second.begin(), it->second.end());
-            }
-        }
+        new_path.insert(new_path.end(), hidden.begin(), hidden.end());
     }
     if (!path.empty()) {
         new_path.push_back(path.back());
     }
     return new_path;
+}
+
+std::vector<int> GraphReducer::hidden_nodes(int node, int root, bool inverse) const {
+    // Follow the pointers toward root: they come from one shortest path tree
+    const auto& pointers = inverse ? reduced_inverse_graph_connections : reduced_graph_connections;
+    std::vector<int> path;
+    if (node < 0 || node >= (int)pointers.size()) {
+        return path;
+    }
+    bool found = true;
+    while (found) {
+        found = false;
+        for (const auto& [pointer_root, next] : pointers[node]) {
+            if (pointer_root == root) {
+                node = next;
+                path.push_back(node);
+                found = true;
+                break;
+            }
+        }
+    }
+    if (inverse) {
+        std::reverse(path.begin(), path.end());
+    }
+    return path;
 }
 
 std::vector<std::unordered_map<int, double>> GraphReducer::get_reduced_graph() const {

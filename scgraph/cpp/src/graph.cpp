@@ -121,14 +121,7 @@ GraphResult Graph::run_query_with_reducer(
                 double total_exit = d_exit + entry_dist;
                 if (boundary_dests.find(entry_u) == boundary_dests.end() || total_exit < boundary_dests[entry_u]) {
                     boundary_dests[entry_u] = total_exit;
-                    std::vector<int> conn;
-                    if (did < (int)reduced_inverse_graph_connections.size()) {
-                        auto it = reduced_inverse_graph_connections[did].find(entry_u);
-                        if (it != reduced_inverse_graph_connections[did].end()) {
-                            conn = it->second;
-                        }
-                    }
-                    boundary_reconstruct[entry_u] = {did, conn};
+                    boundary_reconstruct[entry_u] = {did, hidden_nodes(did, entry_u, true)};
                 }
             }
         }
