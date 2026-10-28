@@ -252,27 +252,38 @@ void GraphReducer::reduce(int iterations) {
     reduced_graph.assign(n, std::vector<std::pair<int, double>>());
     reduced_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
 
-    for (size_t A = 0; A < n; ++A) {
-        std::unordered_map<int, double> best_dist;
-        using PQElement = std::tuple<double, int, std::vector<int>>;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
+    // Search state shared by the 2n local searches of steps 3-4:
+    // best_dist[v] and predecessor[v] belong to the current search iff seen[v] == stamp
+    std::vector<double> best_dist(n);
+    std::vector<int> predecessor(n);
+    std::vector<size_t> seen(n, 0);
+    size_t stamp = 0;
+    using PQElement = std::pair<double, int>;
+    std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
 
-        open_leaves.push({0.0, (int)A, {}});
+    for (size_t A = 0; A < n; ++A) {
+        seen[A] = ++stamp;
+        best_dist[A] = 0.0;
+        open_leaves.push({0.0, (int)A});
 
         while (!open_leaves.empty()) {
-            auto [dist, u, path] = open_leaves.top();
+            auto [dist, u] = open_leaves.top();
             open_leaves.pop();
 
-            if (best_dist.find(u) != best_dist.end() && best_dist[u] <= dist) {
+            if (dist > best_dist[u]) {
                 continue;
             }
-            best_dist[u] = dist;
 
             if (u != (int)A && !is_reduced[u]) {
                 // Boundary non-reduced node. Record connection.
                 reduced_graph[A].push_back({u, dist});
+                std::vector<int> path;
+                for (int p = predecessor[u]; p != (int)A; p = predecessor[p]) {
+                    path.push_back(p);
+                }
                 if (!path.empty()) {
-                    reduced_graph_connections[A][u] = path;
+                    std::reverse(path.begin(), path.end());
+                    reduced_graph_connections[A][u] = std::move(path);
                 }
                 continue;
             }
@@ -281,12 +292,11 @@ void GraphReducer::reduce(int iterations) {
                 int v = edge.first;
                 double w = edge.second;
                 double new_dist = dist + w;
-                if (best_dist.find(v) == best_dist.end() || new_dist < best_dist[v]) {
-                    std::vector<int> new_path = (u == (int)A) ? std::vector<int>{} : path;
-                    if (u != (int)A) {
-                        new_path.push_back(u);
-                    }
-                    open_leaves.push({new_dist, v, new_path});
+                if (seen[v] != stamp || new_dist < best_dist[v]) {
+                    seen[v] = stamp;
+                    best_dist[v] = new_dist;
+                    predecessor[v] = u;
+                    open_leaves.push({new_dist, v});
                 }
             }
         }
@@ -297,28 +307,28 @@ void GraphReducer::reduce(int iterations) {
     reduced_inverse_graph_connections.assign(n, std::unordered_map<int, std::vector<int>>());
 
     for (size_t B = 0; B < n; ++B) {
-        std::unordered_map<int, double> best_dist;
-        using PQElement = std::tuple<double, int, std::vector<int>>;
-        std::priority_queue<PQElement, std::vector<PQElement>, std::greater<PQElement>> open_leaves;
-
-        open_leaves.push({0.0, (int)B, {}});
+        seen[B] = ++stamp;
+        best_dist[B] = 0.0;
+        open_leaves.push({0.0, (int)B});
 
         while (!open_leaves.empty()) {
-            auto [dist, u, path] = open_leaves.top();
+            auto [dist, u] = open_leaves.top();
             open_leaves.pop();
 
-            if (best_dist.find(u) != best_dist.end() && best_dist[u] <= dist) {
+            if (dist > best_dist[u]) {
                 continue;
             }
-            best_dist[u] = dist;
 
             if (u != (int)B && !is_reduced[u]) {
                 // Boundary non-reduced node reaching B.
                 reduced_inverse_graph[B].push_back({u, dist});
-                std::vector<int> fwd_path = path;
-                std::reverse(fwd_path.begin(), fwd_path.end());
+                // Walking predecessors from u back to B gives forward order
+                std::vector<int> fwd_path;
+                for (int p = predecessor[u]; p != (int)B; p = predecessor[p]) {
+                    fwd_path.push_back(p);
+                }
                 if (!fwd_path.empty()) {
-                    reduced_inverse_graph_connections[B][u] = fwd_path;
+                    reduced_inverse_graph_connections[B][u] = std::move(fwd_path);
                 }
                 continue;
             }
@@ -327,12 +337,11 @@ void GraphReducer::reduce(int iterations) {
                 int v = edge.first;
                 double w = edge.second;
                 double new_dist = dist + w;
-                if (best_dist.find(v) == best_dist.end() || new_dist < best_dist[v]) {
-                    std::vector<int> new_path = (u == (int)B) ? std::vector<int>{} : path;
-                    if (u != (int)B) {
-                        new_path.push_back(u);
-                    }
-                    open_leaves.push({new_dist, v, new_path});
+                if (seen[v] != stamp || new_dist < best_dist[v]) {
+                    seen[v] = stamp;
+                    best_dist[v] = new_dist;
+                    predecessor[v] = u;
+                    open_leaves.push({new_dist, v});
                 }
             }
         }
