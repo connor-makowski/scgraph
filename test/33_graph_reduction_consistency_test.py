@@ -337,20 +337,8 @@ CHECKED_GRAPHS = (
         "bellman_ford",
         "bmssp",
         "cached_shortest_path",
-        pytest.param(
-            "contraction_hierarchy",
-            marks=pytest.mark.xfail(
-                reason="stale shortcut lists in CH preprocessing",
-                strict=False,
-            ),
-        ),
-        pytest.param(
-            "tnr",
-            marks=pytest.mark.xfail(
-                reason="TNR is built on CH: stale shortcut lists",
-                strict=False,
-            ),
-        ),
+        "contraction_hierarchy",
+        "tnr",
     ],
 )
 @pytest.mark.parametrize("iterations", [1, -1])
