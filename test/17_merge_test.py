@@ -1,3 +1,4 @@
+import pytest
 from scgraph import GeoGraph
 
 _PORTS = [
@@ -44,3 +45,28 @@ def test_merge_and_route():
     )
     assert abs(freeway_result["length"] - _EXPECTED_FREEWAY_LENGTH) < 0.1
     assert abs(marnet_result["length"] - _EXPECTED_MARNET_LENGTH) < 0.1
+
+
+def _chain(start_longitude):
+    # Four nodes in a line: the two interior nodes are reduced by reduce()
+    nodes = [[0, start_longitude + i] for i in range(4)]
+    graph = [{1: 111.2}, {0: 111.2, 2: 111.2}, {1: 111.2, 3: 111.2}, {2: 111.2}]
+    return GeoGraph(nodes=nodes, graph=graph)
+
+
+@pytest.mark.parametrize(
+    "reduce_current, reduce_other", [(True, False), (False, True)]
+)
+def test_merge_reduced_geographs(reduce_current, reduce_other):
+    # Merging must use the original graphs, whether or not they were reduced.
+    # No connection nodes: adding nodes would already undo reduce().
+    expected = _chain(0)
+    expected.merge_with_other_geograph(_chain(10), connection_nodes=[])
+    current, other = _chain(0), _chain(10)
+    if reduce_current:
+        current.reduce()
+    if reduce_other:
+        other.reduce()
+    current.merge_with_other_geograph(other, connection_nodes=[])
+    assert current.graph_object.graph == expected.graph_object.graph
+    assert current.nodes == expected.nodes
