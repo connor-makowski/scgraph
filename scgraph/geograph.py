@@ -1225,6 +1225,8 @@ class GeoGraphModifiers:
                     node_connection_map[destination_idx]
                 ] = distance
         self.graph_object = Graph(graph=graph)
+        # Index the merged nodes so that they can be snapped to
+        self.geokdtree = GeoKDTree(points=self.nodes)
 
 
 class GeoGraphUtils:

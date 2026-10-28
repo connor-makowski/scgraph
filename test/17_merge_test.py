@@ -1,3 +1,4 @@
+from copy import deepcopy
 import pytest
 from scgraph import GeoGraph
 
@@ -21,7 +22,7 @@ _PORTS = [
 ]
 _ATLANTA = {"latitude": 33.7490, "longitude": -84.3880}
 _LONDON = {"latitude": 51.5074, "longitude": -0.1278}
-_EXPECTED_FREEWAY_LENGTH = 7094.0603
+_EXPECTED_FREEWAY_LENGTH = 7459.1121
 _EXPECTED_MARNET_LENGTH = 8820.8927
 
 
@@ -41,6 +42,18 @@ def test_merge_and_route():
         origin_node=_ATLANTA, destination_node=_LONDON
     )
     marnet_result = marnet.get_shortest_path(
+        origin_node=_ATLANTA, destination_node=_LONDON
+    )
+    # The merged GeoGraph must route like a GeoGraph built from scratch on the
+    # merged network (whose constructor indexes every node for snapping)
+    rebuilt = GeoGraph(
+        graph=deepcopy(freeway.graph_object.graph),
+        nodes=deepcopy(freeway.nodes),
+        default_off_graph_circuity=freeway.default_off_graph_circuity,
+        default_node_addition_circuity=freeway.default_node_addition_circuity,
+        geograph_units=freeway.geograph_units,
+    )
+    assert freeway_result == rebuilt.get_shortest_path(
         origin_node=_ATLANTA, destination_node=_LONDON
     )
     assert abs(freeway_result["length"] - _EXPECTED_FREEWAY_LENGTH) < 0.1

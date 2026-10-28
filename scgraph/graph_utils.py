@@ -421,6 +421,7 @@ class GraphModifiers:
         if symmetric:
             for dest_id, distance in node_dict.items():
                 self.__graph__[dest_id][new_node_id] = distance
+        self.__inverse_graph__ = None
         self.reset_cache()
         return new_node_id
 
@@ -463,6 +464,7 @@ class GraphModifiers:
         self.__graph__[origin_id][destination_id] = distance
         if symmetric:
             self.__graph__[destination_id][origin_id] = distance
+        self.__inverse_graph__ = None
         self.reset_cache()
 
     def remove_node(
@@ -496,6 +498,7 @@ class GraphModifiers:
                 if node_id in origin_dict:
                     origin_dict.pop(node_id)
         removed_node = self.__graph__.pop()
+        self.__inverse_graph__ = None
         self.reset_cache()
         return removed_node
 
@@ -533,5 +536,6 @@ class GraphModifiers:
         if symmetric:
             self.__graph__[destination_id].pop(origin_id, None)
         res = self.__graph__[origin_id].pop(destination_id, None)
+        self.__inverse_graph__ = None
         self.reset_cache()
         return res
