@@ -179,6 +179,8 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `36–37`: Lazy loading and reduce defaults
 - `38–43`: CH/TNR on reduced graphs, bidirectional Dijkstra, chain IDs, dual-sided reduction, algorithm decorator, iterative reduction
 
+**Reduction exactness:** `test_reduced_graph_matches_unreduced_graph` in `test/33` compares every search on reduced graphs with Dijkstra on the unreduced graph and checks the paths `reduce()` stores; the comment above `CHECKED_GRAPHS` explains how the graphs are chosen.
+
 **Test pattern:**
 ```python
 from helpers import assert_result
