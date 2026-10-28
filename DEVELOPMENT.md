@@ -212,6 +212,17 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 
 ---
 
+## Contribution Workflow
+
+- Open an issue first, then one branch and one PR per issue.
+- Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`.
+- Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
+- A PR that depends on another open PR targets that PR's branch until it is merged.
+- `Closes #N` only acts on `main`: after merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main`.
+- Only the owner merges `dev` into `main` and releases.
+
+---
+
 ## Release Checklist (owner only — do not execute)
 
 1. Bump `version` in `pyproject.toml`
