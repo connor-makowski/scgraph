@@ -613,7 +613,10 @@ class GeoGraphIO:
             weight = round(
                 float(data.get(weight_key)) / weight_divisor, weight_precision
             )
-            graph[i][j] = min(graph[i].get(j, float("inf")), weight)
+            # Keep only the shortest of parallel edges, with its own geometry
+            if weight >= graph[i].get(j, float("inf")):
+                continue
+            graph[i][j] = weight
             if load_intermediate_nodes and "geometry" in data:
                 intermediate_nodes[i][j] = [
                     [
@@ -622,6 +625,8 @@ class GeoGraphIO:
                     ]
                     for coord in data["geometry"].coords
                 ]
+            elif load_intermediate_nodes:
+                intermediate_nodes[i].pop(j, None)
 
         nodes = [None] * len(node_list)
         for node, data in osmnx_graph.nodes(data=True):
@@ -1430,16 +1435,23 @@ class GeoGraphUtils:
             - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
             - Default: False
         """
-        if get_intermediate_nodes and self.intermediate_nodes is not None:
+        if (
+            get_intermediate_nodes
+            and self.intermediate_nodes is not None
+            and path
+        ):
             # Start with the origin node
             coordinate_path = [self.nodes[path[0]]]
-            # Note: The first and last node in the path are off graph so they do not have intermediate nodes.
-            for i in range(1, len(path) - 1):
+            for i in range(len(path) - 1):
                 origin_id = path[i]
                 destination_id = path[i + 1]
-                intermediate_nodes = self.intermediate_nodes[origin_id].get(
-                    destination_id, []
+                # Nodes added after loading (add_coord_node) have no shapes
+                shapes = (
+                    self.intermediate_nodes[origin_id]
+                    if origin_id < len(self.intermediate_nodes)
+                    else {}
                 )
+                intermediate_nodes = shapes.get(destination_id, [])
                 coordinate_path.extend(intermediate_nodes)
                 # Add the destination node
                 coordinate_path.append(self.nodes[destination_id])
@@ -1631,10 +1643,12 @@ class GeoGraph(
         - `graph`
             - Type: list of dictionaries
             - See: https://connor-makowski.github.io/scgraph/scgraph/graph.html#Graph
+            - Note: May be kept and modified instead of copied (pure-Python backend; the C++ backend copies it); do not modify it afterwards
         - `nodes`
             - Type: list of lists of ints or floats
             - What: A list of lists where the values are coordinates (latitude then longitude)
             - Note: The length of the nodes list must be the same as that of the graph list
+            - Note: Kept without copying and may be modified by the GeoGraph; do not modify it afterwards
             - Example:
             ```
                 [
@@ -2003,7 +2017,7 @@ class GeoGraph(
             else self.default_node_addition_circuity
         )
         algorithm_kwargs = (
-            algorithm_kwargs if algorithm_kwargs is not None else dict()
+            dict(algorithm_kwargs) if algorithm_kwargs is not None else dict()
         )
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = self.graph_object.unreduced_graph

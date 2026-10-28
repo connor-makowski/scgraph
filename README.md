@@ -155,11 +155,9 @@ See the [OSMNx notebook](https://colab.research.google.com/github/connor-makowsk
 A `GeoGraph` is the primary object in SCGraph. It combines a **graph** (a network of nodes and weighted edges) with **geographic coordinates** (latitude/longitude for each node), enabling shortest path queries between arbitrary real-world coordinates, not just predefined graph nodes.
 
 When you call `get_shortest_path`, SCGraph:
-1. Temporarily inserts your origin and destination as new nodes in the graph
-2. Connects them to nearby graph nodes using haversine or euclidean distance
-3. Runs the requested shortest path algorithm
-4. Returns the path in geographic coordinates
-5. Cleans up the temporary nodes
+1. Connects your origin and destination to nearby graph nodes using haversine or euclidean distance, without modifying the graph
+2. Runs the requested shortest path algorithm from those nodes
+3. Returns the path in geographic coordinates
 
 This means you never need to worry about whether your start/end points are "in" the network. SCGraph handles that automatically.
 
@@ -596,14 +594,17 @@ print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
 # Reduce the graph (contracts pass-through nodes):
 graph.reduce(iterations=1)
 
-# Custom algorithm decorator with automated reduced graph support:
+# Custom algorithm decorator with automated reduced graph support.
+# On a reduced graph, a destination inside a contracted chain (and, for
+# bidirectional algorithms, an origin) is passed as a {node_id: distance} dict
+# of the chain's boundary nodes.
 @Graph.algorithm
-def custom_solver(self, origin_id: int, destination_id: int) -> dict:
+def custom_solver(self, origin_id: int | dict, destination_id: int | dict) -> dict:
     # Standard single-sided algorithm implementation using self.graph
     ...
 
 @Graph.algorithm(bidirectional=True)
-def custom_bidirectional_solver(self, origin_id: int, destination_id: int) -> dict:
+def custom_bidirectional_solver(self, origin_id: int | dict, destination_id: int | dict) -> dict:
     # Bidirectional algorithm using self.graph and self.inverse_graph
     ...
 ```
@@ -817,7 +818,7 @@ uv sync --extra dev
 | `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `uv run utils/prettify.py` | Format with autoflake + black |
 
-For full developer documentation see [DEVELOPMENT.md](DEVELOPMENT.md).
+For full developer documentation see [DEVELOPMENT.md](DEVELOPMENT.md). For how scgraph works inside, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 

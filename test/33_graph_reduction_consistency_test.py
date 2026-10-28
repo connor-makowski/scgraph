@@ -1,6 +1,15 @@
 import time
+from copy import deepcopy
 import pytest
 from scgraph import GeoGraph
+from scgraph.graph import Graph as PyGraph
+
+try:
+    from scgraph.cpp import Graph as CppGraph
+
+    GRAPH_CLASSES = [PyGraph, CppGraph]
+except ImportError:
+    GRAPH_CLASSES = [PyGraph]
 
 
 def run_network_test(geograph_name):
@@ -129,6 +138,138 @@ def run_network_test(geograph_name):
 def test_reduction_consistency():
     run_network_test("us_freeway")
     run_network_test("marnet")
+
+
+# Each graph catches reduction faults the others miss: two-way with unit
+# weights and chains reduced over several passes; weighted with ties; one-way.
+REDUCIBLE_GRAPHS = [
+    [
+        {1: 1, 6: 1},
+        {0: 1, 2: 1},
+        {1: 1, 3: 1},
+        {2: 1, 4: 1, 7: 1, 8: 1},
+        {3: 1, 5: 1},
+        {4: 1, 10: 1, 11: 1},
+        {0: 1, 7: 1},
+        {3: 1, 6: 1},
+        {3: 1, 9: 1},
+        {8: 1, 12: 1, 13: 1},
+        {5: 1},
+        {5: 1},
+        {9: 1},
+        {9: 1},
+    ],
+    [
+        {1: 5, 2: 1},
+        {0: 5, 2: 2, 3: 1},
+        {0: 1, 1: 2, 3: 4, 4: 8},
+        {1: 1, 2: 4, 4: 3, 5: 6},
+        {2: 8, 3: 3},
+        {3: 6},
+    ],
+    [
+        {3: 5},
+        {3: 5, 2: 3},
+        {5: 2, 4: 3},
+        {4: 1, 0: 5},
+        {3: 1, 2: 3},
+        {4: 4, 2: 2},
+        {0: 3, 5: 5},
+    ],
+]
+
+
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        "dijkstra",
+        "bidirectional_dijkstra",
+        "dijkstra_buckets",
+        "bidirectional_buckets",
+        "dijkstra_negative",
+        "a_star",
+        "bellman_ford",
+        "bmssp",
+        "cached_shortest_path",
+        pytest.param(
+            "contraction_hierarchy",
+            marks=pytest.mark.xfail(
+                reason="stale shortcut lists in CH preprocessing",
+                strict=False,
+            ),
+        ),
+        pytest.param(
+            "tnr",
+            marks=pytest.mark.xfail(
+                reason="TNR is built on CH: stale shortcut lists",
+                strict=False,
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize("iterations", [1, -1])
+@pytest.mark.parametrize(
+    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
+)
+def test_reduced_graph_matches_unreduced_graph(
+    GraphClass, iterations, algorithm
+):
+    # Every search on a reduced graph finds, for every pair, a path of the
+    # original graph with the shortest length of the unreduced graph, for plain
+    # node ids, start/exit distances (as GeoGraph passes them) and several
+    # destinations
+    for graph in REDUCIBLE_GRAPHS:
+        reference = GraphClass(deepcopy(graph))
+        g = GraphClass(deepcopy(graph))
+        g.reduce(iterations)
+        n = len(graph)
+        leaving_chain = set()
+        for o in range(n):
+            for d in range(n):
+                for origin, destination in (
+                    (o, d),
+                    ({o: 0.5}, {d: 0.25}),
+                    (o, {d, (d + 1) % n}),
+                ):
+                    case = (graph, origin, destination)
+                    try:
+                        expected = reference.dijkstra(origin, destination)
+                    except Exception:
+                        continue  # not connected in the original graph
+                    result = getattr(g, algorithm)(origin, destination)
+                    if isinstance(destination, int) and not g.is_same_chain(
+                        origin, destination
+                    ):
+                        leaving_chain.add(origin)
+                    path = result["path"]
+                    origins = origin if isinstance(origin, dict) else {origin}
+                    targets = (
+                        destination
+                        if isinstance(destination, (dict, set))
+                        else {destination}
+                    )
+                    assert path[0] in origins and path[-1] in targets, case
+                    offsets = (
+                        origin.get(path[0], 0)
+                        if isinstance(origin, dict)
+                        else 0
+                    ) + (
+                        destination.get(path[-1], 0)
+                        if isinstance(destination, dict)
+                        else 0
+                    )
+                    weight = sum(graph[u][v] for u, v in zip(path, path[1:]))
+                    assert result["length"] == pytest.approx(
+                        expected["length"]
+                    ), case
+                    assert weight + offsets == pytest.approx(
+                        expected["length"]
+                    ), case
+        if algorithm == "cached_shortest_path":
+            # Each origin queried beyond its own chain keeps its tree cached,
+            # reduced origins included (distance matrices reuse it)
+            cache = g.get_cache()
+            assert all(cache[o] != 0 for o in leaving_chain), graph
 
 
 if __name__ == "__main__":

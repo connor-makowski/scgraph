@@ -79,6 +79,8 @@ Dev dependencies are declared in `[project.optional-dependencies] dev` in `pypro
 
 ## Core Architecture
 
+For how scgraph works inside (query, graph reduction, plugging in an algorithm, caches), see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ### Key Classes
 
 **`Graph`** (`graph.py`) — base graph class:
@@ -203,6 +205,7 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times
+- **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
 - **DO NOT generate docs**: Only the maintainer generates docs at release time
 
 ---

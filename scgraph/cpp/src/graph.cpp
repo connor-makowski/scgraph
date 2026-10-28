@@ -32,7 +32,8 @@ template <typename QueryFn>
 GraphResult Graph::run_query_with_reducer(
     const NodeIdVariant& origin_id,
     const NodeIdVariant& destination_id,
-    QueryFn&& query_fn
+    QueryFn&& query_fn,
+    bool bidirectional
 ) {
     if (!has_reduced_graph) {
         return query_fn(this->graph, origin_id, destination_id);
@@ -40,6 +41,57 @@ GraphResult Graph::run_query_with_reducer(
     if (is_same_chain(origin_id, destination_id)) {
         return query_fn(this->graph, origin_id, destination_id);
     }
+
+    // Bidirectional searches must start and end on non-reduced nodes: only there
+    // is reduced_inverse_graph exactly the reverse of reduced_graph. Their reduced
+    // origins are replaced by the boundary nodes they reach (rows of
+    // reduced_graph); reduced destinations are replaced below for every search.
+    // One-sided searches keep a reduced origin: they only read reduced_graph.
+    NodeIdVariant search_origin = origin_id;
+    std::unordered_map<int, int> origin_map;
+    auto origin_entries = get_node_entries(origin_id);
+    bool any_reduced_origin = false;
+    if (bidirectional) {
+        for (const auto& [oid, _] : origin_entries) {
+            if (oid >= 0 && oid < (int)is_reduced.size() && is_reduced[oid]) {
+                any_reduced_origin = true;
+                break;
+            }
+        }
+    }
+    if (any_reduced_origin) {
+        std::unordered_map<int, double> boundary_origins;
+        for (const auto& [oid, o_start] : origin_entries) {
+            std::vector<std::pair<int, double>> exits;
+            if (oid >= 0 && oid < (int)is_reduced.size() && is_reduced[oid]) {
+                exits = reduced_graph[oid];
+            } else {
+                exits.emplace_back(oid, 0.0);
+            }
+            for (const auto& [exit_u, exit_dist] : exits) {
+                double total = o_start + exit_dist;
+                auto it = boundary_origins.find(exit_u);
+                if (it == boundary_origins.end() || total < it->second) {
+                    boundary_origins[exit_u] = total;
+                    origin_map[exit_u] = oid;
+                }
+            }
+        }
+        if (boundary_origins.empty()) {
+            throw std::runtime_error("The origin and destination nodes are not connected.");
+        }
+        search_origin = boundary_origins;
+    }
+    auto restore_origin = [&origin_map](std::vector<int> path) {
+        if (!path.empty()) {
+            auto it = origin_map.find(path.front());
+            if (it != origin_map.end() && it->second != path.front()) {
+                path.insert(path.begin(), it->second);
+            }
+        }
+        return path;
+    };
+
     auto dest_entries = get_node_entries(destination_id);
     bool any_reduced = false;
     for (const auto& [did, _] : dest_entries) {
@@ -49,8 +101,8 @@ GraphResult Graph::run_query_with_reducer(
         }
     }
     if (!any_reduced) {
-        GraphResult res = query_fn(this->reduced_graph, origin_id, destination_id);
-        res.path = expand_path(res.path);
+        GraphResult res = query_fn(this->reduced_graph, search_origin, destination_id);
+        res.path = expand_path(restore_origin(res.path));
         return res;
     }
 
@@ -86,8 +138,8 @@ GraphResult Graph::run_query_with_reducer(
         throw std::runtime_error("The origin and destination nodes are not connected.");
     }
 
-    GraphResult res = query_fn(this->reduced_graph, origin_id, boundary_dests);
-    std::vector<int> expanded = expand_path(res.path);
+    GraphResult res = query_fn(this->reduced_graph, search_origin, boundary_dests);
+    std::vector<int> expanded = expand_path(restore_origin(res.path));
     if (!res.path.empty()) {
         int meeting_bound = res.path.back();
         auto it = boundary_reconstruct.find(meeting_bound);
@@ -492,7 +544,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
         return GraphResult{forward_path, best_dist};
     };
 
-    return run_query_with_reducer(origin_id, destination_id, run_bidir);
+    return run_query_with_reducer(origin_id, destination_id, run_bidir, true);
 }
 
 GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
@@ -797,7 +849,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
         return GraphResult{forward_path, best_dist};
     };
 
-    return run_query_with_reducer(origin_id, destination_id, run_bidir_buckets);
+    return run_query_with_reducer(origin_id, destination_id, run_bidir_buckets, true);
 }
 
 GraphResult Graph::dijkstra_negative(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
