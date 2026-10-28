@@ -207,9 +207,11 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         if (contracted[node_id]) continue;
 
         double current_heuristic = heuristic_value;
+        bool evaluated_now = false;
         if (!up_to_date[node_id]) {
             current_heuristic = heuristic_fn(this, node_id);
             up_to_date[node_id] = true;
+            evaluated_now = true;
             if (!open_leaves.empty() && current_heuristic > open_leaves.top().first + 1e-9) {
                 open_leaves.push({current_heuristic, node_id});
                 continue;
@@ -222,9 +224,12 @@ void CHGraph::preprocess(std::function<double(CHGraph*, int)> heuristic_fn) {
         contracted_count++;
 
         std::vector<std::tuple<int, int, double, int>> found_shortcuts;
-        if (node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size())) {
+        // Reuse shortcuts cached by default_heuristic only if it ran in this iteration: a list
+        // cached earlier can be out of date (other nodes were contracted since), and a custom
+        // heuristic does not fill the cache
+        if (evaluated_now && node_id >= 0 && node_id < static_cast<int>(shortcuts_cache_table.size()) && !shortcuts_cache_table[node_id].empty()) {
             found_shortcuts = std::move(shortcuts_cache_table[node_id]);
-        } else if (shortcuts_cache_node == node_id) {
+        } else if (evaluated_now && shortcuts_cache_node == node_id) {
             found_shortcuts = std::move(shortcuts_cache);
         } else {
             found_shortcuts = count_shortcuts(node_id).second;

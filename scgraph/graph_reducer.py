@@ -274,8 +274,8 @@ class GraphReducer:
 
         - Run a graph routing function on the reduced graph.
         - Same-chain queries route directly on the unreduced graph.
-        - Bidirectional algorithms route on reduced_graph and reduced_inverse_graph.
-        - One-sided algorithms with reduced destination solve via boundary entry nodes from reduced_inverse_graph.
+        - Contraction Hierarchies and Transit Node Routing run on their own graph.
+        - Other algorithms: reduced destinations are replaced by their boundary entry nodes (reduced_inverse_graph); for bidirectional algorithms, reduced origins are also replaced by the boundary nodes they reach (reduced_graph).
 
         Required Arguments:
 
@@ -309,19 +309,8 @@ class GraphReducer:
 
         is_reduced = self.is_reduced
 
-        # 2. Bidirectional algorithms, Contraction Hierarchies, and Transit Node Routing
-        is_bidirectional = (
-            is_bidirectional
-            or getattr(func, "__bidirectional__", False)
-            or func.__name__
-            in (
-                "bidirectional_dijkstra",
-                "bidirectional_buckets",
-                "contraction_hierarchy",
-                "tnr",
-            )
-        )
-        if is_bidirectional:
+        # 2. Contraction Hierarchies and Transit Node Routing search their own graph
+        if func.__name__ in ("contraction_hierarchy", "tnr"):
             res = func(self, *args, **kwargs)
             if isinstance(res, dict) and "path" in res:
                 res["path"] = self.expand_path(res["path"])
@@ -339,16 +328,78 @@ class GraphReducer:
             )
         )
 
-        # 3. One-sided algorithms with unreduced destinations (or None)
+        # Bidirectional searches must start and end on non-reduced nodes: only
+        # there is reduced_inverse_graph exactly the reverse of reduced_graph.
+        # Their reduced origins are replaced by the boundary nodes they reach
+        # (rows of reduced_graph); reduced destinations are replaced by their
+        # boundary entry nodes for every search (step 4). One-sided searches
+        # keep a reduced origin: they only read reduced_graph.
+        is_bidirectional = (
+            is_bidirectional
+            or getattr(func, "__bidirectional__", False)
+            or func.__name__
+            in ("bidirectional_dijkstra", "bidirectional_buckets")
+        )
+        origin_dict = (
+            {origin_id: 0.0}
+            if isinstance(origin_id, int)
+            else (
+                {oid: 0.0 for oid in origin_id}
+                if isinstance(origin_id, (set, list))
+                else (origin_id if isinstance(origin_id, dict) else None)
+            )
+        )
+        origin_map = {}
+        if (
+            is_bidirectional
+            and origin_dict is not None
+            and any(is_reduced[oid] for oid in origin_dict)
+        ):
+            effective_origin_dict = {}
+            for oid, odist in origin_dict.items():
+                exits = (
+                    self.reduced_graph[oid].items()
+                    if is_reduced[oid]
+                    else [(oid, 0.0)]
+                )
+                for exit_u, exit_dist in exits:
+                    tot = odist + exit_dist
+                    if (
+                        exit_u not in effective_origin_dict
+                        or tot < effective_origin_dict[exit_u]
+                    ):
+                        effective_origin_dict[exit_u] = tot
+                        origin_map[exit_u] = oid
+            if not effective_origin_dict:
+                raise Exception(
+                    "Something went wrong, the origin and destination nodes are not connected."
+                )
+            args = list(args)
+            if "origin_id" in kwargs or not args:
+                kwargs = dict(kwargs)
+                kwargs["origin_id"] = effective_origin_dict
+            else:
+                args[0] = effective_origin_dict
+
+        def restore_origin(path):
+            if (
+                path
+                and path[0] in origin_map
+                and origin_map[path[0]] != path[0]
+            ):
+                return [origin_map[path[0]]] + path
+            return path
+
+        # 3. Unreduced destinations (or None)
         if dest_dict is None or all(
             not is_reduced[did] for did in dest_dict.keys()
         ):
             res = func(self, *args, **kwargs)
             if isinstance(res, dict) and "path" in res:
-                res["path"] = self.expand_path(res["path"])
+                res["path"] = self.expand_path(restore_origin(res["path"]))
             return res
 
-        # 4. One-sided algorithm with reduced destination(s)
+        # 4. Reduced destination(s)
         # Build effective destination dict expanding reduced destination nodes into boundary entries
         boundary_entries_map = {}
         effective_dest_dict = {}
@@ -392,7 +443,7 @@ class GraphReducer:
             return res
 
         if "path" in res and res["path"]:
-            expanded_path = self.expand_path(res["path"])
+            expanded_path = self.expand_path(restore_origin(res["path"]))
             reached_boundary = expanded_path[-1]
             if reached_boundary in boundary_entries_map:
                 orig_did, best_entry = boundary_entries_map[reached_boundary]

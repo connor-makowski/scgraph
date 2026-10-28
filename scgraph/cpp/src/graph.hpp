@@ -21,7 +21,8 @@ private:
     GraphResult run_query_with_reducer(
         const NodeIdVariant& origin_id,
         const NodeIdVariant& destination_id,
-        QueryFn&& query_fn
+        QueryFn&& query_fn,
+        bool bidirectional = false
     );
 
 public:
