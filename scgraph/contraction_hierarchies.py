@@ -367,9 +367,11 @@ class CHGraphPreprocessing:
                 continue
 
             current_heuristic = heuristic_value
+            evaluated_now = False
             if not up_to_date[node_id]:
                 current_heuristic = heuristic_fn(self, node_id)
                 up_to_date[node_id] = True
+                evaluated_now = True
                 if open_leaves and current_heuristic > open_leaves[0][0]:
                     heappush(open_leaves, (current_heuristic, node_id))
                     continue
@@ -380,13 +382,16 @@ class CHGraphPreprocessing:
             contracted[node_id] = True
             self.contracted_count += 1
 
-            # Reuse shortcuts cached by the heuristic call above (default_heuristic stores them)
+            # Reuse shortcuts cached by the heuristic call above (default_heuristic
+            # stores them) only if it ran in this iteration: a list cached earlier
+            # can be out of date, as other nodes were contracted since
             if (
-                0 <= node_id < len(self._shortcuts_cache_table)
+                evaluated_now
+                and 0 <= node_id < len(self._shortcuts_cache_table)
                 and self._shortcuts_cache_table[node_id]
             ):
                 found_shortcuts = self._shortcuts_cache_table[node_id]
-            elif self._shortcuts_cache_node == node_id:
+            elif evaluated_now and self._shortcuts_cache_node == node_id:
                 found_shortcuts = self._shortcuts_cache
             else:
                 _, found_shortcuts = self.__count_shortcuts__(node_id)

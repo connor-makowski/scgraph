@@ -278,3 +278,61 @@ def test_cpp_hierarchy_query_time_add_node():
     res_tnr = tnr.get_shortest_path(6, 3)
     assert abs(res_tnr["length"] - 6.0) < 1e-9
     assert res_tnr["path"] == [6, 0, 2, 1, 3]
+
+
+# --- Contraction order: custom heuristics and reduced graphs ---
+# Directed graphs on which some contraction orders need shortcuts that a stale
+# cached shortcut list misses
+_CUSTOM_HEURISTIC_GRAPH = [
+    {1: 2.0, 2: 1.0},
+    {0: 1.0, 4: 1.0},
+    {},
+    {0: 1.0, 4: 1.0},
+    {},
+    {3: 3.0, 1: 3.0},
+]
+_REDUCED_GRAPH = [
+    {3: 5.0},
+    {3: 5.0, 2: 3.0},
+    {5: 2.0, 4: 3.0},
+    {4: 1.0, 0: 5.0},
+    {3: 1.0, 2: 3.0},
+    {4: 4.0, 2: 2.0},
+    {0: 3.0, 5: 5.0},
+]
+
+
+def _assert_ch_matches_dijkstra(graph_class, data, g):
+    reference = graph_class([dict(d) for d in data])
+    for origin in range(len(data)):
+        for destination in range(len(data)):
+            if origin == destination:
+                continue
+            try:
+                expected = reference.dijkstra(origin, destination)["length"]
+            except Exception:
+                continue  # not connected
+            result = g.contraction_hierarchy(origin, destination)
+            assert result["length"] == expected, (origin, destination)
+
+
+def _run_contraction_order_tests(graph_class):
+    # CH lengths must match Dijkstra whatever the contraction order
+    # A custom heuristic: priority = node id
+    g = graph_class([dict(d) for d in _CUSTOM_HEURISTIC_GRAPH])
+    g.create_contraction_hierarchy(heuristic_fn=lambda ch, n: n)
+    _assert_ch_matches_dijkstra(graph_class, _CUSTOM_HEURISTIC_GRAPH, g)
+    # reduce() orders the contraction with its own heuristic wrapper
+    for data in (_CUSTOM_HEURISTIC_GRAPH, _REDUCED_GRAPH):
+        g = graph_class([dict(d) for d in data])
+        g.reduce()
+        _assert_ch_matches_dijkstra(graph_class, data, g)
+
+
+def test_python_contraction_order():
+    _run_contraction_order_tests(PyGraph)
+
+
+@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
+def test_cpp_contraction_order():
+    _run_contraction_order_tests(CppGraph)
