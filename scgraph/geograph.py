@@ -1573,7 +1573,7 @@ class GeoGraphDistanceCalculations:
         """
         Function:
 
-        - Calculate the haversine distance between two points on the Earth.
+        - Calculate the haversine distance between two points on the Earth, in the units of the GeoGraph (`geograph_units`).
 
         Required Arguments:
 
@@ -1591,7 +1591,7 @@ class GeoGraphDistanceCalculations:
         return haversine(
             origin=self.nodes[origin_id],
             destination=self.nodes[destination_id],
-            units="km",
+            units=self.geograph_units,
             circuity=1,
         )
 
@@ -1606,6 +1606,7 @@ class GeoGraphDistanceCalculations:
         - Calculate the distance between two points on the Earth using the cheap ruler algorithm.
         - This is based off of Mapbox's cheap ruler algorithm which is a fast approximation of the haversine distance
         - It has modifications to support distances across the antimeridian
+        - The distance is in the units of the GeoGraph (`geograph_units`).
 
         Required Arguments:
 
@@ -1623,7 +1624,7 @@ class GeoGraphDistanceCalculations:
         return cheap_ruler(
             origin=self.nodes[origin_id],
             destination=self.nodes[destination_id],
-            units="km",
+            units=self.geograph_units,
             # Use a circuity factor of 0.95 to account for the fact that cheap_ruler can overestimate distances
             circuity=0.9,
         )

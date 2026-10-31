@@ -1,4 +1,5 @@
 import pytest
+from scgraph import GeoGraph
 from scgraph.graph import Graph as PyGraph
 from scgraph.utils import haversine
 
@@ -378,6 +379,31 @@ def test_geograph_all_node_addition_type_across_algorithms(marnet):
         assert (
             abs(length - dijkstra_len) < 1e-2
         ), f"{algo} length {length} differs from dijkstra {dijkstra_len}"
+
+
+@pytest.mark.parametrize("heuristic", ["haversine", "cheap_ruler"])
+@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
+def test_geograph_heuristics_follow_geograph_units(heuristic, GraphClass):
+    """A* with a GeoGraph heuristic finds the shortest path whatever the GeoGraph units."""
+    # In miles. Shortest path 0 -> 1 -> 3 (100); 0 -> 2 -> 3 is 105. Node 4, a dead end
+    # near 3 reached at 106, is popped before node 1 when the bound is too large: without
+    # it the pure-Python search still settles node 1 in time.
+    # Every edge is at least the great-circle distance between its ends, in miles.
+    graph = [
+        {1: 50, 2: 95, 4: 106},
+        {0: 50, 3: 50},
+        {0: 95, 3: 10},
+        {1: 50, 2: 10},
+        {0: 106},
+    ]
+    nodes = [[1.2, 0.0], [0.7, 0.0], [0.14, 0.0], [0.0, 0.0], [0.07, 0.0]]
+    geograph = GeoGraph(graph=graph, nodes=nodes, geograph_units="mi")
+    result = GraphClass(graph).a_star(
+        origin_id=0,
+        destination_id=3,
+        heuristic_fn=getattr(geograph, heuristic),
+    )
+    assert result == {"path": [0, 1, 3], "length": 100}
 
 
 def test_geograph_cached_shortest_path_multiple_exit_snapping(marnet):
