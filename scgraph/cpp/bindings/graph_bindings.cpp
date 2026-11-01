@@ -1,4 +1,5 @@
 #include <nanobind/nanobind.h>
+#include <cmath>
 #include <nanobind/stl/vector.h>
 #include <nanobind/stl/pair.h>
 #include <nanobind/stl/unordered_map.h>
@@ -8,6 +9,7 @@
 #include <nanobind/stl/function.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/tuple.h>
+#include <nanobind/ndarray.h>
 #include <nanobind/stl/shared_ptr.h>
 #include <nanobind/operators.h>
 #include <string>
@@ -280,6 +282,29 @@ NB_MODULE(cpp, m) {
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            nb::arg("heuristic_fn") = nullptr,
            "Find shortest path using A* algorithm with optional heuristic")
+
+        .def("a_star_great_circle", [](Graph& self,
+                                       const NodeIdVariant& origin_id,
+                                       const NodeIdVariant& destination_id,
+                                       nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu> latitudes,
+                                       nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu> longitudes,
+                                       double radius) -> nb::dict {
+            if (latitudes.shape(0) < (size_t)self.size() || longitudes.shape(0) < (size_t)self.size()) {
+                throw std::invalid_argument("latitudes and longitudes must have an entry for every graph node");
+            }
+            const double* lat = latitudes.data();
+            const double* lon = longitudes.data();
+            // Same formula and operation order as scgraph.utils.haversine
+            std::function<double(int, int)> heuristic_fn = [lat, lon, radius](int origin, int destination) {
+                double a = std::pow(std::sin((lat[destination] - lat[origin]) / 2), 2)
+                    + std::cos(lat[origin]) * std::cos(lat[destination])
+                    * std::pow(std::sin((lon[destination] - lon[origin]) / 2), 2);
+                return 2 * std::asin(std::pow(a, 0.5)) * radius;
+            };
+            return graph_result_to_dict(self.a_star(origin_id, destination_id, heuristic_fn));
+        }, nb::arg("origin_id"), nb::arg("destination_id"),
+           nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("radius"),
+           "A* with the great-circle distance as heuristic, computed natively from node latitudes and longitudes in radians")
 
         .def("bellman_ford", [](Graph& self,
                                 const NodeIdVariant& origin_id,

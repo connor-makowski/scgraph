@@ -1,4 +1,7 @@
+import random
+
 import pytest
+from copy import deepcopy
 from scgraph import GeoGraph
 from scgraph.graph import Graph as PyGraph
 from scgraph.utils import haversine
@@ -381,29 +384,102 @@ def test_geograph_all_node_addition_type_across_algorithms(marnet):
         ), f"{algo} length {length} differs from dijkstra {dijkstra_len}"
 
 
+# A GeoGraph in miles. Shortest path 0 -> 1 -> 3 (100); 0 -> 2 -> 3 is 105. Node 4, a dead
+# end near 3 reached at 106, is popped before node 1 when the bound is too large: without it
+# the pure-Python search still settles node 1 in time.
+# Every edge is at least the great-circle distance between its ends, in miles.
+_MILES_GRAPH = [
+    {1: 50, 2: 95, 4: 106},
+    {0: 50, 3: 50},
+    {0: 95, 3: 10},
+    {1: 50, 2: 10},
+    {0: 106},
+]
+_MILES_NODES = [[1.2, 0.0], [0.7, 0.0], [0.14, 0.0], [0.0, 0.0], [0.07, 0.0]]
+
+
 @pytest.mark.parametrize("heuristic", ["haversine", "cheap_ruler"])
 @pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
 def test_geograph_heuristics_follow_geograph_units(heuristic, GraphClass):
     """A* with a GeoGraph heuristic finds the shortest path whatever the GeoGraph units."""
-    # In miles. Shortest path 0 -> 1 -> 3 (100); 0 -> 2 -> 3 is 105. Node 4, a dead end
-    # near 3 reached at 106, is popped before node 1 when the bound is too large: without
-    # it the pure-Python search still settles node 1 in time.
-    # Every edge is at least the great-circle distance between its ends, in miles.
-    graph = [
-        {1: 50, 2: 95, 4: 106},
-        {0: 50, 3: 50},
-        {0: 95, 3: 10},
-        {1: 50, 2: 10},
-        {0: 106},
-    ]
-    nodes = [[1.2, 0.0], [0.7, 0.0], [0.14, 0.0], [0.0, 0.0], [0.07, 0.0]]
-    geograph = GeoGraph(graph=graph, nodes=nodes, geograph_units="mi")
-    result = GraphClass(graph).a_star(
+    geograph = GeoGraph(
+        graph=deepcopy(_MILES_GRAPH),
+        nodes=deepcopy(_MILES_NODES),
+        geograph_units="mi",
+    )
+    result = GraphClass(deepcopy(_MILES_GRAPH)).a_star(
         origin_id=0,
         destination_id=3,
         heuristic_fn=getattr(geograph, heuristic),
     )
     assert result == {"path": [0, 1, 3], "length": 100}
+
+
+def test_geograph_a_star_haversine_after_node_changes():
+    """A* with `geo.haversine` finds the shortest path, also after nodes are added or removed."""
+
+    class OwnHaversine(GeoGraph):
+        calls = 0
+
+        def haversine(self, origin_id, destination_id):
+            OwnHaversine.calls += 1
+            return super().haversine(origin_id, destination_id)
+
+    query = dict(
+        origin_node={"latitude": 1.2, "longitude": 0.0},
+        destination_node={"latitude": 0.0, "longitude": 0.0},
+    )
+    for geograph_class in (GeoGraph, OwnHaversine):
+        geograph = geograph_class(
+            graph=deepcopy(_MILES_GRAPH),
+            nodes=deepcopy(_MILES_NODES),
+            geograph_units="mi",
+        )
+        for change in (
+            None,
+            lambda: geograph.add_coord_node(
+                {"latitude": 0.4, "longitude": 0.0}
+            ),
+            geograph.remove_coord_node,
+            # Removes the dead end 4 from the graph, not from `nodes`
+            geograph.remove_node,
+        ):
+            if change is not None:
+                change()
+            a_star = geograph.get_shortest_path(
+                **query,
+                algorithm_fn="a_star",
+                algorithm_kwargs={"heuristic_fn": geograph.haversine},
+            )
+            dijkstra = geograph.get_shortest_path(
+                **query, algorithm_fn="dijkstra"
+            )
+            assert a_star["length"] == pytest.approx(dijkstra["length"])
+    # A GeoGraph subclass keeps its own heuristic
+    assert OwnHaversine.calls > 0
+
+
+def test_geograph_a_star_haversine_matches_dijkstra(marnet):
+    """A* with `geo.haversine` returns Dijkstra's lengths on a built-in network."""
+    rng = random.Random(46)
+    for _ in range(20):
+        origin, destination = (
+            marnet.nodes[rng.randrange(len(marnet.nodes))] for _ in range(2)
+        )
+        query = dict(
+            origin_node={"latitude": origin[0], "longitude": origin[1]},
+            destination_node={
+                "latitude": destination[0],
+                "longitude": destination[1],
+            },
+        )
+        a_star = marnet.get_shortest_path(
+            **query,
+            algorithm_fn="a_star",
+            algorithm_kwargs={"heuristic_fn": marnet.haversine},
+        )
+        dijkstra = marnet.get_shortest_path(**query, algorithm_fn="dijkstra")
+        assert a_star["length"] == pytest.approx(dijkstra["length"])
 
 
 def test_geograph_cached_shortest_path_multiple_exit_snapping(marnet):

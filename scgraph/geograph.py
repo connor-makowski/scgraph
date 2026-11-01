@@ -6,11 +6,15 @@ from scgraph.utils import (
     print_console,
     get_lat_lon_bound_between_pts,
     get_default_cache_path,
+    earth_radius,
+    radians_per_degree,
 )
 from scgraph.helpers.geojson import parse_geojson
 from geokdtree import GeoKDTree
 import json, requests, shutil
+from array import array
 from copy import deepcopy
+from functools import partial
 from pathlib import Path
 from typing import Literal
 from scgraph import Graph
@@ -1574,6 +1578,7 @@ class GeoGraphDistanceCalculations:
         Function:
 
         - Calculate the haversine distance between two points on the Earth, in the units of the GeoGraph (`geograph_units`).
+        - Passed as `heuristic_fn` to `get_shortest_path` with `algorithm_fn='a_star'`, the same bound is computed natively (C++ build) from a cache of the node coordinates, rebuilt when nodes are added or removed; edit nodes through the GeoGraph methods rather than in place.
 
         Required Arguments:
 
@@ -1739,6 +1744,24 @@ class GeoGraph(
     @geokdtree.setter
     def geokdtree(self, geokdtree: GeoKDTree | None) -> None:
         self.__geokdtree__ = geokdtree
+        # Node coordinates in radians for the native A* heuristic, rebuilt with the KD-tree
+        self.__node_radians__ = None
+
+    def __get_node_radians__(self) -> tuple[array, array]:
+        # Also rebuilt when nodes were appended or removed directly; in-place edits of
+        # existing nodes are not detected (as for the KD-tree)
+        if self.__node_radians__ is None or len(
+            self.__node_radians__[0]
+        ) != len(self.nodes):
+            self.__node_radians__ = (
+                array(
+                    "d", (radians_per_degree * node[0] for node in self.nodes)
+                ),
+                array(
+                    "d", (radians_per_degree * node[1] for node in self.nodes)
+                ),
+            )
+        return self.__node_radians__
 
     def reduce(self, iterations: int = 1) -> None:
         """
@@ -2043,7 +2066,24 @@ class GeoGraph(
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = self.graph_object.unreduced_graph
         elif isinstance(algorithm_fn, str):
-            if hasattr(self.graph_object, algorithm_fn):
+            heuristic_fn = algorithm_kwargs.get("heuristic_fn")
+            if (
+                algorithm_fn == "a_star"
+                and hasattr(self.graph_object, "a_star_great_circle")
+                and getattr(heuristic_fn, "__self__", None) is self
+                and getattr(heuristic_fn, "__func__", None)
+                is GeoGraphDistanceCalculations.haversine
+            ):
+                # The built-in haversine heuristic is computed natively in the C++ build
+                latitudes, longitudes = self.__get_node_radians__()
+                algorithm_kwargs.pop("heuristic_fn")
+                algorithm_fn = partial(
+                    self.graph_object.a_star_great_circle,
+                    latitudes=latitudes,
+                    longitudes=longitudes,
+                    radius=earth_radius.get(self.geograph_units, 6371),
+                )
+            elif hasattr(self.graph_object, algorithm_fn):
                 algorithm_fn = getattr(self.graph_object, algorithm_fn)
             else:
                 raise ValueError("algorithm_fn must be a string or callable")
