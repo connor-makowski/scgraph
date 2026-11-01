@@ -230,7 +230,7 @@ output = my_geograph.get_shortest_path(
 
 | Method | Description |
 |---|---|
-| `my_geograph.haversine` | Great-circle distance heuristic (accurate), in `geograph_units` |
+| `my_geograph.haversine` | Great-circle distance heuristic (accurate), in `geograph_units`; computed natively by `get_shortest_path` A* in the C++ build |
 | `my_geograph.cheap_ruler` | Fast approximate distance (Mapbox method), in `geograph_units` |
 
 ---

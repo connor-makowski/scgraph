@@ -1,4 +1,5 @@
 from heapq import heappop, heappush
+from math import asin, cos, sin
 from typing import Any
 from scgraph.graph_utils import (
     GraphUtils,
@@ -880,6 +881,65 @@ class GraphAlgorithms:
             "path": self.__reconstruct_path__(best_dest_node, predecessor),
             "length": best_dist,
         }
+
+    def a_star_great_circle(
+        self,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
+        latitudes,
+        longitudes,
+        radius: float,
+    ) -> dict:
+        """
+        Function:
+
+        - A* with the great-circle (haversine) distance between nodes as its heuristic
+        - Same result as `a_star` with `GeoGraph.haversine`; the C++ build computes the heuristic natively
+        - Called by `GeoGraph.get_shortest_path` when `heuristic_fn` is `GeoGraph.haversine`
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id of the origin node (or nodes with starting distances)
+        - `destination_id`
+            - Type: int | set[int] | dict[int, int | float]
+            - What: The id of the destination node (or nodes with exit distances)
+        - `latitudes`
+            - Type: C-contiguous float64 buffer (e.g. `array("d")`)
+            - What: The latitude of each node, in radians (at least one entry per graph node)
+        - `longitudes`
+            - Type: C-contiguous float64 buffer (e.g. `array("d")`)
+            - What: The longitude of each node, in radians (at least one entry per graph node)
+        - `radius`
+            - Type: float
+            - What: The earth radius in the units of the graph weights
+
+        Optional Arguments:
+
+        - None
+        """
+        if len(latitudes) < len(self.graph) or len(longitudes) < len(
+            self.graph
+        ):
+            raise ValueError(
+                "latitudes and longitudes must have an entry for every graph node"
+            )
+
+        def heuristic_fn(origin, destination):
+            a = (
+                sin((latitudes[destination] - latitudes[origin]) / 2) ** 2
+                + cos(latitudes[origin])
+                * cos(latitudes[destination])
+                * sin((longitudes[destination] - longitudes[origin]) / 2) ** 2
+            )
+            return 2 * asin(a**0.5) * radius
+
+        return self.a_star(
+            origin_id=origin_id,
+            destination_id=destination_id,
+            heuristic_fn=heuristic_fn,
+        )
 
     @algorithm
     def bellman_ford(
