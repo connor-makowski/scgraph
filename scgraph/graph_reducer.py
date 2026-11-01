@@ -1,3 +1,4 @@
+import gc
 from heapq import heapify, heappop, heappush
 from functools import wraps
 
@@ -85,6 +86,25 @@ def connections(pointers, inverse: bool) -> list[dict[int, list[int]] | None]:
     ]
 
 
+def _without_gc(fn):
+    # reduce() allocates one dict per node and per direction; the cyclic garbage
+    # collector, triggered by these allocations, has nothing to collect there and
+    # costs a fifth of the call on large networks. Collection is paused for the
+    # call and the previous state restored; the skipped collection runs at the
+    # caller's next allocation.
+    @wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            return fn(self, *args, **kwargs)
+        finally:
+            if was_enabled:
+                gc.enable()
+
+    return wrapper
+
+
 class GraphReducer:
     # The two connection lists are built on first read and kept until the next
     # reduce(): scgraph itself reads the pointers (see hidden_nodes)
@@ -120,6 +140,7 @@ class GraphReducer:
     def reduced_inverse_graph_connections(self, value) -> None:
         self.__reduced_inverse_graph_connections__ = value
 
+    @_without_gc
     def reduce(self, iterations: int = 1) -> None:
         """
         Function:
