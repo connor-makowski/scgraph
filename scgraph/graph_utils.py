@@ -277,6 +277,32 @@ class GraphUtils:
             self.__max_edge_weight__ = cached_max_edge_weight
         return cached_max_edge_weight
 
+    def __get_bucket_width__(
+        self,
+        bucket_width: int | float | None,
+        max_edge_weight: int,
+    ) -> float:
+        """Width of the buckets of the bucket algorithms: the given width, else 8 times the
+        median edge weight of the graph (1 if that median is 0), never so small that a bucket
+        ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width (C++).
+        """
+        if bucket_width is not None:
+            if not (math.isfinite(bucket_width) and bucket_width > 0):
+                raise ValueError(
+                    "bucket_width must be a finite number greater than 0."
+                )
+            width = float(bucket_width)
+        else:
+            width = getattr(self, "__bucket_width__", None)
+            if width is None:
+                weights = sorted(
+                    w for edges in self.graph if edges for w in edges.values()
+                )
+                median = weights[len(weights) // 2] if weights else 0
+                width = 8.0 * median if median > 0 else 1.0
+                self.__bucket_width__ = width
+        return max(width, max_edge_weight / 65536)
+
     def validate(
         self,
         check_symmetry: bool = True,

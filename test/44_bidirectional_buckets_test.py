@@ -87,15 +87,34 @@ def _run_basic_bidirectional_buckets_tests(graph_cls):
     )
     assert_result(res_max_w, _EXPECTED)
 
-    # All-pairs equivalence with standard Dijkstra
+    # All-pairs equivalence with standard Dijkstra, whatever the bucket width:
+    # default, under one unit, several units, wider than the longest edge
     for u in range(len(_GRAPH_DATA)):
         for v in range(len(_GRAPH_DATA)):
             d_res = g.dijkstra(u, v)
-            bi_res = g.bidirectional_buckets(u, v)
-            assert abs(d_res["length"] - bi_res["length"]) < 1e-6
-            assert (
-                abs(g.get_path_weight(bi_res["path"]) - d_res["length"]) < 1e-6
-            )
+            for width in (None, 0.5, 3, 100):
+                for algorithm in (g.bidirectional_buckets, g.dijkstra_buckets):
+                    res = algorithm(u, v, bucket_width=width)
+                    assert abs(d_res["length"] - res["length"]) < 1e-6
+                    assert (
+                        abs(g.get_path_weight(res["path"]) - d_res["length"])
+                        < 1e-6
+                    )
+                    # Start and end offsets are distances, whatever the width
+                    res = algorithm({u: 7.5}, {v: 100.0}, bucket_width=width)
+                    assert abs(res["length"] - d_res["length"] - 107.5) < 1e-6
+
+    # All weights zero (median and maximum 0): the default width still works
+    z = graph_cls([{1: 0, 2: 0}, {2: 0}, {0: 0}])
+    for u in range(3):
+        for v in range(3):
+            for algorithm in (z.bidirectional_buckets, z.dijkstra_buckets):
+                assert algorithm(u, v)["length"] == 0
+
+    for algorithm in (g.bidirectional_buckets, g.dijkstra_buckets):
+        for width in (0, float("inf")):
+            with pytest.raises(ValueError):
+                algorithm(0, 5, bucket_width=width)
 
 
 def _run_disconnected_tests(graph_cls):

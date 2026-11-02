@@ -187,7 +187,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 |---|---|---|
 | `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights | O((n+m) log n) |
 | `'bidirectional_dijkstra'` | Bidirectional Dijkstra; simultaneous search from origin and destination | O((n+m) log n) |
-| `'dijkstra_buckets'` | Dijkstra with buckets (Dial's algorithm); efficient for non-negative weights (ideally >= 1) | O(n+m+W) |
+| `'dijkstra_buckets'` | Dijkstra with buckets of a width set from the graph; non-negative weights | O(n+m+W) |
 | `'bidirectional_buckets'` | Bidirectional Dijkstra (default for geographs) with buckets (Dial's algorithm); efficient for non-negative weights | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
 | `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
@@ -203,7 +203,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 |---|---|
 | Single query | `dijkstra`, `bidirectional_buckets` or `bidirectional_dijkstra` |
 | Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for 2–4x faster queries |
-| Weights generally >= 1 | `dijkstra_buckets` |
+| Non-negative weights, single-direction search | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
 | Many arbitrary queries on a fixed graph | `contraction_hierarchy` or `tnr` |

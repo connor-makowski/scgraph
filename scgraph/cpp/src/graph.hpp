@@ -16,6 +16,11 @@ class Graph : public GraphReducer {
 private:
     std::shared_ptr<CHGraph> __ch_graph__ = nullptr;
     std::shared_ptr<TNRGraph> __tnr_graph__ = nullptr;
+    // Default bucket width of the bucket algorithms (base and reduced graph), -1 until computed
+    double bucket_width_cache = -1.0;
+    double reduced_bucket_width_cache = -1.0;
+    double resolve_bucket_width(const std::vector<std::vector<std::pair<int, double>>>& g,
+                                std::optional<double> bucket_width, double max_weight);
 
     template <typename QueryFn>
     GraphResult run_query_with_reducer(
@@ -40,9 +45,11 @@ public:
     GraphResult dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id);
     GraphResult bidirectional_dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id);
     GraphResult dijkstra_buckets(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
-                                 std::optional<double> max_edge_weight = std::nullopt);
+                                 std::optional<double> max_edge_weight = std::nullopt,
+                                 std::optional<double> bucket_width = std::nullopt);
     GraphResult bidirectional_buckets(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
-                                      std::optional<double> max_edge_weight = std::nullopt);
+                                      std::optional<double> max_edge_weight = std::nullopt,
+                                      std::optional<double> bucket_width = std::nullopt);
     GraphResult dijkstra_negative(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
                                   std::optional<int> cycle_check_iterations = std::nullopt);
     GraphResult a_star(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
