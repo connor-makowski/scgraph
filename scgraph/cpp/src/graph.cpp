@@ -26,6 +26,42 @@ void Graph::reset_cache() {
     GraphReducer::reset_cache();
     __ch_graph__ = nullptr;
     __tnr_graph__ = nullptr;
+    bucket_width_cache = -1.0;
+    reduced_bucket_width_cache = -1.0;
+}
+
+// Width of the buckets of dijkstra_buckets and bidirectional_buckets: the given width, else
+// 8 times the median edge weight of the searched graph (1 if that median is 0), and never so
+// small that a bucket ring would exceed 2^16 + 1 buckets. Same rule as
+// GraphUtils.__get_bucket_width__ in graph_utils.py
+double Graph::resolve_bucket_width(const std::vector<std::vector<std::pair<int, double>>>& g,
+                                   std::optional<double> bucket_width, double max_weight) {
+    double width;
+    if (bucket_width.has_value()) {
+        width = bucket_width.value();
+        if (!(std::isfinite(width) && width > 0.0)) {
+            throw std::invalid_argument("bucket_width must be a finite number greater than 0.");
+        }
+    } else {
+        double& cache = (&g == &this->reduced_graph) ? reduced_bucket_width_cache : bucket_width_cache;
+        if (cache < 0.0) {
+            std::vector<double> weights;
+            for (const auto& edges : g) {
+                for (const auto& edge : edges) {
+                    weights.push_back(edge.second);
+                }
+            }
+            double median = 0.0;
+            if (!weights.empty()) {
+                auto mid = weights.begin() + weights.size() / 2;
+                std::nth_element(weights.begin(), mid, weights.end());
+                median = *mid;
+            }
+            cache = median > 0.0 ? 8.0 * median : 1.0;
+        }
+        width = cache;
+    }
+    return std::max(width, std::ceil(max_weight) / 65536.0);
 }
 
 template <typename QueryFn>
@@ -541,10 +577,11 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
 }
 
 GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
-                                     std::optional<double> max_edge_weight) {
+                                     std::optional<double> max_edge_weight,
+                                     std::optional<double> bucket_width) {
     input_check(origin_id, destination_id);
 
-    auto run_buckets = [this, max_edge_weight](
+    auto run_buckets = [this, max_edge_weight, bucket_width](
         const std::vector<std::vector<std::pair<int, double>>>& g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
@@ -561,7 +598,8 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
         } else {
             max_weight = this->get_max_edge_weight();
         }
-        int num_buckets = static_cast<int>(std::ceil(max_weight)) + 1;
+        const double width = this->resolve_bucket_width(g, bucket_width, max_weight);
+        int num_buckets = static_cast<int>(std::ceil(max_weight / width)) + 1;
 
         const size_t n = g.size();
         std::vector<double> distance_matrix(n, std::numeric_limits<double>::infinity());
@@ -571,10 +609,10 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
         int min_orig_dist = std::numeric_limits<int>::max();
         for (const auto& [oid, odist] : origin_entries) {
             distance_matrix[oid] = odist;
-            int b = static_cast<int>(odist) % num_buckets;
-            buckets[b].push_back(oid);
-            if (static_cast<int>(odist) < min_orig_dist) {
-                min_orig_dist = static_cast<int>(odist);
+            int ob = static_cast<int>(odist / width);
+            buckets[ob % num_buckets].push_back(oid);
+            if (ob < min_orig_dist) {
+                min_orig_dist = ob;
             }
         }
 
@@ -594,43 +632,48 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
             }
         }
 
+        // The current bucket is relaxed as one batch; nodes re-inserted into it wait for the
+        // next batch
+        std::vector<int> batch;
         while (nodes_in_buckets > 0) {
             int bucket_idx = current_dist % num_buckets;
             while (buckets[bucket_idx].empty()) {
                 current_dist++;
                 bucket_idx = current_dist % num_buckets;
                 if (nodes_in_buckets == 0) break;
-                if (best_dist < static_cast<double>(current_dist)) break;
+                if (best_dist < current_dist * width) break;
             }
 
-            if (nodes_in_buckets == 0 || best_dist < static_cast<double>(current_dist)) break;
+            if (nodes_in_buckets == 0 || best_dist < current_dist * width) break;
 
-            int current_id = buckets[bucket_idx].back();
-            buckets[bucket_idx].pop_back();
-            nodes_in_buckets--;
+            batch.swap(buckets[bucket_idx]);
+            nodes_in_buckets -= batch.size();
 
-            if (distance_matrix[current_id] < static_cast<double>(current_dist)) {
-                continue;
-            }
+            for (int current_id : batch) {
+                if (static_cast<int>(distance_matrix[current_id] / width) < current_dist) {
+                    continue;
+                }
 
-            for (const auto& [connected_id, connected_distance] : g[current_id]) {
-                double possible_distance = distance_matrix[current_id] + connected_distance;
-                if (possible_distance < distance_matrix[connected_id]) {
-                    distance_matrix[connected_id] = possible_distance;
-                    predecessor[connected_id] = current_id;
-                    buckets[static_cast<int>(possible_distance) % num_buckets].push_back(connected_id);
-                    nodes_in_buckets++;
+                for (const auto& [connected_id, connected_distance] : g[current_id]) {
+                    double possible_distance = distance_matrix[current_id] + connected_distance;
+                    if (possible_distance < distance_matrix[connected_id]) {
+                        distance_matrix[connected_id] = possible_distance;
+                        predecessor[connected_id] = current_id;
+                        buckets[static_cast<int>(possible_distance / width) % num_buckets].push_back(connected_id);
+                        nodes_in_buckets++;
 
-                    auto it = dest_map.find(connected_id);
-                    if (it != dest_map.end()) {
-                        double tot = possible_distance + it->second;
-                        if (tot < best_dist) {
-                            best_dist = tot;
-                            best_target = connected_id;
+                        auto it = dest_map.find(connected_id);
+                        if (it != dest_map.end()) {
+                            double tot = possible_distance + it->second;
+                            if (tot < best_dist) {
+                                best_dist = tot;
+                                best_target = connected_id;
+                            }
                         }
                     }
                 }
             }
+            batch.clear();
         }
 
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
@@ -647,10 +690,11 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
 }
 
 GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
-                                         std::optional<double> max_edge_weight) {
+                                         std::optional<double> max_edge_weight,
+                                         std::optional<double> bucket_width) {
     input_check(origin_id, destination_id);
 
-    auto run_bidir_buckets = [this, max_edge_weight](
+    auto run_bidir_buckets = [this, max_edge_weight, bucket_width](
         const std::vector<std::vector<std::pair<int, double>>>& fwd_g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
@@ -671,7 +715,8 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
         } else {
             max_weight = this->get_max_edge_weight();
         }
-        int num_buckets = static_cast<int>(std::ceil(max_weight)) + 1;
+        const double width = this->resolve_bucket_width(fwd_g, bucket_width, max_weight);
+        int num_buckets = static_cast<int>(std::ceil(max_weight / width)) + 1;
 
         const size_t n = fwd_g.size();
         if (tl_bidir_state.size() < n) {
@@ -697,9 +742,10 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
             state[oid].forward_dist = odist;
             state[oid].forward_pred = -1;
             state[oid].forward_stamp = stamp;
-            forward_buckets[static_cast<int>(odist) % num_buckets].push_back(oid);
-            if (static_cast<int>(odist) < min_fwd) {
-                min_fwd = static_cast<int>(odist);
+            int ob = static_cast<int>(odist / width);
+            forward_buckets[ob % num_buckets].push_back(oid);
+            if (ob < min_fwd) {
+                min_fwd = ob;
             }
         }
 
@@ -708,9 +754,10 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
             state[did].backward_dist = ddist;
             state[did].backward_pred = -1;
             state[did].backward_stamp = stamp;
-            backward_buckets[static_cast<int>(ddist) % num_buckets].push_back(did);
-            if (static_cast<int>(ddist) < min_bwd) {
-                min_bwd = static_cast<int>(ddist);
+            int db = static_cast<int>(ddist / width);
+            backward_buckets[db % num_buckets].push_back(did);
+            if (db < min_bwd) {
+                min_bwd = db;
             }
 
             auto it = orig_map.find(did);
@@ -728,13 +775,14 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
         size_t fwd_nodes_in_buckets = origin_entries.size();
         size_t bwd_nodes_in_buckets = dest_entries.size();
 
+        std::vector<int> batch;
         while (fwd_nodes_in_buckets > 0 && bwd_nodes_in_buckets > 0) {
             int fwd_bucket_idx = fwd_current_dist % num_buckets;
             while (forward_buckets[fwd_bucket_idx].empty()) {
                 fwd_current_dist++;
                 fwd_bucket_idx = fwd_current_dist % num_buckets;
                 if (fwd_nodes_in_buckets == 0) break;
-                if (static_cast<double>(fwd_current_dist + bwd_current_dist) >= best_dist) break;
+                if ((fwd_current_dist + bwd_current_dist) * width >= best_dist) break;
             }
 
             int bwd_bucket_idx = bwd_current_dist % num_buckets;
@@ -742,73 +790,78 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
                 bwd_current_dist++;
                 bwd_bucket_idx = bwd_current_dist % num_buckets;
                 if (bwd_nodes_in_buckets == 0) break;
-                if (static_cast<double>(fwd_current_dist + bwd_current_dist) >= best_dist) break;
+                if ((fwd_current_dist + bwd_current_dist) * width >= best_dist) break;
             }
 
             if (fwd_nodes_in_buckets == 0 || bwd_nodes_in_buckets == 0 ||
-                static_cast<double>(fwd_current_dist + bwd_current_dist) >= best_dist) {
+                (fwd_current_dist + bwd_current_dist) * width >= best_dist) {
                 break;
             }
 
+            // The current bucket of the side with the lower cursor is relaxed as one batch;
+            // nodes re-inserted into it wait for the next batch
             if (fwd_current_dist <= bwd_current_dist) {
-                int u = forward_buckets[fwd_bucket_idx].back();
-                forward_buckets[fwd_bucket_idx].pop_back();
-                fwd_nodes_in_buckets--;
+                batch.swap(forward_buckets[fwd_bucket_idx]);
+                fwd_nodes_in_buckets -= batch.size();
 
-                if (state[u].forward_stamp == stamp && state[u].forward_dist < static_cast<double>(fwd_current_dist)) {
-                    continue;
-                }
+                for (int u : batch) {
+                    if (state[u].forward_stamp == stamp && static_cast<int>(state[u].forward_dist / width) < fwd_current_dist) {
+                        continue;
+                    }
 
-                double cur_d = state[u].forward_dist;
-                for (const auto& [v, w] : fwd_g[u]) {
-                    double new_d = cur_d + w;
-                    if (state[v].forward_stamp != stamp || new_d < state[v].forward_dist) {
-                        state[v].forward_dist = new_d;
-                        state[v].forward_pred = u;
-                        state[v].forward_stamp = stamp;
-                        if (state[v].backward_stamp == stamp) {
-                            double total_d = new_d + state[v].backward_dist;
-                            if (total_d < best_dist) {
-                                best_dist = total_d;
-                                meeting_node = v;
+                    double cur_d = state[u].forward_dist;
+                    for (const auto& [v, w] : fwd_g[u]) {
+                        double new_d = cur_d + w;
+                        if (state[v].forward_stamp != stamp || new_d < state[v].forward_dist) {
+                            state[v].forward_dist = new_d;
+                            state[v].forward_pred = u;
+                            state[v].forward_stamp = stamp;
+                            if (state[v].backward_stamp == stamp) {
+                                double total_d = new_d + state[v].backward_dist;
+                                if (total_d < best_dist) {
+                                    best_dist = total_d;
+                                    meeting_node = v;
+                                }
                             }
-                        }
-                        if (new_d + static_cast<double>(bwd_current_dist) < best_dist) {
-                            forward_buckets[static_cast<int>(new_d) % num_buckets].push_back(v);
-                            fwd_nodes_in_buckets++;
+                            if (new_d + bwd_current_dist * width < best_dist) {
+                                forward_buckets[static_cast<int>(new_d / width) % num_buckets].push_back(v);
+                                fwd_nodes_in_buckets++;
+                            }
                         }
                     }
                 }
             } else {
-                int v = backward_buckets[bwd_bucket_idx].back();
-                backward_buckets[bwd_bucket_idx].pop_back();
-                bwd_nodes_in_buckets--;
+                batch.swap(backward_buckets[bwd_bucket_idx]);
+                bwd_nodes_in_buckets -= batch.size();
 
-                if (state[v].backward_stamp == stamp && state[v].backward_dist < static_cast<double>(bwd_current_dist)) {
-                    continue;
-                }
+                for (int v : batch) {
+                    if (state[v].backward_stamp == stamp && static_cast<int>(state[v].backward_dist / width) < bwd_current_dist) {
+                        continue;
+                    }
 
-                double cur_d = state[v].backward_dist;
-                for (const auto& [u, w] : inv_g[v]) {
-                    double new_d = cur_d + w;
-                    if (state[u].backward_stamp != stamp || new_d < state[u].backward_dist) {
-                        state[u].backward_dist = new_d;
-                        state[u].backward_pred = v;
-                        state[u].backward_stamp = stamp;
-                        if (state[u].forward_stamp == stamp) {
-                            double total_d = state[u].forward_dist + new_d;
-                            if (total_d < best_dist) {
-                                best_dist = total_d;
-                                meeting_node = u;
+                    double cur_d = state[v].backward_dist;
+                    for (const auto& [u, w] : inv_g[v]) {
+                        double new_d = cur_d + w;
+                        if (state[u].backward_stamp != stamp || new_d < state[u].backward_dist) {
+                            state[u].backward_dist = new_d;
+                            state[u].backward_pred = v;
+                            state[u].backward_stamp = stamp;
+                            if (state[u].forward_stamp == stamp) {
+                                double total_d = state[u].forward_dist + new_d;
+                                if (total_d < best_dist) {
+                                    best_dist = total_d;
+                                    meeting_node = u;
+                                }
                             }
-                        }
-                        if (new_d + static_cast<double>(fwd_current_dist) < best_dist) {
-                            backward_buckets[static_cast<int>(new_d) % num_buckets].push_back(u);
-                            bwd_nodes_in_buckets++;
+                            if (new_d + fwd_current_dist * width < best_dist) {
+                                backward_buckets[static_cast<int>(new_d / width) % num_buckets].push_back(u);
+                                bwd_nodes_in_buckets++;
+                            }
                         }
                     }
                 }
             }
+            batch.clear();
         }
 
         if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {

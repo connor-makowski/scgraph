@@ -248,19 +248,21 @@ NB_MODULE(cpp, m) {
         .def("dijkstra_buckets", [](Graph& self,
                                     const NodeIdVariant& origin_id,
                                     const NodeIdVariant& destination_id,
-                                    std::optional<double> max_edge_weight) -> nb::dict {
-            return graph_result_to_dict(self.dijkstra_buckets(origin_id, destination_id, max_edge_weight));
+                                    std::optional<double> max_edge_weight,
+                                    std::optional<double> bucket_width) -> nb::dict {
+            return graph_result_to_dict(self.dijkstra_buckets(origin_id, destination_id, max_edge_weight, bucket_width));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
-           nb::arg("max_edge_weight") = nb::none(),
+           nb::arg("max_edge_weight") = nb::none(), nb::arg("bucket_width") = nb::none(),
            "Find shortest path using Dijkstra with buckets")
 
         .def("bidirectional_buckets", [](Graph& self,
                                          const NodeIdVariant& origin_id,
                                          const NodeIdVariant& destination_id,
-                                         std::optional<double> max_edge_weight) -> nb::dict {
-            return graph_result_to_dict(self.bidirectional_buckets(origin_id, destination_id, max_edge_weight));
+                                         std::optional<double> max_edge_weight,
+                                         std::optional<double> bucket_width) -> nb::dict {
+            return graph_result_to_dict(self.bidirectional_buckets(origin_id, destination_id, max_edge_weight, bucket_width));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
-           nb::arg("max_edge_weight") = nb::none(),
+           nb::arg("max_edge_weight") = nb::none(), nb::arg("bucket_width") = nb::none(),
            "Find shortest path using bidirectional Dijkstra with buckets")
 
         .def("dijkstra_negative", [](Graph& self,

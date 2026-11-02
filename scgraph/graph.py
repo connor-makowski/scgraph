@@ -1,5 +1,5 @@
 from heapq import heappop, heappush
-from math import asin, cos, sin
+from math import asin, ceil, cos, sin
 from typing import Any
 from scgraph.graph_utils import (
     GraphUtils,
@@ -380,6 +380,7 @@ class GraphAlgorithms:
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
         max_edge_weight: int | float | None = None,
+        bucket_width: int | float | None = None,
     ) -> dict:
         """
         Function:
@@ -406,6 +407,10 @@ class GraphAlgorithms:
             - Type: int | float | None
             - What: The maximum edge weight in the graph. If None, it will be calculated.
             - Default: None
+        - `bucket_width`
+            - Type: int | float | None
+            - What: The range of distances held by one bucket. If None, 8 times the median edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - Default: None
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
@@ -414,19 +419,20 @@ class GraphAlgorithms:
         graph = self.graph
 
         max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
+        width = self.__get_bucket_width__(bucket_width, max_edge_weight)
 
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
         predecessor = [-1] * len(graph)
-        num_buckets = max_edge_weight + 1
+        num_buckets = ceil(max_edge_weight / width) + 1
         buckets = [[] for _ in range(num_buckets)]
 
         for oid, odist in origin_dict.items():
             distance_matrix[oid] = odist
-            buckets[int(odist) % num_buckets].append(oid)
+            buckets[int(odist / width) % num_buckets].append(oid)
 
         current_dist = (
-            min(int(odist) for odist in origin_dict.values())
+            min(int(odist / width) for odist in origin_dict.values())
             if origin_dict
             else 0
         )
@@ -449,41 +455,47 @@ class GraphAlgorithms:
                 if nodes_in_buckets == 0:
                     break
                 # If we've already found a path shorter than the current bucket minimum, we can exit
-                if best_dist < current_dist:
+                if best_dist < current_dist * width:
                     break
 
-            if nodes_in_buckets == 0 or best_dist < current_dist:
+            if nodes_in_buckets == 0 or best_dist < current_dist * width:
                 break
 
-            current_id = buckets[bucket_idx].pop()
-            nodes_in_buckets -= 1
+            # The current bucket is relaxed as one batch; nodes re-inserted into it wait
+            # for the next batch
+            batch = buckets[bucket_idx]
+            buckets[bucket_idx] = []
+            nodes_in_buckets -= len(batch)
 
-            # Skip if we found a better path already (lazy removal)
-            if distance_matrix[current_id] < current_dist:
-                continue
+            for current_id in batch:
+                # Skip if we found a better path already (lazy removal)
+                if int(distance_matrix[current_id] / width) < current_dist:
+                    continue
 
-            if current_id in dest_dict:
-                cand = distance_matrix[current_id] + dest_dict[current_id]
-                if cand < best_dist:
-                    best_dist = cand
-                    best_dest_node = current_id
+                if current_id in dest_dict:
+                    cand = distance_matrix[current_id] + dest_dict[current_id]
+                    if cand < best_dist:
+                        best_dist = cand
+                        best_dest_node = current_id
 
-            for connected_id, connected_distance in graph[current_id].items():
-                possible_distance = (
-                    distance_matrix[current_id] + connected_distance
-                )
-                if possible_distance < distance_matrix[connected_id]:
-                    distance_matrix[connected_id] = possible_distance
-                    predecessor[connected_id] = current_id
-                    if connected_id in dest_dict:
-                        cand = possible_distance + dest_dict[connected_id]
-                        if cand < best_dist:
-                            best_dist = cand
-                            best_dest_node = connected_id
-                    buckets[int(possible_distance) % num_buckets].append(
-                        connected_id
+                for connected_id, connected_distance in graph[
+                    current_id
+                ].items():
+                    possible_distance = (
+                        distance_matrix[current_id] + connected_distance
                     )
-                    nodes_in_buckets += 1
+                    if possible_distance < distance_matrix[connected_id]:
+                        distance_matrix[connected_id] = possible_distance
+                        predecessor[connected_id] = current_id
+                        if connected_id in dest_dict:
+                            cand = possible_distance + dest_dict[connected_id]
+                            if cand < best_dist:
+                                best_dist = cand
+                                best_dest_node = connected_id
+                        buckets[
+                            int(possible_distance / width) % num_buckets
+                        ].append(connected_id)
+                        nodes_in_buckets += 1
 
         if best_dest_node == -1 or best_dist == float("inf"):
             raise Exception(
@@ -501,6 +513,7 @@ class GraphAlgorithms:
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
         max_edge_weight: int | float | None = None,
+        bucket_width: int | float | None = None,
     ) -> dict:
         """
         Function:
@@ -527,6 +540,10 @@ class GraphAlgorithms:
             - Type: int | float | None
             - What: The maximum edge weight in the graph. If None, it will be calculated.
             - Default: None
+        - `bucket_width`
+            - Type: int | float | None
+            - What: The range of distances held by one bucket. If None, 8 times the median edge weight of the graph (1 if that median is 0). Raised if needed so that a ring holds at most 65,537 buckets. Must be a finite number greater than 0, else a ValueError is raised.
+            - Default: None
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
@@ -542,8 +559,9 @@ class GraphAlgorithms:
         num_nodes = len(graph)
 
         max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
+        width = self.__get_bucket_width__(bucket_width, max_edge_weight)
 
-        num_buckets = max_edge_weight + 1
+        num_buckets = ceil(max_edge_weight / width) + 1
         forward_dist = [float("inf")] * num_nodes
         forward_pred = [-1] * num_nodes
         forward_buckets = [[] for _ in range(num_buckets)]
@@ -558,11 +576,11 @@ class GraphAlgorithms:
 
         for oid, odist in origin_dict.items():
             forward_dist[oid] = odist
-            forward_buckets[int(odist) % num_buckets].append(oid)
+            forward_buckets[int(odist / width) % num_buckets].append(oid)
 
         for did, ddist in dest_dict.items():
             backward_dist[did] = ddist
-            backward_buckets[int(ddist) % num_buckets].append(did)
+            backward_buckets[int(ddist / width) % num_buckets].append(did)
             if did in origin_dict:
                 cand = origin_dict[did] + ddist
                 if cand < best_dist:
@@ -570,12 +588,14 @@ class GraphAlgorithms:
                     meeting_node = did
 
         fwd_current_dist = (
-            min(int(odist) for odist in origin_dict.values())
+            min(int(odist / width) for odist in origin_dict.values())
             if origin_dict
             else 0
         )
         bwd_current_dist = (
-            min(int(ddist) for ddist in dest_dict.values()) if dest_dict else 0
+            min(int(ddist / width) for ddist in dest_dict.values())
+            if dest_dict
+            else 0
         )
         fwd_nodes_in_buckets = len(origin_dict)
         bwd_nodes_in_buckets = len(dest_dict)
@@ -587,7 +607,7 @@ class GraphAlgorithms:
                 fwd_bucket_idx = fwd_current_dist % num_buckets
                 if fwd_nodes_in_buckets == 0:
                     break
-                if fwd_current_dist + bwd_current_dist >= best_dist:
+                if (fwd_current_dist + bwd_current_dist) * width >= best_dist:
                     break
 
             bwd_bucket_idx = bwd_current_dist % num_buckets
@@ -596,60 +616,70 @@ class GraphAlgorithms:
                 bwd_bucket_idx = bwd_current_dist % num_buckets
                 if bwd_nodes_in_buckets == 0:
                     break
-                if fwd_current_dist + bwd_current_dist >= best_dist:
+                if (fwd_current_dist + bwd_current_dist) * width >= best_dist:
                     break
 
             if (
                 fwd_nodes_in_buckets == 0
                 or bwd_nodes_in_buckets == 0
-                or fwd_current_dist + bwd_current_dist >= best_dist
+                or (fwd_current_dist + bwd_current_dist) * width >= best_dist
             ):
                 break
 
+            # The current bucket of the side with the lower cursor is relaxed as one
+            # batch; nodes re-inserted into it wait for the next batch
             if fwd_current_dist <= bwd_current_dist:
-                u = forward_buckets[fwd_bucket_idx].pop()
-                fwd_nodes_in_buckets -= 1
+                batch = forward_buckets[fwd_bucket_idx]
+                forward_buckets[fwd_bucket_idx] = []
+                fwd_nodes_in_buckets -= len(batch)
 
-                if forward_dist[u] < fwd_current_dist:
-                    continue
+                for u in batch:
+                    if int(forward_dist[u] / width) < fwd_current_dist:
+                        continue
 
-                cur_d = forward_dist[u]
-                for v, w in graph[u].items():
-                    new_d = cur_d + w
-                    if new_d < forward_dist[v]:
-                        forward_dist[v] = new_d
-                        forward_pred[v] = u
-                        b_d = backward_dist[v]
-                        if b_d < inf:
-                            total_d = new_d + b_d
-                            if total_d < best_dist:
-                                best_dist = total_d
-                                meeting_node = v
-                        if new_d + bwd_current_dist < best_dist:
-                            forward_buckets[int(new_d) % num_buckets].append(v)
-                            fwd_nodes_in_buckets += 1
+                    cur_d = forward_dist[u]
+                    for v, w in graph[u].items():
+                        new_d = cur_d + w
+                        if new_d < forward_dist[v]:
+                            forward_dist[v] = new_d
+                            forward_pred[v] = u
+                            b_d = backward_dist[v]
+                            if b_d < inf:
+                                total_d = new_d + b_d
+                                if total_d < best_dist:
+                                    best_dist = total_d
+                                    meeting_node = v
+                            if new_d + bwd_current_dist * width < best_dist:
+                                forward_buckets[
+                                    int(new_d / width) % num_buckets
+                                ].append(v)
+                                fwd_nodes_in_buckets += 1
             else:
-                v = backward_buckets[bwd_bucket_idx].pop()
-                bwd_nodes_in_buckets -= 1
+                batch = backward_buckets[bwd_bucket_idx]
+                backward_buckets[bwd_bucket_idx] = []
+                bwd_nodes_in_buckets -= len(batch)
 
-                if backward_dist[v] < bwd_current_dist:
-                    continue
+                for v in batch:
+                    if int(backward_dist[v] / width) < bwd_current_dist:
+                        continue
 
-                cur_d = backward_dist[v]
-                for u, w in inverse_graph[v].items():
-                    new_d = cur_d + w
-                    if new_d < backward_dist[u]:
-                        backward_dist[u] = new_d
-                        backward_pred[u] = v
-                        f_d = forward_dist[u]
-                        if f_d < inf:
-                            total_d = f_d + new_d
-                            if total_d < best_dist:
-                                best_dist = total_d
-                                meeting_node = u
-                        if new_d + fwd_current_dist < best_dist:
-                            backward_buckets[int(new_d) % num_buckets].append(u)
-                            bwd_nodes_in_buckets += 1
+                    cur_d = backward_dist[v]
+                    for u, w in inverse_graph[v].items():
+                        new_d = cur_d + w
+                        if new_d < backward_dist[u]:
+                            backward_dist[u] = new_d
+                            backward_pred[u] = v
+                            f_d = forward_dist[u]
+                            if f_d < inf:
+                                total_d = f_d + new_d
+                                if total_d < best_dist:
+                                    best_dist = total_d
+                                    meeting_node = u
+                            if new_d + fwd_current_dist * width < best_dist:
+                                backward_buckets[
+                                    int(new_d / width) % num_buckets
+                                ].append(u)
+                                bwd_nodes_in_buckets += 1
 
         if meeting_node == -1 or best_dist == float("inf"):
             raise Exception(
@@ -1384,6 +1414,8 @@ class Graph(
             delattr(self, "__bmssp_graph__")
         if hasattr(self, "__max_edge_weight__"):
             delattr(self, "__max_edge_weight__")
+        if hasattr(self, "__bucket_width__"):
+            delattr(self, "__bucket_width__")
         self.reduced_graph = None
         self.reduced_graph_connections = None
         self.reduced_inverse_graph = None
