@@ -162,3 +162,10 @@ def test_disconnected_dijkstra_buckets(disconnected_graph):
 def test_empty_graph_validation_raises():
     with pytest.raises(Exception):
         Graph([]).validate(check_symmetry=True, check_connected=True)
+
+
+def test_edge_to_missing_node_raises():
+    # Without validation, an edge to a node id outside the graph must raise,
+    # not be indexed out of bounds
+    with pytest.raises(IndexError):
+        Graph([{5: 1}]).reduce(1)

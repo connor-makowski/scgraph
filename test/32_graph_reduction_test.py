@@ -141,9 +141,23 @@ def test_performance_timing():
         )
 
 
+def test_reduce_leaves_garbage_collection_as_found():
+    import gc
+
+    graph = Graph([{1: 1}, {0: 1, 2: 1}, {1: 1}])
+    for enabled in (True, False):
+        (gc.enable if enabled else gc.disable)()
+        try:
+            graph.reduce(-1)
+            assert gc.isenabled() == enabled
+        finally:
+            gc.enable()
+
+
 if __name__ == "__main__":
     test_graph_reduction()
     test_graph_reduction_endpoints()
     test_split_rejoin_path()
     test_reduction_cache_clearing()
     test_performance_timing()
+    test_reduce_leaves_garbage_collection_as_found()

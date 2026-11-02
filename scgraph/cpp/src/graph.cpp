@@ -10,8 +10,18 @@
 // Constructor
 Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate) {
     this->graph.resize(graph_data.size());
+    const int n = (int)graph_data.size();
     for (size_t i = 0; i < graph_data.size(); ++i) {
         for (const auto& [node, weight] : graph_data[i]) {
+            // An edge to a node outside the graph would be indexed out of bounds
+            // by every algorithm (undefined behaviour, a crash in reduce()); the
+            // check is cheap here, where every edge is copied anyway. With
+            // validate=True, validate() reports it with its own message.
+            if (!validate && (node < 0 || node >= n)) {
+                throw std::out_of_range(
+                    "Destination id " + std::to_string(node) + " at origin " +
+                    std::to_string(i) + " is not in the graph");
+            }
             this->graph[i].push_back({node, weight});
         }
     }
