@@ -33,7 +33,7 @@ def _build_test_graph():
 def _run_ch_tnr_reduced_tests(graph_cls):
     g_data = _build_test_graph()
     g = graph_cls(g_data)
-    g.reduce()
+    g.reduce(1)
 
     assert g.is_reduced[0] is False
     assert g.is_reduced[1] is True

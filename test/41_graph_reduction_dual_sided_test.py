@@ -55,7 +55,7 @@ def _build_complex_chain_graph(graph_cls):
 
 def _run_dual_sided_reduction_tests(graph_cls):
     g = _build_complex_chain_graph(graph_cls)
-    g.reduce()
+    g.reduce(1)
 
     # Verify reduced state
     assert g.is_reduced[1] is True

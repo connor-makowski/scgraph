@@ -85,7 +85,7 @@ node can be restored.
 | Chain | A connected group of reduced nodes (`reduced_node_chain_ids`) |
 | Boundary node | A non-reduced node at an end of a chain |
 | Pass | One sweep over all nodes to find pass-through nodes. Later passes look through already-reduced nodes, which also reduces dead ends and loops |
-| `iterations` | Maximum number of passes (`-1`: until a pass reduces nothing) |
+| `iterations` | Maximum number of passes (`-1`, the default: until a pass reduces nothing) |
 
 **Preprocessing** — `reduce(iterations)`, or `reduce_iterations` when loading a
 `GeoGraph`:

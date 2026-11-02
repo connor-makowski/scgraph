@@ -85,7 +85,7 @@ For how scgraph works inside (query, graph reduction, plugging in an algorithm, 
 
 **`Graph`** (`graph.py`) — base graph class:
 - Algorithms: `dijkstra`, `bidirectional_dijkstra`, `bellman_ford`, `a_star`, `bmssp`, `dijkstra_buckets`, `cached_shortest_path`
-- Graph reduction: `reduce(iterations=1)` to contract pass-through chains
+- Graph reduction: `reduce()` to contract pass-through chains
 - Decorator: `@Graph.algorithm` wraps custom single- or bidirectional algorithms with automatic reduced-graph support
 - Tree operations for multi-destination queries
 - Delegates to C++ extension when available, falls back to pure Python
@@ -94,7 +94,7 @@ For how scgraph works inside (query, graph reduction, plugging in an algorithm, 
 - Contracts degree-2 / pass-through nodes into composite weighted edges while preserving exact path lengths
 - `reduced_node_chain_ids`: O(1) same-chain origin/destination detection
 - Dual-sided boundary connections for interior chain nodes
-- Iterative reduction passes (`iterations=1`, `iterations=-1` for convergence)
+- Iterative reduction passes (`iterations=-1` for convergence, the default; `iterations=1` for one pass)
 - Transparent path reconstruction expanding compressed chains back to original node sequences
 
 **`GeoGraph` / `LazyGeoGraph`** (`geograph.py`) — geographic routing:
