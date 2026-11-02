@@ -118,14 +118,14 @@ def _flows(u, adjacency, reduced):
     "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
 )
 def test_reduce_until_no_pass_through_node_is_left(GraphClass):
-    # With iterations=-1, no node left unreduced is a pass-through node: it
+    # By default (iterations=-1), no node left unreduced is a pass-through node: it
     # does not reach, through reduced nodes, a single node, or two nodes among
     # which are all the nodes reaching it
     rng = random.Random(0)
     for _ in range(200):
         graph = _random_graph(rng)
         g = GraphClass(deepcopy(graph))
-        g.reduce(-1)
+        g.reduce()
         reduced = list(g.is_reduced)
         inverse = [{} for _ in graph]
         for u, row in enumerate(graph):

@@ -353,7 +353,7 @@ print(output['length'])
 Key features of graph reduction:
 - **Zero inaccuracy**: Paths and lengths are guaranteed to be mathematically identical to the unreduced graph.
 - **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm. 
-- **Iterative reduction**: Pass `iterations=-1` to reduce iteratively until full convergence (simplifying sub-chains created after initial contraction).
+- **Iterative reduction**: By default, `reduce()` repeats passes until a pass reduces nothing (simplifying sub-chains created after initial contraction); pass `iterations=1` for a single pass.
 
 ## Lazy Loading
 

@@ -32,6 +32,21 @@ def test_reduce_load_geograph_default_false():
         assert getattr(geo.graph_object, "reduced_graph", None) is None
 
 
+def test_geograph_reduce_default_runs_until_convergence():
+    # One pass reduces 1 and 3; only a second pass reduces 0 or 2
+    geo = GeoGraph(
+        nodes=[[10.0, 20.0], [10.0, 21.0], [11.0, 21.0], [11.0, 20.0]],
+        graph=[
+            {1: 1, 2: 1, 3: 1},
+            {0: 1, 2: 1},
+            {0: 1, 1: 1, 3: 1},
+            {0: 1, 2: 1},
+        ],
+    )
+    geo.reduce()
+    assert sum(geo.graph_object.is_reduced) == 3
+
+
 def test_reduce_load_geograph_true():
     with tempfile.TemporaryDirectory() as tmp:
         geo = GeoGraph.load_geograph(

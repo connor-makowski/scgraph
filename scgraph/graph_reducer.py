@@ -141,7 +141,7 @@ class GraphReducer:
         self.__reduced_inverse_graph_connections__ = value
 
     @_without_gc
-    def reduce(self, iterations: int = 1) -> None:
+    def reduce(self, iterations: int = -1) -> None:
         """
         Function:
 
@@ -158,7 +158,7 @@ class GraphReducer:
               - `0`: No reduction is done.
               - `-1`: Reduce iteratively until convergence (no new nodes can be reduced).
               - `> 0`: Reduce iteratively up to the minimum of convergence and the specified count.
-            - Default: 1
+            - Default: -1
 
         Returns:
 

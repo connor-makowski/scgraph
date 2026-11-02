@@ -1763,7 +1763,7 @@ class GeoGraph(
             )
         return self.__node_radians__
 
-    def reduce(self, iterations: int = 1) -> None:
+    def reduce(self, iterations: int = -1) -> None:
         """
         Function:
 
@@ -1775,7 +1775,7 @@ class GeoGraph(
         - `iterations`:
             - Type: int
             - What: Number of reduction iterations to perform. If -1, reduces iteratively until convergence. If 0, no reduction is done.
-            - Default: 1
+            - Default: -1
 
         Returns:
 
