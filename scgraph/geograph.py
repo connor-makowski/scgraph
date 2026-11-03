@@ -777,6 +777,7 @@ class GeoGraphIO:
             "north_america_rail",
             "oak_ridge_maritime",
             "osm_main_roads",
+            "osm_main_roads_and_marnet",
             "osm_rail",
             "us_freeway",
         ],
@@ -803,6 +804,7 @@ class GeoGraphIO:
                 - 'north_america_rail': Class I railroads of North America (U.S. Federal Railroad Administration)
                 - 'oak_ridge_maritime': the sea lanes the published `oak_ridge_maritime` was built from (Oak Ridge National Laboratory)
                 - 'osm_main_roads': main roads of an OpenStreetMap extract (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
+                - 'osm_main_roads_and_marnet': main roads of an OpenStreetMap extract joined to the `marnet` sea lanes at the ports of the World Port Index (needs `region`; `pip install scgraph[osm]`)
                 - 'osm_rail': railway lines of an OpenStreetMap extract, sidings and yards included (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
                 - 'us_freeway': freeways of the United States (Esri)
 
@@ -934,9 +936,13 @@ class GeoGraphIO:
                         }
                     )
                 logger.info("Building %s", name)
-                network.build(
+                built = network.build(
                     {source: str(path) for source, path in files.items()}
-                ).save_as_scgraph(str(building), sources=sources)
+                )
+                geograph, details = (
+                    built if isinstance(built, tuple) else (built, {})
+                )
+                geograph.save_as_scgraph(str(building), sources=sources)
                 work.joinpath("manifest.json").write_text(
                     json.dumps(
                         {
@@ -947,6 +953,7 @@ class GeoGraphIO:
                             "scgraph": GeoGraph.__scgraph_version__(),
                             "build_version": network.VERSION,
                             "format_version": network_file.VERSION,
+                            **details,
                         },
                         indent=2,
                     )

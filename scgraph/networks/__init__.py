@@ -8,7 +8,8 @@ sources, one module per network:
   the `region` argument of `build_geograph`), the `credit` to cite with results, and its
   `license` (SPDX identifier, `LicenseRef-…` when SPDX has none, `NOASSERTION` when it could
   not be established) with the `license_url` where it is stated
-- `build(files)`: given name -> downloaded file, returns the GeoGraph
+- `build(files)`: given name -> downloaded file, returns the GeoGraph, or `(GeoGraph, details)`
+  where `details` is a dict added to the manifest
 - `VERSION`: an integer, raised when `build` changes the network it returns; a cached
   network built with another `VERSION` is built again
 - `download(url, filename)`, optional: how to download a source when it is not a single file
@@ -26,6 +27,7 @@ NAMES = (
     "north_america_rail",
     "oak_ridge_maritime",
     "osm_main_roads",
+    "osm_main_roads_and_marnet",
     "osm_rail",
     "us_freeway",
 )

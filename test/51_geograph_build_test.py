@@ -8,7 +8,12 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from scgraph import GeoGraph, network_file, networks
-from scgraph.networks import marnet, north_america_rail, osm_main_roads
+from scgraph.networks import (
+    marnet,
+    north_america_rail,
+    osm_main_roads,
+    osm_main_roads_and_marnet,
+)
 
 # Two lines meeting at (0.01, 0): 4 nodes
 _FEATURES = [
@@ -21,7 +26,26 @@ _FEATURES = [
 _GEOJSON = json.dumps(
     {"type": "FeatureCollection", "features": _FEATURES}
 ).encode()
-_FILES = {"/lines.geojson": _GEOJSON}
+# A road from (0, 0) to (0, 0.01) and a sea lane from (0, 2.2) to (0, 3). Ports:
+# "Near" is 1 km from the road and 242 km from the sea (joined); "Inland" is 256 km
+# from the sea and "Far" 277 km from the road (not joined)
+_FILES = {
+    "/lines.geojson": _GEOJSON,
+    "/roads.osm": b"""<osm version="0.6">
+<node id="1" version="1" lat="0" lon="0"/>
+<node id="2" version="1" lat="0" lon="0.01"/>
+<way id="1" version="1"><nd ref="1"/><nd ref="2"/><tag k="highway" v="primary"/></way>
+</osm>""",
+    "/sea.geojson": json.dumps(
+        {
+            "type": "GeometryCollection",
+            "geometries": [
+                {"type": "LineString", "coordinates": [[2.2, 0], [3, 0]]}
+            ],
+        }
+    ).encode(),
+    "/ports.csv": b"Main Port Name,Latitude,Longitude\nNear,0,0.02\nInland,0,-0.1\nFar,0,2.5\n",
+}
 
 
 class _Source(BaseHTTPRequestHandler):
@@ -163,6 +187,46 @@ def test_list_downloadable_geographs_matches_the_names_build_geograph_takes(
     names = [n["name"] for n in listing]
     annotation = typing.get_type_hints(GeoGraph.build_geograph)["name"]
     assert names == list(networks.NAMES) == list(typing.get_args(annotation))
+
+
+def test_build_geograph_joins_roads_and_sea_at_ports(
+    tmp_path, source, monkeypatch
+):
+    pytest.importorskip("osmium")
+    # The roads URL keeps a {region} placeholder, as for Geofabrik: region "roads"
+    # makes it the local file /roads.osm
+    sources = {
+        "roads": f"{source}/{{region}}.osm",
+        "sea": f"{source}/sea.geojson",
+        "ports": f"{source}/ports.csv",
+    }
+    for name, url in sources.items():
+        monkeypatch.setitem(
+            osm_main_roads_and_marnet.SOURCES,
+            name,
+            {**osm_main_roads_and_marnet.SOURCES[name], "url": url},
+        )
+    geo = GeoGraph.build_geograph(
+        "osm_main_roads_and_marnet",
+        region="roads",
+        cache_dir=str(tmp_path),
+    )
+    folder = tmp_path / "downloads" / "osm_main_roads_and_marnet" / "roads"
+    manifest = json.loads(
+        (folder / "osm_main_roads_and_marnet.manifest.json").read_text()
+    )
+    # Nodes by mode: 2 road nodes, the near port, 2 sea nodes
+    assert manifest["node_modes"] == {
+        "road": [0, 2],
+        "port": [2, 3],
+        "sea": [3, 5],
+    }
+    route = geo.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0},
+        destination_node={"latitude": 0, "longitude": 3},
+        output_coordinate_path="list_of_lists",
+    )
+    assert [0, 0.02] in route["coordinate_path"]  # through the port
 
 
 @pytest.mark.parametrize(
