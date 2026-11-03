@@ -30,6 +30,7 @@ scgraph/
   contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
+  osm.py                         # Reading OpenStreetMap files (optional dependency osmium)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, console output
   helpers/
@@ -103,7 +104,7 @@ For how scgraph works inside (query, graph reduction, plugging in an algorithm, 
 - Manages caching of shortest path trees and downloaded built-in networks
 - Lazy loading via `LazyGeoGraph` proxy (`lazy=True`) to defer downloads/instantiation until first use
 - Configurable reduction upon loading (`reduce_iterations=0` by default, `1` or `-1` for reduction)
-- Handles I/O: load from GeoJSON, OSMNx, or custom format; save in multiple formats
+- Handles I/O: load from GeoJSON, OSMNx, OpenStreetMap files or custom format; save in multiple formats
 
 **`CHGraph`** (`contraction_hierarchies.py`) — Contraction Hierarchies:
 - Preprocessing step that contracts nodes in order of importance
@@ -205,7 +206,7 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 - **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
 - **Formatting**: Always run `uv run python utils/prettify.py` before committing
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time
-- **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`
+- **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times
 - **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
 - **DO NOT generate docs**: Only the maintainer generates docs at release time

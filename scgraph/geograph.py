@@ -273,6 +273,105 @@ class GeoGraphIO:
         return geograph
 
     @staticmethod
+    def load_from_osm(
+        filename: str,
+        keep: dict[str, set[str | None]] | None = None,
+        directed: bool = True,
+        max_km_between_nodes: float | int = 2,
+        largest_component: bool = True,
+        load_intermediate_nodes: bool = True,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
+    ) -> "GeoGraph":
+        """
+        Function:
+
+        - Load a GeoGraph from an OpenStreetMap file (`.osm.pbf`, `.osm` or `.osm.bz2`)
+        - Needs the optional dependency `osmium`: `pip install scgraph[osm]`
+        - Ways meet only where they share an OSM node: roads that cross on a bridge or in a tunnel are not connected
+        - Each arc has the length of its full shape, in kilometers, so it is never shorter than the straight line between its ends
+        - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
+        - Ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way (with `directed=True`)
+        - Memory: osmium's node filter takes about 1.5 GB, whatever the size of the file
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de
+
+        Optional Arguments:
+
+        - `keep`
+            - Type: dict[str, set[str]] | None
+            - What: The ways to keep: a way is kept if, for every key, its tag value is in the set; `None` in a set stands for a missing tag
+            - Default: None (main roads: `{"highway": scgraph.osm.MAIN_ROADS}`, motorway to primary and their links)
+            - Example: `{"railway": {"rail"}, "service": {None}}` for railway lines without yards, sidings and spurs
+        - `directed`
+            - Type: bool
+            - What: Whether one-way streets (`oneway=*`, roundabouts) give arcs in one direction only
+            - Default: True
+        - `max_km_between_nodes`
+            - Type: float | int
+            - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
+            - Default: 2
+        - `largest_component`
+            - Type: bool
+            - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
+            - Default: True
+            - Note: Parts not connected to the largest one, such as islands without a road link, are dropped
+        - `load_intermediate_nodes`
+            - Type: bool
+            - What: Whether to keep the shape of each arc, to draw routes
+            - Default: True
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay loading the geograph until its first use
+            - Default: False
+
+        Raises:
+
+        - `ImportError` if the optional dependency `osmium` is not installed
+        - `ValueError` if no way of the file matches `keep`
+        """
+        if lazy:
+            return LazyGeoGraph(
+                lambda: GeoGraph.load_from_osm(
+                    filename=filename,
+                    keep=keep,
+                    directed=directed,
+                    max_km_between_nodes=max_km_between_nodes,
+                    largest_component=largest_component,
+                    load_intermediate_nodes=load_intermediate_nodes,
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            )
+        from scgraph.osm import MAIN_ROADS, keep_largest_component, read_osm
+
+        graph, nodes, shapes = read_osm(
+            filename,
+            keep if keep is not None else {"highway": MAIN_ROADS},
+            directed,
+            max_km_between_nodes,
+        )
+        if not nodes:
+            raise ValueError(f"No way of {filename} matches keep={keep}")
+        if largest_component:
+            graph, nodes, shapes = keep_largest_component(graph, nodes, shapes)
+        geograph = GeoGraph(
+            graph=graph,
+            nodes=nodes,
+            intermediate_nodes=shapes if load_intermediate_nodes else None,
+        )
+        geograph.graph_object.reduce(reduce_iterations)
+        return geograph
+
+    @staticmethod
     def load_from_graphjson(
         filename: str,
         reduce_iterations: int = 0,
