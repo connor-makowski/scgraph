@@ -1,5 +1,5 @@
 import gc
-from heapq import heapify, heappop, heappush
+from heapq import heappop, heappush
 from functools import wraps
 
 
@@ -177,7 +177,8 @@ class GraphReducer:
         is_reduced = [False] * n
 
         current_iter = 0
-        candidates = []
+        # Nodes to examine in later passes (never read with one pass)
+        dirty = None
         while True:
             newly_reduced_count = 0
             if current_iter == 0:
@@ -201,28 +202,27 @@ class GraphReducer:
                                 newly_reduced_count += 1
                 # Later passes can only change nodes next to a reduced node
                 if iterations != 1:
-                    candidates = [
-                        u
-                        for u in range(n)
-                        if not is_reduced[u]
-                        and (
-                            any(is_reduced[v] for v in graph[u])
-                            or any(is_reduced[v] for v in inverse_graph[u])
-                        )
-                    ]
+                    dirty = bytearray(n)
+                    for u in range(n):
+                        if is_reduced[u]:
+                            for v in graph[u]:
+                                if not is_reduced[v]:
+                                    dirty[v] = 1
+                            for v in inverse_graph[u]:
+                                if not is_reduced[v]:
+                                    dirty[v] = 1
             else:
                 # Subsequent iterations: find pass-through nodes on current reduced topology
                 # Reducing u changes the flows of its own outflows and inflows
-                # only, so only those are examined again: those after u in
-                # this pass, the others in the next one. Examining candidates
-                # in increasing order, as a scan of every node would, gives
-                # the same result.
-                heapify(candidates)
-                queued = set(candidates)
-                next_candidates = set()
-                while candidates:
-                    u = heappop(candidates)
+                # only, so only those are marked dirty: those after u are
+                # examined in this pass, the others in the next one. The scan
+                # keeps the increasing order of a scan of every node, so the
+                # result is the same.
+                u = dirty.find(1)
+                while u != -1:
+                    dirty[u] = 0
                     if is_reduced[u]:
+                        u = dirty.find(1, u + 1)
                         continue
 
                     # Outflows from u through is_reduced nodes
@@ -266,12 +266,8 @@ class GraphReducer:
                                 newly_reduced_count += 1
                     if is_reduced[u]:
                         for w in outflows | inflows:
-                            if w < u:
-                                next_candidates.add(w)
-                            elif w not in queued:
-                                queued.add(w)
-                                heappush(candidates, w)
-                candidates = list(next_candidates)
+                            dirty[w] = 1
+                    u = dirty.find(1, u + 1)
 
             current_iter += 1
 
