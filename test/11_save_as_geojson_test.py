@@ -1,3 +1,4 @@
+import json
 import os
 import pytest
 from scgraph import GeoGraph
@@ -78,3 +79,37 @@ def test_save_load_graphjson_keeps_route_geometry(tmp_path):
     ) == geo.get_shortest_path(
         origin, destination, output_coordinate_path="list_of_lists"
     )
+
+
+# Coordinates on or beyond the antimeridian keep their place on the globe
+@pytest.mark.parametrize(
+    "longitude, latitude, expected",
+    [
+        (180, 0, [0, 180]),
+        (-180, 0, [0, -180]),
+        (190.5, 0, [0, -169.5]),
+        (190.8498, 0, [0, -169.1502]),
+        (-180.5, 0, [0, 179.5]),
+        (12.5, 90, [90, 12.5]),
+        (12.5, 95, ValueError),  # no latitude beyond the poles
+    ],
+)
+def test_load_from_geojson_keeps_coordinates_on_the_globe(
+    tmp_path, longitude, latitude, expected
+):
+    path = tmp_path / "line.geojson"
+    line = [[longitude - 0.5, 89.5], [longitude, latitude]]
+    path.write_text(
+        json.dumps(
+            {
+                "type": "GeometryCollection",
+                "geometries": [{"type": "LineString", "coordinates": line}],
+            }
+        )
+    )
+    if expected is ValueError:
+        with pytest.raises(ValueError, match="Latitude"):
+            GeoGraph.load_from_geojson(str(path), silent=True)
+        return
+    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+    assert expected in loaded.nodes

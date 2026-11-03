@@ -5,20 +5,35 @@ from scgraph.helpers.visvalingam import visvalingam
 
 
 def lessThanAbs(threshold, a):
-    return abs(a) % threshold * (1 if a > 0 else -1)
+    """Bring a longitude within [-threshold, threshold]: longitudes beyond 180 wrap around
+    the globe; values in the range, including -threshold and threshold, are unchanged.
+    """
+    if -threshold <= a <= threshold:
+        return a
+    return (a + threshold) % (2 * threshold) - threshold
+
+
+def _latitude(value):
+    if not -90 <= value <= 90:
+        raise ValueError(f"Latitude {value} is outside [-90, 90]")
+    return value
 
 
 def format_coord_tuple(coord, round_to: int = 3):
+    # Rounded again after the wrap, whose floating point noise (-169.15020000000004 for
+    # 190.8498) would make two nodes of one point
     return (
-        lessThanAbs(180, hard_round(round_to, coord[0])),
-        lessThanAbs(90, hard_round(round_to, coord[1])),
+        hard_round(round_to, lessThanAbs(180, hard_round(round_to, coord[0]))),
+        _latitude(hard_round(round_to, coord[1])),
     )
 
 
 def format_coord_list(coord, round_to: int = 3):
+    # Rounded again after the wrap, whose floating point noise (-169.15020000000004 for
+    # 190.8498) would make two nodes of one point
     return [
-        lessThanAbs(180, hard_round(round_to, coord[0])),
-        lessThanAbs(90, hard_round(round_to, coord[1])),
+        hard_round(round_to, lessThanAbs(180, hard_round(round_to, coord[0]))),
+        _latitude(hard_round(round_to, coord[1])),
     ]
 
 
