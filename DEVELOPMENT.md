@@ -37,7 +37,7 @@ scgraph/
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
     src/                         # C++ source: graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, bmssp (template header)
+    │                            #   transit_node_routing (BMSSP: bmsspy's C++ sources, from its wheel)
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
 test/

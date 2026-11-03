@@ -5,7 +5,7 @@
 #include <limits>
 #include <iostream>
 #include "graph.hpp"
-#include "bmssp.hpp"
+#include "bmsspy/cpp/src/bmssp.hpp"
 
 // Constructor
 Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate) {
@@ -1190,12 +1190,24 @@ GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& de
         std::vector<double> distances;
         std::vector<int>    preds;
 
-        if (!multi_source && origin_entries.size() == 1) {
-            spp_expected::bmssp<double> solver(g);
-            solver.prepare_graph(false);
+        // bmsspy's solver with the graph as is (no constant-degree transformation)
+        auto solve = [](const std::vector<std::vector<std::pair<int, double>>>& graph, int src) {
+            bmsspy::AdjGraph adj(graph.size());
+            for (size_t u = 0; u < graph.size(); ++u) {
+                adj[u].reserve(graph[u].size());
+                for (const auto& [v, w] : graph[u]) {
+                    // bmsspy's solver does not end on negative weights
+                    if (w < 0) throw std::invalid_argument("bmssp requires non-negative edge weights");
+                    adj[u].push_back({v, w});
+                }
+            }
+            bmsspy::CppBmssp solver(adj, 6, false);
+            auto res = solver.solve({src});
+            return std::make_pair(std::move(res.distance_matrix), std::move(res.predecessor));
+        };
 
-            int src = origin_entries.front().first;
-            auto [dist, pred] = solver.execute(src);
+        if (!multi_source && origin_entries.size() == 1) {
+            auto [dist, pred] = solve(g, origin_entries.front().first);
             distances = std::move(dist);
             preds     = std::move(pred);
         } else {
@@ -1207,11 +1219,8 @@ GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& de
             }
             augmented.push_back(std::move(super_edges));
 
-            spp_expected::bmssp<double> aug_solver(augmented);
-            aug_solver.prepare_graph(false);
-
             int super_src = static_cast<int>(augmented.size()) - 1;
-            auto [dist, pred] = aug_solver.execute(super_src);
+            auto [dist, pred] = solve(augmented, super_src);
 
             dist.resize(n);
             pred.resize(n);

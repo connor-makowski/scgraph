@@ -375,12 +375,9 @@ def test_reduced_graph_matches_unreduced_graph(
                         expected = reference.dijkstra(origin, destination)
                     except Exception:
                         continue  # not connected in the original graph
-                    if algorithm == "bmssp" and (
-                        n < 2 or (GraphClass is PyGraph and destination == 0)
-                    ):
-                        # Limits of bmsspy, not of reduction: it needs 2 nodes
-                        # or more, and its pure-Python solver returns no path
-                        # to node 0. Remove once bmsspy handles both.
+                    if algorithm == "bmssp" and n < 2:
+                        # Limit of bmsspy, not of reduction: it needs 2 nodes
+                        # or more
                         continue
                     result = getattr(g, algorithm)(origin, destination)
                     if isinstance(destination, int) and not g.is_same_chain(

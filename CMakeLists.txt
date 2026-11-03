@@ -11,6 +11,18 @@ project(scgraph LANGUAGES CXX)
 find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
 find_package(nanobind CONFIG REQUIRED)
 
+# BMSSP solver: bmsspy ships its C++ sources in its wheel (build requirement)
+execute_process(
+    COMMAND "${Python_EXECUTABLE}" -c
+        "import bmsspy, pathlib; print(pathlib.Path(bmsspy.__file__).parent.parent.as_posix())"
+    OUTPUT_VARIABLE BMSSPY_ROOT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE BMSSPY_FOUND
+)
+if(NOT BMSSPY_FOUND EQUAL 0 OR NOT EXISTS "${BMSSPY_ROOT}/bmsspy/cpp/src/bmssp.cpp")
+    message(FATAL_ERROR "bmsspy >= 2.3 with its C++ sources is required to build scgraph's C++ extension")
+endif()
+
 # -----------------------------
 # Set C++ standard
 # -----------------------------
@@ -39,7 +51,9 @@ nanobind_add_module(
     scgraph/cpp/src/graph_reducer.cpp
     scgraph/cpp/src/contraction_hierarchies.cpp
     scgraph/cpp/src/transit_node_routing.cpp
+    ${BMSSPY_ROOT}/bmsspy/cpp/src/bmssp.cpp
 )
+target_include_directories(cpp PRIVATE ${BMSSPY_ROOT})
 install(TARGETS cpp DESTINATION scgraph)
 
 # -----------------------------
