@@ -28,7 +28,11 @@ flowchart LR
 (`graph_object`) and delegate every search to it. A `GeoGraph` comes from a built-in network,
 a saved file, a GeoJSON file, an OSMnx graph or an OpenStreetMap file (`osm.py`, with the
 optional dependency `osmium`); every loader produces the same `graph`, `nodes` and
-`intermediate_nodes`. `CHGraph` and `TNRGraph` are built
+`intermediate_nodes`. `build_geograph` builds a reference network from its online
+source: each network has a small build script in `networks/` (source URL, credit, and which
+loader to call with which options); the source is downloaded once, the built network is
+written as graphjson to the local cache with a manifest of what was downloaded, and later
+calls read the cache. `CHGraph` and `TNRGraph` are built
 from a `Graph` on the first query that needs them.
 
 `Graph` and `CHGraph` exist twice: in C++ (`cpp/`) and in pure Python. When the C++
@@ -163,7 +167,10 @@ A\* bound). Both are dropped by `add_coord_node`, `remove_coord_node` and
 when the number of nodes changes. In-place edits of `nodes` are not detected.
 
 They are rebuilt only when asked for again (`reduce()` must be called again). Downloaded
-built-in networks stay on disk.
+built-in networks and networks built by `build_geograph` stay on disk until
+`clear_geograph_cache`. A built network is not rebuilt when its source changes, but it is
+when its manifest names another `VERSION` of its build script. Each build works in its own
+`.building-*` folder, then moves the network file and then the manifest into place.
 
 For how to use each cache, see the README:
 [cached queries](README.md#cached-queries-same-origin-many-destinations),

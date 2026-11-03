@@ -25,6 +25,7 @@ exclude = ["*"]
 include = [
     "scgraph/*.py",
     "scgraph/helpers/*.py",
+    "scgraph/networks/*.py",
     "scgraph/cpp/*",
     "pyproject.toml",
     "CMakeLists.txt",
