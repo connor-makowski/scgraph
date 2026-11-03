@@ -149,8 +149,8 @@ Changing the graph (`add_node`, `add_edge`, `remove_node`, `remove_edge`) calls
 
 - the cached shortest-path trees,
 - the reduced graph,
-- the `CHGraph` and `TNRGraph` (in Python, also the BMSSP graph and the cached maximum
-  edge weight).
+- the `CHGraph`, the `TNRGraph` and the BMSSP solver (in C++, one per searched graph; in
+  Python, also the cached maximum edge weight).
 
 The inverse graph, built once for backward searches, is not dropped.
 

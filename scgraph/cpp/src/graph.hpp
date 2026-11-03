@@ -12,6 +12,8 @@
 #include "contraction_hierarchies.hpp"
 #include "transit_node_routing.hpp"
 
+namespace bmsspy { class CppBmssp; }
+
 class Graph : public GraphReducer {
 private:
     std::shared_ptr<CHGraph> __ch_graph__ = nullptr;
@@ -19,6 +21,9 @@ private:
     // Default bucket width of the bucket algorithms (base and reduced graph), -1 until computed
     double bucket_width_cache = -1.0;
     double reduced_bucket_width_cache = -1.0;
+    // bmsspy solvers of graph and reduced_graph, built at the first bmssp query
+    std::shared_ptr<bmsspy::CppBmssp> bmssp_solver_cache = nullptr;
+    std::shared_ptr<bmsspy::CppBmssp> reduced_bmssp_solver_cache = nullptr;
     double resolve_bucket_width(const std::vector<std::vector<std::pair<int, double>>>& g,
                                 std::optional<double> bucket_width, double max_weight);
 
