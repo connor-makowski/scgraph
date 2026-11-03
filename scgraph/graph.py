@@ -40,10 +40,17 @@ class GraphTrees:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=0)
+        return self.__shortest_path_tree__(self.graph, origin_id)
+
+    def __shortest_path_tree__(
+        self,
+        graph: list[dict[int, int | float]],
+        origin_id: int | set[int] | dict[int, int | float],
+    ) -> dict:
+        """The shortest path tree of `get_shortest_path_tree`, on `graph`."""
         origin_dict = normalize_node_input(origin_id)
 
         # Variable Initialization
-        graph = self.graph
         distance_matrix = [float("inf")] * len(graph)
         open_leaves = []
         predecessor = [-1] * len(graph)
@@ -184,7 +191,7 @@ class GraphAlgorithms:
         dest_dict = normalize_node_input(destination_id)
 
         # Variable Initialization
-        graph = self.graph
+        graph = self.search_graph
         distance_matrix = [float("inf")] * len(graph)
         predecessor = [-1] * len(graph)
         open_leaves = []
@@ -274,10 +281,8 @@ class GraphAlgorithms:
         origin_ids = set(origin_dict.keys())
         dest_ids = set(dest_dict.keys())
 
-        self.__ensure_inverse_graph__()
-
-        graph = self.graph
-        inverse_graph = self.inverse_graph
+        graph = self.search_graph
+        inverse_graph = self.search_inverse_graph
         num_nodes = len(graph)
 
         forward_dist = [float("inf")] * num_nodes
@@ -416,7 +421,7 @@ class GraphAlgorithms:
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
-        graph = self.graph
+        graph = self.search_graph
 
         max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
         width = self.__get_bucket_width__(bucket_width, max_edge_weight)
@@ -552,10 +557,8 @@ class GraphAlgorithms:
         origin_ids = set(origin_dict.keys())
         dest_ids = set(dest_dict.keys())
 
-        self.__ensure_inverse_graph__()
-
-        graph = self.graph
-        inverse_graph = self.inverse_graph
+        graph = self.search_graph
+        inverse_graph = self.search_inverse_graph
         num_nodes = len(graph)
 
         max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
@@ -750,7 +753,7 @@ class GraphAlgorithms:
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
-        graph = self.graph
+        graph = self.search_graph
 
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
@@ -847,7 +850,7 @@ class GraphAlgorithms:
         dest_dict = normalize_node_input(destination_id)
 
         # Variable Initialization
-        graph = self.graph
+        graph = self.search_graph
         distance_matrix = [float("inf")] * len(graph)
         visited = [0] * len(graph)
         open_leaves = []
@@ -1002,7 +1005,7 @@ class GraphAlgorithms:
         self.__input_check__(origin_id=origin_id, destination_id=destination_id)
         origin_dict = normalize_node_input(origin_id)
         dest_dict = normalize_node_input(destination_id)
-        graph = self.graph
+        graph = self.search_graph
 
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
@@ -1095,7 +1098,7 @@ class GraphAlgorithms:
             )
         if not hasattr(self, "__bmssp_graph__"):
             self.__bmssp_graph__ = Bmssp(
-                graph=self.graph,
+                graph=self.search_graph,
                 use_constant_degree_graph=use_constant_degree_graph,
             )
         output = self.__bmssp_graph__.solve(
@@ -1118,7 +1121,7 @@ class GraphAlgorithms:
 
         - Get the shortest path between two nodes in the graph attempting to use a cached shortest path tree if available
         - If a cached shortest path tree is not available, it will compute the shortest path tree and cache it for future use if specified by `cache`
-        - Uses the get_shortest_path_tree (Dijkstra) and get_tree_path functions internally
+        - Builds each tree with Dijkstra on the searched graph and reads it with get_tree_path: after `reduce()`, the cached trees are those of the reduced graph (`inf` on contracted nodes), in both builds
         - Stores cached shortest path trees in a list (self.__cache__) where the index corresponds to the origin node id
         - Note: If you modify this graph after caching shortest path trees, the cached trees may become invalid
 
@@ -1162,8 +1165,8 @@ class GraphAlgorithms:
 
         if is_single_origin:
             if self.__cache__[orig_node] == 0:
-                self.__cache__[orig_node] = self.get_shortest_path_tree(
-                    origin_id=orig_node
+                self.__cache__[orig_node] = self.__shortest_path_tree__(
+                    self.search_graph, orig_node
                 )
             return self.get_tree_path(
                 origin_id=origin_id,
@@ -1206,8 +1209,8 @@ class GraphAlgorithms:
                 ch_graph_kwargs if ch_graph_kwargs is not None else dict()
             )
             self.__ch_graph__ = CHGraph(
-                graph=self.graph,
-                inverse_graph=self.inverse_graph,
+                graph=self.search_graph,
+                inverse_graph=self.search_inverse_graph,
                 settled_limit=settled_limit,
                 heuristic_fn=self.wrap_heuristic(heuristic_fn),
                 **ch_graph_kwargs,
@@ -1249,8 +1252,8 @@ class GraphAlgorithms:
                 tnr_graph_kwargs if tnr_graph_kwargs is not None else dict()
             )
             self.__tnr_graph__ = TNRGraph(
-                graph=self.graph,
-                inverse_graph=self.inverse_graph,
+                graph=self.search_graph,
+                inverse_graph=self.search_inverse_graph,
                 settled_limit=settled_limit,
                 num_transit_nodes=num_transit_nodes,
                 heuristic_fn=self.wrap_heuristic(heuristic_fn),

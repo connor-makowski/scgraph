@@ -372,7 +372,7 @@ std::vector<int> GraphReducer::expand_path(const std::vector<int>& path) const {
         return path;
     }
     std::vector<int> new_path;
-    for (size_t i = 0; i < path.size() - 1; ++i) {
+    for (size_t i = 0; i + 1 < path.size(); ++i) {
         int u = path[i];
         int v = path[i + 1];
         new_path.push_back(u);

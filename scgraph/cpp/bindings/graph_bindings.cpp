@@ -94,7 +94,21 @@ NB_MODULE(cpp, m) {
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
-             "Get the unreduced graph adjacency list")
+             "Same as graph")
+        .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
+             "Get the inverse of the graph: every edge reversed")
+        .def_prop_ro("search_graph", [](const Graph& self) -> std::vector<std::unordered_map<int, double>> {
+            if (self.get_has_reduced_graph()) {
+                return self.get_reduced_graph();
+            }
+            return self.get_graph();
+        }, "The graph searched by the algorithms: reduced_graph after reduce(), else graph")
+        .def_prop_ro("search_inverse_graph", [](Graph& self) -> std::vector<std::unordered_map<int, double>> {
+            if (self.get_has_reduced_graph()) {
+                return self.get_reduced_inverse_graph();
+            }
+            return self.get_inverse_graph();
+        }, "The inverse searched by the bidirectional algorithms: reduced_inverse_graph after reduce(), else inverse_graph")
         .def("reduce", &Graph::reduce, nb::arg("iterations") = -1,
              "Reduce the graph by bypassing pass-through nodes")
         .def_prop_ro("reduced_graph", [](const Graph& self) -> std::optional<std::vector<std::unordered_map<int, double>>> {

@@ -1,147 +1,93 @@
 import pytest
 from scgraph.graph import Graph as PyGraph
-from scgraph import GeoGraph
-from heapq import heappop, heappush
+from scgraph.graph_utils import normalize_node_input
+from heapq import heapify, heappop, heappush
 
 try:
     from scgraph.cpp import Graph as CppGraph
 
-    HAS_CPP = True
+    GRAPH_CLASSES = [PyGraph, CppGraph]
 except ImportError:
-    HAS_CPP = False
+    GRAPH_CLASSES = [PyGraph]
 
 
 def _build_test_graph():
     # Chain A: 0 - 1 - 2 - 3 (pass-throughs: 1, 2)
     # Chain B: 3 - 4 - 5 - 6 (pass-throughs: 4, 5)
-    # Junction: 3
+    # Junction: 3 (with leaf 7)
     # Leaf: 6
     return [
         {1: 2.0},  # 0
         {0: 2.0, 2: 3.0},  # 1 (pass-through)
         {1: 3.0, 3: 4.0},  # 2 (pass-through)
-        {2: 4.0, 4: 1.5},  # 3 (junction)
+        {2: 4.0, 4: 1.5, 7: 1.0},  # 3 (junction)
         {3: 1.5, 5: 2.5},  # 4 (pass-through)
         {4: 2.5, 6: 1.0},  # 5 (pass-through)
         {5: 1.0},  # 6
+        {3: 1.0},  # 7: leaf on the junction, so that 3 stays after reduce()
     ]
 
 
-def test_custom_algorithm_decorator():
-    # Define a custom 1-sided Dijkstra using @PyGraph.algorithm
-    @PyGraph.algorithm
-    def my_dijkstra(self, origin_id: int, destination_id: int) -> dict:
-        graph = self.graph
-        dist = [float("inf")] * len(graph)
-        pred = [-1] * len(graph)
-        pq = [(0.0, origin_id)]
-        dist[origin_id] = 0.0
+def _tree(graph, ends):
+    """Dijkstra from every entry of ends (a node id, or node id -> start distance, as the
+    decorator passes them): distances and predecessors."""
+    dist, pred = [float("inf")] * len(graph), [-1] * len(graph)
+    heap = [(d, n) for n, d in normalize_node_input(ends).items()]
+    for d, n in heap:
+        dist[n] = d
+    heapify(heap)
+    while heap:
+        d, u = heappop(heap)
+        if d > dist[u]:
+            continue
+        for v, w in graph[u].items():
+            if d + w < dist[v]:
+                dist[v], pred[v] = d + w, u
+                heappush(heap, (d + w, v))
+    return dist, pred
 
-        while pq:
-            d, u = heappop(pq)
-            if u == destination_id:
-                break
-            if d == dist[u]:
-                for v, w in graph[u].items():
-                    if d + w < dist[v]:
-                        dist[v] = d + w
-                        pred[v] = u
-                        heappush(pq, (d + w, v))
 
-        path = []
-        curr = destination_id
-        while curr != -1:
-            path.append(curr)
-            curr = pred[curr]
-        path.reverse()
-        return {"path": path, "length": dist[destination_id]}
+def _walk(pred, node):
+    path = []
+    while node != -1:
+        path.append(node)
+        node = pred[node]
+    return path
 
-    g = PyGraph(_build_test_graph())
 
-    # 1. Unreduced query
-    res = my_dijkstra(g, 1, 5)
-    assert abs(res["length"] - 11.0) < 1e-6
-    assert res["path"] == [1, 2, 3, 4, 5]
+# Custom algorithms written as the README shows: they read search_graph and
+# search_inverse_graph, and accept dicts of nodes with distances
+@PyGraph.algorithm
+def _custom(self, origin_id, destination_id):
+    dist, pred = _tree(self.search_graph, origin_id)
+    targets = normalize_node_input(destination_id)
+    end = min(targets, key=lambda t: dist[t] + targets[t])
+    return {"path": _walk(pred, end)[::-1], "length": dist[end] + targets[end]}
 
-    # 2. Reduced query
+
+@PyGraph.algorithm(bidirectional=True)
+def _custom_bidirectional(self, origin_id, destination_id):
+    forward, forward_pred = _tree(self.search_graph, origin_id)
+    backward, backward_pred = _tree(self.search_inverse_graph, destination_id)
+    meet = min(range(len(forward)), key=lambda v: forward[v] + backward[v])
+    return {
+        "path": _walk(forward_pred, meet)[::-1]
+        + _walk(backward_pred, meet)[1:],
+        "length": forward[meet] + backward[meet],
+    }
+
+
+@pytest.mark.parametrize("algorithm", [_custom, _custom_bidirectional])
+@pytest.mark.parametrize(
+    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
+)
+def test_custom_algorithm_decorator(GraphClass, algorithm):
+    g = GraphClass(_build_test_graph())
+    across = {"path": [1, 2, 3, 4, 5], "length": pytest.approx(11.0)}
+    assert algorithm(g, 1, 5) == across
     g.reduce()
-    # Same chain: 1 -> 2
-    res_same = my_dijkstra(g, 1, 2)
-    assert abs(res_same["length"] - 3.0) < 1e-6
-    assert res_same["path"] == [1, 2]
-
-    # Cross chain: 1 -> 5 (automatically solves boundary exit/entry and expands path!)
-    res_cross = my_dijkstra(g, 1, 5)
-    assert abs(res_cross["length"] - 11.0) < 1e-6
-    assert res_cross["path"] == [1, 2, 3, 4, 5]
-
-
-def test_custom_bidirectional_algorithm_decorator():
-    # Define a custom bidirectional algorithm using @PyGraph.algorithm(bidirectional=True)
-    @PyGraph.algorithm(bidirectional=True)
-    def my_bidirectional(self, origin_id: int, destination_id: int) -> dict:
-        # Standard bidirectional Dijkstra implementation using self.graph and self.inverse_graph
-        graph = self.graph
-        inverse_graph = self.inverse_graph
-        f_dist = [float("inf")] * len(graph)
-        b_dist = [float("inf")] * len(graph)
-        f_pred = [-1] * len(graph)
-        b_pred = [-1] * len(graph)
-        f_pq = [(0.0, origin_id)]
-        b_pq = [(0.0, destination_id)]
-        f_dist[origin_id] = 0.0
-        b_dist[destination_id] = 0.0
-
-        best_dist = float("inf")
-        meeting = -1
-
-        while f_pq and b_pq:
-            fd, u = heappop(f_pq)
-            if fd > best_dist:
-                break
-            for v, w in graph[u].items():
-                if fd + w < f_dist[v]:
-                    f_dist[v] = fd + w
-                    f_pred[v] = u
-                    heappush(f_pq, (fd + w, v))
-                    if b_dist[v] + f_dist[v] < best_dist:
-                        best_dist = b_dist[v] + f_dist[v]
-                        meeting = v
-
-            bd, u = heappop(b_pq)
-            if bd > best_dist:
-                break
-            for v, w in inverse_graph[u].items():
-                if bd + w < b_dist[v]:
-                    b_dist[v] = bd + w
-                    b_pred[v] = u
-                    heappush(b_pq, (bd + w, v))
-                    if f_dist[v] + b_dist[v] < best_dist:
-                        best_dist = f_dist[v] + b_dist[v]
-                        meeting = v
-
-        f_path = []
-        curr = meeting
-        while curr != -1:
-            f_path.append(curr)
-            curr = f_pred[curr]
-        f_path.reverse()
-
-        b_path = []
-        curr = b_pred[meeting]
-        while curr != -1:
-            b_path.append(curr)
-            curr = b_pred[curr]
-
-        return {"path": f_path + b_path, "length": best_dist}
-
-    g = PyGraph(_build_test_graph())
-    g.reduce()
-
-    # Query 1 -> 5: runs directly on reduced graphs and expands path automatically!
-    res = my_bidirectional(g, 1, 5)
-    assert abs(res["length"] - 11.0) < 1e-6
-    assert res["path"] == [1, 2, 3, 4, 5]
+    assert algorithm(g, 1, 2) == {"path": [1, 2], "length": pytest.approx(3.0)}
+    assert algorithm(g, 1, 5) == across  # from one chain to another, through 3
 
 
 def test_registered_algorithm():
@@ -159,54 +105,3 @@ def test_registered_algorithm():
     res_red = g.my_plugin_algo(1, 5)
     assert abs(res_red["length"] - 11.0) < 1e-6
     assert res_red["path"] == [1, 2, 3, 4, 5]
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_graph_algorithm_decorator():
-    from scgraph import Graph
-
-    @Graph.algorithm
-    def my_cpp_dijkstra(self, origin_id: int, destination_id: int) -> dict:
-        graph = self.graph
-        dist = [float("inf")] * len(graph)
-        pred = [-1] * len(graph)
-        pq = [(0.0, origin_id)]
-        dist[origin_id] = 0.0
-
-        while pq:
-            d, u = heappop(pq)
-            if u == destination_id:
-                break
-            if d == dist[u]:
-                for v, w in graph[u].items():
-                    if d + w < dist[v]:
-                        dist[v] = d + w
-                        pred[v] = u
-                        heappush(pq, (d + w, v))
-
-        path = []
-        curr = destination_id
-        while curr != -1:
-            path.append(curr)
-            curr = pred[curr]
-        path.reverse()
-        return {"path": path, "length": dist[destination_id]}
-
-    g = CppGraph(_build_test_graph())
-
-    # Unreduced
-    res = my_cpp_dijkstra(g, 1, 5)
-    assert abs(res["length"] - 11.0) < 1e-6
-    assert res["path"] == [1, 2, 3, 4, 5]
-
-    # Reduced
-    g.reduce()
-    # Same chain: 1 -> 2
-    res_same = my_cpp_dijkstra(g, 1, 2)
-    assert abs(res_same["length"] - 3.0) < 1e-6
-    assert res_same["path"] == [1, 2]
-
-    # Cross chain: 1 -> 5
-    res_cross = my_cpp_dijkstra(g, 1, 5)
-    assert abs(res_cross["length"] - 11.0) < 1e-6
-    assert res_cross["path"] == [1, 2, 3, 4, 5]

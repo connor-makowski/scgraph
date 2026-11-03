@@ -596,16 +596,18 @@ print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
 
 # Reduce the graph (contracts pass-through nodes):
 graph.reduce(iterations=1)
+# graph.graph stays the original graph; graph.reduced_graph is the reduced one
 
 # Custom algorithm decorator with automated reduced graph support:
 @Graph.algorithm
 def custom_solver(self, origin_id: int, destination_id: int) -> dict:
-    # Standard single-sided algorithm implementation using self.graph
+    # Single-sided search on self.search_graph (the reduced graph after reduce())
+    # Read it once per call: with the C++ backend, each read is a copy
     ...
 
 @Graph.algorithm(bidirectional=True)
 def custom_bidirectional_solver(self, origin_id: int, destination_id: int) -> dict:
-    # Bidirectional algorithm using self.graph and self.inverse_graph
+    # Bidirectional search on self.search_graph and self.search_inverse_graph
     ...
 ```
 

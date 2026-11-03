@@ -200,9 +200,13 @@ GraphResult Graph::run_query_with_reducer(
 // Tree algorithms
 TreeData Graph::get_shortest_path_tree(const NodeIdVariant& origin_id) {
     input_check(origin_id, 0);
+    return shortest_path_tree(this->graph, origin_id);
+}
+
+TreeData Graph::shortest_path_tree(const std::vector<std::vector<std::pair<int, double>>>& g,
+                                   const NodeIdVariant& origin_id) const {
     auto origin_entries = get_node_entries(origin_id);
 
-    const auto& g = this->graph;
     const size_t n = g.size();
     std::vector<double> distance_matrix(n, std::numeric_limits<double>::infinity());
     std::vector<int> predecessors(n, -1);
@@ -1263,6 +1267,7 @@ GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& de
 }
 
 GraphResult Graph::cached_shortest_path(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) {
+    input_check(origin_id, destination_id);
     int orig = -1;
     bool is_single_origin = false;
 
@@ -1284,10 +1289,25 @@ GraphResult Graph::cached_shortest_path(const NodeIdVariant& origin_id, const No
     }
 
     if (is_single_origin) {
-        if (cache[orig].predecessors.empty()) {
-            cache[orig] = get_shortest_path_tree(orig);
-        }
-        return get_tree_path(origin_id, destination_id, cache[orig], length_only);
+        // After reduce(), the tree is built on the reduced graph, as the other searches
+        auto run_cached = [this, orig, length_only, &origin_id, &destination_id](
+                              const std::vector<std::vector<std::pair<int, double>>>& g,
+                              const NodeIdVariant& orig_v,
+                              const NodeIdVariant& dest) -> GraphResult {
+            if (has_reduced_graph && is_same_chain(origin_id, destination_id)) {
+                // Same chain: solved on the original graph, not cached
+                auto res = dijkstra(orig_v, dest);
+                if (length_only) {
+                    res.path = {};
+                }
+                return res;
+            }
+            if (cache[orig].predecessors.empty()) {
+                cache[orig] = shortest_path_tree(g, orig);
+            }
+            return get_tree_path(orig_v, dest, cache[orig], length_only);
+        };
+        return run_query_with_reducer(origin_id, destination_id, run_cached);
     }
 
     auto res = dijkstra(origin_id, destination_id);

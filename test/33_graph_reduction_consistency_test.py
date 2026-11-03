@@ -361,6 +361,19 @@ def test_reduced_graph_matches_unreduced_graph(
         if algorithm == "dijkstra":
             # What reduce() stores does not depend on the search: checked once
             _assert_stored_paths_are_valid(graph, g)
+            # graph, inverse_graph and the tree stay those of the original
+            # graph; the searches read the reduced one
+            inverse = [{} for _ in graph]
+            for u, row in enumerate(graph):
+                for v, w in row.items():
+                    inverse[v][u] = w
+            assert g.graph == g.unreduced_graph == graph
+            assert g.inverse_graph == inverse
+            assert g.search_graph == g.reduced_graph
+            assert g.search_inverse_graph == g.reduced_inverse_graph
+            for o in range(len(graph)):
+                tree = g.get_shortest_path_tree(o)
+                assert tree == reference.get_shortest_path_tree(o)
         n = len(graph)
         leaving_chain = set()
         for o in range(n):
@@ -413,9 +426,19 @@ def test_reduced_graph_matches_unreduced_graph(
                     ), case
         if algorithm == "cached_shortest_path":
             # Each origin queried beyond its own chain keeps its tree cached,
-            # reduced origins included (distance matrices reuse it)
+            # reduced origins included (distance matrices reuse it): in both
+            # builds, the tree of the reduced graph, whose distances are those
+            # of the original graph on the nodes kept and inf on the others
             cache = g.get_cache()
-            assert all(cache[o] != 0 for o in leaving_chain), graph
+            for o in leaving_chain:
+                full = reference.get_shortest_path_tree(o)["distance_matrix"]
+                expected = [
+                    d if v == o or not g.is_reduced[v] else float("inf")
+                    for v, d in enumerate(full)
+                ]
+                assert cache[o]["distance_matrix"] == pytest.approx(
+                    expected
+                ), graph
 
 
 if __name__ == "__main__":
