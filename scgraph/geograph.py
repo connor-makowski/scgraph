@@ -9,10 +9,12 @@ from scgraph.utils import (
     earth_radius,
     radians_per_degree,
 )
-from scgraph.helpers.geojson import parse_geojson
+from scgraph.helpers.geojson import parse_geojson, simplify_geojson
+from scgraph.helpers.lines import lines_to_graph
 from geokdtree import GeoKDTree
 import json, requests, shutil
 from array import array
+from collections import Counter
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
@@ -188,6 +190,7 @@ class GeoGraphIO:
         silent: bool = False,
         reduce_iterations: int = 0,
         lazy: bool = False,
+        max_km_between_nodes: float | int | None = None,
     ):
         """
         Function:
@@ -228,9 +231,9 @@ class GeoGraphIO:
             - Default: 3
         - `load_intermediate_nodes`
             - Type: bool
-            - What: Whether to load the intermediate nodes for each edge (if they exist) into the GeoGraph object
+            - What: Whether to keep the shape of each arc (its intermediate points) in the GeoGraph object
             - Default: True
-            - Note: Not implemented yet.
+            - Note: Only used with `max_km_between_nodes`; otherwise every point is a node and arcs have no intermediate points.
         - `silent`
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the geojson
@@ -243,6 +246,11 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
             - Default: False
+        - `max_km_between_nodes`
+            - Type: float | int | None
+            - What: If set, nodes are only the points where lines meet or end, and a line is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`; the other points become the shape of the arcs, whose length is the length of their full shape
+            - Default: None (every point is a node)
+            - Note: Useful for sources with many points per line, such as rail or road networks, to keep the graph small
         """
         if lazy:
             return LazyGeoGraph(
@@ -255,8 +263,34 @@ class GeoGraphIO:
                     silent=silent,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    max_km_between_nodes=max_km_between_nodes,
                 )
             )
+        if max_km_between_nodes is not None:
+            # Each point: its id, the (longitude, latitude) tuple of the file, and its
+            # [latitude, longitude] location
+            lines = [
+                [(tuple(point), [point[1], point[0]]) for point in line]
+                for line in simplify_geojson(
+                    filename_in=filename,
+                    precision=precision,
+                    pct_to_keep=pct_to_keep,
+                    min_points=min_points,
+                    silent=silent,
+                )
+            ]
+            uses = Counter(point for line in lines for point, _ in line)
+            junctions = {point for point, count in uses.items() if count > 1}
+            graph, nodes, shapes = lines_to_graph(
+                ((0, line) for line in lines), junctions, max_km_between_nodes
+            )
+            geograph = GeoGraph(
+                graph=graph,
+                nodes=nodes,
+                intermediate_nodes=shapes if load_intermediate_nodes else None,
+            )
+            geograph.graph_object.reduce(reduce_iterations)
+            return geograph
         data = parse_geojson(
             filename_in=filename,
             precision=precision,

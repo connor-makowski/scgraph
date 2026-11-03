@@ -4,7 +4,7 @@ Needs the optional dependency `osmium` (`pip install scgraph[osm]`), imported on
 is read.
 """
 
-from scgraph.utils import haversine
+from scgraph.helpers.lines import lines_to_graph
 
 MAIN_ROADS = {
     "motorway",
@@ -79,34 +79,13 @@ def read_osm(filename, keep, directed, max_km_between_nodes):
     }
     del uses
 
-    # Third pass: one arc per piece of way between junctions, with the length
-    # of its full shape; parallel arcs keep the shortest; no self-loops.
-    arcs = {}  # (origin ref, destination ref) -> (length, shape)
-    location = {}  # ref -> [latitude, longitude] of the arc ends
-    for way in _kept_ways(osmium, filename, keep):
-        direction = _direction(way.tags) if directed else 0
-        for piece in _located_pieces(way.nodes, positions):
-            start, length = 0, 0.0
-            for i in range(1, len(piece)):
-                length += haversine(piece[i - 1][1], piece[i][1])
-                if (
-                    i == len(piece) - 1
-                    or piece[i][0] in junctions
-                    or length >= max_km_between_nodes
-                ):
-                    _add_arc(
-                        arcs, location, piece[start : i + 1], length, direction
-                    )
-                    start, length = i, 0.0
-
-    order = sorted(location, key=lambda ref: (*location[ref], ref))
-    index = {ref: i for i, ref in enumerate(order)}
-    graph = [{} for _ in order]
-    shapes = [{} for _ in order]
-    for (origin, destination), (length, shape) in arcs.items():
-        graph[index[origin]][index[destination]] = length
-        shapes[index[origin]][index[destination]] = shape
-    return graph, [location[ref] for ref in order], shapes
+    # Third pass: one arc per piece of way between junctions
+    lines = (
+        (_direction(way.tags) if directed else 0, piece)
+        for way in _kept_ways(osmium, filename, keep)
+        for piece in _located_pieces(way.nodes, positions)
+    )
+    return lines_to_graph(lines, junctions, max_km_between_nodes)
 
 
 def _located_pieces(way_nodes, positions):
@@ -121,23 +100,6 @@ def _located_pieces(way_nodes, positions):
         piece = []
     if len(piece) > 1:
         yield piece
-
-
-def _add_arc(arcs, location, piece, length, direction):
-    origin, destination = piece[0][0], piece[-1][0]
-    if origin == destination:
-        return  # a loop never lies on a shortest path
-    location[origin], location[destination] = piece[0][1], piece[-1][1]
-    shape = [point for _, point in piece]
-    if direction >= 0:
-        _keep_shortest(arcs, (origin, destination), length, shape)
-    if direction <= 0:
-        _keep_shortest(arcs, (destination, origin), length, shape[::-1])
-
-
-def _keep_shortest(arcs, key, length, shape):
-    if key not in arcs or length < arcs[key][0]:
-        arcs[key] = (length, shape)
 
 
 def keep_largest_component(graph, nodes, shapes):
