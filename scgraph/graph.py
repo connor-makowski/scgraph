@@ -1404,6 +1404,42 @@ class Graph(
         if validate:
             self.validate()
 
+    @staticmethod
+    def from_csr(offsets, heads, weights) -> "Graph":
+        """
+        Function:
+
+        - Create a Graph from its arcs stored by origin (compressed sparse rows), as in a `.scgraph` network file
+        - The arcs of node `u` go to `heads[offsets[u]:offsets[u + 1]]`, with the same slice of `weights`
+
+        Required Arguments:
+
+        - `offsets`
+            - Type: sequence of ints (int32 array in the C++ backend), one per node plus one
+        - `heads`
+            - Type: sequence of ints (int32 array in the C++ backend), one per arc
+        - `weights`
+            - Type: sequence of floats (float64 array in the C++ backend), one per arc
+        """
+        n = len(offsets) - 1
+        if (
+            n < 0
+            or offsets[0] != 0
+            or offsets[-1] != len(heads)
+            or len(weights) != len(heads)
+        ):
+            raise ValueError(
+                "expected offsets from 0 to the number of arcs and one weight per arc"
+            )
+        if len(heads) and (min(heads) < 0 or max(heads) >= n):
+            raise IndexError("an arc goes to a node that is not in the graph")
+        return Graph(
+            [
+                dict(zip(heads[start:end], weights[start:end]))
+                for start, end in zip(offsets, offsets[1:])
+            ]
+        )
+
     def reset_cache(self) -> None:
         super().reset_cache()
         if hasattr(self, "__ch_graph__"):

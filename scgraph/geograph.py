@@ -11,6 +11,7 @@ from scgraph.utils import (
 )
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.lines import lines_to_graph
+from scgraph import network_file
 from geokdtree import GeoKDTree
 import difflib, hashlib, importlib, json, logging, re, requests, shutil
 import tempfile
@@ -183,6 +184,55 @@ class GeoGraphIO:
                 },
                 f,
             )
+
+    def save_as_scgraph(
+        self,
+        filename: str,
+        save_intermediate_nodes: bool = True,
+        sources: list[dict] | None = None,
+    ) -> None:
+        """
+        Function:
+
+        - Save the current geograph as a binary network file, much faster to load than graphjson
+        - The format is described in ARCHITECTURE.md, section "Network file", and in the header of each file
+        - Only the graph, the nodes, their intermediate nodes and the GeoGraph defaults are saved
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename to save the network file as
+            - Note: The filename must end with .scgraph
+
+        Optional Arguments:
+
+        - `save_intermediate_nodes`
+            - Type: bool
+            - What: Whether to include the intermediate nodes in the saved file (if they exist)
+            - Default: True
+        - `sources`
+            - Type: list[dict] | None
+            - What: Where the data comes from, stored in the file header so that it travels with the file: for each source, for example its `url`, `credit` and `license` (as `build_geograph` records them)
+            - Default: None
+        """
+        if not filename.endswith(".scgraph"):
+            raise ValueError("Filename must end with .scgraph")
+        network_file.write(
+            filename,
+            graph=self.graph_object.unreduced_graph,
+            nodes=self.nodes,
+            intermediate_nodes=(
+                self.intermediate_nodes if save_intermediate_nodes else None
+            ),
+            metadata={
+                "crs": "EPSG:4326",
+                "units": self.geograph_units,
+                "default_off_graph_circuity": self.default_off_graph_circuity,
+                "default_node_addition_circuity": self.default_node_addition_circuity,
+                **({"sources": sources} if sources is not None else {}),
+            },
+        )
 
     # Load Methods
     @staticmethod
@@ -476,6 +526,69 @@ class GeoGraphIO:
         return geograph
 
     @staticmethod
+    def load_from_scgraph(
+        filename: str,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
+    ) -> "GeoGraph":
+        """
+        Function:
+
+        - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
+        - The file is checked before use: a damaged or foreign file raises a ValueError
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The filename of the network file to load
+            - Note: The filename must end with .scgraph
+
+        Optional Arguments:
+
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay loading the geograph until its first use
+            - Default: False
+        """
+        if lazy:
+            return LazyGeoGraph(
+                lambda: GeoGraph.load_from_scgraph(
+                    filename=filename,
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            )
+        if not filename.endswith(".scgraph"):
+            raise ValueError("Filename must end with .scgraph")
+        arrays, metadata = network_file.read(filename)
+        geograph = GeoGraph(
+            graph=Graph.from_csr(
+                arrays["offsets"], arrays["heads"], arrays["weights"]
+            ),
+            nodes=[
+                [latitude, longitude]
+                for latitude, longitude in zip(
+                    arrays["latitudes"], arrays["longitudes"]
+                )
+            ],
+            intermediate_nodes=network_file.shapes(arrays),
+            default_off_graph_circuity=metadata.get(
+                "default_off_graph_circuity", 1
+            ),
+            default_node_addition_circuity=metadata.get(
+                "default_node_addition_circuity", 4
+            ),
+            geograph_units=metadata.get("units", "km"),
+        )
+        geograph.graph_object.reduce(reduce_iterations)
+        return geograph
+
+    @staticmethod
     def __fetch_geograph_to_cache__(
         name: str, cached_file: Path, geograph_url: str
     ) -> None:
@@ -763,19 +876,21 @@ class GeoGraphIO:
             if cache_dir is not None
             else get_default_cache_path()
         ).joinpath("downloads", name, region or "")
-        cached_file = folder.joinpath(f"{name}.graphjson")
+        cached_file = folder.joinpath(f"{name}.scgraph")
         manifest_file = folder.joinpath(f"{name}.manifest.json")
         try:
-            built_by = json.loads(manifest_file.read_text())["build_version"]
+            manifest = json.loads(manifest_file.read_text())
+            built_by = manifest["build_version"], manifest["format_version"]
         except (OSError, ValueError, KeyError, TypeError):
             built_by = None
-        if cached_file.exists() and built_by != network.VERSION:
+        current = network.VERSION, network_file.VERSION
+        if cached_file.exists() and built_by != current:
             logger.warning(
-                "The cached %s was built by another version of its build script; "
-                "building it again",
+                "The cached %s was built by another version of its build script "
+                "or file format; building it again",
                 name,
             )
-        if not cached_file.exists() or built_by != network.VERSION:
+        if not cached_file.exists() or built_by != current:
             folder.mkdir(parents=True, exist_ok=True)
             downloaded = datetime.now(timezone.utc).isoformat(
                 timespec="seconds"
@@ -783,7 +898,7 @@ class GeoGraphIO:
             files, sources = {}, []
             # One folder per build, so that builds in parallel do not share files
             work = Path(tempfile.mkdtemp(prefix=".building-", dir=folder))
-            building = work.joinpath(f"{name}.graphjson")
+            building = work.joinpath(f"{name}.scgraph")
             try:
                 for source, about in network.SOURCES.items():
                     template = about["url"]
@@ -821,7 +936,7 @@ class GeoGraphIO:
                 logger.info("Building %s", name)
                 network.build(
                     {source: str(path) for source, path in files.items()}
-                ).save_as_graphjson(str(building))
+                ).save_as_scgraph(str(building), sources=sources)
                 work.joinpath("manifest.json").write_text(
                     json.dumps(
                         {
@@ -831,12 +946,13 @@ class GeoGraphIO:
                             "sources": sources,
                             "scgraph": GeoGraph.__scgraph_version__(),
                             "build_version": network.VERSION,
+                            "format_version": network_file.VERSION,
                         },
                         indent=2,
                     )
                 )
                 # The manifest appears last: a network file counts as built only once
-                # its manifest names the version of the build script
+                # its manifest names the versions of the build script and file format
                 building.replace(cached_file)
                 work.joinpath("manifest.json").replace(manifest_file)
                 logger.info(
@@ -848,7 +964,7 @@ class GeoGraphIO:
             finally:
                 # A failed download or build leaves no large file behind
                 shutil.rmtree(work, ignore_errors=True)
-        return GeoGraph.load_from_graphjson(
+        return GeoGraph.load_from_scgraph(
             str(cached_file), reduce_iterations=reduce_iterations, lazy=False
         )
 
@@ -905,7 +1021,7 @@ class GeoGraphIO:
             # Not the work folders (.building-*) of builds in progress or interrupted
             built = [
                 path
-                for path in folder.rglob(f"{name}.graphjson")
+                for path in folder.rglob(f"{name}.scgraph")
                 if not any(
                     part.startswith(".")
                     for part in path.relative_to(folder).parts
@@ -2142,9 +2258,11 @@ class GeoGraph(
                 - 'mi': Miles
                 - 'ft': Feet
         """
-        if hasattr(graph, "get_shortest_path") and not isinstance(graph, list):
+        if isinstance(graph, Graph) or (
+            hasattr(graph, "get_shortest_path") and not isinstance(graph, list)
+        ):
             self.graph_object = graph
-            self.graph = graph.graph
+            self.graph = None  # built from the graph object on first use
         else:
             self.graph_object = Graph(graph=graph, validate=validate)
             self.graph = graph
@@ -2157,7 +2275,19 @@ class GeoGraph(
         )
         self.geograph_units = geograph_units
         self.geokdtree = GeoKDTree(points=self.nodes)
-        self.__original_graph_length__ = len(self.graph_object.graph)
+        # len(nodes), not len(graph): a C++ graph would be copied to Python to count it
+        self.__original_graph_length__ = len(self.nodes)
+
+    @property
+    def graph(self) -> list[dict[int, int | float]]:
+        if self._graph is None:
+            # The original graph, whether or not it has been reduced
+            self._graph = self.graph_object.unreduced_graph
+        return self._graph
+
+    @graph.setter
+    def graph(self, graph: list[dict[int, int | float]] | None) -> None:
+        self._graph = graph
 
     @property
     def geokdtree(self) -> GeoKDTree:

@@ -14,6 +14,7 @@ repository and what each class provides, see [DEVELOPMENT.md](DEVELOPMENT.md#key
 4. [Graph reduction](#4-graph-reduction)
 5. [Adding an algorithm](#5-adding-an-algorithm)
 6. [Caches and invalidation](#6-caches-and-invalidation)
+7. [Network file](#7-network-file)
 
 ## 1. Overview
 
@@ -31,7 +32,7 @@ optional dependency `osmium`); every loader produces the same `graph`, `nodes` a
 `intermediate_nodes`. `build_geograph` builds a reference network from its online
 source: each network has a small build script in `networks/` (source URL, credit, and which
 loader to call with which options); the source is downloaded once, the built network is
-written as graphjson to the local cache with a manifest of what was downloaded, and later
+written as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and later
 calls read the cache. `CHGraph` and `TNRGraph` are built
 from a `Graph` on the first query that needs them.
 
@@ -169,10 +170,47 @@ when the number of nodes changes. In-place edits of `nodes` are not detected.
 They are rebuilt only when asked for again (`reduce()` must be called again). Downloaded
 built-in networks and networks built by `build_geograph` stay on disk until
 `clear_geograph_cache`. A built network is not rebuilt when its source changes, but it is
-when its manifest names another `VERSION` of its build script. Each build works in its own
-`.building-*` folder, then moves the network file and then the manifest into place.
+when its manifest names another `VERSION` of its build script or of the file format. Each
+build works in its own `.building-*` folder, then moves the network file and then the
+manifest into place. A `.scgraph` file is written next to its target and then moved onto
+it, so a failed save leaves the previous file whole.
 
 For how to use each cache, see the README:
 [cached queries](README.md#cached-queries-same-origin-many-destinations),
 [built-in network cache](README.md#built-in-geographs-cache-management),
 [lazy loading](README.md#lazy-loading).
+
+## 7. Network file
+
+`save_as_scgraph` writes a GeoGraph to a binary `.scgraph` file and `load_from_scgraph` reads
+it back (`network_file.py`, standard library only). It holds the same data as a graphjson
+file, but loads without parsing JSON: in the C++ backend, `Graph.from_csr` builds the graph
+directly from the arrays.
+
+| Bytes | Content |
+|---|---|
+| 0–7 | magic `SCGRAPH1` |
+| 8–15 | length of the header, little-endian unsigned 64-bit integer |
+| 16– | header: UTF-8 JSON, padded with spaces up to byte 4096 |
+| 4096– | arrays, little-endian, each starting at a multiple of 64 bytes |
+
+The header gives `format_version` (1), `spec` (a link to this section), `arrays` (for each
+array: `dtype`, `shape` and `offset` from the start of the file) and `metadata`: `crs`
+(`EPSG:4326`), `units` of the weights, the GeoGraph defaults
+`default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
+when every arc has a reverse arc of the same weight); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file.
+
+| Array | dtype | Shape | Content |
+|---|---|---|---|
+| `offsets` | int32 | n + 1 | the arcs of node `u` are `offsets[u]` to `offsets[u + 1] - 1` |
+| `heads` | int32 | m | destination of each arc, sorted within each origin |
+| `weights` | float64 | m | weight of each arc |
+| `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
+| `shape_offsets` (optional) | int64 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1` |
+| `shape_points` (optional) | float64 | k × 2 | latitude and longitude of each shape point |
+
+The reader checks the magic, the version, that every array lies inside the file, and that
+the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1),
+and raises a `ValueError` otherwise. The writer sorts the heads of each row and writes each arc once; the reader does not check it. It ignores arrays it does not know, so later versions
+can add optional arrays (for example the mode of each arc) that older readers skip.
+
