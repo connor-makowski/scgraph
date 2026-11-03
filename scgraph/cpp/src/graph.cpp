@@ -5,7 +5,7 @@
 #include <limits>
 #include <iostream>
 #include "graph.hpp"
-#include "bmssp.hpp"
+#include "bmsspy/cpp/src/bmssp.hpp"
 
 // Constructor
 Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate) {
@@ -38,6 +38,8 @@ void Graph::reset_cache() {
     __tnr_graph__ = nullptr;
     bucket_width_cache = -1.0;
     reduced_bucket_width_cache = -1.0;
+    bmssp_solver_cache = nullptr;
+    reduced_bmssp_solver_cache = nullptr;
 }
 
 // Width of the buckets of dijkstra_buckets and bidirectional_buckets: the given width, else
@@ -1176,7 +1178,7 @@ GraphResult Graph::bellman_ford(const NodeIdVariant& origin_id, const NodeIdVari
 GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id) {
     input_check(origin_id, destination_id);
 
-    auto run_bmssp = [](
+    auto run_bmssp = [this](
         const std::vector<std::vector<std::pair<int, double>>>& g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
@@ -1190,14 +1192,27 @@ GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& de
         std::vector<double> distances;
         std::vector<int>    preds;
 
-        if (!multi_source && origin_entries.size() == 1) {
-            spp_expected::bmssp<double> solver(g);
-            solver.prepare_graph(false);
+        // bmsspy's solver with the graph as is (no constant-degree transformation)
+        auto make_solver = [](const std::vector<std::vector<std::pair<int, double>>>& graph) {
+            bmsspy::AdjGraph adj(graph.size());
+            for (size_t u = 0; u < graph.size(); ++u) {
+                adj[u].reserve(graph[u].size());
+                for (const auto& [v, w] : graph[u]) {
+                    // bmsspy's solver does not end on negative weights
+                    if (w < 0) throw std::invalid_argument("bmssp requires non-negative edge weights");
+                    adj[u].push_back({v, w});
+                }
+            }
+            return std::make_shared<bmsspy::CppBmssp>(adj, 6, false);
+        };
 
-            int src = origin_entries.front().first;
-            auto [dist, pred] = solver.execute(src);
-            distances = std::move(dist);
-            preds     = std::move(pred);
+        if (!multi_source && origin_entries.size() == 1) {
+            // One solver per searched graph, kept until the graph changes (reset_cache)
+            auto& solver = (&g == &this->reduced_graph) ? reduced_bmssp_solver_cache : bmssp_solver_cache;
+            if (!solver) solver = make_solver(g);
+            auto res = solver->solve({origin_entries.front().first});
+            distances = std::move(res.distance_matrix);
+            preds     = std::move(res.predecessor);
         } else {
             std::vector<std::vector<std::pair<int, double>>> augmented(g);
             std::vector<std::pair<int, double>> super_edges;
@@ -1207,11 +1222,10 @@ GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& de
             }
             augmented.push_back(std::move(super_edges));
 
-            spp_expected::bmssp<double> aug_solver(augmented);
-            aug_solver.prepare_graph(false);
-
             int super_src = static_cast<int>(augmented.size()) - 1;
-            auto [dist, pred] = aug_solver.execute(super_src);
+            auto res = make_solver(augmented)->solve({super_src});
+            auto& dist = res.distance_matrix;
+            auto& pred = res.predecessor;
 
             dist.resize(n);
             pred.resize(n);

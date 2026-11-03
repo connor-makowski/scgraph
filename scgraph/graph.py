@@ -8,7 +8,7 @@ from scgraph.graph_utils import (
 )
 from scgraph.contraction_hierarchies import CHGraph
 from scgraph.transit_node_routing import TNRGraph
-from bmsspy import Bmssp
+from bmsspy import Bmssp, BmsspC, has_cpp as bmsspy_has_cpp
 from scgraph.graph_reducer import GraphReducer, algorithm
 
 
@@ -1064,7 +1064,9 @@ class GraphAlgorithms:
 
         - This is now a wrapper for the BMSSPy package
             - https://github.com/connor-makowski/bmsspy
-            - For backwards compatibility, this function wraps around the dijkstra function if BMSSPy is not installed
+            - Uses BMSSPy's compiled solver when available, else its pure Python solver
+            - For several origins or destinations, this function uses the dijkstra function
+            - Edge weights must be non-negative; they are rounded to 6 decimals
 
         - Return a dictionary of various path information including:
             - `id_path`: A list of node ids in the order they are visited
@@ -1080,7 +1082,7 @@ class GraphAlgorithms:
             - What: The id of the destination node from the graph dictionary to end the shortest path at
         - `use_constant_degree_graph`
             - Type: bool
-            - What: Whether to convert the graph to a constant degree 2 graph prior to running the BMSSPy algorithm
+            - What: Whether to convert the graph to a constant out-degree 2 graph prior to running the BMSSPy algorithm
             - Default: True
 
         Optional Arguments:
@@ -1094,9 +1096,17 @@ class GraphAlgorithms:
                 origin_id=origin_id, destination_id=destination_id
             )
         if not hasattr(self, "__bmssp_graph__"):
-            self.__bmssp_graph__ = Bmssp(
+            # bmsspy's solvers do not end on negative weights
+            if any(w < 0 for edges in self.graph for w in edges.values()):
+                raise ValueError("bmssp requires non-negative edge weights")
+            # bmsspy's compiled solver when its wheel ships one
+            solver = BmsspC if bmsspy_has_cpp() else Bmssp
+            self.__bmssp_graph__ = solver(
                 graph=self.graph,
-                use_constant_degree_graph=use_constant_degree_graph,
+                # What True meant before bmsspy 2.3: out-degree at most 2
+                use_constant_degree_graph=(
+                    "out_degree" if use_constant_degree_graph else False
+                ),
             )
         output = self.__bmssp_graph__.solve(
             origin_id=origin_id, destination_id=destination_id
