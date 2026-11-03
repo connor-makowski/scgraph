@@ -486,7 +486,11 @@ std::shared_ptr<CHGraph> GraphReducer::create_ch_graph(std::function<double(CHGr
 
 std::shared_ptr<TNRGraph> GraphReducer::create_tnr_graph(int num_transit_nodes, std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) const {
     if (has_reduced_graph) {
-        return std::make_shared<TNRGraph>(get_reduced_graph(), settled_limit, num_transit_nodes, wrap_heuristic(heuristic_fn), get_reduced_inverse_graph());
+        // Transit nodes are the last contracted, and reduced nodes are contracted
+        // first: no more transit nodes than nodes left
+        int kept = (int)std::count(is_reduced.begin(), is_reduced.end(), false);
+        int n_transit = std::min(num_transit_nodes, std::max(1, kept));
+        return std::make_shared<TNRGraph>(get_reduced_graph(), settled_limit, n_transit, wrap_heuristic(heuristic_fn), get_reduced_inverse_graph());
     }
     return std::make_shared<TNRGraph>(get_graph(), settled_limit, num_transit_nodes, heuristic_fn);
 }

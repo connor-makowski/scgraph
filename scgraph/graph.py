@@ -1232,6 +1232,7 @@ class GraphAlgorithms:
         - `num_transit_nodes`:
             - Type: int
             - What: The number of transit nodes to use
+                - On a reduced graph, at most the number of nodes left
             - Default: 100
 
         - `settled_limit`:
@@ -1248,6 +1249,13 @@ class GraphAlgorithms:
             tnr_graph_kwargs = (
                 tnr_graph_kwargs if tnr_graph_kwargs is not None else dict()
             )
+            is_reduced = getattr(self, "is_reduced", None)
+            if is_reduced is not None:
+                # Transit nodes are the last contracted, and reduced nodes are
+                # contracted first: no more transit nodes than nodes left
+                num_transit_nodes = min(
+                    num_transit_nodes, max(1, is_reduced.count(False))
+                )
             self.__tnr_graph__ = TNRGraph(
                 graph=self.graph,
                 inverse_graph=self.inverse_graph,

@@ -387,6 +387,11 @@ def test_reduced_graph_matches_unreduced_graph(
                         origin, destination
                     ):
                         leaving_chain.add(origin)
+                    if algorithm == "tnr":
+                        # length_only reads the distance table alone
+                        assert g.tnr(origin, destination, length_only=True)[
+                            "length"
+                        ] == pytest.approx(expected["length"]), case
                     path = result["path"]
                     origins = origin if isinstance(origin, dict) else {origin}
                     targets = (
