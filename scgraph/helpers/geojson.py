@@ -218,8 +218,13 @@ def parse_geojson(
         graph_sub = {}
         start_node = key
         for end_node in value:
+            # Nodes are (longitude, latitude); haversine takes [latitude, longitude]
             graph_sub[node_map[end_node]] = hard_round(
-                3, haversine(origin=start_node, destination=end_node)
+                3,
+                haversine(
+                    origin=[start_node[1], start_node[0]],
+                    destination=[end_node[1], end_node[0]],
+                ),
             )
         graph.append(graph_sub)
         if idx % 1000 == 0:
