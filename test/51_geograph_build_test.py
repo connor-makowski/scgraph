@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from scgraph import GeoGraph, network_file, networks
+from scgraph.helpers.hilbert import hilbert_order
 from scgraph.networks import (
     marnet,
     north_america_rail,
@@ -16,26 +17,28 @@ from scgraph.networks import (
     osm_main_roads_and_marnet,
 )
 
-# Two lines meeting at (0.01, 0): 4 nodes
+# Two lines meeting at (0.01, 0): 4 nodes, not read in Hilbert order
 _FEATURES = [
     {"type": "Feature", "properties": {}, "geometry": g}
     for g in (
-        {"type": "LineString", "coordinates": [[0, 0], [0.01, 0], [0.02, 0]]},
+        {"type": "LineString", "coordinates": [[0.02, 0], [0.01, 0], [0, 0]]},
         {"type": "LineString", "coordinates": [[0.01, 0], [0.01, 0.01]]},
     )
 ]
 _GEOJSON = json.dumps(
     {"type": "FeatureCollection", "features": _FEATURES}
 ).encode()
-# A road from (0, 0) to (0, 0.01) and a sea lane from (0, 2.2) to (0, 3). Ports:
-# "Near" is 1 km from the road and 242 km from the sea (joined); "Inland" is 256 km
-# from the sea and "Far" 277 km from the road (not joined)
+# A road from (-0.01, 0) to (0, 0) through (-0.004, 0.001), its nodes not read in Hilbert
+# order, and a sea lane from (0, 2.2) to (0, 3). Ports:
+# "Near" is 2 km from the road and 242 km from the sea (joined); "Inland" is 256 km
+# from the sea and "Far" 278 km from the road (not joined)
 _FILES = {
     "/lines.geojson": _GEOJSON,
     "/roads.osm": b"""<osm version="0.6">
 <node id="1" version="1" lat="0" lon="0"/>
-<node id="2" version="1" lat="0" lon="0.01"/>
-<way id="1" version="1"><nd ref="1"/><nd ref="2"/><tag k="highway" v="primary"/></way>
+<node id="2" version="1" lat="-0.01" lon="0"/>
+<node id="3" version="1" lat="-0.004" lon="0.001"/>
+<way id="1" version="1"><nd ref="1"/><nd ref="3"/><nd ref="2"/><tag k="highway" v="primary"/></way>
 </osm>""",
     "/sea.geojson": json.dumps(
         {
@@ -94,9 +97,11 @@ def source(monkeypatch):
     server.server_close()
 
 
-# A new version of the build script or of the file format, or a missing network file
-# (None), builds the network again
-@pytest.mark.parametrize("versioned", [marnet, network_file, None])
+# A new version of the build script or of the file format, another node order, or a
+# missing network file (None), builds the network again
+@pytest.mark.parametrize(
+    "versioned", [marnet, network_file, "node order", None]
+)
 def test_build_geograph_builds_once_per_version_and_records_the_source(
     tmp_path, source, monkeypatch, versioned
 ):
@@ -124,6 +129,9 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     ]
     cached = folder / manifest["file"]
     assert network_file.read(str(cached))[1]["sources"] == manifest["sources"]
+    # Nodes numbered along the Hilbert curve, as the manifest says
+    assert manifest["node_order"]["name"] == "hilbert"
+    assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
     # The source has changed since: the new build replaces the cached network
     monkeypatch.setitem(
         _FILES, "/lines.geojson", _GEOJSON.replace(b"0.02", b"0.03")
@@ -132,6 +140,10 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
         cached.unlink()
         listing = GeoGraph.list_downloadable_geographs(str(tmp_path))
         assert not next(n for n in listing if n["name"] == "marnet")["cached"]
+    elif versioned == "node order":
+        monkeypatch.setattr(
+            "scgraph.geograph.NODE_ORDER", {"name": "hilbert", "curve_order": 0}
+        )
     else:
         monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
     rebuilt = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
@@ -237,12 +249,18 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
         "port": [2, 3],
         "sea": [3, 5],
     }
+    # Each block holds the nodes of its mode (in Hilbert order within the block)
+    assert [
+        sorted(geo.nodes[start:end])
+        for start, end in manifest["node_modes"].values()
+    ] == [[[-0.01, 0], [0, 0]], [[0, 0.02]], [[0, 2.2], [0, 3]]]
     route = geo.get_shortest_path(
-        origin_node={"latitude": 0, "longitude": 0},
+        origin_node={"latitude": -0.01, "longitude": 0},
         destination_node={"latitude": 0, "longitude": 3},
         output_coordinate_path="list_of_lists",
     )
     assert [0, 0.02] in route["coordinate_path"]  # through the port
+    assert [-0.004, 0.001] in route["coordinate_path"]  # along the road's shape
 
 
 @pytest.mark.parametrize(

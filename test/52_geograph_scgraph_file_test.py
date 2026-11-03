@@ -4,6 +4,7 @@ import json
 import pytest
 
 from scgraph import GeoGraph, network_file
+from scgraph.helpers.hilbert import hilbert_order
 
 # A one-way arc (0 -> 2), a shape on one arc only, integer weights and an isolated node
 _GRAPH = [{2: 1.25, 1: 5}, {0: 5}, {}, {}]
@@ -140,3 +141,10 @@ def test_load_from_scgraph_rejects_damaged_files(tmp_path, how, message):
     path.write_bytes(_damage(path.read_bytes(), how))
     with pytest.raises(ValueError, match=message):
         GeoGraph.load_from_scgraph(str(path))
+
+
+def test_hilbert_order_follows_the_curve():
+    # One point per quadrant of the globe: north-east, south-west, north-west, south-east;
+    # the curve visits them south-west, north-west, north-east, south-east
+    nodes = [[45, 90], [-45, -90], [45, -90], [-45, 90]]
+    assert hilbert_order(nodes) == [1, 2, 0, 3]
