@@ -5,7 +5,7 @@ from scgraph.utils import (
     cheap_ruler,
     print_console,
     get_lat_lon_bound_between_pts,
-    get_default_cache_path,
+    resolve_cache_dir,
     earth_radius,
     radians_per_degree,
 )
@@ -26,6 +26,19 @@ from typing import Literal
 from scgraph import Graph
 
 logger = logging.getLogger(__name__)
+
+
+# The built-in geographs published for load_geograph (contents.txt of the geograph URL); they are
+# no longer updated
+_PUBLISHED_GEOGRAPHS = (
+    "marnet",
+    "north_america_rail",
+    "oak_ridge_maritime",
+    "us_freeway",
+    "world_highways_and_marnet",
+    "world_highways",
+    "world_railways",
+)
 
 
 class GeoGraphIO:
@@ -647,7 +660,7 @@ class GeoGraphIO:
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory where geograph files are stored
-            - Default: None (resolves to the platform-appropriate cache directory)
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory
                 - Linux:   ~/.cache/scgraph/
                 - macOS:   ~/Library/Caches/scgraph/
                 - Windows: %LOCALAPPDATA%\\scgraph\\
@@ -673,11 +686,7 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        cache_path = (
-            Path(cache_dir)
-            if cache_dir is not None
-            else get_default_cache_path()
-        )
+        cache_path = resolve_cache_dir(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)
         cached_file = cache_path.joinpath(f"{name}.graphjson")
         if not cached_file.exists():
@@ -704,7 +713,7 @@ class GeoGraphIO:
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory to check for cached files
-            - Default: None (resolves to the platform-appropriate cache directory)
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory
                 - Linux:   ~/.cache/scgraph/
                 - macOS:   ~/Library/Caches/scgraph/
                 - Windows: %LOCALAPPDATA%\\scgraph\\
@@ -726,11 +735,7 @@ class GeoGraphIO:
                 f"Failed to fetch geograph list from '{url}'. "
                 f"HTTP status: {response.status_code}."
             )
-        cache_path = (
-            Path(cache_dir)
-            if cache_dir is not None
-            else get_default_cache_path()
-        )
+        cache_path = resolve_cache_dir(cache_dir)
         available = sorted(
             line.removesuffix(".graphjson")
             for line in response.text.splitlines()
@@ -749,26 +754,27 @@ class GeoGraphIO:
         """
         Function:
 
-        - Remove the local geograph cache directory and all its contents.
-        - This includes the networks built by `build_geograph` (under `downloads/`)
+        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded and the networks `build_geograph` built (under `downloads/`)
+        - Other files in the directory are kept; the directory itself is removed if nothing else is left in it
 
         Optional Arguments:
 
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory to clear
-            - Default: None (resolves to the platform-appropriate cache directory)
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory
                 - Linux:   ~/.cache/scgraph/
                 - macOS:   ~/Library/Caches/scgraph/
                 - Windows: %LOCALAPPDATA%\\scgraph\\
         """
-        cache_path = (
-            Path(cache_dir)
-            if cache_dir is not None
-            else get_default_cache_path()
-        )
-        if cache_path.exists():
-            shutil.rmtree(cache_path)
+        cache_path = resolve_cache_dir(cache_dir)
+        # Only what scgraph writes there, so that a folder given as the cache keeps the
+        # user's own files; then the folder itself if nothing else is left
+        for name in _PUBLISHED_GEOGRAPHS:
+            cache_path.joinpath(f"{name}.graphjson").unlink(missing_ok=True)
+        shutil.rmtree(cache_path.joinpath("downloads"), ignore_errors=True)
+        if cache_path.is_dir() and not any(cache_path.iterdir()):
+            cache_path.rmdir()
 
     @staticmethod
     def build_geograph(
@@ -819,7 +825,7 @@ class GeoGraphIO:
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory
-            - Default: None (resolves to the platform-appropriate cache directory, as in `load_geograph`)
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory (as in `load_geograph`)
         - `reduce_iterations`
             - Type: int
             - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
@@ -873,11 +879,9 @@ class GeoGraphIO:
             r"[a-z0-9-]+(/[a-z0-9-]+)*", region
         ):
             raise ValueError(f"Invalid region '{region}': {where}")
-        folder = (
-            Path(cache_dir)
-            if cache_dir is not None
-            else get_default_cache_path()
-        ).joinpath("downloads", name, region or "")
+        folder = resolve_cache_dir(cache_dir).joinpath(
+            "downloads", name, region or ""
+        )
         cached_file = folder.joinpath(f"{name}.scgraph")
         manifest_file = folder.joinpath(f"{name}.manifest.json")
         try:
@@ -997,7 +1001,7 @@ class GeoGraphIO:
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory to check for built networks
-            - Default: None (resolves to the platform-appropriate cache directory, as in `load_geograph`)
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory (as in `load_geograph`)
 
         Returns:
 
@@ -1012,11 +1016,7 @@ class GeoGraphIO:
         """
         from scgraph import networks
 
-        root = (
-            Path(cache_dir)
-            if cache_dir is not None
-            else get_default_cache_path()
-        ).joinpath("downloads")
+        root = resolve_cache_dir(cache_dir).joinpath("downloads")
         listing = []
         for name in networks.NAMES:
             network = importlib.import_module(f"scgraph.networks.{name}")

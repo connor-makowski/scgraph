@@ -433,7 +433,7 @@ available = GeoGraph.list_geographs()
 #     {"name": "world_railways",            "cached": False},
 # ]
 
-# Clear all cached geograph files
+# Clear the cached geographs (other files in the cache directory are kept)
 GeoGraph.clear_geograph_cache()
 ```
 
@@ -445,12 +445,14 @@ The cache location defaults to the platform-appropriate directory:
 | macOS | `~/Library/Caches/scgraph/` |
 | Windows | `%LOCALAPPDATA%\scgraph\` |
 
+To use another directory for every call, set the environment variable `SCGRAPH_CACHE_DIR`; a `cache_dir` argument wins over it.
+
 ### `load_geograph` Parameters
 
 | Parameter | Default | Description |
 |---|---|---|
 | `name` | required | Name of the built-in geograph (e.g. `'marnet'`, `'us_freeway'`) |
-| `cache_dir` | `None` | Custom directory for downloaded files; defaults to the OS cache dir above |
+| `cache_dir` | `None` | Custom directory for downloaded files; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
 | `geograph_url` | `'https://raw.githubusercontent.com/...'` | Base URL for fetching geographs |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
@@ -506,7 +508,7 @@ These networks are built from the current version of their sources: they are not
 |---|---|---|
 | `name` | required | Name of the network (table above) |
 | `region` | `None` | For the `osm_*` networks: the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL (e.g. `'europe/luxembourg'`, `'north-america/us/texas'`) |
-| `cache_dir` | `None` | Custom cache directory; defaults to the OS cache dir above |
+| `cache_dir` | `None` | Custom cache directory; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer downloading/loading until the geograph is first accessed |
 
