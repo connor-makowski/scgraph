@@ -37,6 +37,7 @@ scgraph/
   networks/                      # Build scripts of build_geograph, one per network
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
+    hilbert.py                   # Hilbert-curve order of nodes (built networks)
     lines.py                     # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/

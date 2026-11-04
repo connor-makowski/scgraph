@@ -11,6 +11,7 @@ from scgraph.utils import (
 )
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.lines import lines_to_graph
+from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
 from scgraph import network_file
 from geokdtree import GeoKDTree
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
@@ -934,17 +935,21 @@ class GeoGraphIO:
         # The manifest names the network file, which is named by its content
         try:
             manifest = json.loads(manifest_file.read_text())
-            built_by = manifest["build_version"], manifest["format_version"]
+            built_by = (
+                manifest["build_version"],
+                manifest["format_version"],
+                manifest.get("node_order"),
+            )
             # Only a name: the file removed by a rebuild is never outside the entry
             cached_file = folder.joinpath(Path(manifest["file"]).name)
         except (OSError, ValueError, KeyError, TypeError):
             built_by, cached_file = None, None
-        current = network.VERSION, network_file.VERSION
+        current = network.VERSION, network_file.VERSION, NODE_ORDER
         cached = cached_file is not None and cached_file.is_file()
         if cached and built_by != current:
             logger.warning(
-                "The cached %s was built by another version of its build script "
-                "or file format; building it again",
+                "The cached %s was built by another version of its build script, "
+                "file format or node order; building it again",
                 name,
             )
         if not cached or built_by != current:
@@ -1001,6 +1006,10 @@ class GeoGraphIO:
                 geograph, details = (
                     built if isinstance(built, tuple) else (built, {})
                 )
+                # Nodes close on the globe get close ids (within each mode)
+                geograph = _in_hilbert_order(
+                    geograph, list(details.get("node_modes", {}).values())
+                )
                 digest = geograph.save_as_scgraph(
                     str(building), sources=sources
                 )
@@ -1016,6 +1025,7 @@ class GeoGraphIO:
                             "build_version": network.VERSION,
                             "format_version": network_file.VERSION,
                             "file": built_file.name,
+                            "node_order": NODE_ORDER,
                             **details,
                         },
                         indent=2,
@@ -1841,6 +1851,41 @@ class GeoGraphModifiers:
                     node_connection_map[destination_idx]
                 ] = distance
         self.graph_object = Graph(graph=graph)
+
+
+def _in_hilbert_order(geograph, blocks):
+    # A copy of the geograph with its nodes in Hilbert order within each block of ids:
+    # ids change, routes and lengths do not
+    order = hilbert_order(geograph.nodes, blocks)
+    new_id = [0] * len(order)
+    for new, old in enumerate(order):
+        new_id[old] = new
+    graph, shapes = (
+        geograph.graph_object.unreduced_graph,
+        geograph.intermediate_nodes,
+    )
+    return GeoGraph(
+        graph=[
+            {new_id[head]: weight for head, weight in graph[old].items()}
+            for old in order
+        ],
+        nodes=[geograph.nodes[old] for old in order],
+        intermediate_nodes=(
+            None
+            if shapes is None
+            else [
+                (
+                    {new_id[head]: shape for head, shape in shapes[old].items()}
+                    if old < len(shapes)
+                    else {}
+                )
+                for old in order
+            ]
+        ),
+        default_off_graph_circuity=geograph.default_off_graph_circuity,
+        default_node_addition_circuity=geograph.default_node_addition_circuity,
+        geograph_units=geograph.geograph_units,
+    )
 
 
 def _joined(network, key):
