@@ -189,7 +189,12 @@ detected.
 
 They are rebuilt only when asked for again (`reduce()` must be called again). Downloaded
 built-in networks and networks built by `build_geograph` stay on disk until
-`clear_geograph_cache`. A built network is not rebuilt when its source changes, but it is
+`clear_geograph_cache`. The first `load_geograph` of a published network converts its
+`<name>.graphjson` into `<name>.scgraph` beside it (§7), which later loads read; a conversion
+that can't be read (damaged, another format version) is made again from the `.graphjson`, and
+a cache that can't be written keeps reading the `.graphjson`. In the C++ build a loaded
+conversion stays mapped: on Windows it can't be removed or replaced while a graph read from it
+is alive. A built network is not rebuilt when its source changes, but it is
 when its manifest names another `VERSION` of its build script or of the file format, or a
 file that is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
 default when `SCGRAPH_OFFLINE=1`), nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
@@ -238,7 +243,8 @@ raises a `PermissionError`.
 The header gives `format_version` (1), `spec` (a link to this section), `content_sha256`
 (the SHA-256 of the bytes from 4096 to the end of the file, the arrays and the zeros
 between them: the identity of the network; it does not cover the header, and files from
-other writers may lack it), `arrays` (for each
+other writers may lack it; it identifies the file, not the graph: arcs are written in the
+order the backend visits them, which is not the same in the C++ and Python builds), `arrays` (for each
 array: `dtype`, `shape` and `offset` from the start of the file) and `metadata`: `crs`
 (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
@@ -247,7 +253,7 @@ when every arc has a reverse arc of the same weight); and, when known, `sources`
 | Array | dtype | Shape | Content |
 |---|---|---|---|
 | `offsets` | int32 | n + 1 | the arcs of node `u` are `offsets[u]` to `offsets[u + 1] - 1` |
-| `heads` | int32 | m | destination of each arc, sorted within each origin |
+| `heads` | int32 | m | destination of each arc, in the graph's order within each origin |
 | `weights` | float64 | m | weight of each arc |
 | `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
 | `shape_offsets` (optional) | int64 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1` |

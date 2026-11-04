@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import tempfile
@@ -5,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scgraph import GeoGraph, geograph
+from scgraph import GeoGraph, geograph, network_file
 
 
 def test_list_geographs_returns_list():
@@ -120,6 +121,44 @@ def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
     assert list(tmp_path.iterdir()) == []
 
 
+# Converted at the first load, then read by later ones; a damaged conversion (here,
+# truncated) is made again; a cache that can't be written keeps reading the .graphjson
+@pytest.mark.parametrize("case", ["first", "damaged", "read_only"])
+def test_load_geograph_converts_a_published_geograph_once(
+    tmp_path, monkeypatch, case
+):
+    published, converted = (
+        tmp_path / "marnet.graphjson",
+        tmp_path / "marnet.scgraph",
+    )
+    original = GeoGraph(
+        graph=[{1: 1.5}, {0: 1.5, 2: 2.0}, {1: 2.0}],
+        nodes=[[0, 0], [0, 1], [1, 1]],
+    )
+    original.save_as_graphjson(str(published))
+    if case == "damaged":
+        original.save_as_scgraph(str(converted))
+        converted.write_bytes(converted.read_bytes()[:4200])
+    if case == "read_only":
+
+        def refused(*args, **kwargs):
+            raise PermissionError("read-only")
+
+        monkeypatch.setattr(network_file, "write", refused)
+    geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+    assert geo.nodes == original.nodes
+    assert published.exists() and converted.exists() != (case == "read_only")
+    if case == "read_only":
+        return
+    # Named in its header by the SHA-256 of its arrays, as a built network
+    content = hashlib.sha256(converted.read_bytes()[4096:]).hexdigest()
+    assert network_file.read(str(converted))[1]["content_sha256"] == content
+    published.write_text("no longer read")
+    again = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+    assert again.nodes == geo.nodes
+    assert again.graph_object.graph == geo.graph_object.graph
+
+
 # local_files_only=True, or SCGRAPH_OFFLINE=1 unless the argument says otherwise
 @pytest.mark.parametrize(
     "environment, options, offline",
@@ -188,6 +227,7 @@ def filled_cache(tmp_path):
     versions = {"scgraph": "9.9", "build_version": 3, "format_version": 1}
     files = {
         "marnet.graphjson": b"x" * 10,
+        "marnet.scgraph": b"x" * 5,
         "notes.txt": b"x",
         "networks/marnet/m.scgraph": b"x" * 20,
         "networks/marnet/manifest.json": ("marnet", None, "m.scgraph"),
@@ -226,13 +266,14 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         for i in info
     ] == [
         ("published", "marnet", None, "marnet.graphjson", 10),
+        ("published", "marnet", None, "marnet.scgraph", 5),
         ("built", "marnet", None, "m.scgraph", 20),
         ("built", "osm_rail", "europe", "e.scgraph", 30),
         ("built", "osm_rail", "europe/france", "f.scgraph", 40),
         ("building", None, None, ".building-x", 50),
     ]
-    assert info[1]["scgraph"] == "9.9" and info[1]["build_version"] == 3
-    assert info[1]["format_version"] == 1
+    assert info[2]["scgraph"] == "9.9" and info[2]["build_version"] == 3
+    assert info[2]["format_version"] == 1
 
 
 _RAIL = "networks/osm_rail/europe/"
@@ -248,6 +289,7 @@ _RAIL = "networks/osm_rail/europe/"
             None,
             {
                 "marnet.graphjson",
+                "marnet.scgraph",
                 "networks/marnet/m.scgraph",
                 "networks/marnet/manifest.json",
             },
@@ -255,7 +297,11 @@ _RAIL = "networks/osm_rail/europe/"
         (
             {"name": "marnet"},
             "m.scgraph",
-            {"marnet.graphjson", "networks/marnet/manifest.json"},
+            {
+                "marnet.graphjson",
+                "marnet.scgraph",
+                "networks/marnet/manifest.json",
+            },
         ),
         (
             {"name": "osm_rail"},

@@ -5,7 +5,7 @@ file").
 A file is an 8-byte magic `SCGRAPH1`, the length of a JSON header as a little-endian uint64,
 the header, then little-endian arrays at the offsets the header gives, each aligned to 64
 bytes. Arcs are stored by origin (CSR): the arcs of node `u` are `heads[offsets[u]:
-offsets[u + 1]]`, sorted by head, with their `weights`.
+offsets[u + 1]]`, in the order of the graph's dict, with their `weights`.
 """
 
 import hashlib
@@ -52,7 +52,9 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
             and origin < len(intermediate_nodes)
             else {}
         )
-        for head in sorted(row):
+        # In the graph's order, so that a search on the file visits the arcs in the same
+        # order, and returns the same path where two have the same length
+        for head in row:
             heads.append(head)
             weights.append(row[head])
             symmetric = symmetric and graph[head].get(origin) == row[head]
