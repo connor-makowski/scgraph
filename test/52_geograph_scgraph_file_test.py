@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -47,6 +48,24 @@ def test_save_as_scgraph_flags_symmetric_graphs(tmp_path):
     assert network_file.read(path)[1]["symmetric"] is True
 
 
+def test_save_as_scgraph_records_the_sha256_of_the_arrays(tmp_path):
+    # The identity of the network: every byte after the 4 KB header
+    path = tmp_path / "small.scgraph"
+    _small().save_as_scgraph(str(path))
+    assert (
+        network_file.read(str(path))[1]["content_sha256"]
+        == hashlib.sha256(path.read_bytes()[4096:]).hexdigest()
+    )
+
+
+def test_load_from_scgraph_reads_a_file_without_content_sha256(tmp_path):
+    # As written by an earlier version or another tool
+    path = tmp_path / "small.scgraph"
+    _small().save_as_scgraph(str(path))
+    path.write_bytes(_damage(path.read_bytes(), "without content_sha256"))
+    assert GeoGraph.load_from_scgraph(str(path)).graph_object.graph == _GRAPH
+
+
 def test_save_as_scgraph_leaves_the_previous_file_whole_when_it_fails(
     tmp_path, monkeypatch
 ):
@@ -89,6 +108,8 @@ def _damage(data, how):
         return b'{"type": "GeoGraph"}'
     if how == "later version":
         header["format_version"] = 2
+    if how == "without content_sha256":
+        del header["content_sha256"]
     if how == "header without arrays":
         del header["arrays"]
     if how == "header is not an object":

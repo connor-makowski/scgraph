@@ -8,6 +8,7 @@ bytes. Arcs are stored by origin (CSR): the arcs of node `u` are `heads[offsets[
 offsets[u + 1]]`, sorted by head, with their `weights`.
 """
 
+import hashlib
 import json
 import os
 import secrets
@@ -33,7 +34,10 @@ _HEADER_END = 4096  # arrays start on a page boundary
 
 def write(filename, graph, nodes, intermediate_nodes, metadata):
     """Write a graph (list of dicts), its [lat, lon] nodes, the shapes of its arcs (or
-    None) and a JSON-serializable metadata dict."""
+    None) and a JSON-serializable metadata dict. The header records the SHA-256 of the
+    bytes after it (the arrays) as `content_sha256`, the identity of the network, which is
+    returned.
+    """
     offsets, heads, weights = array("i", [0]), array("i"), array("d")
     shape_offsets, points = array("q", [0]), array("d")
     symmetric = True
@@ -66,6 +70,8 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
     header = {
         "format_version": VERSION,
         "spec": SPEC,
+        # Same length as the digest, written once the arrays are
+        "content_sha256": "0" * 64,
         "arrays": {},
         "metadata": {**metadata, "symmetric": symmetric},
     }
@@ -92,21 +98,30 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
     file = open(temporary, "xb")
     try:
         with file:
+            content = hashlib.sha256()
+            file.seek(_HEADER_END)
+            for name, values in arrays.items():
+                padding = bytes(header["arrays"][name]["offset"] - file.tell())
+                for chunk in (padding, _little_endian(values).tobytes()):
+                    file.write(chunk)
+                    content.update(chunk)
+            header["content_sha256"] = content.hexdigest()
+            file.seek(0)
             file.write(MAGIC)
             file.write((_HEADER_END - 16).to_bytes(8, "little"))
-            file.write(text.ljust(_HEADER_END - 16))
-            for name, values in arrays.items():
-                file.seek(header["arrays"][name]["offset"])
-                file.write(_little_endian(values).tobytes())
+            file.write(json.dumps(header).encode().ljust(_HEADER_END - 16))
         os.replace(temporary, filename)
     except BaseException:
         os.unlink(temporary)
         raise
+    return header["content_sha256"]
 
 
 def read(filename):
     """Return the arrays (by name) and the metadata of a network file, after checking that
-    they describe a valid graph; a damaged or foreign file raises a ValueError.
+    they describe a valid graph; a damaged or foreign file raises a ValueError. The
+    metadata also holds the header's `content_sha256`, if the file has one (files written
+    by other tools may not).
     """
     try:
         with open(filename, "rb") as file:
@@ -149,7 +164,10 @@ def _read(filename, file):
         file.seek(start)
         values.fromfile(file, count)
         arrays[name] = _little_endian(values)
-    return arrays, dict(header["metadata"])
+    metadata = dict(header["metadata"])
+    if "content_sha256" in header:
+        metadata["content_sha256"] = header["content_sha256"]
+    return arrays, metadata
 
 
 def shapes(arrays):
