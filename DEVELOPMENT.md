@@ -79,6 +79,8 @@ Dev dependencies are declared in `[project.optional-dependencies] dev` in `pypro
 
 **Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`.
 
+- **Before/after numbers in a PR**: run the same script with an environment of each version (base and head, installed with `--no-editable`), five rounds alternating the two, on the sections the change touches (`--only <sections>`, listed in the script header), then `--compare`. Use the backend whose code changed (C++ build or `SCGRAPH_NO_BUILD=1`). Commands and reporting rule in the header of `utils/bench.py`.
+
 **Docs**: **DO NOT generate docs**. Docs are regenerated and versioned at release time by the user only.
 
 ---
@@ -227,6 +229,7 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 - Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`.
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
+- A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/bench.py` on the sections it touches, against its target branch (see *Benchmarks* above).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR).
 - Only the owner merges `dev` into `main` and releases.
