@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 
@@ -116,3 +117,63 @@ def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
         GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
     # A later load would take any file named marnet.graphjson for the network
     assert list(tmp_path.iterdir()) == []
+
+
+# local_files_only=True, or SCGRAPH_OFFLINE=1 unless the argument says otherwise
+@pytest.mark.parametrize(
+    "environment, options, offline",
+    [
+        (None, {"local_files_only": True}, True),
+        ("1", {}, True),
+        ("1", {"local_files_only": False}, False),
+    ],
+)
+def test_load_geograph_downloads_nothing_with_local_files_only(
+    tmp_path, monkeypatch, environment, options, offline
+):
+    class Response:
+        status_code, ok = 200, True
+        content = json.dumps(
+            {"type": "GeoGraph", "graph": [{}], "nodes": [[0, 0]]}
+        ).encode()
+
+    requested = []
+    monkeypatch.setattr(
+        geograph.requests,
+        "get",
+        lambda url, **kwargs: requested.append(url) or Response(),
+    )
+    monkeypatch.delenv("SCGRAPH_OFFLINE", raising=False)
+    if environment:
+        monkeypatch.setenv("SCGRAPH_OFFLINE", environment)
+    if offline:
+        with pytest.raises(FileNotFoundError, match="local_files_only"):
+            GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path), **options)
+        GeoGraph(graph=[{}], nodes=[[0, 0]]).save_as_graphjson(
+            str(tmp_path / "marnet.graphjson")
+        )
+    geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path), **options)
+    assert len(geo.nodes) == 1
+    assert len(requested) == (0 if offline else 1)
+
+
+def test_list_geographs_reads_contents_txt_only_for_another_url(
+    tmp_path, monkeypatch
+):
+    class Response:
+        ok, text = True, "mine.graphjson\nREADME.md\n"
+
+    requested = []
+    monkeypatch.setattr(
+        geograph.requests,
+        "get",
+        lambda url, **kwargs: requested.append(url) or Response(),
+    )
+    # The published geographs are a fixed list: no request
+    GeoGraph.list_geographs(cache_dir=str(tmp_path))
+    assert requested == []
+    mirror = GeoGraph.list_geographs(
+        cache_dir=str(tmp_path), geograph_url="https://example.org/geographs/"
+    )
+    assert [g["name"] for g in mirror] == ["mine"]
+    assert requested == ["https://example.org/geographs/contents.txt"]
