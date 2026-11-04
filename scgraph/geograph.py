@@ -28,6 +28,23 @@ from scgraph import Graph
 logger = logging.getLogger(__name__)
 
 
+def _names_a_file(manifest_file: Path) -> bool:
+    # A built network counts as cached only if the file its manifest names is there
+    try:
+        name = Path(json.loads(manifest_file.read_text())["file"]).name
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return manifest_file.parent.joinpath(name).is_file()
+
+
+# Written in networks/ of the cache: backup and archiving tools skip a tagged directory
+_CACHEDIR_TAG = (
+    "Signature: 8a477f597d28d172789f06886806bc55\n"
+    "# This file is a cache directory tag created by scgraph."
+    " For information about cache directory tags, see https://bford.info/cachedir/\n"
+)
+
+
 # The built-in geographs published for load_geograph (contents.txt of the geograph URL); they are
 # no longer updated
 _PUBLISHED_GEOGRAPHS = (
@@ -171,6 +188,7 @@ class GeoGraphIO:
                 - Stored as: 'custom.graphjson'
                     - In your current directory
             - Note: The filename must end with .graphjson
+            - Note: A file inside the `networks/` folder of the cache directory (`build_geograph`'s) raises a ValueError: save it elsewhere
 
         Optional Arguments:
 
@@ -181,6 +199,12 @@ class GeoGraphIO:
         """
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
+        # A cached network must stay the one its manifest describes
+        built = resolve_cache_dir().joinpath("networks").resolve()
+        if Path(filename).resolve().is_relative_to(built):
+            raise ValueError(
+                f"{filename} is in scgraph's cache ({built}); save it elsewhere"
+            )
         extra_kwargs = {}
         if self.intermediate_nodes is not None and save_intermediate_nodes:
             extra_kwargs["intermediate_nodes"] = self.intermediate_nodes
@@ -203,7 +227,7 @@ class GeoGraphIO:
         filename: str,
         save_intermediate_nodes: bool = True,
         sources: list[dict] | None = None,
-    ) -> None:
+    ) -> str:
         """
         Function:
 
@@ -217,6 +241,7 @@ class GeoGraphIO:
             - Type: str
             - What: The filename to save the network file as
             - Note: The filename must end with .scgraph
+            - Note: A file inside the `networks/` folder of the cache directory (`build_geograph`'s) raises a ValueError: save it elsewhere
 
         Optional Arguments:
 
@@ -228,10 +253,20 @@ class GeoGraphIO:
             - Type: list[dict] | None
             - What: Where the data comes from, stored in the file header so that it travels with the file: for each source, for example its `url`, `credit` and `license` (as `build_geograph` records them)
             - Default: None
+
+        Returns:
+
+        - The `content_sha256` of the file: the SHA-256 of its arrays, also recorded in its header
         """
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
-        network_file.write(
+        # A cached network must stay the one its manifest describes
+        built = resolve_cache_dir().joinpath("networks").resolve()
+        if Path(filename).resolve().is_relative_to(built):
+            raise ValueError(
+                f"{filename} is in scgraph's cache ({built}); save it elsewhere"
+            )
+        return network_file.write(
             filename,
             graph=self.graph_object.unreduced_graph,
             nodes=self.nodes,
@@ -764,7 +799,7 @@ class GeoGraphIO:
         """
         Function:
 
-        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded and the networks `build_geograph` built (under `downloads/`)
+        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded and the networks `build_geograph` built (under `networks/`)
         - Other files in the directory are kept; the directory itself is removed if nothing else is left in it
 
         Optional Arguments:
@@ -782,7 +817,11 @@ class GeoGraphIO:
         # user's own files; then the folder itself if nothing else is left
         for name in _PUBLISHED_GEOGRAPHS:
             cache_path.joinpath(f"{name}.graphjson").unlink(missing_ok=True)
-        shutil.rmtree(cache_path.joinpath("downloads"), ignore_errors=True)
+        shutil.rmtree(cache_path.joinpath("networks"), ignore_errors=True)
+        for work in cache_path.glob(
+            ".building-*"
+        ):  # left by interrupted builds
+            shutil.rmtree(work, ignore_errors=True)
         if cache_path.is_dir() and not any(cache_path.iterdir()):
             cache_path.rmdir()
 
@@ -853,7 +892,7 @@ class GeoGraphIO:
 
         - `ValueError` for an unknown name, a missing or invalid region, or a region Geofabrik does not have, before any large download
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
-        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; nothing is left in the cache
+        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; no file of the build is left in the cache
         """
         if lazy:
             return LazyGeoGraph(
@@ -889,31 +928,37 @@ class GeoGraphIO:
             r"[a-z0-9-]+(/[a-z0-9-]+)*", region
         ):
             raise ValueError(f"Invalid region '{region}': {where}")
-        folder = resolve_cache_dir(cache_dir).joinpath(
-            "downloads", name, region or ""
-        )
-        cached_file = folder.joinpath(f"{name}.scgraph")
-        manifest_file = folder.joinpath(f"{name}.manifest.json")
+        cache = resolve_cache_dir(cache_dir)
+        folder = cache.joinpath("networks", name, region or "")
+        manifest_file = folder.joinpath("manifest.json")
+        # The manifest names the network file, which is named by its content
         try:
             manifest = json.loads(manifest_file.read_text())
             built_by = manifest["build_version"], manifest["format_version"]
+            # Only a name: the file removed by a rebuild is never outside the entry
+            cached_file = folder.joinpath(Path(manifest["file"]).name)
         except (OSError, ValueError, KeyError, TypeError):
-            built_by = None
+            built_by, cached_file = None, None
         current = network.VERSION, network_file.VERSION
-        if cached_file.exists() and built_by != current:
+        cached = cached_file is not None and cached_file.is_file()
+        if cached and built_by != current:
             logger.warning(
                 "The cached %s was built by another version of its build script "
                 "or file format; building it again",
                 name,
             )
-        if not cached_file.exists() or built_by != current:
-            folder.mkdir(parents=True, exist_ok=True)
+        if not cached or built_by != current:
+            # The tag goes in networks/, scgraph's own folder: a cache_dir given by the user
+            # may hold other files, which backups must not skip
+            cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
+            cache.joinpath("networks", "CACHEDIR.TAG").write_text(_CACHEDIR_TAG)
             downloaded = datetime.now(timezone.utc).isoformat(
                 timespec="seconds"
             )
             files, sources = {}, []
-            # One folder per build, so that builds in parallel do not share files
-            work = Path(tempfile.mkdtemp(prefix=".building-", dir=folder))
+            # One folder per build, so that builds in parallel do not share files; at the
+            # root of the cache, outside `networks/`, where no GeoGraph may be saved
+            work = Path(tempfile.mkdtemp(prefix=".building-", dir=cache))
             building = work.joinpath(f"{name}.scgraph")
             try:
                 for source, about in network.SOURCES.items():
@@ -956,7 +1001,10 @@ class GeoGraphIO:
                 geograph, details = (
                     built if isinstance(built, tuple) else (built, {})
                 )
-                geograph.save_as_scgraph(str(building), sources=sources)
+                digest = geograph.save_as_scgraph(
+                    str(building), sources=sources
+                )
+                built_file = folder.joinpath(f"{digest}.scgraph")
                 work.joinpath("manifest.json").write_text(
                     json.dumps(
                         {
@@ -967,15 +1015,23 @@ class GeoGraphIO:
                             "scgraph": GeoGraph.__scgraph_version__(),
                             "build_version": network.VERSION,
                             "format_version": network_file.VERSION,
+                            "file": built_file.name,
                             **details,
                         },
                         indent=2,
                     )
                 )
-                # The manifest appears last: a network file counts as built only once
-                # its manifest names the versions of the build script and file format
-                building.replace(cached_file)
+                # The manifest appears last, so that it always names a whole file and
+                # the versions of the build script and file format that wrote it
+                folder.mkdir(parents=True, exist_ok=True)
+                building.replace(built_file)
                 work.joinpath("manifest.json").replace(manifest_file)
+                if cached_file is not None and cached_file != built_file:
+                    try:
+                        cached_file.unlink(missing_ok=True)
+                    except OSError:  # still open (Windows): left as an orphan
+                        pass
+                cached_file = built_file
                 logger.info(
                     "Built %s. Credit: %s (%s)",
                     name,
@@ -1026,7 +1082,7 @@ class GeoGraphIO:
         """
         from scgraph import networks
 
-        root = resolve_cache_dir(cache_dir).joinpath("downloads")
+        root = resolve_cache_dir(cache_dir).joinpath("networks")
         listing = []
         for name in networks.NAMES:
             network = importlib.import_module(f"scgraph.networks.{name}")
@@ -1035,14 +1091,8 @@ class GeoGraphIO:
                 for source in network.SOURCES.values()
             )
             folder = root.joinpath(name)
-            # Not the work folders (.building-*) of builds in progress or interrupted
             built = [
-                path
-                for path in folder.rglob(f"{name}.scgraph")
-                if not any(
-                    part.startswith(".")
-                    for part in path.relative_to(folder).parts
-                )
+                m for m in folder.rglob("manifest.json") if _names_a_file(m)
             ]
             listing.append(
                 {

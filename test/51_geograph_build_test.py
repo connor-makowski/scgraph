@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import threading
 import typing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -93,8 +94,9 @@ def source(monkeypatch):
     server.server_close()
 
 
-# A new version of the build script or of the file format builds the network again
-@pytest.mark.parametrize("versioned", [marnet, network_file])
+# A new version of the build script or of the file format, or a missing network file
+# (None), builds the network again
+@pytest.mark.parametrize("versioned", [marnet, network_file, None])
 def test_build_geograph_builds_once_per_version_and_records_the_source(
     tmp_path, source, monkeypatch, versioned
 ):
@@ -104,15 +106,10 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     geo = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     again = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     assert _Source.served == ["/lines.geojson"]  # the second call is local
-    monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
-    GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
-    GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
-    assert _Source.served == ["/lines.geojson"] * 2  # built again once
     assert len(geo.nodes) == 4
     assert again.graph_object.graph == geo.graph_object.graph
-    manifest = json.loads(
-        (tmp_path / "downloads" / "marnet" / "marnet.manifest.json").read_text()
-    )
+    folder = tmp_path / "networks" / "marnet"
+    manifest = json.loads((folder / "manifest.json").read_text())
     assert manifest["build_version"] == marnet.VERSION
     assert manifest["sources"] == [
         {
@@ -125,12 +122,33 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
             "license_url": marnet.SOURCES["lines"]["license_url"],
         }
     ]
-    cached = tmp_path / "downloads" / "marnet" / "marnet.scgraph"
+    cached = folder / manifest["file"]
     assert network_file.read(str(cached))[1]["sources"] == manifest["sources"]
-    # What a killed build leaves behind is not a cached network
-    leftover = tmp_path / "downloads" / "us_freeway" / ".building-x"
-    leftover.mkdir(parents=True)
-    (leftover / "us_freeway.scgraph").write_text("{}")
+    # The source has changed since: the new build replaces the cached network
+    monkeypatch.setitem(
+        _FILES, "/lines.geojson", _GEOJSON.replace(b"0.02", b"0.03")
+    )
+    if versioned is None:
+        cached.unlink()
+        listing = GeoGraph.list_downloadable_geographs(str(tmp_path))
+        assert not next(n for n in listing if n["name"] == "marnet")["cached"]
+    else:
+        monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
+    rebuilt = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
+    GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
+    assert _Source.served == ["/lines.geojson"] * 2  # built again once
+    assert rebuilt.nodes != geo.nodes
+    # One network file is left, named by its content, and the manifest names it
+    name = json.loads((folder / "manifest.json").read_text())["file"]
+    content = (folder / name).read_bytes()[4096:]
+    assert name == hashlib.sha256(content).hexdigest() + ".scgraph"
+    assert {p.name for p in folder.iterdir()} == {"manifest.json", name}
+    # Backup tools skip the cache
+    assert (
+        (tmp_path / "networks" / "CACHEDIR.TAG")
+        .read_text()
+        .startswith("Signature: 8a477f597d28d172789f06886806bc55")
+    )
     listing = {
         n["name"]: n
         for n in GeoGraph.list_downloadable_geographs(str(tmp_path))
@@ -175,7 +193,7 @@ def test_build_geograph_leaves_nothing_after_a_failed_build(
         patch.setattr(marnet, "build", broken)
         with pytest.raises(RuntimeError):
             GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
-    assert not any((tmp_path / "downloads" / "marnet").iterdir())
+    assert [p.name for p in tmp_path.rglob("*")] == ["networks", "CACHEDIR.TAG"]
     GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))  # built now
     assert _Source.served == ["/lines.geojson"] * 2
 
@@ -211,10 +229,8 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
         region="roads",
         cache_dir=str(tmp_path),
     )
-    folder = tmp_path / "downloads" / "osm_main_roads_and_marnet" / "roads"
-    manifest = json.loads(
-        (folder / "osm_main_roads_and_marnet.manifest.json").read_text()
-    )
+    folder = tmp_path / "networks" / "osm_main_roads_and_marnet" / "roads"
+    manifest = json.loads((folder / "manifest.json").read_text())
     # Nodes by mode: 2 road nodes, the near port, 2 sea nodes
     assert manifest["node_modes"] == {
         "road": [0, 2],
@@ -245,4 +261,22 @@ def test_build_geograph_checks_its_arguments_before_downloading(
     monkeypatch.setattr("requests.get", None)  # any download fails at once
     with pytest.raises(ValueError, match=message):
         GeoGraph.build_geograph(name, region=region, cache_dir=str(tmp_path))
-    assert not (tmp_path / "downloads").exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+# Saving elsewhere, in the cache directory itself included, is allowed
+@pytest.mark.parametrize("extension", ["scgraph", "graphjson"])
+def test_saving_into_the_built_networks_of_the_cache_is_refused(
+    tmp_path, monkeypatch, extension
+):
+    monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(tmp_path))
+    geo = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
+    save = getattr(geo, f"save_as_{extension}")
+    target = tmp_path / "networks" / "marnet" / f"edited.{extension}"
+    target.parent.mkdir(parents=True)
+    with pytest.raises(ValueError, match=re.escape(str(target))):
+        save(str(target))
+    save(str(tmp_path / f"edited.{extension}"))
+    assert [p.name for p in tmp_path.rglob("edited.*")] == [
+        f"edited.{extension}"
+    ]

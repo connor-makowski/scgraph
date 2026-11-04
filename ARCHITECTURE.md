@@ -173,10 +173,18 @@ when the number of nodes changes. In-place edits of `nodes` are not detected.
 They are rebuilt only when asked for again (`reduce()` must be called again). Downloaded
 built-in networks and networks built by `build_geograph` stay on disk until
 `clear_geograph_cache`. A built network is not rebuilt when its source changes, but it is
-when its manifest names another `VERSION` of its build script or of the file format. Each
-build works in its own `.building-*` folder, then moves the network file and then the
-manifest into place. A `.scgraph` file is written next to its target and then moved onto
-it, so a failed save leaves the previous file whole.
+when its manifest names another `VERSION` of its build script or of the file format, or a
+file that is missing. A built network lives in `networks/<name>/<region>/` of the cache: a
+file named by its content (`<content_sha256>.scgraph`, §7) and a `manifest.json` that names
+it. Each build works in its own `.building-*` folder at the root of the cache, then moves
+the network file and then the manifest into place (`os.replace`), so a manifest always
+names a whole file; the old file is removed last, or stays as an orphan if it cannot be
+(Windows, still open). Two builds of one network can run at once: the last manifest wins.
+`save_as_scgraph` and `save_as_graphjson` refuse a target under `networks/` of the cache
+directory, so that a cached file always matches its manifest. Whenever scgraph writes into
+the cache, it writes a `CACHEDIR.TAG` at its root (https://bford.info/cachedir/). A
+`.scgraph` file is written next to its target and then moved onto it, so a failed save
+leaves the previous file whole.
 
 For how to use each cache, see the README:
 [cached queries](README.md#cached-queries-same-origin-many-destinations),
@@ -197,7 +205,10 @@ directly from the arrays.
 | 16– | header: UTF-8 JSON, padded with spaces up to byte 4096 |
 | 4096– | arrays, little-endian, each starting at a multiple of 64 bytes |
 
-The header gives `format_version` (1), `spec` (a link to this section), `arrays` (for each
+The header gives `format_version` (1), `spec` (a link to this section), `content_sha256`
+(the SHA-256 of the bytes from 4096 to the end of the file, the arrays and the zeros
+between them: the identity of the network; it does not cover the header, and files from
+other writers may lack it), `arrays` (for each
 array: `dtype`, `shape` and `offset` from the start of the file) and `metadata`: `crs`
 (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
@@ -214,6 +225,6 @@ when every arc has a reverse arc of the same weight); and, when known, `sources`
 
 The reader checks the magic, the version, that every array lies inside the file, and that
 the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1),
-and raises a `ValueError` otherwise. The writer sorts the heads of each row and writes each arc once; the reader does not check it. It ignores arrays it does not know, so later versions
+and raises a `ValueError` otherwise. The writer sorts the heads of each row and writes each arc once; the reader does not check it. It ignores header keys and arrays it does not know, so later versions
 can add optional arrays (for example the mode of each arc) that older readers skip.
 

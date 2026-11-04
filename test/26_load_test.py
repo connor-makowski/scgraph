@@ -78,10 +78,11 @@ def test_cache_directory_is_cache_dir_else_the_environment_variable(
         GeoGraph(graph=graph, nodes=nodes).save_as_graphjson(
             str(folder / "marnet.graphjson")
         )
-    (shared / "downloads" / "us_freeway").mkdir(parents=True)
-    (shared / "downloads" / "us_freeway" / "us_freeway.scgraph").write_bytes(
-        b""
+    (shared / "networks" / "us_freeway").mkdir(parents=True)
+    (shared / "networks" / "us_freeway" / "manifest.json").write_text(
+        '{"file": "built.scgraph"}'
     )
+    (shared / "networks" / "us_freeway" / "built.scgraph").write_bytes(b"")
     assert len(GeoGraph.load_geograph("marnet").nodes) == 2
     assert len(GeoGraph.load_geograph("marnet", cache_dir=str(mine)).nodes) == 3
     listing = {n["name"]: n for n in GeoGraph.list_downloadable_geographs()}
