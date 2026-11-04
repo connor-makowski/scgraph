@@ -222,7 +222,7 @@ class GeoGraphIO:
                 {
                     "type": "GeoGraph",
                     "graph": self.graph_object.unreduced_graph,
-                    "nodes": self.nodes,
+                    "nodes": list(self.nodes),
                     "default_off_graph_circuity": self.default_off_graph_circuity,
                     "default_node_addition_circuity": self.default_node_addition_circuity,
                     "geograph_units": self.geograph_units,
@@ -595,7 +595,8 @@ class GeoGraphIO:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
         - The file is checked before use: a damaged or foreign file raises a ValueError
-        - In the C++ build, the file is mapped and read in place while the graph is alive (until its first edit); on Windows it can't be replaced or deleted meanwhile
+        - In the C++ build, the file is mapped and read in place while the geograph is alive; on Windows it can't be replaced or deleted meanwhile
+        - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
 
         Required Arguments:
 
@@ -636,12 +637,9 @@ class GeoGraphIO:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
             graph=graph,
-            nodes=[
-                [latitude, longitude]
-                for latitude, longitude in zip(
-                    arrays["latitudes"], arrays["longitudes"]
-                )
-            ],
+            nodes=network_file.NodeCoordinates(
+                arrays["latitudes"], arrays["longitudes"]
+            ),
             intermediate_nodes=network_file.shapes(arrays),
             default_off_graph_circuity=metadata.get(
                 "default_off_graph_circuity", 1
@@ -2649,7 +2647,12 @@ class GeoGraph(
         # keeps the index of the networks before the merge while it connects them); direct
         # edits of nodes are not detected
         if self.__snap_index__ is None:
-            self.__snap_index__ = SnapIndex(self.nodes)
+            nodes = self.nodes
+            self.__snap_index__ = (
+                SnapIndex.from_arrays(*nodes.arrays())
+                if isinstance(nodes, network_file.NodeCoordinates)
+                else SnapIndex(nodes)
+            )
         return self.__snap_index__
 
     @snap_index.setter
@@ -2739,7 +2742,9 @@ class GeoGraph(
 
         - None
         """
-        assert isinstance(self.nodes, list), "Your nodes must be a dictionary"
+        assert isinstance(
+            self.nodes, (list, network_file.NodeCoordinates)
+        ), "Your nodes must be a list"
         assert all(
             [isinstance(i, list) for i in self.nodes]
         ), "Your nodes must be a list of lists"

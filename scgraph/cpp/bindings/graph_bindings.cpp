@@ -162,6 +162,13 @@ NB_MODULE(cpp, m) {
             }
             new (self) SnapIndex(std::move(latitudes), std::move(longitudes));
         }, nb::arg("points"), "Index the points, a sequence of [latitude, longitude] in degrees")
+        .def_static("from_arrays", [](CsrDoubles latitudes, CsrDoubles longitudes) {
+            const double* la = latitudes.data();
+            const double* lo = longitudes.data();
+            return SnapIndex(std::vector<double>(la, la + latitudes.shape(0)),
+                             std::vector<double>(lo, lo + longitudes.shape(0)));
+        }, nb::arg("latitudes"), nb::arg("longitudes"),
+           "The same index, from two float64 arrays of degrees (read without a Python object per node)")
         .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             return self.closest_idx(la, lo);

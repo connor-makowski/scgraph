@@ -135,6 +135,40 @@ def test_load_from_scgraph_keeps_the_original_graph_after_reduction(tmp_path):
     assert loaded.graph == chain
 
 
+def test_nodes_read_from_a_network_file_behave_as_a_list(tmp_path):
+    # nodes reads the file's coordinate arrays: each edit, done on a list too, gives the
+    # same nodes, and snapping sees the added nodes
+    path = str(tmp_path / "small.scgraph")
+    _small().save_as_scgraph(path)
+    for edit in (
+        lambda n: n.__setitem__(-1, [4.0, 4.0]),
+        lambda n: n.pop(),
+        lambda n: n.extend([[5.0, 5.0], [6.0, 6.0]]),
+        lambda n: n.__setitem__(1, [7.0, 7.0]),
+        lambda n: n.insert(0, [8.0, 8.0]),
+        lambda n: n.__delitem__(slice(2, 4)),
+    ):
+        nodes = GeoGraph.load_from_scgraph(path).nodes
+        expected = [list(node) for node in _NODES]
+        for n in (nodes, expected):
+            n.append([3.0, 3.0])
+            edit(n)
+        assert (nodes, nodes[-1], nodes[1:3]) == (
+            expected,
+            expected[-1],
+            expected[1:3],
+        )
+    loaded = GeoGraph.load_from_scgraph(path)
+    loaded.add_coord_node({"latitude": 9.0, "longitude": 9.0}, auto_edge=False)
+    assert loaded.snap_index.closest_idx([8.9, 8.9]) == len(_NODES)
+    graphjson = str(tmp_path / "small.graphjson")
+    loaded.save_as_graphjson(graphjson)
+    assert GeoGraph.load_from_graphjson(graphjson).nodes == [
+        *_NODES,
+        [9.0, 9.0],
+    ]
+
+
 def test_save_as_scgraph_over_a_file_in_use(tmp_path):
     # The C++ graph reads its file in place: replacing the file leaves the open graph
     # whole (Linux, macOS), or is refused (Windows does not replace a mapped file)
