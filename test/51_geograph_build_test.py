@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-from scgraph import GeoGraph, networks
+from scgraph import GeoGraph, network_file, networks
 from scgraph.networks import marnet, north_america_rail, osm_main_roads
 
 # Two lines meeting at (0.01, 0): 4 nodes
@@ -69,8 +69,10 @@ def source(monkeypatch):
     server.server_close()
 
 
-def test_build_geograph_builds_once_per_script_version_and_records_the_source(
-    tmp_path, source, monkeypatch
+# A new version of the build script or of the file format builds the network again
+@pytest.mark.parametrize("versioned", [marnet, network_file])
+def test_build_geograph_builds_once_per_version_and_records_the_source(
+    tmp_path, source, monkeypatch, versioned
 ):
     monkeypatch.setitem(
         marnet.SOURCES["lines"], "url", f"{source}/lines.geojson"
@@ -78,7 +80,7 @@ def test_build_geograph_builds_once_per_script_version_and_records_the_source(
     geo = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     again = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     assert _Source.served == ["/lines.geojson"]  # the second call is local
-    monkeypatch.setattr(marnet, "VERSION", marnet.VERSION + 1)
+    monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
     GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     assert _Source.served == ["/lines.geojson"] * 2  # built again once
@@ -99,10 +101,12 @@ def test_build_geograph_builds_once_per_script_version_and_records_the_source(
             "license_url": marnet.SOURCES["lines"]["license_url"],
         }
     ]
+    cached = tmp_path / "downloads" / "marnet" / "marnet.scgraph"
+    assert network_file.read(str(cached))[1]["sources"] == manifest["sources"]
     # What a killed build leaves behind is not a cached network
     leftover = tmp_path / "downloads" / "us_freeway" / ".building-x"
     leftover.mkdir(parents=True)
-    (leftover / "us_freeway.graphjson").write_text("{}")
+    (leftover / "us_freeway.scgraph").write_text("{}")
     listing = {
         n["name"]: n
         for n in GeoGraph.list_downloadable_geographs(str(tmp_path))

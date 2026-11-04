@@ -11,6 +11,7 @@
 #include <nanobind/stl/tuple.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/shared_ptr.h>
+#include <nanobind/stl/unique_ptr.h>
 #include <nanobind/operators.h>
 #include <string>
 #include <stdexcept>
@@ -307,6 +308,19 @@ NB_MODULE(cpp, m) {
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("radius"),
            "A* with the great-circle distance as heuristic, computed natively from node latitudes and longitudes in radians")
+
+        .def_static("from_csr", [](nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu> offsets,
+                                   nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu> heads,
+                                   nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu> weights) {
+            if (offsets.shape(0) < 1 || heads.shape(0) != weights.shape(0)) {
+                throw std::invalid_argument("expected one offset per node plus one and one weight per arc");
+            }
+            auto graph = std::make_unique<Graph>(std::vector<std::unordered_map<int, double>>{});
+            graph->load_csr(offsets.data(), heads.data(), weights.data(),
+                            (int)offsets.shape(0) - 1, (int64_t)heads.shape(0));
+            return graph;
+        }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"),
+           "Create a Graph from its arcs stored by origin (compressed sparse rows), as in a .scgraph network file")
 
         .def("bellman_ford", [](Graph& self,
                                 const NodeIdVariant& origin_id,

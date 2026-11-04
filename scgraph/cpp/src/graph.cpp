@@ -31,6 +31,29 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
     }
 }
 
+void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double* weights, int n, int64_t m) {
+    if (n < 0 || offsets[0] != 0 || offsets[n] != m) {
+        throw std::invalid_argument("offsets must start at 0 and end at the number of arcs");
+    }
+    std::vector<std::vector<std::pair<int, double>>> rows(n);
+    for (int u = 0; u < n; ++u) {
+        if (offsets[u] > offsets[u + 1]) {
+            throw std::invalid_argument("offsets must be non-decreasing");
+        }
+        rows[u].reserve(offsets[u + 1] - offsets[u]);
+        for (int32_t j = offsets[u]; j < offsets[u + 1]; ++j) {
+            if (heads[j] < 0 || heads[j] >= n) {
+                throw std::out_of_range(
+                    "Destination id " + std::to_string(heads[j]) + " at origin " +
+                    std::to_string(u) + " is not in the graph");
+            }
+            rows[u].emplace_back(heads[j], weights[j]);
+        }
+    }
+    this->graph = std::move(rows);
+    this->reset_cache();
+}
+
 // Override reset_cache
 void Graph::reset_cache() {
     GraphReducer::reset_cache();

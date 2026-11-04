@@ -355,7 +355,7 @@ print(output['length'])
 
 Key features of graph reduction:
 - **Zero inaccuracy**: Paths and lengths are guaranteed to be mathematically identical to the unreduced graph.
-- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm. 
+- **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm.
 - **Iterative reduction**: By default, `reduce()` repeats passes until a pass reduces nothing (simplifying sub-chains created after initial contraction); pass `iterations=1` for a single pass.
 
 ## Lazy Loading
@@ -493,7 +493,7 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `osm_main_roads` | Motorway, trunk and primary roads and their links of a region | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 
-Each network is kept under `downloads/` in the cache directory, with a manifest `<name>.manifest.json` (download date, scgraph and build-script versions, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script; otherwise, to download and build it again, clear the cache with `GeoGraph.clear_geograph_cache()`.
+Each network is kept under `downloads/` in the cache directory, with a manifest `<name>.manifest.json` (download date, scgraph, build-script and file-format versions, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script or the file format; otherwise, to download and build it again, clear the cache with `GeoGraph.clear_geograph_cache()`.
 
 These networks are built from the current version of their sources: they are not the built-in files, their node numbers differ and results can differ slightly from those of `load_geograph`. They also have more nodes (one at every junction and at least every 2 km); `reduce_iterations=-1` removes those that are not needed for routing.
 
@@ -641,23 +641,30 @@ michigan_roads_geograph = GeoGraph.load_from_geojson('michigan_roads_simple.geoj
 Save and reload GeoGraphs to avoid rebuilding from source data each time.
 
 ```py
-# Save to JSON (fastest reload)
-my_geograph.save_as_graphjson('my_geograph.json')
+# Save as a binary network file (fastest reload)
+my_geograph.save_as_scgraph('my_geograph.scgraph')
+# Or as JSON, also readable by older versions of scgraph
+my_geograph.save_as_graphjson('my_geograph.graphjson')
 
 # Reload later
 from scgraph import GeoGraph
-my_geograph = GeoGraph.load_from_graphjson('my_geograph.json')
+my_geograph = GeoGraph.load_from_scgraph('my_geograph.scgraph')
+my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
+
+The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file.
 
 | Method | Description |
 |---|---|
 | `save_as_geojson(filename)` | Save as GeoJSON (interoperable, larger file) |
 | `save_as_graphjson(filename)` | Save as SCGraph JSON (compact, fast reload) |
+| `save_as_scgraph(filename)` | Save as a binary network file (fastest reload) |
 | `load_geograph(name)` | Load a built-in geograph by name (cached download) |
 | `build_geograph(name, region=None)` | Download the source of a reference network, build it and keep it in the cache |
 | `list_downloadable_geographs()` | List the networks `build_geograph` builds, their credit and what is cached |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |
+| `load_from_scgraph(filename)` | Load from a binary network file |
 | `load_from_osmnx_graph(osmnx_graph)` | Load from OSMNx graph object |
 | `load_from_osm(filename)` | Load from an OpenStreetMap file (needs `pip install scgraph[osm]`) |
 

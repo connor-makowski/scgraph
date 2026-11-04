@@ -31,6 +31,7 @@ scgraph/
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
   osm.py                         # Reading OpenStreetMap files (optional dependency osmium)
+  network_file.py                # Reading and writing .scgraph network files (stdlib)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, console output
   networks/                      # Build scripts of build_geograph, one per network
@@ -106,7 +107,7 @@ For how scgraph works inside (query, graph reduction, plugging in an algorithm, 
 - Manages caching of shortest path trees and downloaded built-in networks
 - Lazy loading via `LazyGeoGraph` proxy (`lazy=True`) to defer downloads/instantiation until first use
 - Configurable reduction upon loading (`reduce_iterations=0` by default, `1` or `-1` for reduction)
-- Handles I/O: load from GeoJSON, OSMNx, OpenStreetMap files or custom format; save in multiple formats
+- Handles I/O: load from GeoJSON, OSMNx, OpenStreetMap files, graphjson or `.scgraph` network files; save in multiple formats
 - Builds reference networks from their online sources into the local cache (`build_geograph`, scripts in `networks/`)
 
 **`CHGraph`** (`contraction_hierarchies.py`) — Contraction Hierarchies:

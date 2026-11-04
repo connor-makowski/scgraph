@@ -33,6 +33,8 @@ private:
 public:
     // Constructor
     explicit Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate = false);
+    // Replace the adjacency with arcs stored by origin (CSR), as in a .scgraph file
+    void load_csr(const int32_t* offsets, const int32_t* heads, const double* weights, int n, int64_t m);
 
     // Override reset_cache to also clear ch_graph and tnr_graph
     void reset_cache() override;
