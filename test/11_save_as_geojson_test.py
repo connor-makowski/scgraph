@@ -1,6 +1,7 @@
 import json
 import os
 import pytest
+from helpers import great_circle_km
 from scgraph import GeoGraph
 
 _NODES = [
@@ -113,3 +114,24 @@ def test_load_from_geojson_keeps_coordinates_on_the_globe(
         return
     loaded = GeoGraph.load_from_geojson(str(path), silent=True)
     assert expected in loaded.nodes
+
+
+def test_load_from_geojson_lengths(tmp_path):
+    # Far from the equator and from Greenwich, where swapping latitude and longitude shows
+    path = tmp_path / "line.geojson"
+    path.write_text(
+        json.dumps(
+            {
+                "type": "GeometryCollection",
+                "geometries": [
+                    {
+                        "type": "LineString",
+                        "coordinates": [[100, 50], [101, 51]],
+                    }
+                ],
+            }
+        )
+    )
+    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+    expected = great_circle_km([50, 100], [51, 101])
+    assert loaded.graph_object.graph[0][1] == pytest.approx(expected, abs=0.001)
