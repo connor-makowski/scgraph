@@ -78,12 +78,12 @@ std::vector<std::vector<std::pair<int, double>>> GraphUtils::serialize_graph(
 }
 
 std::unordered_map<int, double> GraphUtils::get_adjacency_dict(int idx) const {
-    if (idx < 0 || idx >= static_cast<int>(graph.size())) {
+    if (idx < 0 || idx >= size()) {
         throw std::out_of_range("Index out of range");
     }
 
     std::unordered_map<int, double> result;
-    for (const auto& [dest, dist] : graph[idx]) {
+    for (const auto& [dest, dist] : graph()[idx]) {
         result[dest] = dist;
     }
     return result;
@@ -96,7 +96,7 @@ void GraphUtils::input_check(const NodeIdVariant& origin_id, const NodeIdVariant
             throw std::invalid_argument(name + " must not be empty");
         }
         for (const auto& [node, dist] : entries) {
-            if (node < 0 || node >= static_cast<int>(graph.size())) {
+            if (node < 0 || node >= size()) {
                 throw std::invalid_argument(name + " node (" + std::to_string(node) + ") is not in this graph");
             }
             if (dist < 0.0) {
@@ -136,36 +136,41 @@ void GraphUtils::cycle_check(const std::vector<int>& predecessor_matrix, int nod
 
 void GraphUtils::ensure_inverse_graph() {
     if (inverse_graph_computed) return;
-    const size_t n = graph.size();
-    inverse_graph.assign(n, {});
-    std::vector<size_t> in_degrees(n, 0);
-    for (size_t origin_id = 0; origin_id < n; ++origin_id) {
-        for (const auto& [dest_id, distance] : graph[origin_id]) {
-            if (dest_id >= 0 && static_cast<size_t>(dest_id) < n) {
-                in_degrees[dest_id]++;
+    // Counting sort of the arcs by head: each inverse row lists its origins in
+    // increasing order
+    const Adjacency& g = graph();
+    const int n = g.size();
+    std::vector<int32_t> offsets(n + 1, 0);
+    for (int origin_id = 0; origin_id < n; ++origin_id) {
+        for (const auto& [dest_id, distance] : g[origin_id]) {
+            if (dest_id >= 0 && dest_id < n) {
+                offsets[dest_id + 1]++;
             }
         }
     }
-    for (size_t i = 0; i < n; ++i) {
-        inverse_graph[i].reserve(in_degrees[i]);
+    for (int i = 0; i < n; ++i) {
+        offsets[i + 1] += offsets[i];
     }
-    for (size_t origin_id = 0; origin_id < n; ++origin_id) {
-        for (const auto& [dest_id, distance] : graph[origin_id]) {
-            if (dest_id >= 0 && static_cast<size_t>(dest_id) < n) {
-                inverse_graph[dest_id].emplace_back(static_cast<int>(origin_id), distance);
+    std::vector<int32_t> next(offsets.begin(), offsets.end() - 1);
+    std::vector<int32_t> heads(offsets[n]);
+    std::vector<double> weights(offsets[n]);
+    for (int origin_id = 0; origin_id < n; ++origin_id) {
+        for (const auto& [dest_id, distance] : g[origin_id]) {
+            if (dest_id >= 0 && dest_id < n) {
+                heads[next[dest_id]] = origin_id;
+                weights[next[dest_id]++] = distance;
             }
         }
     }
+    inverse_graph = Adjacency(std::move(offsets), std::move(heads), std::move(weights));
     inverse_graph_computed = true;
 }
 
 double GraphUtils::get_max_edge_weight() const {
     if (!max_edge_weight_computed) {
-        for (const auto& edges : graph) {
-            for (const auto& [destination_id, weight] : edges) {
-                if (weight > max_edge_weight_cache) {
-                    max_edge_weight_cache = weight;
-                }
+        for (double weight : graph().all_weights()) {
+            if (weight > max_edge_weight_cache) {
+                max_edge_weight_cache = weight;
             }
         }
         max_edge_weight_computed = true;
@@ -175,6 +180,7 @@ double GraphUtils::get_max_edge_weight() const {
 
 bool GraphUtils::connected_check(int origin_id) {
     ensure_inverse_graph();
+    const Adjacency& graph = this->graph();
 
     // Forward traversal
     std::vector<int> visited(graph.size(), 0);
@@ -211,6 +217,7 @@ bool GraphUtils::connected_check(int origin_id) {
 }
 
 bool GraphUtils::symmetric_check() const {
+    const Adjacency& graph = this->graph();
     for (size_t origin_id = 0; origin_id < graph.size(); ++origin_id) {
         for (const auto& [dest_id, distance] : graph[origin_id]) {
             bool found = false;
@@ -228,6 +235,7 @@ bool GraphUtils::symmetric_check() const {
 }
 
 void GraphUtils::validate(bool check_symmetry, bool check_connected) {
+    const Adjacency& graph = this->graph();
     size_t len_graph = graph.size();
     if (len_graph == 0) {
         throw std::invalid_argument("The provided graph must contain at least one node");
@@ -255,7 +263,7 @@ void GraphUtils::validate(bool check_symmetry, bool check_connected) {
 
 void GraphUtils::reset_cache() {
     cache.clear();
-    cache.resize(graph.size());
+    cache.resize(size());
     max_edge_weight_cache = 0.0;
     max_edge_weight_computed = false;
 }
@@ -270,7 +278,7 @@ double GraphUtils::get_path_weight(const std::vector<int>& path) const {
         int origin = path[i];
         int dest = path[i + 1];
         bool found = false;
-        for (const auto& [d, w] : graph[origin]) {
+        for (const auto& [d, w] : graph()[origin]) {
             if (d == dest) {
                 total += w;
                 found = true;
@@ -289,9 +297,9 @@ double GraphUtils::get_path_weight(const std::vector<int>& path) const {
 
 const std::vector<std::unordered_map<int, double>> GraphUtils::get_graph() const {
     std::vector<std::unordered_map<int, double>> result;
-    result.reserve(graph.size());
+    result.reserve(size());
 
-    for (size_t i = 0; i < graph.size(); ++i) {
+    for (int i = 0; i < size(); ++i) {
         result.push_back(get_adjacency_dict(i));
     }
 
@@ -316,6 +324,7 @@ int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool 
         edges.emplace_back(dest_id, distance);
     }
 
+    auto graph = rows_to_edit();
     graph.push_back(std::move(edges));
     int new_node_id = graph.size() - 1;
 
@@ -331,15 +340,16 @@ int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool 
 }
 
 void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bool symmetric) {
-    if (origin_id >= static_cast<int>(graph.size())) {
+    if (origin_id >= size()) {
         throw std::out_of_range("Origin node id is not in the graph");
     }
-    if (destination_id >= static_cast<int>(graph.size())) {
+    if (destination_id >= size()) {
         throw std::out_of_range("Destination node id is not in the graph");
     }
     if (origin_id == destination_id) {
         return;
     }
+    auto graph = rows_to_edit();
 
     bool found = false;
     for (auto& [dest, dist] : graph[origin_id]) {
@@ -372,9 +382,10 @@ void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bo
 }
 
 std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
-    if (graph.empty()) {
+    if (size() == 0) {
         throw std::runtime_error("Graph is empty, cannot remove node");
     }
+    auto graph = rows_to_edit();
 
     int node_id = graph.size() - 1;
 
@@ -390,7 +401,11 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
             );
         }
     } else {
-        for (auto& node_edges : graph) {
+        for (int u = 0; u < graph.size(); ++u) {
+            if (!graph.row_has(u, node_id)) {
+                continue;
+            }
+            auto& node_edges = graph[u];
             node_edges.erase(
                 std::remove_if(node_edges.begin(), node_edges.end(),
                     [node_id](const std::pair<int, double>& edge) {
@@ -414,12 +429,13 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
 }
 
 std::optional<double> GraphUtils::remove_edge(int origin_id, int destination_id, bool symmetric) {
-    if (origin_id >= static_cast<int>(graph.size())) {
+    if (origin_id >= size()) {
         throw std::out_of_range("Origin node id is not in the graph");
     }
-    if (destination_id >= static_cast<int>(graph.size())) {
+    if (destination_id >= size()) {
         throw std::out_of_range("Destination node id is not in the graph");
     }
+    auto graph = rows_to_edit();
 
     std::optional<double> result;
 

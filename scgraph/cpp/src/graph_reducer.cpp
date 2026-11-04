@@ -24,6 +24,7 @@ void GraphReducer::reduce(int iterations) {
         return;
     }
     this->ensure_inverse_graph();
+    const Adjacency& graph = this->graph();
 
     size_t n = graph.size();
     is_reduced.assign(n, false);
@@ -86,8 +87,8 @@ void GraphReducer::reduce(int iterations) {
                         continue;
                     }
                     bool next_to_reduced = false;
-                    for (const auto* adjacency : {&graph[u], &inverse_graph[u]}) {
-                        for (const auto& edge : *adjacency) {
+                    for (const Row& adjacency : {graph[u], inverse_graph[u]}) {
+                        for (const auto& edge : adjacency) {
                             int v = edge.first;
                             if (v >= 0 && v < (int)n && is_reduced[v]) {
                                 next_to_reduced = true;
@@ -253,8 +254,9 @@ void GraphReducer::reduce(int iterations) {
     // reduced_inverse_graph edges A -> B into reduced nodes B (whose own searches
     // would cost O(L) each on a chain of L nodes). Hidden nodes are stored as
     // pointers from these searches (see hidden_nodes).
-    reduced_graph.assign(n, std::vector<std::pair<int, double>>());
-    reduced_inverse_graph.assign(n, std::vector<std::pair<int, double>>());
+    // Built as rows, then packed (end of step 4)
+    std::vector<std::vector<std::pair<int, double>>> reduced_graph(n);
+    std::vector<std::vector<std::pair<int, double>>> reduced_inverse_graph(n);
     reduced_inverse_graph_connections.assign(n, std::vector<std::pair<int, int>>());
 
     // Search state shared by the local searches of steps 3-4:
@@ -357,12 +359,12 @@ void GraphReducer::reduce(int iterations) {
         }
     }
 
+    this->reduced_graph = Adjacency(reduced_graph);
+    this->reduced_inverse_graph = Adjacency(reduced_inverse_graph);
     has_reduced_graph = true;
-    for (const auto& edges : reduced_graph) {
-        for (const auto& [destination_id, weight] : edges) {
-            if (weight > reduced_max_edge_weight) {
-                reduced_max_edge_weight = weight;
-            }
+    for (double weight : this->reduced_graph.all_weights()) {
+        if (weight > reduced_max_edge_weight) {
+            reduced_max_edge_weight = weight;
         }
     }
 }

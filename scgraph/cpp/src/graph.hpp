@@ -19,7 +19,7 @@ private:
     // Default bucket width of the bucket algorithms (base and reduced graph), -1 until computed
     double bucket_width_cache = -1.0;
     double reduced_bucket_width_cache = -1.0;
-    double resolve_bucket_width(const std::vector<std::vector<std::pair<int, double>>>& g,
+    double resolve_bucket_width(const Adjacency& g,
                                 std::optional<double> bucket_width, double max_weight);
 
     template <typename QueryFn>
@@ -30,7 +30,7 @@ private:
         bool bidirectional = false
     );
     // Shortest path tree of get_shortest_path_tree, on the graph g
-    TreeData shortest_path_tree(const std::vector<std::vector<std::pair<int, double>>>& g,
+    TreeData shortest_path_tree(const Adjacency& g,
                                 const NodeIdVariant& origin_id) const;
 
 public:
