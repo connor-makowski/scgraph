@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -177,3 +178,130 @@ def test_list_geographs_reads_contents_txt_only_for_another_url(
     )
     assert [g["name"] for g in mirror] == ["mine"]
     assert requested == ["https://example.org/geographs/contents.txt"]
+
+
+@pytest.fixture
+def filled_cache(tmp_path):
+    """A cache holding a published geograph, built networks (osm_rail of a region and of
+    a sub-region), a manifest that names no file, a build's work folder and a user file.
+    """
+    versions = {"scgraph": "9.9", "build_version": 3, "format_version": 1}
+    files = {
+        "marnet.graphjson": b"x" * 10,
+        "notes.txt": b"x",
+        "networks/marnet/m.scgraph": b"x" * 20,
+        "networks/marnet/manifest.json": ("marnet", None, "m.scgraph"),
+        "networks/osm_rail/europe/e.scgraph": b"x" * 30,
+        "networks/osm_rail/europe/manifest.json": (
+            "osm_rail",
+            "europe",
+            "e.scgraph",
+        ),
+        "networks/osm_rail/europe/france/f.scgraph": b"x" * 40,
+        "networks/osm_rail/europe/france/manifest.json": (
+            "osm_rail",
+            "europe/france",
+            "f.scgraph",
+        ),
+        "networks/us_freeway/manifest.json": (
+            "us_freeway",
+            None,
+            "gone.scgraph",
+        ),
+        ".building-x/rail.osm.pbf": b"x" * 50,
+    }
+    for path, content in files.items():
+        (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(content, tuple):
+            keys = dict(zip(("name", "region", "file"), content), **versions)
+            content = json.dumps(keys).encode()
+        (tmp_path / path).write_bytes(content)
+    return tmp_path
+
+
+def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
+    info = GeoGraph.cache_info(str(filled_cache))
+    assert [
+        (i["kind"], i["name"], i["region"], Path(i["file"]).name, i["bytes"])
+        for i in info
+    ] == [
+        ("published", "marnet", None, "marnet.graphjson", 10),
+        ("built", "marnet", None, "m.scgraph", 20),
+        ("built", "osm_rail", "europe", "e.scgraph", 30),
+        ("built", "osm_rail", "europe/france", "f.scgraph", 40),
+        ("building", None, None, ".building-x", 50),
+    ]
+    assert info[1]["scgraph"] == "9.9" and info[1]["build_version"] == 3
+    assert info[1]["format_version"] == 1
+
+
+_RAIL = "networks/osm_rail/europe/"
+
+
+# None: a selector refused, with nothing removed. A locked file can't be removed (as on
+# Windows, a network still loaded): it is left, with a warning that names it
+@pytest.mark.parametrize(
+    "selector, locked, removed",
+    [
+        (
+            {"name": "marnet"},
+            None,
+            {
+                "marnet.graphjson",
+                "networks/marnet/m.scgraph",
+                "networks/marnet/manifest.json",
+            },
+        ),
+        (
+            {"name": "marnet"},
+            "m.scgraph",
+            {"marnet.graphjson", "networks/marnet/manifest.json"},
+        ),
+        (
+            {"name": "osm_rail"},
+            None,
+            {
+                _RAIL + "e.scgraph",
+                _RAIL + "manifest.json",
+                _RAIL + "france/f.scgraph",
+                _RAIL + "france/manifest.json",
+            },
+        ),
+        # A sub-region is an entry of its own
+        (
+            {"name": "osm_rail", "region": "europe"},
+            "e.scgraph",
+            {_RAIL + "manifest.json"},
+        ),
+        ({"name": "../networks"}, None, None),
+        ({"name": "osm_rail", "region": "../.."}, None, None),
+        ({"region": "europe"}, None, None),
+    ],
+)
+def test_clear_geograph_cache_removes_only_the_selected_network(
+    filled_cache, monkeypatch, caplog, selector, locked, removed
+):
+    def files():
+        return {
+            p.relative_to(filled_cache).as_posix()
+            for p in filled_cache.rglob("*")
+            if p.is_file()
+        }
+
+    unlink = os.unlink
+
+    def unless_locked(path, **kwargs):
+        if locked and os.fspath(path).endswith(locked):
+            raise PermissionError(f"{path} is in use")
+        unlink(path, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", unless_locked)
+    before = files()
+    if removed is None:
+        with pytest.raises(ValueError):
+            GeoGraph.clear_geograph_cache(str(filled_cache), **selector)
+    else:
+        GeoGraph.clear_geograph_cache(str(filled_cache), **selector)
+    assert before - files() == (removed or set())
+    if locked:  # named in a warning
+        assert locked in caplog.text

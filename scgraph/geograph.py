@@ -829,12 +829,19 @@ class GeoGraphIO:
         ]
 
     @staticmethod
-    def clear_geograph_cache(cache_dir: str | None = None) -> None:
+    def clear_geograph_cache(
+        cache_dir: str | None = None,
+        *,
+        name: str | None = None,
+        region: str | None = None,
+    ) -> None:
         """
         Function:
 
         - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded and the networks `build_geograph` built (under `networks/`)
+        - With `name` (and `region`), remove only that network: its built-in geograph and its built networks (of every region, or of `region` only)
         - Other files in the directory are kept; the directory itself is removed if nothing else is left in it
+        - On Windows, the files of a network still loaded in this process can't be removed: they are left in place, with a logging warning that names them, until a later clear
 
         Optional Arguments:
 
@@ -845,19 +852,137 @@ class GeoGraphIO:
                 - Linux:   ~/.cache/scgraph/
                 - macOS:   ~/Library/Caches/scgraph/
                 - Windows: %LOCALAPPDATA%\\scgraph\\
+        - `name`
+            - Type: str | None
+            - What: The network to remove, as `load_geograph` or `build_geograph` take it
+            - Default: None: every network
+        - `region`
+            - Type: str | None
+            - What: With `name`, the region of the built network to remove (its sub-regions are kept)
+            - Default: None: every region
         """
+        from scgraph import networks
+
+        if name is not None and name not in {
+            *_PUBLISHED_GEOGRAPHS,
+            *networks.NAMES,
+        }:
+            raise ValueError(f"Unknown network '{name}'")
+        if region is not None and (
+            name is None
+            or not re.fullmatch(r"[a-z0-9-]+(/[a-z0-9-]+)*", region)
+        ):
+            raise ValueError(f"Invalid region '{region}', or no name with it")
         cache_path = resolve_cache_dir(cache_dir)
+        root = cache_path.joinpath("networks")
+
+        def left(function, path, excinfo):
+            # A file still open (Windows: a network loaded in this process) stays, as
+            # an orphan that a later clear removes; its folder then stays too
+            if function is not os.rmdir:
+                logger.warning("Left %s in the cache: %s", path, excinfo[1])
+
+        def remove(path):
+            try:
+                if path.is_dir():
+                    shutil.rmtree(path, onerror=left)
+                else:
+                    path.unlink(missing_ok=True)
+            except OSError as error:
+                left(None, path, (None, error, None))
+
         # Only what scgraph writes there, so that a folder given as the cache keeps the
         # user's own files; then the folder itself if nothing else is left
-        for name in _PUBLISHED_GEOGRAPHS:
-            cache_path.joinpath(f"{name}.graphjson").unlink(missing_ok=True)
-        shutil.rmtree(cache_path.joinpath("networks"), ignore_errors=True)
-        for work in cache_path.glob(
-            ".building-*"
-        ):  # left by interrupted builds
-            shutil.rmtree(work, ignore_errors=True)
+        for published in _PUBLISHED_GEOGRAPHS:
+            if name in (None, published) and region is None:
+                remove(cache_path.joinpath(f"{published}.graphjson"))
+        if name is None:
+            remove(root)
+            for work in cache_path.glob(".building-*"):  # interrupted builds
+                remove(work)
+        elif region is None:
+            remove(root.joinpath(name))
+        else:
+            # Only this entry's files: a sub-region is an entry of its own, in a sub-folder
+            folder = root.joinpath(name, region)
+            for file in [*folder.glob("*.scgraph"), folder / "manifest.json"]:
+                remove(file)
         if cache_path.is_dir() and not any(cache_path.iterdir()):
             cache_path.rmdir()
+
+    @staticmethod
+    def cache_info(cache_dir: str | None = None) -> list[dict]:
+        """
+        Function:
+
+        - List what scgraph keeps in the local cache directory, read from disk only, without any network request
+        - Unlike `list_geographs` and `list_downloadable_geographs`, which list what can be loaded or built
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory
+            - Default: None: the `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory (as in `load_geograph`)
+
+        Returns:
+
+        - A list of dicts, one per file or folder:
+            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running or was interrupted; `clear_geograph_cache()` removes it)
+            - `name`: str | None — the network name (None for `"building"`)
+            - `region`: str | None — the region of a built network, if it has one
+            - `file`: str — the path of the file or folder
+            - `bytes`: int — its size
+            - for `"built"` only: `scgraph`, `build_version` and `format_version` — the versions of scgraph, of the network's build script and of the file format that built it
+        """
+        cache_path = resolve_cache_dir(cache_dir)
+        info = [
+            {
+                "kind": "published",
+                "name": name,
+                "region": None,
+                "file": str(file),
+                "bytes": file.stat().st_size,
+            }
+            for name in _PUBLISHED_GEOGRAPHS
+            if (file := cache_path.joinpath(f"{name}.graphjson")).is_file()
+        ]
+        for manifest_file in sorted(
+            cache_path.joinpath("networks").rglob("manifest.json"),
+            key=lambda manifest_file: manifest_file.parent,
+        ):
+            try:
+                manifest = json.loads(manifest_file.read_text())
+                file = manifest_file.parent.joinpath(
+                    Path(manifest["file"]).name
+                )
+                info.append(
+                    {
+                        "kind": "built",
+                        "name": manifest["name"],
+                        "region": manifest["region"],
+                        "file": str(file),
+                        "bytes": file.stat().st_size,
+                        "scgraph": manifest["scgraph"],
+                        "build_version": manifest["build_version"],
+                        "format_version": manifest["format_version"],
+                    }
+                )
+            except (OSError, ValueError, KeyError, TypeError):
+                continue  # names no file: not cached
+        for work in sorted(cache_path.glob(".building-*")):
+            info.append(
+                {
+                    "kind": "building",
+                    "name": None,
+                    "region": None,
+                    "file": str(work),
+                    "bytes": sum(
+                        f.stat().st_size for f in work.rglob("*") if f.is_file()
+                    ),
+                }
+            )
+        return info
 
     @staticmethod
     def build_geograph(
