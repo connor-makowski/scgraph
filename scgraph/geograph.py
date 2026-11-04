@@ -875,6 +875,7 @@ class GeoGraphIO:
         reduce_iterations: int = 0,
         lazy: bool = False,
         *,
+        refresh: bool = False,
         local_files_only: bool | None = None,
     ) -> "GeoGraph":
         """
@@ -920,6 +921,10 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay downloading or loading the geograph until its first use
             - Default: False
+        - `refresh`
+            - Type: bool
+            - What: Whether to download the sources and build the network again even if the cache holds a current build
+            - Default: False
         - `local_files_only`
             - Type: bool | None
             - What: Whether to use only the cache, without any network request
@@ -931,7 +936,7 @@ class GeoGraphIO:
 
         Raises:
 
-        - `ValueError` for an unknown name, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for a cached network of another file format
+        - `ValueError` for an unknown name, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
         - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; no file of the build is left in the cache, and a network already cached stays there
@@ -944,6 +949,7 @@ class GeoGraphIO:
                     cache_dir=cache_dir,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    refresh=refresh,
                     local_files_only=local_files_only,
                 )
             )
@@ -993,6 +999,8 @@ class GeoGraphIO:
         stale = cached and built_by != current
         offline = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
         if local_files_only:
+            if refresh:
+                raise ValueError(f"refresh=True downloads: not with {offline}")
             if not cached:
                 raise FileNotFoundError(
                     f"{name} is not in the cache ({folder}) and {offline} "
@@ -1023,7 +1031,7 @@ class GeoGraphIO:
                 "file format or node order; building it again",
                 name,
             )
-        if not local_files_only and (not cached or stale):
+        if not local_files_only and (refresh or not cached or stale):
             # The tag goes in networks/, scgraph's own folder: a cache_dir given by the user
             # may hold other files, which backups must not skip
             cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
@@ -1105,7 +1113,9 @@ class GeoGraphIO:
                 # The manifest appears last, so that it always names a whole file and
                 # the versions of the build script and file format that wrote it
                 folder.mkdir(parents=True, exist_ok=True)
-                building.replace(built_file)
+                # A file of that name has the same content, and may be open (Windows)
+                if not built_file.exists():
+                    building.replace(built_file)
                 work.joinpath("manifest.json").replace(manifest_file)
                 if cached_file is not None and cached_file != built_file:
                     try:

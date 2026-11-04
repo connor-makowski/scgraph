@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import threading
 import typing
@@ -171,12 +172,15 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
 
 # What the cache holds: nothing, a current build, or a build by another version of the
 # build script ("stale"), node order or file format; SCGRAPH_OFFLINE sets the default of
-# local_files_only. "loaded" without a download, "built" with one, "down": the source fails
+# local_files_only. "loaded" without a download, "built" with one, "down": the source fails.
+# As on Windows, a network file can't be replaced while it is open (here: any existing one)
 @pytest.mark.parametrize(
     "cached, offline, options, outcome",
     [
         (None, None, {"local_files_only": True}, FileNotFoundError),
         (None, "1", {}, FileNotFoundError),
+        ("current", None, {"refresh": True}, "built"),
+        ("current", "1", {"refresh": True}, ValueError),
         ("stale", None, {"local_files_only": True}, "loaded"),
         ("order", None, {"local_files_only": True}, "loaded"),
         ("stale", "1", {"local_files_only": False}, "built"),
@@ -191,6 +195,14 @@ def test_build_geograph_downloads_only_if_allowed(
         marnet.SOURCES["lines"], "url", f"{source}/lines.geojson"
     )
     monkeypatch.delenv("SCGRAPH_OFFLINE", raising=False)
+    replace = os.replace
+
+    def in_use(source, target, **kwargs):
+        if str(target).endswith(".scgraph") and os.path.exists(target):
+            raise PermissionError(f"{target} is open in another process")
+        replace(source, target, **kwargs)
+
+    monkeypatch.setattr(os, "replace", in_use)
     if cached:
         GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
         _Source.served.clear()

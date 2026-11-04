@@ -191,8 +191,8 @@ They are rebuilt only when asked for again (`reduce()` must be called again). Do
 built-in networks and networks built by `build_geograph` stay on disk until
 `clear_geograph_cache`. A built network is not rebuilt when its source changes, but it is
 when its manifest names another `VERSION` of its build script or of the file format, or a
-file that is missing. With `local_files_only=True` (the default when `SCGRAPH_OFFLINE=1`),
-nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
+file that is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
+default when `SCGRAPH_OFFLINE=1`), nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
 network that is not in the cache, and `build_geograph` loads a build of another build-script
 version or node order with a warning that names the field, but refuses one of another file
 format. `list_geographs` lists the published networks from a fixed list in the code, without
@@ -201,7 +201,8 @@ a request (`contents.txt` is read only for another `geograph_url`). A built netw
 file named by its content (`<content_sha256>.scgraph`, §7) and a `manifest.json` that names
 it. Each build works in its own `.building-*` folder at the root of the cache, then moves
 the network file and then the manifest into place (`os.replace`), so a manifest always
-names a whole file; the old file is removed last, or stays as an orphan if it cannot be
+names a whole file (a file of the same name has the same content and is kept: it may be
+open); the old file is removed last, or stays as an orphan if it cannot be
 (Windows, still open). Two builds of one network can run at once: the last manifest wins.
 `save_as_scgraph` and `save_as_graphjson` refuse a target under `networks/` of the cache
 directory, so that a cached file always matches its manifest. Whenever scgraph writes into
