@@ -28,7 +28,6 @@ def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
     path = str(tmp_path / "small.scgraph")
     _small().save_as_scgraph(path, save_intermediate_nodes)
     arrays, metadata = network_file.read(path)
-    assert list(arrays["heads"]) == [1, 2, 0]  # sorted within each origin
     assert metadata["symmetric"] is False
     loaded = GeoGraph.load_from_scgraph(path)
     assert loaded.graph_object.graph == _GRAPH
@@ -40,6 +39,39 @@ def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
         2,
         "mi",
     )
+
+
+# Two routes of the same length from node 0 to node 3, through 1 or through 2, with the
+# arcs in either order: a network file keeps the order searches visit them, so the file
+# and the conversion of a published .graphjson give the route the graph gave
+@pytest.mark.parametrize("first", [1, 2])
+def test_a_network_file_gives_the_same_route_where_two_tie(tmp_path, first):
+    second = 3 - first
+    geo = GeoGraph(
+        graph=[
+            {first: 1.0, second: 1.0},
+            {3: 1.0, 0: 1.0},
+            {0: 1.0, 3: 1.0},
+            {second: 1.0, first: 1.0},
+        ],
+        nodes=[[0.0, 0.0], [0.01, 0.01], [-0.01, 0.01], [0.0, 0.02]],
+    )
+
+    def route(geograph):
+        return geograph.get_shortest_path(
+            origin_node={"latitude": 0, "longitude": 0},
+            destination_node={"latitude": 0, "longitude": 0.02},
+            node_addition_type="closest",
+            destination_node_addition_type="closest",
+        )["coordinate_path"]
+
+    geo.save_as_scgraph(str(tmp_path / "tie.scgraph"))
+    geo.save_as_graphjson(str(tmp_path / "marnet.graphjson"))
+    saved = GeoGraph.load_from_scgraph(str(tmp_path / "tie.scgraph"))
+    converted = GeoGraph.load_geograph(
+        "marnet", cache_dir=str(tmp_path), local_files_only=True
+    )
+    assert route(saved) == route(converted) == route(geo)
 
 
 def test_save_as_scgraph_flags_symmetric_graphs(tmp_path):

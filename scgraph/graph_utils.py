@@ -31,6 +31,12 @@ class GraphUtils:
         """Same as `graph`."""
         return self.graph
 
+    def _arcs_by_origin(self) -> list[dict[int, int | float]]:
+        """The graph (unreduced) as a list of dicts whose keys follow the order in which
+        searches visit the arcs: `graph` itself here (the C++ backend builds it).
+        """
+        return self.graph
+
     @property
     def inverse_graph(self) -> list[dict[int, int | float]]:
         """The inverse of `graph`: every edge reversed."""

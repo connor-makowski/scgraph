@@ -74,6 +74,21 @@ static std::unique_ptr<Graph> csr_graph(CsrInts offsets, CsrInts heads, CsrDoubl
     return graph;
 }
 
+// The graph as a list of dicts whose keys follow the order of the arcs (the `graph`
+// property's dicts do not), so that a graph saved to a network file and read back visits
+// its arcs in the same order
+static nb::list graph_in_arc_order(const Graph& graph) {
+    nb::list rows;
+    for (int u = 0; u < graph.size(); ++u) {
+        nb::dict row;
+        for (const auto& [v, w] : graph.row(u)) {
+            row[nb::int_(v)] = nb::float_(w);
+        }
+        rows.append(row);
+    }
+    return rows;
+}
+
 // reduced_graph_connections or reduced_inverse_graph_connections as a list: None or
 // {b: [hidden nodes]} per node, built from the pointers (GraphReducer::hidden_nodes)
 static nb::list reduced_connections(const Graph& graph, bool inverse) {
@@ -180,6 +195,8 @@ NB_MODULE(cpp, m) {
              "Get the entire graph adjacency list")
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
              "Same as graph")
+        .def("_arcs_by_origin", &graph_in_arc_order,
+             "The graph (unreduced) as a list of dicts whose keys follow the order in which searches visit the arcs")
         .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
              "Get the inverse of the graph: every edge reversed")
         .def_prop_ro("search_graph", [](const Graph& self) -> std::vector<std::unordered_map<int, double>> {

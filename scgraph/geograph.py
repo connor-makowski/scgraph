@@ -278,7 +278,8 @@ class GeoGraphIO:
             )
         return network_file.write(
             filename,
-            graph=self.graph_object.unreduced_graph,
+            # In the order searches visit the arcs, so that the file gives the same paths
+            graph=self.graph_object._arcs_by_origin(),
             nodes=self.nodes,
             intermediate_nodes=(
                 self.intermediate_nodes if save_intermediate_nodes else None
@@ -711,6 +712,7 @@ class GeoGraphIO:
         - Load a built-in GeoGraph by name, using a local cache.
         - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
         - On subsequent calls, loads directly from cache without any network requests.
+        - The first load converts the .graphjson into a network file beside it (`<name>.scgraph`, much faster to load), which later loads read; the .graphjson is kept, and a damaged conversion is made again from it.
         - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), never downloads: a geograph that is not in the cache raises a FileNotFoundError.
 
         Required Arguments:
@@ -761,6 +763,17 @@ class GeoGraphIO:
         cache_path = resolve_cache_dir(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)
         cached_file = cache_path.joinpath(f"{name}.graphjson")
+        # Converted once into a network file beside it, which every later load reads
+        converted = cache_path.joinpath(f"{name}.scgraph")
+        if converted.exists():
+            try:
+                return GeoGraph.load_from_scgraph(
+                    str(converted),
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            except ValueError:  # damaged, or another format: converted again
+                pass
         if not cached_file.exists():
             if local_files_only:
                 raise FileNotFoundError(
@@ -770,8 +783,16 @@ class GeoGraphIO:
             GeoGraph.__fetch_geograph_to_cache__(
                 name, cached_file, geograph_url
             )
-        return GeoGraph.load_from_graphjson(
-            str(cached_file), reduce_iterations=reduce_iterations, lazy=False
+        geograph = GeoGraph.load_from_graphjson(str(cached_file))
+        try:
+            geograph.save_as_scgraph(str(converted))
+        except OSError:
+            # A cache that can't be written: the .graphjson is read at every load
+            geograph.graph_object.reduce(reduce_iterations)
+            return geograph
+        del geograph  # one copy of the network in memory at a time
+        return GeoGraph.load_from_scgraph(
+            str(converted), reduce_iterations=reduce_iterations, lazy=False
         )
 
     @staticmethod
@@ -838,7 +859,7 @@ class GeoGraphIO:
         """
         Function:
 
-        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded and the networks `build_geograph` built (under `networks/`)
+        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded (and their `.scgraph` conversions) and the networks `build_geograph` built (under `networks/`)
         - With `name` (and `region`), remove only that network: its built-in geograph and its built networks (of every region, or of `region` only)
         - Other files in the directory are kept; the directory itself is removed if nothing else is left in it
         - On Windows, the files of a network still loaded in this process can't be removed: they are left in place, with a logging warning that names them, until a later clear
@@ -895,7 +916,8 @@ class GeoGraphIO:
         # user's own files; then the folder itself if nothing else is left
         for published in _PUBLISHED_GEOGRAPHS:
             if name in (None, published) and region is None:
-                remove(cache_path.joinpath(f"{published}.graphjson"))
+                for suffix in (".graphjson", ".scgraph"):
+                    remove(cache_path.joinpath(published + suffix))
         if name is None:
             remove(root)
             for work in cache_path.glob(".building-*"):  # interrupted builds
@@ -928,7 +950,7 @@ class GeoGraphIO:
         Returns:
 
         - A list of dicts, one per file or folder:
-            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running or was interrupted; `clear_geograph_cache()` removes it)
+            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running or was interrupted; `clear_geograph_cache()` removes it)
             - `name`: str | None — the network name (None for `"building"`)
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder
@@ -945,7 +967,8 @@ class GeoGraphIO:
                 "bytes": file.stat().st_size,
             }
             for name in _PUBLISHED_GEOGRAPHS
-            if (file := cache_path.joinpath(f"{name}.graphjson")).is_file()
+            for suffix in (".graphjson", ".scgraph")
+            if (file := cache_path.joinpath(name + suffix)).is_file()
         ]
         for manifest_file in sorted(
             cache_path.joinpath("networks").rglob("manifest.json"),
