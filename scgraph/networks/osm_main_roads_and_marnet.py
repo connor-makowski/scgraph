@@ -62,5 +62,5 @@ def _ports(filename):
 
 def _km_to_network(geograph, point):
     return haversine(
-        point, geograph.nodes[geograph.geokdtree.closest_idx(point)]
+        point, geograph.nodes[geograph.snap_index.closest_idx(point)]
     )

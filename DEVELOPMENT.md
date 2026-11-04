@@ -39,10 +39,11 @@ scgraph/
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (built networks)
     lines.py                     # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
+    snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
     src/                         # C++ source: graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, bmssp (template header)
+    │                            #   transit_node_routing, snap_index, bmssp (template header)
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
 test/
@@ -104,7 +105,7 @@ For how scgraph works inside (query, graph reduction, plugging in an algorithm, 
 
 **`GeoGraph` / `LazyGeoGraph`** (`geograph.py`) — geographic routing:
 - Combines `Graph` with lat/lon node coordinates
-- Snaps arbitrary coordinates to the network via KD-tree (`geokdtree`)
+- Snaps arbitrary coordinates to the network with its own snapping index (`snap_index`; C++ `cpp/src/snap_index.cpp`, Python `helpers/snap_index.py`); `geokdtree` only backs the deprecated `geokdtree` attribute
 - Manages caching of shortest path trees and downloaded built-in networks
 - Lazy loading via `LazyGeoGraph` proxy (`lazy=True`) to defer downloads/instantiation until first use
 - Configurable reduction upon loading (`reduce_iterations=0` by default, `1` or `-1` for reduction)

@@ -19,6 +19,7 @@
 #include "../src/graph.hpp"
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"
+#include "../src/snap_index.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -74,7 +75,71 @@ static nb::list reduced_connections(const Graph& graph, bool inverse) {
     return res;
 }
 
+// A [latitude, longitude] pair read without nanobind's generic conversion (snapping is called
+// once per point, so reading the point is a visible part of its cost). Functions of the
+// limited API only: the module is built with the stable ABI
+static inline bool read_double(PyObject* o, double& out) {
+    if (PyFloat_Check(o) || PyLong_Check(o)) {
+        out = PyFloat_AsDouble(o);
+        return !(out == -1.0 && PyErr_Occurred());
+    }
+    return false;
+}
+
+static inline std::pair<double, double> read_point(nb::handle h) {
+    PyObject* o = h.ptr();
+    PyObject *a = nullptr, *b = nullptr;
+    if (PyList_Check(o) && PyList_Size(o) == 2) {
+        a = PyList_GetItem(o, 0);
+        b = PyList_GetItem(o, 1);
+    } else if (PyTuple_Check(o) && PyTuple_Size(o) == 2) {
+        a = PyTuple_GetItem(o, 0);
+        b = PyTuple_GetItem(o, 1);
+    }
+    double la, lo;
+    if (a && b && read_double(a, la) && read_double(b, lo)) return {la, lo};
+    PyErr_Clear();
+    return nb::cast<std::pair<double, double>>(h);
+}
+
+static nb::dict quadrant_dict(const int out[4]) {
+    nb::dict d;
+    static const char* keys[4] = {"ne", "nw", "se", "sw"};
+    for (int t = 0; t < 4; ++t) {
+        if (out[t] >= 0) d[keys[t]] = out[t];
+        else d[keys[t]] = nb::none();
+    }
+    return d;
+}
+
 NB_MODULE(cpp, m) {
+    nb::class_<SnapIndex>(m, "SnapIndex",
+        "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
+        .def("__init__", [](SnapIndex* self, nb::handle points) {
+            nb::sequence seq = nb::borrow<nb::sequence>(points);
+            size_t count = nb::len(seq);
+            std::vector<double> latitudes(count), longitudes(count);
+            size_t i = 0;
+            for (nb::handle point : seq) {
+                auto [la, lo] = read_point(point);
+                latitudes[i] = la;
+                longitudes[i] = lo;
+                ++i;
+            }
+            new (self) SnapIndex(std::move(latitudes), std::move(longitudes));
+        }, nb::arg("points"), "Index the points, a sequence of [latitude, longitude] in degrees")
+        .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
+            auto [la, lo] = read_point(point);
+            return self.closest_idx(la, lo);
+        }, nb::arg("point"), "Id of the point nearest to point, a [latitude, longitude] pair")
+        .def("closest_idx_per_quadrant", [](const SnapIndex& self, nb::handle point) {
+            auto [la, lo] = read_point(point);
+            int out[4];
+            self.closest_idx_per_quadrant(la, lo, out);
+            return quadrant_dict(out);
+        }, nb::arg("point"),
+           "Id of the nearest point in each quadrant around point ('ne', 'nw', 'se', 'sw'; None if empty)");
+
     // Graph class
     nb::class_<Graph>(m, "Graph")
         // Constructor

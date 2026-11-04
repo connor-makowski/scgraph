@@ -587,8 +587,8 @@ def test_geograph_kdclosest_circuity_handling(marnet):
     )
 
     # Compute expected length: graph path + entry with 1.5 + exit with 1.5
-    snap_orig = marnet.geokdtree.closest_idx(point=[30.0, 160.0])
-    snap_dest = marnet.geokdtree.closest_idx(point=[30.0, -160.0])
+    snap_orig = marnet.snap_index.closest_idx(point=[30.0, 160.0])
+    snap_dest = marnet.snap_index.closest_idx(point=[30.0, -160.0])
     graph_res = marnet.graph_object.dijkstra(snap_orig, snap_dest)
     entry_len = haversine(
         [30.0, 160.0],
