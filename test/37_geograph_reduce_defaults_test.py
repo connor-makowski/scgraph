@@ -44,7 +44,13 @@ def test_geograph_reduce_default_runs_until_convergence():
         ],
     )
     geo.reduce()
-    assert sum(geo.graph_object.is_reduced) == 3
+    reference = GeoGraph(
+        nodes=geo.nodes, graph=geo.graph_object.unreduced_graph
+    )
+    reference.reduce(iterations=-1)
+    assert list(geo.graph_object.is_reduced) == list(
+        reference.graph_object.is_reduced
+    )
 
 
 def test_reduce_load_geograph_true():
