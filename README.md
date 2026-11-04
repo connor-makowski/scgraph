@@ -452,6 +452,58 @@ The cache location defaults to the platform-appropriate directory:
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
 
+## Building Networks from Their Sources
+
+`build_geograph` downloads the online sources of a reference network once, builds the network from them on your machine and keeps it in the local cache; later calls load it from the cache without network access. Sources can be large (an OpenStreetMap extract of a country can take several GB): a download above 100 MB is announced with a logging warning before it starts.
+
+```py
+import logging
+from scgraph import GeoGraph
+
+logging.basicConfig(level=logging.INFO)  # optional: show each step
+
+# Main roads of Luxembourg from OpenStreetMap (needs: pip install scgraph[osm])
+luxembourg = GeoGraph.build_geograph("osm_main_roads", region="europe/luxembourg")
+# INFO:scgraph.networks:Downloading https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf (47.9 MB)
+# INFO:scgraph.geograph:Building osm_main_roads
+# INFO:scgraph.geograph:Built osm_main_roads. Credit: © OpenStreetMap contributors, ODbL 1.0
+
+# Class I railroads of North America, from the U.S. Federal Railroad Administration
+rail = GeoGraph.build_geograph("north_america_rail")
+
+# What can be downloaded, who to credit, and what is already in the cache
+GeoGraph.list_downloadable_geographs()
+# [{"name": "marnet", "description": "Sea lanes of the published `marnet` network (...)",
+#   "credit": "Eurostat SeaRoute, via searoute-py (edited for scgraph)", "license": "EUPL-1.2",
+#   "needs_region": False, "cached": False, "cached_regions": []},
+#  ...]
+```
+
+The region of the `osm_*` networks is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region Geofabrik does not have raises a `ValueError` before anything is downloaded.
+
+| Name | Network | Source |
+|---|---|---|
+| `marnet` | Sea lanes of the built-in `marnet` | GeoJSON kept in the scgraph repository, from Eurostat SeaRoute via searoute-py |
+| `oak_ridge_maritime` | Sea lanes of the built-in `oak_ridge_maritime` | GeoJSON kept in the scgraph repository, from Oak Ridge National Laboratory |
+| `north_america_rail` | Class I railroads of North America | FRA and BTS, ArcGIS layer |
+| `us_freeway` | Freeways of the United States | Esri, ArcGIS layer |
+| `osm_main_roads` | Motorway, trunk and primary roads and their links of a region | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
+| `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
+
+Each network is kept under `downloads/` in the cache directory, with a manifest `<name>.manifest.json` (download date, scgraph and build-script versions, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script; otherwise, to download and build it again, clear the cache with `GeoGraph.clear_geograph_cache()`.
+
+These networks are built from the current version of their sources: they are not the built-in files, their node numbers differ and results can differ slightly from those of `load_geograph`. They also have more nodes (one at every junction and at least every 2 km); `reduce_iterations=-1` removes those that are not needed for routing.
+
+### `build_geograph` Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `name` | required | Name of the network (table above) |
+| `region` | `None` | For the `osm_*` networks: the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL (e.g. `'europe/luxembourg'`, `'north-america/us/texas'`) |
+| `cache_dir` | `None` | Custom cache directory; defaults to the OS cache dir above |
+| `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
+| `lazy` | `False` | Defer downloading/loading until the geograph is first accessed |
+
 ## Loading from OSMNx
 
 SCGraph integrates directly with [OSMNx](https://osmnx.readthedocs.io/) — load any OpenStreetMap network and convert it to a `GeoGraph` in two lines:
@@ -599,6 +651,8 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.json')
 | `save_as_geojson(filename)` | Save as GeoJSON (interoperable, larger file) |
 | `save_as_graphjson(filename)` | Save as SCGraph JSON (compact, fast reload) |
 | `load_geograph(name)` | Load a built-in geograph by name (cached download) |
+| `build_geograph(name, region=None)` | Download the source of a reference network, build it and keep it in the cache |
+| `list_downloadable_geographs()` | List the networks `build_geograph` builds, their credit and what is cached |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |
 | `load_from_osmnx_graph(osmnx_graph)` | Load from OSMNx graph object |

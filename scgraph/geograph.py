@@ -12,14 +12,19 @@ from scgraph.utils import (
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.lines import lines_to_graph
 from geokdtree import GeoKDTree
-import json, requests, shutil
+import difflib, hashlib, importlib, json, logging, re, requests, shutil
+import tempfile
 from array import array
 from collections import Counter
 from copy import deepcopy
+from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version
 from functools import partial
 from pathlib import Path
 from typing import Literal
 from scgraph import Graph
+
+logger = logging.getLogger(__name__)
 
 
 class GeoGraphIO:
@@ -632,6 +637,7 @@ class GeoGraphIO:
         Function:
 
         - Remove the local geograph cache directory and all its contents.
+        - This includes the networks built by `build_geograph` (under `downloads/`)
 
         Optional Arguments:
 
@@ -650,6 +656,282 @@ class GeoGraphIO:
         )
         if cache_path.exists():
             shutil.rmtree(cache_path)
+
+    @staticmethod
+    def build_geograph(
+        name: Literal[
+            "marnet",
+            "north_america_rail",
+            "oak_ridge_maritime",
+            "osm_main_roads",
+            "osm_rail",
+            "us_freeway",
+        ],
+        region: str | None = None,
+        cache_dir: str | None = None,
+        reduce_iterations: int = 0,
+        lazy: bool = False,
+    ) -> "GeoGraph":
+        """
+        Function:
+
+        - Download the online sources of a reference network once, build the network on this machine and keep it in the local cache; later calls load it from the cache, without any network request, until an upgrade of scgraph changes how that network is built
+        - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows every step
+        - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
+        - `GeoGraph.list_downloadable_geographs()` lists the networks, who to credit and what is already in the cache
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of the network
+            - Options:
+                - 'marnet': the sea lanes the published `marnet` was built from (Eurostat SeaRoute via searoute-py, EUPL-1.2)
+                - 'north_america_rail': Class I railroads of North America (U.S. Federal Railroad Administration)
+                - 'oak_ridge_maritime': the sea lanes the published `oak_ridge_maritime` was built from (Oak Ridge National Laboratory)
+                - 'osm_main_roads': main roads of an OpenStreetMap extract (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
+                - 'osm_rail': railway lines of an OpenStreetMap extract, sidings and yards included (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
+                - 'us_freeway': freeways of the United States (Esri)
+
+        Optional Arguments:
+
+        - `region`
+            - Type: str | None
+            - What: For the OpenStreetMap networks, the path of a Geofabrik extract, as in its download URL
+            - Default: None
+            - Examples: 'europe/luxembourg', 'europe/france/bretagne', 'north-america/us/texas'
+            - See: https://download.geofabrik.de for the extracts and their paths (all of them, machine-readable: https://download.geofabrik.de/index-v1-nogeom.json)
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory
+            - Default: None (resolves to the platform-appropriate cache directory, as in `load_geograph`)
+        - `reduce_iterations`
+            - Type: int
+            - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
+            - Default: 0
+        - `lazy`
+            - Type: bool
+            - What: Whether to delay downloading or loading the geograph until its first use
+            - Default: False
+
+        Returns:
+
+        - The GeoGraph of the network (a LazyGeoGraph if `lazy`)
+
+        Raises:
+
+        - `ValueError` for an unknown name, a missing or invalid region, or a region Geofabrik does not have, before any large download
+        - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
+        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; nothing is left in the cache
+        """
+        if lazy:
+            return LazyGeoGraph(
+                lambda: GeoGraph.build_geograph(
+                    name=name,
+                    region=region,
+                    cache_dir=cache_dir,
+                    reduce_iterations=reduce_iterations,
+                    lazy=False,
+                )
+            )
+        from scgraph import networks
+
+        if name not in networks.NAMES:
+            close = difflib.get_close_matches(name, networks.NAMES, n=3)
+            hint = (
+                f" Did you mean {', '.join(map(repr, close))}?" if close else ""
+            )
+            raise ValueError(
+                f"Unknown network '{name}'.{hint} Available: {', '.join(networks.NAMES)}"
+            )
+        network = importlib.import_module(f"scgraph.networks.{name}")
+        regional = any(
+            "{region}" in source["url"] for source in network.SOURCES.values()
+        )
+        where = f"the path of a Geofabrik extract, for example 'europe/luxembourg' (see {networks.REGIONS})"
+        if regional and region is None:
+            raise ValueError(f"'{name}' needs a region: {where}")
+        if not regional and region is not None:
+            raise ValueError(f"'{name}' has no region")
+        # Region names are Geofabrik paths; nothing else may reach the cache path
+        if region is not None and not re.fullmatch(
+            r"[a-z0-9-]+(/[a-z0-9-]+)*", region
+        ):
+            raise ValueError(f"Invalid region '{region}': {where}")
+        folder = (
+            Path(cache_dir)
+            if cache_dir is not None
+            else get_default_cache_path()
+        ).joinpath("downloads", name, region or "")
+        cached_file = folder.joinpath(f"{name}.graphjson")
+        manifest_file = folder.joinpath(f"{name}.manifest.json")
+        try:
+            built_by = json.loads(manifest_file.read_text())["build_version"]
+        except (OSError, ValueError, KeyError, TypeError):
+            built_by = None
+        if cached_file.exists() and built_by != network.VERSION:
+            logger.warning(
+                "The cached %s was built by another version of its build script; "
+                "building it again",
+                name,
+            )
+        if not cached_file.exists() or built_by != network.VERSION:
+            folder.mkdir(parents=True, exist_ok=True)
+            downloaded = datetime.now(timezone.utc).isoformat(
+                timespec="seconds"
+            )
+            files, sources = {}, []
+            # One folder per build, so that builds in parallel do not share files
+            work = Path(tempfile.mkdtemp(prefix=".building-", dir=folder))
+            building = work.joinpath(f"{name}.graphjson")
+            try:
+                for source, about in network.SOURCES.items():
+                    template = about["url"]
+                    url = template.format(region=region)
+                    # Same extension as the URL, by which readers such as osmium detect the format
+                    files[source] = work.joinpath(
+                        source + "".join(Path(url).suffixes)
+                    )
+                    try:
+                        getattr(network, "download", networks.download_file)(
+                            url, str(files[source])
+                        )
+                    except requests.HTTPError as error:
+                        if (
+                            "{region}" in template
+                            and error.response.status_code == 404
+                        ):
+                            raise ValueError(
+                                f"No extract '{region}' on Geofabrik; the region is {where}"
+                            ) from error
+                        raise
+                    with open(files[source], "rb") as file:
+                        sha256 = hashlib.file_digest(file, "sha256").hexdigest()
+                    sources.append(
+                        {
+                            "name": source,
+                            "url": url,
+                            "sha256": sha256,
+                            "bytes": files[source].stat().st_size,
+                            "credit": about["credit"],
+                            "license": about["license"],
+                            "license_url": about["license_url"],
+                        }
+                    )
+                logger.info("Building %s", name)
+                network.build(
+                    {source: str(path) for source, path in files.items()}
+                ).save_as_graphjson(str(building))
+                work.joinpath("manifest.json").write_text(
+                    json.dumps(
+                        {
+                            "name": name,
+                            "region": region,
+                            "downloaded": downloaded,
+                            "sources": sources,
+                            "scgraph": GeoGraph.__scgraph_version__(),
+                            "build_version": network.VERSION,
+                        },
+                        indent=2,
+                    )
+                )
+                # The manifest appears last: a network file counts as built only once
+                # its manifest names the version of the build script
+                building.replace(cached_file)
+                work.joinpath("manifest.json").replace(manifest_file)
+                logger.info(
+                    "Built %s. Credit: %s (%s)",
+                    name,
+                    _joined(network, "credit"),
+                    _joined(network, "license"),
+                )
+            finally:
+                # A failed download or build leaves no large file behind
+                shutil.rmtree(work, ignore_errors=True)
+        return GeoGraph.load_from_graphjson(
+            str(cached_file), reduce_iterations=reduce_iterations, lazy=False
+        )
+
+    @staticmethod
+    def __scgraph_version__() -> str:
+        try:
+            return version("scgraph")
+        except (
+            PackageNotFoundError
+        ):  # run from a source tree that is not installed
+            return "unknown"
+
+    @staticmethod
+    def list_downloadable_geographs(cache_dir: str | None = None) -> list[dict]:
+        """
+        Function:
+
+        - List the networks that `build_geograph` builds from their online sources, without any network request
+        - Unlike `list_geographs`, which lists the published files that `load_geograph` returns
+
+        Optional Arguments:
+
+        - `cache_dir`
+            - Type: str | None
+            - What: Path to the local cache directory to check for built networks
+            - Default: None (resolves to the platform-appropriate cache directory, as in `load_geograph`)
+
+        Returns:
+
+        - A list of dicts, one per network, sorted by name:
+            - `name`: str — the value to pass as `name`
+            - `description`: str — what the network is and where it comes from
+            - `credit`: str — who to credit with results
+            - `license`: str — the licences of the sources (SPDX identifiers; `NOASSERTION` when not established)
+            - `needs_region`: bool — whether `build_geograph` needs a `region` (see https://download.geofabrik.de)
+            - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
+            - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
+        """
+        from scgraph import networks
+
+        root = (
+            Path(cache_dir)
+            if cache_dir is not None
+            else get_default_cache_path()
+        ).joinpath("downloads")
+        listing = []
+        for name in networks.NAMES:
+            network = importlib.import_module(f"scgraph.networks.{name}")
+            needs_region = any(
+                "{region}" in source["url"]
+                for source in network.SOURCES.values()
+            )
+            folder = root.joinpath(name)
+            # Not the work folders (.building-*) of builds in progress or interrupted
+            built = [
+                path
+                for path in folder.rglob(f"{name}.graphjson")
+                if not any(
+                    part.startswith(".")
+                    for part in path.relative_to(folder).parts
+                )
+            ]
+            listing.append(
+                {
+                    "name": name,
+                    "description": " ".join(
+                        network.__doc__.split("\n\n")[0].split()
+                    ),
+                    "credit": _joined(network, "credit"),
+                    "license": _joined(network, "license"),
+                    "needs_region": needs_region,
+                    "cached": bool(built),
+                    "cached_regions": (
+                        sorted(
+                            path.parent.relative_to(folder).as_posix()
+                            for path in built
+                        )
+                        if needs_region
+                        else []
+                    ),
+                }
+            )
+        return listing
 
     @staticmethod
     def load_from_osmnx_graph(
@@ -1376,6 +1658,11 @@ class GeoGraphModifiers:
                     node_connection_map[destination_idx]
                 ] = distance
         self.graph_object = Graph(graph=graph)
+
+
+def _joined(network, key):
+    """One field (credit, license) of the sources of a network, each value once."""
+    return "; ".join(dict.fromkeys(s[key] for s in network.SOURCES.values()))
 
 
 class GeoGraphUtils:
