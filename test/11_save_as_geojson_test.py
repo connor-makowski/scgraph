@@ -50,3 +50,31 @@ def test_save_load_graphjson(tmp_graph, reduce):
     loaded = GeoGraph.load_from_graphjson(graphjson_path)
     assert loaded.graph_object.graph == _GRAPH
     assert loaded.nodes == _NODES
+
+
+def test_save_load_graphjson_keeps_route_geometry(tmp_path):
+    # Routes on a reloaded GeoGraph follow the same shapes as before saving
+    nodes = [[0.0, 0.0], [0.0, 0.01], [0.0, 0.02]]
+
+    def shape(a, b):
+        return [nodes[a], [0.003, (nodes[a][1] + nodes[b][1]) / 2], nodes[b]]
+
+    geo = GeoGraph(
+        nodes=nodes,
+        graph=[{1: 1.5}, {0: 1.5, 2: 1.5}, {1: 1.5}],
+        intermediate_nodes=[
+            {1: shape(0, 1)},
+            {0: shape(1, 0), 2: shape(1, 2)},
+            {1: shape(2, 1)},
+        ],
+    )
+    path = str(tmp_path / "shaped.graphjson")
+    geo.save_as_graphjson(path)
+    loaded = GeoGraph.load_from_graphjson(path)
+    origin = {"latitude": 0.0, "longitude": 0.0}
+    destination = {"latitude": 0.0, "longitude": 0.02}
+    assert loaded.get_shortest_path(
+        origin, destination, output_coordinate_path="list_of_lists"
+    ) == geo.get_shortest_path(
+        origin, destination, output_coordinate_path="list_of_lists"
+    )
