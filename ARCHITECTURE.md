@@ -51,6 +51,10 @@ entries, and every node has an entry, even with no outgoing edge.
 
 - Backward searches use the **inverse graph** (`inverse_graph[v] = {u: weight}`), built
   on demand.
+- The C++ backend stores the arcs by origin in three arrays (offsets, heads, weights), as in a
+  network file (§7), and so do its inverse and reduced graphs. An edit copies the rows it
+  touches, and the next search packs every row into new arrays, so a series of edits costs
+  one packing.
 - `GeoGraph` adds `nodes[u] = [latitude, longitude]` and, optionally,
   `intermediate_nodes`: the detailed shape of an edge, used only to draw the route.
 - Algorithms take an origin and a destination as a node id, a set of node ids, or a

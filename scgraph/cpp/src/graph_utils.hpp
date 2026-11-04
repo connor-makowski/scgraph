@@ -6,6 +6,7 @@
 #include <utility>
 #include <optional>
 #include <functional>
+#include "adjacency.hpp"
 
 using NodeIdVariant = std::variant<int, std::unordered_map<int, double>, std::set<int>>;
 
@@ -35,11 +36,33 @@ std::vector<int> get_origin_ids(const NodeIdVariant& origin_id);
 bool origin_id_contains(const NodeIdVariant& origin_id, int node_id);
 
 class GraphUtils {
+private:
+    // The arcs, read through graph(). Edits change copies of the rows they touch, and the
+    // next read packs them into new arrays, so that a series of edits costs one packing.
+    // graph() const writes this state: safe because the bindings never release the GIL
+    mutable Adjacency packed_graph;
+    mutable RowEdits edits;
+
 protected:
-    // Internal representation: vector of vectors of (node_id, distance) pairs
-    std::vector<std::vector<std::pair<int, double>>> graph;
+    const Adjacency& graph() const {
+        if (edits.count >= 0) {
+            packed_graph = edits.apply(packed_graph);
+            edits = RowEdits();
+        }
+        return packed_graph;
+    }
+    void set_graph(Adjacency arcs) {
+        packed_graph = std::move(arcs);
+        edits = RowEdits();
+    }
+    // The rows, to edit
+    EditableRows rows_to_edit() {
+        inverse_graph_computed = false;
+        inverse_graph.clear();
+        return EditableRows(packed_graph, edits);
+    }
     // Inverse graph (lazily computed)
-    std::vector<std::vector<std::pair<int, double>>> inverse_graph;
+    Adjacency inverse_graph;
     bool inverse_graph_computed = false;
     std::vector<TreeData> cache;
     mutable double max_edge_weight_cache = 0.0;
@@ -70,7 +93,8 @@ public:
 
     // Access
     const std::unordered_map<int, double> get(int idx) const;
-    int size() const { return graph.size(); }
+    // The number of nodes, without packing pending edits
+    int size() const { return edits.count >= 0 ? edits.count : packed_graph.size(); }
     const std::vector<std::unordered_map<int, double>> get_graph() const;
     std::vector<std::unordered_map<int, double>> get_inverse_graph();
     const std::vector<TreeData>& get_cache() const { return cache; }

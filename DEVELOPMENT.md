@@ -42,7 +42,7 @@ scgraph/
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
-    src/                         # C++ source: graph, graph_utils, graph_reducer, contraction_hierarchies,
+    src/                         # C++ source: adjacency, graph, graph_utils, graph_reducer, contraction_hierarchies,
     │                            #   transit_node_routing, snap_index, bmssp (template header)
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface

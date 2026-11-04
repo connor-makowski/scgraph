@@ -17,13 +17,13 @@ protected:
     bool has_reduced_graph = false;
     std::vector<bool> is_reduced;
     std::vector<int> reduced_node_chain_ids;
-    std::vector<std::vector<std::pair<int, double>>> reduced_graph;
+    Adjacency reduced_graph;
     // Hidden nodes of the reduced edges, stored once per chain: a pair (root, y) in
     // reduced_graph_connections[x] means that y is the node after x on the path from x
     // to the non-reduced node root; in reduced_inverse_graph_connections[x], the node
     // before x on the path from root to x (see hidden_nodes)
     std::vector<std::vector<std::pair<int, int>>> reduced_graph_connections;
-    std::vector<std::vector<std::pair<int, double>>> reduced_inverse_graph;
+    Adjacency reduced_inverse_graph;
     std::vector<std::vector<std::pair<int, int>>> reduced_inverse_graph_connections;
     double reduced_max_edge_weight = 0.0;
 
@@ -36,8 +36,8 @@ public:
 
     // Getters for python bindings
     bool get_has_reduced_graph() const { return has_reduced_graph; }
-    const std::vector<std::vector<std::pair<int, double>>>& get_reduced_graph_internal() const { return reduced_graph; }
-    const std::vector<std::vector<std::pair<int, double>>>& get_reduced_inverse_graph_internal() const { return reduced_inverse_graph; }
+    const Adjacency& get_reduced_graph_internal() const { return reduced_graph; }
+    const Adjacency& get_reduced_inverse_graph_internal() const { return reduced_inverse_graph; }
     const std::vector<bool>& get_is_reduced_internal() const { return is_reduced; }
     const std::vector<int>& get_reduced_node_chain_ids_internal() const { return reduced_node_chain_ids; }
     const std::vector<std::vector<std::pair<int, int>>>& get_reduced_graph_connections_internal() const { return reduced_graph_connections; }
