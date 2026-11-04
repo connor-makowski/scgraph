@@ -35,6 +35,7 @@ scgraph/
   utils.py                       # Distance math, coordinate helpers, caching, console output
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
+    lines.py                     # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
     src/                         # C++ source: graph, graph_utils, graph_reducer, contraction_hierarchies,
