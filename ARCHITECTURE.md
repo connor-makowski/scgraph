@@ -25,7 +25,10 @@ flowchart LR
 ```
 
 `Graph` knows nothing about geography. `GeoGraph` and `GridGraph` each hold a `Graph`
-(`graph_object`) and delegate every search to it. `CHGraph` and `TNRGraph` are built
+(`graph_object`) and delegate every search to it. A `GeoGraph` comes from a built-in network,
+a saved file, a GeoJSON file, an OSMnx graph or an OpenStreetMap file (`osm.py`, with the
+optional dependency `osmium`); every loader produces the same `graph`, `nodes` and
+`intermediate_nodes`. `CHGraph` and `TNRGraph` are built
 from a `Graph` on the first query that needs them.
 
 `Graph` and `CHGraph` exist twice: in C++ (`cpp/`) and in pure Python. When the C++

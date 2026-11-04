@@ -494,7 +494,44 @@ print(output['length'])
 
 ## Building from OSM Data (Without OSMNx)
 
-You can also build geographs from raw OpenStreetMap `.pbf` files. This approach works well for large regions or full-planet routing.
+Build a geograph directly from an OpenStreetMap file, for example a regional extract from [Geofabrik](https://download.geofabrik.de/). Reading OSM files needs an optional dependency:
+
+```bash
+pip install scgraph[osm]
+```
+
+```py
+from scgraph import GeoGraph
+
+# Main roads (motorway to primary, with their links); one-way streets are respected
+michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
+
+# Other ways: a way is kept if, for every key, its tag value is in the set
+# (None for a missing tag): here railway lines without yards, sidings and spurs
+michigan_rail = GeoGraph.load_from_osm(
+    "michigan-latest.osm.pbf", keep={"railway": {"rail"}, "service": {None}}
+)
+```
+
+Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its full shape, in kilometers, and a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below; `load_from_geojson` still loads such files.
+
+### `load_from_osm` Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`) |
+| `keep` | `None` | Ways to keep, `{tag: {values}}`, `None` among the values for a missing tag; `None` keeps main roads (`scgraph.osm.MAIN_ROADS`) |
+| `directed` | `True` | Whether one-way streets give arcs in one direction only |
+| `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new arc, at the next point of the way |
+| `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |
+| `load_intermediate_nodes` | `True` | Keep the shape of each arc, to draw routes |
+| `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
+| `lazy` | `False` | Defer loading until the geograph is first accessed |
+
+
+### How the Built-in World Networks Were Built
+
+This is the pipeline of scgraph 3.6.0 that the paper's Appendix B.1 refers to for the built-in OpenStreetMap networks (osmium-tool, a GeoJSON export, Mapshaper and `load_from_geojson`):
 
 **1. Download an OSM PBF file**
 
@@ -568,6 +605,7 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.json')
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |
 | `load_from_osmnx_graph(osmnx_graph)` | Load from OSMNx graph object |
+| `load_from_osm(filename)` | Load from an OpenStreetMap file (needs `pip install scgraph[osm]`) |
 
 ---
 

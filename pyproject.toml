@@ -55,7 +55,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+osm = ["osmium>=4.0"]
 dev = [
+    "osmium>=4.0; platform_python_implementation == 'CPython'",
     "pytest>=9.0.3",
     "pamda>=2.10.0",
     "autoflake>=2.3.1",
