@@ -1,5 +1,21 @@
+import os
+
 import pytest
 from scgraph import GeoGraph
+
+
+@pytest.fixture(scope="session", autouse=True)
+def own_cache(tmp_path_factory):
+    # The tests download into their own cache, never the user's: a temporary directory, or
+    # SCGRAPH_CACHE_DIR if set (a cache filled once, to run the tests without downloading)
+    if os.environ.get("SCGRAPH_CACHE_DIR"):
+        yield
+        return
+    os.environ["SCGRAPH_CACHE_DIR"] = str(
+        tmp_path_factory.mktemp("scgraph-cache")
+    )
+    yield
+    del os.environ["SCGRAPH_CACHE_DIR"]
 
 
 @pytest.fixture(scope="session")
