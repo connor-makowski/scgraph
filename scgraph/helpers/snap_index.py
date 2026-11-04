@@ -48,12 +48,18 @@ class SnapIndex:
     Nearest node of a point on the sphere (exact, ties to the lowest id).
 
     - `SnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
+    - `SnapIndex.from_arrays(latitudes, longitudes)`: the same, from two float64 arrays of
+      degrees
     - `closest_idx(point)`: id of the point nearest to `point`
     - `closest_idx_per_quadrant(point)`: id of the nearest point in each quadrant around
       `point`, as a dict with the keys 'ne', 'nw', 'se', 'sw' (None if the quadrant is empty).
       A point is north if its latitude is >= the query's, south if <=, east if it lies within
       180 degrees of longitude eastwards, west likewise (as GeoKDTree)
     """
+
+    @classmethod
+    def from_arrays(cls, latitudes, longitudes) -> "SnapIndex":
+        return cls(list(zip(latitudes, longitudes, strict=True)))
 
     def __init__(self, points):
         lat = [float(p[0]) for p in points]

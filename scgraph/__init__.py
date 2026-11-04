@@ -671,7 +671,9 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
 The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file.
-In the C++ build, `load_from_scgraph` maps the file and reads it in place while the graph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
+In the C++ build, `load_from_scgraph` maps the file and reads it in place while the GeoGraph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
+
+A GeoGraph read from a network file (so also from `load_geograph` and `build_geograph`) reads its node coordinates from the file: `nodes` behaves as a list, but `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`. `json.dumps`, `+`, `*`, `copy()`, `sort()` and ordering comparisons need `list(nodes)` first.
 
 | Method | Description |
 |---|---|

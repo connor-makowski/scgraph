@@ -66,7 +66,6 @@ def test_lazy_load_attribute_access():
         # Direct attribute access triggers load
         nodes = geo.nodes
         assert geo._initialized is True
-        assert isinstance(nodes, list)
         assert len(nodes) > 0
         assert geo.graph_object is not None
         assert geo.snap_index is not None

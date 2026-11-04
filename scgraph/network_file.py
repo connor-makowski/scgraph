@@ -15,8 +15,9 @@ import os
 import secrets
 import sys
 from array import array
+from collections.abc import MutableSequence
 from itertools import islice
-from operator import le
+from operator import eq, index, le
 
 MAGIC = b"SCGRAPH1"
 VERSION = 1
@@ -215,6 +216,96 @@ def shapes(arrays):
                 ]
         result.append(row)
     return result
+
+
+class NodeCoordinates(MutableSequence):
+    """
+    The `nodes` of a GeoGraph read from a network file: a list of [latitude, longitude],
+    read from the file's two arrays instead of one Python list per node, then the nodes
+    added since. `nodes[i]` gives a new list each time: replace a node with
+    `nodes[i] = [latitude, longitude]` (changing the list it gives changes nothing).
+    An edit before the last node first turns every node into a list.
+    """
+
+    def __init__(self, latitudes, longitudes):
+        self._latitudes, self._longitudes, self._added = (
+            latitudes,
+            longitudes,
+            [],
+        )
+
+    def __len__(self):
+        return len(self._latitudes) + len(self._added)
+
+    def __getitem__(self, i):
+        if type(i) is int and 0 <= i < len(self._latitudes):
+            return [self._latitudes[i], self._longitudes[i]]
+        if isinstance(i, slice):
+            return [self[j] for j in range(*i.indices(len(self)))]
+        j = self._in_added(i, edit=False)
+        if j < 0:  # a node of the file, given from the end
+            return [self._latitudes[j], self._longitudes[j]]
+        return self._added[j]
+
+    def __setitem__(self, i, value):
+        self._added[self._in_added(i)] = value
+
+    def __delitem__(self, i):
+        del self._added[self._in_added(i)]
+
+    def insert(self, i, value):
+        if i < len(self):
+            self._own()
+        self._added.insert(i - len(self._latitudes), value)
+
+    def __iter__(self):
+        yield from map(list, zip(self._latitudes, self._longitudes))
+        yield from self._added
+
+    def __eq__(self, other):
+        if not isinstance(other, (list, NodeCoordinates)):
+            return NotImplemented
+        return len(self) == len(other) and all(map(eq, self, other))
+
+    def __repr__(self):
+        return repr(list(self))
+
+    def __reduce__(self):
+        # Copied and pickled as a list (the file's mapping can't be)
+        return list, (list(self),)
+
+    def arrays(self):
+        """The latitudes and the longitudes as two float64 arrays (the file's own if no
+        node was added)."""
+        if not self._added:
+            return self._latitudes, self._longitudes
+        result = []
+        for column, values in enumerate((self._latitudes, self._longitudes)):
+            joined = array("d")
+            joined.frombytes(memoryview(values).cast("B"))
+            joined.extend(node[column] for node in self._added)
+            result.append(joined)
+        return tuple(result)
+
+    def _in_added(self, i, edit=True):
+        # The position of node i (or of slice i) in `added`. To edit a node of the file,
+        # every node is first moved into `added`, as a list holds them
+        if isinstance(i, slice):
+            self._own()
+            return i
+        count, i = len(self), index(i)
+        if i < 0:
+            i += count
+        if not 0 <= i < count:
+            raise IndexError("node index out of range")
+        if i < len(self._latitudes) and edit:
+            self._own()
+        return i - len(self._latitudes)
+
+    def _own(self):
+        if len(self._latitudes):
+            self._added[:0] = map(list, zip(self._latitudes, self._longitudes))
+            self._latitudes, self._longitudes = array("d"), array("d")
 
 
 def _check(filename, arrays, arcs=True):

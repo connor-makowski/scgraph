@@ -55,7 +55,8 @@ entries, and every node has an entry, even with no outgoing edge.
   network file (§7), and so do its inverse and reduced graphs. An edit copies the rows it
   touches, and the next search packs every row into new arrays, so a series of edits costs
   one packing.
-- `GeoGraph` adds `nodes[u] = [latitude, longitude]` and, optionally,
+- `GeoGraph` adds `nodes[u] = [latitude, longitude]` (read from the file's arrays for a
+  GeoGraph read from a network file, §7) and, optionally,
   `intermediate_nodes`: the detailed shape of an edge, used only to draw the route.
 - Algorithms take an origin and a destination as a node id, a set of node ids, or a
   dict `{node_id: distance}` (several sources or targets, each with a starting
@@ -193,8 +194,8 @@ built-in networks and networks built by `build_geograph` stay on disk until
 `<name>.graphjson` into `<name>.scgraph` beside it (§7), which later loads read; a conversion
 that can't be read (damaged, another format version) is made again from the `.graphjson`, and
 a cache that can't be written keeps reading the `.graphjson`. In the C++ build a loaded
-conversion stays mapped: on Windows it can't be removed or replaced while a graph read from it
-is alive. A built network is not rebuilt when its source changes, but it is
+conversion stays mapped: on Windows it can't be removed or replaced while a geograph read from
+it is alive. A built network is not rebuilt when its source changes, but it is
 when its manifest names another `VERSION` of its build script or of the file format, or a
 file that is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
 default when `SCGRAPH_OFFLINE=1`), nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
@@ -229,9 +230,12 @@ For how to use each cache, see the README:
 it back (`network_file.py`, standard library only). It holds the same data as a graphjson
 file, but loads without parsing JSON. In the C++ backend, the file is mapped read-only and
 the graph reads its arcs in place (the private `Graph._from_mapped_csr` keeps them;
-`Graph.from_csr` copies); the mapping lasts as long as the graph, or until its first edit. Windows does
-not replace a mapped file, so there, saving onto a file that an open graph was read from
-raises a `PermissionError`.
+`Graph.from_csr` copies). A GeoGraph read from a network file (so also from `load_geograph`
+and `build_geograph`) has as `nodes` a `network_file.NodeCoordinates`, which reads the latitude
+and longitude arrays (in place in the C++ backend) and keeps added nodes after them;
+`SnapIndex.from_arrays` indexes the arrays. The mapping lasts as long as those `nodes`, even
+after the graph is edited. Windows does not replace a mapped file, so there, saving onto a file that an
+open geograph was read from raises a `PermissionError`.
 
 | Bytes | Content |
 |---|---|
