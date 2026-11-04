@@ -29,7 +29,8 @@ void GraphReducer::reduce(int iterations) {
     is_reduced.assign(n, false);
 
     int current_iter = 0;
-    std::vector<int> candidates;
+    // Nodes to examine in later passes (never read with one pass)
+    std::vector<char> dirty;
     while (true) {
         size_t newly_reduced_count = 0;
         if (current_iter == 0) {
@@ -81,48 +82,36 @@ void GraphReducer::reduce(int iterations) {
             }
             // Later passes can only change nodes next to a reduced node
             if (iterations != 1) {
+                dirty.assign(n, 0);
                 for (size_t u = 0; u < n; ++u) {
-                    if (is_reduced[u]) {
+                    if (!is_reduced[u]) {
                         continue;
                     }
-                    bool next_to_reduced = false;
                     for (const auto* adjacency : {&graph[u], &inverse_graph[u]}) {
                         for (const auto& edge : *adjacency) {
                             int v = edge.first;
-                            if (v >= 0 && v < (int)n && is_reduced[v]) {
-                                next_to_reduced = true;
+                            if (v >= 0 && v < (int)n && !is_reduced[v]) {
+                                dirty[v] = 1;
                             }
                         }
-                    }
-                    if (next_to_reduced) {
-                        candidates.push_back((int)u);
                     }
                 }
             }
         } else {
             // Subsequent iterations: identify pass-through nodes on current reduced topology
             // Reducing u changes the flows of its own outflows and inflows
-            // only, so only those are examined again: those after u in this
-            // pass, the others in the next one. Examining candidates in
-            // increasing order, as a scan of every node would, gives the
-            // same result.
+            // only, so only those are marked dirty: those after u are
+            // examined in this pass, the others in the next one. The scan
+            // keeps the increasing order of a scan of every node, so the
+            // result is the same.
             // A node is visited in the current search iff visited[node] == stamp
             std::vector<size_t> visited(n, 0);
             size_t stamp = 0;
-            std::vector<char> queued(n, 0);
-            std::vector<char> in_next(n, 0);
-            std::vector<int> next_candidates;
-            for (int c : candidates) {
-                queued[c] = 1;
-            }
-            std::priority_queue<int, std::vector<int>, std::greater<int>> pending(
-                std::greater<int>(), std::move(candidates));
-            while (!pending.empty()) {
-                size_t u = (size_t)pending.top();
-                pending.pop();
-                if (is_reduced[u]) {
+            for (size_t u = 0; u < n; ++u) {
+                if (!dirty[u] || is_reduced[u]) {
                     continue;
                 }
+                dirty[u] = 0;
 
                 // Outflows from u through is_reduced nodes
                 std::set<int> outflows;
@@ -194,20 +183,11 @@ void GraphReducer::reduce(int iterations) {
                 if (is_reduced[u]) {
                     for (const std::set<int>* flows : {&outflows, &inflows}) {
                         for (int w : *flows) {
-                            if (w < (int)u) {
-                                if (!in_next[w]) {
-                                    in_next[w] = 1;
-                                    next_candidates.push_back(w);
-                                }
-                            } else if (!queued[w]) {
-                                queued[w] = 1;
-                                pending.push(w);
-                            }
+                            dirty[w] = 1;
                         }
                     }
                 }
             }
-            candidates = std::move(next_candidates);
         }
 
         current_iter++;
