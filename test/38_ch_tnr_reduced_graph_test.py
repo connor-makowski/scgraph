@@ -59,10 +59,10 @@ def _run_ch_tnr_reduced_tests(graph_cls):
                 f"got {ch_res['path']}, expected {dijkstra_res['path']}"
             )
 
-            # CH length_only
-            ch_len = g.contraction_hierarchy(u, v, length_only=True)
+            # CH length_only, passed by position (TNR below: by keyword)
+            ch_len = g.contraction_hierarchy(u, v, True)
             assert abs(ch_len["length"] - dijkstra_res["length"]) < 1e-6
-            assert "path" not in ch_len or ch_len["path"] == []
+            assert ch_len["path"] == []
 
             # 2. Transit Node Routing
             tnr_res = g.tnr(u, v)
@@ -78,7 +78,7 @@ def _run_ch_tnr_reduced_tests(graph_cls):
             # TNR length_only
             tnr_len = g.tnr(u, v, length_only=True)
             assert abs(tnr_len["length"] - dijkstra_res["length"]) < 1e-6
-            assert "path" not in tnr_len or tnr_len["path"] == []
+            assert tnr_len["path"] == []
 
 
 def test_python_ch_tnr_reduced_graph():
