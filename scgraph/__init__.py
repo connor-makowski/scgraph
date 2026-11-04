@@ -436,9 +436,16 @@ available = GeoGraph.list_geographs()
 #     {"name": "world_railways",            "cached": False},
 # ]
 
+# What the cache holds: one dict per file, with its kind, name, region, path and size
+GeoGraph.cache_info()
+
 # Clear the cached geographs (other files in the cache directory are kept)
 GeoGraph.clear_geograph_cache()
+# ... or only one network (and, for a built network, one region)
+GeoGraph.clear_geograph_cache(name="osm_main_roads", region="europe/luxembourg")
 ```
+
+On Windows, the files of a network still loaded in the process can't be deleted: `clear_geograph_cache` leaves them in place, with a logging warning that names them, and a later clear removes them.
 
 The cache location defaults to the platform-appropriate directory:
 
@@ -500,7 +507,7 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index |
 
-Each network is kept in the cache directory under `networks/<name>/` (`networks/<name>/<region>/` for the `osm_*` networks): a network file named by its content, `<content_sha256>.scgraph` (the SHA-256 of its arrays, also stored in its header), and a `manifest.json` that names it (download date, scgraph, build-script and file-format versions, the file, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script or the file format, or when the file its manifest names is missing; `refresh=True` downloads and builds it again anyway. With `local_files_only=True`, nothing is downloaded: a network built with another version of its build script or node order is loaded with a warning that names what differs (refused if its file format differs), and one that is not in the cache raises a `FileNotFoundError`. Two installs of different versions sharing one cache build the same network in turn: give each its own `SCGRAPH_CACHE_DIR`, or use `local_files_only=True` in the older one. A rebuild writes the new file (or keeps the old one if the content is the same), then the manifest, then removes the old file; on Windows, an old file still open in another process stays until the cache is cleared. `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory: save an edited network elsewhere. scgraph also writes a `CACHEDIR.TAG` at the root of the cache directory, so that backup tools that honour it skip the cache.
+Each network is kept in the cache directory under `networks/<name>/` (`networks/<name>/<region>/` for the `osm_*` networks): a network file named by its content, `<content_sha256>.scgraph` (the SHA-256 of its arrays, also stored in its header), and a `manifest.json` that names it (download date, scgraph, build-script and file-format versions, the file, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script or the file format, or when the file its manifest names is missing; `refresh=True` downloads and builds it again anyway. With `local_files_only=True`, nothing is downloaded: a network built with another version of its build script or node order is loaded with a warning that names what differs (refused if its file format differs), and one that is not in the cache raises a `FileNotFoundError`. Two installs of different versions sharing one cache build the same network in turn: give each its own `SCGRAPH_CACHE_DIR`, or use `local_files_only=True` in the older one. A rebuild writes the new file (or keeps the old one if the content is the same), then the manifest, then removes the old file; on Windows, an old file still open in another process stays until the cache is cleared. `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory: save an edited network elsewhere. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks.
 
 In `osm_main_roads_and_marnet`, a port joins the two networks only if a road node is within 20 km and a sea node within 250 km; connectors are straight lines, 1.2 times the great-circle distance, and are not checked against land and water. Nodes are stored by mode (roads, then ports, then sea), and the manifest records the node range of each mode (`node_modes`). Routes use kilometers for every mode.
 
@@ -664,7 +671,7 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
 The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file.
-In the C++ build, `load_from_scgraph` maps the file and reads it in place while the graph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`, and `clear_geograph_cache` leaves it in place.
+In the C++ build, `load_from_scgraph` maps the file and reads it in place while the graph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
 
 | Method | Description |
 |---|---|
@@ -674,6 +681,7 @@ In the C++ build, `load_from_scgraph` maps the file and reads it in place while 
 | `load_geograph(name)` | Load a built-in geograph by name (cached download) |
 | `build_geograph(name, region=None)` | Download the source of a reference network, build it and keep it in the cache |
 | `list_downloadable_geographs()` | List the networks `build_geograph` builds, their credit and what is cached |
+| `cache_info()` | List what the cache holds on disk, with sizes and build versions |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |
 | `load_from_scgraph(filename)` | Load from a binary network file |

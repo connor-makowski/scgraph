@@ -205,8 +205,11 @@ names a whole file (a file of the same name has the same content and is kept: it
 open); the old file is removed last, or stays as an orphan if it cannot be
 (Windows, still open). Two builds of one network can run at once: the last manifest wins.
 `save_as_scgraph` and `save_as_graphjson` refuse a target under `networks/` of the cache
-directory, so that a cached file always matches its manifest. Whenever scgraph writes into
-the cache, it writes a `CACHEDIR.TAG` at its root (https://bford.info/cachedir/). A
+directory, so that a cached file always matches its manifest. Whenever scgraph builds a
+network, it writes a `CACHEDIR.TAG` in `networks/` (https://bford.info/cachedir/).
+`cache_info` reads the cache from disk only; `clear_geograph_cache` removes only the files
+scgraph writes (all of them, or those of one network or region), and leaves a file it can't
+remove (Windows: a network still loaded in the process) with a logging warning. A
 `.scgraph` file is written next to its target and then moved onto it, so a failed save
 leaves the previous file whole.
 
