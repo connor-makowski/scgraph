@@ -158,6 +158,7 @@ def test_nodes_read_from_a_network_file_behave_as_a_list(tmp_path):
             expected[-1],
             expected[1:3],
         )
+        assert nodes.take(range(-1, len(nodes))) == [expected[-1], *expected]
     loaded = GeoGraph.load_from_scgraph(path)
     loaded.add_coord_node({"latitude": 9.0, "longitude": 9.0}, auto_edge=False)
     assert loaded.snap_index.closest_idx([8.9, 8.9]) == len(_NODES)

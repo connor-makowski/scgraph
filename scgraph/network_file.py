@@ -258,6 +258,15 @@ class NodeCoordinates(MutableSequence):
             self._own()
         self._added.insert(i - len(self._latitudes), value)
 
+    def take(self, ids):
+        """`[nodes[i] for i in ids]`, without a method call per node (a route's path)"""
+        latitudes, longitudes = self._latitudes, self._longitudes
+        count = len(latitudes)
+        return [
+            [latitudes[i], longitudes[i]] if 0 <= i < count else self[i]
+            for i in ids
+        ]
+
     def __iter__(self):
         yield from map(list, zip(self._latitudes, self._longitudes))
         yield from self._added

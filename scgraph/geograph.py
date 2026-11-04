@@ -2335,13 +2335,19 @@ class GeoGraphUtils:
             - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
             - Default: False
         """
+        nodes = self.nodes
+        coordinates = (
+            nodes.take(path)
+            if isinstance(nodes, network_file.NodeCoordinates)
+            else [nodes[node_id] for node_id in path]
+        )
         if (
             get_intermediate_nodes
             and self.intermediate_nodes is not None
             and path
         ):
             # Start with the origin node
-            coordinate_path = [self.nodes[path[0]]]
+            coordinate_path = [coordinates[0]]
             for i in range(len(path) - 1):
                 origin_id = path[i]
                 destination_id = path[i + 1]
@@ -2354,9 +2360,9 @@ class GeoGraphUtils:
                 intermediate_nodes = shapes.get(destination_id, [])
                 coordinate_path.extend(intermediate_nodes)
                 # Add the destination node
-                coordinate_path.append(self.nodes[destination_id])
+                coordinate_path.append(coordinates[i + 1])
             return coordinate_path
-        return [self.nodes[node_id] for node_id in path]
+        return coordinates
 
     def get_path_weight(
         self,
