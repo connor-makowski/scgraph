@@ -13,9 +13,9 @@ from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.lines import lines_to_graph
 from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
 from scgraph import network_file
-from geokdtree import GeoKDTree
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
 import tempfile
+import warnings
 from array import array
 from collections import Counter
 from copy import deepcopy
@@ -25,6 +25,11 @@ from functools import partial
 from pathlib import Path
 from typing import Literal
 from scgraph import Graph
+
+try:
+    from scgraph.cpp import SnapIndex
+except ImportError:
+    from scgraph.helpers.snap_index import SnapIndex
 
 logger = logging.getLogger(__name__)
 
@@ -1543,8 +1548,8 @@ class GeoGraphModifiers:
             destination_coord_dict["latitude"],
             destination_coord_dict["longitude"],
         ]
-        closest_origin_idx = self.geokdtree.closest_idx(point=origin_node)
-        closest_destination_idx = self.geokdtree.closest_idx(
+        closest_origin_idx = self.snap_index.closest_idx(point=origin_node)
+        closest_destination_idx = self.snap_index.closest_idx(
             point=destination_node
         )
         if distance is None:
@@ -1601,12 +1606,12 @@ class GeoGraphModifiers:
             - What: The type of edge creation to use
             - Default: 'quadrant'
             - Options:
-                - 'quadrant' / 'kdquadrant': Add the closest node in each quadrant using GeoKDTree
-                - 'closest' / 'kdclosest': Add only the closest node using GeoKDTree
+                - 'quadrant' / 'kdquadrant': Add the closest node in each quadrant with the snapping index (`snap_index`)
+                - 'closest' / 'kdclosest': Add only the closest node with the snapping index (`snap_index`)
                 - 'all': Add all nodes to the distance matrix for this node
         - `node_addition_math`
             - Type: str
-            - What: Retained for compatibility; ignored by GeoKDTree selection
+            - What: Retained for compatibility; ignored by the snapping index
             - Default: 'euclidean'
         - `lat_lon_bound`
             - Type: int | float
@@ -1669,7 +1674,7 @@ class GeoGraphModifiers:
             node_dict=node_dict, symmetric=True
         )
         self.nodes.append(node)
-        self.geokdtree = None
+        self.snap_index = None
         return new_node_id
 
     def remove_coord_node(self) -> None:
@@ -1682,7 +1687,7 @@ class GeoGraphModifiers:
         """
         self.remove_node(symmetric_node=True)
         self.nodes.pop()
-        self.geokdtree = None
+        self.snap_index = None
 
     def add_haversine_edge(
         self,
@@ -1787,18 +1792,18 @@ class GeoGraphModifiers:
                 - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points
         """
         node_connection_mapper = {}
-        original_other_graph_length = len(other_geograph.graph_object.graph)
+        original_other_graph_length = len(other_geograph.nodes)
         # Connection nodes connect to the two networks as they were before
         # the merge, not to each other
-        current_geokdtree = self.geokdtree
-        other_geokdtree = other_geograph.geokdtree
+        current_index = self.snap_index
+        other_index = other_geograph.snap_index
         for idx, node in enumerate(connection_nodes):
             node_dict = {
                 "latitude": node[0],
                 "longitude": node[1],
             }
-            self.geokdtree = current_geokdtree
-            other_geograph.geokdtree = other_geokdtree
+            self.snap_index = current_index
+            other_geograph.snap_index = other_index
             # Add the connection node to the current geograph
             new_node_id = self.add_coord_node(
                 coord_dict=node_dict,
@@ -1817,19 +1822,18 @@ class GeoGraphModifiers:
 
         # Store the modified other geograph graph that include the connection nodes
         other_graph = deepcopy(other_geograph.graph_object.unreduced_graph)
+        # Rows of the current graph before the other graph is appended: counted on the nodes
+        # (a C++ graph would be copied to Python to count its rows), before they are extended
+        graph_length = len(self.nodes)
         # Add the other graph nodes to the current geograph (removing the connection nodes since they are already added to the current geograph)
         self.nodes += deepcopy(other_geograph.nodes)[
             :original_other_graph_length
         ]
-        self.geokdtree = None
+        self.snap_index = None
 
         # Clean up the other geograph to remove any appended nodes
-        while (
-            len(other_geograph.graph_object.graph) > original_other_graph_length
-        ):
+        while len(other_geograph.nodes) > original_other_graph_length:
             other_geograph.remove_coord_node()
-
-        graph_length = len(self.graph_object.graph)
 
         # Create a list based connection map to map the merging nodes into the current graph
         node_connection_map = [
@@ -1895,10 +1899,10 @@ def _joined(network, key):
 
 class GeoGraphUtils:
     def __get_quadrant_node_indices__(self, node: list) -> set[int]:
-        indices = self.geokdtree.closest_idx_per_quadrant(point=node)
+        indices = self.snap_index.closest_idx_per_quadrant(point=node)
         node_indices = {idx for idx in indices.values() if idx is not None}
         if not node_indices:
-            node_indices.add(self.geokdtree.closest_idx(point=node))
+            node_indices.add(self.snap_index.closest_idx(point=node))
         return node_indices
 
     def __get_node_distances__(
@@ -1928,11 +1932,11 @@ class GeoGraphUtils:
             - Type: str
             - What: The type of node addition to use
             - Options:
-                - 'closest' / 'kdclosest': Connect to the nearest node using GeoKDTree
-                - 'quadrant' / 'kdquadrant': Connect to nearest nodes in each quadrant using GeoKDTree
+                - 'closest' / 'kdclosest': Connect to the nearest node with the snapping index (`snap_index`)
+                - 'quadrant' / 'kdquadrant': Connect to nearest nodes in each quadrant with the snapping index (`snap_index`)
                 - 'all': Connect to every node inside the latitude/longitude bound
             - Notes:
-                - GeoKDTree searches the full graph; the bound applies only to 'all'
+                - The snapping index searches the full graph; the bound applies only to 'all'
         - `lat_lon_bound`
             - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
@@ -1945,7 +1949,7 @@ class GeoGraphUtils:
             - Default: False
         """
         if node_addition_type in ["kdclosest", "closest"]:
-            closest_idx = self.geokdtree.closest_idx(point=node)
+            closest_idx = self.snap_index.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
                 closest_idx: haversine(
@@ -1988,9 +1992,10 @@ class GeoGraphUtils:
                 silent=silent,
             )
             print_console(
-                "Using KD-Tree to find closest node instead.", silent=silent
+                "Using the snapping index to find the closest node instead.",
+                silent=silent,
             )
-            closest_idx = self.geokdtree.closest_idx(point=node)
+            closest_idx = self.snap_index.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
                 closest_idx: haversine(
@@ -2386,7 +2391,8 @@ class GeoGraph(
             True if intermediate_nodes is not None else False
         )
         self.geograph_units = geograph_units
-        self.geokdtree = GeoKDTree(points=self.nodes)
+        # Built at the first snap, not here: a GeoGraph that never snaps never pays for it
+        self.snap_index = None
         # len(nodes), not len(graph): a C++ graph would be copied to Python to count it
         self.__original_graph_length__ = len(self.nodes)
 
@@ -2402,21 +2408,55 @@ class GeoGraph(
         self._graph = graph
 
     @property
-    def geokdtree(self) -> GeoKDTree:
-        # Rebuilt on first use after nodes were added or removed
+    def snap_index(self) -> SnapIndex:
+        """
+        The index that snaps coordinates to their nearest nodes (`closest_idx(point)`,
+        `closest_idx_per_quadrant(point)`), built at the first snap and again after nodes
+        were added or removed.
+        """
+        # Dropped by add_coord_node, remove_coord_node and merge_with_other_geograph (merge
+        # keeps the index of the networks before the merge while it connects them); direct
+        # edits of nodes are not detected
+        if self.__snap_index__ is None:
+            self.__snap_index__ = SnapIndex(self.nodes)
+        return self.__snap_index__
+
+    @snap_index.setter
+    def snap_index(self, snap_index: SnapIndex | None) -> None:
+        self.__snap_index__ = snap_index
+        # Node coordinates in radians for the native A* heuristic, rebuilt with the index
+        self.__node_radians__ = None
+        if snap_index is None:
+            self.__geokdtree__ = None
+
+    @property
+    def geokdtree(self):
+        """
+        Deprecated: a `geokdtree.GeoKDTree` of the nodes. GeoGraph snaps with `snap_index`,
+        which has the same `closest_idx` and `closest_idx_per_quadrant` methods.
+        """
+        warnings.warn(
+            "GeoGraph.geokdtree is deprecated: GeoGraph snaps with snap_index, which has "
+            "the same closest_idx and closest_idx_per_quadrant methods",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self.__geokdtree__ is None:
+            from geokdtree import GeoKDTree
+
             self.__geokdtree__ = GeoKDTree(points=self.nodes)
         return self.__geokdtree__
 
     @geokdtree.setter
-    def geokdtree(self, geokdtree: GeoKDTree | None) -> None:
+    def geokdtree(self, geokdtree) -> None:
+        # Setting it to None asked for a rebuild after editing the nodes: drop the index too
+        if geokdtree is None:
+            self.snap_index = None
         self.__geokdtree__ = geokdtree
-        # Node coordinates in radians for the native A* heuristic, rebuilt with the KD-tree
-        self.__node_radians__ = None
 
     def __get_node_radians__(self) -> tuple[array, array]:
         # Also rebuilt when nodes were appended or removed directly; in-place edits of
-        # existing nodes are not detected (as for the KD-tree)
+        # existing nodes are not detected (as for the snapping index)
         if self.__node_radians__ is None or len(
             self.__node_radians__[0]
         ) != len(self.nodes):
@@ -2511,7 +2551,7 @@ class GeoGraph(
         silent=False,
     ):
         if node_addition_type == "closest":
-            idx = self.geokdtree.closest_idx(point=node)
+            idx = self.snap_index.closest_idx(point=node)
             return {
                 idx: haversine(
                     node,
@@ -2650,8 +2690,8 @@ class GeoGraph(
             - What: The type of node addition to use when adding your origin node to the distance matrix
             - Default: 'kdclosest'
             - Options:
-                - 'kdclosest' / 'closest': Add the closest node using GeoKDTree
-                - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant using GeoKDTree
+                - 'kdclosest' / 'closest': Add the closest node with the snapping index (`snap_index`)
+                - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant with the snapping index (`snap_index`)
                 - 'all': Add all nodes within the bounding box to the distance matrix for this node
         - `node_addition_circuity`
             - Type: int | float
@@ -2694,8 +2734,8 @@ class GeoGraph(
             - What: The method to use when adding the destination node to the graph
             - Default: 'kdclosest'
             - Options:
-                - 'kdclosest' / 'closest': Add the closest node using GeoKDTree
-                - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant using GeoKDTree
+                - 'kdclosest' / 'closest': Add the closest node with the snapping index (`snap_index`)
+                - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant with the snapping index (`snap_index`)
                 - 'all': Add the node to all points in the graph within the bounding box
         - `silent`
             - Type: bool
@@ -2950,7 +2990,7 @@ class GeoGraph(
         # [(entry_idx, distance), ...]
         entry_idx_and_distance = []
         for node in nodes:
-            node_idx = self.geokdtree.closest_idx(
+            node_idx = self.snap_index.closest_idx(
                 point=[node["latitude"], node["longitude"]]
             )
             distance = haversine(

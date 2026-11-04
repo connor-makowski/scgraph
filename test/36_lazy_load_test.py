@@ -69,7 +69,7 @@ def test_lazy_load_attribute_access():
         assert isinstance(nodes, list)
         assert len(nodes) > 0
         assert geo.graph_object is not None
-        assert geo.geokdtree is not None
+        assert geo.snap_index is not None
 
 
 def test_lazy_load_distance_matrix():

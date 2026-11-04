@@ -39,7 +39,12 @@ nanobind_add_module(
     scgraph/cpp/src/graph_reducer.cpp
     scgraph/cpp/src/contraction_hierarchies.cpp
     scgraph/cpp/src/transit_node_routing.cpp
+    scgraph/cpp/src/snap_index.cpp
 )
+# Same answers as the pure-Python SnapIndex: no fused multiply-add (ARM compilers fuse by default)
+if(NOT MSVC)
+    set_source_files_properties(scgraph/cpp/src/snap_index.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
+endif()
 install(TARGETS cpp DESTINATION scgraph)
 
 # -----------------------------
