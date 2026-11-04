@@ -421,7 +421,10 @@ marnet_geograph = GeoGraph.load_geograph("marnet")
 # Optionally specify a custom cache directory
 marnet_geograph = GeoGraph.load_geograph("marnet", cache_dir="/path/to/cache")
 
-# List all available geographs and whether each is cached locally
+# Never download: use only the cache (FileNotFoundError if the geograph is not there)
+marnet_geograph = GeoGraph.load_geograph("marnet", local_files_only=True)
+
+# List all available geographs and whether each is cached locally (no network request)
 available = GeoGraph.list_geographs()
 # [
 #     {"name": "marnet",                    "cached": True},
@@ -445,7 +448,7 @@ The cache location defaults to the platform-appropriate directory:
 | macOS | `~/Library/Caches/scgraph/` |
 | Windows | `%LOCALAPPDATA%\scgraph\` |
 
-To use another directory for every call, set the environment variable `SCGRAPH_CACHE_DIR`; a `cache_dir` argument wins over it.
+To use another directory for every call, set the environment variable `SCGRAPH_CACHE_DIR`; a `cache_dir` argument wins over it. To work without network access, set `SCGRAPH_OFFLINE=1`: it makes `local_files_only=True` the default of `load_geograph` and `build_geograph`, and a `local_files_only` argument wins over it.
 
 ### `load_geograph` Parameters
 
@@ -456,6 +459,7 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 | `geograph_url` | `'https://raw.githubusercontent.com/...'` | Base URL for fetching geographs |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
+| `local_files_only` | `None` | Use only the cache, never download; defaults to `True` if `SCGRAPH_OFFLINE=1`, else `False` |
 
 ## Building Networks from Their Sources
 
@@ -496,7 +500,7 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index |
 
-Each network is kept in the cache directory under `networks/<name>/` (`networks/<name>/<region>/` for the `osm_*` networks): a network file named by its content, `<content_sha256>.scgraph` (the SHA-256 of its arrays, also stored in its header), and a `manifest.json` that names it (download date, scgraph, build-script and file-format versions, the file, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script or the file format, or when the file its manifest names is missing; otherwise, to download and build it again, clear the cache with `GeoGraph.clear_geograph_cache()`. A rebuild writes the new file, then the manifest, then removes the old file; on Windows, an old file still open in another process stays until the cache is cleared. `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory: save an edited network elsewhere. scgraph also writes a `CACHEDIR.TAG` at the root of the cache directory, so that backup tools that honour it skip the cache.
+Each network is kept in the cache directory under `networks/<name>/` (`networks/<name>/<region>/` for the `osm_*` networks): a network file named by its content, `<content_sha256>.scgraph` (the SHA-256 of its arrays, also stored in its header), and a `manifest.json` that names it (download date, scgraph, build-script and file-format versions, the file, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script or the file format, or when the file its manifest names is missing; otherwise, to download and build it again, clear the cache with `GeoGraph.clear_geograph_cache()`. With `local_files_only=True`, nothing is downloaded: a network built with another version of its build script or node order is loaded with a warning that names what differs (refused if its file format differs), and one that is not in the cache raises a `FileNotFoundError`. Two installs of different versions sharing one cache build the same network in turn: give each its own `SCGRAPH_CACHE_DIR`, or use `local_files_only=True` in the older one. A rebuild writes the new file, then the manifest, then removes the old file; on Windows, an old file still open in another process stays until the cache is cleared. `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory: save an edited network elsewhere. scgraph also writes a `CACHEDIR.TAG` at the root of the cache directory, so that backup tools that honour it skip the cache.
 
 In `osm_main_roads_and_marnet`, a port joins the two networks only if a road node is within 20 km and a sea node within 250 km; connectors are straight lines, 1.2 times the great-circle distance, and are not checked against land and water. Nodes are stored by mode (roads, then ports, then sea), and the manifest records the node range of each mode (`node_modes`). Routes use kilometers for every mode.
 
@@ -511,6 +515,7 @@ These networks are built from the current version of their sources: they are not
 | `cache_dir` | `None` | Custom cache directory; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer downloading/loading until the geograph is first accessed |
+| `local_files_only` | `None` | Use only the cache, never download; defaults to `True` if `SCGRAPH_OFFLINE=1`, else `False` |
 
 ## Loading from OSMNx
 

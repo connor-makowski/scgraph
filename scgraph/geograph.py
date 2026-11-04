@@ -51,6 +51,9 @@ _CACHEDIR_TAG = (
 )
 
 
+_GEOGRAPH_URL = (
+    "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs"
+)
 # The built-in geographs published for load_geograph (contents.txt of the geograph URL); they are
 # no longer updated
 _PUBLISHED_GEOGRAPHS = (
@@ -696,9 +699,11 @@ class GeoGraphIO:
     def load_geograph(
         name: str,
         cache_dir: str | None = None,
-        geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs",
+        geograph_url: str = _GEOGRAPH_URL,
         reduce_iterations: int = 0,
         lazy: bool = False,
+        *,
+        local_files_only: bool | None = None,
     ) -> "GeoGraph":
         """
         Function:
@@ -706,6 +711,7 @@ class GeoGraphIO:
         - Load a built-in GeoGraph by name, using a local cache.
         - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
         - On subsequent calls, loads directly from cache without any network requests.
+        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), never downloads: a geograph that is not in the cache raises a FileNotFoundError.
 
         Required Arguments:
 
@@ -734,6 +740,10 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay loading/fetching the geograph until its first use
             - Default: False
+        - `local_files_only`
+            - Type: bool | None
+            - What: Whether to use only the cache, without any network request
+            - Default: None: True if the environment variable `SCGRAPH_OFFLINE` is `1`, else False
         """
         if lazy:
             return LazyGeoGraph(
@@ -743,12 +753,20 @@ class GeoGraphIO:
                     geograph_url=geograph_url,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    local_files_only=local_files_only,
                 )
             )
+        if local_files_only is None:
+            local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
         cache_path = resolve_cache_dir(cache_dir)
         cache_path.mkdir(parents=True, exist_ok=True)
         cached_file = cache_path.joinpath(f"{name}.graphjson")
         if not cached_file.exists():
+            if local_files_only:
+                raise FileNotFoundError(
+                    f"Geograph '{name}' is not in the cache ({cache_path}) and "
+                    "local_files_only=True (or SCGRAPH_OFFLINE=1) forbids downloading it"
+                )
             GeoGraph.__fetch_geograph_to_cache__(
                 name, cached_file, geograph_url
             )
@@ -759,13 +777,13 @@ class GeoGraphIO:
     @staticmethod
     def list_geographs(
         cache_dir: str | None = None,
-        geograph_url: str = "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs",
+        geograph_url: str = _GEOGRAPH_URL,
     ) -> list[dict]:
         """
         Function:
 
         - List all built-in GeoGraphs available, indicating which are already cached locally.
-        - Fetches the available geograph names from a `contents.txt` file at the geograph URL.
+        - The published geographs are a fixed list, listed without any network request; for another `geograph_url`, the names are read from the `contents.txt` file at that URL.
 
         Optional Arguments:
 
@@ -787,19 +805,21 @@ class GeoGraphIO:
             - `name`: str — the geograph name (without extension)
             - `cached`: bool — whether the file is already in the local cache
         """
-        url = f"{geograph_url.rstrip('/')}/contents.txt"
-        response = requests.get(url, timeout=60)
-        if not response.ok:
-            raise ConnectionError(
-                f"Failed to fetch geograph list from '{url}'. "
-                f"HTTP status: {response.status_code}."
-            )
         cache_path = resolve_cache_dir(cache_dir)
-        available = sorted(
-            line.removesuffix(".graphjson")
-            for line in response.text.splitlines()
-            if line.strip().endswith(".graphjson")
-        )
+        available = sorted(_PUBLISHED_GEOGRAPHS)
+        if geograph_url != _GEOGRAPH_URL:
+            url = f"{geograph_url.rstrip('/')}/contents.txt"
+            response = requests.get(url, timeout=60)
+            if not response.ok:
+                raise ConnectionError(
+                    f"Failed to fetch geograph list from '{url}'. "
+                    f"HTTP status: {response.status_code}."
+                )
+            available = sorted(
+                line.removesuffix(".graphjson")
+                for line in response.text.splitlines()
+                if line.strip().endswith(".graphjson")
+            )
         return [
             {
                 "name": name,
@@ -854,11 +874,14 @@ class GeoGraphIO:
         cache_dir: str | None = None,
         reduce_iterations: int = 0,
         lazy: bool = False,
+        *,
+        local_files_only: bool | None = None,
     ) -> "GeoGraph":
         """
         Function:
 
         - Download the online sources of a reference network once, build the network on this machine and keep it in the local cache; later calls load it from the cache, without any network request, until an upgrade of scgraph changes how that network is built
+        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its build script or node order is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
         - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows every step
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
         - `GeoGraph.list_downloadable_geographs()` lists the networks, who to credit and what is already in the cache
@@ -897,6 +920,10 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay downloading or loading the geograph until its first use
             - Default: False
+        - `local_files_only`
+            - Type: bool | None
+            - What: Whether to use only the cache, without any network request
+            - Default: None: True if the environment variable `SCGRAPH_OFFLINE` is `1`, else False
 
         Returns:
 
@@ -904,9 +931,10 @@ class GeoGraphIO:
 
         Raises:
 
-        - `ValueError` for an unknown name, a missing or invalid region, or a region Geofabrik does not have, before any large download
+        - `ValueError` for an unknown name, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for a cached network of another file format
+        - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
-        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; no file of the build is left in the cache
+        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; no file of the build is left in the cache, and a network already cached stays there
         """
         if lazy:
             return LazyGeoGraph(
@@ -916,8 +944,11 @@ class GeoGraphIO:
                     cache_dir=cache_dir,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    local_files_only=local_files_only,
                 )
             )
+        if local_files_only is None:
+            local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
         from scgraph import networks
 
         if name not in networks.NAMES:
@@ -959,13 +990,40 @@ class GeoGraphIO:
             built_by, cached_file = None, None
         current = network.VERSION, network_file.VERSION, NODE_ORDER
         cached = cached_file is not None and cached_file.is_file()
-        if cached and built_by != current:
+        stale = cached and built_by != current
+        offline = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
+        if local_files_only:
+            if not cached:
+                raise FileNotFoundError(
+                    f"{name} is not in the cache ({folder}) and {offline} "
+                    "forbids building it"
+                )
+            if built_by[1] != network_file.VERSION:
+                raise ValueError(
+                    f"The cached {name} has file format {built_by[1]}, this scgraph "
+                    f"reads {network_file.VERSION}: build it again without {offline}"
+                )
+            if stale:
+                differs = ", ".join(
+                    f"{field} {old}, now {new}"
+                    for field, old, new in zip(
+                        ("build script version", "file format", "node order"),
+                        built_by,
+                        current,
+                    )
+                    if old != new
+                )
+                warnings.warn(
+                    f"The cached {name} was built with another {differs}; "
+                    f"loading it as {offline}"
+                )
+        elif stale:
             logger.warning(
                 "The cached %s was built by another version of its build script, "
                 "file format or node order; building it again",
                 name,
             )
-        if not cached or built_by != current:
+        if not local_files_only and (not cached or stale):
             # The tag goes in networks/, scgraph's own folder: a cache_dir given by the user
             # may hold other files, which backups must not skip
             cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
@@ -1061,6 +1119,13 @@ class GeoGraphIO:
                     _joined(network, "credit"),
                     _joined(network, "license"),
                 )
+            except OSError as error:  # requests' errors included
+                if cached:
+                    error.add_note(
+                        f"The cache still holds {name}: build_geograph(..., "
+                        "local_files_only=True) loads it"
+                    )
+                raise
             finally:
                 # A failed download or build leaves no large file behind
                 shutil.rmtree(work, ignore_errors=True)

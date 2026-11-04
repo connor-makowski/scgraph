@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+import requests
 
 from scgraph import GeoGraph, network_file, networks
 from scgraph.helpers.hilbert import hilbert_order
@@ -166,6 +167,69 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
         for n in GeoGraph.list_downloadable_geographs(str(tmp_path))
     }
     assert listing["marnet"]["cached"] and not listing["us_freeway"]["cached"]
+
+
+# What the cache holds: nothing, a current build, or a build by another version of the
+# build script ("stale"), node order or file format; SCGRAPH_OFFLINE sets the default of
+# local_files_only. "loaded" without a download, "built" with one, "down": the source fails
+@pytest.mark.parametrize(
+    "cached, offline, options, outcome",
+    [
+        (None, None, {"local_files_only": True}, FileNotFoundError),
+        (None, "1", {}, FileNotFoundError),
+        ("stale", None, {"local_files_only": True}, "loaded"),
+        ("order", None, {"local_files_only": True}, "loaded"),
+        ("stale", "1", {"local_files_only": False}, "built"),
+        ("stale", None, {}, "down"),
+        ("format", None, {"local_files_only": True}, ValueError),
+    ],
+)
+def test_build_geograph_downloads_only_if_allowed(
+    tmp_path, source, monkeypatch, cached, offline, options, outcome
+):
+    monkeypatch.setitem(
+        marnet.SOURCES["lines"], "url", f"{source}/lines.geojson"
+    )
+    monkeypatch.delenv("SCGRAPH_OFFLINE", raising=False)
+    if cached:
+        GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
+        _Source.served.clear()
+    versioned = {"stale": marnet, "format": network_file}.get(cached)
+    if versioned:
+        monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
+    if cached == "order":
+        monkeypatch.setattr("scgraph.geograph.NODE_ORDER", {"name": "other"})
+    if offline:
+        monkeypatch.setenv("SCGRAPH_OFFLINE", offline)
+
+    def build():
+        return GeoGraph.build_geograph(
+            "marnet", cache_dir=str(tmp_path), **options
+        )
+
+    if outcome == "loaded":  # with a warning that names what differs
+        old, new = marnet.VERSION - 1, marnet.VERSION
+        differs = f"build script version {old}, now {new};"
+        with pytest.warns(
+            UserWarning, match="node order" if cached == "order" else differs
+        ):
+            assert len(build().nodes) == 4
+    elif outcome == "built":
+        assert len(build().nodes) == 4
+    elif outcome == "down":
+        monkeypatch.delitem(_FILES, "/lines.geojson")
+        with pytest.raises(requests.HTTPError, match="local_files_only=True"):
+            build()
+        # The cached network is kept
+        manifest = json.loads(
+            (tmp_path / "networks/marnet/manifest.json").read_text()
+        )
+        assert (tmp_path / "networks/marnet" / manifest["file"]).is_file()
+    else:  # scgraph's own error, which names the cause
+        with pytest.raises(outcome, match="local_files_only"):
+            build()
+    downloaded = outcome in ("built", "down")
+    assert _Source.served == (["/lines.geojson"] if downloaded else [])
 
 
 def test_build_geograph_reads_every_page_of_an_arcgis_layer(
