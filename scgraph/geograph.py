@@ -13,7 +13,7 @@ from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.lines import lines_to_graph
 from scgraph import network_file
 from geokdtree import GeoKDTree
-import difflib, hashlib, importlib, json, logging, re, requests, shutil
+import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
 import tempfile
 from array import array
 from collections import Counter
@@ -620,7 +620,7 @@ class GeoGraphIO:
             - What: The destination path in the cache to write the file to
         """
         url = f"{geograph_url}/{name}.graphjson"
-        response = requests.get(url)
+        response = requests.get(url, timeout=60)
         if response.status_code == 404:
             raise FileNotFoundError(
                 f"Geograph '{name}' not found at '{url}'. "
@@ -631,7 +631,17 @@ class GeoGraphIO:
                 f"Failed to download geograph '{name}' from '{url}'. "
                 f"HTTP status: {response.status_code}."
             )
-        cached_file.write_bytes(response.content)
+        # Written next to the cache file, then moved onto it: a download that fails while it
+        # is written never leaves a partial file that later loads would take as the network
+        partial = cached_file.with_name(
+            f".{cached_file.name}.{os.getpid()}.{secrets.token_hex(4)}.download"
+        )
+        try:
+            partial.write_bytes(response.content)
+            os.replace(partial, cached_file)
+        except BaseException:
+            partial.unlink(missing_ok=True)
+            raise
 
     @staticmethod
     def load_geograph(
@@ -729,7 +739,7 @@ class GeoGraphIO:
             - `cached`: bool — whether the file is already in the local cache
         """
         url = f"{geograph_url.rstrip('/')}/contents.txt"
-        response = requests.get(url)
+        response = requests.get(url, timeout=60)
         if not response.ok:
             raise ConnectionError(
                 f"Failed to fetch geograph list from '{url}'. "

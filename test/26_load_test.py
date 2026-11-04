@@ -1,5 +1,9 @@
 import tempfile
-from scgraph import GeoGraph
+from pathlib import Path
+
+import pytest
+
+from scgraph import GeoGraph, geograph
 
 
 def test_list_geographs_returns_list():
@@ -87,3 +91,27 @@ def test_cache_directory_is_cache_dir_else_the_environment_variable(
     # Only scgraph's files go, from the cache the variable names
     assert sorted(p.name for p in shared.iterdir()) == ["notes.txt"]
     assert (mine / "marnet.graphjson").exists()
+
+
+def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
+    tmp_path, monkeypatch
+):
+    class Response:
+        status_code, ok, content = (
+            200,
+            True,
+            b'{"type": "GeoGraph"' + b" " * 1000,
+        )
+
+    monkeypatch.setattr(geograph.requests, "get", lambda *a, **k: Response())
+    write = Path.write_bytes
+
+    def disk_full(self, data):
+        write(self, data[: len(data) // 2])
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(Path, "write_bytes", disk_full)
+    with pytest.raises(OSError):
+        GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+    # A later load would take any file named marnet.graphjson for the network
+    assert list(tmp_path.iterdir()) == []

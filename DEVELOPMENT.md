@@ -167,6 +167,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 
 **Shared infrastructure:**
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`
+  - The tests download these networks into their own cache, a temporary directory per session, never the user's. Set `SCGRAPH_CACHE_DIR` to a directory to keep the downloads between runs (or to run the tests offline from a filled cache).
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
 
 **Naming convention:** `NN_module_feature_test.py` (zero-padded for ordered display)
