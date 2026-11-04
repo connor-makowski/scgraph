@@ -489,8 +489,11 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `us_freeway` | Freeways of the United States | Esri, ArcGIS layer |
 | `osm_main_roads` | Motorway, trunk and primary roads and their links of a region | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
+| `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index |
 
 Each network is kept under `downloads/` in the cache directory, with a manifest `<name>.manifest.json` (download date, scgraph, build-script and file-format versions, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script or the file format; otherwise, to download and build it again, clear the cache with `GeoGraph.clear_geograph_cache()`.
+
+In `osm_main_roads_and_marnet`, a port joins the two networks only if a road node is within 20 km and a sea node within 250 km; connectors are straight lines, 1.2 times the great-circle distance, and are not checked against land and water. Nodes are stored by mode (roads, then ports, then sea), and the manifest records the node range of each mode (`node_modes`). Routes use kilometers for every mode.
 
 These networks are built from the current version of their sources: they are not the built-in files, their node numbers differ and results can differ slightly from those of `load_geograph`. They also have more nodes (one at every junction and at least every 2 km); `reduce_iterations=-1` removes those that are not needed for routing.
 
