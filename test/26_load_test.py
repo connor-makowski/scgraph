@@ -55,3 +55,35 @@ def test_clear_cache():
         geograph_list = GeoGraph.list_geographs(cache_dir=tmp)
         entry = next(g for g in geograph_list if g["name"] == "marnet")
         assert entry["cached"] is False
+
+
+def test_cache_directory_is_cache_dir_else_the_environment_variable(
+    tmp_path, monkeypatch
+):
+    # The platform directory moves under tmp_path too: no call may reach the real cache
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "home"))
+    shared, mine = tmp_path / "shared", tmp_path / "mine"
+    monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(shared))
+    for folder, nodes in (
+        (shared, [[0, 0], [0, 1]]),
+        (mine, [[0, 0], [1, 0], [2, 0]]),
+    ):
+        folder.mkdir()
+        graph = [{} for _ in nodes]
+        GeoGraph(graph=graph, nodes=nodes).save_as_graphjson(
+            str(folder / "marnet.graphjson")
+        )
+    (shared / "downloads" / "us_freeway").mkdir(parents=True)
+    (shared / "downloads" / "us_freeway" / "us_freeway.scgraph").write_bytes(
+        b""
+    )
+    assert len(GeoGraph.load_geograph("marnet").nodes) == 2
+    assert len(GeoGraph.load_geograph("marnet", cache_dir=str(mine)).nodes) == 3
+    listing = {n["name"]: n for n in GeoGraph.list_downloadable_geographs()}
+    assert listing["us_freeway"]["cached"]
+    (shared / "notes.txt").write_text("the user's own file")
+    GeoGraph.clear_geograph_cache()
+    # Only scgraph's files go, from the cache the variable names
+    assert sorted(p.name for p in shared.iterdir()) == ["notes.txt"]
+    assert (mine / "marnet.graphjson").exists()

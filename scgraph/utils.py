@@ -362,6 +362,20 @@ def cpp_check():
         print("Using Pure Python implementation of SCGraph.")
 
 
+def resolve_cache_dir(cache_dir: str | None = None) -> Path:
+    """
+    The cache directory of every function that uses the cache: `cache_dir` if given, else the
+    `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory
+    (`get_default_cache_path`).
+    """
+    if cache_dir is not None:
+        return Path(cache_dir)
+    from_environment = os.environ.get("SCGRAPH_CACHE_DIR")
+    if from_environment:
+        return Path(from_environment)
+    return get_default_cache_path()
+
+
 def get_default_cache_path() -> Path:
     system = platform.system()
     if system == "Windows":
