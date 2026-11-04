@@ -1,4 +1,5 @@
 import gc
+import inspect
 from heapq import heapify, heappop, heappush
 from functools import wraps
 
@@ -445,11 +446,17 @@ class GraphReducer:
             origin_id, destination_id
         ):
             length_only = kwargs.get("length_only", False)
+            if len(args) > 2:  # length_only may also be passed by position
+                length_only = (
+                    inspect.signature(func)
+                    .bind(self, *args, **kwargs)
+                    .arguments.get("length_only", length_only)
+                )
             res = GraphReducer.dijkstra_on_graph(
                 self.unreduced_graph, origin_id, destination_id
             )
             if length_only:
-                res.pop("path", None)
+                res["path"] = []
             return res
 
         is_reduced = self.is_reduced
