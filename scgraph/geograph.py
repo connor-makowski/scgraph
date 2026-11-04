@@ -248,6 +248,7 @@ class GeoGraphIO:
             - What: The filename to save the network file as
             - Note: The filename must end with .scgraph
             - Note: A file inside the `networks/` folder of the cache directory (`build_geograph`'s) raises a ValueError: save it elsewhere
+            - Note: On Windows (C++ build), a file that a live GeoGraph was loaded from raises a PermissionError: save to another name
 
         Optional Arguments:
 
@@ -590,6 +591,7 @@ class GeoGraphIO:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
         - The file is checked before use: a damaged or foreign file raises a ValueError
+        - In the C++ build, the file is mapped and read in place while the graph is alive (until its first edit); on Windows it can't be replaced or deleted meanwhile
 
         Required Arguments:
 
@@ -619,11 +621,17 @@ class GeoGraphIO:
             )
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
-        arrays, metadata = network_file.read(filename)
-        geograph = GeoGraph(
-            graph=Graph.from_csr(
+        # The C++ graph reads the arcs in place, from the mapped file, and checks them
+        mapped = Graph.__module__ == "scgraph.cpp"
+        arrays, metadata = network_file.read(filename, mapped=mapped)
+        try:
+            graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
-            ),
+            )
+        except (IndexError, ValueError) as error:
+            raise ValueError(f"{filename}: {error}") from error
+        geograph = GeoGraph(
+            graph=graph,
             nodes=[
                 [latitude, longitude]
                 for latitude, longitude in zip(

@@ -1,9 +1,10 @@
 import hashlib
 import json
+import os
 
 import pytest
 
-from scgraph import GeoGraph, network_file
+from scgraph import GeoGraph, Graph, network_file
 from scgraph.helpers.hilbert import hilbert_order
 
 # A one-way arc (0 -> 2), a shape on one arc only, integer weights and an isolated node
@@ -102,6 +103,23 @@ def test_load_from_scgraph_keeps_the_original_graph_after_reduction(tmp_path):
     assert loaded.graph == chain
 
 
+def test_save_as_scgraph_over_a_file_in_use(tmp_path):
+    # The C++ graph reads its file in place: replacing the file leaves the open graph
+    # whole (Linux, macOS), or is refused (Windows does not replace a mapped file)
+    path = str(tmp_path / "small.scgraph")
+    _small().save_as_scgraph(path)
+    opened = GeoGraph.load_from_scgraph(path)
+    other = GeoGraph(graph=[{1: 7.0}, {0: 7.0}], nodes=[[0, 0], [0, 0.01]])
+    if os.name == "nt" and Graph.__module__ == "scgraph.cpp":
+        with pytest.raises(PermissionError, match="open in a graph"):
+            other.save_as_scgraph(path)
+        return
+    other.save_as_scgraph(path)
+    assert opened.graph_object.dijkstra(0, 1)["length"] == 5
+    assert opened.graph_object.graph == _GRAPH
+    assert GeoGraph.load_from_scgraph(path).graph_object.graph == other.graph
+
+
 def _damage(data, how):
     header_length = int.from_bytes(data[8:16], "little")
     header = json.loads(data[16 : 16 + header_length])
@@ -117,6 +135,10 @@ def _damage(data, how):
         header = [header]
     if how == "truncated":
         return data[:-8]
+    if how == "offsets past the arcs":
+        offsets = header["arrays"]["offsets"]["offset"]
+        big = (2**30).to_bytes(4, "little")
+        return data[: offsets + 4] + big + data[offsets + 8 :]
     if how == "arc to a missing node":
         heads = header["arrays"]["heads"]["offset"]
         return data[:heads] + (99).to_bytes(4, "little") + data[heads + 4 :]
@@ -130,7 +152,9 @@ def _damage(data, how):
         ("not a network file", "not a scgraph network file"),
         ("later version", "format version 2"),
         ("truncated", "invalid array"),
-        ("arc to a missing node", "arc to a missing node"),
+        # Checked by network_file.read, or by the C++ graph on a mapped file
+        ("arc to a missing node", "arc to a missing node|is not in the graph"),
+        ("offsets past the arcs", "invalid offsets|non-decreasing"),
         ("header without arrays", "invalid header"),
         ("header is not an object", "invalid header"),
     ],

@@ -658,6 +658,7 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
 The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file.
+In the C++ build, `load_from_scgraph` maps the file and reads it in place while the graph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`, and `clear_geograph_cache` leaves it in place.
 
 | Method | Description |
 |---|---|

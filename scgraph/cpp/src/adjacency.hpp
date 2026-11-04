@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <memory>
+#include <span>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -53,18 +55,35 @@ public:
 // Arcs stored by origin, as in a .scgraph file (compressed sparse rows): the arcs of
 // node u are heads[offsets[u]] .. heads[offsets[u + 1] - 1], with their weights. Read
 // only: edits go to RowEdits, and the next read packs them into new arrays (GraphUtils).
-// Offsets are 32-bit, as in the file: at most 2^31 - 1 arcs
+// Offsets are 32-bit, as in the file: at most 2^31 - 1 arcs. The arrays are owned, or
+// borrowed (a mapped file) and kept alive by `owner`
 class Adjacency {
-    std::vector<int32_t> offsets{0};
-    std::vector<int32_t> heads;
-    std::vector<double> weights;
+    struct Owned {
+        std::vector<int32_t> offsets, heads;
+        std::vector<double> weights;
+    };
+    std::shared_ptr<const void> owner;
+    const int32_t* offsets = nullptr;
+    const int32_t* heads = nullptr;
+    const double* weights = nullptr;
+    int n = 0;
+    int64_t m = 0;
 
 public:
-    Adjacency() = default;
+    Adjacency() : Adjacency(std::vector<int32_t>{0}, {}, {}) {}
     // Arrays already checked by the caller
-    Adjacency(std::vector<int32_t> offsets, std::vector<int32_t> heads, std::vector<double> weights)
-        : offsets(std::move(offsets)), heads(std::move(heads)), weights(std::move(weights)) {}
+    Adjacency(std::vector<int32_t> offsets, std::vector<int32_t> heads, std::vector<double> weights) {
+        auto arrays = std::make_shared<Owned>(Owned{std::move(offsets), std::move(heads), std::move(weights)});
+        *this = Adjacency(arrays, arrays->offsets.data(), arrays->heads.data(), arrays->weights.data(),
+                          static_cast<int>(arrays->offsets.size()) - 1,
+                          static_cast<int64_t>(arrays->heads.size()));
+    }
+    // Arrays that `owner` keeps alive (a mapped file, for instance), already checked
+    Adjacency(std::shared_ptr<const void> owner, const int32_t* offsets, const int32_t* heads,
+              const double* weights, int n, int64_t m)
+        : owner(std::move(owner)), offsets(offsets), heads(heads), weights(weights), n(n), m(m) {}
     explicit Adjacency(const std::vector<std::vector<std::pair<int, double>>>& rows) {
+        std::vector<int32_t> offsets{0};
         offsets.reserve(rows.size() + 1);
         size_t m = 0;
         for (const auto& row : rows) {
@@ -72,6 +91,8 @@ public:
             if (m > INT32_MAX) throw std::length_error("a graph holds at most 2^31 - 1 arcs");
             offsets.push_back(static_cast<int32_t>(m));
         }
+        std::vector<int32_t> heads;
+        std::vector<double> weights;
         heads.reserve(m);
         weights.reserve(m);
         for (const auto& row : rows) {
@@ -80,6 +101,7 @@ public:
                 weights.push_back(weight);
             }
         }
+        *this = Adjacency(std::move(offsets), std::move(heads), std::move(weights));
     }
     std::vector<std::vector<std::pair<int, double>>> to_rows() const {
         std::vector<std::vector<std::pair<int, double>>> rows(size());
@@ -88,11 +110,11 @@ public:
     }
 
     SCGRAPH_INLINE Row operator[](int u) const {
-        return {heads.data() + offsets[u], weights.data() + offsets[u], offsets[u + 1] - offsets[u]};
+        return {heads + offsets[u], weights + offsets[u], offsets[u + 1] - offsets[u]};
     }
-    int size() const { return static_cast<int>(offsets.size()) - 1; }
-    int64_t arcs() const { return static_cast<int64_t>(heads.size()); }
-    const std::vector<double>& all_weights() const { return weights; }
+    int size() const { return n; }
+    int64_t arcs() const { return m; }
+    std::span<const double> all_weights() const { return {weights, static_cast<size_t>(m)}; }
     void clear() { *this = Adjacency(); }
 };
 

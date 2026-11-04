@@ -43,14 +43,18 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
     }
 }
 
-void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double* weights, int n, int64_t m) {
+void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double* weights, int n, int64_t m,
+                     std::shared_ptr<const void> owner) {
     if (n < 0 || offsets[0] != 0 || offsets[n] != m) {
         throw std::invalid_argument("offsets must start at 0 and end at the number of arcs");
     }
+    // Offsets first: heads are read only within [0, m)
     for (int u = 0; u < n; ++u) {
         if (offsets[u] > offsets[u + 1]) {
             throw std::invalid_argument("offsets must be non-decreasing");
         }
+    }
+    for (int u = 0; u < n; ++u) {
         for (int32_t j = offsets[u]; j < offsets[u + 1]; ++j) {
             if (heads[j] < 0 || heads[j] >= n) {
                 throw std::out_of_range(
@@ -59,9 +63,13 @@ void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double*
             }
         }
     }
-    this->set_graph(Adjacency(std::vector<int32_t>(offsets, offsets + n + 1),
-                              std::vector<int32_t>(heads, heads + m),
-                              std::vector<double>(weights, weights + m)));
+    if (owner) {
+        this->set_graph(Adjacency(std::move(owner), offsets, heads, weights, n, m));
+    } else {
+        this->set_graph(Adjacency(std::vector<int32_t>(offsets, offsets + n + 1),
+                                  std::vector<int32_t>(heads, heads + m),
+                                  std::vector<double>(weights, weights + m)));
+    }
     this->reset_cache();
 }
 
@@ -89,7 +97,7 @@ double Graph::resolve_bucket_width(const Adjacency& g,
     } else {
         double& cache = (&g == &this->reduced_graph) ? reduced_bucket_width_cache : bucket_width_cache;
         if (cache < 0.0) {
-            std::vector<double> weights = g.all_weights();
+            std::vector<double> weights(g.all_weights().begin(), g.all_weights().end());
             double median = 0.0;
             if (!weights.empty()) {
                 auto mid = weights.begin() + weights.size() / 2;

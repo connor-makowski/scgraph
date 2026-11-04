@@ -212,8 +212,11 @@ For how to use each cache, see the README:
 
 `save_as_scgraph` writes a GeoGraph to a binary `.scgraph` file and `load_from_scgraph` reads
 it back (`network_file.py`, standard library only). It holds the same data as a graphjson
-file, but loads without parsing JSON: in the C++ backend, `Graph.from_csr` builds the graph
-directly from the arrays.
+file, but loads without parsing JSON. In the C++ backend, the file is mapped read-only and
+the graph reads its arcs in place (the private `Graph._from_mapped_csr` keeps them;
+`Graph.from_csr` copies); the mapping lasts as long as the graph, or until its first edit. Windows does
+not replace a mapped file, so there, saving onto a file that an open graph was read from
+raises a `PermissionError`.
 
 | Bytes | Content |
 |---|---|

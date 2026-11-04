@@ -10,10 +10,13 @@ offsets[u + 1]]`, sorted by head, with their `weights`.
 
 import hashlib
 import json
+import mmap
 import os
 import secrets
 import sys
 from array import array
+from itertools import islice
+from operator import le
 
 MAGIC = b"SCGRAPH1"
 VERSION = 1
@@ -110,31 +113,46 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
             file.write(MAGIC)
             file.write((_HEADER_END - 16).to_bytes(8, "little"))
             file.write(json.dumps(header).encode().ljust(_HEADER_END - 16))
-        os.replace(temporary, filename)
+        try:
+            os.replace(temporary, filename)
+        except PermissionError as error:
+            if os.name != "nt":
+                raise
+            # Windows does not replace a file that a process has mapped
+            raise PermissionError(
+                f"{filename} is open in a graph (its file is mapped): save to another "
+                "name, or release every graph read from it first"
+            ) from error
     except BaseException:
         os.unlink(temporary)
         raise
     return header["content_sha256"]
 
 
-def read(filename):
+def read(filename, mapped=False):
     """Return the arrays (by name) and the metadata of a network file, after checking that
     they describe a valid graph; a damaged or foreign file raises a ValueError. The
     metadata also holds the header's `content_sha256`, if the file has one (files written
     by other tools may not).
+
+    With `mapped=True` (on little-endian machines), the file is mapped read-only and the
+    arrays are memoryviews of it, not copies: the file stays mapped while they are
+    referenced. Offsets and heads are then left to the reader to check (the C++
+    `Graph.from_csr` does), so that opening does not read every arc.
     """
+    mapped = mapped and sys.byteorder == "little"
     try:
         with open(filename, "rb") as file:
-            arrays, metadata = _read(filename, file)
+            arrays, metadata = _read(filename, file, mapped)
     except ValueError:
         raise
     except (AttributeError, KeyError, OverflowError, TypeError) as error:
         raise ValueError(f"{filename}: invalid header ({error!r})") from error
-    _check(filename, arrays)
+    _check(filename, arrays, arcs=not mapped)
     return arrays, metadata
 
 
-def _read(filename, file):
+def _read(filename, file, mapped):
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
     length = int.from_bytes(file.read(8), "little")
@@ -145,6 +163,8 @@ def _read(filename, file):
             f"this version of scgraph reads version {VERSION}"
         )
     file_size = os.fstat(file.fileno()).st_size
+    if mapped:
+        view = memoryview(mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ))
     arrays = {}
     for name, entry in header["arrays"].items():
         if name not in ARRAYS:
@@ -161,6 +181,10 @@ def _read(filename, file):
             or start + count * values.itemsize > file_size
         ):
             raise ValueError(f"{filename}: invalid array '{name}'")
+        if mapped:
+            end = start + count * values.itemsize
+            arrays[name] = view[start:end].cast(typecode)
+            continue
         file.seek(start)
         values.fromfile(file, count)
         arrays[name] = _little_endian(values)
@@ -191,7 +215,7 @@ def shapes(arrays):
     return result
 
 
-def _check(filename, arrays):
+def _check(filename, arrays, arcs=True):
     def require(condition, what):
         if not condition:
             raise ValueError(f"{filename}: {what}")
@@ -205,11 +229,16 @@ def _check(filename, arrays):
     offsets, heads = arrays["offsets"], arrays["heads"]
     n, m = len(offsets) - 1, len(heads)
     require(n >= 0 and offsets[0] == 0 and offsets[-1] == m, "invalid offsets")
-    require(
-        all(a <= b for a, b in zip(offsets, offsets[1:])), "invalid offsets"
-    )
     require(len(arrays["weights"]) == m, "one weight per arc expected")
-    require(all(0 <= head < n for head in heads), "arc to a missing node")
+    if arcs:
+        # The loops over the arcs run in C (map, min, max), not in Python
+        require(
+            all(map(le, offsets, islice(offsets, 1, None))), "invalid offsets"
+        )
+        require(
+            not m or (min(heads) >= 0 and max(heads) < n),
+            "arc to a missing node",
+        )
     require(
         len(arrays["latitudes"]) == len(arrays["longitudes"]) == n,
         "one latitude and longitude per node expected",
@@ -220,7 +249,7 @@ def _check(filename, arrays):
             len(shapes) == m + 1
             and shapes[0] == 0
             and shapes[-1] == len(arrays["shape_points"]) // 2
-            and all(a <= b for a, b in zip(shapes, shapes[1:])),
+            and all(map(le, shapes, islice(shapes, 1, None))),
             "invalid shape offsets",
         )
 

@@ -16,6 +16,7 @@
 #include <string>
 #include <stdexcept>
 #include <memory>
+#include <tuple>
 #include "../src/graph.hpp"
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"
@@ -53,6 +54,24 @@ static TreeData dict_to_tree_data(const nb::dict& d) {
 // Returns true if a TreeData entry is the default-constructed sentinel (not yet computed)
 static bool is_empty_tree_data(const TreeData& t) {
     return t.predecessors.empty();
+}
+
+using CsrInts = nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
+using CsrDoubles = nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
+
+// A Graph from arcs stored by origin: copied, or read in place and kept alive (in_place)
+static std::unique_ptr<Graph> csr_graph(CsrInts offsets, CsrInts heads, CsrDoubles weights, bool in_place) {
+    if (offsets.shape(0) < 1 || heads.shape(0) != weights.shape(0)) {
+        throw std::invalid_argument("expected one offset per node plus one and one weight per arc");
+    }
+    std::shared_ptr<const void> owner;
+    if (in_place) {
+        owner = std::make_shared<std::tuple<CsrInts, CsrInts, CsrDoubles>>(offsets, heads, weights);
+    }
+    auto graph = std::make_unique<Graph>(std::vector<std::unordered_map<int, double>>{});
+    graph->load_csr(offsets.data(), heads.data(), weights.data(),
+                    (int)offsets.shape(0) - 1, (int64_t)heads.shape(0), owner);
+    return graph;
 }
 
 // reduced_graph_connections or reduced_inverse_graph_connections as a list: None or
@@ -388,18 +407,14 @@ NB_MODULE(cpp, m) {
            nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("radius"),
            "A* with the great-circle distance as heuristic, computed natively from node latitudes and longitudes in radians")
 
-        .def_static("from_csr", [](nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu> offsets,
-                                   nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu> heads,
-                                   nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu> weights) {
-            if (offsets.shape(0) < 1 || heads.shape(0) != weights.shape(0)) {
-                throw std::invalid_argument("expected one offset per node plus one and one weight per arc");
-            }
-            auto graph = std::make_unique<Graph>(std::vector<std::unordered_map<int, double>>{});
-            graph->load_csr(offsets.data(), heads.data(), weights.data(),
-                            (int)offsets.shape(0) - 1, (int64_t)heads.shape(0));
-            return graph;
+        .def_static("from_csr", [](CsrInts offsets, CsrInts heads, CsrDoubles weights) {
+            return csr_graph(offsets, heads, weights, false);
         }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"),
            "Create a Graph from its arcs stored by origin (compressed sparse rows), as in a .scgraph network file")
+        // For load_from_scgraph: the arrays of a file mapped read-only, read in place
+        .def_static("_from_mapped_csr", [](CsrInts offsets, CsrInts heads, CsrDoubles weights) {
+            return csr_graph(offsets, heads, weights, true);
+        }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"))
 
         .def("bellman_ford", [](Graph& self,
                                 const NodeIdVariant& origin_id,
