@@ -14,6 +14,7 @@ def algorithm(
 
     - Decorator and registration helper for graph shortest path algorithms.
     - Transparently enables graph reduction support (same-chain handling, boundary entry solving, path expansion).
+    - A decorated algorithm reads `self.search_graph` (and `self.search_inverse_graph` if bidirectional): the reduced graph after `reduce()`, else the original graph.
     - Can be used as a method decorator `@Graph.algorithm` or `@Graph.algorithm(bidirectional=True)`.
     - Can register external algorithms onto Graph via `@Graph.algorithm(name="custom_algo")`.
     """

@@ -109,8 +109,10 @@ first non-reduced nodes it reaches. It gives boundary nodes direct edges to each
 and gives each reduced node direct edges to the boundary nodes of its chain. Forward
 and backward, this is the **reduced graph** (`reduced_graph`, `reduced_inverse_graph`)
 together with, for each direct edge, the nodes it hides (`reduced_graph_connections`,
-`reduced_inverse_graph_connections`). The original graph stays available as
-`unreduced_graph`.
+`reduced_inverse_graph_connections`). `graph` and `inverse_graph` stay the original
+graph (`unreduced_graph` is the same); `search_graph` and `search_inverse_graph` are the graph
+the searches read: the reduced graph after `reduce()`, else the original. Both backends
+expose the same four.
 
 **Queries** — `run_with_reduced`:
 
@@ -133,7 +135,7 @@ in `test/32_*`, `test/33_*` and `test/38_*` to `test/43_*`.
 
 An algorithm decorated with `@Graph.algorithm` (example:
 [Custom Graph](README.md#custom-graph)) takes `self` (the `Graph`), an origin and a
-destination, reads the graph from `self.graph` (and `self.inverse_graph` with
+destination, reads the graph from `self.search_graph` (and `self.search_inverse_graph` with
 `bidirectional=True`), and returns `{"path": ..., "length": ...}`. Its origin and
 destination must accept every form of
 the [Data model](#2-data-model), dicts included: on a reduced graph, an origin or
@@ -143,9 +145,9 @@ The decorator adds graph-reduction support: on a reduced graph, it routes the ca
 through `run_with_reduced`, which handles origins and destinations inside chains and
 expands the returned path.
 
-The two backends do not expose the same graph to a decorated algorithm: with the
-pure-Python `Graph`, `self.graph` and `self.inverse_graph` are the reduced graphs; with the
-C++ `Graph`, `self.graph` is the unreduced graph and `self.inverse_graph` does not exist.
+An algorithm that reads `self.graph` instead walks the original graph: still correct, but
+without the speed-up of the reduction. With the C++ backend, each read of these properties
+copies the graph to Python: read it once per call.
 
 `GeoGraph.get_shortest_path` takes the algorithm as `algorithm_fn`: the name of a
 `Graph` method (`"dijkstra"`, `"a_star"`, …), or a callable, which receives the graph as

@@ -29,6 +29,9 @@ private:
         QueryFn&& query_fn,
         bool bidirectional = false
     );
+    // Shortest path tree of get_shortest_path_tree, on the graph g
+    TreeData shortest_path_tree(const std::vector<std::vector<std::pair<int, double>>>& g,
+                                const NodeIdVariant& origin_id) const;
 
 public:
     // Constructor

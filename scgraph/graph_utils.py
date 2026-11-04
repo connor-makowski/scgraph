@@ -19,11 +19,8 @@ def normalize_node_input(
 class GraphUtils:
     @property
     def graph(self) -> list[dict[int, int | float]]:
-        return (
-            self.reduced_graph
-            if getattr(self, "reduced_graph", None) is not None
-            else getattr(self, "__graph__", None)
-        )
+        """The graph as given (or as modified), also after `reduce()`."""
+        return getattr(self, "__graph__", None)
 
     @graph.setter
     def graph(self, value: list[dict[int, int | float]]) -> None:
@@ -31,19 +28,34 @@ class GraphUtils:
 
     @property
     def unreduced_graph(self) -> list[dict[int, int | float]]:
-        return getattr(self, "__graph__", None)
+        """Same as `graph`."""
+        return self.graph
 
     @property
-    def inverse_graph(self) -> list[dict[int, int | float]] | None:
-        return (
-            self.reduced_inverse_graph
-            if getattr(self, "reduced_inverse_graph", None) is not None
-            else getattr(self, "__inverse_graph__", None)
-        )
+    def inverse_graph(self) -> list[dict[int, int | float]]:
+        """The inverse of `graph`: every edge reversed."""
+        self.__ensure_inverse_graph__()
+        return self.__inverse_graph__
 
     @inverse_graph.setter
     def inverse_graph(self, value: list[dict[int, int | float]] | None) -> None:
         self.__inverse_graph__ = value
+
+    @property
+    def search_graph(self) -> list[dict[int, int | float]]:
+        """The graph searched by the algorithms: `reduced_graph` after `reduce()`, else
+        `graph`."""
+        if getattr(self, "reduced_graph", None) is not None:
+            return self.reduced_graph
+        return self.graph
+
+    @property
+    def search_inverse_graph(self) -> list[dict[int, int | float]]:
+        """The inverse searched by the bidirectional algorithms: `reduced_inverse_graph`
+        after `reduce()`, else `inverse_graph`."""
+        if getattr(self, "reduced_inverse_graph", None) is not None:
+            return self.reduced_inverse_graph
+        return self.inverse_graph
 
     def __input_check__(
         self,
@@ -265,7 +277,7 @@ class GraphUtils:
             return math.ceil(max_edge_weight)
         cached_max_edge_weight = getattr(self, "__max_edge_weight__", None)
         if cached_max_edge_weight is None:
-            graph = self.graph
+            graph = self.search_graph
             max_edge_weight = max(
                 0,
                 max(
@@ -296,7 +308,10 @@ class GraphUtils:
             width = getattr(self, "__bucket_width__", None)
             if width is None:
                 weights = sorted(
-                    w for edges in self.graph if edges for w in edges.values()
+                    w
+                    for edges in self.search_graph
+                    if edges
+                    for w in edges.values()
                 )
                 median = weights[len(weights) // 2] if weights else 0
                 width = 8.0 * median if median > 0 else 1.0

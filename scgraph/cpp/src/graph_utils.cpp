@@ -298,6 +298,17 @@ const std::vector<std::unordered_map<int, double>> GraphUtils::get_graph() const
     return result;
 }
 
+std::vector<std::unordered_map<int, double>> GraphUtils::get_inverse_graph() {
+    ensure_inverse_graph();
+    std::vector<std::unordered_map<int, double>> result(inverse_graph.size());
+    for (size_t i = 0; i < inverse_graph.size(); ++i) {
+        for (const auto& [origin, dist] : inverse_graph[i]) {
+            result[i][origin] = dist;
+        }
+    }
+    return result;
+}
+
 int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool symmetric) {
     std::vector<std::pair<int, double>> edges;
     edges.reserve(node_dict.size());

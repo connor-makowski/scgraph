@@ -72,6 +72,7 @@ public:
     const std::unordered_map<int, double> get(int idx) const;
     int size() const { return graph.size(); }
     const std::vector<std::unordered_map<int, double>> get_graph() const;
+    std::vector<std::unordered_map<int, double>> get_inverse_graph();
     const std::vector<TreeData>& get_cache() const { return cache; }
     void set_cache(const std::vector<TreeData>& new_cache) { cache = new_cache; }
     double get_path_weight(const std::vector<int>& path) const;
