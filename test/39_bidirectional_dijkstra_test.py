@@ -163,8 +163,8 @@ def test_bidirectional_dijkstra_on_marnet(marnet):
         assert abs(g.get_path_weight(bi_res["path"]) - d_res["length"]) < 1e-5
 
 
-def test_bidirectional_dijkstra_on_us_freeway(us_freeway):
-    g = us_freeway.graph_object
+def test_bidirectional_dijkstra_on_us_freeway(published):
+    g = published("us_freeway").graph_object
     test_pairs = [(0, 500), (1000, 2000), (3000, 4000)]
     for u, v in test_pairs:
         d_res = g.dijkstra(u, v)

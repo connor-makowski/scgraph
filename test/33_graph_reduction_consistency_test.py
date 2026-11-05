@@ -5,7 +5,6 @@ import threading
 import time
 from copy import deepcopy
 import pytest
-from scgraph import GeoGraph
 from scgraph.graph import Graph as PyGraph
 
 try:
@@ -16,10 +15,9 @@ except ImportError:
     GRAPH_CLASSES = [PyGraph]
 
 
-def run_network_test(geograph_name):
+def run_network_test(geograph_name, geograph):
     print(f"\n=======================================================")
     print(f"Loading {geograph_name} geograph...")
-    geograph = GeoGraph.load_geograph(geograph_name)
     g_large = geograph.graph_object
     print(f"Loaded! Graph has {len(g_large.graph)} nodes.")
 
@@ -139,9 +137,9 @@ def run_network_test(geograph_name):
     print(f"=======================================================")
 
 
-def test_reduction_consistency():
-    run_network_test("us_freeway")
-    run_network_test("marnet")
+def test_reduction_consistency(published):
+    run_network_test("us_freeway", published("us_freeway"))
+    run_network_test("marnet", published("marnet"))
 
 
 # Each graph catches reduction faults the others miss: two-way with unit

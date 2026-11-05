@@ -711,6 +711,7 @@ class GeoGraphIO:
         - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
         - On subsequent calls, loads directly from cache without any network requests.
         - The first load converts the .graphjson into a network file beside it (`<name>.scgraph`, much faster to load), which later loads read; the .graphjson is kept, and a damaged conversion is made again from it.
+        - The conversion orders the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the .graphjson (lengths do not; of two routes of exactly equal length, another may be returned). `load_from_graphjson` on the cached .graphjson keeps its numbering.
         - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), never downloads: a geograph that is not in the cache raises a FileNotFoundError.
 
         Required Arguments:
@@ -781,7 +782,10 @@ class GeoGraphIO:
             GeoGraph.__fetch_geograph_to_cache__(
                 name, cached_file, geograph_url
             )
-        geograph = GeoGraph.load_from_graphjson(str(cached_file))
+        # Nodes close on the globe get close ids: they differ from the .graphjson's
+        geograph = _in_hilbert_order(
+            GeoGraph.load_from_graphjson(str(cached_file)), []
+        )
         try:
             geograph.save_as_scgraph(str(converted))
         except OSError:
@@ -2075,7 +2079,7 @@ class GeoGraphModifiers:
 
 def _in_hilbert_order(geograph, blocks):
     # A copy of the geograph with its nodes in Hilbert order within each block of ids:
-    # ids change, routes and lengths do not
+    # ids change, lengths do not (where two routes tie, another may be returned)
     order = hilbert_order(geograph.nodes, blocks)
     new_id = [0] * len(order)
     for new, old in enumerate(order):

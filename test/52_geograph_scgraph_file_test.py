@@ -43,7 +43,7 @@ def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
 
 # Two routes of the same length from node 0 to node 3, through 1 or through 2, with the
 # arcs in either order: a network file keeps the order searches visit them, so the file
-# and the conversion of a published .graphjson give the route the graph gave
+# gives the route the graph gave
 @pytest.mark.parametrize("first", [1, 2])
 def test_a_network_file_gives_the_same_route_where_two_tie(tmp_path, first):
     second = 3 - first
@@ -66,12 +66,8 @@ def test_a_network_file_gives_the_same_route_where_two_tie(tmp_path, first):
         )["coordinate_path"]
 
     geo.save_as_scgraph(str(tmp_path / "tie.scgraph"))
-    geo.save_as_graphjson(str(tmp_path / "marnet.graphjson"))
     saved = GeoGraph.load_from_scgraph(str(tmp_path / "tie.scgraph"))
-    converted = GeoGraph.load_geograph(
-        "marnet", cache_dir=str(tmp_path), local_files_only=True
-    )
-    assert route(saved) == route(converted) == route(geo)
+    assert route(saved) == route(geo)
 
 
 def test_save_as_scgraph_flags_symmetric_graphs(tmp_path):

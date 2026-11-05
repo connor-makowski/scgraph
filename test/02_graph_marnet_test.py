@@ -6,8 +6,8 @@ _EXPECTED = {"path": [0, 1, 5695, 64, 2213, 10152, 6749, 5], "length": 1134.729}
 
 
 @pytest.fixture(scope="module")
-def marnet_graph(marnet):
-    return Graph(marnet.graph_object.graph)
+def marnet_graph(published):
+    return Graph(published("marnet").graph_object.graph)
 
 
 def test_graph_validation(marnet_graph):
