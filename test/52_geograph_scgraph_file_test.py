@@ -78,6 +78,12 @@ def test_save_as_scgraph_flags_symmetric_graphs(tmp_path):
     assert network_file.read(path)[1]["symmetric"] is True
 
 
+def test_load_from_scgraph_reads_an_empty_network(tmp_path):
+    path = str(tmp_path / "empty.scgraph")
+    GeoGraph(graph=[], nodes=[]).save_as_scgraph(path)
+    assert GeoGraph.load_from_scgraph(path).nodes == []
+
+
 def test_save_as_scgraph_records_the_sha256_of_the_arrays(tmp_path):
     # The identity of the network: every byte after the 4 KB header
     path = tmp_path / "small.scgraph"

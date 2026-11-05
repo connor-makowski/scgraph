@@ -597,6 +597,7 @@ class GeoGraphIO:
         - The file is checked before use: a damaged or foreign file raises a ValueError
         - In the C++ build, the file is mapped and read in place while the geograph is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
+        - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
 
         Required Arguments:
 
@@ -650,6 +651,10 @@ class GeoGraphIO:
             geograph_units=metadata.get("units", "km"),
         )
         geograph.graph_object.reduce(reduce_iterations)
+        # Every route snaps its points (node ids depend on how the file was sorted): the
+        # index is built now, not at the first query (an empty network has none)
+        if len(geograph.nodes):
+            geograph.snap_index
         return geograph
 
     @staticmethod
@@ -791,6 +796,8 @@ class GeoGraphIO:
         except OSError:
             # A cache that can't be written: the .graphjson is read at every load
             geograph.graph_object.reduce(reduce_iterations)
+            if len(geograph.nodes):  # as load_from_scgraph
+                geograph.snap_index
             return geograph
         del geograph  # one copy of the network in memory at a time
         return GeoGraph.load_from_scgraph(
@@ -2637,8 +2644,8 @@ class GeoGraph(
     def snap_index(self) -> SnapIndex:
         """
         The index that snaps coordinates to their nearest nodes (`closest_idx(point)`,
-        `closest_idx_per_quadrant(point)`), built at the first snap and again after nodes
-        were added or removed.
+        `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
+        the first snap, and again after nodes were added or removed.
         """
         # Dropped by add_coord_node, remove_coord_node and merge_with_other_geograph (merge
         # keeps the index of the networks before the merge while it connects them); direct
