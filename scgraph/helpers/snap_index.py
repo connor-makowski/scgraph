@@ -4,7 +4,7 @@ algorithm is described), with the same answers.
 """
 
 from array import array
-from math import cos, inf, radians, sin
+from math import cos, inf, isfinite, radians, sin
 from operator import mul
 
 from scgraph.helpers.hilbert import hilbert_key
@@ -79,10 +79,14 @@ class SnapIndex:
         n = len(lat)
         if n == 0:
             raise ValueError("a snapping index needs at least one node")
+        # A NaN would leave its leaf out of every search (min and max skip it or return it);
+        # one NaN or infinity makes the sum non-finite
+        if not isfinite(sum(lat) + sum(lon)):
+            raise ValueError("node coordinates must be finite numbers")
         self.n = n
         # Keep the network's order if it is already sorted along a Hilbert curve, in runs of
         # 64 nodes or more on average, as judged on about 2,048 evenly spaced pairs of
-        # neighbours (all of them up to 2,049 nodes); otherwise sort a copy along one (as
+        # neighbours (all of them up to 4,096 nodes); otherwise sort a copy along one (as
         # the C++ index)
         pairs = range(1, n, max(1, (n - 1) // 2048))
         descents = sum(
