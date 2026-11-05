@@ -913,6 +913,17 @@ def compare(base_pattern, head_pattern, labels=None):
         f"rows whose best and median times both move beyond "
         f"±{(THRESHOLD - 1) * 100:.0f} %; before and after: best times):\n"
     )
+    labels = labels or [commit(env_b), commit(env_h)]
+    # A busy machine slows a whole series of runs, which the rule cannot see
+    for name, runs in zip(labels, (base, head)):
+        totals = [r["total_s"] for r in runs]
+        if len(totals) > 1 and max(totals) > THRESHOLD * min(totals):
+            print(
+                f"Warning: the whole-run times of {name} vary by"
+                f" ×{max(totals) / min(totals):.2f} ({min(totals):.1f} to"
+                f" {max(totals):.1f} s): the machine was probably busy; re-run"
+                " before reading the tables.\n"
+            )
     if changed:
         print("| Case | Before (ms) | After (ms) | Speedup | Median speedup |")
         print("|---|---|---|---|---|")
@@ -977,8 +988,11 @@ def compare(base_pattern, head_pattern, labels=None):
     for k in sorted(unstable):
         print(f"Varies between runs of one side: {k}")
 
-    labels = labels or [commit(env_b), commit(env_h)]
-    print("\n" + "\n".join(side_by_side(base, head, labels)))
+    print(
+        f"\nTables: best time of the {len(base)} and {len(head)} runs (memory:"
+        " median); a change in bold where the rule sees one, ≈ elsewhere.\n"
+    )
+    print("\n".join(side_by_side(base, head, labels)))
 
 
 def main():
