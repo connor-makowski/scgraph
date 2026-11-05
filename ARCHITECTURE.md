@@ -34,9 +34,10 @@ sources: each network has a small build script in `networks/` (source URLs, cred
 which loaders to call with which options; the road + sea network combines two networks with
 `merge_with_other_geograph`); the sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and
-later calls read the cache. Built networks number their nodes along a Hilbert curve over
-longitude and latitude (`helpers/hilbert.py`, within each mode of a multimodal network; manifest
-key `node_order`), so that nodes close on the globe get close ids. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
+later calls read the cache. Built networks, and the conversions of published networks (§6),
+number their nodes along a Hilbert curve over longitude and latitude (`helpers/hilbert.py`,
+within each mode of a multimodal network; manifest key `node_order`), so that nodes close on
+the globe get close ids. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
 query that needs them.
 
 `Graph` and `CHGraph` exist twice: in C++ (`cpp/`) and in pure Python. When the C++

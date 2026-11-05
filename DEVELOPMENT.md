@@ -37,7 +37,7 @@ scgraph/
   networks/                      # Build scripts of build_geograph, one per network
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
-    hilbert.py                   # Hilbert-curve order of nodes (built networks)
+    hilbert.py                   # Hilbert-curve order of nodes (built and converted networks)
     lines.py                     # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     visvalingam.py               # Visvalingam-Whyatt line simplification
@@ -170,7 +170,7 @@ To surface compiler errors and debug the C++ build:
 Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_feature_test.py`.
 
 **Shared infrastructure:**
-- `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`
+- `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, and `published` (a built-in network in the node numbering of its `.graphjson`)
   - The tests download these networks into their own cache, a temporary directory per session, never the user's. Set `SCGRAPH_CACHE_DIR` to a directory to keep the downloads between runs (or to run the tests offline from a filled cache).
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
 

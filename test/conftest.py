@@ -2,6 +2,7 @@ import os
 
 import pytest
 from scgraph import GeoGraph
+from scgraph.utils import resolve_cache_dir
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -16,6 +17,26 @@ def own_cache(tmp_path_factory):
     )
     yield
     del os.environ["SCGRAPH_CACHE_DIR"]
+
+
+@pytest.fixture(scope="session")
+def published(tmp_path_factory):
+    # A built-in network in the node numbering of its .graphjson (load_geograph renumbers
+    # the nodes), read from a network file as load_geograph reads its conversion: for the
+    # tests that name nodes by id
+    folder = tmp_path_factory.mktemp("published")
+
+    def load(name):
+        file = folder.joinpath(f"{name}.scgraph")
+        if not file.exists():
+            # Downloads and converts the .graphjson into the cache
+            GeoGraph.load_geograph(name)
+            GeoGraph.load_from_graphjson(
+                str(resolve_cache_dir().joinpath(f"{name}.graphjson"))
+            ).save_as_scgraph(str(file))
+        return GeoGraph.load_from_scgraph(str(file))
+
+    return load
 
 
 @pytest.fixture(scope="session")

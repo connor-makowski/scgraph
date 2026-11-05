@@ -407,7 +407,7 @@ output = marnet_geograph.get_shortest_path(
 
 ## Built-in Geographs: Cache Management
 
-Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access. The first load also converts the downloaded `<name>.graphjson` into a binary network file beside it, `<name>.scgraph`, which later loads read (much faster); the `.graphjson` is kept.
+Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access. The first load also converts the downloaded `<name>.graphjson` into a binary network file beside it, `<name>.scgraph`, which later loads read (much faster); the `.graphjson` is kept. The conversion numbers the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the `.graphjson` (lengths do not; of two routes of exactly equal length, another may be returned). `load_from_graphjson` on the cached `.graphjson` keeps its numbering.
 
 ```py
 from scgraph import GeoGraph
