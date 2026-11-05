@@ -88,7 +88,7 @@ Snapping uses `snap_index` (`cpp/src/snap_index.cpp`; `helpers/snap_index.py` in
 with the same answers): the exact nearest node, ties to the lowest id, and the nearest node per
 quadrant.
 - It reads the nodes in an order where consecutive nodes are close (the network's own if it is
-  in Hilbert order, else a sorted copy), in leaves of 32.
+  in Hilbert order, judged on about 2,048 pairs of neighbours, else a sorted copy), in leaves of 32.
 - A tree of 8 children per node keeps each child's box.
 - A search skips every box farther than the best node found.
 
