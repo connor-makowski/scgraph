@@ -135,8 +135,7 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
 def read(filename, mapped=False):
     """Return the arrays (by name) and the metadata of a network file, after checking that
     they describe a valid graph; a damaged or foreign file raises a ValueError. The
-    metadata also holds the header's `content_sha256`, if the file has one (files written
-    by other tools may not).
+    metadata also holds the header's `content_sha256`.
 
     With `mapped=True` (on little-endian machines), the file is mapped read-only and the
     arrays are memoryviews of it, not copies: the file stays mapped while they are
@@ -192,8 +191,7 @@ def _read(filename, file, mapped):
         values.fromfile(file, count)
         arrays[name] = _little_endian(values)
     metadata = dict(header["metadata"])
-    if "content_sha256" in header:
-        metadata["content_sha256"] = header["content_sha256"]
+    metadata["content_sha256"] = header["content_sha256"]
     return arrays, metadata
 
 
