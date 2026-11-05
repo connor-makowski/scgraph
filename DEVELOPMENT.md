@@ -52,6 +52,7 @@ test/
   helpers.py                     # assert_result() helper used by test files
 utils/
   bench.py                       # Fast benchmark runner (<30s); outputs benchmark.md
+  compare_versions.py            # Before/after of two git refs with bench.py (report.md)
   prettify.py                    # autoflake (unused imports) + black (line-length=88)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
 noxfile.py                       # nox sessions: runs pytest across Python 3.11–3.14
@@ -71,6 +72,7 @@ publish.sh                       # PyPI publishing script — DO NOT RUN
 | `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
 | `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
+| `python3 utils/compare_versions.py 3.6.0 origin/dev` | Compare two versions on this machine, output `bench-results/…/report.md` |
 | `uv run utils/prettify.py` | Format with autoflake + black |
 
 Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`. Install them with `uv sync --extra dev`.
@@ -79,7 +81,7 @@ Dev dependencies are declared in `[project.optional-dependencies] dev` in `pypro
 
 **Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`.
 
-- **Before/after numbers in a PR**: run the same script with an environment of each version (base and head, installed with `--no-editable`), five rounds alternating the two, on the sections the change touches (`--only <sections>`, listed in the script header), then `--compare`. Use the backend whose code changed (C++ build or `SCGRAPH_NO_BUILD=1`). Commands and reporting rule in the header of `utils/bench.py`.
+- **Before/after numbers** (a PR, or `dev` against the release): `python3 utils/compare_versions.py BASE HEAD` builds an environment per version, runs `utils/bench.py` alternating the two, and writes a report: a summary for the PR description, then the tables of `benchmark.md` with both versions side by side. For a PR: `python3 utils/compare_versions.py origin/dev <branch> --only <sections it touches>` (`--backends cpp,python` if the pure-Python code changed too); `--post <N>` writes the report into the description of PR or issue N. Options and duration: `--help`.
 
 **Docs**: **DO NOT generate docs**. Docs are regenerated and versioned at release time by the user only.
 

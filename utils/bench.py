@@ -9,27 +9,26 @@ Two uses of one script:
 
        uv run utils/bench.py
 
-2. Before/after deltas (a PR, or dev against main): run the same script with the
-   environment of each version, several times alternating the versions, then compare.
+2. Before/after deltas (a PR, or dev against the release): utils/compare_versions.py
+   builds the environment of each version, runs this script several times alternating
+   the versions, then compares and writes a report.
 
-       for i in 1 2 3 4 5; do for v in base head; do
-         <env of $v>/bin/python utils/bench.py --only reduce \\
-           --commit <sha of $v> --json out/$v-$i.json
-       done; done
-       python utils/bench.py --compare "out/base-*.json" "out/head-*.json"
+       python3 utils/compare_versions.py origin/dev my-branch --only reduce
 
-   Each environment holds one version installed from its checkout with the lockfile's
-   versions (`uv sync --extra dev --no-editable`; C++ build: SCGRAPH_REQUIRE_CPP=1,
-   pure-Python build: SCGRAPH_NO_BUILD=1). Run the same command once per environment
-   first, with a scratch --json (without it a full run overwrites benchmark.md), so
-   that missing networks are downloaded outside the measurements. Compare in the
-   backend(s) whose code the change touches.
+   By hand, each environment holds one version installed from its checkout with the
+   lockfile's versions (`uv sync --no-editable`; C++ build: SCGRAPH_REQUIRE_CPP=1,
+   pure-Python build: SCGRAPH_NO_BUILD=1) and its own SCGRAPH_CACHE_DIR; run once per
+   environment untimed, with a scratch --json (without it a full run overwrites
+   benchmark.md), then --json runs alternating the versions, then
+   `python utils/bench.py --compare "base-*.json" "head-*.json"`.
 
-   --compare reports only the rows whose best time and median time over the runs
+   --compare first reports the rows whose best time and median time over the runs
    of each side both move beyond x1.15 in the same direction; it also lists any
    difference in route lengths, node counts or failures. Memory rows (Linux) use the
-   median of the runs and are reported beyond x1.05 and 5 MiB. A surprising row is
-   simply re-run.
+   median of the runs and are reported beyond x1.05 and 5 MiB. It then prints the
+   tables of benchmark.md with both versions side by side (without reduce's Added
+   memory, mostly noise, and the CH/TNR speed-up columns, which are ratios already).
+   A surprising row is simply re-run.
 
 Subsets (--only) and the changes that need them:
     load       load_geograph as each version does it (snap index included), first query
@@ -42,24 +41,25 @@ Subsets (--only) and the changes that need them:
     misc       distance matrix, cached shortest path, Visvalingam
 
 Every time is in ms from one perf_counter reading, or a mean over the pairs of a row
-(the cached tree hit: over 100 calls);
-one untimed call per algorithm warms up each row. Load times read the file from the OS
-cache (warm). Both 3.6.0 (a GeoKDTree) and dev build the snapping index while loading;
-"Index in Load" estimates that part of Load by a second build, timed alone after the
-first query. Memory (Linux only): "Peak" is the peak RSS of the process during load
-and first query, "Added" the peak during reduce() minus the RSS before it (the peak is
-reset through /proc/self/clear_refs). Rows run in sequence in one process, so a row's
-time and memory depend on the rows before it: compare runs of the same --only and
---networks.
-Reduction states are explicit (Original, Reduced = 1 pass, Fully Reduced = until no
-change): no row depends on the version's reduction default.
+(the cached tree hit: over 100 calls); one untimed call per algorithm warms up each row.
+Load times read the file from the OS cache (warm). 3.6.0 (a GeoKDTree) and later
+versions (since #157) build the snapping index while loading; "Index in Load" estimates
+that part of Load by a second build, timed alone after the first query. Memory (Linux
+only): "Peak" is the peak RSS of the process during load and first query, "Added" the
+peak during reduce() minus the RSS before it (the peak is reset through
+/proc/self/clear_refs). Rows run in sequence in one process, so a row's time and memory
+depend on the rows before it: compare runs of the same --only and --networks. Reduction
+states are explicit (Original, Reduced = 1 pass, Fully Reduced = until no change): no
+row depends on the version's reduction default.
 """
 
 import argparse
 import gc
 import glob
 import json
+import os
 import platform
+import subprocess
 import statistics
 import sys
 import time
@@ -69,6 +69,8 @@ from pathlib import Path
 
 BENCHMARK_MD_PATH = Path(__file__).resolve().parent.parent / "benchmark.md"
 SECTIONS = ["load", "reduce", "query", "grid", "hierarchy", "misc"]
+# Passed explicitly: 3.6.0 reads only its cache_dir argument, not the variable
+CACHE_DIR = os.environ.get("SCGRAPH_CACHE_DIR")
 NETWORKS = [
     "oak_ridge_maritime",
     "north_america_rail",
@@ -256,7 +258,12 @@ def bench_networks(results, networks):
     for net in networks:
         print(f"  - {net}")
         marked = memory_mark()
-        load_ms, geo = timed(GeoGraph.load_geograph, net, reduce_iterations=0)
+        load_ms, geo = timed(
+            GeoGraph.load_geograph,
+            net,
+            cache_dir=CACHE_DIR,
+            reduce_iterations=0,
+        )
         n = len(geo.nodes)
 
         # Time to the first answer: anything built at first use
@@ -399,7 +406,9 @@ def bench_hierarchy(results):
     from scgraph import GeoGraph, Graph
 
     for net in ["marnet", "us_freeway"]:
-        geo = GeoGraph.load_geograph(net, reduce_iterations=0)
+        geo = GeoGraph.load_geograph(
+            net, cache_dir=CACHE_DIR, reduce_iterations=0
+        )
         adj = geo.graph
         node_id = {(p[0], p[1]): i for i, p in enumerate(geo.nodes)}
         pairs = [(node_id[u], node_id[v]) for u, v in HIERARCHY_PAIRS[net]]
@@ -462,7 +471,9 @@ def bench_misc(results):
     from scgraph import GeoGraph
     from scgraph.helpers.visvalingam import visvalingam
 
-    uf_geo = GeoGraph.load_geograph("us_freeway", reduce_iterations=0)
+    uf_geo = GeoGraph.load_geograph(
+        "us_freeway", cache_dir=CACHE_DIR, reduce_iterations=0
+    )
     # Builds anything made at first use, so that it is not timed below
     uf_geo.get_shortest_path(*map(point, QUERY_PAIRS["us_freeway"][0]))
 
@@ -529,7 +540,26 @@ def cpu_model():
                 return line.split(":", 1)[1].strip()
     except OSError:
         pass
+    if platform.system() == "Darwin":
+        try:
+            return subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            pass
     return platform.processor() or platform.machine()
+
+
+def ram_gib():
+    try:
+        return round(
+            os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / 2**30, 1
+        )
+    except (AttributeError, OSError, ValueError):
+        return None
 
 
 def package_version(name):
@@ -548,6 +578,7 @@ def environment(commit):
         "python": platform.python_version(),
         "os": f"{platform.system()} {platform.machine()}",
         "cpu": cpu_model(),
+        "ram_gib": ram_gib(),
         "packages": {
             name: package_version(name)
             for name in ["scgraph", "bmsspy", "geokdtree"]
@@ -736,7 +767,110 @@ def checks_of(runs):
     return merged
 
 
-def compare(base_pattern, head_pattern):
+def moves(before, after):
+    """The rule of --compare: best and median times both beyond THRESHOLD, same way."""
+    best = min(before) / min(after)
+    median = statistics.median(before) / statistics.median(after)
+    return min(best, median) >= THRESHOLD or max(best, median) <= 1 / THRESHOLD
+
+
+def memory_moves(before, after):
+    return abs(after - before) >= MEMORY_FLOOR and (
+        after >= before * MEMORY_THRESHOLD or before >= after * MEMORY_THRESHOLD
+    )
+
+
+def side_by_side(base, head, labels):
+    """The tables of benchmark.md for both versions: best time (memory: median)."""
+    times_b, _ = run_times(base)
+    times_h, _ = run_times(head)
+    mem_b, mem_h = median_memory(base), median_memory(head)
+    rows, info = {}, {}
+    for run_ in (head[0], base[0]):
+        for c in run_["cells"]:
+            key = (c["section"], tuple(c["row"]))
+            if c["unit"] in ("count", "%"):
+                info.setdefault(key, {}).setdefault(
+                    c["column"], (c["value"], c["unit"])
+                )
+            elif c["unit"] in ("ms", "MiB") and (c["section"], c["column"]) != (
+                "reduce",
+                "Added",  # mostly noise below 5 MiB, about 0 after Reduced
+            ):
+                columns = rows.setdefault(key, [])
+                if (c["column"], c["unit"]) not in columns:
+                    columns.append((c["column"], c["unit"]))
+    lines = []
+    for number, section in enumerate(SECTIONS, 1):
+        keys = [k for k in rows if k[0] == section]
+        if not keys:
+            continue
+        title, row_headers = TABLES[section]
+        info_columns = list(info.get(keys[0], {}))
+        measures = {m for k in keys for m in rows[k]}
+        single = next(iter(measures)) if len(measures) == 1 else None
+        values = (
+            [f"{labels[0]} ({single[1]})", f"{labels[1]} ({single[1]})"]
+            if single
+            else ["Measure", *labels]
+        )
+        headers = row_headers + info_columns + values + ["Change"]
+        lines += [f"## {number}. {title}", ""]
+        lines += [
+            "| " + " | ".join(headers) + " |",
+            "|" + "---|" * len(headers),
+        ]
+        for key in keys:
+            row = key[1]
+            lead = [f"`{row[0]}`" if row[0] in NETWORKS else row[0], *row[1:]]
+            lead += [
+                fmt(*info.get(key, {}).get(c, (None, "n/a")))
+                for c in info_columns
+            ]
+            for column, unit in rows[key]:
+                cell = (section, row, column)
+                if unit == "ms":
+                    vb, vh = times_b.get(cell) or [], times_h.get(cell) or []
+                    b, h = min(vb, default=None), min(vh, default=None)
+                    if b and h:
+                        text = (
+                            f"×{b / h:.2f} faster"
+                            if b >= h
+                            else f"×{h / b:.2f} slower"
+                        )
+                        text = f"**{text}**" if moves(vb, vh) else text
+                    else:
+                        text = "not in both"
+                else:
+                    b, h = mem_b.get(cell), mem_h.get(cell)
+                    text = (
+                        "–"
+                        if b is None or h is None or b < 0.5
+                        else f"{(h - b) / b:+.0%}"
+                    )
+                    if b is not None and h is not None and memory_moves(b, h):
+                        text = f"**{text}**"
+                measure = [] if single else [f"{column} ({unit})"]
+                lines.append(
+                    "| "
+                    + " | ".join(
+                        lead + measure + [fmt(b, unit), fmt(h, unit), text]
+                    )
+                    + " |"
+                )
+                lead = [""] * len(lead)
+        lines.append("")
+    totals = [
+        statistics.median(r["total_s"] for r in runs) for runs in (base, head)
+    ]
+    lines.append(
+        f"Whole run (median): {labels[0]} {totals[0]:.1f} s,"
+        f" {labels[1]} {totals[1]:.1f} s."
+    )
+    return lines
+
+
+def compare(base_pattern, head_pattern, labels=None):
     base, head = load_runs(base_pattern), load_runs(head_pattern)
     env_b, env_h = base[0]["environment"], head[0]["environment"]
     for name in ["backend", "cpu", "python"]:
@@ -761,9 +895,9 @@ def compare(base_pattern, head_pattern):
                 f"{case} (before {fmt(b, 'n/a')}, after {fmt(h, 'n/a')})"
             )
             continue
-        best = min(vb) / min(vh)
-        median = statistics.median(vb) / statistics.median(vh)
-        if min(best, median) >= THRESHOLD or max(best, median) <= 1 / THRESHOLD:
+        if moves(vb, vh):
+            best = min(vb) / min(vh)
+            median = statistics.median(vb) / statistics.median(vh)
             changed.append((case, min(vb), min(vh), best, median))
         else:
             unchanged += 1
@@ -790,11 +924,8 @@ def compare(base_pattern, head_pattern):
     moved, steady = [], 0
     for key in sorted(set(mem_b) & set(mem_h), key=str):
         b, h = mem_b[key], mem_h[key]
-        ratio = h / b if b else float("inf")
-        if abs(h - b) >= MEMORY_FLOOR and (
-            ratio >= MEMORY_THRESHOLD or ratio <= 1 / MEMORY_THRESHOLD
-        ):
-            moved.append((key, b, h, ratio))
+        if memory_moves(b, h):
+            moved.append((key, b, h, h / b if b else float("inf")))
         else:
             steady += 1
     if moved:
@@ -842,6 +973,9 @@ def compare(base_pattern, head_pattern):
     for k in sorted(unstable):
         print(f"Varies between runs of one side: {k}")
 
+    labels = labels or [commit(env_b), commit(env_h)]
+    print("\n" + "\n".join(side_by_side(base, head, labels)))
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -864,11 +998,18 @@ def main():
         "--compare",
         nargs=2,
         metavar=("BASE_GLOB", "HEAD_GLOB"),
-        help="compare two sets of --json files",
+        help="compare two sets of --json files: rows that move, then both versions"
+        " side by side in the tables of benchmark.md",
+    )
+    parser.add_argument(
+        "--labels",
+        nargs=2,
+        metavar=("BASE", "HEAD"),
+        help="names of the two versions in the --compare tables (default: commits)",
     )
     args = parser.parse_args()
     if args.compare:
-        compare(*args.compare)
+        compare(*args.compare, labels=args.labels)
         return
 
     def pick(text, allowed):
