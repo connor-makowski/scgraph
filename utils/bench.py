@@ -26,9 +26,10 @@ Two uses of one script:
    of each side both move beyond x1.15 in the same direction; it also lists any
    difference in route lengths, node counts or failures. Memory rows (Linux) use the
    median of the runs and are reported beyond x1.05 and 5 MiB. It then prints the
-   tables of benchmark.md with both versions side by side (without reduce's Added
-   memory, mostly noise, and the CH/TNR speed-up columns, which are ratios already).
-   A surprising row is simply re-run.
+   tables of benchmark.md with both versions side by side: the change in bold where
+   the rule sees one, ≈ elsewhere (without reduce's Added memory, mostly noise, and
+   the CH/TNR speed-up columns, which are ratios already). A surprising row is simply
+   re-run.
 
 Subsets (--only) and the changes that need them:
     load       load_geograph as each version does it (snap index included), first query
@@ -838,7 +839,8 @@ def side_by_side(base, head, labels):
                             if b >= h
                             else f"×{h / b:.2f} slower"
                         )
-                        text = f"**{text}**" if moves(vb, vh) else text
+                        # A factor only where the rule sees a change: noise reads ≈
+                        text = f"**{text}**" if moves(vb, vh) else "≈"
                     else:
                         text = "not in both"
                 else:
@@ -850,6 +852,8 @@ def side_by_side(base, head, labels):
                     )
                     if b is not None and h is not None and memory_moves(b, h):
                         text = f"**{text}**"
+                    elif text != "–":
+                        text = "≈"
                 measure = [] if single else [f"{column} ({unit})"]
                 lines.append(
                     "| "
