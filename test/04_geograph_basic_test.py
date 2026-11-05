@@ -49,11 +49,15 @@ def test_shortest_path(basic_geograph):
 
 
 def _shape(u, v):
-    """Two shape points on the link u -> v, ordered from u to v, offset by direction"""
+    """Two shape points on the link u -> v, ordered from u to v, offset by direction
+    (to 1e-7 degree, as a network file stores them)"""
     (lat_u, lon_u), (lat_v, lon_v) = _NODES[u], _NODES[v]
     offset = 0.01 if u < v else -0.01
     return [
-        [lat_u + (lat_v - lat_u) * t + offset, lon_u + (lon_v - lon_u) * t]
+        [
+            round(lat_u + (lat_v - lat_u) * t + offset, 7),
+            round(lon_u + (lon_v - lon_u) * t, 7),
+        ]
         for t in (1 / 3, 2 / 3)
     ]
 
@@ -73,12 +77,20 @@ def _shaped_geograph():
     )
 
 
+@pytest.mark.parametrize("from_file", [False, True])
 @pytest.mark.parametrize("reduce_iterations", [0, 1])
-def test_coordinate_path_follows_path_and_link_shapes(reduce_iterations):
+def test_coordinate_path_follows_path_and_link_shapes(
+    reduce_iterations, from_file, tmp_path
+):
     # For every route: origin, then each path node with the shape of each link
-    # between consecutive nodes, then destination; reduction must not change it.
+    # between consecutive nodes, then destination; reduction must not change it, nor
+    # saving to a network file, which is then read in place.
     # A direct route (no network search) is just origin and destination.
     geograph = _shaped_geograph()
+    if from_file:
+        path = str(tmp_path / "shaped.scgraph")
+        geograph.save_as_scgraph(path)
+        geograph = GeoGraph.load_from_scgraph(path)
     geograph.reduce(iterations=reduce_iterations)
     for o, origin in enumerate(_NODES):
         for d, destination in enumerate(_NODES):

@@ -216,7 +216,9 @@ class GeoGraphIO:
             )
         extra_kwargs = {}
         if self.intermediate_nodes is not None and save_intermediate_nodes:
-            extra_kwargs["intermediate_nodes"] = self.intermediate_nodes
+            extra_kwargs["intermediate_nodes"] = [
+                dict(row) for row in self.intermediate_nodes
+            ]
         with open(filename, "w") as f:
             json.dump(
                 {
@@ -259,6 +261,7 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to include the intermediate nodes in the saved file (if they exist)
             - Default: True
+            - Note: Their points are stored to 1e-7 degree (about 1 cm)
         - `sources`
             - Type: list[dict] | None
             - What: Where the data comes from, stored in the file header so that it travels with the file: for each source, for example its `url`, `credit` and `license` (as `build_geograph` records them)
@@ -600,6 +603,7 @@ class GeoGraphIO:
         - The file is checked before use: a damaged or foreign file raises a ValueError
         - In the C++ build, the file is mapped and read in place while the geograph is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
+        - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
 
         Required Arguments:
@@ -644,7 +648,11 @@ class GeoGraphIO:
             nodes=network_file.NodeCoordinates(
                 arrays["latitudes"], arrays["longitudes"]
             ),
-            intermediate_nodes=network_file.shapes(arrays),
+            intermediate_nodes=(
+                network_file.ArcShapes(arrays)
+                if "shape_offsets" in arrays
+                else None
+            ),
             default_off_graph_circuity=metadata.get(
                 "default_off_graph_circuity", 1
             ),
@@ -2374,6 +2382,10 @@ class GeoGraphUtils:
             and self.intermediate_nodes is not None
             and path
         ):
+            if isinstance(self.intermediate_nodes, network_file.ArcShapes):
+                return self.intermediate_nodes.coordinate_path(
+                    path, coordinates
+                )
             # Start with the origin node
             coordinate_path = [coordinates[0]]
             for i in range(len(path) - 1):
