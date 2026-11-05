@@ -53,11 +53,11 @@ test/
 utils/
   bench.py                       # Fast benchmark runner (<30s); outputs benchmark.md
   compare_versions.py            # Before/after of two git refs with bench.py (report.md)
-  prettify.py                    # autoflake (unused imports) + black (line-length=88)
+  prettify.py                    # autoflake (unused imports) + black (line-length=80)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
 noxfile.py                       # nox sessions: runs pytest across Python 3.11–3.14
 pyproject.toml                   # Package metadata, scikit-build-core config, black + pytest config
-CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3 -march=native)
+CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
 publish.sh                       # PyPI publishing script — DO NOT RUN
 ```
 
@@ -139,7 +139,7 @@ Located in `scgraph/cpp/`, compiled via scikit-build-core + nanobind:
 - Provides ~10x speedup on core algorithms
 - Pure Python implementations in the `.py` files serve as the fallback
 - Skip C++ build: `SKBUILD_CMAKE_ARGS="-DSKIP_CPP_BUILD=ON"`
-- C++20 standard, compiled with `-O3 -march=native`
+- C++20 standard, compiled with `-O3 -DNDEBUG -fno-math-errno -fomit-frame-pointer` (`/O2 /DNDEBUG` with MSVC)
 
 #### Debugging C++ Builds & Compiler Errors
 
@@ -213,7 +213,7 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 
 ## Coding Conventions
 
-- **Line length**: 88 characters (black config in `pyproject.toml`)
+- **Line length**: 80 characters (black config in `pyproject.toml`)
 - **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
 - **Formatting**: Always run `uv run python utils/prettify.py` before committing
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time
