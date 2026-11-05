@@ -3,7 +3,9 @@ Pure-Python version of the C++ `SnapIndex` (`scgraph/cpp/src/snap_index.cpp`, wh
 algorithm is described), with the same answers.
 """
 
+from array import array
 from math import cos, inf, radians, sin
+from operator import mul
 
 from scgraph.helpers.hilbert import hilbert_key
 
@@ -49,7 +51,7 @@ class SnapIndex:
 
     - `SnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
     - `SnapIndex.from_arrays(latitudes, longitudes)`: the same, from two float64 arrays of
-      degrees
+      degrees, which the index keeps when the nodes are already in order (leave them unchanged)
     - `closest_idx(point)`: id of the point nearest to `point`
     - `closest_idx_per_quadrant(point)`: id of the nearest point in each quadrant around
       `point`, as a dict with the keys 'ne', 'nw', 'se', 'sw' (None if the quadrant is empty).
@@ -59,11 +61,21 @@ class SnapIndex:
 
     @classmethod
     def from_arrays(cls, latitudes, longitudes) -> "SnapIndex":
-        return cls(list(zip(latitudes, longitudes, strict=True)))
+        if len(latitudes) != len(longitudes):
+            raise ValueError(
+                "latitudes and longitudes must have the same length"
+            )
+        index = cls.__new__(cls)
+        index._build(latitudes, longitudes)
+        return index
 
     def __init__(self, points):
-        lat = [float(p[0]) for p in points]
-        lon = [float(p[1]) for p in points]
+        lat = array("d", [p[0] for p in points])
+        self._build(lat, array("d", [p[1] for p in points]))
+
+    def _build(self, lat, lon):
+        # Columns of float64 arrays, not lists of floats: 8 bytes per value instead of 32,
+        # and built by loops that run in C
         n = len(lat)
         if n == 0:
             raise ValueError("a snapping index needs at least one node")
@@ -77,17 +89,19 @@ class SnapIndex:
             hilbert_key(lat[i], lon[i]) < hilbert_key(lat[i - 1], lon[i - 1])
             for i in pairs
         )
-        ids = list(range(n))
+        ids = range(n)
         if 64 * descents > len(pairs):
             keys = [hilbert_key(la, lo) for la, lo in zip(lat, lon)]
-            ids.sort(key=lambda i: (keys[i], i))
-        self.id = ids
-        self.lat = [lat[i] for i in ids]
-        self.lon = [lon[i] for i in ids]
-        units = [_unit(la, lo) for la, lo in zip(self.lat, self.lon)]
-        self.x = [u[0] for u in units]
-        self.y = [u[1] for u in units]
-        self.z = [u[2] for u in units]
+            ids = array("q", sorted(ids, key=lambda i: (keys[i], i)))
+            lat = array("d", map(lat.__getitem__, ids))
+            lon = array("d", map(lon.__getitem__, ids))
+        self.id, self.lat, self.lon = ids, lat, lon
+        # The unit vectors, as _unit computes them
+        a, b = array("d", map(radians, lat)), array("d", map(radians, lon))
+        c = array("d", map(cos, a))
+        self.x = array("d", map(mul, c, map(cos, b)))
+        self.y = array("d", map(mul, c, map(sin, b)))
+        self.z = array("d", map(sin, a))
         # Level 0: the boxes of the leaves (min x, max x, min y, max y, min z, max z,
         # min lat, max lat, min lon, max lon); each level above groups FANOUT boxes
         nleaves = (n + LEAF - 1) // LEAF
