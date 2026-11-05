@@ -19,6 +19,11 @@ from collections.abc import MutableSequence
 from itertools import islice
 from operator import eq, index, le
 
+try:
+    from scgraph.cpp import coordinate_lists as _coordinate_lists
+except ImportError:
+    _coordinate_lists = None
+
 MAGIC = b"SCGRAPH1"
 VERSION = 1
 SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file"
@@ -257,8 +262,13 @@ class NodeCoordinates(MutableSequence):
         self._added.insert(i - len(self._latitudes), value)
 
     def take(self, ids):
-        """`[nodes[i] for i in ids]`, without a method call per node (a route's path)"""
+        """`[nodes[i] for i in ids]` (a route's path), without a method call per node: in one
+        C loop in the C++ build when no node was added"""
         latitudes, longitudes = self._latitudes, self._longitudes
+        if _coordinate_lists is not None and not self._added:
+            return _coordinate_lists(
+                latitudes, longitudes, ids if type(ids) is list else list(ids)
+            )
         count = len(latitudes)
         return [
             [latitudes[i], longitudes[i]] if 0 <= i < count else self[i]

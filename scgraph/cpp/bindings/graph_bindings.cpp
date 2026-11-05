@@ -147,6 +147,38 @@ static nb::dict quadrant_dict(const int out[4]) {
 }
 
 NB_MODULE(cpp, m) {
+    m.def("coordinate_lists", [](CsrDoubles latitudes, CsrDoubles longitudes, nb::list ids) {
+        const double* la = latitudes.data();
+        const double* lo = longitudes.data();
+        const Py_ssize_t n = (Py_ssize_t)latitudes.shape(0);
+        if ((Py_ssize_t)longitudes.shape(0) != n)
+            throw std::invalid_argument("latitudes and longitudes must have the same length");
+        const Py_ssize_t count = PyList_Size(ids.ptr());
+        nb::object result = nb::steal(PyList_New(count));
+        if (!result.is_valid()) throw nb::python_error();
+        for (Py_ssize_t k = 0; k < count; ++k) {
+            Py_ssize_t i = PyNumber_AsSsize_t(PyList_GetItem(ids.ptr(), k), PyExc_IndexError);
+            if (i == -1 && PyErr_Occurred()) throw nb::python_error();
+            if (i < 0) i += n;
+            if (i < 0 || i >= n) throw nb::index_error("node index out of range");
+            PyObject* pair = PyList_New(2);
+            if (!pair) throw nb::python_error();
+            PyList_SetItem(result.ptr(), k, pair);
+            PyObject* a = PyFloat_FromDouble(la[i]);
+            PyObject* b = PyFloat_FromDouble(lo[i]);
+            if (!a || !b) {
+                Py_XDECREF(a);
+                Py_XDECREF(b);
+                throw nb::python_error();
+            }
+            PyList_SetItem(pair, 0, a);
+            PyList_SetItem(pair, 1, b);
+        }
+        return result;
+    }, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"),
+       "[[latitudes[i], longitudes[i]] for i in ids] in one C loop, from two float64 arrays and a "
+       "list of ids (negative ids count from the end); a route's coordinates for NodeCoordinates.take");
+
     nb::class_<SnapIndex>(m, "SnapIndex",
         "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
         .def("__init__", [](SnapIndex* self, nb::handle points) {

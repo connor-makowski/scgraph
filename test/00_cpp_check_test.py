@@ -1,7 +1,7 @@
 import os
 
 from scgraph.utils import has_cpp
-from scgraph import Graph
+from scgraph import Graph, network_file
 
 
 def test_cpp_availability():
@@ -18,6 +18,7 @@ def test_cpp_availability():
             has_cpp()
         ), "SCGRAPH_REQUIRE_CPP=1 but the extension is unavailable"
         assert Graph.__module__ == "scgraph.cpp"
+        assert network_file._coordinate_lists is not None
     elif require_python:
         assert (
             not has_cpp()
