@@ -234,7 +234,8 @@ the graph reads its arcs in place (the private `Graph._from_mapped_csr` keeps th
 `Graph.from_csr` copies). A GeoGraph read from a network file (so also from `load_geograph`
 and `build_geograph`) has as `nodes` a `network_file.NodeCoordinates`, which reads the latitude
 and longitude arrays (in place in the C++ backend) and keeps added nodes after them;
-`SnapIndex.from_arrays` indexes the arrays. The mapping lasts as long as those `nodes`, even
+`SnapIndex.from_arrays` indexes the arrays, and `NodeCoordinates.take` builds a route's
+coordinates from them in C++ when available. The mapping lasts as long as those `nodes`, even
 after the graph is edited. Windows does not replace a mapped file, so there, saving onto a file that an
 open geograph was read from raises a `PermissionError`.
 
