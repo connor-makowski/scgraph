@@ -41,7 +41,8 @@ Subsets (--only) and the changes that need them:
     hierarchy  contraction hierarchies and TNR
     misc       distance matrix, cached shortest path, Visvalingam
 
-Every time is in ms from one perf_counter reading, or a mean over the pairs of a row;
+Every time is in ms from one perf_counter reading, or a mean over the pairs of a row
+(the cached tree hit: over 100 calls);
 one untimed call per algorithm warms up each row. Load times read the file from the OS
 cache (warm). Both 3.6.0 (a GeoKDTree) and dev build the snapping index while loading;
 "Index in Load" estimates that part of Load by a second build, timed alone after the
@@ -141,6 +142,7 @@ ALGORITHMS = [
 ]
 STATES = [("Original", 0), ("Reduced", 1), ("Fully Reduced", -1)]
 THRESHOLD = 1.15
+HITS = 100
 # Memory varies little between runs: report beyond x1.05 and at least 5 MiB
 MEMORY_THRESHOLD = 1.05
 MEMORY_FLOOR = 5
@@ -484,18 +486,28 @@ def bench_misc(results):
     orig = {"latitude": 34.0522, "longitude": -118.2437}
     dest = {"latitude": 40.7128, "longitude": -74.0060}
     uf_geo.graph_object.reset_cache()
-    for label in ["Tree Build", "Tree Hit"]:
-        ms, out = timed(
-            uf_geo.get_shortest_path,
-            orig,
-            dest,
-            algorithm_fn="cached_shortest_path",
+
+    def cached():
+        return uf_geo.get_shortest_path(
+            orig, dest, algorithm_fn="cached_shortest_path"
         )
+
+    def hits():
+        # A hit takes about 0.1 ms: one garbage collection would decide one call
+        for _ in range(HITS):
+            out = cached()
+        return out
+
+    for label, call, calls in [
+        ("Tree Build", cached, 1),
+        ("Tree Hit", hits, HITS),
+    ]:
+        ms, out = timed(call)
         results.cell(
             "misc",
             [f"Cached Shortest Path ({label})", "us_freeway"],
             "Time",
-            ms,
+            ms / calls,
         )
         results.check("misc", f"cached|{label}", round_length(out["length"]))
 
@@ -671,8 +683,8 @@ def run(sections, networks, json_path, commit):
             f"- **Date**: {env['date'][:10]}",
             f"- **Total Suite Execution Time**: {total:.2f}s",
             "- **Protocol**: one run; each value is one reading, or the mean over the"
-            " pairs of the row, after one untimed call. Compare only with runs on the"
-            " same machine.",
+            f" pairs of the row (the cached tree hit: over {HITS} calls), after one"
+            " untimed call. Compare only with runs on the same machine.",
             "",
         ] + tables
         BENCHMARK_MD_PATH.write_text("\n".join(lines))
