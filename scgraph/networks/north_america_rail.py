@@ -4,7 +4,7 @@ Federal Railroad Administration."""
 from scgraph.geograph import GeoGraph
 from scgraph.networks import arcgis
 
-VERSION = 1
+VERSION = 2
 
 SOURCES = {
     "lines": {

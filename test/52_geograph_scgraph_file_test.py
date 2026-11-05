@@ -5,7 +5,7 @@ import os
 import pytest
 
 from scgraph import GeoGraph, Graph, network_file
-from scgraph.helpers.hilbert import hilbert_order
+from scgraph.helpers.hilbert import hilbert_key, hilbert_order
 
 # A one-way arc (0 -> 2), a shape on one arc only, integer weights and an isolated node
 _GRAPH = [{2: 1.25, 1: 5}, {0: 5}, {}, {}]
@@ -229,8 +229,19 @@ def test_load_from_scgraph_rejects_damaged_files(tmp_path, how, message):
         GeoGraph.load_from_scgraph(str(path))
 
 
-def test_hilbert_order_follows_the_curve():
-    # One point per quadrant of the globe: north-east, south-west, north-west, south-east;
-    # the curve visits them south-west, north-west, north-east, south-east
-    nodes = [[45, 90], [-45, -90], [45, -90], [-45, 90]]
-    assert hilbert_order(nodes) == [1, 2, 0, 3]
+def test_hilbert_order_follows_the_s2_cells():
+    # The key is the S2 cell id of the point's leaf cell shifted right by one bit (as the
+    # manifests' node_order says): one point per cube face, ids from the s2sphere package
+    s2_leaf_ids = {
+        (10, 20): 1236273861966593991,
+        (20, 100): 3519471331893512889,
+        (80, -30): 5735506840455629691,
+        (-10, -170): 8094406632828722577,
+        (-20, -80): 10437000359534594745,
+        (-75, 60): 12803774141109555891,
+    }
+    for point, cell_id in s2_leaf_ids.items():
+        assert hilbert_key(*point) == cell_id >> 1
+    # So nodes on either side of the antimeridian, 2 km apart, get consecutive ids
+    order = hilbert_order([[0, 179.99], [0, 0], [0, -179.99], [0, 90]])
+    assert abs(order.index(0) - order.index(2)) == 1

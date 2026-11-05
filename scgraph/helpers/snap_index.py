@@ -84,7 +84,7 @@ class SnapIndex:
         if not isfinite(sum(lat) + sum(lon)):
             raise ValueError("node coordinates must be finite numbers")
         self.n = n
-        # Keep the network's order if it is already sorted along a Hilbert curve, in runs of
+        # Keep the network's order if it is already sorted along the S2 cells, in runs of
         # 64 nodes or more on average, as judged on about 2,048 evenly spaced pairs of
         # neighbours (all of them up to 4,096 nodes); otherwise sort a copy along one (as
         # the C++ index)

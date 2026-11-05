@@ -3,8 +3,8 @@
 
 // Nearest node of a point on the sphere, for snapping coordinates to a GeoGraph.
 //
-// The nodes are read along a Hilbert curve: in the network's own order if it is already
-// sorted along one (networks built by build_geograph), otherwise in a sorted copy. Leaves are 32 consecutive nodes, stored as float unit
+// The nodes are read along the S2 cells (helpers/hilbert.py): in the network's own order if it
+// is already sorted along them (networks built by build_geograph), otherwise in a sorted copy. Leaves are 32 consecutive nodes, stored as float unit
 // vectors so that a leaf is one vectorised loop; an implicit tree with 8 children per node
 // keeps, for each child, the box of its unit vectors and of its latitudes and longitudes.
 // A search goes down by increasing distance to the boxes and skips every box farther than

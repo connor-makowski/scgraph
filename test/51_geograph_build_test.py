@@ -129,8 +129,8 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     ]
     cached = folder / manifest["file"]
     assert network_file.read(str(cached))[1]["sources"] == manifest["sources"]
-    # Nodes numbered along the Hilbert curve, as the manifest says
-    assert manifest["node_order"]["name"] == "hilbert"
+    # Nodes numbered along the S2 cells, as the manifest says
+    assert manifest["node_order"]["name"] == "s2_cell"
     assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
     # The source has changed since: the new build replaces the cached network
     monkeypatch.setitem(

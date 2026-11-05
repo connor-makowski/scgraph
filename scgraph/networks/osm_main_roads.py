@@ -5,7 +5,7 @@ from scgraph.geograph import GeoGraph
 from scgraph.networks import download_file
 from scgraph.osm import require_osmium
 
-VERSION = 1
+VERSION = 2
 
 SOURCES = {
     "roads": {

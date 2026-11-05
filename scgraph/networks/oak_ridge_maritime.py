@@ -3,7 +3,7 @@ Global Shipping Lane Network, 2000)."""
 
 from scgraph.geograph import GeoGraph
 
-VERSION = 1
+VERSION = 2
 
 SOURCES = {
     "lines": {

@@ -78,25 +78,61 @@ inline int box_quadrants(double minlat, double maxlat, double minlon, double max
     return mask;
 }
 
-// Position on the Hilbert curve of order 16 over longitude (x) and latitude (y), as
-// scgraph/helpers/hilbert.py
-inline uint64_t hilbert_key(double latitude, double longitude) {
-    const int64_t side = int64_t(1) << 16;
-    int64_t x = std::min(side - 1, std::max<int64_t>(0, int64_t((longitude + 180.0) / 360.0 * side)));
-    int64_t y = std::min(side - 1, std::max<int64_t>(0, int64_t((latitude + 90.0) / 180.0 * side)));
-    uint64_t key = 0;
-    for (int64_t s = side >> 1; s > 0; s >>= 1) {
-        int64_t rx = (x & s) ? 1 : 0, ry = (y & s) ? 1 : 0;
-        key += uint64_t(s) * uint64_t(s) * uint64_t((3 * rx) ^ ry);
-        if (!ry) {
-            if (rx) {
-                x = s - 1 - x;
-                y = s - 1 - y;
-            }
-            std::swap(x, y);
-        }
+// Position of a point along the cells of Google's S2 library (cube face, quadratic projection,
+// Hilbert curve per face, 30 levels), as scgraph/helpers/hilbert.py
+struct CellLookup {
+    uint16_t pos[1024] = {};  // (4 bits of i, 4 bits of j, orientation) -> (8 bits, orientation)
+    constexpr CellLookup() {
+        constexpr int ij_to_pos[4][4] = {{0, 1, 3, 2}, {0, 3, 1, 2}, {2, 3, 1, 0}, {2, 1, 3, 0}};
+        constexpr int pos_to_orientation[4] = {1, 0, 0, 3};
+        for (int i = 0; i < 16; ++i)
+            for (int j = 0; j < 16; ++j)
+                for (int start = 0; start < 4; ++start) {
+                    int orientation = start, p = 0;
+                    for (int k = 3; k >= 0; --k) {
+                        int c = ij_to_pos[orientation][(((i >> k) & 1) << 1) | ((j >> k) & 1)];
+                        p = (p << 2) | c;
+                        orientation ^= pos_to_orientation[c];
+                    }
+                    pos[(i << 6) | (j << 2) | start] = uint16_t((p << 2) | orientation);
+                }
     }
-    return key;
+};
+constexpr CellLookup CELLS{};
+
+inline double st(double u) {
+    return u >= 0.0 ? 0.5 * std::sqrt(1.0 + 3.0 * u) : 1.0 - 0.5 * std::sqrt(1.0 - 3.0 * u);
+}
+
+inline uint64_t hilbert_key(double latitude, double longitude) {
+    Unit p = unit(latitude, longitude);
+    // The face of the largest component, ties going to the later axis (as S2)
+    double ax = std::fabs(p.x), ay = std::fabs(p.y), az = std::fabs(p.z), u, v;
+    int face;
+    if (ax > ay && ax > az) {
+        if (p.x >= 0.0) { face = 0; u = p.y / p.x; v = p.z / p.x; }
+        else { face = 3; u = p.z / p.x; v = p.y / p.x; }
+    } else if (ay > az) {
+        if (p.y >= 0.0) { face = 1; u = -p.x / p.y; v = p.z / p.y; }
+        else { face = 4; u = p.z / p.y; v = -p.x / p.y; }
+    } else {
+        if (p.z >= 0.0) { face = 2; u = -p.x / p.z; v = -p.y / p.z; }
+        else { face = 5; u = -p.y / p.z; v = -p.x / p.z; }
+    }
+    // s and t are in [0, 1] (the face is chosen so that |u|, |v| <= 1): only 1 is off the grid
+    const int64_t side = int64_t(1) << 30;
+    int64_t i = std::min(side - 1, int64_t(st(u) * double(side)));
+    int64_t j = std::min(side - 1, int64_t(st(v) * double(side)));
+    // 8 steps of 4 levels: the first reads 2 levels of zeros (i and j have 30 bits), which
+    // add nothing to the position and leave the orientation unchanged
+    int bits = face & 1;
+    uint64_t pos = 0;
+    for (int k = 7; k >= 0; --k) {
+        bits = CELLS.pos[(((i >> (4 * k)) & 15) << 6) | (((j >> (4 * k)) & 15) << 2) | bits];
+        pos = (pos << 8) | uint64_t(bits >> 2);
+        bits &= 3;
+    }
+    return (uint64_t(face) << 60) | pos;
 }
 
 }  // namespace
@@ -131,7 +167,7 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
     for (int i = 0; i < n; ++i)
         if (!std::isfinite(latitudes[i]) || !std::isfinite(longitudes[i]))
             throw std::invalid_argument("node coordinates must be finite numbers");
-    // Keep the network's order if it is already sorted along a Hilbert curve, in runs of 64
+    // Keep the network's order if it is already sorted along the S2 cells, in runs of 64
     // nodes or more on average (the modes of a multimodal network are sorted one by one),
     // as judged on about 2,048 evenly spaced pairs of neighbours (all of them up to 4,096
     // nodes); otherwise sort a copy along one.

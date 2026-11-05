@@ -3,7 +3,7 @@ for scgraph around the antimeridian)."""
 
 from scgraph.geograph import GeoGraph
 
-VERSION = 1
+VERSION = 2
 
 SOURCES = {
     "lines": {

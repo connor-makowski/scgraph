@@ -35,9 +35,9 @@ which loaders to call with which options; the road + sea network combines two ne
 `merge_with_other_geograph`); the sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and
 later calls read the cache. Built networks, and the conversions of published networks (§6),
-number their nodes along a Hilbert curve over longitude and latitude (`helpers/hilbert.py`,
-within each mode of a multimodal network; manifest key `node_order`), so that nodes close on
-the globe get close ids. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
+number their nodes along the cells of Google's S2 library, a Hilbert curve on each face of a
+cube around the globe (`helpers/hilbert.py`, within each mode of a multimodal network;
+manifest key `node_order`), so that nodes close on the globe get close ids. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
 query that needs them.
 
 `Graph` and `CHGraph` exist twice: in C++ (`cpp/`) and in pure Python. When the C++
@@ -88,7 +88,7 @@ Snapping uses `snap_index` (`cpp/src/snap_index.cpp`; `helpers/snap_index.py` in
 with the same answers): the exact nearest node, ties to the lowest id, and the nearest node per
 quadrant.
 - It reads the nodes in an order where consecutive nodes are close (the network's own if it is
-  in Hilbert order, judged on about 2,048 pairs of neighbours, else a sorted copy), in leaves of 32.
+  in that order, judged on about 2,048 pairs of neighbours, else a sorted copy), in leaves of 32.
 - A tree of 8 children per node keeps each child's box.
 - A search skips every box farther than the best node found.
 
