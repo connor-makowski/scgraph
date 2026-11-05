@@ -99,11 +99,9 @@ def source(monkeypatch):
     server.server_close()
 
 
-# A new version of the build script or of the file format, another node order, or a
-# missing network file (None), builds the network again
-@pytest.mark.parametrize(
-    "versioned", [marnet, network_file, "node order", None]
-)
+# A new version of the build script or of the file format, or a missing network file
+# (None), builds the network again
+@pytest.mark.parametrize("versioned", [marnet, network_file, None])
 def test_build_geograph_builds_once_per_version_and_records_the_source(
     tmp_path, source, monkeypatch, versioned
 ):
@@ -142,10 +140,6 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
         cached.unlink()
         listing = GeoGraph.list_downloadable_geographs(str(tmp_path))
         assert not next(n for n in listing if n["name"] == "marnet")["cached"]
-    elif versioned == "node order":
-        monkeypatch.setattr(
-            "scgraph.geograph.NODE_ORDER", {"name": "hilbert", "curve_order": 0}
-        )
     else:
         monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
     rebuilt = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
@@ -171,7 +165,7 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
 
 
 # What the cache holds: nothing, a current build, or a build by another version of the
-# build script ("stale"), node order or file format; SCGRAPH_OFFLINE sets the default of
+# build script ("stale") or of the file format; SCGRAPH_OFFLINE sets the default of
 # local_files_only. "loaded" without a download, "built" with one, "down": the source fails.
 # As on Windows, a network file can't be replaced while it is open (here: any existing one)
 @pytest.mark.parametrize(
@@ -182,7 +176,6 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
         ("current", None, {"refresh": True}, "built"),
         ("current", "1", {"refresh": True}, ValueError),
         ("stale", None, {"local_files_only": True}, "loaded"),
-        ("order", None, {"local_files_only": True}, "loaded"),
         ("stale", "1", {"local_files_only": False}, "built"),
         ("stale", None, {}, "down"),
         ("format", None, {"local_files_only": True}, ValueError),
@@ -209,8 +202,6 @@ def test_build_geograph_downloads_only_if_allowed(
     versioned = {"stale": marnet, "format": network_file}.get(cached)
     if versioned:
         monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
-    if cached == "order":
-        monkeypatch.setattr("scgraph.geograph.NODE_ORDER", {"name": "other"})
     if offline:
         monkeypatch.setenv("SCGRAPH_OFFLINE", offline)
 
@@ -222,9 +213,7 @@ def test_build_geograph_downloads_only_if_allowed(
     if outcome == "loaded":  # with a warning that names what differs
         old, new = marnet.VERSION - 1, marnet.VERSION
         differs = f"build script version {old}, now {new};"
-        with pytest.warns(
-            UserWarning, match="node order" if cached == "order" else differs
-        ):
+        with pytest.warns(UserWarning, match=differs):
             assert len(build().nodes) == 4
     elif outcome == "built":
         assert len(build().nodes) == 4

@@ -92,14 +92,6 @@ def test_save_as_scgraph_records_the_sha256_of_the_arrays(tmp_path):
     )
 
 
-def test_load_from_scgraph_reads_a_file_without_content_sha256(tmp_path):
-    # As written by an earlier version or another tool
-    path = tmp_path / "small.scgraph"
-    _small().save_as_scgraph(str(path))
-    path.write_bytes(_damage(path.read_bytes(), "without content_sha256"))
-    assert GeoGraph.load_from_scgraph(str(path)).graph_object.graph == _GRAPH
-
-
 def test_save_as_scgraph_leaves_the_previous_file_whole_when_it_fails(
     tmp_path, monkeypatch
 ):
@@ -224,6 +216,7 @@ def _damage(data, how):
         ("offsets past the arcs", "invalid offsets|non-decreasing"),
         ("header without arrays", "invalid header"),
         ("header is not an object", "invalid header"),
+        ("without content_sha256", "invalid header"),
     ],
 )
 def test_load_from_scgraph_rejects_damaged_files(tmp_path, how, message):

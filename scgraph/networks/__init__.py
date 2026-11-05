@@ -10,8 +10,8 @@ sources, one module per network:
   not be established) with the `license_url` where it is stated
 - `build(files)`: given name -> downloaded file, returns the GeoGraph, or `(GeoGraph, details)`
   where `details` is a dict added to the manifest
-- `VERSION`: an integer, raised when `build` changes the network it returns; a cached
-  network built with another `VERSION` is built again
+- `VERSION`: an integer, raised when the network built changes (its `build`, or the node
+  order of `helpers/hilbert.py`); a cached network built with another `VERSION` is built again
 - `download(url, filename)`, optional: how to download a source when it is not a single file
   (default: `download_file`)
 """

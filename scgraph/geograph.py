@@ -1028,7 +1028,7 @@ class GeoGraphIO:
         Function:
 
         - Download the online sources of a reference network once, build the network on this machine and keep it in the local cache; later calls load it from the cache, without any network request, until an upgrade of scgraph changes how that network is built
-        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its build script or node order is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
+        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its build script is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
         - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows every step
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
         - `GeoGraph.list_downloadable_geographs()` lists the networks, who to credit and what is already in the cache
@@ -1131,16 +1131,12 @@ class GeoGraphIO:
         # The manifest names the network file, which is named by its content
         try:
             manifest = json.loads(manifest_file.read_text())
-            built_by = (
-                manifest["build_version"],
-                manifest["format_version"],
-                manifest.get("node_order"),
-            )
+            built_by = manifest["build_version"], manifest["format_version"]
             # Only a name: the file removed by a rebuild is never outside the entry
             cached_file = folder.joinpath(Path(manifest["file"]).name)
         except (OSError, ValueError, KeyError, TypeError):
             built_by, cached_file = None, None
-        current = network.VERSION, network_file.VERSION, NODE_ORDER
+        current = network.VERSION, network_file.VERSION
         cached = cached_file is not None and cached_file.is_file()
         stale = cached and built_by != current
         offline = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
@@ -1158,23 +1154,14 @@ class GeoGraphIO:
                     f"reads {network_file.VERSION}: build it again without {offline}"
                 )
             if stale:
-                differs = ", ".join(
-                    f"{field} {old}, now {new}"
-                    for field, old, new in zip(
-                        ("build script version", "file format", "node order"),
-                        built_by,
-                        current,
-                    )
-                    if old != new
-                )
                 warnings.warn(
-                    f"The cached {name} was built with another {differs}; "
-                    f"loading it as {offline}"
+                    f"The cached {name} was built with build script version "
+                    f"{built_by[0]}, now {network.VERSION}; loading it as {offline}"
                 )
         elif stale:
             logger.warning(
-                "The cached %s was built by another version of its build script, "
-                "file format or node order; building it again",
+                "The cached %s was built by another version of its build script or "
+                "of the file format; building it again",
                 name,
             )
         if not local_files_only and (refresh or not cached or stale):

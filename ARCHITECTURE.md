@@ -200,7 +200,7 @@ when its manifest names another `VERSION` of its build script or of the file for
 file that is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
 default when `SCGRAPH_OFFLINE=1`), nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
 network that is not in the cache, and `build_geograph` loads a build of another build-script
-version or node order with a warning that names the field, but refuses one of another file
+version with a warning that names both versions, but refuses one of another file
 format. `list_geographs` lists the published networks from a fixed list in the code, without
 a request (`contents.txt` is read only for another `geograph_url`). A built network lives in
 `networks/<name>/<region>/` of the cache: a
@@ -246,9 +246,8 @@ open geograph was read from raises a `PermissionError`.
 
 The header gives `format_version` (1), `spec` (a link to this section), `content_sha256`
 (the SHA-256 of the bytes from 4096 to the end of the file, the arrays and the zeros
-between them: the identity of the network; it does not cover the header, and files from
-other writers may lack it; it identifies the file, not the graph: arcs are written in the
-order the backend visits them, which is not the same in the C++ and Python builds), `arrays` (for each
+between them: the identity of the network; it does not cover the header; it identifies
+the file, not the graph: arcs are written in the order the backend visits them, which is not the same in the C++ and Python builds), `arrays` (for each
 array: `dtype`, `shape` and `offset` from the start of the file) and `metadata`: `crs`
 (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
