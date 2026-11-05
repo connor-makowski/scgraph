@@ -654,7 +654,10 @@ class GeoGraphIO:
         # Every route snaps its points (node ids depend on how the file was sorted): the
         # index is built now, not at the first query (an empty network has none)
         if len(geograph.nodes):
-            geograph.snap_index
+            try:
+                geograph.snap_index
+            except ValueError as error:  # e.g. coordinates that are not finite
+                raise ValueError(f"{filename}: {error}") from error
         return geograph
 
     @staticmethod
