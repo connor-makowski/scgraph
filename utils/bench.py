@@ -1,239 +1,358 @@
 #!/usr/bin/env python3
 """
 Unified benchmark suite for scgraph.
-Runs fast (<30s) comprehensive benchmarks across GeoGraphs, GridGraphs,
-hierarchical routing (CH/TNR), and specialized operations.
-Outputs summary tables to terminal and writes benchmark.md.
 
-Usage:
-    uv run utils/bench.py
+Two uses of one script:
+
+1. Snapshot: with no argument, runs every section once (<30s with C++) and writes
+   benchmark.md at the repository root.
+
+       uv run utils/bench.py
+
+2. Before/after deltas (a PR, or dev against main): run the same script with the
+   environment of each version, several times alternating the versions, then compare.
+
+       for i in 1 2 3 4 5; do for v in base head; do
+         <env of $v>/bin/python utils/bench.py --only reduce \\
+           --commit <sha of $v> --json out/$v-$i.json
+       done; done
+       python utils/bench.py --compare "out/base-*.json" "out/head-*.json"
+
+   Each environment holds one version installed from its checkout with the lockfile's
+   versions (`uv sync --extra dev --no-editable`; C++ build: SCGRAPH_REQUIRE_CPP=1,
+   pure-Python build: SCGRAPH_NO_BUILD=1). Run the same command once per environment
+   first, with a scratch --json (without it a full run overwrites benchmark.md), so
+   that missing networks are downloaded outside the measurements. Compare in the
+   backend(s) whose code the change touches.
+
+   --compare reports only the rows whose best time and median time over the runs
+   of each side both move beyond x1.15 in the same direction; it also lists any
+   difference in route lengths, node counts or failures. Memory rows (Linux) use the
+   median of the runs and are reported beyond x1.05 and 5 MiB. A surprising row is
+   simply re-run.
+
+Subsets (--only) and the changes that need them:
+    load       load_geograph as each version does it, snap index, first query
+               (loaders, file formats, graph construction, snapping index)
+    reduce     reduce(1) and reduce(-1) times and results (graph_reducer)
+    query      get_shortest_path per algorithm, unreduced and reduced
+               (graph.py, geograph.py queries, cpp/src/graph*)
+    grid       GridGraph (grid.py, bucket algorithms)
+    hierarchy  contraction hierarchies and TNR
+    misc       distance matrix, cached shortest path, Visvalingam
+
+Every time is in ms from one perf_counter reading, or a mean over the pairs of a row;
+one untimed call per algorithm warms up each row. Load times read the file from the OS
+cache (warm). "Index" builds the snap index alone: later versions build it at the first
+snap, timed before the first query; 3.6.0 builds it inside load_geograph (its Load
+includes it), so its Index is a second build, timed after the first query. Memory (Linux
+only): "Peak" is the peak RSS of the process during load and first query, "Added" the
+peak during reduce() minus the RSS before it (the peak is reset through
+/proc/self/clear_refs). Rows run in sequence in one process, so a row's time and
+memory depend on the rows before it: compare runs of the same --only and --networks.
+Reduction states are explicit (Original, Reduced = 1 pass, Fully Reduced = until no
+change): no row depends on the version's reduction default.
 """
 
+import argparse
+import gc
+import glob
+import json
 import platform
-import random
+import statistics
+import sys
 import time
+from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
-from scgraph import GeoGraph, GridGraph, Graph
-from scgraph.utils import has_cpp
-from scgraph.helpers.visvalingam import visvalingam
 
 BENCHMARK_MD_PATH = Path(__file__).resolve().parent.parent / "benchmark.md"
+SECTIONS = ["load", "reduce", "query", "grid", "hierarchy", "misc"]
+NETWORKS = [
+    "oak_ridge_maritime",
+    "north_america_rail",
+    "marnet",
+    "us_freeway",
+    "world_highways_and_marnet",
+]
+# Fixed (latitude, longitude) pairs, nodes of the built-in networks: the same nodes
+# in any numbering. QUERY_PAIRS: query section (its first pair also times the first
+# query); FIRST_PAIRS: first query of the other networks; HIERARCHY_PAIRS: section 5.
+QUERY_PAIRS = {
+    "marnet": [
+        ((43.5148, 37.2408), (39.5276, 49.6551)),
+        ((22.2383, 113.6934), (-17.5438, -2.5937)),
+        ((30.0, -20.0), (50.5587, -176.9962)),
+        ((-14.5165, 174.8274), (52.2284, -10.4723)),
+        ((-23.0, 13.0), (46.2179, -72.8064)),
+    ],
+    "us_freeway": [
+        ((47.823, -122.274), (25.979, -80.23)),
+        ((34.074, -117.999), (41.182, -73.143)),
+        ((39.464, -77.991), (44.806, -123.029)),
+        ((32.774, -115.505), (25.964, -80.166)),
+        ((43.408, -71.597), (40.702, -73.993)),
+    ],
+    "world_highways_and_marnet": [
+        ((14.648, 108.409), (26.252, 83.477)),
+        ((37.686, 37.874), (35.108, 128.839)),
+        ((38.01, 23.844), (33.933, 133.21)),
+        ((44.496, 26.079), (31.965, 120.966)),
+        ((9.264, -9.025), (34.139, -97.157)),
+    ],
+}
+FIRST_PAIRS = {
+    "oak_ridge_maritime": ((51.3, 179.5), (43.7258, -69.7537)),
+    "north_america_rail": ((42.652, -112.191), (29.715, -95.333)),
+}
+HIERARCHY_PAIRS = {
+    "marnet": [
+        ((37.9027, 12.3641), (52.8569, 1.7064)),
+        ((-53.0907, -73.4436), (29.385, -89.5885)),
+        ((7.5167, -117.4664), (-6.3133, -146.2597)),
+        ((63.3996, 7.3788), (44.1888, -7.2684)),
+        ((10.0, 103.7407), (-19.0009, 41.8471)),
+        ((42.1021, 19.0579), (57.7286, -39.3167)),
+        ((-2.512, -92.4763), (-35.1023, -15.3071)),
+        ((63.0298, -1.7065), (36.7, 31.0)),
+        ((-12.5384, -137.5827), (2.5118, -42.4761)),
+        ((-12.7045, 114.9835), (-5.0572, -115.0001)),
+    ],
+    "us_freeway": [
+        ((35.276, -107.984), (43.129, -77.635)),
+        ((21.364, -157.781), (48.75, -111.862)),
+        ((39.477, -91.3), (38.619, -90.264)),
+        ((33.602, -101.845), (30.217, -82.707)),
+        ((40.751, -111.911), (44.776, -91.527)),
+        ((38.579, -112.331), (37.039, -113.598)),
+        ((35.625, -80.861), (42.861, -71.334)),
+        ((32.092, -81.131), (42.605, -83.174)),
+        ((34.156, -118.243), (34.266, -118.472)),
+        ((42.153, -87.874), (44.041, -106.638)),
+    ],
+}
+ALGORITHMS = [
+    ("dijkstra", "Dijkstra"),
+    ("bidirectional_dijkstra", "BiDijkstra"),
+    ("a_star", "A* Haversine"),
+    ("dijkstra_buckets", "Buckets"),
+    ("bidirectional_buckets", "BiBuckets"),
+    ("bmssp", "BMSSP"),
+]
+STATES = [("Original", 0), ("Reduced", 1), ("Fully Reduced", -1)]
+THRESHOLD = 1.15
+# Memory varies little between runs: report beyond x1.05 and at least 5 MiB
+MEMORY_THRESHOLD = 1.05
+MEMORY_FLOOR = 5
 
 
-def bench_geograph_loading():
-    """Benchmark 1 & 2: Built-in GeoGraph Load Times (Unreduced & Reduced)."""
-    networks = [
-        ("oak_ridge_maritime", "Oak Ridge Maritime"),
-        ("north_america_rail", "North America Rail"),
-        ("marnet", "Global Maritime (marnet)"),
-        ("us_freeway", "US Freeway Network"),
-        ("world_highways_and_marnet", "World Highways & Maritime"),
-    ]
+class Results:
+    """Measurements of one run: timed rows, displayed counts, and check values."""
 
-    loaded_geos = {}
-    t1_data = []
-    t2_data = []
+    def __init__(self, sections):
+        self.sections = sections
+        # One cell per (section, row, column): {"value", "unit", "failed"}
+        self.cells = {}
+        # Values that must not change between versions (lengths, node counts)
+        self.checks = {}
 
-    print("\n[1/6] Benchmarking Built-in GeoGraph Loading (Unreduced)...")
-    for net_key, net_label in networks:
-        t0 = time.perf_counter()
-        geo = GeoGraph.load_geograph(net_key, reduce_iterations=0)
-        dt_load_ms = (time.perf_counter() - t0) * 1000
-
-        num_nodes = len(geo.graph)
-        num_edges = sum(len(edges) for edges in geo.graph)
-
-        loaded_geos[net_key] = {"original": geo}
-        t1_data.append(
-            {
-                "key": net_key,
-                "label": net_label,
-                "nodes": num_nodes,
-                "edges": num_edges,
-                "load_ms": dt_load_ms,
-            }
-        )
-        print(
-            f"  - {net_label:<30} {num_nodes:>7,} nodes | "
-            f"{num_edges:>9,} edges | "
-            f"Load: {dt_load_ms:7.2f} ms"
-        )
-
-    print(
-        "\n[2/6] Benchmarking Built-in GeoGraph Loading & Reduction (Reduced)..."
-    )
-    for idx, (net_key, net_label) in enumerate(networks):
-        num_nodes = t1_data[idx]["nodes"]
-        num_edges = t1_data[idx]["edges"]
-
-        t_red = time.perf_counter()
-        geo_red = GeoGraph.load_geograph(net_key, reduce_iterations=1)
-        dt_red_ms = (time.perf_counter() - t_red) * 1000
-
-        loaded_geos[net_key]["reduced"] = geo_red
-
-        g_red_obj = geo_red.graph_object
-        is_red = g_red_obj.is_reduced
-        rg = g_red_obj.reduced_graph
-
-        eff_nodes = sum(1 for r in is_red if not r)
-        eff_edges = sum(len(rg[i]) for i, r in enumerate(is_red) if not r)
-
-        node_red_pct = (
-            ((num_nodes - eff_nodes) / num_nodes) * 100
-            if num_nodes > 0
-            else 0.0
-        )
-        edge_red_pct = (
-            ((num_edges - eff_edges) / num_edges) * 100
-            if num_edges > 0
-            else 0.0
-        )
-
-        t2_data.append(
-            {
-                "key": net_key,
-                "label": net_label,
-                "effective_nodes": eff_nodes,
-                "effective_edges": eff_edges,
-                "load_ms": dt_red_ms,
-                "node_reduction_pct": node_red_pct,
-                "edge_reduction_pct": edge_red_pct,
-            }
-        )
-        print(
-            f"  - {net_label:<30} {eff_nodes:>7,} eff nodes | "
-            f"{eff_edges:>9,} eff edges | "
-            f"Load: {dt_red_ms:7.2f} ms | "
-            f"Node Red: {node_red_pct:5.1f}% | "
-            f"Edge Red: {edge_red_pct:5.1f}%"
-        )
-
-    return loaded_geos, t1_data, t2_data
-
-
-def bench_geograph_queries(loaded_geos):
-    """Benchmark 3: Shortest Path Algorithm Performance on GeoGraphs."""
-    print("\n[3/6] Benchmarking Shortest Path Query Algorithms on GeoGraphs...")
-    query_configs = [
-        (
-            "marnet",
-            "marnet",
-            [
-                (100, 7999),
-                (4022, 8342),
-                (512, 6340),
-                (1205, 9543),
-                (342, 8100),
-            ],
-        ),
-        (
-            "us_freeway",
-            "us_freeway",
-            [
-                (1000, 9770),
-                (250, 8500),
-                (5100, 12300),
-                (350, 14100),
-                (1520, 7580),
-            ],
-        ),
-        (
-            "world_highways_and_marnet",
-            "world_highways_and_marnet",
-            [
-                (1050, 52000),
-                (21000, 153000),
-                (76000, 305000),
-                (121000, 452000),
-                (51000, 254000),
-            ],
-        ),
-    ]
-
-    algorithms = [
-        ("dijkstra", "Dijkstra", {}),
-        ("bidirectional_dijkstra", "BiDijkstra", {}),
-        ("a_star", "A*", "haversine"),
-        ("dijkstra_buckets", "Buckets", {}),
-        ("bidirectional_buckets", "BiBuckets", {}),
-    ]
-
-    table_data = []
-
-    for net_key, display_name, pairs in query_configs:
-        for state_key, state_label in [
-            ("original", "Original"),
-            ("reduced", "Reduced"),
-        ]:
-            geo = loaded_geos[net_key][state_key]
-            num_nodes = len(geo.graph)
-            row = {
-                "graph": display_name,
-                "state": state_label,
-                "nodes": num_nodes,
-                "timings": {},
+    def cell(self, section, row, column, value, unit="ms", failed=0):
+        if unit == "MiB" and value is None:
+            return  # memory is measured on Linux only
+        if section in self.sections:
+            self.cells[(section, tuple(row), column)] = {
+                "value": value,
+                "unit": unit,
+                "failed": failed,
             }
 
-            # Warmup
-            warm_orig = {
-                "latitude": geo.nodes[pairs[0][0]][0],
-                "longitude": geo.nodes[pairs[0][0]][1],
-            }
-            warm_dest = {
-                "latitude": geo.nodes[pairs[0][1]][0],
-                "longitude": geo.nodes[pairs[0][1]][1],
-            }
-            try:
-                geo.get_shortest_path(
-                    warm_orig, warm_dest, algorithm_fn="dijkstra"
-                )
-            except Exception:
-                pass
+    def check(self, section, key, value):
+        if section in self.sections:
+            self.checks[f"{section}|{key}"] = value
 
-            for alg_key, alg_name, alg_opts in algorithms:
-                kw = {"algorithm_fn": alg_key}
-                if alg_opts == "haversine":
-                    kw["algorithm_kwargs"] = {"heuristic_fn": geo.haversine}
 
-                times = []
-                for u, v in pairs:
-                    orig = {
-                        "latitude": geo.nodes[u][0],
-                        "longitude": geo.nodes[u][1],
-                    }
-                    dest = {
-                        "latitude": geo.nodes[v][0],
-                        "longitude": geo.nodes[v][1],
-                    }
-                    t0 = time.perf_counter()
-                    geo.get_shortest_path(orig, dest, **kw)
-                    times.append((time.perf_counter() - t0) * 1000)
+def timed(fn, *args, **kwargs):
+    t0 = time.perf_counter()
+    out = fn(*args, **kwargs)
+    return (time.perf_counter() - t0) * 1000, out
 
-                avg_ms = sum(times) / len(times) if times else float("nan")
-                row["timings"][alg_key] = avg_ms
 
-            table_data.append(row)
-            dijk = row["timings"]["dijkstra"]
-            bidir = row["timings"]["bidirectional_dijkstra"]
-            astar = row["timings"]["a_star"]
-            buck = row["timings"]["dijkstra_buckets"]
-            bibuck = row["timings"]["bidirectional_buckets"]
-            print(
-                f"  - {display_name:<26} ({state_label:<8}) | "
-                f"Dijkstra: {dijk:7.3f} ms | "
-                f"BiDijkstra: {bidir:7.3f} ms | "
-                f"A*: {astar:7.3f} ms | "
-                f"Buckets: {buck:7.3f} ms | "
-                f"BiBuckets: {bibuck:7.3f} ms"
+def memory_mark():
+    """Reset the process's peak RSS to its current RSS; current RSS in MiB (Linux)."""
+    try:
+        with open("/proc/self/clear_refs", "w") as f:
+            f.write("5")
+    except OSError:
+        return None
+    return memory_read("VmRSS")
+
+
+def memory_read(field="VmHWM"):
+    with open("/proc/self/status") as f:
+        for line in f:
+            if line.startswith(field + ":"):
+                return int(line.split()[1]) / 1024
+    return None
+
+
+def mean_time(results, section, row, column, calls, key):
+    """Warm up with the first call, then time every call; failures are counted."""
+    try:
+        calls[0]()
+    except Exception:
+        pass
+    times, failed = [], 0
+    for i, call in enumerate(calls):
+        try:
+            ms, out = timed(call)
+        except Exception as error:
+            failed += 1
+            results.check(
+                section, f"{key}|{i}", f"error: {type(error).__name__}"
             )
+            continue
+        times.append(ms)
+        length = out.get("length") if isinstance(out, dict) else None
+        results.check(section, f"{key}|{i}", round_length(length))
+    value = sum(times) / len(times) if times else None
+    results.cell(section, row, column, value, failed=failed)
 
-    return table_data
+
+def round_length(length):
+    # Lengths are compared between versions: 9 significant digits absorb summation
+    # order, not a different route
+    return None if length is None else float(f"{length:.9g}")
 
 
-def bench_gridgraphs():
-    """Benchmark 4: GridGraph Pathfinding & Obstacle Performance."""
-    print("\n[4/6] Benchmarking GridGraph Generation & Pathfinding...")
+def point(coordinates):
+    return {"latitude": coordinates[0], "longitude": coordinates[1]}
+
+
+def reduced_counts(graph_object):
+    is_red = graph_object.is_reduced
+    rg = graph_object.reduced_graph
+    nodes = sum(1 for r in is_red if not r)
+    edges = sum(len(rg[i]) for i, r in enumerate(is_red) if not r)
+    return nodes, edges
+
+
+def query_calls(geo, pairs, algorithm):
+    kwargs = {"algorithm_fn": algorithm}
+    if algorithm == "a_star":
+        kwargs["algorithm_kwargs"] = {"heuristic_fn": geo.haversine}
+    return [
+        lambda u=u, v=v: geo.get_shortest_path(point(u), point(v), **kwargs)
+        for u, v in pairs
+    ]
+
+
+def bench_networks(results, networks):
+    """Sections load, reduce and query, one network at a time (one copy in memory)."""
+    from scgraph import GeoGraph
+
+    sections = results.sections
+    for net in networks:
+        print(f"  - {net}")
+        marked = memory_mark()
+        load_ms, geo = timed(GeoGraph.load_geograph, net, reduce_iterations=0)
+        n = len(geo.nodes)
+
+        # Snap index: versions after 3.6.0 build it at the first snap, timed alone here,
+        # before the first query; 3.6.0 builds a GeoKDTree in load_geograph (rebuilt
+        # and timed below)
+        index_ms = None
+        if hasattr(type(geo), "snap_index"):
+            index_ms = timed(getattr, geo, "snap_index")[0]
+        # Time to the first answer: anything else built at first use
+        u, v = QUERY_PAIRS[net][0] if net in QUERY_PAIRS else FIRST_PAIRS[net]
+        first_ms, first_failed = None, 1
+        try:
+            first_ms, out = timed(
+                geo.get_shortest_path,
+                point(u),
+                point(v),
+                algorithm_fn="dijkstra",
+            )
+            first_failed = 0
+            results.check("load", f"{net}|first", round_length(out["length"]))
+        except Exception as error:
+            results.check(
+                "load", f"{net}|first", f"error: {type(error).__name__}"
+            )
+        # Peak of the process during load and first query (includes the interpreter)
+        peak = memory_read() if marked is not None else None
+        if index_ms is None and "load" in sections:
+            from geokdtree import GeoKDTree
+
+            index_ms = timed(GeoKDTree, points=geo.nodes)[0]
+        # Counted after the peak: reading geo.graph may build a Python copy
+        edges = sum(len(e) for e in geo.graph)
+        results.cell("load", [net], "Nodes", n, unit="count")
+        results.cell("load", [net], "Edges", edges, unit="count")
+        results.cell("load", [net], "Load", load_ms)
+        results.cell("load", [net], "Index", index_ms)
+        results.cell(
+            "load", [net], "First query", first_ms, failed=first_failed
+        )
+        results.cell("load", [net], "Peak", peak, unit="MiB")
+
+        if "reduce" in sections or ("query" in sections and net in QUERY_PAIRS):
+            for state, iterations in STATES:
+                if iterations:
+                    before = memory_mark()
+                    ms, _ = timed(
+                        geo.graph_object.reduce, iterations=iterations
+                    )
+                    added = (
+                        memory_read() - before if before is not None else None
+                    )
+                    nodes, red_edges = reduced_counts(geo.graph_object)
+                    row = [net, state]
+                    results.cell("reduce", row, "Reduce", ms)
+                    results.cell("reduce", row, "Added", added, unit="MiB")
+                    results.cell(
+                        "reduce", row, "Effective nodes", nodes, "count"
+                    )
+                    results.cell(
+                        "reduce", row, "Effective edges", red_edges, "count"
+                    )
+                    results.cell(
+                        "reduce",
+                        row,
+                        "Node reduction %",
+                        100 * (n - nodes) / n,
+                        "%",
+                    )
+                else:
+                    nodes = n
+                if net not in QUERY_PAIRS or "query" not in sections:
+                    continue
+                row = [net, state]
+                results.cell(
+                    "query", row, "Effective nodes", nodes, unit="count"
+                )
+                for algorithm, label in ALGORITHMS:
+                    # About 1 s per query on the world network: it would double the run
+                    if (
+                        algorithm == "bmssp"
+                        and net == "world_highways_and_marnet"
+                    ):
+                        continue
+                    mean_time(
+                        results,
+                        "query",
+                        row,
+                        label,
+                        query_calls(geo, QUERY_PAIRS[net], algorithm),
+                        f"{net}|{state}|{algorithm}",
+                    )
+        del geo
+        gc.collect()
+
+
+def bench_gridgraphs(results):
+    from scgraph import GridGraph
+
     configs = [
         ("50x50 Open Grid", 50, [], None),
         ("100x100 Open Grid", 100, [], None),
@@ -245,457 +364,517 @@ def bench_gridgraphs():
             [(0, 0), (0, 1), (1, 0), (1, 1)],
         ),
     ]
-
-    table_data = []
-
+    algorithms = [
+        ("Dijkstra", {"algorithm_fn": "dijkstra"}),
+        (
+            "A* Manhattan",
+            {"algorithm_fn": "a_star", "heuristic_fn": "manhattan"},
+        ),
+        ("Buckets", {"algorithm_fn": "dijkstra_buckets"}),
+        ("BiBuckets", {"algorithm_fn": "bidirectional_buckets"}),
+    ]
     for name, size, blocks, shape in configs:
-        t0 = time.perf_counter()
-        grid = GridGraph(
+        print(f"  - {name}")
+        ms, grid = timed(
+            GridGraph,
             x_size=size,
             y_size=size,
             blocks=blocks,
             shape=shape,
             add_exterior_walls=True,
         )
-        dt_create_ms = (time.perf_counter() - t0) * 1000
-
-        orig = {"x": 1, "y": 1}
-        dest = {"x": size - 2, "y": size - 2}
-
-        # Warmup
-        grid.get_shortest_path(
-            orig, dest, algorithm_fn="dijkstra", cache=False
-        )
-
-        t_dijk = time.perf_counter()
-        grid.get_shortest_path(
-            orig, dest, algorithm_fn="dijkstra", cache=False
-        )
-        dt_dijk_ms = (time.perf_counter() - t_dijk) * 1000
-
-        t_astar = time.perf_counter()
-        grid.get_shortest_path(
-            orig,
-            dest,
-            algorithm_fn="a_star",
-            heuristic_fn="manhattan",
-            cache=False,
-        )
-        dt_astar_ms = (time.perf_counter() - t_astar) * 1000
-
-        t_buck = time.perf_counter()
-        grid.get_shortest_path(
-            orig, dest, algorithm_fn="dijkstra_buckets", cache=False
-        )
-        dt_buck_ms = (time.perf_counter() - t_buck) * 1000
-
-        t_bibuck = time.perf_counter()
-        grid.get_shortest_path(
-            orig, dest, algorithm_fn="bidirectional_buckets", cache=False
-        )
-        dt_bibuck_ms = (time.perf_counter() - t_bibuck) * 1000
-
-        row = {
-            "config": name,
-            "nodes": len(grid.graph),
-            "creation_ms": dt_create_ms,
-            "dijkstra_ms": dt_dijk_ms,
-            "a_star_ms": dt_astar_ms,
-            "buckets_ms": dt_buck_ms,
-            "bibuckets_ms": dt_bibuck_ms,
-        }
-        table_data.append(row)
-        print(
-            f"  - {name:<26} ({len(grid.graph):>6,} nodes) | "
-            f"Create: {dt_create_ms:6.2f} ms | "
-            f"Dijkstra: {dt_dijk_ms:6.3f} ms | "
-            f"A* Manhattan: {dt_astar_ms:6.3f} ms | "
-            f"Buckets: {dt_buck_ms:6.3f} ms | "
-            f"BiBuckets: {dt_bibuck_ms:6.3f} ms"
-        )
-
-    return table_data
+        results.cell("grid", [name], "Nodes", len(grid.graph), unit="count")
+        results.cell("grid", [name], "Creation", ms)
+        orig, dest = {"x": 1, "y": 1}, {"x": size - 2, "y": size - 2}
+        for label, kwargs in algorithms:
+            call = lambda kw=kwargs: grid.get_shortest_path(
+                orig, dest, cache=False, **kw
+            )
+            mean_time(results, "grid", [name], label, [call], f"{name}|{label}")
 
 
-def bench_hierarchical_routing(loaded_geos):
-    """Benchmark 5: Hierarchical Preprocessing & Routing (CH & TNR)."""
-    print("\n[5/6] Benchmarking Hierarchical Routing (CH & TNR)...")
-    targets = [
-        (
-            "marnet",
-            "Original",
-            loaded_geos["marnet"]["original"].graph,
-            False,
-            50,
-        ),
-        (
-            "marnet",
-            "Reduced",
-            loaded_geos["marnet"]["original"].graph,
-            True,
-            50,
-        ),
-        (
-            "us_freeway",
-            "Original",
-            loaded_geos["us_freeway"]["original"].graph,
-            False,
-            50,
-        ),
-        (
-            "us_freeway",
-            "Reduced",
-            loaded_geos["us_freeway"]["original"].graph,
-            True,
-            50,
-        ),
-    ]
+def bench_hierarchy(results):
+    from scgraph import GeoGraph, Graph
 
-    table_data = []
-
-    for (
-        net_name,
-        state_label,
-        adj,
-        should_reduce,
-        transit_node_count,
-    ) in targets:
-        g = Graph(adj)
-        if should_reduce:
-            g.reduce()
-
-        num_nodes = len(adj)
-        random.seed(42)
-        pairs = [
-            (random.randint(0, num_nodes - 1), random.randint(0, num_nodes - 1))
-            for _ in range(10)
-        ]
-
-        # 1. Baseline Dijkstra
-        dijk_times = []
-        for u, v in pairs:
-            t0 = time.perf_counter()
-            try:
-                g.dijkstra(u, v)
-                dijk_times.append((time.perf_counter() - t0) * 1000)
-            except Exception:
-                pass
-        avg_dijk_ms = (
-            sum(dijk_times) / len(dijk_times) if dijk_times else float("nan")
-        )
-
-        # 2. Contraction Hierarchies (CH)
-        t_ch_prep = time.perf_counter()
-        g.create_contraction_hierarchy()
-        dt_ch_prep_ms = (time.perf_counter() - t_ch_prep) * 1000
-
-        ch_times = []
-        for u, v in pairs:
-            t0 = time.perf_counter()
-            try:
-                g.contraction_hierarchy(u, v)
-                ch_times.append((time.perf_counter() - t0) * 1000)
-            except Exception:
-                pass
-        avg_ch_ms = sum(ch_times) / len(ch_times) if ch_times else float("nan")
-
-        # 3. Transit Node Routing (TNR)
-        t_tnr_prep = time.perf_counter()
-        g.create_tnr_hierarchy(num_transit_nodes=transit_node_count)
-        dt_tnr_prep_ms = (time.perf_counter() - t_tnr_prep) * 1000
-
-        tnr_times = []
-        for u, v in pairs:
-            t0 = time.perf_counter()
-            try:
-                g.tnr(u, v)
-                tnr_times.append((time.perf_counter() - t0) * 1000)
-            except Exception:
-                pass
-        avg_tnr_ms = (
-            sum(tnr_times) / len(tnr_times) if tnr_times else float("nan")
-        )
-
-        ch_speedup = (
-            f"{avg_dijk_ms / avg_ch_ms:5.1f}x"
-            if avg_ch_ms and avg_ch_ms > 0
-            else "N/A"
-        )
-        tnr_speedup = (
-            f"{avg_dijk_ms / avg_tnr_ms:5.1f}x"
-            if avg_tnr_ms and avg_tnr_ms > 0
-            else "N/A"
-        )
-
-        row = {
-            "graph": net_name,
-            "state": state_label,
-            "nodes": num_nodes,
-            "dijkstra_ms": avg_dijk_ms,
-            "ch_prep_ms": dt_ch_prep_ms,
-            "ch_query_ms": avg_ch_ms,
-            "ch_speedup": ch_speedup,
-            "tnr_prep_ms": dt_tnr_prep_ms,
-            "tnr_query_ms": avg_tnr_ms,
-            "tnr_speedup": tnr_speedup,
-        }
-        table_data.append(row)
-        print(
-            f"  - {net_name:<12} ({state_label:<8}) | "
-            f"Dijkstra: {avg_dijk_ms:6.3f} ms | "
-            f"CH Prep: {dt_ch_prep_ms:7.1f} ms -> Query: {avg_ch_ms:6.3f} ms ({ch_speedup}) | "
-            f"TNR Prep: {dt_tnr_prep_ms:7.1f} ms -> Query: {avg_tnr_ms:6.3f} ms ({tnr_speedup})"
-        )
-
-    return table_data
+    for net in ["marnet", "us_freeway"]:
+        geo = GeoGraph.load_geograph(net, reduce_iterations=0)
+        adj = geo.graph
+        node_id = {(p[0], p[1]): i for i, p in enumerate(geo.nodes)}
+        pairs = [(node_id[u], node_id[v]) for u, v in HIERARCHY_PAIRS[net]]
+        del geo
+        dijkstra_original = None
+        for state, iterations in STATES[:2]:
+            print(f"  - {net} ({state})")
+            g = Graph(adj)
+            if iterations:
+                g.reduce(iterations=iterations)
+            row = [net, state]
+            key = f"{net}|{state}"
+            mean_time(
+                results,
+                "hierarchy",
+                row,
+                "Dijkstra",
+                [lambda u=u, v=v: g.dijkstra(u, v) for u, v in pairs],
+                f"{key}|dijkstra",
+            )
+            ms, _ = timed(g.create_contraction_hierarchy)
+            results.cell("hierarchy", row, "CH Prep", ms)
+            mean_time(
+                results,
+                "hierarchy",
+                row,
+                "CH Query",
+                [
+                    lambda u=u, v=v: g.contraction_hierarchy(u, v)
+                    for u, v in pairs
+                ],
+                f"{key}|ch",
+            )
+            ms, _ = timed(g.create_tnr_hierarchy, num_transit_nodes=50)
+            results.cell("hierarchy", row, "TNR Prep", ms)
+            mean_time(
+                results,
+                "hierarchy",
+                row,
+                "TNR Query",
+                [lambda u=u, v=v: g.tnr(u, v) for u, v in pairs],
+                f"{key}|tnr",
+            )
+            cells = results.cells
+            dijkstra = cells.get(("hierarchy", tuple(row), "Dijkstra"), {})
+            if dijkstra_original is None:
+                dijkstra_original = dijkstra.get("value")
+            for query in ["CH", "TNR"]:
+                q = cells.get(("hierarchy", tuple(row), f"{query} Query"), {})
+                speedup = (
+                    dijkstra_original / q["value"]
+                    if dijkstra_original and q.get("value")
+                    else None
+                )
+                # Relative to the unreduced Dijkstra of the same network
+                results.cell("hierarchy", row, f"{query} Speedup", speedup, "x")
 
 
-def bench_specialized_features(loaded_geos):
-    """Benchmark 6: Specialized Features (Distance Matrix, Trees, BMSSP, Visvalingam)."""
-    print("\n[6/6] Benchmarking Specialized Features & Tree Operations...")
-    table_data = []
+def bench_misc(results):
+    from scgraph import GeoGraph
+    from scgraph.helpers.visvalingam import visvalingam
 
-    # 1. Distance Matrix (100 points = 10,000 pairs on us_freeway)
-    uf_geo = loaded_geos["us_freeway"]["original"]
-    box = {
-        "min_latitude": 34.0,
-        "max_latitude": 42.0,
-        "min_longitude": -118.0,
-        "max_longitude": -85.0,
-    }
+    uf_geo = GeoGraph.load_geograph("us_freeway", reduce_iterations=0)
+    # Builds anything made at first use, so that it is not timed below
+    uf_geo.get_shortest_path(*map(point, QUERY_PAIRS["us_freeway"][0]))
+
     n = 10
-    lats = [
-        box["min_latitude"]
-        + i * (box["max_latitude"] - box["min_latitude"]) / n
-        for i in range(n)
-    ]
-    lons = [
-        box["min_longitude"]
-        + i * (box["max_longitude"] - box["min_longitude"]) / n
-        for i in range(n)
-    ]
-    dm_nodes = [{"latitude": lat, "longitude": lon} for lat in lats for lon in lons]
-
-    t0 = time.perf_counter()
-    uf_geo.distance_matrix(dm_nodes, off_graph_circuity=1, output_units="km")
-    dt_dm_ms = (time.perf_counter() - t0) * 1000
-    table_data.append(
-        {
-            "feature": "Distance Matrix (10x10 = 100 points)",
-            "target": "us_freeway",
-            "time_ms": dt_dm_ms,
-            "notes": "10,000 OD pairs computed",
-        }
+    lats = [34.0 + i * 8.0 / n for i in range(n)]
+    lons = [-118.0 + i * 33.0 / n for i in range(n)]
+    dm_nodes = [{"latitude": a, "longitude": o} for a in lats for o in lons]
+    ms, _ = timed(
+        uf_geo.distance_matrix,
+        dm_nodes,
+        off_graph_circuity=1,
+        output_units="km",
+    )
+    results.cell(
+        "misc",
+        ["Distance Matrix (10x10 = 100 points)", "us_freeway"],
+        "Time",
+        ms,
     )
 
-    # 2. Cached Shortest Path (Tree Build vs Hit)
     orig = {"latitude": 34.0522, "longitude": -118.2437}
     dest = {"latitude": 40.7128, "longitude": -74.0060}
     uf_geo.graph_object.reset_cache()
+    for label in ["Tree Build", "Tree Hit"]:
+        ms, out = timed(
+            uf_geo.get_shortest_path,
+            orig,
+            dest,
+            algorithm_fn="cached_shortest_path",
+        )
+        results.cell(
+            "misc",
+            [f"Cached Shortest Path ({label})", "us_freeway"],
+            "Time",
+            ms,
+        )
+        results.check("misc", f"cached|{label}", round_length(out["length"]))
 
-    t0 = time.perf_counter()
-    uf_geo.get_shortest_path(orig, dest, algorithm_fn="cached_shortest_path")
-    dt_tree_build_ms = (time.perf_counter() - t0) * 1000
-
-    t0 = time.perf_counter()
-    uf_geo.get_shortest_path(orig, dest, algorithm_fn="cached_shortest_path")
-    dt_tree_hit_ms = (time.perf_counter() - t0) * 1000
-
-    speedup_str = (
-        f"{dt_tree_build_ms / dt_tree_hit_ms:,.0f}x faster tree lookup"
-        if dt_tree_hit_ms > 0
-        else "N/A"
-    )
-    table_data.append(
-        {
-            "feature": "Cached Shortest Path (Tree Build)",
-            "target": "us_freeway",
-            "time_ms": dt_tree_build_ms,
-            "notes": "Full SPT construction",
-        }
-    )
-    table_data.append(
-        {
-            "feature": "Cached Shortest Path (Tree Hit)",
-            "target": "us_freeway",
-            "time_ms": dt_tree_hit_ms,
-            "notes": speedup_str,
-        }
-    )
-
-    # 3. Visvalingam-Whyatt Simplification (10,000 coordinates)
     vis_data = [[i, i % 2 + (i / 10000)] for i in range(10000)]
-    t0 = time.perf_counter()
     visvalingam(vis_data, pct_to_keep=0.1)
-    dt_vis_ms = (time.perf_counter() - t0) * 1000
-    table_data.append(
-        {
-            "feature": "Visvalingam Line Simplification",
-            "target": "10,000 coordinates",
-            "time_ms": dt_vis_ms,
-            "notes": "90% point reduction",
-        }
+    ms, _ = timed(visvalingam, vis_data, pct_to_keep=0.1)
+    results.cell(
+        "misc",
+        ["Visvalingam Line Simplification", "10,000 coordinates"],
+        "Time",
+        ms,
     )
 
-    # 4. BMSSP Shortest Path
-    mg_geo = loaded_geos["marnet"]["original"]
-    t0 = time.perf_counter()
-    mg_geo.graph_object.bmssp(0, 7999)
-    dt_bmssp_ms = (time.perf_counter() - t0) * 1000
-    table_data.append(
-        {
-            "feature": "BMSSP Shortest Path",
-            "target": "marnet (node 0 -> 7999)",
-            "time_ms": dt_bmssp_ms,
-            "notes": "Bounded Multi-Source SP",
-        }
-    )
 
-    for item in table_data:
-        print(
-            f"  - {item['feature']:<38} | "
-            f"{item['target']:<24} | "
-            f"{item['time_ms']:7.3f} ms | "
-            f"{item['notes']}"
-        )
-
-    return table_data
+def cpu_model():
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return platform.processor() or platform.machine()
 
 
-def generate_markdown(
-    t1_data, t2_data, t3_data, t4_data, t5_data, t6_data, total_sec
-):
-    cpp_status = (
-        "Enabled (`nanobind` C++20)" if has_cpp() else "Disabled (Pure Python)"
-    )
-    py_ver = platform.python_version()
-    os_info = f"{platform.system()} {platform.machine()}"
+def package_version(name):
+    try:
+        return metadata.version(name)
+    except metadata.PackageNotFoundError:
+        return None
 
-    lines = [
-        "# scgraph Benchmark Results",
-        "",
-        f"- **Environment**: Python {py_ver} ({os_info})",
-        f"- **C++ Acceleration**: {cpp_status}",
-        f"- **Total Suite Execution Time**: {total_sec:.2f}s",
-        "",
-        "## 1. Built-in GeoGraph Load Times (Unreduced)",
-        "",
-        "| Network | Nodes | Edges | Load Time (ms) |",
-        "|---|---|---|---|",
-    ]
-    for r in t1_data:
-        lines.append(
-            f"| `{r['key']}` | {r['nodes']:,} | {r['edges']:,} | {r['load_ms']:.2f} |"
-        )
 
-    lines.extend(
-        [
-            "",
-            "## 2. Built-in GeoGraph Load Times & Reduction Specs (Reduced)",
-            "",
-            "| Reduced Network | Effective Nodes | Effective Edges | Load Time (ms) | Node Reduction % | Edge Reduction % |",
-            "|---|---|---|---|---|---|",
+def environment(commit):
+    from scgraph.utils import has_cpp
+
+    return {
+        "commit": commit,
+        "backend": "C++" if has_cpp() else "Python",
+        "python": platform.python_version(),
+        "os": f"{platform.system()} {platform.machine()}",
+        "cpu": cpu_model(),
+        "packages": {
+            name: package_version(name)
+            for name in ["scgraph", "bmsspy", "geokdtree"]
+        },
+        "date": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def fmt(value, unit):
+    if value is None:
+        return "failed" if unit == "ms" else "n/a"
+    if unit == "count":
+        return f"{value:,}"
+    if unit == "MiB":
+        return f"{value:,.0f}" if abs(value) >= 0.5 else "0"
+    if unit == "%":
+        return f"{value:.1f}%"
+    if unit == "x":
+        return f"{value:.1f}x"
+    if value >= 100:
+        return f"{value:,.0f}"
+    if value >= 10:
+        return f"{value:.1f}"
+    if value >= 1:
+        return f"{value:.2f}"
+    return f"{value:.3g}"
+
+
+TABLES = {
+    "load": ("Built-in GeoGraph Loading", ["Network"]),
+    "reduce": ("Graph Reduction", ["Network", "State"]),
+    "query": ("Shortest Path Queries on GeoGraphs", ["Graph", "State"]),
+    "grid": ("GridGraph Pathfinding & Obstacles", ["Configuration"]),
+    "hierarchy": (
+        "Hierarchical Preprocessing & Routing (CH & TNR)",
+        ["Graph", "State"],
+    ),
+    "misc": (
+        "Specialized Features & Operations",
+        ["Feature / Operation", "Input"],
+    ),
+}
+
+
+def markdown_tables(cells):
+    lines = []
+    for number, section in enumerate(SECTIONS, 1):
+        rows, columns = {}, {}
+        for (sec, row, column), c in cells.items():
+            if sec == section:
+                rows.setdefault(row, {})[column] = c
+                columns.setdefault(column, c["unit"])
+        if not rows:
+            continue
+        title, row_headers = TABLES[section]
+        headers = row_headers + [
+            (
+                f"{col} (ms)"
+                if unit == "ms"
+                else f"{col} (MiB)" if unit == "MiB" else col
+            )
+            for col, unit in columns.items()
         ]
-    )
-    for r in t2_data:
-        lines.append(
-            f"| `{r['key']}` | {r['effective_nodes']:,} | {r['effective_edges']:,} | {r['load_ms']:.2f} | **{r['node_reduction_pct']:.1f}%** | **{r['edge_reduction_pct']:.1f}%** |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 3. Shortest Path Query Performance on GeoGraphs",
-            "",
-            "| Graph | State | Nodes | Dijkstra (ms) | BiDijkstra (ms) | A* Haversine (ms) | Buckets (ms) | BiBuckets (ms) |",
-            "|---|---|---|---|---|---|---|---|",
-        ]
-    )
-    for r in t3_data:
-        dijk = r["timings"]["dijkstra"]
-        bidir = r["timings"]["bidirectional_dijkstra"]
-        astar = r["timings"]["a_star"]
-        buck = r["timings"]["dijkstra_buckets"]
-        bibuck = r["timings"]["bidirectional_buckets"]
-        lines.append(
-            f"| `{r['graph']}` | {r['state']} | {r['nodes']:,} | {dijk:.4f} | {bidir:.4f} | {astar:.4f} | {buck:.4f} | {bibuck:.4f} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 4. GridGraph Pathfinding & Obstacle Performance",
-            "",
-            "| Configuration | Nodes | Creation (ms) | Dijkstra (ms) | A* Manhattan (ms) | Buckets (ms) | BiBuckets (ms) |",
-            "|---|---|---|---|---|---|---|",
-        ]
-    )
-    for r in t4_data:
-        lines.append(
-            f"| {r['config']} | {r['nodes']:,} | {r['creation_ms']:.2f} | {r['dijkstra_ms']:.4f} | {r['a_star_ms']:.4f} | {r['buckets_ms']:.4f} | {r['bibuckets_ms']:.4f} |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 5. Hierarchical Preprocessing & Routing (CH & TNR)",
-            "",
-            "| Graph | State | Baseline Dijkstra (ms) | CH Prep (ms) | CH Query (ms) | CH Speedup | TNR Prep (ms) | TNR Query (ms) | TNR Speedup |",
-            "|---|---|---|---|---|---|---|---|---|",
-        ]
-    )
-    for r in t5_data:
-        lines.append(
-            f"| `{r['graph']}` | {r['state']} | {r['dijkstra_ms']:.4f} | {r['ch_prep_ms']:.2f} | {r['ch_query_ms']:.4f} | **{r['ch_speedup']}** | {r['tnr_prep_ms']:.2f} | {r['tnr_query_ms']:.4f} | **{r['tnr_speedup']}** |"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## 6. Specialized Features & Operations",
-            "",
-            "| Feature / Operation | Target / Input | Execution Time (ms) | Notes / Throughput |",
-            "|---|---|---|---|",
-        ]
-    )
-    for r in t6_data:
-        lines.append(
-            f"| {r['feature']} | {r['target']} | {r['time_ms']:.3f} | {r['notes']} |"
-        )
-
-    lines.append("")
-    return "\n".join(lines)
+        lines += [f"## {number}. {title}", ""]
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("|" + "---|" * len(headers))
+        for row, values in rows.items():
+            labels = [f"`{row[0]}`" if row[0] in NETWORKS else row[0]]
+            labels += list(row[1:])
+            out = []
+            for col in columns:
+                c = values.get(col)
+                text = "" if c is None else fmt(c["value"], c["unit"])
+                if c and c["failed"] and c["value"] is not None:
+                    text += f" ({c['failed']} failed)"
+                out.append(text)
+            lines.append("| " + " | ".join(labels + out) + " |")
+        lines.append("")
+    return lines
 
 
-def run():
+def run(sections, networks, json_path, commit):
+    env = environment(commit)
     print("=" * 80)
-    print("scgraph Unified Benchmark Suite")
+    print("scgraph benchmark suite")
     print(
-        f"Python: {platform.python_version()} | Platform: {platform.system()} {platform.machine()} | C++ Extension: {has_cpp()}"
+        f"Python {env['python']} | {env['os']} | {env['cpu']}"
+        f" | backend: {env['backend']}"
     )
     print("=" * 80)
+    results = Results(sections)
+    t0 = time.perf_counter()
+    if {"load", "reduce", "query"} & set(sections):
+        print("\nNetworks (load, reduce, query)...")
+        bench_networks(results, networks)
+    if "grid" in sections:
+        print("\nGridGraph...")
+        bench_gridgraphs(results)
+    if "hierarchy" in sections:
+        print("\nCH & TNR...")
+        bench_hierarchy(results)
+    if "misc" in sections:
+        print("\nSpecialized features...")
+        bench_misc(results)
+    total = time.perf_counter() - t0
 
-    t_suite_start = time.perf_counter()
+    tables = markdown_tables(results.cells)
+    print("\n" + "\n".join(tables))
+    print(f"Finished in {total:.2f} s")
+    if json_path:
+        record = {
+            "environment": env,
+            "sections": sections,
+            "networks": networks,
+            "total_s": total,
+            "cells": [
+                {"section": s, "row": list(r), "column": c, **v}
+                for (s, r, c), v in results.cells.items()
+            ],
+            "checks": results.checks,
+        }
+        Path(json_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(json_path).write_text(json.dumps(record, indent=1))
+        print(f"Results written to {json_path}")
+    elif sections == SECTIONS and networks == NETWORKS:
+        lines = [
+            "# scgraph Benchmark Results",
+            "",
+            f"- **Environment**: Python {env['python']} ({env['os']}), {env['cpu']}",
+            f"- **Backend**: {env['backend']}",
+            f"- **scgraph**: {env['packages']['scgraph']}"
+            + (f" (commit {env['commit']})" if env["commit"] else ""),
+            f"- **Date**: {env['date'][:10]}",
+            f"- **Total Suite Execution Time**: {total:.2f}s",
+            "- **Protocol**: one run; each value is one reading, or the mean over the"
+            " pairs of the row, after one untimed call. Compare only with runs on the"
+            " same machine.",
+            "",
+        ] + tables
+        BENCHMARK_MD_PATH.write_text("\n".join(lines))
+        print(f"Markdown written to {BENCHMARK_MD_PATH}")
 
-    loaded_geos, t1_data, t2_data = bench_geograph_loading()
-    t3_data = bench_geograph_queries(loaded_geos)
-    t4_data = bench_gridgraphs()
-    t5_data = bench_hierarchical_routing(loaded_geos)
-    t6_data = bench_specialized_features(loaded_geos)
 
-    total_suite_sec = time.perf_counter() - t_suite_start
+def load_runs(pattern):
+    files = sorted(glob.glob(pattern))
+    if not files:
+        sys.exit(f"No file matches {pattern}")
+    return [json.loads(Path(f).read_text()) for f in files]
 
-    md_content = generate_markdown(
-        t1_data, t2_data, t3_data, t4_data, t5_data, t6_data, total_suite_sec
+
+def run_times(runs):
+    """Per time row: the values of the runs, and the largest failure count."""
+    values, failed = {}, {}
+    for run_ in runs:
+        for c in run_["cells"]:
+            key = (c["section"], tuple(c["row"]), c["column"])
+            if c["unit"] != "ms":
+                continue
+            failed[key] = max(failed.get(key, 0), c["failed"])
+            values.setdefault(key, [])
+            if c["value"] is not None:
+                values[key].append(c["value"])
+    return values, failed
+
+
+def median_memory(runs):
+    values = {}
+    for run_ in runs:
+        for c in run_["cells"]:
+            if c["unit"] == "MiB" and c["value"] is not None:
+                key = (c["section"], tuple(c["row"]), c["column"])
+                values.setdefault(key, []).append(c["value"])
+    return {k: statistics.median(v) for k, v in values.items()}
+
+
+def checks_of(runs):
+    merged = {}
+    for run_ in runs:
+        for key, value in run_["checks"].items():
+            merged.setdefault(key, set()).add(json.dumps(value))
+    for run_ in runs:
+        for c in run_["cells"]:
+            if c["unit"] == "count":
+                key = f"{c['section']}|{'|'.join(c['row'])}|{c['column']}"
+                merged.setdefault(key, set()).add(json.dumps(c["value"]))
+    return merged
+
+
+def compare(base_pattern, head_pattern):
+    base, head = load_runs(base_pattern), load_runs(head_pattern)
+    env_b, env_h = base[0]["environment"], head[0]["environment"]
+    for name in ["backend", "cpu", "python"]:
+        if env_b[name] != env_h[name]:
+            print(f"Warning: {name} differs: {env_b[name]} vs {env_h[name]}")
+    for name in ["sections", "networks"]:
+        if base[0][name] != head[0][name]:
+            print(f"Warning: {name} differ: {base[0][name]} vs {head[0][name]}")
+    times_b, failed_b = run_times(base)
+    times_h, failed_h = run_times(head)
+
+    # A row moves only if its best time and its median time both move beyond the
+    # threshold in the same direction: one lucky or unlucky run does not count
+    changed, unchanged, missing = [], 0, []
+    for key in sorted(set(times_b) | set(times_h), key=str):
+        vb, vh = times_b.get(key) or [], times_h.get(key) or []
+        section, row, column = key
+        case = f"{section}: {', '.join(row)}, {column}"
+        if not vb or not vh:
+            b, h = min(vb, default=None), min(vh, default=None)
+            missing.append(
+                f"{case} (before {fmt(b, 'n/a')}, after {fmt(h, 'n/a')})"
+            )
+            continue
+        best = min(vb) / min(vh)
+        median = statistics.median(vb) / statistics.median(vh)
+        if min(best, median) >= THRESHOLD or max(best, median) <= 1 / THRESHOLD:
+            changed.append((case, min(vb), min(vh), best, median))
+        else:
+            unchanged += 1
+
+    commit = lambda e: e["commit"] or "?"
+    print(
+        f"Speed ({len(base)} and {len(head)} interleaved runs, "
+        f"{env_h['backend']}, {env_h['cpu']}, {commit(env_b)} → {commit(env_h)}; "
+        f"rows whose best and median times both move beyond "
+        f"±{(THRESHOLD - 1) * 100:.0f} %; before and after: best times):\n"
     )
-    with open(BENCHMARK_MD_PATH, "w") as f:
-        f.write(md_content)
+    if changed:
+        print("| Case | Before (ms) | After (ms) | Speedup | Median speedup |")
+        print("|---|---|---|---|---|")
+        for case, b, h, best, median in changed:
+            print(
+                f"| {case} | {fmt(b, 'ms')} | {fmt(h, 'ms')} | ×{best:.2f}"
+                f" | ×{median:.2f} |"
+            )
+        print()
+    print(f"{unchanged} other rows: no clear change.")
 
-    print("\n" + "=" * 80)
-    print(f"Benchmark finished successfully in {total_suite_sec:.2f} seconds!")
-    print(f"Markdown output saved to: {BENCHMARK_MD_PATH}")
-    print("=" * 80)
+    mem_b, mem_h = median_memory(base), median_memory(head)
+    moved, steady = [], 0
+    for key in sorted(set(mem_b) & set(mem_h), key=str):
+        b, h = mem_b[key], mem_h[key]
+        ratio = h / b if b else float("inf")
+        if abs(h - b) >= MEMORY_FLOOR and (
+            ratio >= MEMORY_THRESHOLD or ratio <= 1 / MEMORY_THRESHOLD
+        ):
+            moved.append((key, b, h, ratio))
+        else:
+            steady += 1
+    if moved:
+        print("\nMemory (median of the runs; peak RSS of the step, Linux):\n")
+        print("| Case | Before (MiB) | After (MiB) | After / before |")
+        print("|---|---|---|---|")
+        for (section, row, column), b, h, ratio in moved:
+            case = f"{section}: {', '.join(row)}, {column}"
+            print(f"| {case} | {b:,.0f} | {h:,.0f} | ×{ratio:.2f} |")
+        print()
+    if mem_b or mem_h:
+        print(f"{steady} memory rows: no clear change.")
+    for line in missing:
+        print(f"Not comparable: {line}")
+    for key in sorted(set(failed_b) | set(failed_h), key=str):
+        if failed_b.get(key, 0) != failed_h.get(key, 0):
+            section, row, column = key
+            print(
+                f"Failures differ: {section}: {', '.join(row)}, {column}: "
+                f"{failed_b.get(key, 0)} → {failed_h.get(key, 0)}"
+            )
+
+    checks_b, checks_h = checks_of(base), checks_of(head)
+    common = set(checks_b) & set(checks_h)
+    unstable = [
+        k for k in common if len(checks_b[k]) > 1 or len(checks_h[k]) > 1
+    ]
+    differ = sorted(
+        k for k in common if checks_b[k] != checks_h[k] and k not in unstable
+    )
+    lengths = [
+        k
+        for k in common
+        if not k.endswith(("nodes", "edges", "Nodes", "Edges"))
+    ]
+    if not differ:
+        print(
+            f"Results identical on all {len(common)} checks ({len(lengths)} routes)."
+        )
+    else:
+        print(f"Results differ on {len(differ)} of {len(common)} checks:")
+        for k in differ:
+            b, h = sorted(checks_b[k])[0], sorted(checks_h[k])[0]
+            print(f"  {k}: {b} → {h}")
+    for k in sorted(unstable):
+        print(f"Varies between runs of one side: {k}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--only", help="comma-separated sections: " + ",".join(SECTIONS)
+    )
+    parser.add_argument(
+        "--networks",
+        help="comma-separated networks for load, reduce and query (hierarchy and"
+        " misc use marnet and us_freeway): " + ",".join(NETWORKS),
+    )
+    parser.add_argument("--json", help="write the measurements to this file")
+    parser.add_argument(
+        "--commit", help="commit of the installed scgraph, recorded"
+    )
+    parser.add_argument(
+        "--compare",
+        nargs=2,
+        metavar=("BASE_GLOB", "HEAD_GLOB"),
+        help="compare two sets of --json files",
+    )
+    args = parser.parse_args()
+    if args.compare:
+        compare(*args.compare)
+        return
+
+    def pick(text, allowed):
+        if not text:
+            return list(allowed)
+        chosen = [x.strip() for x in text.split(",")]
+        unknown = [x for x in chosen if x not in allowed]
+        if unknown:
+            parser.error(f"unknown: {', '.join(unknown)}")
+        return [x for x in allowed if x in chosen]
+
+    run(
+        pick(args.only, SECTIONS),
+        pick(args.networks, NETWORKS),
+        args.json,
+        args.commit,
+    )
 
 
 if __name__ == "__main__":
-    run()
+    main()
