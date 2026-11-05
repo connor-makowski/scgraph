@@ -128,9 +128,12 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
         throw std::invalid_argument("latitudes and longitudes must have the same length");
     if (latitudes.empty()) throw std::invalid_argument("a snapping index needs at least one node");
     n = int(latitudes.size());
+    for (int i = 0; i < n; ++i)
+        if (!std::isfinite(latitudes[i]) || !std::isfinite(longitudes[i]))
+            throw std::invalid_argument("node coordinates must be finite numbers");
     // Keep the network's order if it is already sorted along a Hilbert curve, in runs of 64
     // nodes or more on average (the modes of a multimodal network are sorted one by one),
-    // as judged on about 2,048 evenly spaced pairs of neighbours (all of them up to 2,049
+    // as judged on about 2,048 evenly spaced pairs of neighbours (all of them up to 4,096
     // nodes); otherwise sort a copy along one.
     // An order that is only coherent along lines would give long, loose leaves
     auto key = [&](int i) { return hilbert_key(latitudes[i], longitudes[i]); };

@@ -139,3 +139,10 @@ def test_snap_index_finds_the_nearest_node(implementation, network):
     ):
         if name in nodes:
             assert nodes[index.closest_idx(point)] == name
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@pytest.mark.parametrize("bad", [[float("nan"), 0.0], [0.0, float("inf")]])
+def test_snap_index_rejects_non_finite_coordinates(implementation, bad):
+    with pytest.raises(ValueError, match="finite"):
+        implementation([[0.0, 0.0], bad])
