@@ -32,7 +32,7 @@ Two uses of one script:
    simply re-run.
 
 Subsets (--only) and the changes that need them:
-    load       load_geograph as each version does it, snap index, first query
+    load       load_geograph as each version does it (snap index included), first query
                (loaders, file formats, graph construction, snapping index)
     reduce     reduce(1) and reduce(-1) times and results (graph_reducer)
     query      get_shortest_path per algorithm, unreduced and reduced
@@ -43,14 +43,13 @@ Subsets (--only) and the changes that need them:
 
 Every time is in ms from one perf_counter reading, or a mean over the pairs of a row;
 one untimed call per algorithm warms up each row. Load times read the file from the OS
-cache (warm). "Index" builds the snap index alone, timed before the first query; versions
-that build it while loading (3.6.0, and dev since the index is built at load) include
-it in Load, and their Index is then about 0 (3.6.0: a second build, timed after the
-first query). Memory (Linux
-only): "Peak" is the peak RSS of the process during load and first query, "Added" the
-peak during reduce() minus the RSS before it (the peak is reset through
-/proc/self/clear_refs). Rows run in sequence in one process, so a row's time and
-memory depend on the rows before it: compare runs of the same --only and --networks.
+cache (warm). Both 3.6.0 (a GeoKDTree) and dev build the snapping index while loading;
+"Index in Load" estimates that part of Load by a second build, timed alone after the
+first query. Memory (Linux only): "Peak" is the peak RSS of the process during load
+and first query, "Added" the peak during reduce() minus the RSS before it (the peak is
+reset through /proc/self/clear_refs). Rows run in sequence in one process, so a row's
+time and memory depend on the rows before it: compare runs of the same --only and
+--networks.
 Reduction states are explicit (Original, Reduced = 1 pass, Fully Reduced = until no
 change): no row depends on the version's reduction default.
 """
@@ -258,13 +257,7 @@ def bench_networks(results, networks):
         load_ms, geo = timed(GeoGraph.load_geograph, net, reduce_iterations=0)
         n = len(geo.nodes)
 
-        # Snap index, timed alone before the first query: about 0 for versions that
-        # build it while loading; 3.6.0 builds a GeoKDTree in load_geograph (rebuilt
-        # and timed below)
-        index_ms = None
-        if hasattr(type(geo), "snap_index"):
-            index_ms = timed(getattr, geo, "snap_index")[0]
-        # Time to the first answer: anything else built at first use
+        # Time to the first answer: anything built at first use
         u, v = QUERY_PAIRS[net][0] if net in QUERY_PAIRS else FIRST_PAIRS[net]
         first_ms, first_failed = None, 1
         try:
@@ -282,16 +275,22 @@ def bench_networks(results, networks):
             )
         # Peak of the process during load and first query (includes the interpreter)
         peak = memory_read() if marked is not None else None
-        if index_ms is None and "load" in sections:
-            from geokdtree import GeoKDTree
+        # Snap index, built while loading (in Load): built again here, alone
+        index_ms = None
+        if "load" in sections:
+            if hasattr(type(geo), "snap_index"):
+                geo.snap_index = None
+                index_ms = timed(getattr, geo, "snap_index")[0]
+            else:  # 3.6.0: a GeoKDTree
+                from geokdtree import GeoKDTree
 
-            index_ms = timed(GeoKDTree, points=geo.nodes)[0]
+                index_ms = timed(GeoKDTree, points=geo.nodes)[0]
         # Counted after the peak: reading geo.graph may build a Python copy
         edges = sum(len(e) for e in geo.graph)
         results.cell("load", [net], "Nodes", n, unit="count")
         results.cell("load", [net], "Edges", edges, unit="count")
         results.cell("load", [net], "Load", load_ms)
-        results.cell("load", [net], "Index", index_ms)
+        results.cell("load", [net], "Index in Load", index_ms)
         results.cell(
             "load", [net], "First query", first_ms, failed=first_failed
         )
