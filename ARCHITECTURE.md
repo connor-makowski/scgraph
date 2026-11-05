@@ -261,7 +261,7 @@ when every arc has a reverse arc of the same weight); and, when known, `sources`
 | `heads` | int32 | m | destination of each arc, in the graph's order within each origin |
 | `weights` | float64 | m | weight of each arc |
 | `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
-| `shape_offsets` (optional) | int64 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1` |
+| `shape_offsets` (optional) | int64 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
 | `shape_points` (optional) | float64 | k × 2 | latitude and longitude of each shape point |
 
 The reader checks the magic, the version, that every array lies inside the file, and that

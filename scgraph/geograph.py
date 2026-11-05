@@ -362,7 +362,7 @@ class GeoGraphIO:
             - Default: False
         - `max_km_between_nodes`
             - Type: float | int | None
-            - What: If set, nodes are only the points where lines meet or end, and a line is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`; the other points become the shape of the arcs, whose length is the length of their full shape
+            - What: If set, nodes are only the points where lines meet or end, and a line is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`; the other points become the shape of the arcs, whose length is the length of their full line
             - Default: None (every point is a node)
             - Note: Useful for sources with many points per line, such as rail or road networks, to keep the graph small
         """
@@ -437,7 +437,7 @@ class GeoGraphIO:
         - Load a GeoGraph from an OpenStreetMap file (`.osm.pbf`, `.osm` or `.osm.bz2`)
         - Needs the optional dependency `osmium`: `pip install scgraph[osm]`
         - Ways meet only where they share an OSM node: roads that cross on a bridge or in a tunnel are not connected
-        - Each arc has the length of its full shape, in kilometers, so it is never shorter than the straight line between its ends
+        - Each arc has the length of its full line, in kilometers, so it is never shorter than the straight line between its ends
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
         - Ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way (with `directed=True`)
         - Memory: osmium's node filter takes about 1.5 GB, whatever the size of the file
@@ -580,6 +580,8 @@ class GeoGraphIO:
                 {int(k): v for k, v in item.items()}
                 for item in data["intermediate_nodes"]
             ]
+            # Files saved by scgraph 3.6 may repeat each arc's two nodes in its shape
+            _drop_node_points(data["intermediate_nodes"], data["nodes"])
         geograph = GeoGraph(**data)
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
@@ -1488,6 +1490,8 @@ class GeoGraphIO:
             ]
         kwargs = {}
         if load_intermediate_nodes:
+            # An edge's geometry runs from its first node to its second
+            _drop_node_points(intermediate_nodes, nodes)
             kwargs["intermediate_nodes"] = intermediate_nodes
         # Handle travel_time specific parameters
         if weight_key == "travel_time":
@@ -2087,6 +2091,18 @@ class GeoGraphModifiers:
         self.graph_object = Graph(graph=graph)
 
 
+def _drop_node_points(shapes, nodes):
+    # Arc shapes hold the points between the arc's two nodes: remove a first point equal
+    # to the origin and a last point equal to the destination (in place: no list copy)
+    for origin, row in enumerate(shapes):
+        start = nodes[origin]
+        for destination, shape in row.items():
+            if shape and shape[-1] == nodes[destination]:
+                del shape[-1]
+            if shape and shape[0] == start:
+                del shape[0]
+
+
 def _in_hilbert_order(geograph, blocks):
     # A copy of the geograph with its nodes in Hilbert order within each block of ids:
     # ids change, lengths do not (where two routes tie, another may be returned)
@@ -2583,8 +2599,8 @@ class GeoGraph(
             - What: Whether to validate the graph upon initialization
             - Default: False
         - `intermediate_nodes`
-            - Type: list of lists of lists of floats or ints
-            - What: A list of lists where each sublist contains the intermediate coordinates (latitude then longitude) for each arc in the graph
+            - Type: list of dicts of lists of [float, float]
+            - What: One dict per node, {destination: [[latitude, longitude], ...]}: the coordinates of each arc's shape, between its two nodes (not repeated)
             - Note: Allows for more detailed path plotting along arcs without needing to increase the number of nodes in the graph
             - Default: None
         - `default_off_graph_circuity`

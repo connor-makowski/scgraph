@@ -10,7 +10,8 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
 
     `lines` yields `(direction, points)`: `direction` is 1 (one way, along the points), -1
     (one way, against them) or 0 (both ways); `points` is a list of `(id, [latitude,
-    longitude])`. Each arc has the length of its full shape; parallel arcs keep the
+    longitude])`. Each arc has the length of its full piece of line, and its shape holds
+    the points between its two nodes (none if there are none); parallel arcs keep the
     shortest; there are no self-loops.
 
     Returns `(graph, nodes, intermediate_nodes)`, with nodes sorted by coordinates.
@@ -37,7 +38,8 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
     shapes = [{} for _ in order]
     for (origin, destination), (length, shape) in arcs.items():
         graph[index[origin]][index[destination]] = length
-        shapes[index[origin]][index[destination]] = shape
+        if shape:
+            shapes[index[origin]][index[destination]] = shape
     return graph, [location[point] for point in order], shapes
 
 
@@ -46,7 +48,7 @@ def _add_arc(arcs, location, points, length, direction):
     if origin == destination:
         return  # a loop never lies on a shortest path
     location[origin], location[destination] = points[0][1], points[-1][1]
-    shape = [point for _, point in points]
+    shape = [point for _, point in points[1:-1]]
     if direction >= 0:
         _keep_shortest(arcs, (origin, destination), length, shape)
     if direction <= 0:

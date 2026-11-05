@@ -580,7 +580,7 @@ michigan_rail = GeoGraph.load_from_osm(
 )
 ```
 
-Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its full shape, in kilometers, and a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below; `load_from_geojson` still loads such files.
+Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its full line, in kilometers, and a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below; `load_from_geojson` still loads such files.
 
 ### `load_from_osm` Parameters
 
