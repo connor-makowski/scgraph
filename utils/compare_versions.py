@@ -3,7 +3,7 @@
 Compare the speed of two versions of scgraph on this machine, with utils/bench.py.
 
     # dev against the release
-    python3 utils/compare_versions.py 3.6.0 origin/dev
+    python3 utils/compare_versions.py main origin/dev
     # a PR against dev, on the sections it touches
     python3 utils/compare_versions.py origin/dev my-branch --only query
     # the same, and the report written into the description of PR 123
@@ -20,10 +20,11 @@ What it does, printing each step:
   2. runs the benchmark once per environment, untimed (downloads, conversions, warm
      files), then --runs rounds alternating which version goes first, one process per
      run;
-  3. writes report.md in a folder of bench-results/: a summary to paste into a PR
-     description (versions, machine, protocol, rows that move by more than 15 %,
-     memory, identical results), then the tables of benchmark.md with both versions
-     side by side. The raw JSON of every run stays beside it.
+  3. writes report.md in a folder of bench-results/: machine and protocol, then for
+     each backend the warnings, the results line (route lengths, node counts,
+     failures) and the tables of benchmark.md with both versions side by side, the
+     change in bold where best and median times both move by more than 15 %, ≈
+     elsewhere. The raw JSON of every run stays beside it.
 
 Run the same command again to resume after Ctrl-C or a failure: finished environments
 and runs are kept. Each comparison takes about 0.15 GB: delete bench-results/ to free
@@ -328,10 +329,13 @@ def campaign(base, head, backend, folder, subset, runs):
 
 
 def report(base, head, outputs, args, folder, bench):
+    """The layout of the tracking issue: header, then per backend the warnings, the
+    results line and the tables of benchmark.md with both versions side by side.
+    """
     first = sorted(folder.glob(f"*-{head.sha[:12]}-0.json"))[0]
     machine = json.loads(first.read_text())["environment"]
     ram = f", {machine['ram_gib']} GiB RAM" if machine.get("ram_gib") else ""
-    summary = [
+    lines = [
         f"**Performance: `{base.ref}` {base.short} → `{head.ref}` {head.short}**",
         "",
         f"- Machine: {machine['cpu']}{ram}, {machine['os']},"
@@ -339,20 +343,24 @@ def report(base, head, outputs, args, folder, bench):
         f"- Benchmark: `utils/bench.py` {bench},"
         f" {' '.join(args.subset_args) or 'all sections'}; one untimed run per"
         f" version, then {args.runs} runs per version alternating which goes"
-        " first; best time (memory: median, Linux only); a row moves when its best"
-        " and median times both change by more than 15 % (memory: 5 % and 5 MiB)",
+        f" first; best time of the {args.runs} runs (memory: median, Linux only);"
+        " a change in bold where the best and median times both move by more than"
+        " 15 % (memory: 5 % and 5 MiB), ≈ elsewhere",
         f"- Command: `python3 utils/compare_versions.py {base.ref} {head.ref}"
         f"{''.join(' ' + x for x in args.options)}`",
         "",
     ]
-    tables = []
     for backend, text in outputs.items():
-        name = BACKENDS[backend][2]
-        first_part, _, rest = text.partition("\n## ")
-        summary += [f"*{name}*", "", first_part.strip(), ""]
-        tables += [f"<details><summary>{name}: all rows</summary>", ""]
-        tables += ["#### " + rest.replace("\n## ", "\n#### "), "</details>", ""]
-    return "\n".join(summary), "\n".join(tables)
+        found = [
+            line
+            for line in text.splitlines()
+            if line.startswith(("Warning:", "Results ", "Failures ", "Varies "))
+        ]
+        tables = re.sub(
+            r"^## ", "#### ", text[text.index("\n## ") :].strip(), flags=re.M
+        )
+        lines += [f"**{BACKENDS[backend][2]}**", "", *found, "", tables, ""]
+    return "\n".join(lines)
 
 
 def with_report(body, block):
@@ -367,7 +375,7 @@ def with_report(body, block):
     return body[:start] + text + body[end + len(END) :]
 
 
-def post(number, summary, tables, report_path):
+def post(number, text):
     """Writes the report into the description of issue or PR number."""
 
     def gh(*args, **kwargs):
@@ -385,17 +393,12 @@ def post(number, summary, tables, report_path):
     if done.returncode:
         raise Stop(f"--post: cannot read #{number}: {done.stderr.strip()}")
     body = done.stdout.rstrip("\n")
-    new = with_report(body, f"{summary}\n{tables}")
+    new = with_report(body, text)
     if len(new) > GITHUB_LIMIT:
-        print(
-            f"  The full report exceeds GitHub's {GITHUB_LIMIT} characters: writing"
-            f" the summary only (full report: {report_path})."
+        raise Stop(
+            f"--post: the description would exceed GitHub's {GITHUB_LIMIT}"
+            " characters; post report.md with a smaller --only"
         )
-        new = with_report(body, summary)
-        if len(new) > GITHUB_LIMIT:
-            raise Stop(
-                f"--post: the description would exceed {GITHUB_LIMIT} characters"
-            )
     done = gh(
         "-X", "PATCH", endpoint, "--input", "-", "--jq", ".html_url",
         input=json.dumps({"body": new}),
@@ -503,10 +506,10 @@ def main():
             b: campaign(base, head, b, folder, args.subset_args, args.runs)
             for b in backends
         }
-        summary, tables = report(base, head, outputs, args, folder, bench)
+        text = report(base, head, outputs, args, folder, bench)
         path = folder / "report.md"
-        path.write_text(f"{summary}\n{tables}")
-        print(f"\n{summary}")
+        path.write_text(text)
+        print(f"\n{text}")
         used = (
             sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file()) / 2**30
         )
@@ -515,7 +518,7 @@ def main():
             f" bench-results/ holds {used:.1f} GB)"
         )
         if args.post:
-            post(args.post, summary, tables, path.relative_to(ROOT))
+            post(args.post, text)
     except Stop as error:
         sys.exit(f"\nStopped: {error}")
     except KeyboardInterrupt:
