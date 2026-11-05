@@ -183,10 +183,10 @@ Changing the graph (`add_node`, `add_edge`, `remove_node`, `remove_edge`) calls
 
 The inverse graph, built once for backward searches, is not dropped.
 
-A GeoGraph also caches its snapping index (`snap_index`, built at the first snap) and its node
-coordinates in radians (native A\* bound). Both are dropped by `add_coord_node`,
-`remove_coord_node` and `merge_with_other_geograph`, and rebuilt at the next query; the
-coordinates are also rebuilt when the number of nodes changes. In-place edits of `nodes` are not
+A GeoGraph also caches its snapping index (`snap_index`, built when a network file is loaded,
+else at the first snap) and its node coordinates in radians (native A\* bound). Both are dropped
+by `add_coord_node`, `remove_coord_node` and `merge_with_other_geograph`, and rebuilt at the next
+query; the coordinates are also rebuilt when the number of nodes changes. In-place edits of `nodes` are not
 detected.
 
 They are rebuilt only when asked for again (`reduce()` must be called again). Downloaded

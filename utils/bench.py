@@ -43,9 +43,10 @@ Subsets (--only) and the changes that need them:
 
 Every time is in ms from one perf_counter reading, or a mean over the pairs of a row;
 one untimed call per algorithm warms up each row. Load times read the file from the OS
-cache (warm). "Index" builds the snap index alone: later versions build it at the first
-snap, timed before the first query; 3.6.0 builds it inside load_geograph (its Load
-includes it), so its Index is a second build, timed after the first query. Memory (Linux
+cache (warm). "Index" builds the snap index alone, timed before the first query; versions
+that build it while loading (3.6.0, and dev since the index is built at load) include
+it in Load, and their Index is then about 0 (3.6.0: a second build, timed after the
+first query). Memory (Linux
 only): "Peak" is the peak RSS of the process during load and first query, "Added" the
 peak during reduce() minus the RSS before it (the peak is reset through
 /proc/self/clear_refs). Rows run in sequence in one process, so a row's time and
@@ -257,8 +258,8 @@ def bench_networks(results, networks):
         load_ms, geo = timed(GeoGraph.load_geograph, net, reduce_iterations=0)
         n = len(geo.nodes)
 
-        # Snap index: versions after 3.6.0 build it at the first snap, timed alone here,
-        # before the first query; 3.6.0 builds a GeoKDTree in load_geograph (rebuilt
+        # Snap index, timed alone before the first query: about 0 for versions that
+        # build it while loading; 3.6.0 builds a GeoKDTree in load_geograph (rebuilt
         # and timed below)
         index_ms = None
         if hasattr(type(geo), "snap_index"):
