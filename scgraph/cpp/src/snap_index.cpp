@@ -129,21 +129,23 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
     if (latitudes.empty()) throw std::invalid_argument("a snapping index needs at least one node");
     n = int(latitudes.size());
     // Keep the network's order if it is already sorted along a Hilbert curve, in runs of 64
-    // nodes or more on average (the modes of a multimodal network are sorted one by one);
-    // otherwise sort a copy along one.
+    // nodes or more on average (the modes of a multimodal network are sorted one by one),
+    // as judged on about 2,048 evenly spaced pairs of neighbours (all of them up to 2,049
+    // nodes); otherwise sort a copy along one.
     // An order that is only coherent along lines would give long, loose leaves
-    std::vector<uint64_t> key(n);
-    int descents = 0;
-    for (int i = 0; i < n; ++i) {
-        key[i] = hilbert_key(latitudes[i], longitudes[i]);
-        if (i > 0 && key[i] < key[i - 1]) ++descents;
-    }
+    auto key = [&](int i) { return hilbert_key(latitudes[i], longitudes[i]); };
+    int64_t pairs = 0, descents = 0;
+    const int step = std::max(1, (n - 1) / 2048);
+    for (int i = 1; i < n; i += step, ++pairs) descents += key(i) < key(i - 1);
     id.resize(n);
     std::iota(id.begin(), id.end(), 0);
-    if (int64_t(descents) * 64 > n)
-        std::sort(id.begin(), id.end(), [&key](int a, int b) {
-            return key[a] != key[b] ? key[a] < key[b] : a < b;
+    if (descents * 64 > pairs) {
+        std::vector<uint64_t> keys(n);
+        for (int i = 0; i < n; ++i) keys[i] = key(i);
+        std::sort(id.begin(), id.end(), [&keys](int a, int b) {
+            return keys[a] != keys[b] ? keys[a] < keys[b] : a < b;
         });
+    }
     lat.resize(n);
     lon.resize(n);
     for (int p = 0; p < n; ++p) {

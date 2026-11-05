@@ -69,10 +69,17 @@ class SnapIndex:
             raise ValueError("a snapping index needs at least one node")
         self.n = n
         # Keep the network's order if it is already sorted along a Hilbert curve, in runs of
-        # 64 nodes or more on average; otherwise sort a copy along one (as the C++ index)
-        keys = [hilbert_key(la, lo) for la, lo in zip(lat, lon)]
+        # 64 nodes or more on average, as judged on about 2,048 evenly spaced pairs of
+        # neighbours (all of them up to 2,049 nodes); otherwise sort a copy along one (as
+        # the C++ index)
+        pairs = range(1, n, max(1, (n - 1) // 2048))
+        descents = sum(
+            hilbert_key(lat[i], lon[i]) < hilbert_key(lat[i - 1], lon[i - 1])
+            for i in pairs
+        )
         ids = list(range(n))
-        if 64 * sum(1 for i in range(1, n) if keys[i] < keys[i - 1]) > n:
+        if 64 * descents > len(pairs):
+            keys = [hilbert_key(la, lo) for la, lo in zip(lat, lon)]
             ids.sort(key=lambda i: (keys[i], i))
         self.id = ids
         self.lat = [lat[i] for i in ids]
