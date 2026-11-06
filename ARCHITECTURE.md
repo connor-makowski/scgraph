@@ -247,15 +247,18 @@ open geograph was read from raises a `PermissionError`.
 | Bytes | Content |
 |---|---|
 | 0–7 | magic `SCGRAPH1` |
-| 8–15 | length of the header, little-endian unsigned 64-bit integer |
-| 16– | header: UTF-8 JSON, padded with spaces up to byte 4096 |
-| 4096– | arrays, little-endian, each starting at a multiple of 64 bytes |
+| 8–39 | the SHA-256 (raw 32 bytes; `content_sha256` is its hex) of every byte from 40 to the end of the file |
+| 40–47 | length of the header, little-endian unsigned 64-bit integer |
+| 48– | header: UTF-8 JSON with sorted keys, then zeros up to a multiple of 64 bytes |
+| then | arrays, little-endian, each starting at a multiple of 64 bytes |
 
-The header gives `format_version` (1), `spec` (a link to this section), `content_sha256`
-(the SHA-256 of the bytes from 4096 to the end of the file, the arrays and the zeros
-between them: the identity of the network; it does not cover the header; it identifies
-the file, not the graph: arcs are written in the order the backend visits them, which is not the same in the C++ and Python builds), `arrays` (for each
-array: `dtype`, `shape` and `offset` from the start of the file) and `metadata`: `crs`
+`content_sha256` is the identity of the file, header included, so a file named by it
+(`build_geograph`'s) holds exactly those bytes; it identifies the file, not the graph: arcs
+are written in the order the backend visits them, which is not the same in the C++ and
+Python builds. The reader returns it without checking it, so that opening a file does not
+read it all. The header has no size limit; it gives `format_version` (1), `spec` (a link to
+this section), `arrays` (for each array: `dtype`, `shape` and `offset` from the end of the
+padded header, a multiple of 64) and `metadata`: `crs`
 (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
 when every arc has a reverse arc of the same weight; scgraph does not read it yet); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file.
@@ -269,7 +272,8 @@ when every arc has a reverse arc of the same weight; scgraph does not read it ye
 | `shape_offsets` (optional) | int32 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
 | `shape_points` (optional) | int32 | k × 2 | latitude and longitude of each shape point, in units of 1e-7 degree (rounded when written) |
 
-The reader checks the magic, the version, that every array lies inside the file, and that
+The reader checks the magic, the version, that the header and every array lie inside the
+file (the arrays after the header), and that
 the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1),
 and raises a `ValueError` otherwise; on a mapped file it leaves the order of offsets and heads to
 the C++ graph and the bounds of each shape to `ArcShapes`, which check them where they read.

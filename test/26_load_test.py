@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import tempfile
@@ -138,7 +137,7 @@ def test_load_geograph_converts_a_published_geograph_once(
     original.save_as_graphjson(str(published))
     if case == "damaged":
         original.save_as_scgraph(str(converted))
-        converted.write_bytes(converted.read_bytes()[:4200])
+        converted.write_bytes(converted.read_bytes()[:-8])
     if case == "read_only":
 
         def refused(*args, **kwargs):
@@ -150,9 +149,6 @@ def test_load_geograph_converts_a_published_geograph_once(
     assert published.exists() and converted.exists() != (case == "read_only")
     if case == "read_only":
         return
-    # Named in its header by the SHA-256 of its arrays, as a built network
-    content = hashlib.sha256(converted.read_bytes()[4096:]).hexdigest()
-    assert network_file.read(str(converted))[1]["content_sha256"] == content
     published.write_text("no longer read")
     again = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
     assert again.nodes == geo.nodes

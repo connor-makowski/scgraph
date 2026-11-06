@@ -2,9 +2,10 @@
 Read and write `.scgraph` network files (format described in ARCHITECTURE.md, "Network
 file").
 
-A file is an 8-byte magic `SCGRAPH1`, the length of a JSON header as a little-endian uint64,
-the header, then little-endian arrays at the offsets the header gives, each aligned to 64
-bytes. Arcs are stored by origin (CSR): the arcs of node `u` are `heads[offsets[u]:
+A file is an 8-byte magic `SCGRAPH1`, the SHA-256 of every byte from byte 40 on (32 bytes),
+the length of a JSON header as a little-endian uint64, the header, zeros up to a multiple of 64
+bytes, then little-endian arrays at the offsets the header gives from there, each aligned to
+64 bytes. Arcs are stored by origin (CSR): the arcs of node `u` are `heads[offsets[u]:
 offsets[u + 1]]`, in the order of the graph's dict, with their `weights`.
 """
 
@@ -41,14 +42,14 @@ ARRAYS = {
     "shape_points": ("int32", "i"),
 }
 _ALIGN = 64
-_HEADER_END = 4096  # arrays start on a page boundary
+_PREAMBLE = 48  # magic, digest, header length
 
 
 def write(filename, graph, nodes, intermediate_nodes, metadata):
     """Write a graph (list of dicts), its [lat, lon] nodes, the shapes of its arcs (or
     None; their points are rounded to 1e-7 degree) and a JSON-serializable metadata dict.
-    The header records the SHA-256 of the bytes after it (the arrays) as `content_sha256`,
-    the identity of the network, which is returned.
+    Bytes 8 to 39 hold the SHA-256 of every byte after them, the identity of the file,
+    returned as hex (`content_sha256`).
     """
     offsets, heads, weights = array("i", [0]), array("i"), array("d")
     shape_offsets, points = array("i", [0]), array("i")
@@ -91,12 +92,10 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
     header = {
         "format_version": VERSION,
         "spec": SPEC,
-        # Same length as the digest, written once the arrays are
-        "content_sha256": "0" * 64,
         "arrays": {},
         "metadata": {**metadata, "symmetric": symmetric},
     }
-    position = _HEADER_END
+    position = 0
     for name, values in arrays.items():
         shape = (
             [len(values) // 2, 2] if name == "shape_points" else [len(values)]
@@ -107,9 +106,9 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
             "offset": position,
         }
         position = _aligned(position + len(values) * values.itemsize)
-    text = json.dumps(header).encode()
-    if 16 + len(text) > _HEADER_END:
-        raise ValueError("The metadata is too large for a network file header")
+    # Sorted, so that in one build the same network and metadata give the same file
+    text = json.dumps(header, sort_keys=True).encode()
+    start = _aligned(_PREAMBLE + len(text))
     # Written next to the target, then moved onto it: a failed save leaves the previous
     # file whole, and the file is never rewritten in place
     folder, base = os.path.split(os.path.abspath(filename))
@@ -120,17 +119,19 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
     try:
         with file:
             content = hashlib.sha256()
-            file.seek(_HEADER_END)
+
+            def put(chunk):
+                file.write(chunk)
+                content.update(chunk)
+
+            file.write(MAGIC + bytes(32))  # the digest, written last
+            put(len(text).to_bytes(8, "little") + text)
             for name, values in arrays.items():
-                padding = bytes(header["arrays"][name]["offset"] - file.tell())
-                for chunk in (padding, _little_endian(values).tobytes()):
-                    file.write(chunk)
-                    content.update(chunk)
-            header["content_sha256"] = content.hexdigest()
-            file.seek(0)
-            file.write(MAGIC)
-            file.write((_HEADER_END - 16).to_bytes(8, "little"))
-            file.write(json.dumps(header).encode().ljust(_HEADER_END - 16))
+                at = start + header["arrays"][name]["offset"]
+                put(bytes(at - file.tell()))
+                put(_little_endian(values).tobytes())
+            file.seek(len(MAGIC))
+            file.write(content.digest())
         try:
             os.replace(temporary, filename)
         except PermissionError as error:
@@ -144,13 +145,13 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
     except BaseException:
         os.unlink(temporary)
         raise
-    return header["content_sha256"]
+    return content.hexdigest()
 
 
 def read(filename, mapped=False):
     """Return the arrays (by name) and the metadata of a network file, after checking that
     they describe a valid graph; a damaged or foreign file raises a ValueError. The
-    metadata also holds the header's `content_sha256`.
+    metadata also holds the file's `content_sha256` (its bytes 8 to 39, as hex).
 
     With `mapped=True` (on little-endian machines), the file is mapped read-only and the
     arrays are memoryviews of it, not copies: the file stays mapped while they are
@@ -172,14 +173,18 @@ def read(filename, mapped=False):
 def _read(filename, file, mapped):
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
+    digest = file.read(32)
     length = int.from_bytes(file.read(8), "little")
+    file_size = os.fstat(file.fileno()).st_size
+    if length > file_size - _PREAMBLE:
+        raise ValueError(f"{filename}: invalid header length")
     header = json.loads(file.read(length))
+    base = _aligned(_PREAMBLE + length)
     if header.get("format_version") != VERSION:
         raise ValueError(
             f"{filename} has format version {header.get('format_version')}; "
             f"this version of scgraph reads version {VERSION}"
         )
-    file_size = os.fstat(file.fileno()).st_size
     if mapped:
         view = memoryview(mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ))
     arrays = {}
@@ -190,10 +195,11 @@ def _read(filename, file, mapped):
         values, count, start = (
             array(typecode),
             _count(entry["shape"]),
-            entry["offset"],
+            base + entry["offset"],
         )
         if (
             entry["dtype"] != dtype
+            or entry["offset"] < 0
             or start % _ALIGN
             or start + count * values.itemsize > file_size
         ):
@@ -206,7 +212,7 @@ def _read(filename, file, mapped):
         values.fromfile(file, count)
         arrays[name] = _little_endian(values)
     metadata = dict(header["metadata"])
-    metadata["content_sha256"] = header["content_sha256"]
+    metadata["content_sha256"] = digest.hex()
     return arrays, metadata
 
 

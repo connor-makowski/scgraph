@@ -148,7 +148,7 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     assert rebuilt.nodes != geo.nodes
     # One network file is left, named by its content, and the manifest names it
     name = json.loads((folder / "manifest.json").read_text())["file"]
-    content = (folder / name).read_bytes()[4096:]
+    content = (folder / name).read_bytes()[40:]
     assert name == hashlib.sha256(content).hexdigest() + ".scgraph"
     assert {p.name for p in folder.iterdir()} == {"manifest.json", name}
     # Backup tools skip the cache
