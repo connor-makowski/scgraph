@@ -323,26 +323,30 @@ NB_MODULE(cpp, m) {
         // entries are 0 (int) and cached entries are dicts
         .def("get_cache", [](Graph& self) {
             nb::list cache_list;
-            for (const auto& tree_data : self.get_cache()) {
-                if (is_empty_tree_data(tree_data)) {
-                    cache_list.append(nb::int_(0));
-                } else {
-                    cache_list.append(tree_data_to_dict(tree_data));
+            for (int i = 0; i < self.size(); ++i) {
+                cache_list.append(nb::int_(0));
+            }
+            for (const auto& [origin, tree_data] : self.get_cache()) {
+                if (!is_empty_tree_data(tree_data)) {
+                    cache_list[origin] = tree_data_to_dict(tree_data);
                 }
             }
             return cache_list;
         }, "Get the cached shortest path trees")
         // set_cache: accepts a list where entries are either 0 (int) or dicts
         .def("set_cache", [](Graph& self, const nb::list& new_cache) {
-            std::vector<TreeData> cache_vector(new_cache.size());
+            // get_cache writes each tree at its origin in a list of size() entries
+            if (new_cache.size() != static_cast<size_t>(self.size())) {
+                throw std::invalid_argument("Cache must be the same length as the graph");
+            }
+            std::unordered_map<int, TreeData> cache_map;
             for (size_t i = 0; i < new_cache.size(); ++i) {
                 const auto& item = new_cache[i];
-                // Leave default-constructed (empty) TreeData as sentinel for uncached entries
                 if (!item.is_none() && !nb::isinstance<nb::int_>(item)) {
-                    cache_vector[i] = dict_to_tree_data(nb::cast<nb::dict>(item));
+                    cache_map[static_cast<int>(i)] = dict_to_tree_data(nb::cast<nb::dict>(item));
                 }
             }
-            self.set_cache(cache_vector);
+            self.set_cache(std::move(cache_map));
         }, "Set the cached shortest path trees")
 
         // Path weight
