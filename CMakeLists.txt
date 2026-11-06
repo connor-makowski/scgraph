@@ -41,8 +41,8 @@ nanobind_add_module(
     scgraph/cpp/src/transit_node_routing.cpp
     scgraph/cpp/src/snap_index.cpp
 )
-# Same answers as the pure-Python SnapIndex: no fused multiply-add (ARM compilers fuse by default),
-# so that the double check of each candidate rounds as the Python expression does
+# No fused multiply-add (ARM compilers fuse by default), so that the double check of each
+# candidate rounds as the Python expression does and both SnapIndex versions give the same answers
 if(NOT MSVC)
     set_source_files_properties(scgraph/cpp/src/snap_index.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 endif()

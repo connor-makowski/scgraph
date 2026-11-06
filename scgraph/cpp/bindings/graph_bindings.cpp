@@ -204,14 +204,14 @@ NB_MODULE(cpp, m) {
         .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             return self.closest_idx(la, lo);
-        }, nb::arg("point"), "Id of the indexed point nearest to point, a [latitude, longitude] pair")
+        }, nb::arg("point"), "Id of the indexed point nearest to point; point is a [latitude, longitude] pair")
         .def("closest_idx_per_quadrant", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             int out[4];
             self.closest_idx_per_quadrant(la, lo, out);
             return quadrant_dict(out);
         }, nb::arg("point"),
-           "Id of the nearest indexed point in each quadrant around point ('ne', 'nw', 'se', 'sw'; None if empty)");
+           "Id of the nearest indexed point in each quadrant around point, as a dict with the keys 'ne', 'nw', 'se', 'sw' (None if the quadrant is empty)");
 
     // Graph class
     nb::class_<Graph>(m, "Graph")

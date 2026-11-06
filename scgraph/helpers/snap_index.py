@@ -1,11 +1,14 @@
 """
-Pure-Python version of the C++ `SnapIndex`, with the same answers. The algorithm is described
-in `scgraph/cpp/src/snap_index.hpp`. The order check, the leaves, the tree, the box slots (in
-double, not rounded to float) and the quadrant rules are the same. The search differs: it
-works in double throughout and compares
-distances exactly (no float selection, no tolerance, no second check), walks the tree with
-an explicit stack, and counts levels from the leaves (level 0 is a leaf here; in C++
-`levels[0]` holds the parents of the leaves).
+Pure-Python version of the C++ `SnapIndex`, with the same answers. The algorithm is
+described in `scgraph/cpp/src/snap_index.hpp`.
+
+Same as in C++: the order check, the leaves, the tree, the box slots and the quadrant
+rules. The boxes are kept in double here, not rounded to float.
+
+Different: the search works in double throughout and compares distances exactly, so
+there is no float selection, no tolerance and no second check. It walks the tree with an
+explicit stack. It counts levels from the leaves: level 0 is a leaf here, while in C++
+`levels[0]` holds the parents of the leaves.
 """
 
 from array import array
@@ -14,12 +17,12 @@ from operator import mul
 
 from scgraph.helpers.hilbert import hilbert_key
 
-# As the C++ index (snap_index.hpp, snap_index.cpp)
+# Same values as the C++ index (snap_index.hpp, snap_index.cpp)
 LEAF = 32
 FANOUT = 8
 ORDER_CHECK_PAIRS = 2048
 ORDER_CHECK_RUN = 64
-# Quadrant t is the bit 1 << t of the masks below
+# Quadrant t of this tuple is bit 1 << t of the masks below
 QUADRANTS = ("ne", "nw", "se", "sw")
 
 
@@ -39,9 +42,9 @@ def _unit(latitude: float, longitude: float) -> tuple[float, float, float]:
 
 
 def _box_quadrants(box, c: int, qlat: float, qlon: float, mask: int) -> int:
-    # Quadrant bits a latitude/longitude box may hold: 1 ne, 2 nw, 4 se, 8 sw (as
-    # the C++ index). Slots 6, 7, 8, 9 of a box: min lat, max lat, min lon, max lon
-    # (literals, not names: this runs for every box a search visits)
+    # Quadrant bits a latitude/longitude box may hold: 1 ne, 2 nw, 4 se, 8 sw, as in
+    # the C++ index. Slots 6, 7, 8, 9 of a box are min lat, max lat, min lon, max lon;
+    # they stay literals, not names, as this runs for every box a search visits
     if box[7][c] < qlat:
         mask &= 4 | 8
     if box[6][c] > qlat:
@@ -96,7 +99,7 @@ class SnapIndex:
             raise ValueError("node coordinates must be finite numbers")
         self.n = n
         # Keep the network's order if it is already sorted along a Hilbert curve, otherwise
-        # sort a copy along one (the check is explained in the C++ index)
+        # sort a copy along one. The C++ index explains the check
         pairs = range(1, n, max(1, (n - 1) // ORDER_CHECK_PAIRS))
         descents = sum(
             hilbert_key(lat[i], lon[i]) < hilbert_key(lat[i - 1], lon[i - 1])
