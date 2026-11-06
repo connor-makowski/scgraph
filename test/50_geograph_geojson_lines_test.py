@@ -50,7 +50,8 @@ def test_load_from_geojson_with_max_km_between_nodes(tmp_path):
         ((1, 0.02), (1, 0.03)),
     }
     assert set(arcs) == expected | {(b, a) for a, b in expected}
-    assert shapes[long_arc] == [[1, 0], [1.005, 0.01], [1, 0.02]]
+    # A shape holds the points between its arc's two nodes
+    assert shapes[long_arc] == [[1.005, 0.01]]
     assert arcs[long_arc] == pytest.approx(
         great_circle_km((1, 0), (1.005, 0.01))
         + great_circle_km((1.005, 0.01), (1, 0.02))

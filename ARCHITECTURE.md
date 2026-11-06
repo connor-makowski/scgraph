@@ -34,10 +34,13 @@ sources: each network has a small build script in `networks/` (source URLs, cred
 which loaders to call with which options; the road + sea network combines two networks with
 `merge_with_other_geograph`); the sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and
-later calls read the cache. Built networks, and the conversions of published networks (§6),
-number their nodes along a Hilbert curve over longitude and latitude (`helpers/hilbert.py`,
-within each mode of a multimodal network; manifest key `node_order`), so that nodes close on
-the globe get close ids. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
+later calls read the cache. Network files written by scgraph (`save_as_scgraph`, so built
+networks and the conversions of published networks, §6) number their nodes along a Hilbert
+curve over longitude and latitude (`helpers/hilbert.py`, within each mode, so that the nodes
+of a mode stay together; manifest key `node_order`), so that nodes close on the globe get
+close ids; the GeoGraph saved is not renumbered (`Graph._csr(order)` gives the renumbered
+arcs, one copy). `_in_hilbert_order` renumbers a GeoGraph in memory, for the conversions of
+published networks and `load_from_geojson`. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
 query that needs them.
 
 `Graph` and `CHGraph` exist twice: in C++ (`cpp/`) and in pure Python. When the C++
@@ -57,8 +60,17 @@ entries, and every node has an entry, even with no outgoing edge.
   touches, and the next search packs every row into new arrays, so a series of edits costs
   one packing.
 - `GeoGraph` adds `nodes[u] = [latitude, longitude]` (read from the file's arrays for a
-  GeoGraph read from a network file, §7) and, optionally,
-  `intermediate_nodes`: the detailed shape of an edge, used only to draw the route.
+  GeoGraph read from a network file, §7), `node_ids[u]` (the node's stable id, for example
+  its OSM id, which saves and merges keep; nodes added later get negative ids below all
+  the others; without ids, a node's id is its position), `node_modes[u]` (its mode, a row
+  of `modes`: `{"name": ..., "source": ...}`, the source naming where the node's id comes
+  from, so that `(mode, node id)` identifies a node) and, optionally,
+  `intermediate_nodes`: the detailed shape of an edge, used only to draw the route
+  (`intermediate_nodes[u][v]`: the points between `u` and `v`, from `u` to `v`;
+  the loaders give no entry to an arc without such points).
+  Node ids in graphs, paths and algorithms are positions; loaders that number the nodes
+  themselves (`load_from_osm`, `load_from_osmnx_graph`, `load_from_geojson`) number them
+  along a Hilbert curve.
 - Algorithms take an origin and a destination as a node id, a set of node ids, or a
   dict `{node_id: distance}` (several sources or targets, each with a starting
   distance). They return `{"path": [node ids], "length": total weight}`.
@@ -239,25 +251,34 @@ and `build_geograph`) has as `nodes` a `network_file.NodeCoordinates`, which rea
 and longitude arrays (in place in the C++ backend) and keeps added nodes after them;
 `SnapIndex.from_arrays` indexes the arrays (the C++ index reads them in place, as they are in
 Hilbert order, and keeps them), and `NodeCoordinates.take` builds a route's coordinates from
-them in C++ when available. The mapping lasts as long as those `nodes` or the snapping index,
-even after the graph is edited. Windows does not replace a mapped file, so there, saving onto a
-file that an open geograph was read from raises a `PermissionError`.
+them in C++ when available. Its `intermediate_nodes`, if the file has shapes, is a read-only
+`network_file.ArcShapes`, which reads each shape from the shape arrays when asked for;
+`ArcShapes.coordinate_path` builds a route's coordinates with its shapes in C++ when
+available. The mapping lasts as long as those `nodes`, shapes or the snapping index, even after
+the graph is edited. Windows does not replace a mapped file, so there, saving onto a file that
+an open geograph was read from raises a `PermissionError`.
+`network_file.write` takes the arrays as stored; `save_as_scgraph` passes it the graph's arcs
+from the private `Graph._csr()`, in the C++ backend views of the graph's own arrays, so that
+saving copies no arc there.
 
 | Bytes | Content |
 |---|---|
 | 0–7 | magic `SCGRAPH1` |
-| 8–15 | length of the header, little-endian unsigned 64-bit integer |
-| 16– | header: UTF-8 JSON, padded with spaces up to byte 4096 |
-| 4096– | arrays, little-endian, each starting at a multiple of 64 bytes |
+| 8–39 | the SHA-256 (raw 32 bytes; `content_sha256` is its hex) of every byte from 40 to the end of the file |
+| 40–47 | length of the header, little-endian unsigned 64-bit integer |
+| 48– | header: UTF-8 JSON with sorted keys, then zeros up to a multiple of 64 bytes |
+| then | arrays, little-endian, each starting at a multiple of 64 bytes |
 
-The header gives `format_version` (1), `spec` (a link to this section), `content_sha256`
-(the SHA-256 of the bytes from 4096 to the end of the file, the arrays and the zeros
-between them: the identity of the network; it does not cover the header; it identifies
-the file, not the graph: arcs are written in the order the backend visits them, which is not the same in the C++ and Python builds), `arrays` (for each
-array: `dtype`, `shape` and `offset` from the start of the file) and `metadata`: `crs`
+`content_sha256` is the identity of the file, header included, so a file named by it
+(`build_geograph`'s) holds exactly those bytes; it identifies the file, not the graph: arcs
+are written in the order the backend visits them, which is not the same in the C++ and
+Python builds. The reader returns it without checking it, so that opening a file does not
+read it all. The header has no size limit; it gives `format_version` (1), `spec` (a link to
+this section), `arrays` (for each array: `dtype`, `shape` and `offset` from the end of the
+padded header, a multiple of 64) and `metadata`: `crs`
 (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
-when every arc has a reverse arc of the same weight); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file.
+when every arc has a reverse arc of the same weight; scgraph does not read it yet); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file; and `modes`, the list that `node_modes` indexes, for example `[{"name": "road", "source": "roads"}, {"name": "sea", "source": "sea"}]` (`source`, optional, names an entry of `sources`).
 
 | Array | dtype | Shape | Content |
 |---|---|---|---|
@@ -265,11 +286,22 @@ when every arc has a reverse arc of the same weight); and, when known, `sources`
 | `heads` | int32 | m | destination of each arc, in the graph's order within each origin |
 | `weights` | float64 | m | weight of each arc |
 | `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
-| `shape_offsets` (optional) | int64 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1` |
-| `shape_points` (optional) | float64 | k × 2 | latitude and longitude of each shape point |
+| `shape_offsets` (optional) | int32 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
+| `shape_points` (optional) | int32 | k × 2 | latitude and longitude of each shape point, in units of 1e-7 degree (rounded when written) |
+| `node_ids` (optional) | int32 or int64 (int32 only when every id fits, as for converted built-in networks; OSM ids need int64) | n | the id of each node in its source (negative for nodes scgraph created); without it, a node's id is its position |
+| `node_modes` (optional) | uint8 | n | the mode of each node, an index into the metadata's `modes`; without it, every node has one mode |
 
-The reader checks the magic, the version, that every array lies inside the file, and that
-the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1),
-and raises a `ValueError` otherwise. The writer sorts the heads of each row and writes each arc once; the reader does not check it. It ignores header keys and arrays it does not know, so later versions
-can add optional arrays (for example the mode of each arc) that older readers skip.
+The reader checks the magic, the version, that the header and every array lie inside the
+file (the arrays after the header), and that
+the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1;
+one node id and one node mode per node, the modes listed in `modes`),
+and raises a `ValueError` otherwise; on a mapped file it leaves the order of offsets and heads to
+the C++ graph and the bounds of each shape to `ArcShapes`, which check them where they read,
+and does not read the node modes.
+Shape points are stored as int32: they must lie within ±214.7483647° and a file holds fewer than
+2³¹ of them. The writer keeps the arcs of each row in the graph's order and writes each arc once, so a row
+holds each head once (the `symmetric` flag relies on it); the reader does not check it. It ignores header keys and arrays it does not know, so later versions
+can add optional arrays (for example the mode of each arc) that older readers skip: such additions
+keep `format_version` 1, which changes only when a reader of the current version would misread
+the file.
 

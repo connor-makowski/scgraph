@@ -40,26 +40,18 @@ def hilbert_key(latitude: float, longitude: float) -> int:
 
 
 def hilbert_order(
-    nodes: list[list[float]], blocks: list[list[int]] | None = None
+    nodes: list[list[float]], modes: list[int] | None = None
 ) -> list[int]:
     """
     The ids of `nodes` (a list of [latitude, longitude]) in Hilbert order: `order[new] = old`.
 
-    `blocks` are [start, end) ranges of ids covering every node once (for example the nodes of
-    each mode of a multimodal network); each block is ordered on its own and keeps its place.
+    With `modes` (the mode of each node, as numbers), nodes are ordered by mode first, so
+    that the nodes of each mode stay together, then along the curve.
     """
-    ranges = sorted(blocks) if blocks else [[0, len(nodes)]]
-    order = []
-    for start, end in ranges:
-        if start != len(order) or end < start:
-            raise ValueError(
-                "blocks must cover every node once, as [start, end) ranges"
-            )
-        order.extend(
-            sorted(range(start, end), key=lambda i: hilbert_key(*nodes[i]))
-        )
-    if len(order) != len(nodes):
-        raise ValueError(
-            "blocks must cover every node once, as [start, end) ranges"
-        )
-    return order
+    if modes is None:
+        return sorted(range(len(nodes)), key=lambda i: hilbert_key(*nodes[i]))
+    # One integer per node, the mode above the key (keys are below 4^CURVE_ORDER)
+    return sorted(
+        range(len(nodes)),
+        key=lambda i: modes[i] << 2 * CURVE_ORDER | hilbert_key(*nodes[i]),
+    )

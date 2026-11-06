@@ -37,7 +37,7 @@ scgraph/
   networks/                      # Build scripts of build_geograph, one per network
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
-    hilbert.py                   # Hilbert-curve order of nodes (built and converted networks)
+    hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)
     lines.py                     # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     visvalingam.py               # Visvalingam-Whyatt line simplification

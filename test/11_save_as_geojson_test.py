@@ -55,7 +55,9 @@ def test_save_load_graphjson(tmp_graph, reduce):
 
 
 def test_save_load_graphjson_keeps_route_geometry(tmp_path):
-    # Routes on a reloaded GeoGraph follow the same shapes as before saving
+    # Routes on a reloaded GeoGraph follow the same shapes as before saving; shapes that
+    # repeat their arc's two nodes (files of scgraph 3.6, here 0 -> 1) are read without
+    # them, shapes of points between the nodes only (1 -> 2) are read as they are
     nodes = [[0.0, 0.0], [0.0, 0.01], [0.0, 0.02]]
 
     def shape(a, b):
@@ -66,20 +68,28 @@ def test_save_load_graphjson_keeps_route_geometry(tmp_path):
         graph=[{1: 1.5}, {0: 1.5, 2: 1.5}, {1: 1.5}],
         intermediate_nodes=[
             {1: shape(0, 1)},
-            {0: shape(1, 0), 2: shape(1, 2)},
+            {0: shape(1, 0), 2: shape(1, 2)[1:-1]},
             {1: shape(2, 1)},
         ],
     )
     path = str(tmp_path / "shaped.graphjson")
     geo.save_as_graphjson(path)
     loaded = GeoGraph.load_from_graphjson(path)
-    origin = {"latitude": 0.0, "longitude": 0.0}
-    destination = {"latitude": 0.0, "longitude": 0.02}
-    assert loaded.get_shortest_path(
-        origin, destination, output_coordinate_path="list_of_lists"
-    ) == geo.get_shortest_path(
+    origin = {"latitude": 0.001, "longitude": 0.0}
+    destination = {"latitude": 0.001, "longitude": 0.02}
+    route = loaded.get_shortest_path(
         origin, destination, output_coordinate_path="list_of_lists"
     )
+    # Each node once, each arc's point between them
+    assert route["coordinate_path"] == [
+        [0.001, 0.0],
+        [0.0, 0.0],
+        [0.003, 0.005],
+        [0.0, 0.01],
+        [0.003, 0.015],
+        [0.0, 0.02],
+        [0.001, 0.02],
+    ]
 
 
 # Coordinates on or beyond the antimeridian keep their place on the globe

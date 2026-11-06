@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import tempfile
@@ -132,13 +131,13 @@ def test_load_geograph_converts_a_published_geograph_once(
         tmp_path / "marnet.scgraph",
     )
     original = GeoGraph(
-        graph=[{1: 1.5}, {0: 1.5, 2: 2.0}, {1: 2.0}],
-        nodes=[[1, 1], [0, 1], [0, 0]],
+        graph=[{1: 1.5, 2: 3.0}, {0: 1.5, 2: 2.0}, {1: 2.0}],
+        nodes=[[45, 90], [-45, -90], [45, -90]],
     )
     original.save_as_graphjson(str(published))
     if case == "damaged":
         original.save_as_scgraph(str(converted))
-        converted.write_bytes(converted.read_bytes()[:4200])
+        converted.write_bytes(converted.read_bytes()[:-8])
     if case == "read_only":
 
         def refused(*args, **kwargs):
@@ -146,13 +145,21 @@ def test_load_geograph_converts_a_published_geograph_once(
 
         monkeypatch.setattr(network_file, "write", refused)
     geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
-    assert geo.nodes == original.nodes[::-1]  # in Hilbert order
+    # In Hilbert order (old nodes 1, 2, 0, their node ids), the arcs renumbered
+    assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
+    assert list(geo.node_ids) == [1, 2, 0]
+    assert geo.graph_object.graph == [
+        {2: 1.5, 1: 2.0},
+        {0: 2.0},
+        {0: 1.5, 1: 3.0},
+    ]
     assert published.exists() and converted.exists() != (case == "read_only")
     if case == "read_only":
         return
-    # Named in its header by the SHA-256 of its arrays, as a built network
-    content = hashlib.sha256(converted.read_bytes()[4096:]).hexdigest()
-    assert network_file.read(str(converted))[1]["content_sha256"] == content
+    # The published file is the source of the node ids
+    metadata = network_file.read(str(converted))[1]
+    assert metadata["modes"] == [{"name": None, "source": "marnet.graphjson"}]
+    assert [s["name"] for s in metadata["sources"]] == ["marnet.graphjson"]
     published.write_text("no longer read")
     again = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
     assert again.nodes == geo.nodes

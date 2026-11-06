@@ -2,6 +2,7 @@ import pytest
 from helpers import great_circle_km
 
 from scgraph import GeoGraph
+from scgraph.helpers.hilbert import hilbert_order
 
 pytest.importorskip("osmium")
 
@@ -137,5 +138,18 @@ def test_load_from_osm_follows_one_way_streets(osm_file, directed, expected):
 def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
     # Ways 1 and 2 (nodes 1 to 4, two-way) are the largest part where every node
     # reaches every other; node 7 is only reached by a one-way street
-    arcs = _arcs(GeoGraph.load_from_osm(osm_file))
-    assert {node for arc in arcs for node in arc} == {1, 2, 3, 4}
+    geo = GeoGraph.load_from_osm(osm_file)
+    assert {node for arc in _arcs(geo) for node in arc} == {1, 2, 3, 4}
+    assert dict(zip(geo.node_ids, map(tuple, geo.nodes))) == {
+        ref: _NODES[ref] for ref in (1, 2, 3, 4)
+    }
+
+
+def test_load_from_osm_numbers_nodes_along_a_hilbert_curve_with_their_osm_ids(
+    osm_file,
+):
+    geo = GeoGraph.load_from_osm(osm_file, largest_component=False)
+    assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
+    assert all(
+        _NODES[ref] == tuple(node) for ref, node in zip(geo.node_ids, geo.nodes)
+    )

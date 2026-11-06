@@ -2,8 +2,9 @@
 at the ports of the World Port Index, for example `region="europe/portugal"`.
 
 A port joins the two networks only if it has a road node within 20 km and a sea node within
-250 km; each connector is a straight line, 1.2 times the great-circle distance. Nodes are
-stored by mode (roads, then ports, then sea), recorded as `node_modes` in the manifest.
+250 km; each connector is a straight line, 1.2 times the great-circle distance. Each node
+has its mode, `road`, `port` or `sea` (`node_modes`, rows of `modes`), each mode citing the
+source of its node ids.
 Connectors are not checked against land and water: a sea connector of an inland port crosses
 land.
 """
@@ -15,7 +16,7 @@ from scgraph.utils import haversine
 
 # Small sources first: a failure then costs no new download of the extract
 # Follows the versions of the two builds it reuses
-VERSION = 1 + marnet.VERSION + osm_main_roads.VERSION
+VERSION = 2 + marnet.VERSION + osm_main_roads.VERSION
 
 SOURCES = {
     "sea": marnet.SOURCES["lines"],
@@ -41,14 +42,11 @@ def build(files):
         if _km_to_network(roads, port) <= MAX_KM["road"]
         and _km_to_network(sea, port) <= MAX_KM["sea"]
     ]
-    road_nodes = len(roads.nodes)
-    roads.merge_with_other_geograph(sea, connection_nodes=ports)
-    modes = {
-        "road": [0, road_nodes],
-        "port": [road_nodes, road_nodes + len(ports)],
-        "sea": [road_nodes + len(ports), len(roads.nodes)],
-    }
-    return roads, {"node_modes": modes}
+    # Port nodes are created here: their ids are scgraph's, not the port index's
+    roads.modes = [{"name": "road", "source": "roads"}, {"name": "port"}]
+    sea.modes = [{"name": "sea", "source": "sea"}]
+    roads.merge_with_other_geograph(sea, connection_nodes=ports, mode="port")
+    return roads
 
 
 def _ports(filename):
