@@ -2094,18 +2094,20 @@ class _SortedSnapIndex:
     lower id).
     """
 
-    def __init__(self, order: list[int], index: SnapIndex):
-        # order[position in the index] = node id
+    def __init__(self, order: array, index: SnapIndex):
+        # order[position in the index] = node id. An array, not a list: the garbage
+        # collector never walks it (a list of a million ids cost a 16 ms pause)
         self.order, self.index = order, index
 
     def closest_idx(self, point) -> int:
         return self.order[self.index.closest_idx(point)]
 
     def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
-        # Changes the index's dict in place: a second dict per query would make the
-        # garbage collector run more often over a large graph
+        # Changes the index's dict in place and allocates nothing else, so that queries
+        # don't make the garbage collector run more often
         found = self.index.closest_idx_per_quadrant(point)
-        for quadrant, p in found.items():
+        for quadrant in ("ne", "nw", "se", "sw"):
+            p = found[quadrant]
             if p is not None:
                 found[quadrant] = self.order[p]
         return found
@@ -2689,7 +2691,7 @@ class GeoGraph(
                 # Nodes not kept together (a graph built from a list, many added nodes):
                 # index them in Hilbert order, without changing their ids
                 points = list(nodes)
-                order = hilbert_order(points)
+                order = array("q", hilbert_order(points))
                 self.__snap_index__ = _SortedSnapIndex(
                     order, SnapIndex([points[i] for i in order])
                 )
