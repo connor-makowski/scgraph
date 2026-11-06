@@ -529,6 +529,7 @@ class GeoGraphIO:
         Function:
 
         - Load a GeoGraph from a JSON file that was saved using the `save_as_graphjson` method
+        - Arc shapes that repeat their arc's two nodes (files saved by released versions) are read without them
 
         Required Arguments:
 
