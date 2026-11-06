@@ -74,19 +74,40 @@ static std::unique_ptr<Graph> csr_graph(CsrInts offsets, CsrInts heads, CsrDoubl
     return graph;
 }
 
-// The graph as a list of dicts whose keys follow the order of the arcs (the `graph`
-// property's dicts do not), so that a graph saved to a network file and read back visits
-// its arcs in the same order
-static nb::list graph_in_arc_order(const Graph& graph) {
-    nb::list rows;
-    for (int u = 0; u < graph.size(); ++u) {
-        nb::dict row;
-        for (const auto& [v, w] : graph.row(u)) {
-            row[nb::int_(v)] = nb::float_(w);
+// The arcs by origin (offsets, heads, weights), in the order searches visit them, as
+// read-only memoryviews of the graph's own arrays: the capsule's copy of the handle keeps
+// them alive after the graph is edited or deleted. With an order (order[new] = old), the
+// rows of the nodes in that order, heads renumbered, in one new copy
+static nb::tuple graph_csr(const Graph& graph, std::optional<std::vector<int32_t>> order) {
+    auto* arcs = new Adjacency(graph.arcs());
+    nb::capsule owner(arcs, [](void* arcs) noexcept { delete static_cast<Adjacency*>(arcs); });
+    if (order) {
+        const int n = arcs->size();
+        std::vector<int32_t> new_id(n, -1), offsets{0}, heads;
+        std::vector<double> weights;
+        if (order->size() != static_cast<size_t>(n)) throw nb::index_error("order must list every node once");
+        for (int32_t i = 0; i < n; ++i) {
+            const int32_t old = (*order)[i];
+            if (old < 0 || old >= n || new_id[old] != -1) throw nb::index_error("order must list every node once");
+            new_id[old] = i;
         }
-        rows.append(row);
+        heads.reserve(arcs->arcs());
+        weights.reserve(arcs->arcs());
+        for (int32_t old : *order) {
+            for (const auto& [head, weight] : (*arcs)[old]) {
+                heads.push_back(new_id[head]);
+                weights.push_back(weight);
+            }
+            // At most the graph's arc count, which fits in int32 (Adjacency)
+            offsets.push_back(static_cast<int32_t>(heads.size()));
+        }
+        *arcs = Adjacency(std::move(offsets), std::move(heads), std::move(weights));
     }
-    return rows;
+    auto view = [&](auto values) {
+        using Value = typename decltype(values)::element_type;
+        return nb::ndarray<nb::memview, Value, nb::ndim<1>>(values.data(), {values.size()}, owner);
+    };
+    return nb::make_tuple(view(arcs->all_offsets()), view(arcs->all_heads()), view(arcs->all_weights()));
 }
 
 // reduced_graph_connections or reduced_inverse_graph_connections as a list: None or
@@ -300,8 +321,8 @@ NB_MODULE(cpp, m) {
              "Get the entire graph adjacency list")
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
              "Same as graph")
-        .def("_arcs_by_origin", &graph_in_arc_order,
-             "The graph (unreduced) as a list of dicts whose keys follow the order in which searches visit the arcs")
+        .def("_csr", &graph_csr, nb::arg("order") = nb::none(),
+             "The graph (unreduced) as arcs by origin: int32 offsets and heads, float64 weights, in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows in that order, heads renumbered (one copy)")
         .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
              "Get the inverse of the graph: every edge reversed")
         .def_prop_ro("search_graph", [](const Graph& self) -> std::vector<std::unordered_map<int, double>> {

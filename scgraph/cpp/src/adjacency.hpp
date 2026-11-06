@@ -114,6 +114,8 @@ public:
     }
     int size() const { return n; }
     int64_t arcs() const { return m; }
+    std::span<const int32_t> all_offsets() const { return {offsets, static_cast<size_t>(n) + 1}; }
+    std::span<const int32_t> all_heads() const { return {heads, static_cast<size_t>(m)}; }
     std::span<const double> all_weights() const { return {weights, static_cast<size_t>(m)}; }
     void clear() { *this = Adjacency(); }
 };

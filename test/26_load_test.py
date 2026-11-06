@@ -131,8 +131,8 @@ def test_load_geograph_converts_a_published_geograph_once(
         tmp_path / "marnet.scgraph",
     )
     original = GeoGraph(
-        graph=[{1: 1.5}, {0: 1.5, 2: 2.0}, {1: 2.0}],
-        nodes=[[1, 1], [0, 1], [0, 0]],
+        graph=[{1: 1.5, 2: 3.0}, {0: 1.5, 2: 2.0}, {1: 2.0}],
+        nodes=[[45, 90], [-45, -90], [45, -90]],
     )
     original.save_as_graphjson(str(published))
     if case == "damaged":
@@ -145,7 +145,13 @@ def test_load_geograph_converts_a_published_geograph_once(
 
         monkeypatch.setattr(network_file, "write", refused)
     geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
-    assert geo.nodes == original.nodes[::-1]  # in Hilbert order
+    # In Hilbert order (old nodes 1, 2, 0), the arcs renumbered
+    assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
+    assert geo.graph_object.graph == [
+        {2: 1.5, 1: 2.0},
+        {0: 2.0},
+        {0: 1.5, 1: 3.0},
+    ]
     assert published.exists() and converted.exists() != (case == "read_only")
     if case == "read_only":
         return

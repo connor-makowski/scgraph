@@ -2,10 +2,13 @@ import copy
 import hashlib
 import json
 import os
+from array import array
 
 import pytest
 
 from scgraph import GeoGraph, Graph, network_file
+from scgraph.graph import Graph as PythonGraph
+from scgraph.utils import has_cpp
 from scgraph.helpers.hilbert import hilbert_order
 
 # A one-way arc (0 -> 2), a shape on one arc only, integer weights and an isolated node
@@ -116,12 +119,92 @@ def test_a_network_file_gives_the_same_route_where_two_tie(tmp_path, first):
     assert route(saved) == route(geo)
 
 
-def test_save_as_scgraph_flags_symmetric_graphs(tmp_path):
-    path = str(tmp_path / "two.scgraph")
-    GeoGraph(
-        graph=[{1: 2.0}, {0: 2.0}], nodes=[[0.0, 0.0], [0.0, 0.01]]
-    ).save_as_scgraph(path)
-    assert network_file.read(path)[1]["symmetric"] is True
+@pytest.mark.parametrize(
+    "graph, symmetric",
+    [
+        ([{1: 1.0, 2: 1.0}, {0: 1.0}, {0: 1.0}], True),
+        ([{1: 2.0}, {0: 3.0}], False),  # reverse arc of another weight
+        ([{1: 1.0}, {2: 1.0}, {0: 1.0}], False),  # a one-way cycle
+        # The arc 1 -> 0 has no reverse arc
+        ([{2: 1.0, 3: 1.0}, {0: 1.0}, {0: 1.0}, {0: 1.0}], False),
+    ],
+)
+def test_save_as_scgraph_flags_symmetric_graphs(tmp_path, graph, symmetric):
+    path = str(tmp_path / "graph.scgraph")
+    nodes = [[0.0, 0.01 * i] for i in range(len(graph))]
+    GeoGraph(graph=graph, nodes=nodes).save_as_scgraph(path)
+    assert network_file.read(path)[1]["symmetric"] is symmetric
+
+
+# A file written from arrays (the graph's arcs, with its nodes in a given order or not)
+# keeps its node ids and modes; modes index the header's list of modes
+_MODES = [
+    {"name": "road", "source": "roads"},
+    {"name": "port", "source": "ports"},
+]
+
+
+def _write_from_arrays(path, graph, order=None, modes=_MODES, **columns):
+    offsets, heads, weights = graph._csr(order)
+    arrays = {
+        "offsets": offsets,
+        "heads": heads,
+        "weights": weights,
+        "latitudes": array("d", [0.0, 0.0, 1.0]),
+        "longitudes": array("d", [0.0, 1.0, 1.0]),
+        "node_ids": array("q", [2**40, 7, -1]),
+        "node_modes": array("B", [0, 0, 1]),
+        **columns,
+    }
+    network_file.write(path, arrays, {} if modes is None else {"modes": modes})
+
+
+@pytest.mark.parametrize(
+    "graph_class",
+    [PythonGraph] + ([Graph] if has_cpp() else []),
+    ids=lambda graph_class: graph_class.__module__,
+)
+@pytest.mark.parametrize(
+    "order, mapped, rows",
+    [
+        (None, False, [{1: 1.5, 2: 3.0}, {0: 1.5, 2: 2.0}, {1: 2.0}]),
+        # Old node 2 first: old 0 -> new 1, old 1 -> new 2, old 2 -> new 0
+        ([2, 0, 1], True, [{2: 2.0}, {2: 1.5, 0: 3.0}, {1: 1.5, 0: 2.0}]),
+    ],
+)
+def test_network_file_written_from_arrays(
+    tmp_path, graph_class, order, mapped, rows
+):
+    path = str(tmp_path / "arrays.scgraph")
+    graph = graph_class([{1: 1.5, 2: 3.0}, {0: 1.5, 2: 2.0}, {1: 2.0}])
+    _write_from_arrays(path, graph, order)
+    arrays, metadata = network_file.read(path, mapped=mapped)
+    offsets, heads, weights = (
+        arrays[k] for k in ("offsets", "heads", "weights")
+    )
+    assert [
+        dict(zip(heads[a:b], weights[a:b]))
+        for a, b in zip(offsets, offsets[1:])
+    ] == rows
+    assert list(arrays["node_ids"]) == [2**40, 7, -1]
+    assert list(arrays["node_modes"]) == [0, 0, 1]
+    assert metadata["modes"] == _MODES
+
+
+@pytest.mark.parametrize(
+    "columns, message",
+    [
+        ({"node_ids": array("q", [1, 2])}, "one node id per node"),
+        ({"node_modes": array("B", [0, 0])}, "one node mode per node"),
+        ({"node_modes": array("B", [0, 0, 2])}, "invalid node modes"),
+        ({"modes": None}, "without a list of modes"),
+    ],
+)
+def test_network_file_rejects_invalid_node_columns(tmp_path, columns, message):
+    path = str(tmp_path / "arrays.scgraph")
+    _write_from_arrays(path, Graph([{1: 1.0}, {0: 1.0}, {}]), **columns)
+    with pytest.raises(ValueError, match=message):
+        network_file.read(path)
 
 
 def test_load_from_scgraph_reads_an_empty_network(tmp_path):

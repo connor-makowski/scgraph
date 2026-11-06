@@ -37,7 +37,8 @@ as a `.scgraph` network file to the local cache with a manifest of what was down
 later calls read the cache. Built networks, and the conversions of published networks (§6),
 number their nodes along a Hilbert curve over longitude and latitude (`helpers/hilbert.py`,
 within each mode of a multimodal network; manifest key `node_order`), so that nodes close on
-the globe get close ids. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
+the globe get close ids (`_in_hilbert_order`; in the C++ backend it keeps the one renumbered
+copy `Graph._csr(order)` gives). `CHGraph` and `TNRGraph` are built from a `Graph` on the first
 query that needs them.
 
 `Graph` and `CHGraph` exist twice: in C++ (`cpp/`) and in pure Python. When the C++
@@ -243,6 +244,9 @@ for; `ArcShapes.coordinate_path` builds a route's coordinates with its shapes in
 available. The mapping lasts as long as those `nodes` and shapes, even after the graph is
 edited. Windows does not replace a mapped file, so there, saving onto a file that an
 open geograph was read from raises a `PermissionError`.
+`network_file.write` takes the arrays as stored; `save_as_scgraph` passes it the graph's arcs
+from the private `Graph._csr()`, in the C++ backend views of the graph's own arrays, so that
+saving copies no arc there.
 
 | Bytes | Content |
 |---|---|
@@ -261,7 +265,7 @@ this section), `arrays` (for each array: `dtype`, `shape` and `offset` from the 
 padded header, a multiple of 64) and `metadata`: `crs`
 (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
-when every arc has a reverse arc of the same weight; scgraph does not read it yet); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file.
+when every arc has a reverse arc of the same weight; scgraph does not read it yet); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file; and `modes`, the list that `node_modes` indexes, for example `[{"name": "road", "source": "roads"}, {"name": "sea", "source": "sea"}]` (`source`, optional, names an entry of `sources`).
 
 | Array | dtype | Shape | Content |
 |---|---|---|---|
@@ -271,14 +275,19 @@ when every arc has a reverse arc of the same weight; scgraph does not read it ye
 | `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
 | `shape_offsets` (optional) | int32 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
 | `shape_points` (optional) | int32 | k × 2 | latitude and longitude of each shape point, in units of 1e-7 degree (rounded when written) |
+| `node_ids` (optional) | int64 | n | the id of each node in its source (negative for nodes scgraph created); without it, a node's id is its position |
+| `node_modes` (optional) | uint8 | n | the mode of each node, an index into the metadata's `modes`; without it, every node has one mode |
 
 The reader checks the magic, the version, that the header and every array lie inside the
 file (the arrays after the header), and that
-the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1),
+the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1;
+one node id and one node mode per node, the modes listed in `modes`),
 and raises a `ValueError` otherwise; on a mapped file it leaves the order of offsets and heads to
-the C++ graph and the bounds of each shape to `ArcShapes`, which check them where they read.
+the C++ graph and the bounds of each shape to `ArcShapes`, which check them where they read,
+and does not read the node modes.
 Shape points are stored as int32: they must lie within ±214.7483647° and a file holds fewer than
-2³¹ of them. The writer keeps the arcs of each row in the graph's order and writes each arc once; the reader does not check it. It ignores header keys and arrays it does not know, so later versions
+2³¹ of them. The writer keeps the arcs of each row in the graph's order and writes each arc once, so a row
+holds each head once (the `symmetric` flag relies on it); the reader does not check it. It ignores header keys and arrays it does not know, so later versions
 can add optional arrays (for example the mode of each arc) that older readers skip: such additions
 keep `format_version` 1, which changes only when a reader of the current version would misread
 the file.
