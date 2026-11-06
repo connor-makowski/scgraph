@@ -89,12 +89,17 @@ def test_added_and_merged_nodes_get_ids_that_collide_with_none():
     # Added nodes (and connection nodes) get negative ids below all the others; merged
     # nodes keep theirs, the other graph's negative ids moved below this graph's
     road = GeoGraph(
-        graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 1]], node_ids=[10, 20]
+        graph=[{1: 1.0}, {0: 1.0}],
+        nodes=[[0, 0], [0, 1]],
+        node_ids=[10, 20],
+        coordinate_dtype="int32",
     )
     road.add_coord_node({"latitude": 0, "longitude": 2})
     sea = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[1, 0], [1, 1]])
     sea.add_coord_node({"latitude": 1, "longitude": 2})
     road.merge_with_other_geograph(sea, connection_nodes=[[0.5, 0.5]])
     assert list(road.node_ids) == [10, 20, -1, -2, 0, 1, -3]
+    # The finer coordinates of the two graphs are kept
+    assert road.coordinate_dtype == "float64"
     road.add_coord_node({"latitude": 2, "longitude": 2})
     assert road.node_ids[-1] == -4

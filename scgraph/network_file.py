@@ -11,6 +11,7 @@ offsets[u + 1]]`, in the order searches visit them, with their `weights`.
 
 import hashlib
 import json
+import math
 import mmap
 import os
 import secrets
@@ -32,28 +33,63 @@ VERSION = 1
 SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file"
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
-# array name -> the dtypes it may have; shape_* hold the arc shapes, if any, with their
-# points in units of 1e-7 degree (OSM's own); node_ids and node_modes (optional): the
-# id of each node in its source (int32 when every id fits) and its mode, an index into
-# metadata["modes"]
+# array name -> the dtypes it may have; shape_* hold the arc shapes, if any; node_ids and
+# node_modes (optional): each node's id in its source and its row of metadata["modes"].
+# The coordinates share one dtype: float64 degrees or int32 units of 1e-7 degree (see
+# `coordinates`)
 ARRAYS = {
     "offsets": ("int32",),
     "heads": ("int32",),
     "weights": ("float64",),
-    "latitudes": ("float64",),
-    "longitudes": ("float64",),
+    "latitudes": ("int32", "float64"),
+    "longitudes": ("int32", "float64"),
     "shape_offsets": ("int32",),
-    "shape_points": ("int32",),
+    "shape_points": ("int32", "float64"),
     "node_ids": ("int32", "int64"),
     "node_modes": ("uint8",),
 }
+COORDINATES = ("latitudes", "longitudes", "shape_points")
 _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
 
 
+def coordinates(columns, dtype):
+    """The columns of coordinates (float64 arrays of degrees) as a file stores them, in
+    `dtype`: "float64" as they are, or "int32" in units of 1e-7 degree, rounded to it
+    (OSM's encoding, about 1 cm). A value that is not a finite number, or beyond
+    ±214.7483647 degrees for int32, raises a ValueError."""
+    if dtype not in ARRAYS["latitudes"]:
+        raise ValueError(
+            f"coordinate_dtype must be 'float64' or 'int32', not {dtype!r}"
+        )
+    if dtype == "int32":
+        try:
+            return [array("i", (round(x * 1e7) for x in v)) for v in columns]
+        # Not finite, or beyond the int32 range
+        except (OverflowError, ValueError):
+            raise ValueError(
+                "Coordinates stored as int32 must be finite numbers within"
+                " ±214.7483647 degrees"
+            ) from None
+    if not all(all(map(math.isfinite, values)) for values in columns):
+        raise ValueError("Coordinates must be finite numbers")
+    return list(columns)
+
+
+def coordinate_dtype(arrays):
+    """The dtype of the coordinates of `read`'s arrays: "int32" or "float64"."""
+    return "int32" if _scale(arrays["latitudes"]) != 1 else "float64"
+
+
+def _scale(values):
+    # Units of a coordinate array per degree: 1e7 for int32 (OSM's), 1 for float64
+    return 1e7 if memoryview(values).format == "i" else 1.0
+
+
 def write(filename, arrays, metadata):
     """Write the arrays of a graph (by name, as stored: see `ARRAYS`; `shape_points`
-    flat, two per point, in 1e-7 degree; any objects with the buffer protocol, not
+    flat, two per point, in the dtype of the latitudes and longitudes, see `coordinates`;
+    any objects with the buffer protocol, not
     copied on little-endian machines) and a JSON-serializable metadata dict. Bytes 8 to
     39 hold the SHA-256 of every byte after them, the identity of the file, returned as
     hex (`content_sha256`). Rows hold each head once.
@@ -157,6 +193,22 @@ def read(filename, mapped=False):
     return arrays, metadata
 
 
+def info(filename):
+    """What a network file holds, without reading its arrays: its metadata,
+    `content_sha256`, `format_version`, `nodes`, `arcs`, `coordinate_dtype`, `shapes` and
+    `node_ids`. A damaged or foreign file raises a ValueError."""
+    arrays, metadata = read(filename, mapped=True)
+    return {
+        **metadata,
+        "format_version": VERSION,
+        "nodes": len(arrays["latitudes"]),
+        "arcs": len(arrays["heads"]),
+        "coordinate_dtype": coordinate_dtype(arrays),
+        "shapes": "shape_points" in arrays,
+        "node_ids": "node_ids" in arrays,
+    }
+
+
 def _read(filename, file, mapped):
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
@@ -218,6 +270,7 @@ class ArcShapes(Sequence):
             arrays["shape_offsets"],
             arrays["shape_points"],
         )
+        self._scale = _scale(self._points)
 
     def __len__(self):
         return len(self._offsets) - 1
@@ -245,9 +298,10 @@ class ArcShapes(Sequence):
         # A mapped file's shape offsets are checked here, where they are read
         if not 0 <= first <= last <= len(self._points) // 2:
             raise ValueError("invalid shape offsets")
-        flat = self._points[2 * first : 2 * last].tolist()
+        flat, scale = self._points[2 * first : 2 * last].tolist(), self._scale
         return [
-            [flat[i] / 1e7, flat[i + 1] / 1e7] for i in range(0, len(flat), 2)
+            [flat[i] / scale, flat[i + 1] / scale]
+            for i in range(0, len(flat), 2)
         ]
 
     def coordinate_path(self, path, coordinates):
@@ -371,18 +425,25 @@ class NodeCoordinates(MutableSequence):
             longitudes,
             [],
         )
+        self._scale = _scale(latitudes)
 
     def __len__(self):
         return len(self._latitudes) + len(self._added)
 
     def __getitem__(self, i):
         if type(i) is int and 0 <= i < len(self._latitudes):
-            return [self._latitudes[i], self._longitudes[i]]
+            return [
+                self._latitudes[i] / self._scale,
+                self._longitudes[i] / self._scale,
+            ]
         if isinstance(i, slice):
             return [self[j] for j in range(*i.indices(len(self)))]
         j = self._in_added(i, edit=False)
         if j < 0:  # a node of the file, given from the end
-            return [self._latitudes[j], self._longitudes[j]]
+            return [
+                self._latitudes[j] / self._scale,
+                self._longitudes[j] / self._scale,
+            ]
         return self._added[j]
 
     def __setitem__(self, i, value):
@@ -404,14 +465,20 @@ class NodeCoordinates(MutableSequence):
             return _coordinate_lists(
                 latitudes, longitudes, ids if type(ids) is list else list(ids)
             )
-        count = len(latitudes)
+        count, scale = len(latitudes), self._scale
         return [
-            [latitudes[i], longitudes[i]] if 0 <= i < count else self[i]
+            (
+                [latitudes[i] / scale, longitudes[i] / scale]
+                if 0 <= i < count
+                else self[i]
+            )
             for i in ids
         ]
 
     def __iter__(self):
-        yield from map(list, zip(self._latitudes, self._longitudes))
+        scale = self._scale
+        for latitude, longitude in zip(self._latitudes, self._longitudes):
+            yield [latitude / scale, longitude / scale]
         yield from self._added
 
     def __eq__(self, other):
@@ -427,14 +494,14 @@ class NodeCoordinates(MutableSequence):
         return list, (list(self),)
 
     def arrays(self):
-        """The latitudes and the longitudes as two float64 arrays (the file's own if no
-        node was added)."""
+        """The latitudes and the longitudes as two arrays, as the file stores them (int32
+        in 1e-7 degree or float64 degrees) if no node was added, else as float64.
+        """
         if not self._added:
             return self._latitudes, self._longitudes
-        result = []
+        result, scale = [], self._scale
         for column, values in enumerate((self._latitudes, self._longitudes)):
-            joined = array("d")
-            joined.frombytes(memoryview(values).cast("B"))
+            joined = array("d", (value / scale for value in values))
             joined.extend(node[column] for node in self._added)
             result.append(joined)
         return tuple(result)
@@ -456,8 +523,15 @@ class NodeCoordinates(MutableSequence):
 
     def _own(self):
         if len(self._latitudes):
-            self._added[:0] = map(list, zip(self._latitudes, self._longitudes))
+            scale = self._scale
+            self._added[:0] = (
+                [latitude / scale, longitude / scale]
+                for latitude, longitude in zip(
+                    self._latitudes, self._longitudes
+                )
+            )
             self._latitudes, self._longitudes = array("d"), array("d")
+            self._scale = 1.0
 
 
 def _check(filename, arrays, metadata, arcs=True):
@@ -487,6 +561,17 @@ def _check(filename, arrays, metadata, arcs=True):
     require(
         len(arrays["latitudes"]) == len(arrays["longitudes"]) == n,
         "one latitude and longitude per node expected",
+    )
+    require(
+        len(
+            {
+                memoryview(arrays[name]).format
+                for name in COORDINATES
+                if name in arrays
+            }
+        )
+        == 1,
+        "coordinates of two dtypes",
     )
     if "shape_offsets" in arrays:
         shapes = arrays["shape_offsets"]

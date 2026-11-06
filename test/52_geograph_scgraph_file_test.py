@@ -217,15 +217,78 @@ def test_geograph_needs_an_id_and_a_mode_per_node(data, message):
         )
 
 
-# Shape points are stored as int32 in 1e-7 degree
-@pytest.mark.parametrize("longitude", [214.75, float("nan")])
-def test_save_as_scgraph_rejects_shape_points_it_cannot_store(
-    tmp_path, longitude
+# Coordinates are stored as save_as_scgraph's coordinate_dtype says, by default as
+# the geograph's own: exactly in float64, rounded to 1e-7 degree in int32; read
+# back (routes included) through either, and kept by the next save
+@pytest.mark.parametrize(
+    "own, chosen, size, node, point",
+    [
+        ("float64", "auto", 8, [1.0, 1.000000001], [0.0029000001, 0.0058]),
+        ("int32", "auto", 4, [1.0, 1.0], [0.0029, 0.0058]),
+        ("float64", "int32", 4, [1.0, 1.0], [0.0029, 0.0058]),
+        ("int32", "float64", 8, [1.0, 1.000000001], [0.0029000001, 0.0058]),
+    ],
+)
+def test_save_as_scgraph_stores_coordinates_as_chosen(
+    tmp_path, own, chosen, size, node, point
 ):
     geo = _small()
-    geo.intermediate_nodes = [{1: [[0.0, longitude]]}, {}, {}, {}]
-    with pytest.raises(ValueError, match="arc 0 -> 1"):
-        geo.save_as_scgraph(str(tmp_path / "small.scgraph"))
+    geo.coordinate_dtype = own
+    geo.nodes[3] = [1.0, 1.000000001]
+    geo.intermediate_nodes = [{1: [[0.0029000001, 0.0058]]}, {}, {}, {}]
+    path, again = str(tmp_path / "small.scgraph"), str(
+        tmp_path / "again.scgraph"
+    )
+    digest = geo.save_as_scgraph(path, coordinate_dtype=chosen)
+    arrays = network_file.read(path)[0]
+    assert {
+        memoryview(arrays[n]).itemsize for n in network_file.COORDINATES
+    } == {size}
+    loaded = GeoGraph.load_from_scgraph(path)
+    assert (loaded.nodes[3], loaded.intermediate_nodes[0][1]) == (node, [point])
+    assert point in _route_0_to_1(loaded)
+    assert loaded.save_as_scgraph(again) == digest
+
+
+@pytest.mark.parametrize(
+    "node, point, chosen, message",
+    [
+        ([1.0, float("nan")], [0.0029, 0.0058], "auto", "Node 3"),
+        ([1.0, 1.0], [0.0029, float("inf")], "auto", "arc 0 -> 1"),
+        ([1.0, 1.0], [0.0029, 214.75], "int32", "within ±214.7483647"),
+        ([1.0, 1.0], [0.0029, 0.0058], "int16", "must be 'auto', 'float64' or"),
+    ],
+)
+def test_save_as_scgraph_rejects_coordinates_it_cannot_store(
+    tmp_path, node, point, chosen, message
+):
+    geo = _small()
+    geo.nodes[3], geo.intermediate_nodes = node, [{1: [point]}, {}, {}, {}]
+    with pytest.raises(ValueError, match=message):
+        geo.save_as_scgraph(
+            str(tmp_path / "small.scgraph"), coordinate_dtype=chosen
+        )
+
+
+def test_scgraph_info_reads_what_a_network_file_holds(tmp_path):
+    path = str(tmp_path / "small.scgraph")
+    digest = _small().save_as_scgraph(
+        path, sources=_SOURCES[:1], coordinate_dtype="int32"
+    )
+    info = GeoGraph.scgraph_info(path)
+    assert {
+        key: info[key] for key in ("nodes", "arcs", "coordinate_dtype")
+    } == {
+        "nodes": 4,
+        "arcs": 3,
+        "coordinate_dtype": "int32",
+    }
+    assert (info["shapes"], info["node_ids"], info["units"]) == (
+        True,
+        False,
+        "mi",
+    )
+    assert (info["sources"], info["content_sha256"]) == (_SOURCES[:1], digest)
 
 
 def _route_0_to_1(geograph):
@@ -346,6 +409,7 @@ def test_network_file_written_from_arrays(
         ({"node_modes": array("B", [0, 0])}, "one node mode per node"),
         ({"node_modes": array("B", [0, 0, 2])}, "invalid node modes"),
         ({"modes": None}, "without a list of modes"),
+        ({"latitudes": array("i", [0, 0, 10**7])}, "coordinates of two dtypes"),
     ],
 )
 def test_network_file_rejects_invalid_node_columns(tmp_path, columns, message):

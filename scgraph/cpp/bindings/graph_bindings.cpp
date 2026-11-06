@@ -60,6 +60,109 @@ static bool is_empty_tree_data(const TreeData& t) {
 using CsrInts = nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
 using CsrDoubles = nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
 
+// Coordinates as network files store them: int32 in 1e-7 degree (OSM's) or float64 degrees
+template <typename T>
+using CoordinateArray = nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
+// The same division as the Python reader, so that both read a stored value back exactly
+static inline double degrees(int32_t units) { return units / 1e7; }
+static inline double degrees(double value) { return value; }
+
+// [[latitudes[i], longitudes[i]] for i in ids] in degrees, in one C loop (NodeCoordinates.take)
+template <typename T>
+static nb::object coordinate_lists(CoordinateArray<T> latitudes, CoordinateArray<T> longitudes, nb::list ids) {
+    const T* la = latitudes.data();
+    const T* lo = longitudes.data();
+    const Py_ssize_t n = (Py_ssize_t)latitudes.shape(0);
+    if ((Py_ssize_t)longitudes.shape(0) != n)
+        throw std::invalid_argument("latitudes and longitudes must have the same length");
+    const Py_ssize_t count = PyList_Size(ids.ptr());
+    nb::object result = nb::steal(PyList_New(count));
+    if (!result.is_valid()) throw nb::python_error();
+    for (Py_ssize_t k = 0; k < count; ++k) {
+        Py_ssize_t i = PyNumber_AsSsize_t(PyList_GetItem(ids.ptr(), k), PyExc_IndexError);
+        if (i == -1 && PyErr_Occurred()) throw nb::python_error();
+        if (i < 0) i += n;
+        if (i < 0 || i >= n) throw nb::index_error("node index out of range");
+        PyObject* pair = PyList_New(2);
+        if (!pair) throw nb::python_error();
+        PyList_SetItem(result.ptr(), k, pair);
+        PyObject* a = PyFloat_FromDouble(degrees(la[i]));
+        PyObject* b = PyFloat_FromDouble(degrees(lo[i]));
+        if (!a || !b) {
+            Py_XDECREF(a);
+            Py_XDECREF(b);
+            throw nb::python_error();
+        }
+        PyList_SetItem(pair, 0, a);
+        PyList_SetItem(pair, 1, b);
+    }
+    return result;
+}
+
+// `coordinates` (one per node of `path`) with the shape of each arc of the path between them
+template <typename T>
+static nb::object shape_path(CsrInts offsets, CsrInts heads, CsrInts shape_offsets, CoordinateArray<T> shape_points,
+                             nb::list path, nb::list coordinates) {
+    const int32_t* off = offsets.data();
+    const int32_t* head = heads.data();
+    const int32_t* start = shape_offsets.data();
+    const T* point = shape_points.data();
+    const int64_t n = (int64_t)offsets.shape(0) - 1;
+    const int64_t m = (int64_t)heads.shape(0);
+    const int64_t k = (int64_t)shape_points.shape(0) / 2;
+    if ((int64_t)shape_offsets.shape(0) != m + 1)
+        throw std::invalid_argument("one shape offset per arc, plus one, expected");
+    const Py_ssize_t count = PyList_Size(path.ptr());
+    if (PyList_Size(coordinates.ptr()) != count)
+        throw std::invalid_argument("one coordinate per path node expected");
+    nb::object result = nb::steal(PyList_New(0));
+    if (!result.is_valid()) throw nb::python_error();
+    auto append = [&](PyObject* item) {
+        if (PyList_Append(result.ptr(), item) < 0) throw nb::python_error();
+    };
+    if (count == 0) return result;
+    append(PyList_GetItem(coordinates.ptr(), 0));
+    Py_ssize_t origin = PyNumber_AsSsize_t(PyList_GetItem(path.ptr(), 0), PyExc_IndexError);
+    if (origin == -1 && PyErr_Occurred()) throw nb::python_error();
+    for (Py_ssize_t i = 1; i < count; ++i) {
+        Py_ssize_t destination = PyNumber_AsSsize_t(PyList_GetItem(path.ptr(), i), PyExc_IndexError);
+        if (destination == -1 && PyErr_Occurred()) throw nb::python_error();
+        // Nodes added after loading (add_coord_node) have no shapes
+        if (origin >= 0 && origin < n) {
+            const int64_t first_arc = off[origin], last_arc = off[origin + 1];
+            if (first_arc < 0 || first_arc > last_arc || last_arc > m)
+                throw std::invalid_argument("invalid offsets");
+            for (int64_t arc = first_arc; arc < last_arc; ++arc) {
+                if (head[arc] != destination) continue;
+                const int64_t first = start[arc], last = start[arc + 1];
+                if (first < 0 || first > last || last > k)
+                    throw std::invalid_argument("invalid shape offsets");
+                for (int64_t p = first; p < last; ++p) {
+                    PyObject* pair = PyList_New(2);
+                    if (!pair) throw nb::python_error();
+                    PyObject* a = PyFloat_FromDouble(degrees(point[2 * p]));
+                    PyObject* b = PyFloat_FromDouble(degrees(point[2 * p + 1]));
+                    if (!a || !b) {
+                        Py_XDECREF(a);
+                        Py_XDECREF(b);
+                        Py_DECREF(pair);
+                        throw nb::python_error();
+                    }
+                    PyList_SetItem(pair, 0, a);
+                    PyList_SetItem(pair, 1, b);
+                    int failed = PyList_Append(result.ptr(), pair);
+                    Py_DECREF(pair);
+                    if (failed < 0) throw nb::python_error();
+                }
+                break;
+            }
+        }
+        append(PyList_GetItem(coordinates.ptr(), i));
+        origin = destination;
+    }
+    return result;
+}
+
 // A SnapIndex reading two arrays of coordinates in place (float64 degrees, or int32 units of
 // 1e-7 degree), which it keeps alive
 template <typename T>
@@ -184,103 +287,20 @@ static nb::dict quadrant_dict(const int out[4]) {
 }
 
 NB_MODULE(cpp, m) {
-    m.def("coordinate_lists", [](CsrDoubles latitudes, CsrDoubles longitudes, nb::list ids) {
-        const double* la = latitudes.data();
-        const double* lo = longitudes.data();
-        const Py_ssize_t n = (Py_ssize_t)latitudes.shape(0);
-        if ((Py_ssize_t)longitudes.shape(0) != n)
-            throw std::invalid_argument("latitudes and longitudes must have the same length");
-        const Py_ssize_t count = PyList_Size(ids.ptr());
-        nb::object result = nb::steal(PyList_New(count));
-        if (!result.is_valid()) throw nb::python_error();
-        for (Py_ssize_t k = 0; k < count; ++k) {
-            Py_ssize_t i = PyNumber_AsSsize_t(PyList_GetItem(ids.ptr(), k), PyExc_IndexError);
-            if (i == -1 && PyErr_Occurred()) throw nb::python_error();
-            if (i < 0) i += n;
-            if (i < 0 || i >= n) throw nb::index_error("node index out of range");
-            PyObject* pair = PyList_New(2);
-            if (!pair) throw nb::python_error();
-            PyList_SetItem(result.ptr(), k, pair);
-            PyObject* a = PyFloat_FromDouble(la[i]);
-            PyObject* b = PyFloat_FromDouble(lo[i]);
-            if (!a || !b) {
-                Py_XDECREF(a);
-                Py_XDECREF(b);
-                throw nb::python_error();
-            }
-            PyList_SetItem(pair, 0, a);
-            PyList_SetItem(pair, 1, b);
-        }
-        return result;
-    }, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"),
-       "[[latitudes[i], longitudes[i]] for i in ids] in one C loop, from two float64 arrays and a "
-       "list of ids (negative ids count from the end); a route's coordinates for NodeCoordinates.take");
+    // float64 first: an array of another dtype (e.g. numpy's) is then converted to degrees
+    m.def("coordinate_lists", &coordinate_lists<double>, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"));
+    m.def("coordinate_lists", &coordinate_lists<int32_t>, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"),
+       "[[latitudes[i], longitudes[i]] for i in ids] in one C loop, from two arrays of coordinates (int32 in "
+       "1e-7 degree or float64 degrees) and a list of ids (negative ids count from the end); a route's "
+       "coordinates for NodeCoordinates.take");
 
-    m.def("shape_path", [](CsrInts offsets, CsrInts heads, CsrInts shape_offsets, CsrInts shape_points,
-                           nb::list path, nb::list coordinates) {
-        const int32_t* off = offsets.data();
-        const int32_t* head = heads.data();
-        const int32_t* start = shape_offsets.data();
-        const int32_t* point = shape_points.data();
-        const int64_t n = (int64_t)offsets.shape(0) - 1;
-        const int64_t m = (int64_t)heads.shape(0);
-        const int64_t k = (int64_t)shape_points.shape(0) / 2;
-        if ((int64_t)shape_offsets.shape(0) != m + 1)
-            throw std::invalid_argument("one shape offset per arc, plus one, expected");
-        const Py_ssize_t count = PyList_Size(path.ptr());
-        if (PyList_Size(coordinates.ptr()) != count)
-            throw std::invalid_argument("one coordinate per path node expected");
-        nb::object result = nb::steal(PyList_New(0));
-        if (!result.is_valid()) throw nb::python_error();
-        auto append = [&](PyObject* item) {
-            if (PyList_Append(result.ptr(), item) < 0) throw nb::python_error();
-        };
-        if (count == 0) return result;
-        append(PyList_GetItem(coordinates.ptr(), 0));
-        Py_ssize_t origin = PyNumber_AsSsize_t(PyList_GetItem(path.ptr(), 0), PyExc_IndexError);
-        if (origin == -1 && PyErr_Occurred()) throw nb::python_error();
-        for (Py_ssize_t i = 1; i < count; ++i) {
-            Py_ssize_t destination = PyNumber_AsSsize_t(PyList_GetItem(path.ptr(), i), PyExc_IndexError);
-            if (destination == -1 && PyErr_Occurred()) throw nb::python_error();
-            // Nodes added after loading (add_coord_node) have no shapes
-            if (origin >= 0 && origin < n) {
-                const int64_t first_arc = off[origin], last_arc = off[origin + 1];
-                if (first_arc < 0 || first_arc > last_arc || last_arc > m)
-                    throw std::invalid_argument("invalid offsets");
-                for (int64_t arc = first_arc; arc < last_arc; ++arc) {
-                    if (head[arc] != destination) continue;
-                    const int64_t first = start[arc], last = start[arc + 1];
-                    if (first < 0 || first > last || last > k)
-                        throw std::invalid_argument("invalid shape offsets");
-                    for (int64_t p = first; p < last; ++p) {
-                        PyObject* pair = PyList_New(2);
-                        if (!pair) throw nb::python_error();
-                        PyObject* a = PyFloat_FromDouble(point[2 * p] / 1e7);
-                        PyObject* b = PyFloat_FromDouble(point[2 * p + 1] / 1e7);
-                        if (!a || !b) {
-                            Py_XDECREF(a);
-                            Py_XDECREF(b);
-                            Py_DECREF(pair);
-                            throw nb::python_error();
-                        }
-                        PyList_SetItem(pair, 0, a);
-                        PyList_SetItem(pair, 1, b);
-                        int failed = PyList_Append(result.ptr(), pair);
-                        Py_DECREF(pair);
-                        if (failed < 0) throw nb::python_error();
-                    }
-                    break;
-                }
-            }
-            append(PyList_GetItem(coordinates.ptr(), i));
-            origin = destination;
-        }
-        return result;
-    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"), nb::arg("shape_points"),
-       nb::arg("path"), nb::arg("coordinates"),
-       "A route's coordinates with the shapes of its arcs, in one C loop, from a network file's "
-       "int32 arrays (shape points in 1e-7 degree) and one [latitude, longitude] per path node; "
-       "for ArcShapes.coordinate_path");
+    m.def("shape_path", &shape_path<double>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
+          nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));
+    m.def("shape_path", &shape_path<int32_t>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
+          nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"),
+          "A route's coordinates with the shapes of its arcs, in one C loop, from a network file's arrays "
+          "(shape points int32 in 1e-7 degree or float64 degrees) and one [latitude, longitude] per path "
+          "node; for ArcShapes.coordinate_path");
 
     // Raised by SnapIndex when the nodes are too scattered; a ValueError for callers
     nb::exception<node_order_error>(m, "NodeOrderError", PyExc_ValueError);
