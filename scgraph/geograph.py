@@ -269,7 +269,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - The `content_sha256` of the file: the SHA-256 of its arrays, also recorded in its header
+        - The `content_sha256` of the file: the SHA-256 of every byte after its first 40, also stored in its bytes 8 to 39
         """
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")

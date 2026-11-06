@@ -13,6 +13,17 @@ _GRAPH = [{2: 1.25, 1: 5}, {0: 5}, {}, {}]
 _NODES = [[0.0, 0.0], [0.0, 0.01], [0.01, 0.0], [1.0, 1.0]]
 # (0.0029 * 1e7 is just below 29000: shape points are rounded to 1e-7 degree, not cut)
 _SHAPES = [{1: [[0.0029, 0.0058]]}, {}, {}, {}]
+# Like those build_geograph records: a network built from many extracts keeps them all
+_SOURCES = [
+    {
+        "name": f"region-{i}",
+        "url": f"https://download.geofabrik.de/region-{i}-latest.osm.pbf",
+        "sha256": f"{i:064x}",
+        "credit": "© OpenStreetMap contributors",
+        "license": "ODbL-1.0",
+    }
+    for i in range(100)
+]
 
 
 def _small():
@@ -28,9 +39,10 @@ def _small():
 @pytest.mark.parametrize("save_intermediate_nodes", [True, False])
 def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
     path = str(tmp_path / "small.scgraph")
-    _small().save_as_scgraph(path, save_intermediate_nodes)
+    _small().save_as_scgraph(path, save_intermediate_nodes, sources=_SOURCES)
     arrays, metadata = network_file.read(path)
     assert metadata["symmetric"] is False
+    assert metadata["sources"] == _SOURCES
     loaded = GeoGraph.load_from_scgraph(path)
     assert loaded.graph_object.graph == _GRAPH
     assert loaded.nodes == _NODES
@@ -118,13 +130,23 @@ def test_load_from_scgraph_reads_an_empty_network(tmp_path):
     assert GeoGraph.load_from_scgraph(path).nodes == []
 
 
-def test_save_as_scgraph_records_the_sha256_of_the_arrays(tmp_path):
-    # The identity of the network: every byte after the 4 KB header
+def test_save_as_scgraph_records_the_sha256_of_the_file(tmp_path):
+    # The identity of the file, in its bytes 8 to 39: the digest of every byte after them
     path = tmp_path / "small.scgraph"
-    _small().save_as_scgraph(str(path))
+    digest = _small().save_as_scgraph(str(path))
+    data = path.read_bytes()
     assert (
-        network_file.read(str(path))[1]["content_sha256"]
-        == hashlib.sha256(path.read_bytes()[4096:]).hexdigest()
+        digest
+        == network_file.read(str(path))[1]["content_sha256"]
+        == data[8:40].hex()
+        == hashlib.sha256(data[40:]).hexdigest()
+    )
+    # The same network and metadata, whatever the order of their keys, give the same file
+    reordered = [dict(reversed(source.items())) for source in _SOURCES]
+    assert _small().save_as_scgraph(str(path), sources=_SOURCES) == (
+        _small().save_as_scgraph(
+            str(tmp_path / "again.scgraph"), sources=reordered
+        )
     )
 
 
@@ -216,33 +238,40 @@ def test_save_as_scgraph_over_a_file_in_use(tmp_path):
 
 
 def _damage(data, how):
-    header_length = int.from_bytes(data[8:16], "little")
-    header = json.loads(data[16 : 16 + header_length])
+    header_length = int.from_bytes(data[40:48], "little")
+    header = json.loads(data[48 : 48 + header_length])
+    # Array offsets count from the end of the header, padded to 64 bytes
+    base = -(-(48 + header_length) // 64) * 64
     if how == "not a network file":
         return b'{"type": "GeoGraph"}'
     if how == "later version":
         header["format_version"] = 2
-    if how == "without content_sha256":
-        del header["content_sha256"]
     if how == "header without arrays":
         del header["arrays"]
     if how == "header is not an object":
         header = [header]
     if how == "truncated":
         return data[:-8]
+    if how == "header longer than the file":
+        return data[:40] + (len(data)).to_bytes(8, "little") + data[48:]
+    if how == "array in the header":
+        header["arrays"]["offsets"]["offset"] = -base
     if how == "offsets past the arcs":
-        offsets = header["arrays"]["offsets"]["offset"]
+        offsets = base + header["arrays"]["offsets"]["offset"]
         big = (2**30).to_bytes(4, "little")
         return data[: offsets + 4] + big + data[offsets + 8 :]
     if how == "shape offsets past the points":
-        shapes = header["arrays"]["shape_offsets"]["offset"]
+        shapes = base + header["arrays"]["shape_offsets"]["offset"]
         big = (2**30).to_bytes(4, "little")
         return data[: shapes + 4] + big + data[shapes + 8 :]
     if how == "arc to a missing node":
-        heads = header["arrays"]["heads"]["offset"]
+        heads = base + header["arrays"]["heads"]["offset"]
         return data[:heads] + (99).to_bytes(4, "little") + data[heads + 4 :]
-    text = json.dumps(header).encode().ljust(header_length)
-    return data[:16] + text + data[16 + header_length :]
+    # The edited header, padded again, then the arrays as they were
+    text = json.dumps(header).encode()
+    length = len(text).to_bytes(8, "little")
+    padding = bytes(-(48 + len(text)) % 64)
+    return data[:40] + length + text + padding + data[base:]
 
 
 @pytest.mark.parametrize(
@@ -251,12 +280,13 @@ def _damage(data, how):
         ("not a network file", "not a scgraph network file"),
         ("later version", "format version 2"),
         ("truncated", "invalid array"),
+        ("header longer than the file", "invalid header length"),
+        ("array in the header", "invalid array"),
         # Checked by network_file.read, or by the C++ graph on a mapped file
         ("arc to a missing node", "arc to a missing node|is not in the graph"),
         ("offsets past the arcs", "invalid offsets|non-decreasing"),
         ("header without arrays", "invalid header"),
         ("header is not an object", "invalid header"),
-        ("without content_sha256", "invalid header"),
     ],
 )
 def test_load_from_scgraph_rejects_damaged_files(tmp_path, how, message):
