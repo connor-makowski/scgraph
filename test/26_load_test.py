@@ -156,6 +156,10 @@ def test_load_geograph_converts_a_published_geograph_once(
     assert published.exists() and converted.exists() != (case == "read_only")
     if case == "read_only":
         return
+    # The published file is the source of the node ids
+    metadata = network_file.read(str(converted))[1]
+    assert metadata["modes"] == [{"name": None, "source": "marnet.graphjson"}]
+    assert [s["name"] for s in metadata["sources"]] == ["marnet.graphjson"]
     published.write_text("no longer read")
     again = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
     assert again.nodes == geo.nodes

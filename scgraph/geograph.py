@@ -18,6 +18,7 @@ import tempfile
 import warnings
 from array import array
 from collections import Counter
+from operator import eq
 from copy import deepcopy
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
@@ -244,7 +245,8 @@ class GeoGraphIO:
 
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network file", and in the header of each file
-        - Only the graph, the nodes, their intermediate nodes and the GeoGraph defaults are saved
+        - Only the graph, the nodes, their ids and modes, their intermediate nodes and the GeoGraph defaults are saved
+        - The nodes are written in Hilbert order within each mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `node_ids`
 
         Required Arguments:
 
@@ -279,32 +281,47 @@ class GeoGraphIO:
             raise ValueError(
                 f"{filename} is in scgraph's cache ({built}); save it elsewhere"
             )
+        # Written in Hilbert order within each mode (nodes close on the globe get close
+        # ids, and the nodes of a mode stay together); the geograph is not renumbered
+        nodes, node_modes = self.nodes, self.node_modes
+        # Nodes appended to `nodes` directly are in the first mode
+        node_modes.extend(bytes(len(nodes) - len(node_modes)))
+        # (by mode only if there are several: the key is cheaper without)
+        multimodal = len(self.modes) > 1
+        order = hilbert_order(nodes, node_modes if multimodal else None)
+        if all(map(eq, order, range(len(order)))):
+            order = None  # already in that order: written as it is
+        old = range(len(nodes)) if order is None else order
         # In the order searches visit the arcs, so that the file gives the same paths
-        offsets, heads, weights = self.graph_object._csr()
+        offsets, heads, weights = self.graph_object._csr(order)
         arrays = {
             "offsets": offsets,
             "heads": heads,
             "weights": weights,
-            "latitudes": array("d", (node[0] for node in self.nodes)),
-            "longitudes": array("d", (node[1] for node in self.nodes)),
+            "latitudes": array("d", (nodes[i][0] for i in old)),
+            "longitudes": array("d", (nodes[i][1] for i in old)),
         }
-        node_ids = self.node_ids.array()  # None: each node's id is its position
+        # None: each node's id is its position
+        node_ids = self.node_ids.array(order)
         if node_ids is not None:
             arrays["node_ids"] = node_ids
+        if multimodal:
+            arrays["node_modes"] = array("B", (node_modes[i] for i in old))
         shapes = self.intermediate_nodes if save_intermediate_nodes else None
         if shapes is not None:
             starts, points = array("i", [0]), array("i")
-            for origin in range(len(offsets) - 1):
+            for new, origin in enumerate(old):
                 # Nodes added after loading (add_coord_node, merges) have no shapes
                 row = shapes[origin] if origin < len(shapes) else {}
-                for arc in range(offsets[origin], offsets[origin + 1]):
+                for arc in range(offsets[new], offsets[new + 1]):
+                    head = old[heads[arc]]
                     try:
-                        for latitude, longitude in row.get(heads[arc], ()):
+                        for latitude, longitude in row.get(head, ()):
                             points.append(round(latitude * 1e7))
                             points.append(round(longitude * 1e7))
                     except (OverflowError, ValueError) as error:
                         raise ValueError(
-                            f"The shape of arc {origin} -> {heads[arc]} has a point "
+                            f"The shape of arc {origin} -> {head} has a point "
                             "that is not a number within ±214.7483647 degrees"
                         ) from error
                     starts.append(len(points) // 2)
@@ -317,6 +334,11 @@ class GeoGraphIO:
                 "units": self.geograph_units,
                 "default_off_graph_circuity": self.default_off_graph_circuity,
                 "default_node_addition_circuity": self.default_node_addition_circuity,
+                **(
+                    {"modes": self.modes}
+                    if self.modes != [{"name": None}]
+                    else {}
+                ),
                 **({"sources": sources} if sources is not None else {}),
             },
         )
@@ -445,7 +467,7 @@ class GeoGraphIO:
         )
         # In Hilbert order: nodes close on the globe get close ids
         geograph = _in_hilbert_order(
-            GeoGraph(graph=data["graph"], nodes=data["nodes"]), []
+            GeoGraph(graph=data["graph"], nodes=data["nodes"])
         )
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
@@ -635,7 +657,7 @@ class GeoGraphIO:
         - In the C++ build, the file is mapped and read in place while the geograph is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
-        - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position)
+        - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
 
         Required Arguments:
@@ -693,6 +715,8 @@ class GeoGraphIO:
             ),
             geograph_units=metadata.get("units", "km"),
             node_ids=arrays.get("node_ids"),
+            node_modes=arrays.get("node_modes"),
+            modes=metadata.get("modes"),
         )
         geograph.graph_object.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
@@ -834,14 +858,23 @@ class GeoGraphIO:
             GeoGraph.__fetch_geograph_to_cache__(
                 name, cached_file, geograph_url
             )
-        # Nodes close on the globe get close ids: they differ from the .graphjson's
-        geograph = _in_hilbert_order(
-            GeoGraph.load_from_graphjson(str(cached_file)), []
-        )
+        # Written in Hilbert order (nodes close on the globe get close ids): node ids
+        # differ from the .graphjson's, which the nodes keep as their node_ids
+        geograph = GeoGraph.load_from_graphjson(str(cached_file))
+        geograph.modes = [{"name": None, "source": cached_file.name}]
+        with open(cached_file, "rb") as file:
+            sha256 = hashlib.file_digest(file, "sha256").hexdigest()
+        source = {
+            "name": cached_file.name,
+            "url": f"{geograph_url}/{cached_file.name}",
+            "sha256": sha256,
+        }
         try:
-            geograph.save_as_scgraph(str(converted))
+            geograph.save_as_scgraph(str(converted), sources=[source])
         except OSError:
-            # A cache that can't be written: the .graphjson is read at every load
+            # A cache that can't be written: the .graphjson is read at every load, its
+            # nodes ordered as the file would have them
+            geograph = _in_hilbert_order(geograph)
             geograph.graph_object.reduce(reduce_iterations)
             if len(geograph.nodes):  # as load_from_scgraph
                 geograph.snap_index
@@ -1272,16 +1305,10 @@ class GeoGraphIO:
                         }
                     )
                 logger.info("Building %s", name)
-                built = network.build(
+                # Written in Hilbert order within each mode: nodes close on the globe
+                # get close ids
+                geograph = network.build(
                     {source: str(path) for source, path in files.items()}
-                )
-                geograph, details = (
-                    built if isinstance(built, tuple) else (built, {})
-                )
-                del built  # the unsorted copy, freed before the write
-                # Nodes close on the globe get close ids (within each mode)
-                geograph = _in_hilbert_order(
-                    geograph, list(details.get("node_modes", {}).values())
                 )
                 digest = geograph.save_as_scgraph(
                     str(building), sources=sources
@@ -1299,7 +1326,6 @@ class GeoGraphIO:
                             "format_version": network_file.VERSION,
                             "file": built_file.name,
                             "node_order": NODE_ORDER,
-                            **details,
                         },
                         indent=2,
                     )
@@ -1869,6 +1895,7 @@ class GeoGraphModifiers:
         lat_lon_bound: float | int = 5,
         silent: bool = False,
         temp_node: bool = False,
+        mode: str | None = None,
     ) -> int:
         """
         Function:
@@ -1917,6 +1944,10 @@ class GeoGraphModifiers:
             - Type: bool
             - What: If True, the node is considered temporary and will not be used to increase the __original_graph_length__ value
             - Default: False
+        - `mode`
+            - Type: str | None
+            - What: The name of the node's mode: the first mode of that name in `modes`, added if there is none
+            - Default: None (the mode without a name)
 
         Returns:
 
@@ -1961,13 +1992,25 @@ class GeoGraphModifiers:
         if not temp_node:
             self.__original_graph_length__ += 1
 
+        mode_row = self.__mode_row__(mode)  # before any change: may raise
         # Create the node
         new_node_id = self.graph_object.add_node(
             node_dict=node_dict, symmetric=True
         )
         self.nodes.append(node)
+        self.node_modes.append(mode_row)
         self.snap_index = None
         return new_node_id
+
+    def __mode_row__(self, name: str | None) -> int:
+        # The row of the first mode named `name`, added if there is none
+        for row, mode in enumerate(self.modes):
+            if mode.get("name") == name:
+                return row
+        if len(self.modes) == 256:
+            raise ValueError("A geograph has at most 256 modes")
+        self.modes.append({"name": name})
+        return len(self.modes) - 1
 
     def remove_coord_node(self) -> None:
         """
@@ -1979,6 +2022,7 @@ class GeoGraphModifiers:
         """
         self.remove_node(symmetric_node=True)
         self.nodes.pop()
+        del self.node_modes[len(self.nodes) :]
         self.snap_index = None
 
     def add_haversine_edge(
@@ -2032,6 +2076,7 @@ class GeoGraphModifiers:
         node_addition_type_current_geograph: str = "closest",
         node_addition_type_other_geograph: str = "closest",
         node_addition_math: str = "euclidean",
+        mode: str | None = None,
     ) -> None:
         """
         Function:
@@ -2082,9 +2127,16 @@ class GeoGraphModifiers:
             - Options:
                 - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
                 - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points
+        - `mode`
+            - Type: str | None
+            - What: The name of the connection nodes' mode (see `add_coord_node`); the other geograph's modes are added after this geograph's, so that its nodes keep theirs
+            - Default: None (the mode without a name)
         """
         node_connection_mapper = {}
         original_other_graph_length = len(other_geograph.nodes)
+        original_other_modes = len(other_geograph.modes)
+        if len(self.modes) + original_other_modes + 1 > 256:
+            raise ValueError("A geograph has at most 256 modes")
         # Connection nodes connect to the two networks as they were before
         # the merge, not to each other
         current_index = self.snap_index
@@ -2102,6 +2154,7 @@ class GeoGraphModifiers:
                 circuity=circuity_to_current_geograph,
                 node_addition_type=node_addition_type_current_geograph,
                 node_addition_math=node_addition_math,
+                mode=mode,
             )
             # Add the connection node to the other geograph
             other_node_id = other_geograph.add_coord_node(
@@ -2132,11 +2185,21 @@ class GeoGraphModifiers:
             :original_other_graph_length
         ]
         self.node_ids = network_file.NodeIds(node_ids, self.nodes)
+        # Its modes follow this graph's, renumbered
+        offset = len(self.modes)
+        self.modes += [
+            dict(row) for row in other_geograph.modes[:original_other_modes]
+        ]
+        self.node_modes.extend(
+            offset + row
+            for row in other_geograph.node_modes[:original_other_graph_length]
+        )
         self.snap_index = None
 
         # Clean up the other geograph to remove any appended nodes
         while len(other_geograph.nodes) > original_other_graph_length:
             other_geograph.remove_coord_node()
+        del other_geograph.modes[original_other_modes:]
 
         # Create a list based connection map to map the merging nodes into the current graph
         node_connection_map = [
@@ -2181,10 +2244,13 @@ def _keep_interior_points(shapes, nodes):
                 del row[destination]
 
 
-def _in_hilbert_order(geograph, blocks):
-    # A copy of the geograph with its nodes in Hilbert order within each block of ids:
-    # ids change, lengths do not (where two routes tie, another may be returned)
-    order = hilbert_order(geograph.nodes, blocks)
+def _in_hilbert_order(geograph):
+    # A copy of the geograph with its nodes in Hilbert order within each mode: ids
+    # change, lengths do not (where two routes tie, another may be returned)
+    multimodal = len(geograph.modes) > 1
+    order = hilbert_order(
+        geograph.nodes, geograph.node_modes if multimodal else None
+    )
     # Each node keeps its id (its position before ordering, if it had none)
     node_ids = geograph.node_ids.take(order)
     new_id = [0] * len(order)
@@ -2223,6 +2289,8 @@ def _in_hilbert_order(geograph, blocks):
         node_ids=(
             None if node_ids == array("q", range(len(order))) else node_ids
         ),
+        node_modes=[geograph.node_modes[old] for old in order],
+        modes=geograph.modes,
     )
 
 
@@ -2650,6 +2718,8 @@ class GeoGraph(
         default_node_addition_circuity: float | int = 4,
         geograph_units: Literal["km", "m", "mi", "ft"] = "km",
         node_ids: list[int] | None = None,
+        node_modes: list[int] | None = None,
+        modes: list[dict] | None = None,
     ) -> None:
         """
         Function:
@@ -2702,6 +2772,16 @@ class GeoGraph(
             - Note: Node ids in paths and graph methods stay positions; `[geograph.node_ids[p] for p in path]` translates a path
             - Note: Nodes added later (`add_coord_node`, merges) get negative ids, below all the others; extend `nodes` in place (replacing it leaves `node_ids` counting the former list)
             - Default: None (each node's id is its position)
+        - `node_modes`
+            - Type: list of ints | None
+            - What: The mode of each node (road, sea, port, ...), as its row in `modes`; read back as `node_modes`
+            - Note: `(mode, node id)` identifies a node: node ids of different modes may come from different sources
+            - Default: None (every node in the first mode)
+        - `modes`
+            - Type: list of dicts | None
+            - What: The modes, each a dict with its `name` (str or None) and, optionally, the `source` of its node ids (the name of an entry of the network's sources); read back as `modes`
+            - Note: At most 256 modes; two modes may have the same name (two sea networks merged)
+            - Default: None (one mode, without a name: `[{"name": None}]`)
         - `default_off_graph_circuity`
             - Type: float | int
             - What: The default circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
@@ -2740,6 +2820,17 @@ class GeoGraph(
         self.node_ids = network_file.NodeIds(
             range(len(nodes)) if node_ids is None else node_ids, nodes
         )
+        self.modes = (
+            [dict(mode) for mode in modes] if modes else [{"name": None}]
+        )
+        self.node_modes = array(
+            "B", bytes(len(nodes) if node_modes is None else node_modes)
+        )
+        if node_modes is not None and (
+            len(self.node_modes) != len(nodes)
+            or max(self.node_modes, default=0) >= len(self.modes)
+        ):
+            raise ValueError("node_modes must give each node a row of modes")
         self.intermediate_nodes = intermediate_nodes
         self.default_off_graph_circuity = default_off_graph_circuity
         self.default_node_addition_circuity = default_node_addition_circuity

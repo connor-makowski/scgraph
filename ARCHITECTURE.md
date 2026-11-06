@@ -34,11 +34,13 @@ sources: each network has a small build script in `networks/` (source URLs, cred
 which loaders to call with which options; the road + sea network combines two networks with
 `merge_with_other_geograph`); the sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and
-later calls read the cache. Built networks, and the conversions of published networks (§6),
-number their nodes along a Hilbert curve over longitude and latitude (`helpers/hilbert.py`,
-within each mode of a multimodal network; manifest key `node_order`), so that nodes close on
-the globe get close ids (`_in_hilbert_order`; in the C++ backend it keeps the one renumbered
-copy `Graph._csr(order)` gives). `CHGraph` and `TNRGraph` are built from a `Graph` on the first
+later calls read the cache. Network files written by scgraph (`save_as_scgraph`, so built
+networks and the conversions of published networks, §6) number their nodes along a Hilbert
+curve over longitude and latitude (`helpers/hilbert.py`, within each mode, so that the nodes
+of a mode stay together; manifest key `node_order`), so that nodes close on the globe get
+close ids; the GeoGraph saved is not renumbered (`Graph._csr(order)` gives the renumbered
+arcs, one copy). `_in_hilbert_order` renumbers a GeoGraph in memory, for the conversions of
+published networks and `load_from_geojson`. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
 query that needs them.
 
 `Graph` and `CHGraph` exist twice: in C++ (`cpp/`) and in pure Python. When the C++
@@ -60,7 +62,9 @@ entries, and every node has an entry, even with no outgoing edge.
 - `GeoGraph` adds `nodes[u] = [latitude, longitude]` (read from the file's arrays for a
   GeoGraph read from a network file, §7), `node_ids[u]` (the node's stable id, for example
   its OSM id, which saves and merges keep; nodes added later get negative ids below all
-  the others; without ids, a node's id is its position) and, optionally,
+  the others; without ids, a node's id is its position), `node_modes[u]` (its mode, a row
+  of `modes`: `{"name": ..., "source": ...}`, the source naming where the node's id comes
+  from, so that `(mode, node id)` identifies a node) and, optionally,
   `intermediate_nodes`: the detailed shape of an edge, used only to draw the route
   (`intermediate_nodes[u][v]`: the points between `u` and `v`, from `u` to `v`;
   the loaders give no entry to an arc without such points).
