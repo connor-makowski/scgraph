@@ -30,19 +30,22 @@ except ImportError:
 MAGIC = b"SCGRAPH1"
 VERSION = 1
 SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file"
-# array name -> (dtype, array typecode); shape_* hold the arc shapes, if any, with their
+# dtype -> array typecode
+DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
+# array name -> the dtypes it may have; shape_* hold the arc shapes, if any, with their
 # points in units of 1e-7 degree (OSM's own); node_ids and node_modes (optional): the
-# id of each node in its source and its mode, an index into metadata["modes"]
+# id of each node in its source (int32 when every id fits) and its mode, an index into
+# metadata["modes"]
 ARRAYS = {
-    "offsets": ("int32", "i"),
-    "heads": ("int32", "i"),
-    "weights": ("float64", "d"),
-    "latitudes": ("float64", "d"),
-    "longitudes": ("float64", "d"),
-    "shape_offsets": ("int32", "i"),
-    "shape_points": ("int32", "i"),
-    "node_ids": ("int64", "q"),
-    "node_modes": ("uint8", "B"),
+    "offsets": ("int32",),
+    "heads": ("int32",),
+    "weights": ("float64",),
+    "latitudes": ("float64",),
+    "longitudes": ("float64",),
+    "shape_offsets": ("int32",),
+    "shape_points": ("int32",),
+    "node_ids": ("int32", "int64"),
+    "node_modes": ("uint8",),
 }
 _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
@@ -67,15 +70,20 @@ def write(filename, arrays, metadata):
     }
     position = 0
     for name, values in arrays.items():
-        if memoryview(values).itemsize != array(ARRAYS[name][1]).itemsize:
+        size = memoryview(values).itemsize
+        dtype = next(
+            (d for d in ARRAYS[name] if array(DTYPES[d]).itemsize == size),
+            None,
+        )
+        if dtype is None:
             raise TypeError(
-                f"Array '{name}' must hold {ARRAYS[name][0]} values"
+                f"Array '{name}' must hold {' or '.join(ARRAYS[name])} values"
             )
         shape = (
             [len(values) // 2, 2] if name == "shape_points" else [len(values)]
         )
         header["arrays"][name] = {
-            "dtype": ARRAYS[name][0],
+            "dtype": dtype,
             "shape": shape,
             "offset": position,
         }
@@ -105,7 +113,9 @@ def write(filename, arrays, metadata):
                 put(bytes(at - file.tell()))
                 # The arrays may be the graph's own: swapped in a copy (big-endian)
                 if sys.byteorder == "big":
-                    values = array(ARRAYS[name][1], values)
+                    values = array(
+                        DTYPES[header["arrays"][name]["dtype"]], values
+                    )
                 put(memoryview(_little_endian(values)).cast("B"))
             file.seek(len(MAGIC))
             file.write(content.digest())
@@ -168,15 +178,16 @@ def _read(filename, file, mapped):
     for name, entry in header["arrays"].items():
         if name not in ARRAYS:
             continue  # added by a later version, not needed to read the graph
-        dtype, typecode = ARRAYS[name]
+        if entry["dtype"] not in ARRAYS[name]:
+            raise ValueError(f"{filename}: invalid array '{name}'")
+        typecode = DTYPES[entry["dtype"]]
         values, count, start = (
             array(typecode),
             _count(entry["shape"]),
             base + entry["offset"],
         )
         if (
-            entry["dtype"] != dtype
-            or entry["offset"] < 0
+            entry["offset"] < 0
             or start % _ALIGN
             or start + count * values.itemsize > file_size
         ):
@@ -275,6 +286,70 @@ class ArcShapes(Sequence):
     def __reduce__(self):
         # Copied and pickled as a list of dicts (the file's mapping can't be)
         return list, ([dict(row) for row in self],)
+
+
+class NodeIds(Sequence):
+    """
+    The `node_ids` of a GeoGraph: the stable id of each node (its id in the source it
+    came from, or its position if it has none), then, for each node added since, a
+    negative id below all the others. Read-only; pickled with its ids as a list.
+    """
+
+    def __init__(self, ids, nodes):
+        # `nodes` gives the count: nodes past the end of `ids` were added since
+        self._ids, self._nodes, self._floor = ids, nodes, None
+
+    def __len__(self):
+        return len(self._nodes)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return [self[j] for j in range(*i.indices(len(self)))]
+        count, i = len(self), index(i)
+        if i < 0:
+            i += count
+        if not 0 <= i < count:
+            raise IndexError("node index out of range")
+        ids = self._ids
+        if i < len(ids):
+            return ids[i]
+        # Computed once: the ids of a large network are long to scan
+        if self._floor is None:
+            low = ids.start if type(ids) is range else min(ids, default=0)
+            self._floor = min(0, low)
+        return self._floor - 1 - (i - len(ids))
+
+    def __eq__(self, other):
+        if not isinstance(other, (list, NodeIds)):
+            return NotImplemented
+        return len(self) == len(other) and all(map(eq, self, other))
+
+    def __repr__(self):
+        return repr(list(self))
+
+    def __reduce__(self):
+        return NodeIds, (list(self), self._nodes)
+
+    def take(self, positions):
+        """The ids of the nodes at `positions`, as an int64 array."""
+        ids = self._ids
+        if len(ids) < len(self):  # nodes were added since
+            return array("q", (self[i] for i in positions))
+        if ids == range(len(ids)):
+            return array("q", positions)
+        return array("q", (ids[i] for i in positions))
+
+    def array(self):
+        """The ids as an int64 array, or None if every node's id is its position."""
+        ids, count = self._ids, len(self)
+        if count <= len(ids) and ids == range(len(ids)):
+            return None
+        result = array("q", ids[:count])
+        result.extend(self[i] for i in range(len(result), count))
+        try:  # half the size when every id fits, as those of the built-in networks
+            return array("i", result)
+        except OverflowError:
+            return result
 
 
 class NodeCoordinates(MutableSequence):

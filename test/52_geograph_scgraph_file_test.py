@@ -2,6 +2,7 @@ import copy
 import hashlib
 import json
 import os
+import pickle
 from array import array
 
 import pytest
@@ -29,13 +30,14 @@ _SOURCES = [
 ]
 
 
-def _small():
+def _small(node_ids=None):
     return GeoGraph(
         graph=[dict(row) for row in _GRAPH],
         nodes=[list(node) for node in _NODES],
         intermediate_nodes=_SHAPES,
         default_off_graph_circuity=2,
         geograph_units="mi",
+        node_ids=node_ids,
     )
 
 
@@ -67,6 +69,46 @@ def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
             type(copy.copy(shapes)) is list and copy.deepcopy(shapes) == _SHAPES
         )
         assert _route_0_to_1(loaded) == _route_0_to_1(_small())
+
+
+# A network keeps its node ids, and a node added since gets a negative id; a network
+# without ids (each id is its position) stores none
+# (as int32 when every id fits, int64 otherwise, e.g. OSM ids)
+@pytest.mark.parametrize(
+    "node_ids, expected, size",
+    [
+        (None, [0, 1, 2, 3, -1], None),
+        ([7, 5, 3, 1], [7, 5, 3, 1, -1], 4),
+        ([2**40, 5, 3, 1], [2**40, 5, 3, 1, -1], 8),
+    ],
+)
+def test_save_load_scgraph_keeps_node_ids(tmp_path, node_ids, expected, size):
+    path = str(tmp_path / "small.scgraph")
+    _small(node_ids).save_as_scgraph(path)
+    stored = network_file.read(path)[0].get("node_ids")
+    assert (None if stored is None else memoryview(stored).itemsize) == size
+    loaded = GeoGraph.load_from_scgraph(path)
+    loaded.add_coord_node({"latitude": 2.0, "longitude": 2.0}, auto_edge=False)
+    # Saved to another file: Windows does not replace a mapped file
+    again = str(tmp_path / "again.scgraph")
+    loaded.save_as_scgraph(again)
+    assert GeoGraph.load_from_scgraph(again).node_ids == expected
+
+
+@pytest.mark.skipif(
+    Graph.__module__ == "scgraph.cpp", reason="a C++ graph is not picklable"
+)
+def test_a_pickled_geograph_keeps_its_node_ids(tmp_path):
+    geo = pickle.loads(pickle.dumps(_small([7, 5, 3, 1])))
+    geo.add_coord_node({"latitude": 2.0, "longitude": 2.0}, auto_edge=False)
+    geo.save_as_scgraph(str(tmp_path / "small.scgraph"))
+    loaded = GeoGraph.load_from_scgraph(str(tmp_path / "small.scgraph"))
+    assert loaded.node_ids == [7, 5, 3, 1, -1]
+
+
+def test_node_ids_give_one_id_per_node():
+    with pytest.raises(ValueError, match="one id per node"):
+        _small(node_ids=[7, 5, 3])
 
 
 # Shape points are stored as int32 in 1e-7 degree
@@ -331,6 +373,8 @@ def _damage(data, how):
         header["format_version"] = 2
     if how == "header without arrays":
         del header["arrays"]
+    if how == "heads of another dtype":
+        header["arrays"]["heads"]["dtype"] = "float64"
     if how == "header is not an object":
         header = [header]
     if how == "truncated":
@@ -363,6 +407,7 @@ def _damage(data, how):
         ("not a network file", "not a scgraph network file"),
         ("later version", "format version 2"),
         ("truncated", "invalid array"),
+        ("heads of another dtype", "invalid array"),
         ("header longer than the file", "invalid header length"),
         ("array in the header", "invalid array"),
         # Checked by network_file.read, or by the C++ graph on a mapped file

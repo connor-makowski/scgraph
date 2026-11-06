@@ -1,6 +1,7 @@
 """Turn lines into a GeoGraph layout: arcs between the points where lines meet, with their
 shape."""
 
+from scgraph.helpers.hilbert import hilbert_key
 from scgraph.utils import haversine
 
 
@@ -14,7 +15,8 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
     the points between its two nodes (none if there are none); parallel arcs keep the
     shortest; there are no self-loops.
 
-    Returns `(graph, nodes, intermediate_nodes)`, with nodes sorted by coordinates.
+    Returns `(graph, nodes, intermediate_nodes, ids)`, with nodes in Hilbert order and
+    `ids` the id of each node's point.
     """
     arcs = {}  # (origin id, destination id) -> (length, shape)
     location = {}  # id -> [latitude, longitude]
@@ -32,7 +34,15 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
                 )
                 start, length = i, 0.0
 
-    order = sorted(location, key=lambda point: (*location[point], point))
+    # Ties broken by coordinates, so that the order does not depend on the input's
+    order = sorted(
+        location,
+        key=lambda point: (
+            hilbert_key(*location[point]),
+            *location[point],
+            point,
+        ),
+    )
     index = {point: i for i, point in enumerate(order)}
     graph = [{} for _ in order]
     shapes = [{} for _ in order]
@@ -40,7 +50,7 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
         graph[index[origin]][index[destination]] = length
         if shape:
             shapes[index[origin]][index[destination]] = shape
-    return graph, [location[point] for point in order], shapes
+    return graph, [location[point] for point in order], shapes, order
 
 
 def _add_arc(arcs, location, points, length, direction):
