@@ -19,6 +19,11 @@ constexpr float FINF = std::numeric_limits<float>::infinity();
 constexpr double EPS = 1e-6;
 // Coordinate of the unused slots of the last leaf: never within reach of a query
 constexpr float PAD = 1000.0f;
+// Order check (same values in helpers/snap_index.py): about ORDER_CHECK_PAIRS pairs of
+// neighbouring nodes are sampled; the network's order is kept if at most one pair in
+// ORDER_CHECK_RUN goes down the Hilbert curve
+constexpr int ORDER_CHECK_PAIRS = 2048;
+constexpr int ORDER_CHECK_RUN = 64;
 
 struct Unit {
     double x, y, z;
@@ -54,7 +59,8 @@ inline double wrap180(double d) {
     return d;
 }
 
-// Quadrant bits of a node seen from the query: 1 ne, 2 nw, 4 se, 8 sw (GeoKDTree's rules)
+// Quadrant bits of a node seen from the query: 1 ne, 2 nw, 4 se, 8 sw. Bit 1 << t is
+// quadrant out[t] of closest_idx_per_quadrant. The rules are GeoKDTree's
 inline int node_quadrants(double la, double lo, double qlat, double qlon) {
     double d = wrap180(lo - qlon);
     bool north = la >= qlat, south = la <= qlat;
@@ -78,12 +84,26 @@ inline int box_quadrants(double minlat, double maxlat, double minlon, double max
     return mask;
 }
 
-// Position on the Hilbert curve of order 16 over longitude (x) and latitude (y), as
-// scgraph/helpers/hilbert.py
+inline float widest(int mask, const float* thresholds) {
+    float w = 0.0f;
+    for (int t = 0; t < 4; ++t)
+        if (mask & (1 << t)) w = std::max(w, thresholds[t]);
+    return w;
+}
+
+// CURVE_ORDER and hilbert_key are copies of scgraph/helpers/hilbert.py, which orders the
+// nodes of built and converted networks. Change both together. If they differ, a network
+// ordered by hilbert.py may fail the order check below and be sorted at every load: the
+// answers stay the same, loading is slower, and no test fails
+constexpr int CURVE_ORDER = 16;
+
+// Position on the Hilbert curve of order CURVE_ORDER over longitude (x) and latitude (y)
 inline uint64_t hilbert_key(double latitude, double longitude) {
-    const int64_t side = int64_t(1) << 16;
-    int64_t x = std::min(side - 1, std::max<int64_t>(0, int64_t((longitude + 180.0) / 360.0 * side)));
-    int64_t y = std::min(side - 1, std::max<int64_t>(0, int64_t((latitude + 90.0) / 180.0 * side)));
+    const int64_t side = int64_t(1) << CURVE_ORDER;
+    // Clamp in double first: converting a double outside the range of int64_t is undefined
+    const double top = double(side - 1);
+    int64_t x = int64_t(std::clamp((longitude + 180.0) / 360.0 * double(side), 0.0, top));
+    int64_t y = int64_t(std::clamp((latitude + 90.0) / 180.0 * double(side), 0.0, top));
     uint64_t key = 0;
     for (int64_t s = side >> 1; s > 0; s >>= 1) {
         int64_t rx = (x & s) ? 1 : 0, ry = (y & s) ? 1 : 0;
@@ -102,18 +122,28 @@ inline uint64_t hilbert_key(double latitude, double longitude) {
 }  // namespace
 
 struct SnapIndex::Query {
-    double lat, lon;
-    Unit u;
-    float x, y, z;
+    double lat, lon;  // used by the quadrant rules
+    Unit u;           // used by the double check of candidates
+    float x, y, z;    // used by the float distances to boxes and leaves
     Query(double latitude, double longitude)
         : lat(latitude), lon(longitude), u(unit(latitude, longitude)),
           x(float(u.x)), y(float(u.y)), z(float(u.z)) {}
 };
 
-// Best float distance so far, and the thresholds derived from it: a node is a candidate if
-// its float chord is within 2 EPS of the best one; a box is skipped beyond 4 EPS
+// Best float squared chord so far, and two thresholds derived from it.
+// thr: a node is a candidate if its float squared chord is at most thr; candidates are
+// checked again in double. The float chord of a node is within EPS of its exact chord, so
+// the exact nearest node has a float chord within 2 EPS of the best one and stays a
+// candidate.
+// prune: a box is skipped if its float bound is above prune. A box's bound is never above
+// the float distance of any node inside it: boxes are rounded outward, and bounds() and
+// distances() round alike as the file is compiled without fused multiply-add
+// (CMakeLists.txt). So skipping boxes above thr would be enough; prune adds 2 EPS of
+// margin. Changing the factors 2 and 4 changes how many boxes and candidates are visited,
+// not the answers, as long as thr keeps at least 2 EPS and prune stays >= thr
 struct SnapIndex::Best {
     float best = FINF, thr = FINF, prune = FINF;
+    // Points to the caller's thread_local vector, which keeps its allocation across queries
     std::vector<std::pair<float, int>>* candidates = nullptr;  // (float distance, position)
     void update(float d) {
         best = d;
@@ -131,18 +161,19 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
     for (int i = 0; i < n; ++i)
         if (!std::isfinite(latitudes[i]) || !std::isfinite(longitudes[i]))
             throw std::invalid_argument("node coordinates must be finite numbers");
-    // Keep the network's order if it is already sorted along a Hilbert curve, in runs of 64
-    // nodes or more on average (the modes of a multimodal network are sorted one by one),
-    // as judged on about 2,048 evenly spaced pairs of neighbours (all of them up to 4,096
-    // nodes); otherwise sort a copy along one.
-    // An order that is only coherent along lines would give long, loose leaves
+    // Keep the network's order if it already follows a Hilbert curve in runs of
+    // ORDER_CHECK_RUN nodes or more on average; otherwise sort a copy along the curve. Runs
+    // are allowed because a multimodal network sorts each mode on its own. The check looks
+    // at every pair of neighbouring nodes up to 4,096 nodes, and at 2,048 to 3,072 evenly
+    // spaced pairs above that. An order that is only coherent along lines would give long,
+    // loose leaves
     auto key = [&](int i) { return hilbert_key(latitudes[i], longitudes[i]); };
     int64_t pairs = 0, descents = 0;
-    const int step = std::max(1, (n - 1) / 2048);
+    const int step = std::max(1, (n - 1) / ORDER_CHECK_PAIRS);
     for (int i = 1; i < n; i += step, ++pairs) descents += key(i) < key(i - 1);
     id.resize(n);
     std::iota(id.begin(), id.end(), 0);
-    if (descents * 64 > pairs) {
+    if (descents * ORDER_CHECK_RUN > pairs) {
         std::vector<uint64_t> keys(n);
         for (int i = 0; i < n; ++i) keys[i] = key(i);
         std::sort(id.begin(), id.end(), [&keys](int a, int b) {
@@ -156,12 +187,12 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
         lon[p] = longitudes[id[p]];
     }
 
-    // Leaves, and the boxes of each leaf (10 floats, outward)
+    // Leaves, and the box of each leaf (BOX_SLOTS floats, rounded outward by down and up)
     int nleaves = (n + LEAF - 1) / LEAF;
     leaves.resize(nleaves);
-    std::vector<float> boxes(10 * size_t(nleaves));
+    std::vector<float> boxes(BOX_SLOTS * size_t(nleaves));
     for (int j = 0; j < nleaves; ++j) {
-        double b[10] = {INF, -INF, INF, -INF, INF, -INF, INF, -INF, INF, -INF};
+        double b[BOX_SLOTS] = {INF, -INF, INF, -INF, INF, -INF, INF, -INF, INF, -INF};
         for (int i = 0; i < LEAF; ++i) {
             int p = j * LEAF + i;
             if (p >= n) {
@@ -172,33 +203,35 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
             leaves[j].x[i] = float(u.x);
             leaves[j].y[i] = float(u.y);
             leaves[j].z[i] = float(u.z);
-            const double v[5] = {u.x, u.y, u.z, lat[p], lon[p]};
-            for (int t = 0; t < 5; ++t) {
+            const double v[BOX_SLOTS / 2] = {u.x, u.y, u.z, lat[p], lon[p]};
+            for (int t = 0; t < BOX_SLOTS / 2; ++t) {
                 b[2 * t] = std::min(b[2 * t], v[t]);
                 b[2 * t + 1] = std::max(b[2 * t + 1], v[t]);
             }
         }
-        for (int t = 0; t < 10; ++t) boxes[10 * j + t] = t % 2 == 0 ? down(b[t]) : up(b[t]);
+        for (int t = 0; t < BOX_SLOTS; ++t)
+            boxes[BOX_SLOTS * j + t] = t % 2 == 0 ? down(b[t]) : up(b[t]);
     }
     // Tree levels, bottom up, until a single group
     int children = nleaves;
     do {
         int count = (children + FANOUT - 1) / FANOUT;
         std::vector<Group> groups(count);
-        std::vector<float> parents(10 * size_t(count));
+        std::vector<float> parents(BOX_SLOTS * size_t(count));
         for (int g = 0; g < count; ++g) {
-            float pb[10] = {FINF, -FINF, FINF, -FINF, FINF, -FINF, FINF, -FINF, FINF, -FINF};
+            float pb[BOX_SLOTS] = {FINF, -FINF, FINF, -FINF, FINF, -FINF, FINF, -FINF, FINF, -FINF};
             for (int k = 0; k < FANOUT; ++k) {
                 int c = g * FANOUT + k;
-                for (int t = 0; t < 10; ++t) {
-                    // An empty slot has an inverted box: it is never visited
-                    float v = c < children ? boxes[10 * c + t] : (t % 2 == 0 ? FINF : -FINF);
-                    if (t < 6) groups[g].box[t][k] = v;
-                    else groups[g].ll[t - 6][k] = v;
+                for (int t = 0; t < BOX_SLOTS; ++t) {
+                    // A slot without a child gets a box with min > max. visit and
+                    // visit_quadrants test the first unit slot and skip such a slot
+                    float v = c < children ? boxes[BOX_SLOTS * c + t] : (t % 2 == 0 ? FINF : -FINF);
+                    if (t < UNIT_SLOTS) groups[g].box[t][k] = v;
+                    else groups[g].ll[t - UNIT_SLOTS][k] = v;
                     pb[t] = t % 2 == 0 ? std::min(pb[t], v) : std::max(pb[t], v);
                 }
             }
-            std::memcpy(&parents[10 * size_t(g)], pb, sizeof pb);
+            std::memcpy(&parents[BOX_SLOTS * size_t(g)], pb, sizeof pb);
         }
         levels.push_back(std::move(groups));
         boxes = std::move(parents);
@@ -306,13 +339,6 @@ void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int 
     for (int t = 0; t < 4; ++t) out[t] = recheck(q, best[t]);
 }
 
-static inline float widest(int mask, const float* thresholds) {
-    float w = 0.0f;
-    for (int t = 0; t < 4; ++t)
-        if (mask & (1 << t)) w = std::max(w, thresholds[t]);
-    return w;
-}
-
 void SnapIndex::visit_quadrants(int level, int group, int mask, const Query& q, Best* best) const {
     const Group& g = levels[level][group];
     alignas(32) float lb[FANOUT];
@@ -321,7 +347,7 @@ void SnapIndex::visit_quadrants(int level, int group, int mask, const Query& q, 
     for (int t = 0; t < 4; ++t) prune[t] = best[t].prune;
     int order[FANOUT], masks[FANOUT], kept = 0;
     for (int k = 0; k < FANOUT; ++k) {
-        if (g.ll[0][k] > g.ll[1][k]) continue;  // empty slot
+        if (g.box[0][k] > g.box[1][k]) continue;  // no child
         int mk = box_quadrants(g.ll[0][k], g.ll[1][k], g.ll[2][k], g.ll[3][k], q.lat, q.lon) & mask;
         if (!mk || lb[k] > widest(mk, prune)) continue;
         masks[k] = mk;
@@ -343,6 +369,8 @@ void SnapIndex::scan_quadrants(int leaf, int mask, const Query& q, Best* best) c
     float thr[4];
     for (int t = 0; t < 4; ++t) thr[t] = best[t].thr;
     float reach = widest(mask, thr);
+    // Stop before the padding slots of the last leaf: lat and lon have no entry for them.
+    // scan may read them, as a PAD distance is never within thr
     int end = std::min(LEAF, n - leaf * LEAF);
     for (int i = 0; i < end; ++i) {
         if (d[i] > reach) continue;
