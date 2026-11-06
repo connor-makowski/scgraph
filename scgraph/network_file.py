@@ -67,9 +67,15 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
             heads.append(head)
             weights.append(row[head])
             symmetric = symmetric and graph[head].get(origin) == row[head]
-            for latitude, longitude in shapes.get(head, ()):
-                points.append(round(latitude * 1e7))
-                points.append(round(longitude * 1e7))
+            try:
+                for latitude, longitude in shapes.get(head, ()):
+                    points.append(round(latitude * 1e7))
+                    points.append(round(longitude * 1e7))
+            except (OverflowError, ValueError) as error:
+                raise ValueError(
+                    f"The shape of arc {origin} -> {head} has a point that is not a"
+                    " number within ±214.7483647 degrees"
+                ) from error
             shape_offsets.append(len(points) // 2)
         offsets.append(len(heads))
     arrays = {

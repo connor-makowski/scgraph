@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import os
@@ -41,9 +42,27 @@ def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
         "mi",
     )
     if save_intermediate_nodes:
-        # Read like the list of dicts it was saved from, negative indices included
-        assert loaded.intermediate_nodes[-len(_SHAPES)] == _SHAPES[0]
+        # Read like the list of dicts it was saved from (negative indices and slices
+        # included), and copied as one
+        shapes = loaded.intermediate_nodes
+        assert (
+            shapes[-len(_SHAPES)] == _SHAPES[0] and shapes[1:3] == _SHAPES[1:3]
+        )
+        assert (
+            type(copy.copy(shapes)) is list and copy.deepcopy(shapes) == _SHAPES
+        )
         assert _route_0_to_1(loaded) == _route_0_to_1(_small())
+
+
+# Shape points are stored as int32 in 1e-7 degree
+@pytest.mark.parametrize("longitude", [214.75, float("nan")])
+def test_save_as_scgraph_rejects_shape_points_it_cannot_store(
+    tmp_path, longitude
+):
+    geo = _small()
+    geo.intermediate_nodes = [{1: [[0.0, longitude]]}, {}, {}, {}]
+    with pytest.raises(ValueError, match="arc 0 -> 1"):
+        geo.save_as_scgraph(str(tmp_path / "small.scgraph"))
 
 
 def _route_0_to_1(geograph):

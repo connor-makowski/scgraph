@@ -261,7 +261,7 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to include the intermediate nodes in the saved file (if they exist)
             - Default: True
-            - Note: Their points are stored to 1e-7 degree (about 1 cm) and must lie within ±214.7483647°
+            - Note: Their points are stored to 1e-7 degree (about 1 cm) and must lie within ±214.7483647° (otherwise a ValueError is raised)
         - `sources`
             - Type: list[dict] | None
             - What: Where the data comes from, stored in the file header so that it travels with the file: for each source, for example its `url`, `credit` and `license` (as `build_geograph` records them)
