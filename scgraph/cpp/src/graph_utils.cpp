@@ -263,7 +263,6 @@ void GraphUtils::validate(bool check_symmetry, bool check_connected) {
 
 void GraphUtils::reset_cache() {
     cache.clear();
-    cache.resize(size());
     max_edge_weight_cache = 0.0;
     max_edge_weight_computed = false;
 }
