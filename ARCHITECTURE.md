@@ -85,8 +85,8 @@ is run: the result is the straight-line distance, scaled by circuity. For the sn
 options, see [Node Addition Options](README.md#node-addition-options).
 
 Snapping uses `snap_index` (`cpp/src/snap_index.cpp`; `helpers/snap_index.py` in pure Python,
-with the same answers): the exact nearest node, ties to the lowest id, and the nearest node per
-quadrant.
+with the same answers): the exact nearest node, ties to the lowest id (to the earliest on the
+curve when `GeoGraph.snap_index` sorted the nodes, below), and the nearest node per quadrant.
 - It reads the nodes in their own order, in place, in leaves of 32. That order must keep nearby
   nodes together, as the Hilbert order of network files does: the index measures how many
   leaves a query would scan and raises `NodeOrderError` above 16. `GeoGraph.snap_index` then

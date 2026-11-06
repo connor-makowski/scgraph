@@ -46,7 +46,10 @@ def _unit(latitude: float, longitude: float) -> tuple[float, float, float]:
 
 
 class NodeOrderError(ValueError):
-    """The nodes are too scattered for the snapping index: sort them first (see the message)."""
+    """
+    The nodes are too scattered for the snapping index: sort them first, as the
+    message says.
+    """
 
 
 def _unit_area(box, c: int) -> float:
@@ -138,13 +141,14 @@ class SnapIndex:
         leaf_areas = 0.0
         for j in range(nleaves):
             leaf_areas += _unit_area(box, j)
-        whole = [[min(box[t]) if t % 2 == 0 else max(box[t])] for t in range(6)]
-        total = _unit_area(whole, 0)
+        root = [[min(box[t]) if t % 2 == 0 else max(box[t])] for t in range(6)]
+        total = _unit_area(root, 0)
         per_query = leaf_areas / total if total > 0.0 else 0.0
         if per_query > MAX_LEAVES_PER_QUERY:
             raise NodeOrderError(
-                f"nodes scattered in memory: a query would scan about {int(per_query + 0.5)} "
-                f"groups of 32 nodes (at most {int(MAX_LEAVES_PER_QUERY)}). {SORT_HINT}"
+                "nodes scattered in the order given: a query would scan about "
+                f"{int(per_query + 0.5)} groups of 32 nodes "
+                f"(at most {int(MAX_LEAVES_PER_QUERY)}). {SORT_HINT}"
             )
         self.levels = [(nleaves, box)]
         count = nleaves

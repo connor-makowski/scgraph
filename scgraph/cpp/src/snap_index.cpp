@@ -4,9 +4,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <string>
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace {
@@ -147,7 +147,7 @@ SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
     std::vector<float> boxes(BOX_SLOTS * size_t(nleaves));
     // The leaves' unit boxes in double: the sum of their areas and the box around them all
     double leaf_areas = 0.0;
-    double all[UNIT_SLOTS] = {INF, -INF, INF, -INF, INF, -INF};
+    double root[UNIT_SLOTS] = {INF, -INF, INF, -INF, INF, -INF};
     for (int j = 0; j < nleaves; ++j) {
         double b[BOX_SLOTS] = {INF, -INF, INF, -INF, INF, -INF, INF, -INF, INF, -INF};
         for (int i = 0; i < LEAF; ++i) {
@@ -170,18 +170,19 @@ SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
             boxes[BOX_SLOTS * j + t] = t % 2 == 0 ? down(b[t]) : up(b[t]);
         leaf_areas += unit_area(b);
         for (int t = 0; t < UNIT_SLOTS; t += 2) {
-            all[t] = std::min(all[t], b[t]);
-            all[t + 1] = std::max(all[t + 1], b[t + 1]);
+            root[t] = std::min(root[t], b[t]);
+            root[t + 1] = std::max(root[t + 1], b[t + 1]);
         }
     }
     // Leaves per query: how many leaf boxes cover a point on average. Nodes in Hilbert order
-    // give 1 to 4 per network, plus one per mode sorted on its own; scattered nodes give up to
-    // the number of leaves, and every query then scans that many
-    const double total = unit_area(all);
+    // give 1 to 4 per network; modes sorted one after the other add up their values (7 for
+    // three world-spanning modes); scattered nodes give up to the number of leaves, and
+    // every query then scans that many
+    const double total = unit_area(root);
     const double per_query = total > 0.0 ? leaf_areas / total : 0.0;
     if (per_query > MAX_LEAVES_PER_QUERY)
         throw node_order_error(
-            "nodes scattered in memory: a query would scan about " +
+            "nodes scattered in the order given: a query would scan about " +
             std::to_string(int64_t(per_query + 0.5)) + " groups of 32 nodes (at most " +
             std::to_string(int(MAX_LEAVES_PER_QUERY)) + "). " + SORT_HINT);
     // Tree levels, bottom up, until a single group

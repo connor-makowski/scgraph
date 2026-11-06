@@ -184,7 +184,7 @@ def test_snap_index_refuses_scattered_nodes_and_says_how_to_sort(
 @pytest.mark.parametrize("saved", [False, True])
 def test_geograph_snaps_nodes_in_any_order(tmp_path, saved):
     # GeoGraph keeps its node ids: it indexes scattered nodes in Hilbert order itself, also
-    # when they come from a file saved in their own order
+    # when they come from a file (the answers are checked against the graph's own nodes)
     nodes = _networks()["shuffled"]
     geograph = GeoGraph(
         graph=[{} for _ in nodes], nodes=[list(p) for p in nodes]
@@ -193,7 +193,7 @@ def test_geograph_snaps_nodes_in_any_order(tmp_path, saved):
         path = str(tmp_path / "nodes.scgraph")
         geograph.save_as_scgraph(path)
         geograph = GeoGraph.load_from_scgraph(path)
-    _check_answers(nodes, geograph.snap_index)
+    _check_answers([list(p) for p in geograph.nodes], geograph.snap_index)
 
 
 def test_geograph_snaps_nodes_added_to_a_network_file(tmp_path):

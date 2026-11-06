@@ -2088,7 +2088,11 @@ class GeoGraphModifiers:
 
 
 class _SortedSnapIndex:
-    """A snapping index over the nodes in Hilbert order, answering with the nodes' own ids."""
+    """
+    A snapping index over the nodes in Hilbert order, answering with the nodes' own ids
+    (an exact tie between two places goes to the node earlier on the curve, not to the
+    lower id).
+    """
 
     def __init__(self, order: list[int], index: SnapIndex):
         # order[position in the index] = node id
@@ -2098,12 +2102,13 @@ class _SortedSnapIndex:
         return self.order[self.index.closest_idx(point)]
 
     def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
-        return {
-            quadrant: None if p is None else self.order[p]
-            for quadrant, p in self.index.closest_idx_per_quadrant(
-                point
-            ).items()
-        }
+        # Changes the index's dict in place: a second dict per query would make the
+        # garbage collector run more often over a large graph
+        found = self.index.closest_idx_per_quadrant(point)
+        for quadrant, p in found.items():
+            if p is not None:
+                found[quadrant] = self.order[p]
+        return found
 
 
 def _in_hilbert_order(geograph, blocks):
@@ -2663,7 +2668,7 @@ class GeoGraph(
         self._graph = graph
 
     @property
-    def snap_index(self) -> SnapIndex:
+    def snap_index(self) -> "SnapIndex | _SortedSnapIndex":
         """
         The index that snaps coordinates to their nearest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at

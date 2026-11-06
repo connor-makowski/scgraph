@@ -53,8 +53,8 @@ private:
     static constexpr int LEAF = 32;
     static constexpr int FANOUT = 8;
     // Most leaves a query may scan on average: the sum of the leaves' box areas over the
-    // area of the box around all nodes. Twice the most measured on a network file built
-    // per mode (7, three modes spanning the world)
+    // area of the box around all nodes. Twice the most measured on nodes sorted per mode, as
+    // build_geograph sorts them (7.0: three world-spanning modes, one after the other)
     static constexpr double MAX_LEAVES_PER_QUERY = 16.0;
     // A box is BOX_SLOTS values: min x, max x, min y, max y, min z, max z of the unit
     // vectors (the first UNIT_SLOTS), then min lat, max lat, min lon, max lon. Even slots
