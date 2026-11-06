@@ -97,10 +97,13 @@ is run: the result is the straight-line distance, scaled by circuity. For the sn
 options, see [Node Addition Options](README.md#node-addition-options).
 
 Snapping uses `snap_index` (`cpp/src/snap_index.cpp`; `helpers/snap_index.py` in pure Python,
-with the same answers): the exact nearest node, ties to the lowest id, and the nearest node per
-quadrant.
-- It reads the nodes in an order where consecutive nodes are close (the network's own if it is
-  in Hilbert order, judged on about 2,048 pairs of neighbours, else a sorted copy), in leaves of 32.
+with the same answers): the exact nearest node, ties to the lowest id (to the earliest on the
+curve when `GeoGraph.snap_index` sorted the nodes, below), and the nearest node per quadrant.
+- It reads the nodes in their own order, in place, in leaves of 32. That order must keep nearby
+  nodes together, as the Hilbert order of network files does: the index measures how many
+  leaves a query would scan and raises `NodeOrderError` above 16. `GeoGraph.snap_index` then
+  indexes the nodes in Hilbert order and maps the answers back to the node ids (a graph built
+  from a list, or many added nodes).
 - A tree of 8 children per node keeps each child's box.
 - A search skips every box farther than the best node found. The C++ index uses float
   distances to select candidates, then checks each candidate again in double. The pure-Python
@@ -249,9 +252,9 @@ the graph reads its arcs in place (the private `Graph._from_mapped_csr` keeps th
 `Graph.from_csr` copies). A GeoGraph read from a network file (so also from `load_geograph`
 and `build_geograph`) has as `nodes` a `network_file.NodeCoordinates`, which reads the latitude
 and longitude arrays (in place in the C++ backend) and keeps added nodes after them;
-`SnapIndex.from_arrays` indexes the arrays (the C++ index reads them in place, as they are in
-Hilbert order, and keeps them), and `NodeCoordinates.take` builds a route's coordinates from
-them in C++ when available. Its `intermediate_nodes`, if the file has shapes, is a read-only
+`SnapIndex.from_arrays` indexes the arrays (the C++ index reads them in place and keeps
+them), and `NodeCoordinates.take` builds a route's coordinates from them in C++ when
+available. Its `intermediate_nodes`, if the file has shapes, is a read-only
 `network_file.ArcShapes`, which reads each shape from the shape arrays when asked for;
 `ArcShapes.coordinate_path` builds a route's coordinates with its shapes in C++ when
 available. The mapping lasts as long as those `nodes`, shapes or the snapping index, even after

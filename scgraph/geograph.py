@@ -28,9 +28,9 @@ from typing import Literal
 from scgraph import Graph
 
 try:
-    from scgraph.cpp import SnapIndex
+    from scgraph.cpp import NodeOrderError, SnapIndex
 except ImportError:
-    from scgraph.helpers.snap_index import SnapIndex
+    from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
 
 logger = logging.getLogger(__name__)
 
@@ -2223,6 +2223,32 @@ class GeoGraphModifiers:
         self.graph_object = Graph(graph=graph)
 
 
+class _SortedSnapIndex:
+    """
+    A snapping index over the nodes in Hilbert order, answering with the nodes' own ids
+    (an exact tie between two places goes to the node earlier on the curve, not to the
+    lower id).
+    """
+
+    def __init__(self, order: array, index: SnapIndex):
+        # order[position in the index] = node id. An array, not a list: the garbage
+        # collector never walks it (a list of 572,009 ids cost a 16 ms pause)
+        self.order, self.index = order, index
+
+    def closest_idx(self, point) -> int:
+        return self.order[self.index.closest_idx(point)]
+
+    def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
+        # Changes the index's dict in place and creates no object the garbage collector
+        # tracks, so that queries don't make it run more often
+        found = self.index.closest_idx_per_quadrant(point)
+        for quadrant in ("ne", "nw", "se", "sw"):
+            p = found[quadrant]
+            if p is not None:
+                found[quadrant] = self.order[p]
+        return found
+
+
 def _keep_interior_points(shapes, nodes):
     # Arc shapes hold the points between the arc's two nodes, from origin to destination:
     # reverse a shape that runs from the destination to the origin, remove the points
@@ -2855,26 +2881,41 @@ class GeoGraph(
         self._graph = graph
 
     @property
-    def snap_index(self) -> SnapIndex:
+    def snap_index(self) -> "SnapIndex | _SortedSnapIndex":
         """
         The index that snaps coordinates to their nearest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
         the first snap, and again after nodes were added or removed.
+
+        - Nodes too scattered for the index (a graph built from a list, or many nodes added
+          to a network file) are indexed in Hilbert order, sorted in Python at each build:
+          an exact tie between two places then goes to the node earlier on the curve
         """
         # Dropped by add_coord_node, remove_coord_node and merge_with_other_geograph (merge
         # keeps the index of the networks before the merge while it connects them); direct
         # edits of nodes are not detected
         if self.__snap_index__ is None:
             nodes = self.nodes
-            self.__snap_index__ = (
-                SnapIndex.from_arrays(*nodes.arrays())
-                if isinstance(nodes, network_file.NodeCoordinates)
-                else SnapIndex(nodes)
-            )
+            try:
+                self.__snap_index__ = (
+                    SnapIndex.from_arrays(*nodes.arrays())
+                    if isinstance(nodes, network_file.NodeCoordinates)
+                    else SnapIndex(nodes)
+                )
+            except NodeOrderError:
+                # Nodes not kept together (a graph built from a list, many added nodes):
+                # index them in Hilbert order, without changing their ids
+                points = list(nodes)
+                order = array("q", hilbert_order(points))
+                self.__snap_index__ = _SortedSnapIndex(
+                    order, SnapIndex([points[i] for i in order])
+                )
         return self.__snap_index__
 
     @snap_index.setter
-    def snap_index(self, snap_index: SnapIndex | None) -> None:
+    def snap_index(
+        self, snap_index: "SnapIndex | _SortedSnapIndex | None"
+    ) -> None:
         self.__snap_index__ = snap_index
         # Node coordinates in radians for the native A* heuristic, rebuilt with the index
         self.__node_radians__ = None

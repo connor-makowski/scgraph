@@ -2,8 +2,9 @@
 Pure-Python version of the C++ `SnapIndex`, with the same answers. The algorithm is
 described in `scgraph/cpp/src/snap_index.hpp`.
 
-Same as in C++: the order check, the leaves, the tree, the box slots and the quadrant
-rules. The boxes are kept in double here, not rounded to float.
+Same as in C++: the leaves, the tree, the box slots, the quadrant rules, and the
+leaves-per-query limit that refuses scattered nodes (NodeOrderError). The boxes are kept in
+double here, not rounded to float.
 
 Different: the search works in double throughout and compares distances exactly, so
 there is no float selection, no tolerance and no second check. It walks the tree with an
@@ -15,13 +16,16 @@ from array import array
 from math import cos, inf, isfinite, radians, sin
 from operator import mul
 
-from scgraph.helpers.hilbert import hilbert_key
-
 # Same values as the C++ index (snap_index.hpp, snap_index.cpp)
 LEAF = 32
 FANOUT = 8
-ORDER_CHECK_PAIRS = 2048
-ORDER_CHECK_RUN = 64
+MAX_LEAVES_PER_QUERY = 16.0
+SORT_HINT = (
+    "Sort them along a Hilbert curve and map the answers back: "
+    "order = scgraph.helpers.hilbert.hilbert_order(nodes); "
+    "index = SnapIndex([nodes[i] for i in order]); "
+    "node = order[index.closest_idx(point)]"
+)
 # Quadrant t of this tuple is bit 1 << t of the masks below
 QUADRANTS = ("ne", "nw", "se", "sw")
 
@@ -39,6 +43,21 @@ def _unit(latitude: float, longitude: float) -> tuple[float, float, float]:
     a, b = radians(latitude), radians(longitude)
     c = cos(a)
     return c * cos(b), c * sin(b), sin(a)
+
+
+class NodeOrderError(ValueError):
+    """
+    The nodes are too scattered for the snapping index: sort them first, as the
+    message says.
+    """
+
+
+def _unit_area(box, c: int) -> float:
+    # Area of unit-vector box c: the product of its two largest extents, as in C++
+    e = sorted(
+        (box[1][c] - box[0][c], box[3][c] - box[2][c], box[5][c] - box[4][c])
+    )
+    return e[2] * e[1]
 
 
 def _box_quadrants(box, c: int, qlat: float, qlon: float, mask: int) -> int:
@@ -65,7 +84,9 @@ class SnapIndex:
 
     - `SnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
     - `SnapIndex.from_arrays(latitudes, longitudes)`: the same, from two float64 arrays of
-      degrees, which the index keeps when the nodes are already in order (leave them unchanged)
+      degrees, which the index keeps (leave them unchanged)
+    - The nodes must keep nearby nodes together, as a Hilbert curve does: a scattered order
+      raises NodeOrderError, whose message says how to sort and map the answers back
     - `closest_idx(point)`: id of the point nearest to `point`
     - `closest_idx_per_quadrant(point)`: id of the nearest point in each quadrant around
       `point`, as a dict with the keys 'ne', 'nw', 'se', 'sw' (None if the quadrant is empty).
@@ -98,21 +119,7 @@ class SnapIndex:
         if not isfinite(sum(lat) + sum(lon)):
             raise ValueError("node coordinates must be finite numbers")
         self.n = n
-        # Keep the network's order if it is already sorted along a Hilbert curve, otherwise
-        # sort a copy along one. The C++ index explains the check
-        pairs = range(1, n, max(1, (n - 1) // ORDER_CHECK_PAIRS))
-        descents = sum(
-            hilbert_key(lat[i], lon[i]) < hilbert_key(lat[i - 1], lon[i - 1])
-            for i in pairs
-        )
-        ids = range(n)
-        if ORDER_CHECK_RUN * descents > len(pairs):
-            keys = [hilbert_key(la, lo) for la, lo in zip(lat, lon)]
-            ids = array("q", sorted(ids, key=lambda i: (keys[i], i)))
-            lat = array("d", map(lat.__getitem__, ids))
-            lon = array("d", map(lon.__getitem__, ids))
-        # self.id: position in the index -> node id (a range when the order is kept)
-        self.id, self.lat, self.lon = ids, lat, lon
+        self.lat, self.lon = lat, lon
         # The unit vectors, as _unit computes them
         a, b = array("d", map(radians, lat)), array("d", map(radians, lon))
         c = array("d", map(cos, a))
@@ -129,6 +136,20 @@ class SnapIndex:
             for t, values in enumerate(columns):
                 part = values[s:e]
                 box[2 * t][j], box[2 * t + 1][j] = min(part), max(part)
+        # Leaves per query, as in C++: the leaves' box areas over the area of the box around
+        # them all, summed in the same order (a plain loop, not the compensated sum())
+        leaf_areas = 0.0
+        for j in range(nleaves):
+            leaf_areas += _unit_area(box, j)
+        root = [[min(box[t]) if t % 2 == 0 else max(box[t])] for t in range(6)]
+        total = _unit_area(root, 0)
+        per_query = leaf_areas / total if total > 0.0 else 0.0
+        if per_query > MAX_LEAVES_PER_QUERY:
+            raise NodeOrderError(
+                "nodes scattered in the order given: a query would scan about "
+                f"{int(per_query + 0.5)} groups of 32 nodes "
+                f"(at most {int(MAX_LEAVES_PER_QUERY)}). {SORT_HINT}"
+            )
         self.levels = [(nleaves, box)]
         count = nleaves
         while count > 1:
@@ -165,7 +186,7 @@ class SnapIndex:
 
     def closest_idx(self, point) -> int:
         qx, qy, qz = _unit(point[0], point[1])
-        X, Y, Z, ids, n = self.x, self.y, self.z, self.id, self.n
+        X, Y, Z, n = self.x, self.y, self.z, self.n
         levels, bound = self.levels, self._bound
         best, best_p = inf, -1
         # (bound, level, index): level 0 is a leaf
@@ -178,7 +199,7 @@ class SnapIndex:
                 for p in range(c * LEAF, min(n, c * LEAF + LEAF)):
                     dx, dy, dz = qx - X[p], qy - Y[p], qz - Z[p]
                     d = dx * dx + dy * dy + dz * dz
-                    if d < best or (d == best and ids[p] < ids[best_p]):
+                    if d < best or (d == best and p < best_p):
                         best, best_p = d, p
                 continue
             count, box = levels[level - 1]
@@ -189,12 +210,12 @@ class SnapIndex:
                     children.append((d, level - 1, k))
             children.sort(reverse=True)
             stack.extend(children)
-        return ids[best_p]
+        return best_p
 
     def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
         qlat, qlon = float(point[0]), float(point[1])
         qx, qy, qz = _unit(qlat, qlon)
-        X, Y, Z, ids, n = self.x, self.y, self.z, self.id, self.n
+        X, Y, Z, n = self.x, self.y, self.z, self.n
         LAT, LON = self.lat, self.lon
         levels, bound = self.levels, self._bound
         best = [inf, inf, inf, inf]
@@ -232,9 +253,7 @@ class SnapIndex:
                     ):
                         if not inside or not mask & (1 << t):
                             continue
-                        if d < best[t] or (
-                            d == best[t] and ids[p] < ids[best_p[t]]
-                        ):
+                        if d < best[t] or (d == best[t] and p < best_p[t]):
                             best[t], best_p[t] = d, p
                 continue
             count, box = levels[level - 1]
@@ -249,6 +268,5 @@ class SnapIndex:
             children.sort(reverse=True)
             stack.extend(children)
         return {
-            name: (ids[p] if p >= 0 else None)
-            for name, p in zip(QUADRANTS, best_p)
+            name: (p if p >= 0 else None) for name, p in zip(QUADRANTS, best_p)
         }

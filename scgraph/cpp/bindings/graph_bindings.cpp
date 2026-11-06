@@ -266,6 +266,8 @@ NB_MODULE(cpp, m) {
        "int32 arrays (shape points in 1e-7 degree) and one [latitude, longitude] per path node; "
        "for ArcShapes.coordinate_path");
 
+    // Raised by SnapIndex when the nodes are too scattered; a ValueError for callers
+    nb::exception<node_order_error>(m, "NodeOrderError", PyExc_ValueError);
     nb::class_<SnapIndex>(m, "SnapIndex",
         "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
         .def("__init__", [](SnapIndex* self, nb::handle points) {
@@ -287,14 +289,13 @@ NB_MODULE(cpp, m) {
         .def_static("from_arrays", [](CsrDoubles latitudes, CsrDoubles longitudes) {
             if (latitudes.shape(0) != longitudes.shape(0))
                 throw std::invalid_argument("latitudes and longitudes must have the same length");
-            // Read in place if their order is kept: the index then keeps the arrays (their
-            // buffers) alive
+            // Read in place: the index keeps the arrays (their buffers) alive
             auto owner = std::make_shared<std::pair<CsrDoubles, CsrDoubles>>(latitudes, longitudes);
             return std::make_unique<SnapIndex>(latitudes.data(), longitudes.data(),
                                                int(latitudes.shape(0)), owner);
         }, nb::arg("latitudes"), nb::arg("longitudes"),
-           "The same index, from two float64 arrays of degrees. The index may read them in place "
-           "and keep them while it lives: changing their values afterwards gives wrong answers "
+           "The same index, from two float64 arrays of degrees. The index reads them in place "
+           "and keeps them while it lives: changing their values afterwards gives wrong answers "
            "(build a new index)")
         .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
