@@ -83,8 +83,10 @@ class SnapIndex:
     Nearest node of a point on the sphere (exact, ties to the lowest id).
 
     - `SnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
-    - `SnapIndex.from_arrays(latitudes, longitudes)`: the same, from two float64 arrays of
-      degrees, which the index keeps (leave them unchanged)
+    - `SnapIndex.from_arrays(latitudes, longitudes)`: the same, from two arrays of the same
+      dtype, float64 degrees, which the index keeps (leave them unchanged), or int32 units
+      of 1e-7 degree as network files may store them, decoded here into a float64 copy
+      (the C++ index reads them in place)
     - The nodes must keep nearby nodes together, as a Hilbert curve does: a scattered order
       raises NodeOrderError, whose message says how to sort and map the answers back
     - `closest_idx(point)`: id of the point nearest to `point`
@@ -96,6 +98,19 @@ class SnapIndex:
 
     @classmethod
     def from_arrays(cls, latitudes, longitudes) -> "SnapIndex":
+        dtypes = {
+            memoryview(values).format for values in (latitudes, longitudes)
+        }
+        if dtypes not in ({"d"}, {"i"}):
+            raise TypeError(
+                "latitudes and longitudes must both be float64 or both int32"
+            )
+        if dtypes == {"i"}:
+            # units / 1e7, the network file's division, in a loop that runs in C
+            latitudes, longitudes = (
+                array("d", map((1e7).__rtruediv__, values))
+                for values in (latitudes, longitudes)
+            )
         if len(latitudes) != len(longitudes):
             raise ValueError(
                 "latitudes and longitudes must have the same length"
