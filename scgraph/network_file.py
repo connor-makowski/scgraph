@@ -6,7 +6,7 @@ A file is an 8-byte magic `SCGRAPH1`, the SHA-256 of every byte from byte 40 on 
 the length of a JSON header as a little-endian uint64, the header, zeros up to a multiple of 64
 bytes, then little-endian arrays at the offsets the header gives from there, each aligned to
 64 bytes. Arcs are stored by origin (CSR): the arcs of node `u` are `heads[offsets[u]:
-offsets[u + 1]]`, in the order of the graph's dict, with their `weights`.
+offsets[u + 1]]`, in the order searches visit them, with their `weights`.
 """
 
 import hashlib
@@ -31,7 +31,8 @@ MAGIC = b"SCGRAPH1"
 VERSION = 1
 SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file"
 # array name -> (dtype, array typecode); shape_* hold the arc shapes, if any, with their
-# points in units of 1e-7 degree (OSM's own)
+# points in units of 1e-7 degree (OSM's own); node_ids and node_modes (optional): the
+# id of each node in its source and its mode, an index into metadata["modes"]
 ARRAYS = {
     "offsets": ("int32", "i"),
     "heads": ("int32", "i"),
@@ -40,54 +41,23 @@ ARRAYS = {
     "longitudes": ("float64", "d"),
     "shape_offsets": ("int32", "i"),
     "shape_points": ("int32", "i"),
+    "node_ids": ("int64", "q"),
+    "node_modes": ("uint8", "B"),
 }
 _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
 
 
-def write(filename, graph, nodes, intermediate_nodes, metadata):
-    """Write a graph (list of dicts), its [lat, lon] nodes, the shapes of its arcs (or
-    None; their points are rounded to 1e-7 degree) and a JSON-serializable metadata dict.
-    Bytes 8 to 39 hold the SHA-256 of every byte after them, the identity of the file,
-    returned as hex (`content_sha256`).
+def write(filename, arrays, metadata):
+    """Write the arrays of a graph (by name, as stored: see `ARRAYS`; `shape_points`
+    flat, two per point, in 1e-7 degree; any objects with the buffer protocol, not
+    copied on little-endian machines) and a JSON-serializable metadata dict. Bytes 8 to
+    39 hold the SHA-256 of every byte after them, the identity of the file, returned as
+    hex (`content_sha256`). Rows hold each head once.
     """
-    offsets, heads, weights = array("i", [0]), array("i"), array("d")
-    shape_offsets, points = array("i", [0]), array("i")
-    symmetric = True
-    for origin, row in enumerate(graph):
-        # Nodes added after loading (add_coord_node, merges) have no shapes
-        shapes = (
-            intermediate_nodes[origin]
-            if intermediate_nodes is not None
-            and origin < len(intermediate_nodes)
-            else {}
-        )
-        # In the graph's order, so that a search on the file visits the arcs in the same
-        # order, and returns the same path where two have the same length
-        for head in row:
-            heads.append(head)
-            weights.append(row[head])
-            symmetric = symmetric and graph[head].get(origin) == row[head]
-            try:
-                for latitude, longitude in shapes.get(head, ()):
-                    points.append(round(latitude * 1e7))
-                    points.append(round(longitude * 1e7))
-            except (OverflowError, ValueError) as error:
-                raise ValueError(
-                    f"The shape of arc {origin} -> {head} has a point that is not a"
-                    " number within ±214.7483647 degrees"
-                ) from error
-            shape_offsets.append(len(points) // 2)
-        offsets.append(len(heads))
-    arrays = {
-        "offsets": offsets,
-        "heads": heads,
-        "weights": weights,
-        "latitudes": array("d", (node[0] for node in nodes)),
-        "longitudes": array("d", (node[1] for node in nodes)),
-    }
-    if intermediate_nodes is not None:
-        arrays["shape_offsets"], arrays["shape_points"] = shape_offsets, points
+    symmetric = _symmetric(
+        arrays["offsets"], arrays["heads"], arrays["weights"]
+    )
 
     header = {
         "format_version": VERSION,
@@ -97,6 +67,10 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
     }
     position = 0
     for name, values in arrays.items():
+        if memoryview(values).itemsize != array(ARRAYS[name][1]).itemsize:
+            raise TypeError(
+                f"Array '{name}' must hold {ARRAYS[name][0]} values"
+            )
         shape = (
             [len(values) // 2, 2] if name == "shape_points" else [len(values)]
         )
@@ -129,7 +103,10 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
             for name, values in arrays.items():
                 at = start + header["arrays"][name]["offset"]
                 put(bytes(at - file.tell()))
-                put(_little_endian(values).tobytes())
+                # The arrays may be the graph's own: swapped in a copy (big-endian)
+                if sys.byteorder == "big":
+                    values = array(ARRAYS[name][1], values)
+                put(memoryview(_little_endian(values)).cast("B"))
             file.seek(len(MAGIC))
             file.write(content.digest())
         try:
@@ -166,7 +143,7 @@ def read(filename, mapped=False):
         raise
     except (AttributeError, KeyError, OverflowError, TypeError) as error:
         raise ValueError(f"{filename}: invalid header ({error!r})") from error
-    _check(filename, arrays, arcs=not mapped)
+    _check(filename, arrays, metadata, arcs=not mapped)
     return arrays, metadata
 
 
@@ -404,7 +381,7 @@ class NodeCoordinates(MutableSequence):
             self._latitudes, self._longitudes = array("d"), array("d")
 
 
-def _check(filename, arrays, arcs=True):
+def _check(filename, arrays, metadata, arcs=True):
     def require(condition, what):
         if not condition:
             raise ValueError(f"{filename}: {what}")
@@ -445,6 +422,44 @@ def _check(filename, arrays, arcs=True):
             not arcs or all(map(le, shapes, islice(shapes, 1, None))),
             "invalid shape offsets",
         )
+    for name, what in (("node_ids", "node id"), ("node_modes", "node mode")):
+        require(
+            name not in arrays or len(arrays[name]) == n,
+            f"one {what} per node expected",
+        )
+    if "node_modes" in arrays:
+        modes = metadata.get("modes")
+        require(isinstance(modes, list), "node modes without a list of modes")
+        # Not read on a mapped file, which opening does not read node by node
+        require(
+            not arcs or max(arrays["node_modes"], default=-1) < len(modes),
+            "invalid node modes",
+        )
+
+
+def _symmetric(offsets, heads, weights):
+    # Whether every arc has a reverse arc of the same weight. Arc u -> v is looked up in
+    # v's row only if v has at most u's degree, so that no hub's row is read once per arc;
+    # an arc to a node of higher degree is counted instead: their number must equal that
+    # of the reverse arcs found from the other side (a row holds each head once)
+    unmatched = 0
+    for origin in range(len(offsets) - 1):
+        degree = offsets[origin + 1] - offsets[origin]
+        for arc in range(offsets[origin], offsets[origin + 1]):
+            head = heads[arc]
+            start, end = offsets[head], offsets[head + 1]
+            if end - start > degree:
+                unmatched += 1
+                continue
+            unmatched -= end - start < degree
+            for back in range(start, end):
+                if heads[back] == origin:
+                    if weights[back] != weights[arc]:
+                        return False
+                    break
+            else:
+                return False
+    return unmatched == 0
 
 
 def _count(shape):

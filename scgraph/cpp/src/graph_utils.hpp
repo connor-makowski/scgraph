@@ -96,8 +96,8 @@ public:
     // The number of nodes, without packing pending edits
     int size() const { return edits.count >= 0 ? edits.count : packed_graph.size(); }
     const std::vector<std::unordered_map<int, double>> get_graph() const;
-    // The arcs of node u, in their order
-    Row row(int u) const { return graph()[u]; }
+    // The arcs by origin, pending edits packed
+    const Adjacency& arcs() const { return graph(); }
     std::vector<std::unordered_map<int, double>> get_inverse_graph();
     const std::vector<TreeData>& get_cache() const { return cache; }
     void set_cache(const std::vector<TreeData>& new_cache) { cache = new_cache; }

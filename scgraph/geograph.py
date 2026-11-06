@@ -279,14 +279,36 @@ class GeoGraphIO:
             raise ValueError(
                 f"{filename} is in scgraph's cache ({built}); save it elsewhere"
             )
+        # In the order searches visit the arcs, so that the file gives the same paths
+        offsets, heads, weights = self.graph_object._csr()
+        arrays = {
+            "offsets": offsets,
+            "heads": heads,
+            "weights": weights,
+            "latitudes": array("d", (node[0] for node in self.nodes)),
+            "longitudes": array("d", (node[1] for node in self.nodes)),
+        }
+        shapes = self.intermediate_nodes if save_intermediate_nodes else None
+        if shapes is not None:
+            starts, points = array("i", [0]), array("i")
+            for origin in range(len(offsets) - 1):
+                # Nodes added after loading (add_coord_node, merges) have no shapes
+                row = shapes[origin] if origin < len(shapes) else {}
+                for arc in range(offsets[origin], offsets[origin + 1]):
+                    try:
+                        for latitude, longitude in row.get(heads[arc], ()):
+                            points.append(round(latitude * 1e7))
+                            points.append(round(longitude * 1e7))
+                    except (OverflowError, ValueError) as error:
+                        raise ValueError(
+                            f"The shape of arc {origin} -> {heads[arc]} has a point "
+                            "that is not a number within ±214.7483647 degrees"
+                        ) from error
+                    starts.append(len(points) // 2)
+            arrays["shape_offsets"], arrays["shape_points"] = starts, points
         return network_file.write(
             filename,
-            # In the order searches visit the arcs, so that the file gives the same paths
-            graph=self.graph_object._arcs_by_origin(),
-            nodes=self.nodes,
-            intermediate_nodes=(
-                self.intermediate_nodes if save_intermediate_nodes else None
-            ),
+            arrays,
             metadata={
                 "crs": "EPSG:4326",
                 "units": self.geograph_units,
@@ -1243,6 +1265,7 @@ class GeoGraphIO:
                 geograph, details = (
                     built if isinstance(built, tuple) else (built, {})
                 )
+                del built  # the unsorted copy, freed before the write
                 # Nodes close on the globe get close ids (within each mode)
                 geograph = _in_hilbert_order(
                     geograph, list(details.get("node_modes", {}).values())
@@ -2129,15 +2152,20 @@ def _in_hilbert_order(geograph, blocks):
     new_id = [0] * len(order)
     for new, old in enumerate(order):
         new_id[old] = new
-    graph, shapes = (
-        geograph.graph_object.unreduced_graph,
-        geograph.intermediate_nodes,
-    )
-    return GeoGraph(
-        graph=[
-            {new_id[head]: weight for head, weight in graph[old].items()}
+    if Graph.__module__ == "scgraph.cpp":
+        # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
+        # the new graph keeps instead of copying them again
+        graph = Graph._from_mapped_csr(*geograph.graph_object._csr(order))
+    else:
+        # Renumbered dicts, sharing the graph's weight objects (from_csr would not)
+        rows = geograph.graph_object.unreduced_graph
+        graph = [
+            {new_id[head]: weight for head, weight in rows[old].items()}
             for old in order
-        ],
+        ]
+    shapes = geograph.intermediate_nodes
+    return GeoGraph(
+        graph=graph,
         nodes=[geograph.nodes[old] for old in order],
         intermediate_nodes=(
             None
