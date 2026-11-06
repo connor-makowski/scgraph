@@ -339,13 +339,17 @@ class NodeIds(Sequence):
             return array("q", positions)
         return array("q", (ids[i] for i in positions))
 
-    def array(self):
-        """The ids as an int64 array, or None if every node's id is its position."""
+    def array(self, order=None):
+        """The ids (in `order`, `order[new] = old`, if given) as an int64 array, int32
+        if every id fits, or None if every node's id is its position."""
         ids, count = self._ids, len(self)
-        if count <= len(ids) and ids == range(len(ids)):
+        if order is not None:
+            result = self.take(order)
+        elif count <= len(ids) and ids == range(len(ids)):
             return None
-        result = array("q", ids[:count])
-        result.extend(self[i] for i in range(len(result), count))
+        else:
+            result = array("q", ids[:count])
+            result.extend(self[i] for i in range(len(result), count))
         try:  # half the size when every id fits, as those of the built-in networks
             return array("i", result)
         except OverflowError:

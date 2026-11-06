@@ -308,16 +308,19 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
     )
     folder = tmp_path / "networks" / "osm_main_roads_and_marnet" / "roads"
     manifest = json.loads((folder / "manifest.json").read_text())
-    # Nodes by mode: 2 road nodes, the near port, 2 sea nodes
-    assert manifest["node_modes"] == {
-        "road": [0, 2],
-        "port": [2, 3],
-        "sea": [3, 5],
-    }
-    # Each block holds the nodes of its mode (in Hilbert order within the block)
+    # Each node has its mode, each mode the source of its node ids: 2 road nodes, the
+    # near port, 2 sea nodes, stored by mode
+    assert geo.modes == [
+        {"name": "road", "source": "roads"},
+        {"name": "port"},
+        {"name": "sea", "source": "sea"},
+    ]
+    assert list(geo.node_modes) == [0, 0, 1, 2, 2]
     assert [
-        sorted(geo.nodes[start:end])
-        for start, end in manifest["node_modes"].values()
+        sorted(
+            node for node, mode in zip(geo.nodes, geo.node_modes) if mode == row
+        )
+        for row in range(3)
     ] == [[[-0.01, 0], [0, 0]], [[0, 0.02]], [[0, 2.2], [0, 3]]]
     route = geo.get_shortest_path(
         origin_node={"latitude": -0.01, "longitude": 0},

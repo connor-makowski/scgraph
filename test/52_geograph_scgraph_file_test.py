@@ -95,6 +95,102 @@ def test_save_load_scgraph_keeps_node_ids(tmp_path, node_ids, expected, size):
     assert GeoGraph.load_from_scgraph(again).node_ids == expected
 
 
+def test_save_as_scgraph_writes_the_nodes_in_hilbert_order(tmp_path):
+    # The small network with its nodes listed backwards: written in Hilbert order (the
+    # small network's own), each node keeping its former position as its id, the
+    # geograph itself unchanged; a file already in that order is written as it is
+    def back(i):
+        return len(_NODES) - 1 - i
+
+    backwards = GeoGraph(
+        graph=[
+            {back(v): w for v, w in _GRAPH[back(u)].items()} for u in range(4)
+        ],
+        nodes=_NODES[::-1],
+        intermediate_nodes=[
+            {back(v): s for v, s in _SHAPES[back(u)].items()} for u in range(4)
+        ],
+    )
+    path, again = str(tmp_path / "small.scgraph"), str(
+        tmp_path / "again.scgraph"
+    )
+    digest = backwards.save_as_scgraph(path)
+    loaded = GeoGraph.load_from_scgraph(path)
+    assert (loaded.nodes, list(loaded.node_ids)) == (_NODES, [3, 2, 1, 0])
+    assert loaded.graph_object.graph == _GRAPH
+    assert loaded.intermediate_nodes == _SHAPES
+    assert backwards.nodes == _NODES[::-1]
+    assert loaded.save_as_scgraph(again) == digest
+
+
+def test_nodes_keep_their_modes_through_additions_merges_and_saves(tmp_path):
+    road = GeoGraph(
+        graph=[{1: 1.0}, {0: 1.0}],
+        nodes=[[0, 1], [0, 0]],
+        modes=[{"name": "road", "source": "osm"}],
+    )
+    # A node of the mode without a name, then one of the road
+    road.add_coord_node({"latitude": 0, "longitude": 3})
+    road.add_coord_node({"latitude": 0, "longitude": 2}, mode="road")
+    sea = GeoGraph(
+        graph=[{1: 1.0}, {0: 1.0}],
+        nodes=[[1, 0], [1, 1]],
+        modes=[{"name": "sea"}],
+    )
+    road.merge_with_other_geograph(
+        sea, connection_nodes=[[0.5, 0.5]], mode="port"
+    )
+    assert road.modes == [
+        {"name": "road", "source": "osm"},
+        {"name": None},
+        {"name": "port"},
+        {"name": "sea"},
+    ]
+    assert list(road.node_modes) == [0, 0, 1, 0, 2, 3, 3]
+    assert (sea.modes, list(sea.node_modes)) == ([{"name": "sea"}], [0, 0])
+    # Saved by mode, then along the curve: each node keeps its mode and its id
+    path = str(tmp_path / "modes.scgraph")
+    road.save_as_scgraph(path)
+    loaded = GeoGraph.load_from_scgraph(path)
+    assert loaded.modes == road.modes
+    assert list(loaded.node_modes) == sorted(road.node_modes)
+    assert sorted(
+        zip(loaded.node_modes, loaded.node_ids, loaded.nodes)
+    ) == sorted(zip(road.node_modes, road.node_ids, road.nodes))
+
+
+def test_a_geograph_has_at_most_256_modes():
+    # Refused before any change, when a node or a merge would need a 257th mode
+    many = [{"name": str(i)} for i in range(200)]
+    geo = GeoGraph(graph=[{}], nodes=[[0, 0]], modes=many + many[:56])
+    with pytest.raises(ValueError, match="at most 256 modes"):
+        geo.add_coord_node({"latitude": 0, "longitude": 1}, mode="new")
+    assert (len(geo.nodes), len(geo.modes)) == (1, 256)
+    road = GeoGraph(graph=[{}], nodes=[[0, 0]], modes=many)
+    sea = GeoGraph(graph=[{}], nodes=[[1, 1]], modes=many[:60])
+    with pytest.raises(ValueError, match="at most 256 modes"):
+        road.merge_with_other_geograph(sea, connection_nodes=[[0.5, 0.5]])
+    assert (len(road.nodes), len(road.modes)) == (1, 200)
+
+
+def test_nodes_appended_directly_are_saved_in_the_first_mode(tmp_path):
+    geo = GeoGraph(
+        graph=[{}, {}],
+        nodes=[[0, 0], [1, 1]],
+        node_modes=[1, 0],
+        modes=[{"name": "road"}, {"name": "sea"}],
+    )
+    geo.graph_object.add_node({})
+    geo.nodes.append([2, 2])
+    geo.save_as_scgraph(str(tmp_path / "modes.scgraph"))
+    loaded = GeoGraph.load_from_scgraph(str(tmp_path / "modes.scgraph"))
+    assert dict(zip(map(tuple, loaded.nodes), loaded.node_modes)) == {
+        (0, 0): 1,
+        (1, 1): 0,
+        (2, 2): 0,
+    }
+
+
 @pytest.mark.skipif(
     Graph.__module__ == "scgraph.cpp", reason="a C++ graph is not picklable"
 )
@@ -106,9 +202,19 @@ def test_a_pickled_geograph_keeps_its_node_ids(tmp_path):
     assert loaded.node_ids == [7, 5, 3, 1, -1]
 
 
-def test_node_ids_give_one_id_per_node():
-    with pytest.raises(ValueError, match="one id per node"):
-        _small(node_ids=[7, 5, 3])
+@pytest.mark.parametrize(
+    "data, message",
+    [
+        ({"node_ids": [7, 5, 3]}, "one id per node"),
+        ({"node_modes": [0, 0, 0]}, "a row of modes"),
+        ({"node_modes": [0, 0, 0, 1]}, "a row of modes"),
+    ],
+)
+def test_geograph_needs_an_id_and_a_mode_per_node(data, message):
+    with pytest.raises(ValueError, match=message):
+        GeoGraph(
+            graph=[{}, {}, {}, {}], nodes=[list(n) for n in _NODES], **data
+        )
 
 
 # Shape points are stored as int32 in 1e-7 degree
