@@ -23,6 +23,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 NAMES = (
+    "eurostat_marnet",
     "marnet",
     "north_america_rail",
     "oak_ridge_maritime",

@@ -229,6 +229,21 @@ def test_cached_shortest_path_single_key_dict_and_set(sample_graph, GraphClass):
 
 
 @pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
+def test_cache_moves_to_a_graph_of_the_same_size(sample_graph, GraphClass):
+    """get_cache output loads into a graph of the same size with set_cache,
+    which refuses a cache of another length."""
+    g = GraphClass(sample_graph)
+    g.cached_shortest_path(origin_id=4, destination_id=3)
+    cache = g.get_cache()
+    fresh = GraphClass(sample_graph)
+    fresh.set_cache(cache)
+    # The C++ build converts the cache both ways; Python keeps the list
+    assert fresh.get_cache() == cache
+    with pytest.raises((AssertionError, ValueError)):
+        fresh.set_cache(cache + [0])
+
+
+@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
 def test_cached_shortest_path_multiple_exit_nodes(sample_graph, GraphClass):
     """Test cached_shortest_path with multiple exit nodes (set and dict with exit distances)."""
     g = GraphClass(sample_graph)

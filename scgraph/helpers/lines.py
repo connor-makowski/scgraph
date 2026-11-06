@@ -1,6 +1,7 @@
 """Turn lines into a GeoGraph layout: arcs between the points where lines meet, with their
 shape."""
 
+from scgraph.helpers.hilbert import hilbert_key
 from scgraph.utils import haversine
 
 
@@ -10,10 +11,12 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
 
     `lines` yields `(direction, points)`: `direction` is 1 (one way, along the points), -1
     (one way, against them) or 0 (both ways); `points` is a list of `(id, [latitude,
-    longitude])`. Each arc has the length of its full shape; parallel arcs keep the
+    longitude])`. Each arc has the length of its full piece of line, and its shape holds
+    the points between its two nodes (none if there are none); parallel arcs keep the
     shortest; there are no self-loops.
 
-    Returns `(graph, nodes, intermediate_nodes)`, with nodes sorted by coordinates.
+    Returns `(graph, nodes, intermediate_nodes, ids)`, with nodes in Hilbert order and
+    `ids` the id of each node's point.
     """
     arcs = {}  # (origin id, destination id) -> (length, shape)
     location = {}  # id -> [latitude, longitude]
@@ -31,14 +34,23 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
                 )
                 start, length = i, 0.0
 
-    order = sorted(location, key=lambda point: (*location[point], point))
+    # Ties broken by coordinates, so that the order does not depend on the input's
+    order = sorted(
+        location,
+        key=lambda point: (
+            hilbert_key(*location[point]),
+            *location[point],
+            point,
+        ),
+    )
     index = {point: i for i, point in enumerate(order)}
     graph = [{} for _ in order]
     shapes = [{} for _ in order]
     for (origin, destination), (length, shape) in arcs.items():
         graph[index[origin]][index[destination]] = length
-        shapes[index[origin]][index[destination]] = shape
-    return graph, [location[point] for point in order], shapes
+        if shape:
+            shapes[index[origin]][index[destination]] = shape
+    return graph, [location[point] for point in order], shapes, order
 
 
 def _add_arc(arcs, location, points, length, direction):
@@ -46,7 +58,7 @@ def _add_arc(arcs, location, points, length, direction):
     if origin == destination:
         return  # a loop never lies on a shortest path
     location[origin], location[destination] = points[0][1], points[-1][1]
-    shape = [point for _, point in points]
+    shape = [point for _, point in points[1:-1]]
     if direction >= 0:
         _keep_shortest(arcs, (origin, destination), length, shape)
     if direction <= 0:

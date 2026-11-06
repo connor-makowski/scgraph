@@ -1,3 +1,4 @@
+from array import array
 from typing import Literal
 import math
 
@@ -31,11 +32,32 @@ class GraphUtils:
         """Same as `graph`."""
         return self.graph
 
-    def _arcs_by_origin(self) -> list[dict[int, int | float]]:
-        """The graph (unreduced) as a list of dicts whose keys follow the order in which
-        searches visit the arcs: `graph` itself here (the C++ backend builds it).
+    def _csr(
+        self, order: list[int] | None = None
+    ) -> tuple[array, array, array]:
+        """The graph (unreduced) as arcs by origin: int32 offsets and heads, float64
+        weights, in the order in which searches visit the arcs (the C++ backend gives
+        views of its own arrays). With `order` (order[new] = old), the rows of the nodes
+        in that order, their heads renumbered.
         """
-        return self.graph
+        rows, new_id = self.graph, None
+        if order is not None:
+            new_id = array("i", [-1]) * len(rows)
+            if len(order) != len(rows):
+                raise IndexError("order must list every node once")
+            for new, old in enumerate(order):
+                if not 0 <= old < len(rows) or new_id[old] != -1:
+                    raise IndexError("order must list every node once")
+                new_id[old] = new
+            rows = map(rows.__getitem__, order)
+        offsets, heads, weights = array("i", [0]), array("i"), array("d")
+        for row in rows:
+            heads.extend(
+                row if new_id is None else map(new_id.__getitem__, row)
+            )
+            weights.extend(row.values())
+            offsets.append(len(heads))
+        return offsets, heads, weights
 
     @property
     def inverse_graph(self) -> list[dict[int, int | float]]:
