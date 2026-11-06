@@ -90,7 +90,9 @@ quadrant.
 - It reads the nodes in an order where consecutive nodes are close (the network's own if it is
   in Hilbert order, judged on about 2,048 pairs of neighbours, else a sorted copy), in leaves of 32.
 - A tree of 8 children per node keeps each child's box.
-- A search skips every box farther than the best node found.
+- A search skips every box farther than the best node found. The C++ index selects candidates
+  with float distances and checks them again in double; the pure-Python index works in double
+  throughout. The design and what both must share are described in `cpp/src/snap_index.hpp`.
 
 `GeoGraph.geokdtree` is deprecated.
 

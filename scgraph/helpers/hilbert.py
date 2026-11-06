@@ -19,6 +19,8 @@ NODE_ORDER = {
 }
 
 
+# Copied in scgraph/cpp/src/snap_index.cpp (the C++ index checks and sorts nodes without
+# Python objects): change both together
 def hilbert_key(latitude: float, longitude: float) -> int:
     """Position of a point on the Hilbert curve, from 0 to 4^16 - 1."""
     side = 1 << CURVE_ORDER

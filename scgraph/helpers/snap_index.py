@@ -1,6 +1,11 @@
 """
-Pure-Python version of the C++ `SnapIndex` (`scgraph/cpp/src/snap_index.cpp`, where the
-algorithm is described), with the same answers.
+Pure-Python version of the C++ `SnapIndex`, with the same answers. The algorithm is described
+in `scgraph/cpp/src/snap_index.hpp`. The order check, the leaves, the tree, the box slots (in
+double, not rounded to float) and the quadrant rules are the same. The search differs: it
+works in double throughout and compares
+distances exactly (no float selection, no tolerance, no second check), walks the tree with
+an explicit stack, and counts levels from the leaves (level 0 is a leaf here; in C++
+`levels[0]` holds the parents of the leaves).
 """
 
 from array import array
@@ -9,8 +14,12 @@ from operator import mul
 
 from scgraph.helpers.hilbert import hilbert_key
 
+# As the C++ index (snap_index.hpp, snap_index.cpp)
 LEAF = 32
 FANOUT = 8
+ORDER_CHECK_PAIRS = 2048
+ORDER_CHECK_RUN = 64
+# Quadrant t is the bit 1 << t of the masks below
 QUADRANTS = ("ne", "nw", "se", "sw")
 
 
@@ -30,18 +39,20 @@ def _unit(latitude: float, longitude: float) -> tuple[float, float, float]:
 
 
 def _box_quadrants(box, c: int, qlat: float, qlon: float, mask: int) -> int:
-    # Quadrant bits a latitude/longitude box may hold: 1 ne, 2 nw, 4 se, 8 sw
+    # Quadrant bits a latitude/longitude box may hold: 1 ne, 2 nw, 4 se, 8 sw (as
+    # the C++ index). Slots 6, 7, 8, 9 of a box: min lat, max lat, min lon, max lon
+    # (literals, not names: this runs for every box a search visits)
     if box[7][c] < qlat:
-        mask &= 12
+        mask &= 4 | 8
     if box[6][c] > qlat:
-        mask &= 3
+        mask &= 1 | 2
     width = box[9][c] - box[8][c]
     if width < 180.0:
         start = _wrap180(box[8][c] - qlon)
         if start > 0.0 and start + width < 180.0:
-            mask &= 5
+            mask &= 1 | 4
         elif start > -180.0 and start + width < 0.0:
-            mask &= 10
+            mask &= 2 | 8
     return mask
 
 
@@ -84,21 +95,20 @@ class SnapIndex:
         if not isfinite(sum(lat) + sum(lon)):
             raise ValueError("node coordinates must be finite numbers")
         self.n = n
-        # Keep the network's order if it is already sorted along a Hilbert curve, in runs of
-        # 64 nodes or more on average, as judged on about 2,048 evenly spaced pairs of
-        # neighbours (all of them up to 4,096 nodes); otherwise sort a copy along one (as
-        # the C++ index)
-        pairs = range(1, n, max(1, (n - 1) // 2048))
+        # Keep the network's order if it is already sorted along a Hilbert curve, otherwise
+        # sort a copy along one (the check is explained in the C++ index)
+        pairs = range(1, n, max(1, (n - 1) // ORDER_CHECK_PAIRS))
         descents = sum(
             hilbert_key(lat[i], lon[i]) < hilbert_key(lat[i - 1], lon[i - 1])
             for i in pairs
         )
         ids = range(n)
-        if 64 * descents > len(pairs):
+        if ORDER_CHECK_RUN * descents > len(pairs):
             keys = [hilbert_key(la, lo) for la, lo in zip(lat, lon)]
             ids = array("q", sorted(ids, key=lambda i: (keys[i], i)))
             lat = array("d", map(lat.__getitem__, ids))
             lon = array("d", map(lon.__getitem__, ids))
+        # self.id: position in the index -> node id (a range when the order is kept)
         self.id, self.lat, self.lon = ids, lat, lon
         # The unit vectors, as _unit computes them
         a, b = array("d", map(radians, lat)), array("d", map(radians, lon))
