@@ -20,19 +20,20 @@ _SHORT_NO_GEOMETRY = {"length": 1112}
 class _OSMnxGraph:
     """Minimal stand-in for an OSMnx MultiDiGraph (osmnx is not a dependency)"""
 
-    def __init__(self, parallel_edges, second_node_x=0.01):
-        self.parallel_edges = parallel_edges
+    def __init__(self, parallel_edges, second_node_x=0.01, node_order=(1, 2)):
+        self.parallel_edges, self.node_order = parallel_edges, node_order
         self.second_node_x = second_node_x
         self.nodes = self
 
     def __iter__(self):
-        return iter([1, 2])
+        return iter(self.node_order)
 
     def __call__(self, data=False):
-        return [
-            (1, {"y": 0.0, "x": 0.0}),
-            (2, {"y": 0.0, "x": self.second_node_x}),
-        ]
+        located = {
+            1: {"y": 0.0, "x": 0.0},
+            2: {"y": 0.0, "x": self.second_node_x},
+        }
+        return [(node, located[node]) for node in self.node_order]
 
     def edges(self, data=False):
         return [(1, 2, edge_data) for edge_data in self.parallel_edges]
@@ -103,3 +104,12 @@ def test_an_osmnx_edge_shape_is_the_points_between_its_nodes(
     geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
     assert geograph.graph_object.graph[0] == {1: 1.112}
     assert geograph.intermediate_nodes[0] == expected_shapes
+
+
+def test_osmnx_nodes_keep_their_osm_ids_in_hilbert_order():
+    # Listed against the Hilbert order, which visits node 1 (west) first
+    geograph = GeoGraph.load_from_osmnx_graph(
+        _OSMnxGraph([_STRAIGHT], node_order=(2, 1)), silent=True
+    )
+    assert list(geograph.node_ids) == [1, 2]
+    assert geograph.nodes == [[0.0, 0.0], [0.0, 0.01]]

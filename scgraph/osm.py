@@ -58,7 +58,8 @@ def read_osm(filename, keep, directed, max_km_between_nodes):
     """
     Build the graph of the ways of `filename` whose tags match `keep`.
 
-    Returns `(graph, nodes, intermediate_nodes)` in the GeoGraph layout.
+    Returns `(graph, nodes, intermediate_nodes, ids)` in the GeoGraph layout, `ids` being
+    the OSM ids of the nodes.
     """
     osmium = require_osmium()
     # First pass: OSM nodes used more than once are junctions (where ways meet,
@@ -102,7 +103,7 @@ def _located_pieces(way_nodes, positions):
         yield piece
 
 
-def keep_largest_component(graph, nodes, shapes):
+def keep_largest_component(graph, nodes, shapes, ids):
     """Keep the largest strongly connected component, the part where every node can reach
     every other, so that no origin or destination is placed on a one-way dead end or on a
     fragment cut by the border of an extract."""
@@ -118,6 +119,7 @@ def keep_largest_component(graph, nodes, shapes):
             {index[v]: s for v, s in shapes[u].items() if v in index}
             for u in kept
         ],
+        [ids[u] for u in kept],
     )
 
 

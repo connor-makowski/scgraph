@@ -145,8 +145,9 @@ def test_load_geograph_converts_a_published_geograph_once(
 
         monkeypatch.setattr(network_file, "write", refused)
     geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
-    # In Hilbert order (old nodes 1, 2, 0), the arcs renumbered
+    # In Hilbert order (old nodes 1, 2, 0, their node ids), the arcs renumbered
     assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
+    assert list(geo.node_ids) == [1, 2, 0]
     assert geo.graph_object.graph == [
         {2: 1.5, 1: 2.0},
         {0: 2.0},

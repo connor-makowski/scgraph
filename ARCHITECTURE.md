@@ -58,10 +58,15 @@ entries, and every node has an entry, even with no outgoing edge.
   touches, and the next search packs every row into new arrays, so a series of edits costs
   one packing.
 - `GeoGraph` adds `nodes[u] = [latitude, longitude]` (read from the file's arrays for a
-  GeoGraph read from a network file, §7) and, optionally,
+  GeoGraph read from a network file, §7), `node_ids[u]` (the node's stable id, for example
+  its OSM id, which saves and merges keep; nodes added later get negative ids below all
+  the others; without ids, a node's id is its position) and, optionally,
   `intermediate_nodes`: the detailed shape of an edge, used only to draw the route
   (`intermediate_nodes[u][v]`: the points between `u` and `v`, from `u` to `v`;
   the loaders give no entry to an arc without such points).
+  Node ids in graphs, paths and algorithms are positions; loaders that number the nodes
+  themselves (`load_from_osm`, `load_from_osmnx_graph`, `load_from_geojson`) number them
+  along a Hilbert curve.
 - Algorithms take an origin and a destination as a node id, a set of node ids, or a
   dict `{node_id: distance}` (several sources or targets, each with a starting
   distance). They return `{"path": [node ids], "length": total weight}`.
@@ -275,7 +280,7 @@ when every arc has a reverse arc of the same weight; scgraph does not read it ye
 | `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
 | `shape_offsets` (optional) | int32 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
 | `shape_points` (optional) | int32 | k × 2 | latitude and longitude of each shape point, in units of 1e-7 degree (rounded when written) |
-| `node_ids` (optional) | int64 | n | the id of each node in its source (negative for nodes scgraph created); without it, a node's id is its position |
+| `node_ids` (optional) | int32 or int64 (int32 only when every id fits, as for converted built-in networks; OSM ids need int64) | n | the id of each node in its source (negative for nodes scgraph created); without it, a node's id is its position |
 | `node_modes` (optional) | uint8 | n | the mode of each node, an index into the metadata's `modes`; without it, every node has one mode |
 
 The reader checks the magic, the version, that the header and every array lie inside the
