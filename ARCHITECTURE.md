@@ -58,7 +58,9 @@ entries, and every node has an entry, even with no outgoing edge.
   one packing.
 - `GeoGraph` adds `nodes[u] = [latitude, longitude]` (read from the file's arrays for a
   GeoGraph read from a network file, §7) and, optionally,
-  `intermediate_nodes`: the detailed shape of an edge, used only to draw the route.
+  `intermediate_nodes`: the detailed shape of an edge, used only to draw the route
+  (`intermediate_nodes[u][v]`: the points between `u` and `v`, from `u` to `v`;
+  the loaders give no entry to an arc without such points).
 - Algorithms take an origin and a destination as a node id, a set of node ids, or a
   dict `{node_id: distance}` (several sources or targets, each with a starting
   distance). They return `{"path": [node ids], "length": total weight}`.

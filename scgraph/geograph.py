@@ -529,7 +529,7 @@ class GeoGraphIO:
         Function:
 
         - Load a GeoGraph from a JSON file that was saved using the `save_as_graphjson` method
-        - Arc shapes that repeat their arc's two nodes (files saved by released versions) are read without them
+        - Arc shapes are read as the points between their arc's two nodes, from origin to destination: nodes they repeat (files saved by released versions) are dropped, a shape running from destination to origin is reversed, and an arc left without points has no shape
 
         Required Arguments:
 
@@ -581,8 +581,8 @@ class GeoGraphIO:
                 {int(k): v for k, v in item.items()}
                 for item in data["intermediate_nodes"]
             ]
-            # Files saved by scgraph 3.6 may repeat each arc's two nodes in its shape
-            _drop_node_points(data["intermediate_nodes"], data["nodes"])
+            # Files saved by scgraph 3.0 to 3.6 repeat each arc's two nodes in its shape
+            _keep_interior_points(data["intermediate_nodes"], data["nodes"])
         geograph = GeoGraph(**data)
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
@@ -1427,6 +1427,7 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to load the intermediate nodes for each edge (if they exist)
             - Default: True
+            - Note: The shape kept for an edge is the points of its geometry between its two nodes, from origin to destination (a geometry listed from destination to origin is reversed, repeated end nodes are dropped); an edge without such points has no shape
         - `silent`
             - Type: bool
             - What: Whether to suppress progress output to the console when loading the graph
@@ -1491,8 +1492,8 @@ class GeoGraphIO:
             ]
         kwargs = {}
         if load_intermediate_nodes:
-            # An edge's geometry runs from its first node to its second
-            _drop_node_points(intermediate_nodes, nodes)
+            # An edge's geometry should run from its first node to its second
+            _keep_interior_points(intermediate_nodes, nodes)
             kwargs["intermediate_nodes"] = intermediate_nodes
         # Handle travel_time specific parameters
         if weight_key == "travel_time":
@@ -2092,16 +2093,25 @@ class GeoGraphModifiers:
         self.graph_object = Graph(graph=graph)
 
 
-def _drop_node_points(shapes, nodes):
-    # Arc shapes hold the points between the arc's two nodes: remove a first point equal
-    # to the origin and a last point equal to the destination (in place: no list copy)
+def _keep_interior_points(shapes, nodes):
+    # Arc shapes hold the points between the arc's two nodes, from origin to destination:
+    # reverse a shape that runs from the destination to the origin, remove the points
+    # equal to the origin at its start and to the destination at its end, and the arcs
+    # left without points, as a network file has none (edits the shapes in place)
     for origin, row in enumerate(shapes):
         start = nodes[origin]
-        for destination, shape in row.items():
-            if shape and shape[-1] == nodes[destination]:
+        for destination, shape in list(row.items()):
+            end = nodes[destination]
+            if shape and shape[0] == end and shape[-1] == start != end:
+                shape.reverse()
+            while shape and shape[-1] == end:
                 del shape[-1]
-            if shape and shape[0] == start:
-                del shape[0]
+            first = 0
+            while first < len(shape) and shape[first] == start:
+                first += 1
+            del shape[:first]
+            if not shape:
+                del row[destination]
 
 
 def _in_hilbert_order(geograph, blocks):
@@ -2601,7 +2611,7 @@ class GeoGraph(
             - Default: False
         - `intermediate_nodes`
             - Type: list of dicts of lists of [float, float]
-            - What: One dict per node, {destination: [[latitude, longitude], ...]}: the coordinates of each arc's shape, between its two nodes (not repeated)
+            - What: One dict per node, {destination: [[latitude, longitude], ...]}: the coordinates of each arc's shape, between its two nodes (not repeated), from origin to destination
             - Note: Allows for more detailed path plotting along arcs without needing to increase the number of nodes in the graph
             - Default: None
         - `default_off_graph_circuity`
