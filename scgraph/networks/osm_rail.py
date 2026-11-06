@@ -3,7 +3,7 @@ from Geofabrik, for example `region="europe/luxembourg"`."""
 
 from scgraph.geograph import GeoGraph
 from scgraph.networks import download_file
-from scgraph.osm import require_osmium
+from scgraph.osm import direction, require_osmium
 
 VERSION = 1
 
@@ -23,4 +23,10 @@ def download(url, filename):
 
 
 def build(files):
-    return GeoGraph.load_from_osm(files["rail"], keep={"railway": {"rail"}})
+    return GeoGraph.load_from_osm(
+        files["rail"], select=_rail, keys=("railway",)
+    )
+
+
+def _rail(tags):
+    return direction(tags) if tags.get("railway") == "rail" else None

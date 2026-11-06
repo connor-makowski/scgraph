@@ -577,10 +577,15 @@ from scgraph import GeoGraph
 # Main roads (motorway to primary, with their links); one-way streets are respected
 michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
 
-# Other ways: a way is kept if, for every key, its tag value is in the set
-# (None for a missing tag): here railway lines without yards, sidings and spurs
+# Other ways: select(tags) gives the direction of a way (1 or -1: one way, 0: both
+# ways) or None to leave it out; only ways with one of the keys reach select.
+# Here railway lines without yards, sidings and spurs, both ways
 michigan_rail = GeoGraph.load_from_osm(
-    "michigan-latest.osm.pbf", keep={"railway": {"rail"}, "service": {None}}
+    "michigan-latest.osm.pbf",
+    select=lambda tags: (
+        0 if tags.get("railway") == "rail" and "service" not in tags else None
+    ),
+    keys=("railway",),
 )
 ```
 
@@ -591,8 +596,8 @@ Ways meet only where they share an OSM node, so roads that cross on a bridge or 
 | Parameter | Default | Description |
 |---|---|---|
 | `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`) |
-| `keep` | `None` | Ways to keep, `{tag: {values}}`, `None` among the values for a missing tag; `None` keeps main roads (`scgraph.osm.MAIN_ROADS`) |
-| `directed` | `True` | Whether one-way streets give arcs in one direction only |
+| `select` | `scgraph.osm.main_roads` | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.osm.MAIN_ROADS`), one way as `scgraph.osm.direction(tags)` says |
+| `keys` | `("highway",)` | Tag keys of which a way must have at least one to reach `select`, filtered in osmium (faster); `()` sends every way to `select` |
 | `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new arc, at the next point of the way |
 | `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |
 | `load_intermediate_nodes` | `True` | Keep the shape of each arc, to draw routes |

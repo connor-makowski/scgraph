@@ -27,22 +27,11 @@ def require_osmium():
     return osmium
 
 
-def _kept_ways(osmium, filename, keep):
-    """The ways whose tags match `keep`; ways without a required key are skipped in
-    osmium, before Python sees them."""
-    ways = osmium.FileProcessor(filename, osmium.osm.WAY)
-    required = [key for key, values in keep.items() if None not in values]
-    if required:
-        ways = ways.with_filter(osmium.filter.KeyFilter(*required))
-    return (
-        way
-        for way in ways
-        if all(way.tags.get(key) in values for key, values in keep.items())
-    )
-
-
-def _direction(tags):
-    """1: one way along the drawing, -1: against it, 0: both ways."""
+def direction(tags):
+    """The direction of a way from its tags: 1 (one way, along its drawing) for
+    `oneway=yes`, `true` or `1`, and for motorways and roundabouts without `oneway`; -1
+    (one way, against it) for `oneway=-1` or `reverse`; 0 (both ways) otherwise.
+    """
     if tags.get("oneway") in _ONE_WAY:
         return _ONE_WAY[tags["oneway"]]
     # One way without a tag in OSM: motorways and roundabouts
@@ -54,9 +43,35 @@ def _direction(tags):
     return 0
 
 
-def read_osm(filename, keep, directed, max_km_between_nodes):
+def main_roads(tags):
+    """The direction of a main road (`MAIN_ROADS`), None for any other way."""
+    return direction(tags) if tags.get("highway") in MAIN_ROADS else None
+
+
+def _selected_ways(osmium, filename, select, keys):
+    """`(direction, way)` for the ways `select` keeps; ways with none of `keys` are
+    skipped in osmium, before Python sees them."""
+    ways = osmium.FileProcessor(filename, osmium.osm.WAY)
+    if keys:
+        ways = ways.with_filter(osmium.filter.KeyFilter(*keys))
+    for way in ways:
+        way_direction = select(way.tags)
+        if way_direction is None:
+            continue
+        if type(way_direction) is not int or way_direction not in (-1, 0, 1):
+            raise ValueError(
+                f"select returned {way_direction!r}: 1, -1, 0 or None"
+            )
+        yield way_direction, way
+
+
+def read_osm(filename, select, keys=(), max_km_between_nodes=2):
     """
-    Build the graph of the ways of `filename` whose tags match `keep`.
+    Build the graph of the ways of `filename` that `select` keeps.
+
+    `select(tags)` gives the direction of a way: 1 (one way along its drawing), -1
+    (against it), 0 (both ways), or None to drop it. If `keys` is given, the ways that
+    have none of these keys (any one of them is enough) are dropped first, in osmium.
 
     Returns `(graph, nodes, intermediate_nodes, ids)` in the GeoGraph layout, `ids` being
     the OSM ids of the nodes.
@@ -66,7 +81,7 @@ def read_osm(filename, keep, directed, max_km_between_nodes):
     # or where a way crosses itself); crossings without a shared node, such as
     # bridges and tunnels, are not.
     uses = {}
-    for way in _kept_ways(osmium, filename, keep):
+    for _, way in _selected_ways(osmium, filename, select, keys):
         for node in way.nodes:
             uses[node.ref] = uses.get(node.ref, 0) + 1
     junctions = {ref for ref, count in uses.items() if count > 1}
@@ -82,8 +97,8 @@ def read_osm(filename, keep, directed, max_km_between_nodes):
 
     # Third pass: one arc per piece of way between junctions
     lines = (
-        (_direction(way.tags) if directed else 0, piece)
-        for way in _kept_ways(osmium, filename, keep)
+        (way_direction, piece)
+        for way_direction, way in _selected_ways(osmium, filename, select, keys)
         for piece in _located_pieces(way.nodes, positions)
     )
     return lines_to_graph(lines, junctions, max_km_between_nodes)
