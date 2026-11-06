@@ -1022,6 +1022,7 @@ class GeoGraphIO:
     @staticmethod
     def build_geograph(
         name: Literal[
+            "eurostat_marnet",
             "marnet",
             "north_america_rail",
             "oak_ridge_maritime",
@@ -1053,6 +1054,7 @@ class GeoGraphIO:
             - Type: str
             - What: The name of the network
             - Options:
+                - 'eurostat_marnet': the sea lanes of Eurostat SeaRoute at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out, unlike `marnet` (EUPL-1.2)
                 - 'marnet': the sea lanes the published `marnet` was built from (Eurostat SeaRoute via searoute-py, EUPL-1.2)
                 - 'north_america_rail': Class I railroads of North America (U.S. Federal Railroad Administration)
                 - 'oak_ridge_maritime': the sea lanes the published `oak_ridge_maritime` was built from (Oak Ridge National Laboratory)

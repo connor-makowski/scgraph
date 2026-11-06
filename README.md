@@ -497,6 +497,7 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | Name | Network | Source |
 |---|---|---|
 | `marnet` | Sea lanes of the built-in `marnet` | GeoJSON kept in the scgraph repository, from Eurostat SeaRoute via searoute-py |
+| `eurostat_marnet` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out (unlike `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
 | `oak_ridge_maritime` | Sea lanes of the built-in `oak_ridge_maritime` | GeoJSON kept in the scgraph repository, from Oak Ridge National Laboratory |
 | `north_america_rail` | Class I railroads of North America | FRA and BTS, ArcGIS layer |
 | `us_freeway` | Freeways of the United States | Esri, ArcGIS layer |

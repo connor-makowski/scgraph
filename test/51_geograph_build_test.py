@@ -2,6 +2,8 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
+import struct
 import threading
 import typing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,11 +15,13 @@ import requests
 from scgraph import GeoGraph, network_file, networks
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.networks import (
+    eurostat_marnet,
     marnet,
     north_america_rail,
     osm_main_roads,
     osm_main_roads_and_marnet,
 )
+from scgraph.utils import haversine
 
 # Two lines meeting at (0.01, 0): 4 nodes, not read in Hilbert order
 _FEATURES = [
@@ -326,6 +330,53 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
     )
     assert [0, 0.02] in route["coordinate_path"]  # through the port
     assert [-0.004, 0.001] in route["coordinate_path"]  # along the road's shape
+
+
+# Lines as Eurostat stores them: a lane cut at the antimeridian, at 180 and at -180, and
+# Arctic passage lanes shorter than the open-sea lane beside them
+def test_eurostat_marnet_joins_the_antimeridian_and_leaves_out_arctic_passages(
+    tmp_path,
+):
+    lines = [
+        ([179, 0, 180, 0], None),
+        ([-180, 0, -179, 0], None),
+        ([100, 75, 110, 75], "northeast"),
+        ([100, 75, 110, 75], "northwest"),
+        ([100, 75, 105, 70, 110, 75], None),
+    ]
+    gpkg = str(tmp_path / "lines.gpkg")
+    database = sqlite3.connect(gpkg)
+    database.execute('create table "type" (geometry blob, pass text)')
+    for xy, passage in lines:
+        # GeoPackage header with an envelope (left empty), then big-endian WKB
+        geometry = (
+            b"GP\x00\x02"
+            + bytes(36)
+            + struct.pack(f">BII{len(xy)}d", 0, 2, len(xy) // 2, *xy)
+        )
+        database.execute(
+            'insert into "type" values (?, ?)', (geometry, passage)
+        )
+    database.commit()
+    database.close()
+    geo = eurostat_marnet.build({"lines": gpkg})
+
+    def km(origin, destination):
+        return geo.get_shortest_path(
+            origin_node={"latitude": origin[0], "longitude": origin[1]},
+            destination_node={
+                "latitude": destination[0],
+                "longitude": destination[1],
+            },
+        )["length"]
+
+    assert km([0, 179], [0, -179]) == pytest.approx(
+        haversine([0, 179], [0, -179]), abs=0.01
+    )
+    assert km([75, 100], [75, 110]) == pytest.approx(
+        haversine([75, 100], [70, 105]) + haversine([70, 105], [75, 110]),
+        abs=0.01,
+    )
 
 
 @pytest.mark.parametrize(
