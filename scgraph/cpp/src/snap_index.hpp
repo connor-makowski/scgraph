@@ -6,8 +6,8 @@
 //
 // The nodes are read along a Hilbert curve: in the network's own order if it is already
 // sorted along one (networks built or converted by scgraph), otherwise in the order of an id
-// table. The coordinates are never copied: the index reads them in place (a mapped network
-// file, for instance) and keeps them alive through `owner`.
+// table. In the first case the index reads the coordinates in place (a mapped network file,
+// for instance) and keeps them alive through `owner`; in the second it keeps a sorted copy.
 // A leaf holds 32 consecutive nodes as float unit vectors, so that one vectorised loop
 // computes the distances to a whole leaf. An implicit tree with 8 children per node keeps,
 // for each child, the box of its unit vectors and the box of its latitudes and longitudes.
@@ -24,8 +24,9 @@
 // that one description fits both.
 class SnapIndex {
 public:
-    // latitudes[i], longitudes[i]: node i, in degrees, for i < n. The index reads these
-    // arrays for as long as it lives; `owner` keeps them alive
+    // latitudes[i], longitudes[i]: node i, in degrees, for i < n. If their order is kept,
+    // the index reads these arrays for as long as it lives, and keeps `owner`, which keeps
+    // them alive. Otherwise it copies them in its own order and releases `owner`
     SnapIndex(const double* latitudes, const double* longitudes, int n,
               std::shared_ptr<const void> owner);
 
@@ -57,9 +58,9 @@ private:
     struct Best;
 
     int n;
-    const double* lat;  // by node id, read in place
+    const double* lat;  // by position in the index: the caller's arrays, or the sorted copy
     const double* lon;
-    std::shared_ptr<const void> owner;
+    std::shared_ptr<const void> owner;  // keeps lat and lon alive
     std::vector<int> id;  // position in the index -> node id; empty when the order is kept
     int node_id(int p) const { return id.empty() ? p : id[p]; }
     std::vector<Leaf> leaves;

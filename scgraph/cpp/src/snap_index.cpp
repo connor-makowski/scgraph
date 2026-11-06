@@ -178,6 +178,17 @@ SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
         std::sort(id.begin(), id.end(), [&keys](int a, int b) {
             return keys[a] != keys[b] ? keys[a] < keys[b] : a < b;
         });
+        // Copy the coordinates in index order: the quadrant search reads them for every node
+        // within reach, and reading them through the id table would jump around in memory.
+        // The copy replaces the caller's arrays, which the index no longer needs
+        auto sorted = std::make_shared<std::vector<double>>(2 * size_t(n));
+        for (int p = 0; p < n; ++p) {
+            (*sorted)[p] = latitudes[id[p]];
+            (*sorted)[n + p] = longitudes[id[p]];
+        }
+        lat = sorted->data();
+        lon = sorted->data() + n;
+        this->owner = std::move(sorted);
     }
 
     // Leaves, and the box of each leaf (BOX_SLOTS floats, rounded outward by down and up)
@@ -192,12 +203,11 @@ SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
                 leaves[j].x[i] = leaves[j].y[i] = leaves[j].z[i] = PAD;
                 continue;
             }
-            const int node = node_id(p);
-            Unit u = unit(lat[node], lon[node]);
+            Unit u = unit(lat[p], lon[p]);
             leaves[j].x[i] = float(u.x);
             leaves[j].y[i] = float(u.y);
             leaves[j].z[i] = float(u.z);
-            const double v[BOX_SLOTS / 2] = {u.x, u.y, u.z, lat[node], lon[node]};
+            const double v[BOX_SLOTS / 2] = {u.x, u.y, u.z, lat[p], lon[p]};
             for (int t = 0; t < BOX_SLOTS / 2; ++t) {
                 b[2 * t] = std::min(b[2 * t], v[t]);
                 b[2 * t + 1] = std::max(b[2 * t + 1], v[t]);
@@ -310,8 +320,8 @@ int SnapIndex::recheck(const Query& q, const Best& best) const {
     double found_d = INF;
     for (const auto& [d, p] : *best.candidates) {
         if (d > best.thr) continue;
+        double exact = chord2(q.u, unit(lat[p], lon[p]));
         const int node = node_id(p);
-        double exact = chord2(q.u, unit(lat[node], lon[node]));
         if (exact < found_d || (exact == found_d && node < found)) {
             found_d = exact;
             found = node;
@@ -370,8 +380,7 @@ void SnapIndex::scan_quadrants(int leaf, int mask, const Query& q, Best* best) c
     for (int i = 0; i < end; ++i) {
         if (d[i] > reach) continue;
         int p = leaf * LEAF + i;
-        const int node = node_id(p);
-        int quadrants = node_quadrants(lat[node], lon[node], q.lat, q.lon) & mask;
+        int quadrants = node_quadrants(lat[p], lon[p], q.lat, q.lon) & mask;
         for (int t = 0; t < 4; ++t) {
             if (!(quadrants & (1 << t)) || d[i] > best[t].thr) continue;
             if (d[i] < best[t].best) best[t].update(d[i]);
