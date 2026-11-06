@@ -2096,15 +2096,15 @@ class _SortedSnapIndex:
 
     def __init__(self, order: array, index: SnapIndex):
         # order[position in the index] = node id. An array, not a list: the garbage
-        # collector never walks it (a list of a million ids cost a 16 ms pause)
+        # collector never walks it (a list of 572,009 ids cost a 16 ms pause)
         self.order, self.index = order, index
 
     def closest_idx(self, point) -> int:
         return self.order[self.index.closest_idx(point)]
 
     def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
-        # Changes the index's dict in place and allocates nothing else, so that queries
-        # don't make the garbage collector run more often
+        # Changes the index's dict in place and creates no object the garbage collector
+        # tracks, so that queries don't make it run more often
         found = self.index.closest_idx_per_quadrant(point)
         for quadrant in ("ne", "nw", "se", "sw"):
             p = found[quadrant]
@@ -2675,6 +2675,10 @@ class GeoGraph(
         The index that snaps coordinates to their nearest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
         the first snap, and again after nodes were added or removed.
+
+        - Nodes too scattered for the index (a graph built from a list, or many nodes added
+          to a network file) are indexed in Hilbert order, sorted in Python at each build:
+          an exact tie between two places then goes to the node earlier on the curve
         """
         # Dropped by add_coord_node, remove_coord_node and merge_with_other_geograph (merge
         # keeps the index of the networks before the merge while it connects them); direct
@@ -2698,7 +2702,9 @@ class GeoGraph(
         return self.__snap_index__
 
     @snap_index.setter
-    def snap_index(self, snap_index: SnapIndex | None) -> None:
+    def snap_index(
+        self, snap_index: "SnapIndex | _SortedSnapIndex | None"
+    ) -> None:
         self.__snap_index__ = snap_index
         # Node coordinates in radians for the native A* heuristic, rebuilt with the index
         self.__node_radians__ = None
