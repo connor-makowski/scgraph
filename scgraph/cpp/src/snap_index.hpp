@@ -1,10 +1,13 @@
 #pragma once
+#include <memory>
 #include <vector>
 
 // Nearest node of a point on the sphere, for snapping coordinates to a GeoGraph.
 //
 // The nodes are read along a Hilbert curve: in the network's own order if it is already
-// sorted along one (networks built or converted by scgraph), otherwise in a sorted copy.
+// sorted along one (networks built or converted by scgraph), otherwise in the order of an id
+// table. In the first case the index reads the coordinates in place (a mapped network file,
+// for instance) and keeps them alive through `owner`; in the second it keeps a sorted copy.
 // A leaf holds 32 consecutive nodes as float unit vectors, so that one vectorised loop
 // computes the distances to a whole leaf. An implicit tree with 8 children per node keeps,
 // for each child, the box of its unit vectors and the box of its latitudes and longitudes.
@@ -21,8 +24,11 @@
 // that one description fits both.
 class SnapIndex {
 public:
-    // latitudes[i], longitudes[i]: node i, in degrees
-    SnapIndex(std::vector<double> latitudes, std::vector<double> longitudes);
+    // latitudes[i], longitudes[i]: node i, in degrees, for i < n. If their order is kept,
+    // the index reads these arrays for as long as it lives, and keeps `owner`, which keeps
+    // them alive. Otherwise it copies them in its own order and releases `owner`
+    SnapIndex(const double* latitudes, const double* longitudes, int n,
+              std::shared_ptr<const void> owner);
 
     // Id of the node nearest to the point
     int closest_idx(double latitude, double longitude) const;
@@ -52,8 +58,11 @@ private:
     struct Best;
 
     int n;
-    std::vector<int> id;           // position in the index -> node id
-    std::vector<double> lat, lon;  // by position
+    const double* lat;  // by position in the index: the caller's arrays, or the sorted copy
+    const double* lon;
+    std::shared_ptr<const void> owner;  // keeps lat and lon alive
+    std::vector<int> id;  // position in the index -> node id; empty when the order is kept
+    int node_id(int p) const { return id.empty() ? p : id[p]; }
     std::vector<Leaf> leaves;
     std::vector<std::vector<Group>> levels;  // levels[0] holds the parents of the leaves
 

@@ -249,13 +249,14 @@ the graph reads its arcs in place (the private `Graph._from_mapped_csr` keeps th
 `Graph.from_csr` copies). A GeoGraph read from a network file (so also from `load_geograph`
 and `build_geograph`) has as `nodes` a `network_file.NodeCoordinates`, which reads the latitude
 and longitude arrays (in place in the C++ backend) and keeps added nodes after them;
-`SnapIndex.from_arrays` indexes the arrays, and `NodeCoordinates.take` builds a route's
-coordinates from them in C++ when available. Its `intermediate_nodes`, if the file has shapes,
-is a read-only `network_file.ArcShapes`, which reads each shape from the shape arrays when asked
-for; `ArcShapes.coordinate_path` builds a route's coordinates with its shapes in C++ when
-available. The mapping lasts as long as those `nodes` and shapes, even after the graph is
-edited. Windows does not replace a mapped file, so there, saving onto a file that an
-open geograph was read from raises a `PermissionError`.
+`SnapIndex.from_arrays` indexes the arrays (the C++ index reads them in place, as they are in
+Hilbert order, and keeps them), and `NodeCoordinates.take` builds a route's coordinates from
+them in C++ when available. Its `intermediate_nodes`, if the file has shapes, is a read-only
+`network_file.ArcShapes`, which reads each shape from the shape arrays when asked for;
+`ArcShapes.coordinate_path` builds a route's coordinates with its shapes in C++ when
+available. The mapping lasts as long as those `nodes`, shapes or the snapping index, even after
+the graph is edited. Windows does not replace a mapped file, so there, saving onto a file that
+an open geograph was read from raises a `PermissionError`.
 `network_file.write` takes the arrays as stored; `save_as_scgraph` passes it the graph's arcs
 from the private `Graph._csr()`, in the C++ backend views of the graph's own arrays, so that
 saving copies no arc there.

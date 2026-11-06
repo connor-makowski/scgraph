@@ -1,5 +1,6 @@
 import math
 import random
+from array import array
 
 import pytest
 
@@ -116,11 +117,27 @@ def _queries(nodes):
     return queries
 
 
+def _from_points(implementation, nodes):
+    return implementation(nodes), None
+
+
+def _from_arrays(implementation, nodes):
+    # As a network file is indexed: from two float64 arrays, which the caller then drops.
+    # Same-size arrays allocated next are likely to take their memory, so an index that
+    # read the dropped arrays in place without keeping them would read zeros
+    latitudes = array("d", [p[0] for p in nodes])
+    longitudes = array("d", [p[1] for p in nodes])
+    index = implementation.from_arrays(latitudes, longitudes)
+    del latitudes, longitudes
+    return index, [array("d", [0.0]) * len(nodes) for _ in range(4)]
+
+
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
 @pytest.mark.parametrize("network", list(_networks()))
-def test_snap_index_finds_the_nearest_node(implementation, network):
+@pytest.mark.parametrize("build", [_from_points, _from_arrays])
+def test_snap_index_finds_the_nearest_node(implementation, network, build):
     nodes = _networks()[network]
-    index = implementation(nodes)
+    index, _reused = build(implementation, nodes)
     everything = list(range(len(nodes)))
     for point in _queries(nodes):
         assert _is_nearest(nodes, point, everything, index.closest_idx(point))
