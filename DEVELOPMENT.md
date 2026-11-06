@@ -37,6 +37,7 @@ scgraph/
     steps/
       osm.py                     # Reading OpenStreetMap files (optional dependency osmium)
       arcgis.py                  # Downloading an ArcGIS feature layer as GeoJSON
+      assembly.py                # Arcs to network arrays, strong components, Douglas-Peucker; C++ in cpp/src/pipelines/assembly.hpp
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)
@@ -45,7 +46,7 @@ scgraph/
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
     src/                         # C++ source: adjacency, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, bmssp (template header)
+    │                            #   transit_node_routing, snap_index, bmssp (template header); pipelines/assembly.hpp
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
 test/

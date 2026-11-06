@@ -10,6 +10,7 @@ from bisect import bisect_left
 
 from scgraph.helpers.polylines import polylines_to_graph
 from scgraph.pipelines import download_file
+from scgraph.pipelines.steps.assembly import strong_components
 
 # The OpenStreetMap extracts of Geofabrik, `{region}` being the path of an extract
 GEOFABRIK = {
@@ -230,8 +231,15 @@ def _located_pieces(way_nodes):
 def keep_largest_component(graph, nodes, shapes, node_ids):
     """Keep the largest strongly connected component, the part where every node can reach
     every other, so that no origin or destination is placed on a one-way dead end or on a
-    fragment cut by the border of an extract."""
-    kept = _largest_strongly_connected(graph)
+    fragment cut by the border of an extract (of equal ones, the one with the smallest
+    node index)."""
+    offsets, heads = array("i", [0]), array("i")
+    for row in graph:
+        heads.extend(row)
+        offsets.append(len(heads))
+    labels, sizes = strong_components(offsets, heads)
+    largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
+    kept = [u for u, label in enumerate(labels) if label == largest]
     index = {old: new for new, old in enumerate(kept)}
     return (
         [
@@ -245,46 +253,3 @@ def keep_largest_component(graph, nodes, shapes, node_ids):
         ],
         [node_ids[u] for u in kept],
     )
-
-
-def _largest_strongly_connected(graph):
-    """Nodes of the largest strongly connected component, in increasing order (Kosaraju:
-    order the nodes by the end of a depth-first search, then search the reverse graph).
-    """
-    n = len(graph)
-    finished, seen = [], [False] * n
-    for start in range(n):
-        if seen[start]:
-            continue
-        seen[start] = True
-        stack = [(start, iter(graph[start]))]
-        while stack:
-            node, successors = stack[-1]
-            successor = next(successors, None)
-            if successor is None:
-                stack.pop()
-                finished.append(node)
-            elif not seen[successor]:
-                seen[successor] = True
-                stack.append((successor, iter(graph[successor])))
-    reverse = [[] for _ in range(n)]
-    for origin, row in enumerate(graph):
-        for destination in row:
-            reverse[destination].append(origin)
-    component, sizes = [-1] * n, []
-    for start in reversed(finished):
-        if component[start] != -1:
-            continue
-        component[start], stack, size = len(sizes), [start], 0
-        while stack:
-            node = stack.pop()
-            size += 1
-            for predecessor in reverse[node]:
-                if component[predecessor] == -1:
-                    component[predecessor] = len(sizes)
-                    stack.append(predecessor)
-        sizes.append(size)
-    if not sizes:
-        return []
-    largest = sizes.index(max(sizes))
-    return [node for node in range(n) if component[node] == largest]
