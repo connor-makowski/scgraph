@@ -261,7 +261,7 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to include the intermediate nodes in the saved file (if they exist)
             - Default: True
-            - Note: Their points are stored to 1e-7 degree (about 1 cm)
+            - Note: Their points are stored to 1e-7 degree (about 1 cm) and must lie within ±214.7483647°
         - `sources`
             - Type: list[dict] | None
             - What: Where the data comes from, stored in the file header so that it travels with the file: for each source, for example its `url`, `credit` and `license` (as `build_geograph` records them)
@@ -600,10 +600,10 @@ class GeoGraphIO:
         Function:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
-        - The file is checked before use: a damaged or foreign file raises a ValueError
+        - The file is checked before use: a damaged or foreign file raises a ValueError (in the C++ build, damaged arc shapes raise it when they are read)
         - In the C++ build, the file is mapped and read in place while the geograph is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
-        - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing
+        - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
 
         Required Arguments:
