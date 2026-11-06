@@ -88,7 +88,7 @@ Snapping uses `snap_index` (`cpp/src/snap_index.cpp`; `helpers/snap_index.py` in
 with the same answers): the exact nearest node, ties to the lowest id, and the nearest node per
 quadrant.
 - It reads the nodes in an order where consecutive nodes are close (the network's own if it is
-  in Hilbert order, judged on about 2,048 pairs of neighbours, else a sorted copy), in leaves of 32.
+  in Hilbert order, judged on about 2,048 pairs of neighbours, else a sorted order), in leaves of 32.
 - A tree of 8 children per node keeps each child's box.
 - A search skips every box farther than the best node found. The C++ index uses float
   distances to select candidates, then checks each candidate again in double. The pure-Python
@@ -237,10 +237,11 @@ the graph reads its arcs in place (the private `Graph._from_mapped_csr` keeps th
 `Graph.from_csr` copies). A GeoGraph read from a network file (so also from `load_geograph`
 and `build_geograph`) has as `nodes` a `network_file.NodeCoordinates`, which reads the latitude
 and longitude arrays (in place in the C++ backend) and keeps added nodes after them;
-`SnapIndex.from_arrays` indexes the arrays, and `NodeCoordinates.take` builds a route's
-coordinates from them in C++ when available. The mapping lasts as long as those `nodes`, even
-after the graph is edited. Windows does not replace a mapped file, so there, saving onto a file that an
-open geograph was read from raises a `PermissionError`.
+`SnapIndex.from_arrays` indexes the arrays (the C++ index reads them in place and keeps them),
+and `NodeCoordinates.take` builds a route's coordinates from them in C++ when available. The
+mapping lasts as long as those `nodes` or the snapping index, even after the graph is
+edited. Windows does not replace a mapped file, so there, saving onto a file that an open
+geograph was read from raises a `PermissionError`.
 
 | Bytes | Content |
 |---|---|

@@ -153,16 +153,15 @@ struct SnapIndex::Best {
     }
 };
 
-SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitudes) {
-    if (latitudes.size() != longitudes.size())
-        throw std::invalid_argument("latitudes and longitudes must have the same length");
-    if (latitudes.empty()) throw std::invalid_argument("a snapping index needs at least one node");
-    n = int(latitudes.size());
+SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
+                     std::shared_ptr<const void> owner)
+    : n(n), lat(latitudes), lon(longitudes), owner(std::move(owner)) {
+    if (n < 1) throw std::invalid_argument("a snapping index needs at least one node");
     for (int i = 0; i < n; ++i)
         if (!std::isfinite(latitudes[i]) || !std::isfinite(longitudes[i]))
             throw std::invalid_argument("node coordinates must be finite numbers");
     // Keep the network's order if it already follows a Hilbert curve in runs of
-    // ORDER_CHECK_RUN nodes or more on average; otherwise sort a copy along the curve. Runs
+    // ORDER_CHECK_RUN nodes or more on average; otherwise sort an id table along the curve. Runs
     // are allowed because a multimodal network sorts each mode on its own. The check looks
     // at every pair of neighbouring nodes up to 4,096 nodes, and at 2,048 to 3,072 evenly
     // spaced pairs above that. An order that is only coherent along lines would give long,
@@ -171,20 +170,14 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
     int64_t pairs = 0, descents = 0;
     const int step = std::max(1, (n - 1) / ORDER_CHECK_PAIRS);
     for (int i = 1; i < n; i += step, ++pairs) descents += key(i) < key(i - 1);
-    id.resize(n);
-    std::iota(id.begin(), id.end(), 0);
     if (descents * ORDER_CHECK_RUN > pairs) {
+        id.resize(n);
+        std::iota(id.begin(), id.end(), 0);
         std::vector<uint64_t> keys(n);
         for (int i = 0; i < n; ++i) keys[i] = key(i);
         std::sort(id.begin(), id.end(), [&keys](int a, int b) {
             return keys[a] != keys[b] ? keys[a] < keys[b] : a < b;
         });
-    }
-    lat.resize(n);
-    lon.resize(n);
-    for (int p = 0; p < n; ++p) {
-        lat[p] = latitudes[id[p]];
-        lon[p] = longitudes[id[p]];
     }
 
     // Leaves, and the box of each leaf (BOX_SLOTS floats, rounded outward by down and up)
@@ -199,11 +192,12 @@ SnapIndex::SnapIndex(std::vector<double> latitudes, std::vector<double> longitud
                 leaves[j].x[i] = leaves[j].y[i] = leaves[j].z[i] = PAD;
                 continue;
             }
-            Unit u = unit(lat[p], lon[p]);
+            const int node = node_id(p);
+            Unit u = unit(lat[node], lon[node]);
             leaves[j].x[i] = float(u.x);
             leaves[j].y[i] = float(u.y);
             leaves[j].z[i] = float(u.z);
-            const double v[BOX_SLOTS / 2] = {u.x, u.y, u.z, lat[p], lon[p]};
+            const double v[BOX_SLOTS / 2] = {u.x, u.y, u.z, lat[node], lon[node]};
             for (int t = 0; t < BOX_SLOTS / 2; ++t) {
                 b[2 * t] = std::min(b[2 * t], v[t]);
                 b[2 * t + 1] = std::max(b[2 * t + 1], v[t]);
@@ -312,17 +306,18 @@ void SnapIndex::scan(int leaf, const Query& q, Best& best) const {
 }
 
 int SnapIndex::recheck(const Query& q, const Best& best) const {
-    int found = -1;
+    int found = -1;  // node id
     double found_d = INF;
     for (const auto& [d, p] : *best.candidates) {
         if (d > best.thr) continue;
-        double exact = chord2(q.u, unit(lat[p], lon[p]));
-        if (exact < found_d || (exact == found_d && id[p] < id[found])) {
+        const int node = node_id(p);
+        double exact = chord2(q.u, unit(lat[node], lon[node]));
+        if (exact < found_d || (exact == found_d && node < found)) {
             found_d = exact;
-            found = p;
+            found = node;
         }
     }
-    return found < 0 ? -1 : id[found];
+    return found;
 }
 
 // ---- nearest node per quadrant --------------------------------------------------------
@@ -369,13 +364,14 @@ void SnapIndex::scan_quadrants(int leaf, int mask, const Query& q, Best* best) c
     float thr[4];
     for (int t = 0; t < 4; ++t) thr[t] = best[t].thr;
     float reach = widest(mask, thr);
-    // Stop before the padding slots of the last leaf: lat and lon have no entry for them.
+    // Stop before the padding slots of the last leaf: they hold no node.
     // scan may read them, as a PAD distance is never within thr
     int end = std::min(LEAF, n - leaf * LEAF);
     for (int i = 0; i < end; ++i) {
         if (d[i] > reach) continue;
         int p = leaf * LEAF + i;
-        int quadrants = node_quadrants(lat[p], lon[p], q.lat, q.lon) & mask;
+        const int node = node_id(p);
+        int quadrants = node_quadrants(lat[node], lon[node], q.lat, q.lon) & mask;
         for (int t = 0; t < 4; ++t) {
             if (!(quadrants & (1 << t)) || d[i] > best[t].thr) continue;
             if (d[i] < best[t].best) best[t].update(d[i]);

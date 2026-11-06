@@ -251,7 +251,7 @@ class GeoGraphIO:
             - What: The filename to save the network file as
             - Note: The filename must end with .scgraph
             - Note: A file inside the `networks/` folder of the cache directory (`build_geograph`'s) raises a ValueError: save it elsewhere
-            - Note: On Windows (C++ build), a file that a live GeoGraph was loaded from raises a PermissionError: save to another name
+            - Note: On Windows (C++ build), a file that a live GeoGraph (or its `snap_index`) was loaded from raises a PermissionError: save to another name
 
         Optional Arguments:
 
@@ -595,7 +595,7 @@ class GeoGraphIO:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
         - The file is checked before use: a damaged or foreign file raises a ValueError
-        - In the C++ build, the file is mapped and read in place while the geograph is alive; on Windows it can't be replaced or deleted meanwhile
+        - In the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
 
