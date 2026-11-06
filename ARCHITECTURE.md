@@ -237,8 +237,11 @@ the graph reads its arcs in place (the private `Graph._from_mapped_csr` keeps th
 and `build_geograph`) has as `nodes` a `network_file.NodeCoordinates`, which reads the latitude
 and longitude arrays (in place in the C++ backend) and keeps added nodes after them;
 `SnapIndex.from_arrays` indexes the arrays, and `NodeCoordinates.take` builds a route's
-coordinates from them in C++ when available. The mapping lasts as long as those `nodes`, even
-after the graph is edited. Windows does not replace a mapped file, so there, saving onto a file that an
+coordinates from them in C++ when available. Its `intermediate_nodes`, if the file has shapes,
+is a read-only `network_file.ArcShapes`, which reads each shape from the shape arrays when asked
+for; `ArcShapes.coordinate_path` builds a route's coordinates with its shapes in C++ when
+available. The mapping lasts as long as those `nodes` and shapes, even after the graph is
+edited. Windows does not replace a mapped file, so there, saving onto a file that an
 open geograph was read from raises a `PermissionError`.
 
 | Bytes | Content |
@@ -255,7 +258,7 @@ the file, not the graph: arcs are written in the order the backend visits them, 
 array: `dtype`, `shape` and `offset` from the start of the file) and `metadata`: `crs`
 (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
-when every arc has a reverse arc of the same weight); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file.
+when every arc has a reverse arc of the same weight; scgraph does not read it yet); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file.
 
 | Array | dtype | Shape | Content |
 |---|---|---|---|
@@ -263,11 +266,16 @@ when every arc has a reverse arc of the same weight); and, when known, `sources`
 | `heads` | int32 | m | destination of each arc, in the graph's order within each origin |
 | `weights` | float64 | m | weight of each arc |
 | `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
-| `shape_offsets` (optional) | int64 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
-| `shape_points` (optional) | float64 | k × 2 | latitude and longitude of each shape point |
+| `shape_offsets` (optional) | int32 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
+| `shape_points` (optional) | int32 | k × 2 | latitude and longitude of each shape point, in units of 1e-7 degree (rounded when written) |
 
 The reader checks the magic, the version, that every array lies inside the file, and that
 the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1),
-and raises a `ValueError` otherwise. The writer sorts the heads of each row and writes each arc once; the reader does not check it. It ignores header keys and arrays it does not know, so later versions
-can add optional arrays (for example the mode of each arc) that older readers skip.
+and raises a `ValueError` otherwise; on a mapped file it leaves the order of offsets and heads to
+the C++ graph and the bounds of each shape to `ArcShapes`, which check them where they read.
+Shape points are stored as int32: they must lie within ±214.7483647° and a file holds fewer than
+2³¹ of them. The writer keeps the arcs of each row in the graph's order and writes each arc once; the reader does not check it. It ignores header keys and arrays it does not know, so later versions
+can add optional arrays (for example the mode of each arc) that older readers skip: such additions
+keep `format_version` 1, which changes only when a reader of the current version would misread
+the file.
 

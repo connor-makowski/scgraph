@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import os
@@ -10,7 +11,8 @@ from scgraph.helpers.hilbert import hilbert_order
 # A one-way arc (0 -> 2), a shape on one arc only, integer weights and an isolated node
 _GRAPH = [{2: 1.25, 1: 5}, {0: 5}, {}, {}]
 _NODES = [[0.0, 0.0], [0.0, 0.01], [0.01, 0.0], [1.0, 1.0]]
-_SHAPES = [{1: [[0.0, 0.0], [0.002, 0.005], [0.0, 0.01]]}, {}, {}, {}]
+# (0.0029 * 1e7 is just below 29000: shape points are rounded to 1e-7 degree, not cut)
+_SHAPES = [{1: [[0.0029, 0.0058]]}, {}, {}, {}]
 
 
 def _small():
@@ -39,6 +41,38 @@ def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
         2,
         "mi",
     )
+    if save_intermediate_nodes:
+        # Read like the list of dicts it was saved from (negative indices and slices
+        # included), and copied as one
+        shapes = loaded.intermediate_nodes
+        assert (
+            shapes[-len(_SHAPES)] == _SHAPES[0] and shapes[1:3] == _SHAPES[1:3]
+        )
+        assert (
+            type(copy.copy(shapes)) is list and copy.deepcopy(shapes) == _SHAPES
+        )
+        assert _route_0_to_1(loaded) == _route_0_to_1(_small())
+
+
+# Shape points are stored as int32 in 1e-7 degree
+@pytest.mark.parametrize("longitude", [214.75, float("nan")])
+def test_save_as_scgraph_rejects_shape_points_it_cannot_store(
+    tmp_path, longitude
+):
+    geo = _small()
+    geo.intermediate_nodes = [{1: [[0.0, longitude]]}, {}, {}, {}]
+    with pytest.raises(ValueError, match="arc 0 -> 1"):
+        geo.save_as_scgraph(str(tmp_path / "small.scgraph"))
+
+
+def _route_0_to_1(geograph):
+    # Through the arc 0 -> 1, which has a shape
+    return geograph.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0},
+        destination_node={"latitude": 0, "longitude": 0.01},
+        node_addition_type="closest",
+        destination_node_addition_type="closest",
+    )["coordinate_path"]
 
 
 # Two routes of the same length from node 0 to node 3, through 1 or through 2, with the
@@ -200,6 +234,10 @@ def _damage(data, how):
         offsets = header["arrays"]["offsets"]["offset"]
         big = (2**30).to_bytes(4, "little")
         return data[: offsets + 4] + big + data[offsets + 8 :]
+    if how == "shape offsets past the points":
+        shapes = header["arrays"]["shape_offsets"]["offset"]
+        big = (2**30).to_bytes(4, "little")
+        return data[: shapes + 4] + big + data[shapes + 8 :]
     if how == "arc to a missing node":
         heads = header["arrays"]["heads"]["offset"]
         return data[:heads] + (99).to_bytes(4, "little") + data[heads + 4 :]
@@ -227,6 +265,22 @@ def test_load_from_scgraph_rejects_damaged_files(tmp_path, how, message):
     path.write_bytes(_damage(path.read_bytes(), how))
     with pytest.raises(ValueError, match=message):
         GeoGraph.load_from_scgraph(str(path))
+
+
+@pytest.mark.parametrize(
+    "read",
+    [_route_0_to_1, lambda geograph: dict(geograph.intermediate_nodes[0])],
+    ids=["route", "shapes"],
+)
+def test_load_from_scgraph_rejects_damaged_shape_offsets(tmp_path, read):
+    # Checked by network_file.read, or where a shape is read from a mapped file
+    path = tmp_path / "small.scgraph"
+    _small().save_as_scgraph(str(path))
+    path.write_bytes(
+        _damage(path.read_bytes(), "shape offsets past the points")
+    )
+    with pytest.raises(ValueError, match="invalid shape offsets"):
+        read(GeoGraph.load_from_scgraph(str(path)))
 
 
 def test_hilbert_order_follows_the_curve():

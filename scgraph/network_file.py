@@ -15,27 +15,30 @@ import os
 import secrets
 import sys
 from array import array
-from collections.abc import MutableSequence
+from collections.abc import MutableSequence, Sequence
 from itertools import islice
 from operator import eq, index, le
+from types import MappingProxyType
 
 try:
     from scgraph.cpp import coordinate_lists as _coordinate_lists
+    from scgraph.cpp import shape_path as _shape_path
 except ImportError:
-    _coordinate_lists = None
+    _coordinate_lists = _shape_path = None
 
 MAGIC = b"SCGRAPH1"
 VERSION = 1
 SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file"
-# array name -> (dtype, array typecode); shape_* hold the arc shapes, if any
+# array name -> (dtype, array typecode); shape_* hold the arc shapes, if any, with their
+# points in units of 1e-7 degree (OSM's own)
 ARRAYS = {
     "offsets": ("int32", "i"),
     "heads": ("int32", "i"),
     "weights": ("float64", "d"),
     "latitudes": ("float64", "d"),
     "longitudes": ("float64", "d"),
-    "shape_offsets": ("int64", "q"),
-    "shape_points": ("float64", "d"),
+    "shape_offsets": ("int32", "i"),
+    "shape_points": ("int32", "i"),
 }
 _ALIGN = 64
 _HEADER_END = 4096  # arrays start on a page boundary
@@ -43,12 +46,12 @@ _HEADER_END = 4096  # arrays start on a page boundary
 
 def write(filename, graph, nodes, intermediate_nodes, metadata):
     """Write a graph (list of dicts), its [lat, lon] nodes, the shapes of its arcs (or
-    None) and a JSON-serializable metadata dict. The header records the SHA-256 of the
-    bytes after it (the arrays) as `content_sha256`, the identity of the network, which is
-    returned.
+    None; their points are rounded to 1e-7 degree) and a JSON-serializable metadata dict.
+    The header records the SHA-256 of the bytes after it (the arrays) as `content_sha256`,
+    the identity of the network, which is returned.
     """
     offsets, heads, weights = array("i", [0]), array("i"), array("d")
-    shape_offsets, points = array("q", [0]), array("d")
+    shape_offsets, points = array("i", [0]), array("i")
     symmetric = True
     for origin, row in enumerate(graph):
         # Nodes added after loading (add_coord_node, merges) have no shapes
@@ -64,8 +67,15 @@ def write(filename, graph, nodes, intermediate_nodes, metadata):
             heads.append(head)
             weights.append(row[head])
             symmetric = symmetric and graph[head].get(origin) == row[head]
-            for point in shapes.get(head, ()):
-                points.extend(point)
+            try:
+                for latitude, longitude in shapes.get(head, ()):
+                    points.append(round(latitude * 1e7))
+                    points.append(round(longitude * 1e7))
+            except (OverflowError, ValueError) as error:
+                raise ValueError(
+                    f"The shape of arc {origin} -> {head} has a point that is not a"
+                    " number within ±214.7483647 degrees"
+                ) from error
             shape_offsets.append(len(points) // 2)
         offsets.append(len(heads))
     arrays = {
@@ -200,25 +210,88 @@ def _read(filename, file, mapped):
     return arrays, metadata
 
 
-def shapes(arrays):
-    """The arc shapes of `read`'s arrays as GeoGraph `intermediate_nodes` (one dict per
-    origin), or None if the file has none."""
-    if "shape_offsets" not in arrays:
-        return None
-    offsets, heads = arrays["offsets"], arrays["heads"]
-    starts, points = arrays["shape_offsets"], arrays["shape_points"]
-    result = []
-    for origin in range(len(offsets) - 1):
-        row = {}
-        for arc in range(offsets[origin], offsets[origin + 1]):
-            first, last = starts[arc], starts[arc + 1]
-            if last > first:
-                row[heads[arc]] = [
-                    [points[2 * i], points[2 * i + 1]]
-                    for i in range(first, last)
-                ]
-        result.append(row)
-    return result
+class ArcShapes(Sequence):
+    """
+    The `intermediate_nodes` of a GeoGraph read from a network file: for each origin, a
+    read-only mapping {destination: shape}, read from the file's arrays when asked for
+    instead of one Python list per point. A shape is a new list of [latitude, longitude]
+    each time.
+    """
+
+    def __init__(self, arrays):
+        self._offsets, self._heads = arrays["offsets"], arrays["heads"]
+        self._starts, self._points = (
+            arrays["shape_offsets"],
+            arrays["shape_points"],
+        )
+
+    def __len__(self):
+        return len(self._offsets) - 1
+
+    def __getitem__(self, origin):
+        if isinstance(origin, slice):
+            return [self[i] for i in range(*origin.indices(len(self)))]
+        origin = index(origin)
+        if origin < 0:
+            origin += len(self)
+        if not 0 <= origin < len(self):
+            raise IndexError("node index out of range")
+        heads, starts = self._heads, self._starts
+        return MappingProxyType(
+            {
+                heads[arc]: self._shape(starts[arc], starts[arc + 1])
+                for arc in range(
+                    self._offsets[origin], self._offsets[origin + 1]
+                )
+                if starts[arc + 1] != starts[arc]
+            }
+        )
+
+    def _shape(self, first, last):
+        # A mapped file's shape offsets are checked here, where they are read
+        if not 0 <= first <= last <= len(self._points) // 2:
+            raise ValueError("invalid shape offsets")
+        flat = self._points[2 * first : 2 * last].tolist()
+        return [
+            [flat[i] / 1e7, flat[i + 1] / 1e7] for i in range(0, len(flat), 2)
+        ]
+
+    def coordinate_path(self, path, coordinates):
+        """`coordinates` (one [latitude, longitude] per node of `path`) with the shape of
+        each arc of the path between them; in one C loop in the C++ build"""
+        if _shape_path is not None:
+            return _shape_path(
+                self._offsets,
+                self._heads,
+                self._starts,
+                self._points,
+                path if type(path) is list else list(path),
+                coordinates,
+            )
+        offsets, heads, count = self._offsets, self._heads, len(self)
+        starts, result = self._starts, [coordinates[0]]
+        for i in range(len(path) - 1):
+            origin, destination = path[i], path[i + 1]
+            # Nodes added after loading (add_coord_node) have no shapes
+            if origin < count:
+                for arc in range(offsets[origin], offsets[origin + 1]):
+                    if heads[arc] == destination:
+                        result += self._shape(starts[arc], starts[arc + 1])
+                        break
+            result.append(coordinates[i + 1])
+        return result
+
+    def __eq__(self, other):
+        if not isinstance(other, (list, ArcShapes)):
+            return NotImplemented
+        return len(self) == len(other) and all(map(eq, self, other))
+
+    def __repr__(self):
+        return repr([dict(row) for row in self])
+
+    def __reduce__(self):
+        # Copied and pickled as a list of dicts (the file's mapping can't be)
+        return list, ([dict(row) for row in self],)
 
 
 class NodeCoordinates(MutableSequence):
@@ -358,8 +431,12 @@ def _check(filename, arrays, arcs=True):
         require(
             len(shapes) == m + 1
             and shapes[0] == 0
-            and shapes[-1] == len(arrays["shape_points"]) // 2
-            and all(map(le, shapes, islice(shapes, 1, None))),
+            and shapes[-1] == len(arrays["shape_points"]) // 2,
+            "invalid shape offsets",
+        )
+        # Mapped, each shape's offsets are checked where it is read (ArcShapes)
+        require(
+            not arcs or all(map(le, shapes, islice(shapes, 1, None))),
             "invalid shape offsets",
         )
 

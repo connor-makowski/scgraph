@@ -179,6 +179,72 @@ NB_MODULE(cpp, m) {
        "[[latitudes[i], longitudes[i]] for i in ids] in one C loop, from two float64 arrays and a "
        "list of ids (negative ids count from the end); a route's coordinates for NodeCoordinates.take");
 
+    m.def("shape_path", [](CsrInts offsets, CsrInts heads, CsrInts shape_offsets, CsrInts shape_points,
+                           nb::list path, nb::list coordinates) {
+        const int32_t* off = offsets.data();
+        const int32_t* head = heads.data();
+        const int32_t* start = shape_offsets.data();
+        const int32_t* point = shape_points.data();
+        const int64_t n = (int64_t)offsets.shape(0) - 1;
+        const int64_t m = (int64_t)heads.shape(0);
+        const int64_t k = (int64_t)shape_points.shape(0) / 2;
+        if ((int64_t)shape_offsets.shape(0) != m + 1)
+            throw std::invalid_argument("one shape offset per arc, plus one, expected");
+        const Py_ssize_t count = PyList_Size(path.ptr());
+        if (PyList_Size(coordinates.ptr()) != count)
+            throw std::invalid_argument("one coordinate per path node expected");
+        nb::object result = nb::steal(PyList_New(0));
+        if (!result.is_valid()) throw nb::python_error();
+        auto append = [&](PyObject* item) {
+            if (PyList_Append(result.ptr(), item) < 0) throw nb::python_error();
+        };
+        if (count == 0) return result;
+        append(PyList_GetItem(coordinates.ptr(), 0));
+        Py_ssize_t origin = PyNumber_AsSsize_t(PyList_GetItem(path.ptr(), 0), PyExc_IndexError);
+        if (origin == -1 && PyErr_Occurred()) throw nb::python_error();
+        for (Py_ssize_t i = 1; i < count; ++i) {
+            Py_ssize_t destination = PyNumber_AsSsize_t(PyList_GetItem(path.ptr(), i), PyExc_IndexError);
+            if (destination == -1 && PyErr_Occurred()) throw nb::python_error();
+            // Nodes added after loading (add_coord_node) have no shapes
+            if (origin >= 0 && origin < n) {
+                const int64_t first_arc = off[origin], last_arc = off[origin + 1];
+                if (first_arc < 0 || first_arc > last_arc || last_arc > m)
+                    throw std::invalid_argument("invalid offsets");
+                for (int64_t arc = first_arc; arc < last_arc; ++arc) {
+                    if (head[arc] != destination) continue;
+                    const int64_t first = start[arc], last = start[arc + 1];
+                    if (first < 0 || first > last || last > k)
+                        throw std::invalid_argument("invalid shape offsets");
+                    for (int64_t p = first; p < last; ++p) {
+                        PyObject* pair = PyList_New(2);
+                        if (!pair) throw nb::python_error();
+                        PyObject* a = PyFloat_FromDouble(point[2 * p] / 1e7);
+                        PyObject* b = PyFloat_FromDouble(point[2 * p + 1] / 1e7);
+                        if (!a || !b) {
+                            Py_XDECREF(a);
+                            Py_XDECREF(b);
+                            Py_DECREF(pair);
+                            throw nb::python_error();
+                        }
+                        PyList_SetItem(pair, 0, a);
+                        PyList_SetItem(pair, 1, b);
+                        int failed = PyList_Append(result.ptr(), pair);
+                        Py_DECREF(pair);
+                        if (failed < 0) throw nb::python_error();
+                    }
+                    break;
+                }
+            }
+            append(PyList_GetItem(coordinates.ptr(), i));
+            origin = destination;
+        }
+        return result;
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"), nb::arg("shape_points"),
+       nb::arg("path"), nb::arg("coordinates"),
+       "A route's coordinates with the shapes of its arcs, in one C loop, from a network file's "
+       "int32 arrays (shape points in 1e-7 degree) and one [latitude, longitude] per path node; "
+       "for ArcShapes.coordinate_path");
+
     nb::class_<SnapIndex>(m, "SnapIndex",
         "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
         .def("__init__", [](SnapIndex* self, nb::handle points) {
