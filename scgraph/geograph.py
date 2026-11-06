@@ -27,9 +27,9 @@ from typing import Literal
 from scgraph import Graph
 
 try:
-    from scgraph.cpp import SnapIndex
+    from scgraph.cpp import NodeOrderError, SnapIndex
 except ImportError:
-    from scgraph.helpers.snap_index import SnapIndex
+    from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
 
 logger = logging.getLogger(__name__)
 
@@ -2087,6 +2087,25 @@ class GeoGraphModifiers:
         self.graph_object = Graph(graph=graph)
 
 
+class _SortedSnapIndex:
+    """A snapping index over the nodes in Hilbert order, answering with the nodes' own ids."""
+
+    def __init__(self, order: list[int], index: SnapIndex):
+        # order[position in the index] = node id
+        self.order, self.index = order, index
+
+    def closest_idx(self, point) -> int:
+        return self.order[self.index.closest_idx(point)]
+
+    def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
+        return {
+            quadrant: None if p is None else self.order[p]
+            for quadrant, p in self.index.closest_idx_per_quadrant(
+                point
+            ).items()
+        }
+
+
 def _in_hilbert_order(geograph, blocks):
     # A copy of the geograph with its nodes in Hilbert order within each block of ids:
     # ids change, lengths do not (where two routes tie, another may be returned)
@@ -2655,11 +2674,20 @@ class GeoGraph(
         # edits of nodes are not detected
         if self.__snap_index__ is None:
             nodes = self.nodes
-            self.__snap_index__ = (
-                SnapIndex.from_arrays(*nodes.arrays())
-                if isinstance(nodes, network_file.NodeCoordinates)
-                else SnapIndex(nodes)
-            )
+            try:
+                self.__snap_index__ = (
+                    SnapIndex.from_arrays(*nodes.arrays())
+                    if isinstance(nodes, network_file.NodeCoordinates)
+                    else SnapIndex(nodes)
+                )
+            except NodeOrderError:
+                # Nodes not kept together (a graph built from a list, many added nodes):
+                # index them in Hilbert order, without changing their ids
+                points = list(nodes)
+                order = hilbert_order(points)
+                self.__snap_index__ = _SortedSnapIndex(
+                    order, SnapIndex([points[i] for i in order])
+                )
         return self.__snap_index__
 
     @snap_index.setter

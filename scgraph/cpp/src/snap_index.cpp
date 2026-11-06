@@ -4,8 +4,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <limits>
-#include <numeric>
 #include <stdexcept>
 #include <utility>
 
@@ -19,11 +19,12 @@ constexpr float FINF = std::numeric_limits<float>::infinity();
 constexpr double EPS = 1e-6;
 // Coordinate of the unused slots of the last leaf: never within reach of a query
 constexpr float PAD = 1000.0f;
-// Order check (same values in helpers/snap_index.py): about ORDER_CHECK_PAIRS pairs of
-// neighbouring nodes are sampled; the network's order is kept if at most one pair in
-// ORDER_CHECK_RUN goes down the Hilbert curve
-constexpr int ORDER_CHECK_PAIRS = 2048;
-constexpr int ORDER_CHECK_RUN = 64;
+// How to fix a scattered order, in the error message. Same text in helpers/snap_index.py
+constexpr const char* SORT_HINT =
+    "Sort them along a Hilbert curve and map the answers back: "
+    "order = scgraph.helpers.hilbert.hilbert_order(nodes); "
+    "index = SnapIndex([nodes[i] for i in order]); "
+    "node = order[index.closest_idx(point)]";
 
 struct Unit {
     double x, y, z;
@@ -91,32 +92,12 @@ inline float widest(int mask, const float* thresholds) {
     return w;
 }
 
-// CURVE_ORDER and hilbert_key are copies of scgraph/helpers/hilbert.py, which orders the
-// nodes of built and converted networks. Change both together. If they differ, a network
-// ordered by hilbert.py may fail the order check below and be sorted at every load: the
-// answers stay the same, loading is slower, and no test fails
-constexpr int CURVE_ORDER = 16;
-
-// Position on the Hilbert curve of order CURVE_ORDER over longitude (x) and latitude (y)
-inline uint64_t hilbert_key(double latitude, double longitude) {
-    const int64_t side = int64_t(1) << CURVE_ORDER;
-    // Clamp in double first: converting a double outside the range of int64_t is undefined
-    const double top = double(side - 1);
-    int64_t x = int64_t(std::clamp((longitude + 180.0) / 360.0 * double(side), 0.0, top));
-    int64_t y = int64_t(std::clamp((latitude + 90.0) / 180.0 * double(side), 0.0, top));
-    uint64_t key = 0;
-    for (int64_t s = side >> 1; s > 0; s >>= 1) {
-        int64_t rx = (x & s) ? 1 : 0, ry = (y & s) ? 1 : 0;
-        key += uint64_t(s) * uint64_t(s) * uint64_t((3 * rx) ^ ry);
-        if (!ry) {
-            if (rx) {
-                x = s - 1 - x;
-                y = s - 1 - y;
-            }
-            std::swap(x, y);
-        }
-    }
-    return key;
+// Area of a box of unit vectors (min x, max x, min y, max y, min z, max z): the product of
+// its two largest extents. Same expression as in helpers/snap_index.py
+inline double unit_area(const double* b) {
+    double e[3] = {b[1] - b[0], b[3] - b[2], b[5] - b[4]};
+    std::sort(e, e + 3);
+    return e[2] * e[1];
 }
 
 }  // namespace
@@ -160,41 +141,13 @@ SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
     for (int i = 0; i < n; ++i)
         if (!std::isfinite(latitudes[i]) || !std::isfinite(longitudes[i]))
             throw std::invalid_argument("node coordinates must be finite numbers");
-    // Keep the network's order if it already follows a Hilbert curve in runs of
-    // ORDER_CHECK_RUN nodes or more on average; otherwise sort an id table along the curve. Runs
-    // are allowed because a multimodal network sorts each mode on its own. The check looks
-    // at every pair of neighbouring nodes up to 4,096 nodes, and at 2,048 to 3,072 evenly
-    // spaced pairs above that. An order that is only coherent along lines would give long,
-    // loose leaves
-    auto key = [&](int i) { return hilbert_key(latitudes[i], longitudes[i]); };
-    int64_t pairs = 0, descents = 0;
-    const int step = std::max(1, (n - 1) / ORDER_CHECK_PAIRS);
-    for (int i = 1; i < n; i += step, ++pairs) descents += key(i) < key(i - 1);
-    if (descents * ORDER_CHECK_RUN > pairs) {
-        id.resize(n);
-        std::iota(id.begin(), id.end(), 0);
-        std::vector<uint64_t> keys(n);
-        for (int i = 0; i < n; ++i) keys[i] = key(i);
-        std::sort(id.begin(), id.end(), [&keys](int a, int b) {
-            return keys[a] != keys[b] ? keys[a] < keys[b] : a < b;
-        });
-        // Copy the coordinates in index order: the quadrant search reads them for every node
-        // within reach, and reading them through the id table would jump around in memory.
-        // The copy replaces the caller's arrays, which the index no longer needs
-        auto sorted = std::make_shared<std::vector<double>>(2 * size_t(n));
-        for (int p = 0; p < n; ++p) {
-            (*sorted)[p] = latitudes[id[p]];
-            (*sorted)[n + p] = longitudes[id[p]];
-        }
-        lat = sorted->data();
-        lon = sorted->data() + n;
-        this->owner = std::move(sorted);
-    }
-
     // Leaves, and the box of each leaf (BOX_SLOTS floats, rounded outward by down and up)
     int nleaves = (n + LEAF - 1) / LEAF;
     leaves.resize(nleaves);
     std::vector<float> boxes(BOX_SLOTS * size_t(nleaves));
+    // The leaves' unit boxes in double: the sum of their areas and the box around them all
+    double leaf_areas = 0.0;
+    double all[UNIT_SLOTS] = {INF, -INF, INF, -INF, INF, -INF};
     for (int j = 0; j < nleaves; ++j) {
         double b[BOX_SLOTS] = {INF, -INF, INF, -INF, INF, -INF, INF, -INF, INF, -INF};
         for (int i = 0; i < LEAF; ++i) {
@@ -215,7 +168,22 @@ SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
         }
         for (int t = 0; t < BOX_SLOTS; ++t)
             boxes[BOX_SLOTS * j + t] = t % 2 == 0 ? down(b[t]) : up(b[t]);
+        leaf_areas += unit_area(b);
+        for (int t = 0; t < UNIT_SLOTS; t += 2) {
+            all[t] = std::min(all[t], b[t]);
+            all[t + 1] = std::max(all[t + 1], b[t + 1]);
+        }
     }
+    // Leaves per query: how many leaf boxes cover a point on average. Nodes in Hilbert order
+    // give 1 to 4 per network, plus one per mode sorted on its own; scattered nodes give up to
+    // the number of leaves, and every query then scans that many
+    const double total = unit_area(all);
+    const double per_query = total > 0.0 ? leaf_areas / total : 0.0;
+    if (per_query > MAX_LEAVES_PER_QUERY)
+        throw node_order_error(
+            "nodes scattered in memory: a query would scan about " +
+            std::to_string(int64_t(per_query + 0.5)) + " groups of 32 nodes (at most " +
+            std::to_string(int(MAX_LEAVES_PER_QUERY)) + "). " + SORT_HINT);
     // Tree levels, bottom up, until a single group
     int children = nleaves;
     do {
@@ -316,15 +284,14 @@ void SnapIndex::scan(int leaf, const Query& q, Best& best) const {
 }
 
 int SnapIndex::recheck(const Query& q, const Best& best) const {
-    int found = -1;  // node id
+    int found = -1;
     double found_d = INF;
     for (const auto& [d, p] : *best.candidates) {
         if (d > best.thr) continue;
         double exact = chord2(q.u, unit(lat[p], lon[p]));
-        const int node = node_id(p);
-        if (exact < found_d || (exact == found_d && node < found)) {
+        if (exact < found_d || (exact == found_d && p < found)) {
             found_d = exact;
-            found = node;
+            found = p;
         }
     }
     return found;

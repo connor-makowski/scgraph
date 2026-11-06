@@ -4,6 +4,7 @@ from array import array
 
 import pytest
 
+from scgraph import GeoGraph
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.helpers.snap_index import SnapIndex as PythonSnapIndex
 
@@ -73,7 +74,7 @@ def _networks():
             for _ in range(count)
         ]
 
-    spread = sphere(600)
+    spread = sphere(1200)
     cluster = [
         [48.85 + rng.gauss(0, 0.05), 2.35 + rng.gauss(0, 0.05)]
         for _ in range(200)
@@ -88,15 +89,22 @@ def _networks():
     ]
     special += [[-90.0, 45.0], [45.0, 179.999], [45.0, -179.999]]
     mixed = spread + cluster + special
-    rng.shuffle(mixed)
-    # Along a Hilbert curve, as built networks are: the index keeps the order it is given
-    ordered = [(spread + special)[i] for i in hilbert_order(spread + special)]
+    # Along a Hilbert curve, as network files are (a query scans about 4 leaves)
+    ordered = [mixed[i] for i in hilbert_order(mixed)]
+    shuffled = ordered[:]
+    rng.shuffle(shuffled)  # a query would scan about 40 leaves
     return {
         "one node": [[12.0, 34.0]],
+        # Any order is accepted while a query can't scan many leaves
         "one leaf plus one": sphere(33),
-        "mixed order": mixed,
         "ordered": ordered,
+        "shuffled": shuffled,
+        "ordered plus scattered": ordered + sphere(800),  # about 26 leaves
     }
+
+
+# Networks whose order the index refuses, and GeoGraph indexes in Hilbert order
+SCATTERED = ["shuffled", "ordered plus scattered"]
 
 
 def _queries(nodes):
@@ -132,12 +140,7 @@ def _from_arrays(implementation, nodes):
     return index, [array("d", [0.0]) * len(nodes) for _ in range(4)]
 
 
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
-@pytest.mark.parametrize("network", list(_networks()))
-@pytest.mark.parametrize("build", [_from_points, _from_arrays])
-def test_snap_index_finds_the_nearest_node(implementation, network, build):
-    nodes = _networks()[network]
-    index, _reused = build(implementation, nodes)
+def _check_answers(nodes, index):
     everything = list(range(len(nodes)))
     for point in _queries(nodes):
         assert _is_nearest(nodes, point, everything, index.closest_idx(point))
@@ -156,6 +159,57 @@ def test_snap_index_finds_the_nearest_node(implementation, network, build):
     ):
         if name in nodes:
             assert nodes[index.closest_idx(point)] == name
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@pytest.mark.parametrize(
+    "network", [n for n in _networks() if n not in SCATTERED]
+)
+@pytest.mark.parametrize("build", [_from_points, _from_arrays])
+def test_snap_index_finds_the_nearest_node(implementation, network, build):
+    nodes = _networks()[network]
+    index, _reused = build(implementation, nodes)
+    _check_answers(nodes, index)
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@pytest.mark.parametrize("network", SCATTERED)
+def test_snap_index_refuses_scattered_nodes_and_says_how_to_sort(
+    implementation, network
+):
+    with pytest.raises(ValueError, match="hilbert_order"):
+        implementation(_networks()[network])
+
+
+@pytest.mark.parametrize("saved", [False, True])
+def test_geograph_snaps_nodes_in_any_order(tmp_path, saved):
+    # GeoGraph keeps its node ids: it indexes scattered nodes in Hilbert order itself, also
+    # when they come from a file saved in their own order
+    nodes = _networks()["shuffled"]
+    geograph = GeoGraph(
+        graph=[{} for _ in nodes], nodes=[list(p) for p in nodes]
+    )
+    if saved:
+        path = str(tmp_path / "nodes.scgraph")
+        geograph.save_as_scgraph(path)
+        geograph = GeoGraph.load_from_scgraph(path)
+    _check_answers(nodes, geograph.snap_index)
+
+
+def test_geograph_snaps_nodes_added_to_a_network_file(tmp_path):
+    # A file in Hilbert order, then enough scattered nodes added to make the order refused
+    network = _networks()["ordered plus scattered"]
+    ordered = _networks()["ordered"]
+    path = str(tmp_path / "ordered.scgraph")
+    GeoGraph(
+        graph=[{} for _ in ordered], nodes=[list(p) for p in ordered]
+    ).save_as_scgraph(path)
+    geograph = GeoGraph.load_from_scgraph(path)
+    for latitude, longitude in network[len(ordered) :]:
+        geograph.add_coord_node(
+            {"latitude": latitude, "longitude": longitude}, auto_edge=False
+        )
+    _check_answers(network, geograph.snap_index)
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
