@@ -4,6 +4,7 @@ from scgraph.utils import (
     get_line_path,
     cheap_ruler,
     print_console,
+    has_cpp,
     get_lat_lon_bound_between_pts,
     resolve_cache_dir,
     earth_radius,
@@ -14,7 +15,7 @@ from scgraph.helpers.polylines import polylines_to_graph
 from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
 from scgraph import network_file
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
-import tempfile, types
+import inspect, tempfile, types
 import warnings
 from array import array
 from collections import Counter
@@ -36,13 +37,37 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _names_a_file(manifest_file: Path) -> bool:
-    # A built network counts as cached only if the file its manifest names is there
+def _cached_file(pointer: Path) -> Path | None:
+    """The network file a cache.json names, if it is there (only a name: never a file
+    outside the entry)."""
     try:
-        name = Path(json.loads(manifest_file.read_text())["file"]).name
+        file = pointer.parent.joinpath(
+            Path(json.loads(pointer.read_text())["file"]).name
+        )
     except (OSError, ValueError, KeyError, TypeError):
-        return False
-    return manifest_file.parent.joinpath(name).is_file()
+        return None
+    return file if file.is_file() else None
+
+
+# Header keys that scgraph writes or computes itself, which `metadata` cannot set
+_RESERVED = {
+    "crs",
+    "units",
+    "default_off_graph_circuity",
+    "default_node_addition_circuity",
+    "modes",
+    "symmetric",
+    "node_order",
+    "content_sha256",
+    "format_version",
+    "nodes",
+    "arcs",
+    "coordinate_dtype",
+    "shapes",
+    "node_ids",
+    "attribution",
+    "data_up_to",
+}
 
 
 # Written in networks/ of the cache: backup and archiving tools skip a tagged directory
@@ -210,7 +235,7 @@ class GeoGraphIO:
         """
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
-        # A cached network must stay the one its manifest describes
+        # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
         if Path(filename).resolve().is_relative_to(built):
             raise ValueError(
@@ -239,7 +264,7 @@ class GeoGraphIO:
         self,
         filename: str,
         save_intermediate_nodes: bool = True,
-        sources: list[dict] | None = None,
+        metadata: dict | Literal["auto"] | None = "auto",
         coordinate_dtype: Literal["auto", "float64", "int32"] = "auto",
     ) -> str:
         """
@@ -266,10 +291,12 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to include the intermediate nodes in the saved file (if they exist)
             - Default: True
-        - `sources`
-            - Type: list[dict] | None
-            - What: Where the data comes from, stored in the file header so that it travels with the file: for each source, for example its `url`, `credit` and `license` (as `build_geograph` records them)
-            - Default: None
+        - `metadata`
+            - Type: dict | 'auto' | None
+            - What: What the file header says about how the network was built, so that it travels with the file: for example `sources` (a list of dicts, each with its `name` and, as `build_geograph` records them, its `url`, `sha256`, `credit`, `license` and `version`), `pipeline`, `software`, `description` and `steps` (see `scgraph.pipelines`); 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
+            - Default: 'auto'
+            - Note: Changes made to a geograph after loading are not recorded in it (its `content_sha256` changes); a merge adds the other geograph's `sources`
+            - Note: A key scgraph writes itself (`crs`, `units`, `modes`, `node_order`, ...), or a mode whose `source` names no entry of `sources` (also with None), raises a ValueError
         - `coordinate_dtype`
             - Type: str
             - What: How coordinates are stored: 'float64' exactly, 'int32' rounded to 1e-7 degree (OSM's encoding, about 1 cm; 8 bytes less per node), 'auto' as the geograph's `coordinate_dtype`
@@ -285,7 +312,20 @@ class GeoGraphIO:
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
-        # A cached network must stay the one its manifest describes
+        metadata = self.metadata if metadata == "auto" else metadata or {}
+        if _RESERVED & set(metadata):
+            raise ValueError(
+                f"metadata may not set {sorted(_RESERVED & set(metadata))}"
+            )
+        # A mode cites the source of its node ids by name
+        names = {source.get("name") for source in metadata.get("sources", [])}
+        for mode in self.modes:
+            if "source" in mode and mode["source"] not in names:
+                raise ValueError(
+                    f"Mode {mode} names no source: pass metadata with a source of "
+                    f"that name in its 'sources'"
+                )
+        # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
         if Path(filename).resolve().is_relative_to(built):
             raise ValueError(
@@ -374,7 +414,8 @@ class GeoGraphIO:
                     if self.modes != [{"name": None}]
                     else {}
                 ),
-                **({"sources": sources} if sources is not None else {}),
+                "node_order": NODE_ORDER,
+                **metadata,
             },
         )
 
@@ -709,9 +750,25 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata `save_as_scgraph` wrote (`units`, `sources`, `modes`, ...), `content_sha256`, `format_version`, the number of `nodes` and `arcs`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
+        - A dict: the metadata `save_as_scgraph` wrote (`units`, `sources`, `modes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `arcs`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
+        - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
-        return network_file.info(filename)
+        info = network_file.info(filename)
+        if "sources" in info:
+            sources = info["sources"]
+            credits = dict.fromkeys(
+                f"{s['credit']} ({s.get('license', 'NOASSERTION')})"
+                for s in sources
+                if "credit" in s
+            )
+            if credits:
+                info["attribution"] = "; ".join(credits)
+            # ISO 8601 times in UTC (as Geofabrik and ArcGIS give them) sort as text
+            dates = [
+                s["version"] for s in sources if _is_date(s.get("version"))
+            ]
+            info["data_up_to"] = max(dates, default=None)
+        return info
 
     @staticmethod
     def load_from_scgraph(
@@ -728,6 +785,7 @@ class GeoGraphIO:
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
+        - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
 
         Required Arguments:
@@ -789,6 +847,11 @@ class GeoGraphIO:
             modes=metadata.get("modes"),
             coordinate_dtype=network_file.coordinate_dtype(arrays),
         )
+        geograph.metadata = {
+            key: value
+            for key, value in metadata.items()
+            if key not in _RESERVED
+        }
         geograph.graph_object.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
         # index is built now, not at the first query (an empty network has none)
@@ -946,7 +1009,8 @@ class GeoGraphIO:
             "sha256": sha256,
         }
         try:
-            geograph.save_as_scgraph(str(converted), sources=[source])
+            geograph.metadata = {"sources": [source]}
+            geograph.save_as_scgraph(str(converted))
         except OSError:
             # A cache that can't be written: the .graphjson is read at every load, its
             # nodes ordered as the file would have them
@@ -1092,7 +1156,7 @@ class GeoGraphIO:
         else:
             # Only this entry's files: a sub-region is an entry of its own, in a sub-folder
             folder = root.joinpath(name, region)
-            for file in [*folder.glob("*.scgraph"), folder / "manifest.json"]:
+            for file in [*folder.glob("*.scgraph"), folder / "cache.json"]:
                 remove(file)
         if cache_path.is_dir() and not any(cache_path.iterdir()):
             cache_path.rmdir()
@@ -1120,7 +1184,7 @@ class GeoGraphIO:
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder
             - `bytes`: int — its size
-            - for `"built"` only: `scgraph`, `build_version` and `format_version` — the versions of scgraph, of the network's pipeline and of the file format that built it
+            - for `"built"` only: `pipeline_version` and `scgraph`, the versions of the network's pipeline and of scgraph that built it, read from the file (None if it can't be read)
         """
         cache_path = resolve_cache_dir(cache_dir)
         info = [
@@ -1135,29 +1199,33 @@ class GeoGraphIO:
             for suffix in (".graphjson", ".scgraph")
             if (file := cache_path.joinpath(name + suffix)).is_file()
         ]
-        for manifest_file in sorted(
-            cache_path.joinpath("networks").rglob("manifest.json"),
-            key=lambda manifest_file: manifest_file.parent,
+        root = cache_path.joinpath("networks")
+        for pointer in sorted(
+            root.rglob("cache.json"), key=lambda pointer: pointer.parent
         ):
+            file = _cached_file(pointer)
+            if file is None:
+                continue  # not cached
+            name, *region = pointer.parent.relative_to(root).parts
             try:
-                manifest = json.loads(manifest_file.read_text())
-                file = manifest_file.parent.joinpath(
-                    Path(manifest["file"]).name
+                header = network_file.info(file)
+                versions = (
+                    header["pipeline"]["version"],
+                    header["software"]["scgraph"],
                 )
-                info.append(
-                    {
-                        "kind": "built",
-                        "name": manifest["name"],
-                        "region": manifest["region"],
-                        "file": str(file),
-                        "bytes": file.stat().st_size,
-                        "scgraph": manifest["scgraph"],
-                        "build_version": manifest["build_version"],
-                        "format_version": manifest["format_version"],
-                    }
-                )
-            except (OSError, ValueError, KeyError, TypeError):
-                continue  # names no file: not cached
+            except (ValueError, KeyError, TypeError):
+                versions = None, None
+            info.append(
+                {
+                    "kind": "built",
+                    "name": name,
+                    "region": "/".join(region) or None,
+                    "file": str(file),
+                    "bytes": file.stat().st_size,
+                    "pipeline_version": versions[0],
+                    "scgraph": versions[1],
+                }
+            )
         for work in sorted(cache_path.glob(".building-*")):
             info.append(
                 {
@@ -1203,6 +1271,7 @@ class GeoGraphIO:
         - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows every step
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
         - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
+        - The network file's header says what built it (pipeline, sources and the time their data is up to, software): `GeoGraph.scgraph_info(file)` reads it
 
         Required Arguments:
 
@@ -1303,18 +1372,21 @@ class GeoGraphIO:
             raise ValueError(f"Invalid region '{region}': {where}")
         cache = resolve_cache_dir(cache_dir)
         folder = cache.joinpath("networks", name, region or "")
-        manifest_file = folder.joinpath("manifest.json")
-        # The manifest names the network file, which is named by its content
-        try:
-            manifest = json.loads(manifest_file.read_text())
-            built_by = manifest["build_version"], manifest["format_version"]
-            # Only a name: the file removed by a rebuild is never outside the entry
-            cached_file = folder.joinpath(Path(manifest["file"]).name)
-        except (OSError, ValueError, KeyError, TypeError):
-            built_by, cached_file = None, None
-        current = network.PIPELINE_VERSION, network_file.VERSION
-        cached = cached_file is not None and cached_file.is_file()
-        stale = cached and built_by != current
+        pointer = folder.joinpath("cache.json")
+        # cache.json names the network file, which is named by its content
+        cached_file = _cached_file(pointer)
+        cached = cached_file is not None
+        # Built again for another pipeline version, or a file this scgraph can't read
+        if cached:
+            try:
+                built_by = network_file.info(cached_file)["pipeline"]["version"]
+            except (
+                ValueError,
+                KeyError,
+                TypeError,
+            ):  # damaged, or another format
+                built_by = None
+        stale = cached and built_by != network.PIPELINE_VERSION
         offline = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
         if local_files_only:
             if refresh:
@@ -1324,15 +1396,15 @@ class GeoGraphIO:
                     f"{name} is not in the cache ({folder}) and {offline} "
                     "forbids building it"
                 )
-            if built_by[1] != network_file.VERSION:
+            if built_by is None:
                 raise ValueError(
-                    f"The cached {name} has file format {built_by[1]}, this scgraph "
-                    f"reads {network_file.VERSION}: build it again without {offline}"
+                    f"The cached {name} can't be read (damaged, or a file format other "
+                    f"than {network_file.VERSION}): build it again without {offline}"
                 )
             if stale:
                 warnings.warn(
                     f"The cached {name} was built with pipeline version "
-                    f"{built_by[0]}, now {network.PIPELINE_VERSION}; loading it as {offline}"
+                    f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}"
                 )
         elif stale:
             logger.warning(
@@ -1345,6 +1417,7 @@ class GeoGraphIO:
             # may hold other files, which backups must not skip
             cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
             cache.joinpath("networks", "CACHEDIR.TAG").write_text(_CACHEDIR_TAG)
+            # The only clock time: in cache.json, not in the file
             downloaded = datetime.now(timezone.utc).isoformat(
                 timespec="seconds"
             )
@@ -1362,9 +1435,10 @@ class GeoGraphIO:
                         source + "".join(Path(url).suffixes)
                     )
                     try:
-                        getattr(network, "download", pipelines.download_file)(
-                            url, str(files[source])
-                        )
+                        # It may return what it learnt of the source: its `version`
+                        learnt = getattr(
+                            network, "download", pipelines.download_file
+                        )(url, str(files[source]))
                     except requests.HTTPError as error:
                         if (
                             "{region}" in template
@@ -1385,6 +1459,12 @@ class GeoGraphIO:
                             "credit": about["credit"],
                             "license": about["license"],
                             "license_url": about["license_url"],
+                            **(
+                                {"version": about["version"]}
+                                if "version" in about
+                                else {}
+                            ),
+                            **(learnt or {}),
                         }
                     )
                 logger.info("Building %s", name)
@@ -1393,33 +1473,49 @@ class GeoGraphIO:
                 geograph = network.build(
                     {source: str(path) for source, path in files.items()}
                 )
-                digest = geograph.save_as_scgraph(
-                    str(building), sources=sources
+                geograph, steps = (
+                    geograph
+                    if isinstance(geograph, tuple)
+                    else (geograph, None)
                 )
-                built_file = folder.joinpath(f"{digest}.scgraph")
-                work.joinpath("manifest.json").write_text(
-                    json.dumps(
-                        {
+                # Everything that describes the network, except clock times, so that
+                # the same rules, sources and software give the same file
+                digest = geograph.save_as_scgraph(
+                    str(building),
+                    metadata={
+                        "pipeline": {
                             "name": name,
                             "region": region,
-                            "downloaded": downloaded,
-                            "sources": sources,
-                            "scgraph": GeoGraph.__scgraph_version__(),
-                            "build_version": network.PIPELINE_VERSION,
-                            "format_version": network_file.VERSION,
-                            "file": built_file.name,
-                            "node_order": NODE_ORDER,
+                            "version": network.PIPELINE_VERSION,
                         },
+                        "sources": sources,
+                        "software": {
+                            "scgraph": GeoGraph.__scgraph_version__(),
+                            "backend": "cpp" if has_cpp() else "python",
+                        },
+                        **(
+                            {"description": inspect.cleandoc(network.__doc__)}
+                            if network.__doc__
+                            else {}
+                        ),
+                        **({"steps": steps} if steps else {}),
+                    },
+                )
+                built_file = folder.joinpath(f"{digest}.scgraph")
+                work.joinpath("cache.json").write_text(
+                    json.dumps(
+                        {"file": built_file.name, "downloaded": downloaded},
                         indent=2,
                     )
                 )
-                # The manifest appears last, so that it always names a whole file and
-                # the versions of the pipeline and file format that wrote it
+                # cache.json appears last, so that it always names a whole file
                 folder.mkdir(parents=True, exist_ok=True)
-                # A file of that name has the same content, and may be open (Windows)
-                if not built_file.exists():
+                try:
                     building.replace(built_file)
-                work.joinpath("manifest.json").replace(manifest_file)
+                # Open (Windows), so whole: a file of that name has the same content
+                except PermissionError:
+                    pass
+                work.joinpath("cache.json").replace(pointer)
                 if cached_file is not None and cached_file != built_file:
                     try:
                         cached_file.unlink(missing_ok=True)
@@ -1492,9 +1588,7 @@ class GeoGraphIO:
                 for source in network.SOURCES.values()
             )
             folder = root.joinpath(name)
-            built = [
-                m for m in folder.rglob("manifest.json") if _names_a_file(m)
-            ]
+            built = [m for m in folder.rglob("cache.json") if _cached_file(m)]
             listing.append(
                 {
                     "name": name,
@@ -2281,6 +2375,16 @@ class GeoGraphModifiers:
         self.modes += [
             dict(row) for row in other_geograph.modes[:original_other_modes]
         ]
+        # Its sources follow this graph's, so that its modes still cite them
+        sources = self.metadata.get("sources", [])
+        named = {source.get("name") for source in sources}
+        added = [
+            source
+            for source in other_geograph.metadata.get("sources", [])
+            if source.get("name") not in named
+        ]
+        if added:
+            self.metadata["sources"] = sources + added
         self.node_modes.extend(
             offset + row
             for row in other_geograph.node_modes[:original_other_graph_length]
@@ -2385,7 +2489,7 @@ def _in_hilbert_order(geograph):
             for old in order
         ]
     shapes = geograph.intermediate_nodes
-    return GeoGraph(
+    renumbered = GeoGraph(
         graph=graph,
         nodes=[geograph.nodes[old] for old in order],
         intermediate_nodes=(
@@ -2410,6 +2514,16 @@ def _in_hilbert_order(geograph):
         modes=geograph.modes,
         coordinate_dtype=geograph.coordinate_dtype,
     )
+    renumbered.metadata = geograph.metadata
+    return renumbered
+
+
+def _is_date(text):
+    try:
+        datetime.fromisoformat(text)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def _joined(network, key):
@@ -2946,6 +3060,8 @@ class GeoGraph(
         if coordinate_dtype not in ("float64", "int32"):
             raise ValueError("coordinate_dtype must be 'float64' or 'int32'")
         self.coordinate_dtype = coordinate_dtype
+        # How the network was built, as read from a network file (see save_as_scgraph)
+        self.metadata = {}
         self.modes = (
             [dict(mode) for mode in modes] if modes else [{"name": None}]
         )

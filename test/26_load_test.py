@@ -81,7 +81,7 @@ def test_cache_directory_is_cache_dir_else_the_environment_variable(
             str(folder / "marnet.graphjson")
         )
     (shared / "networks" / "us_freeway").mkdir(parents=True)
-    (shared / "networks" / "us_freeway" / "manifest.json").write_text(
+    (shared / "networks" / "us_freeway" / "cache.json").write_text(
         '{"file": "built.scgraph"}'
     )
     (shared / "networks" / "us_freeway" / "built.scgraph").write_bytes(b"")
@@ -231,59 +231,53 @@ def test_list_geographs_reads_contents_txt_only_for_another_url(
 
 @pytest.fixture
 def filled_cache(tmp_path):
-    """A cache holding a published geograph, built networks (osm_rail of a region and of
-    a sub-region), a manifest that names no file, a build's work folder and a user file.
+    """A cache holding a published geograph, built networks (marnet, a real network
+    file, and osm_rail of a region and of a sub-region), a cache.json that names no file,
+    a build's work folder and a user file.
     """
-    versions = {"scgraph": "9.9", "build_version": 3, "format_version": 1}
     files = {
         "marnet.graphjson": b"x" * 10,
         "marnet.scgraph": b"x" * 5,
         "notes.txt": b"x",
-        "networks/marnet/m.scgraph": b"x" * 20,
-        "networks/marnet/manifest.json": ("marnet", None, "m.scgraph"),
+        "networks/marnet/cache.json": "m.scgraph",
         "networks/osm_rail/europe/e.scgraph": b"x" * 30,
-        "networks/osm_rail/europe/manifest.json": (
-            "osm_rail",
-            "europe",
-            "e.scgraph",
-        ),
+        "networks/osm_rail/europe/cache.json": "e.scgraph",
         "networks/osm_rail/europe/france/f.scgraph": b"x" * 40,
-        "networks/osm_rail/europe/france/manifest.json": (
-            "osm_rail",
-            "europe/france",
-            "f.scgraph",
-        ),
-        "networks/us_freeway/manifest.json": (
-            "us_freeway",
-            None,
-            "gone.scgraph",
-        ),
+        "networks/osm_rail/europe/france/cache.json": "f.scgraph",
+        "networks/us_freeway/cache.json": "gone.scgraph",
         ".building-x/rail.osm.pbf": b"x" * 50,
     }
     for path, content in files.items():
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
-        if isinstance(content, tuple):
-            keys = dict(zip(("name", "region", "file"), content), **versions)
-            content = json.dumps(keys).encode()
+        if isinstance(content, str):
+            content = json.dumps({"file": content}).encode()
         (tmp_path / path).write_bytes(content)
+    built = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 1]])
+    pipeline = {"name": "marnet", "region": None, "version": 3}
+    built.save_as_scgraph(
+        str(tmp_path / "networks/marnet/m.scgraph"),
+        metadata={"pipeline": pipeline, "software": {"scgraph": "9.9"}},
+    )
     return tmp_path
 
 
 def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
     info = GeoGraph.cache_info(str(filled_cache))
+    marnet_bytes = (filled_cache / "networks/marnet/m.scgraph").stat().st_size
     assert [
         (i["kind"], i["name"], i["region"], Path(i["file"]).name, i["bytes"])
         for i in info
     ] == [
         ("published", "marnet", None, "marnet.graphjson", 10),
         ("published", "marnet", None, "marnet.scgraph", 5),
-        ("built", "marnet", None, "m.scgraph", 20),
+        ("built", "marnet", None, "m.scgraph", marnet_bytes),
         ("built", "osm_rail", "europe", "e.scgraph", 30),
         ("built", "osm_rail", "europe/france", "f.scgraph", 40),
         ("building", None, None, ".building-x", 50),
     ]
-    assert info[2]["scgraph"] == "9.9" and info[2]["build_version"] == 3
-    assert info[2]["format_version"] == 1
+    # Versions read from the file; None for a file that can't be read
+    assert (info[2]["pipeline_version"], info[2]["scgraph"]) == (3, "9.9")
+    assert (info[3]["pipeline_version"], info[3]["scgraph"]) == (None, None)
 
 
 _RAIL = "networks/osm_rail/europe/"
@@ -301,7 +295,7 @@ _RAIL = "networks/osm_rail/europe/"
                 "marnet.graphjson",
                 "marnet.scgraph",
                 "networks/marnet/m.scgraph",
-                "networks/marnet/manifest.json",
+                "networks/marnet/cache.json",
             },
         ),
         (
@@ -310,7 +304,7 @@ _RAIL = "networks/osm_rail/europe/"
             {
                 "marnet.graphjson",
                 "marnet.scgraph",
-                "networks/marnet/manifest.json",
+                "networks/marnet/cache.json",
             },
         ),
         (
@@ -318,16 +312,16 @@ _RAIL = "networks/osm_rail/europe/"
             None,
             {
                 _RAIL + "e.scgraph",
-                _RAIL + "manifest.json",
+                _RAIL + "cache.json",
                 _RAIL + "france/f.scgraph",
-                _RAIL + "france/manifest.json",
+                _RAIL + "france/cache.json",
             },
         ),
         # A sub-region is an entry of its own
         (
             {"name": "osm_rail", "region": "europe"},
             "e.scgraph",
-            {_RAIL + "manifest.json"},
+            {_RAIL + "cache.json"},
         ),
         ({"name": "../networks"}, None, None),
         ({"name": "osm_rail", "region": "../.."}, None, None),

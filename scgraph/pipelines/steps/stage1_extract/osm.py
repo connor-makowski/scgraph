@@ -44,8 +44,21 @@ def require_osmium():
 
 
 def download(url, filename):
-    require_osmium()  # before downloading a large extract it could not read
+    """Download an OSM file; return its `version`, the time its data is up to (the
+    `osmosis_replication_timestamp` of its header, as Geofabrik writes it), if it has one.
+    """
+    # Checked before downloading a large extract it could not read
+    osmium = require_osmium()
     download_file(url, filename)
+    try:
+        reader = osmium.io.Reader(filename, osmium.osm.osm_entity_bits.NOTHING)
+    except RuntimeError:  # not an OSM file: another source of the same network
+        return {}
+    try:
+        version = reader.header().get("osmosis_replication_timestamp")
+    finally:
+        reader.close()
+    return {"version": version} if version else {}
 
 
 def direction(tags):

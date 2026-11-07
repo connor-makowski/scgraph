@@ -4,6 +4,8 @@ import os
 import re
 import sqlite3
 import struct
+import subprocess
+import sys
 import threading
 import types
 import typing
@@ -22,7 +24,7 @@ from scgraph.pipelines import (
     osm_main_roads,
     osm_main_roads_and_marnet,
 )
-from scgraph.utils import haversine
+from scgraph.utils import has_cpp, haversine
 
 # Two lines meeting at (0.01, 0): 4 nodes, not read in Hilbert order
 _FEATURES = [
@@ -75,7 +77,11 @@ class _Source(BaseHTTPRequestHandler):
         if url.path in _FILES:
             body = _FILES[url.path]
         elif url.path == "/layer":
-            body = {"objectIdField": "OBJECTID", "maxRecordCount": 1}
+            body = {
+                "objectIdField": "OBJECTID",
+                "maxRecordCount": 1,
+                "editingInfo": {"lastEditDate": 1704164645000},
+            }
         elif "returnCountOnly" in query:
             body = {"count": len(_FEATURES)}
         else:
@@ -104,11 +110,11 @@ def source(monkeypatch):
     server.server_close()
 
 
-# A new version of the pipeline or of the file format, or a missing network file
-# (None), builds the network again
+# A new version of the pipeline or of the file format, a missing network file (None) or
+# a damaged one builds the network again
 @pytest.mark.parametrize(
     "versioned",
-    [(marnet, "PIPELINE_VERSION"), (network_file, "VERSION"), None],
+    [(marnet, "PIPELINE_VERSION"), (network_file, "VERSION"), None, "damaged"],
 )
 def test_build_geograph_builds_once_per_version_and_records_the_source(
     tmp_path, source, monkeypatch, versioned
@@ -122,44 +128,66 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     assert len(geo.nodes) == 4
     assert again.graph_object.graph == geo.graph_object.graph
     folder = tmp_path / "networks" / "marnet"
-    manifest = json.loads((folder / "manifest.json").read_text())
-    assert manifest["build_version"] == marnet.PIPELINE_VERSION
-    assert manifest["sources"] == [
+    pointer = json.loads((folder / "cache.json").read_text())
+    cached = folder / pointer["file"]
+    # The file says what built it; the download time, a clock time, is only in the cache
+    info = GeoGraph.scgraph_info(str(cached))
+    assert info["pipeline"] == {
+        "name": "marnet",
+        "region": None,
+        "version": marnet.PIPELINE_VERSION,
+    }
+    credit = marnet.SOURCES["sea_lanes"]["credit"]
+    assert info["sources"] == [  # no version: the GeoJSON gives no data time
         {
             "name": "sea_lanes",
             "url": f"{source}/lines.geojson",
             "sha256": hashlib.sha256(_GEOJSON).hexdigest(),
             "bytes": len(_GEOJSON),
-            "credit": marnet.SOURCES["sea_lanes"]["credit"],
+            "credit": credit,
             "license": "EUPL-1.2",
             "license_url": marnet.SOURCES["sea_lanes"]["license_url"],
         }
     ]
-    cached = folder / manifest["file"]
-    assert network_file.read(str(cached))[1]["sources"] == manifest["sources"]
-    # Nodes numbered along the Hilbert curve, as the manifest says
-    assert manifest["node_order"]["name"] == "hilbert"
-    assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
-    # The source has changed since: the new build replaces the cached network
-    monkeypatch.setitem(
-        _FILES, "/lines.geojson", _GEOJSON.replace(b"0.02", b"0.03")
+    assert info["software"]["backend"] == ("cpp" if has_cpp() else "python")
+    assert marnet.__doc__.split("\n")[0] in info["description"]
+    assert (info["attribution"], info["data_up_to"]) == (
+        f"{credit} (EUPL-1.2)",
+        None,
     )
-    if versioned is None:
-        cached.unlink()
-        listing = GeoGraph.list_buildable_geographs(str(tmp_path))
-        assert not next(n for n in listing if n["name"] == "marnet")["cached"]
+    assert pointer["downloaded"] not in json.dumps(info)
+    # Nodes numbered along the Hilbert curve, as the file says
+    assert info["node_order"]["name"] == "hilbert"
+    assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
+    # The source has changed since (except for the damaged file, rebuilt under the same
+    # name): the new build replaces the cached network
+    nodes = list(geo.nodes)
+    if versioned == "damaged":  # a new file: geo may still read the old one
+        damaged = cached.with_suffix(".damaged")
+        damaged.write_bytes(cached.read_bytes()[:100])
+        damaged.replace(cached)
+    else:
+        monkeypatch.setitem(
+            _FILES, "/lines.geojson", _GEOJSON.replace(b"0.02", b"0.03")
+        )
+    if versioned in (None, "damaged"):
+        if versioned is None:
+            cached.unlink()
+            listing = GeoGraph.list_buildable_geographs(str(tmp_path))
+            entry = next(n for n in listing if n["name"] == "marnet")
+            assert not entry["cached"]
     else:
         module, constant = versioned
         monkeypatch.setattr(module, constant, getattr(module, constant) + 1)
     rebuilt = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     assert _Source.served == ["/lines.geojson"] * 2  # built again once
-    assert rebuilt.nodes != geo.nodes
-    # One network file is left, named by its content, and the manifest names it
-    name = json.loads((folder / "manifest.json").read_text())["file"]
+    assert (rebuilt.nodes == nodes) == (versioned == "damaged")
+    # One network file is left, named by its content, and cache.json names it
+    name = json.loads((folder / "cache.json").read_text())["file"]
     content = (folder / name).read_bytes()[40:]
     assert name == hashlib.sha256(content).hexdigest() + ".scgraph"
-    assert {p.name for p in folder.iterdir()} == {"manifest.json", name}
+    assert {p.name for p in folder.iterdir()} == {"cache.json", name}
     # Backup tools skip the cache
     assert (
         (tmp_path / "networks" / "CACHEDIR.TAG")
@@ -233,15 +261,41 @@ def test_build_geograph_downloads_only_if_allowed(
         with pytest.raises(requests.HTTPError, match="local_files_only=True"):
             build()
         # The cached network is kept
-        manifest = json.loads(
-            (tmp_path / "networks/marnet/manifest.json").read_text()
+        pointer = json.loads(
+            (tmp_path / "networks/marnet/cache.json").read_text()
         )
-        assert (tmp_path / "networks/marnet" / manifest["file"]).is_file()
+        assert (tmp_path / "networks/marnet" / pointer["file"]).is_file()
     else:  # scgraph's own error, which names the cause
         with pytest.raises(outcome, match="local_files_only"):
             build()
     downloaded = outcome in ("built", "down")
     assert _Source.served == (["/lines.geojson"] if downloaded else [])
+
+
+# The same pipeline, sources and software give the same file, whatever the order of
+# Python's hashes (within one backend)
+def test_build_geograph_gives_the_same_file_for_the_same_inputs(
+    tmp_path, source
+):
+    script = (
+        "import sys\n"
+        "from scgraph import GeoGraph\n"
+        "from scgraph.pipelines import marnet\n"
+        "marnet.SOURCES['lines']['url'] = sys.argv[1]\n"
+        "GeoGraph.build_geograph('marnet', cache_dir=sys.argv[2])\n"
+    )
+    files = set()
+    for seed in ("1", "2"):
+        cache = tmp_path / seed
+        subprocess.run(
+            [sys.executable, "-c", script, f"{source}/lines.geojson", cache],
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            check=True,
+            timeout=120,
+        )
+        pointer = cache / "networks" / "marnet" / "cache.json"
+        files.add(json.loads(pointer.read_text())["file"])
+    assert len(files) == 1
 
 
 # Every page of an ArcGIS layer is read, by name or from a module of one's own (an
@@ -263,15 +317,26 @@ def test_build_geograph_reads_every_page_of_an_arcgis_layer(
     network = "north_america_rail"
     if module_name:
         network = types.ModuleType(module_name)
-        for name in ("SOURCES", "PIPELINE_VERSION", "download", "build"):
+        for name in ("SOURCES", "PIPELINE_VERSION", "download"):
             setattr(network, name, getattr(north_america_rail, name))
+        # Its steps are stored in the file
+        network.build = lambda files: (
+            north_america_rail.build(files),
+            [{"step": "copy", "arcs": 1}],
+        )
     if folder is None:
         with pytest.raises(ValueError, match="Invalid pipeline module name"):
             GeoGraph.build_geograph(network, cache_dir=str(tmp_path))
         return
     geo = GeoGraph.build_geograph(network, cache_dir=str(tmp_path))
     assert len(geo.nodes) == 4
-    assert (tmp_path / "networks" / folder / "manifest.json").is_file()
+    assert geo.metadata["pipeline"]["name"] == folder
+    assert geo.metadata.get("steps") == (
+        [{"step": "copy", "arcs": 1}] if module_name else None
+    )
+    # The layer's last edit is the version of its data
+    assert geo.metadata["sources"][0]["version"] == "2024-01-02T03:04:05+00:00"
+    assert (tmp_path / "networks" / folder / "cache.json").is_file()
 
 
 def test_build_geograph_names_a_region_geofabrik_does_not_have(
@@ -319,11 +384,20 @@ def test_list_buildable_geographs_matches_the_names_build_geograph_takes(
 def test_build_geograph_joins_roads_and_sea_at_ports(
     tmp_path, source, monkeypatch
 ):
-    pytest.importorskip("osmium")
+    osmium = pytest.importorskip("osmium")
+    # As a Geofabrik extract, a PBF whose header says when its data is up to
+    xml, pbf = tmp_path / "roads.osm", tmp_path / "roads.osm.pbf"
+    xml.write_bytes(_FILES["/roads.osm"])
+    header = osmium.io.Header()
+    header.set("osmosis_replication_timestamp", "2026-11-06T20:21:43Z")
+    with osmium.SimpleWriter(str(pbf), header=header) as writer:
+        for entity in osmium.FileProcessor(str(xml)):
+            writer.add(entity)
+    monkeypatch.setitem(_FILES, "/roads.osm.pbf", pbf.read_bytes())
     # The roads URL keeps a {region} placeholder, as for Geofabrik: region "roads"
-    # makes it the local file /roads.osm
+    # makes it the local file /roads.osm.pbf
     sources = {
-        "roads": f"{source}/{{region}}.osm",
+        "roads": f"{source}/{{region}}.osm.pbf",
         "sea": f"{source}/sea.geojson",
         "ports": f"{source}/ports.csv",
     }
@@ -338,8 +412,6 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
         region="roads",
         cache_dir=str(tmp_path),
     )
-    folder = tmp_path / "networks" / "osm_main_roads_and_marnet" / "roads"
-    manifest = json.loads((folder / "manifest.json").read_text())
     # Each node has its mode, each mode the source of its node ids: 2 road nodes, the
     # near port, 2 sea nodes, stored by mode
     assert geo.modes == [
@@ -360,6 +432,12 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
         output_coordinate_path="list_of_lists",
     )
     assert [0, 0.02] in route["coordinate_path"]  # through the port
+    versions = {s["name"]: s.get("version") for s in geo.metadata["sources"]}
+    assert versions == {
+        "sea": None,
+        "ports": None,
+        "roads": "2026-11-06T20:21:43Z",
+    }
     assert [-0.004, 0.001] in route["coordinate_path"]  # along the road's shape
 
 

@@ -7,14 +7,18 @@ A pipeline is a module with four names:
 - `SOURCES`: name -> each source to download: its `url` (`{region}` in it is replaced by
   the `region` argument of `build_geograph`), the `credit` to cite with results, and its
   `license` (SPDX identifier, `LicenseRef-…` when SPDX has none, `NOASSERTION` when it could
-  not be established) with the `license_url` where it is stated
+  not be established) with the `license_url` where it is stated, and for a pinned source
+  its `version` (a tag or a date)
 - `PIPELINE_VERSION`: an integer, raised when the same sources would give a different
   graph; a refactoring that leaves the graph unchanged does not raise it; it is never lowered
   once released. A network that reuses others adds their versions; a cached network built
   with another `PIPELINE_VERSION` is built again
 - `build(files)`: given name -> downloaded file, returns the GeoGraph, or `(GeoGraph,
-  details)` where `details` is a dict added to the manifest
-- `download(url, filename)`, optional: how to download a source (default: `download_file`)
+  steps)` where `steps` lists what each step did, `{"step": name, <count>: int, ...}`
+  (a network that reuses others concatenates their steps)
+- `download(url, filename)`, optional: how to download a source (default: `download_file`);
+  it may return a dict added to the source's record, such as the `version` of its data
+  (`osm.download`: the time an OSM extract is up to; `arcgis.download`: a layer's last edit)
 
 The first paragraph of the module docstring describes the network (shown by
 `GeoGraph.list_buildable_geographs`). Functions that `build` passes on, such as a `select`
@@ -31,6 +35,15 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 - the planet, streamed: `osm.locate_ways` (every kind of way in one read) ->
   `cut_polylines` (`scgraph.helpers.polylines`) -> `csr_from_arcs` -> `strong_components`
   -> `simplify_shapes` (the last three are added with the assembly kernels, #206)
+
+`build_geograph` writes into the network file's header what built it, read back by
+`GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources` (`name`,
+`url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the data has
+one), `software` (`scgraph` and its `backend`, `cpp` or `python`), `description` (the
+module docstring, so `python -OO`, which drops docstrings, gives another file) and `steps`. It holds no clock time (the download time stays in the
+cache's `cache.json`), so the same pipeline, sources and software give the same file and
+the same `content_sha256`. A cached network is built again only for another
+`PIPELINE_VERSION` or file format.
 
 The core never imports `scgraph.pipelines` at load time: `load_from_osm` and
 `build_geograph` import it when they are called.
