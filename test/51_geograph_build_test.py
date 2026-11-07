@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 import requests
+from helpers import great_circle_km
 
 from scgraph import GeoGraph, network_file, networks
 from scgraph.helpers.hilbert import hilbert_order
@@ -34,27 +35,68 @@ _FEATURES = [
 _GEOJSON = json.dumps(
     {"type": "FeatureCollection", "features": _FEATURES}
 ).encode()
-# A road from (-0.01, 0) to (0, 0) through (-0.004, 0.001), its nodes not read in Hilbert
-# order, and a sea lane from (0, 2.2) to (0, 3). Ports:
-# "Near" is 2 km from the road and 242 km from the sea (joined); "Inland" is 256 km
-# from the sea and "Far" 278 km from the road (not joined)
+
+
+def _sea_gpkg(lines):
+    """A GeoPackage of lines as Eurostat stores them, as bytes."""
+    database = sqlite3.connect(":memory:")
+    database.execute('create table "type" (geometry blob, pass text)')
+    for xy in lines:
+        # GeoPackage header with an envelope (left empty), then big-endian WKB
+        wkb = struct.pack(f">BII{len(xy)}d", 0, 2, len(xy) // 2, *xy)
+        database.execute('insert into "type" values (?, null)', (b"GP\x00\x02" + bytes(36) + wkb,))  # fmt: skip
+    return database.serialize()
+
+
+def _polygons(*rings):
+    return json.dumps(
+        {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [ring]}}
+            for ring in rings
+        ]}
+    ).encode()  # fmt: skip
+
+
+# Roads: from (-0.01, 0) to (0.01, 0) through (-0.004, 0.001), its nodes not read in
+# Hilbert order, and a 2-node fragment at (0.005, 0.024) (lat, lon). Land west of
+# longitude 0.03, an island at longitude 0.08 to 0.12, a sea lane from (0, 0.2) to
+# (0, 0.3). Ports: "Near" (2.2 km from the road, 0.7 km from the fragment) and the open
+# roadstead "Anchorage" (3.3 km of water to the road) are joined to the road; "Island"
+# (5.5 km of water to any road), "Inland" (14 km from water) and "Far" (on the coast,
+# 27 km from the road) are not
 _FILES = {
     "/lines.geojson": _GEOJSON,
     "/roads.osm": b"""<osm version="0.6">
 <node id="1" version="1" lat="0" lon="0"/>
 <node id="2" version="1" lat="-0.01" lon="0"/>
 <node id="3" version="1" lat="-0.004" lon="0.001"/>
+<node id="4" version="1" lat="0.01" lon="0"/>
+<node id="5" version="1" lat="0.004" lon="0.024"/>
+<node id="6" version="1" lat="0.006" lon="0.024"/>
 <way id="1" version="1"><nd ref="1"/><nd ref="3"/><nd ref="2"/><tag k="highway" v="primary"/></way>
+<way id="2" version="1"><nd ref="1"/><nd ref="4"/><tag k="highway" v="primary"/></way>
+<way id="3" version="1"><nd ref="5"/><nd ref="6"/><tag k="highway" v="primary"/></way>
 </osm>""",
-    "/sea.geojson": json.dumps(
-        {
-            "type": "GeometryCollection",
-            "geometries": [
-                {"type": "LineString", "coordinates": [[2.2, 0], [3, 0]]}
-            ],
-        }
-    ).encode(),
-    "/ports.csv": b"Main Port Name,Latitude,Longitude\nNear,0,0.02\nInland,0,-0.1\nFar,0,2.5\n",
+    "/sea.gpkg": _sea_gpkg([[0.2, 0, 0.3, 0]]),
+    "/land.geojson": _polygons(
+        [[-1, -1], [0.03, -1], [0.03, 1], [-1, 1], [-1, -1]],
+        [
+            [0.08, -0.02],
+            [0.12, -0.02],
+            [0.12, 0.02],
+            [0.08, 0.02],
+            [0.08, -0.02],
+        ],
+    ),
+    "/lakes.geojson": _polygons(),
+    "/rivers.geojson": _polygons(),
+    "/ports.csv": b"""Main Port Name,Latitude,Longitude,Harbor Type
+Near,0,0.02,Coastal (Natural)
+Anchorage,0.01,0.06,Open Roadstead
+Island,0,0.1,Coastal (Natural)
+Inland,0,-0.1,River (Natural)
+Far,0.25,0.02,Coastal (Natural)
+""",
 }
 
 
@@ -288,6 +330,64 @@ def test_list_downloadable_geographs_matches_the_names_build_geograph_takes(
     assert names == list(networks.NAMES) == list(typing.get_args(annotation))
 
 
+# Two roads across a strait (ways 1, 2), a car ferry between them from 0.6 km off a road
+# node to another (3), a ferry closed to cars (4) and one that ends 3.6 km from a road
+# (5), both shorter than the car ferry, and a car ferry longer than the road it doubles (6)
+_FERRY_NODES = {
+    1: (0, 0), 2: (0, 0.01), 3: (0, 0.06), 4: (0, 0.07),
+    10: (0, 0.015), 11: (0.02, 0.035),
+    20: (0, 0.011), 21: (0, 0.059),
+    30: (0.025, 0.03), 31: (0, 0.058),
+    40: (0.001, 0), 41: (0.01, 0.005), 42: (0.001, 0.01),
+}  # fmt: skip
+_FERRY_WAYS = [
+    ([1, 2], 'k="highway" v="primary"'),
+    ([3, 4], 'k="highway" v="trunk"'),
+    ([10, 11, 3], 'k="route" v="ferry"'),
+    ([20, 21], 'k="route" v="ferry"/><tag k="motor_vehicle" v="no"'),
+    ([30, 31], 'k="route" v="ferry"'),
+    ([40, 41, 42], 'k="route" v="ferry"'),
+]
+
+
+def test_osm_main_roads_joins_roads_by_car_ferries_ending_near_them(tmp_path):
+    pytest.importorskip("osmium")
+    lines = [
+        f'<node id="{i}" version="1" lat="{la}" lon="{lo}"/>'
+        for i, (la, lo) in _FERRY_NODES.items()
+    ]
+    for w, (refs, tags) in enumerate(_FERRY_WAYS, start=1):
+        nds = "".join(f'<nd ref="{i}"/>' for i in refs)
+        lines.append(f'<way id="{w}" version="1">{nds}<tag {tags}/></way>')
+    path = tmp_path / "roads.osm"
+    path.write_text('<osm version="0.6">' + "\n".join(lines) + "</osm>")
+    geo = osm_main_roads.build({"roads": str(path)})
+    node = {tuple(c): i for i, c in _FERRY_NODES.items()}
+    arcs = {
+        (node[tuple(geo.nodes[u])], node[tuple(geo.nodes[v])]): w
+        for u, row in enumerate(geo.graph_object.graph)
+        for v, w in row.items()
+    }
+    ferry = sum(
+        great_circle_km(_FERRY_NODES[a], _FERRY_NODES[b])
+        for a, b in [(10, 11), (11, 3)]
+    )
+    assert arcs == pytest.approx(
+        {
+            (1, 2): great_circle_km(_FERRY_NODES[1], _FERRY_NODES[2]),
+            (2, 1): great_circle_km(_FERRY_NODES[1], _FERRY_NODES[2]),
+            (3, 4): great_circle_km(_FERRY_NODES[3], _FERRY_NODES[4]),
+            (4, 3): great_circle_km(_FERRY_NODES[3], _FERRY_NODES[4]),
+            (2, 3): ferry,
+            (3, 2): ferry,
+        }
+    )
+    u, v = (geo.nodes.index(list(_FERRY_NODES[i])) for i in (2, 3))
+    assert geo.intermediate_nodes[u][v] == [
+        list(_FERRY_NODES[i]) for i in (10, 11)
+    ]
+
+
 def test_build_geograph_joins_roads_and_sea_at_ports(
     tmp_path, source, monkeypatch
 ):
@@ -296,7 +396,11 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
     # makes it the local file /roads.osm
     sources = {
         "roads": f"{source}/{{region}}.osm",
-        "sea": f"{source}/sea.geojson",
+        **{
+            name: f"{source}/{name}.geojson"
+            for name in ("land", "lakes", "rivers")
+        },
+        "sea": f"{source}/sea.gpkg",
         "ports": f"{source}/ports.csv",
     }
     for name, url in sources.items():
@@ -312,27 +416,43 @@ def test_build_geograph_joins_roads_and_sea_at_ports(
     )
     folder = tmp_path / "networks" / "osm_main_roads_and_marnet" / "roads"
     manifest = json.loads((folder / "manifest.json").read_text())
-    # Each node has its mode, each mode the source of its node ids: 2 road nodes, the
-    # near port, 2 sea nodes, stored by mode
+    # Each node has its mode, each mode the source of its node ids: 3 road nodes (not the
+    # fragment), 2 ports, 2 sea nodes, stored by mode
     assert geo.modes == [
         {"name": "road", "source": "roads"},
         {"name": "port"},
         {"name": "sea", "source": "sea"},
     ]
-    assert list(geo.node_modes) == [0, 0, 1, 2, 2]
+    assert list(geo.node_modes) == [0, 0, 0, 1, 1, 2, 2]
     assert [
         sorted(
             node for node, mode in zip(geo.nodes, geo.node_modes) if mode == row
         )
         for row in range(3)
-    ] == [[[-0.01, 0], [0, 0]], [[0, 0.02]], [[0, 2.2], [0, 3]]]
+    ] == [
+        [[-0.01, 0], [0, 0], [0.01, 0]],
+        [[0, 0.02], [0.01, 0.06]],
+        [[0, 0.2], [0, 0.3]],
+    ]
     route = geo.get_shortest_path(
         origin_node={"latitude": -0.01, "longitude": 0},
-        destination_node={"latitude": 0, "longitude": 3},
+        destination_node={"latitude": 0, "longitude": 0.3},
         output_coordinate_path="list_of_lists",
     )
     assert [0, 0.02] in route["coordinate_path"]  # through the port
     assert [-0.004, 0.001] in route["coordinate_path"]  # along the road's shape
+    # Connectors: 1.2 times the straight line to the road, the length of the water path
+    port = list(geo.nodes).index([0, 0.02])
+    (road, road_km), (sea, sea_km) = sorted(
+        geo.graph_object.graph[port].items(), key=lambda a: geo.node_modes[a[0]]
+    )
+    assert road_km == pytest.approx(
+        1.2 * great_circle_km([0, 0.02], geo.nodes[road])
+    )
+    path = [[0, 0.02], *geo.intermediate_nodes[port][sea], geo.nodes[sea]]
+    drawn = sum(great_circle_km(a, b) for a, b in zip(path, path[1:]))
+    assert sea_km == pytest.approx(drawn, rel=1e-4)
+    assert geo.intermediate_nodes[sea][port] == path[-2:0:-1]  # and back
 
 
 # Lines as Eurostat stores them: a lane cut at the antimeridian, at 180 and at -180, and
