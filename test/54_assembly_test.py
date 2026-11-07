@@ -135,6 +135,40 @@ def test_strong_components_groups_nodes_that_reach_each_other(backend, rows):
     assert sizes == [labels.count(label) for label in range(len(sizes))]
 
 
+@pytest.mark.parametrize(
+    "min_nodes, kept",
+    [
+        (None, [11, 12, 13]),
+        (2, [11, 12, 13, 14, 15]),
+        (1, [10, 11, 12, 13, 14, 15]),
+    ],
+)
+def test_keep_largest_component_keeps_components_by_size(min_nodes, kept):
+    # Components {10} (one way to 11), {11, 12, 13} and {14, 15} (both ways), node u
+    # with id 10 + u; each arc's shape its two nodes
+    arcs = [(0, 1), (1, 2), (2, 1), (2, 3), (3, 2), (4, 5), (5, 4)]
+    graph = [{v: 1.0 for u_, v in arcs if u_ == u} for u in range(6)]
+    shapes = [{v: [[u, v]] for v in row} for u, row in enumerate(graph)]
+    graph, nodes, shapes, ids = assembly.keep_largest_component(
+        graph,
+        [[u, 0] for u in range(6)],
+        shapes,
+        [10 + u for u in range(6)],
+        min_nodes=min_nodes,
+    )
+    assert ids == kept and [node[0] + 10 for node in nodes] == kept
+    expected = {
+        (10 + u, 10 + v) for u, v in arcs if 10 + u in kept and 10 + v in kept
+    }
+    assert {
+        (ids[u], ids[v]) for u, row in enumerate(graph) for v in row
+    } == expected
+    assert shapes == [
+        {v: [[ids[u] - 10, ids[v] - 10]] for v in row}
+        for u, row in enumerate(graph)
+    ]
+
+
 def _csr(one_way=(), two_way=()):
     # (origin, destination, km) arcs, two_way ones in both directions, by origin
     arcs = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]

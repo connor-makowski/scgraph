@@ -3,7 +3,8 @@ Assemble a network file from raw arcs. The C++ kernels
 (`cpp/src/pipelines/assembly.hpp`), with the same results at the scale of the planet,
 replace these when built; the pure-Python ones stay in `python`. Arrays in: buffers of
 the stated types (`array("q"/"i"/"d")`; any sequences for `python`); out: `array`
-(read-only memoryviews from C++).
+(read-only memoryviews from C++). `csr_from_rows` and `keep_largest_component` take the
+GeoGraph layout and call the kernels.
 """
 
 import math
@@ -109,18 +110,32 @@ def strong_components(offsets, heads):
     return labels, sizes
 
 
-def keep_largest_component(graph, nodes, shapes, node_ids):
-    """Keep the largest strongly connected component, the part where every node can reach
-    every other, so that no origin or destination is placed on a one-way dead end or on a
-    fragment cut by the border of an extract (of equal ones, the one with the smallest
-    node index)."""
-    offsets, heads = array("i", [0]), array("i")
-    for row in graph:
-        heads.extend(row)
+def csr_from_rows(rows):
+    """A graph in the GeoGraph layout (`rows[u]`: head -> weight) stored by origin:
+    `(offsets, heads, weights)` (int32, int32, float64), rows sorted by head."""
+    offsets, heads, weights = array("i", [0]), array("i"), array("d")
+    for row in rows:
+        for head in sorted(row):
+            heads.append(head)
+            weights.append(row[head])
         offsets.append(len(heads))
+    return offsets, heads, weights
+
+
+def keep_largest_component(graph, nodes, shapes, node_ids, *, min_nodes=None):
+    """Keep the largest strongly connected component (with `min_nodes`, every one of at
+    least that many nodes), the part where every node can reach every other, so that no
+    origin or destination is placed on a one-way dead end or on a fragment cut by the
+    border of an extract (of equal ones, the one with the smallest node index).
+    """
+    offsets, heads, _ = csr_from_rows(graph)
     labels, sizes = strong_components(offsets, heads)
-    largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
-    kept = [u for u, label in enumerate(labels) if label == largest]
+    if min_nodes is None:
+        largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
+        wanted = [label == largest for label in range(len(sizes))]
+    else:
+        wanted = [size >= min_nodes for size in sizes]
+    kept = [u for u, label in enumerate(labels) if wanted[label]]
     index = {old: new for new, old in enumerate(kept)}
     return (
         [
