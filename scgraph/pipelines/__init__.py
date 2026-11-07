@@ -107,12 +107,11 @@ LARGE_DOWNLOAD = (
 
 def identity_card(name, region, version, sources, description=None, steps=None):
     """
-    The metadata that `build_geograph` writes into a network file's header: what built
-    the network, from plain values (no GeoGraph needed). `name`, `region` and `version`
-    are the pipeline's; `sources` the records of the downloaded sources; `description` the
-    pipeline's docstring; `steps` what `build` returned. `software` is added: the scgraph
-    version, the backend, and the platform with what holds its math functions: the C
-    library on Linux, the system (its version) on macOS.
+    The identity card that `build_geograph` writes into a network file's header (its
+    fields: this module's docstring), from plain values, without a GeoGraph: `name`,
+    `region` and `version` are the pipeline's, `sources` the records of the downloaded
+    sources, `description` the pipeline's docstring and `steps` what `build` returned;
+    `software` is added.
     """
     from scgraph.geograph import GeoGraph
 

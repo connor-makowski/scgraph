@@ -11,7 +11,7 @@ from scgraph.utils import (
 )
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import polylines_to_graph
-from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
+from scgraph.helpers.hilbert import hilbert_order
 from scgraph import network_file
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
 import tempfile, types
@@ -46,27 +46,6 @@ def _cached_file(pointer: Path) -> Path | None:
     except (OSError, ValueError, KeyError, TypeError):
         return None
     return file if file.is_file() else None
-
-
-# Header keys that scgraph writes or computes itself, which `metadata` cannot set
-_RESERVED = {
-    "crs",
-    "units",
-    "default_off_graph_circuity",
-    "default_node_addition_circuity",
-    "modes",
-    "symmetric",
-    "node_order",
-    "content_sha256",
-    "format_version",
-    "nodes",
-    "arcs",
-    "coordinate_dtype",
-    "shapes",
-    "node_ids",
-    "attribution",
-    "data_up_to",
-}
 
 
 # Written in networks/ of the cache: backup and archiving tools skip a tagged directory
@@ -292,7 +271,7 @@ class GeoGraphIO:
             - Default: True
         - `metadata`
             - Type: dict | 'auto' | None
-            - What: What the file header says about how the network was built, so that it travels with the file: for example `sources` (a list of dicts, each with its `name` and, as `build_geograph` records them, its `url`, `sha256`, `credit`, `license` and `version`), `pipeline`, `software`, `description` and `steps` (see `scgraph.pipelines`); 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
+            - What: What the file header says about how the network was built, so that it travels with the file: the identity card, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network file") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
             - Default: 'auto'
             - Note: Changes made to a geograph after loading are not recorded in it (its `content_sha256` changes); a merge adds the other geograph's `sources`
             - Note: A key scgraph writes itself (`crs`, `units`, `modes`, `node_order`, ...), or a mode whose `source` names no entry of `sources` (also with None), raises a ValueError
@@ -311,19 +290,13 @@ class GeoGraphIO:
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
-        metadata = self.metadata if metadata == "auto" else metadata or {}
-        if _RESERVED & set(metadata):
-            raise ValueError(
-                f"metadata may not set {sorted(_RESERVED & set(metadata))}"
-            )
-        # A mode cites the source of its node ids by name
-        names = {source.get("name") for source in metadata.get("sources", [])}
-        for mode in self.modes:
-            if "source" in mode and mode["source"] not in names:
-                raise ValueError(
-                    f"Mode {mode} names no source: pass metadata with a source of "
-                    f"that name in its 'sources'"
-                )
+        metadata = network_file.header_metadata(
+            self.metadata if metadata == "auto" else metadata or {},
+            units=self.geograph_units,
+            default_off_graph_circuity=self.default_off_graph_circuity,
+            default_node_addition_circuity=self.default_node_addition_circuity,
+            modes=self.modes,
+        )
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
         if Path(filename).resolve().is_relative_to(built):
@@ -400,23 +373,7 @@ class GeoGraphIO:
                 network_file.coordinates(columns, coordinate_dtype),
             )
         )
-        return network_file.write(
-            filename,
-            arrays,
-            metadata={
-                "crs": "EPSG:4326",
-                "units": self.geograph_units,
-                "default_off_graph_circuity": self.default_off_graph_circuity,
-                "default_node_addition_circuity": self.default_node_addition_circuity,
-                **(
-                    {"modes": self.modes}
-                    if self.modes != [{"name": None}]
-                    else {}
-                ),
-                "node_order": NODE_ORDER,
-                **metadata,
-            },
-        )
+        return network_file.write(filename, arrays, metadata=metadata)
 
     # Load Methods
     @staticmethod
@@ -849,7 +806,7 @@ class GeoGraphIO:
         geograph.metadata = {
             key: value
             for key, value in metadata.items()
-            if key not in _RESERVED
+            if key not in network_file.RESERVED
         }
         geograph.graph_object.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
@@ -1417,8 +1374,8 @@ class GeoGraphIO:
             cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
             cache.joinpath("networks", "CACHEDIR.TAG").write_text(_CACHEDIR_TAG)
             # The only clock time: in cache.json, not in the file
-            downloaded = datetime.now(timezone.utc).isoformat(
-                timespec="seconds"
+            downloaded = datetime.now(timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
             )
             files, sources = {}, []
             # One folder per build, so that builds in parallel do not share files; at the

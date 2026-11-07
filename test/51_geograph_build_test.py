@@ -394,7 +394,7 @@ def test_build_geograph_reads_every_page_of_an_arcgis_layer(
         [{"step": "copy", "arcs": 1}] if module_name else None
     )
     # The layer's last edit is the version of its data
-    assert geo.metadata["sources"][0]["version"] == "2024-01-02T03:04:05+00:00"
+    assert geo.metadata["sources"][0]["version"] == "2024-01-02T03:04:05Z"
     assert (tmp_path / "networks" / folder / "cache.json").is_file()
 
 

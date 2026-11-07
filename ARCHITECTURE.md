@@ -267,7 +267,9 @@ the graph is edited. Windows does not replace a mapped file, so there, saving on
 an open geograph was read from raises a `PermissionError`.
 `network_file.write` takes the arrays as stored; `save_as_scgraph` passes it the graph's arcs
 from the private `Graph._csr()`, in the C++ backend views of the graph's own arrays, so that
-saving copies no arc there.
+saving copies no arc there, and the metadata from `network_file.header_metadata` (scgraph's
+keys plus the identity card, the keys scgraph writes refused), which a writer of arrays uses
+too.
 
 | Bytes | Content |
 |---|---|
@@ -278,27 +280,30 @@ saving copies no arc there.
 | then | arrays, little-endian, each starting at a multiple of 64 bytes |
 
 `content_sha256` is the identity of the file, header included, so a file named by it
-(`build_geograph`'s) holds exactly those bytes. It identifies a build: same pipeline, same
+(`build_geograph`'s) holds exactly those bytes; the reader returns it unchecked, so that
+opening a file does not read the whole file. It identifies a build: same pipeline, same
 sources, same scgraph version, same backend and same platform and C library or macOS
 version give a byte-identical file (tested). The C++ and Python builds give the same
 graph, the same nodes, arcs and lengths (tested with the `marnet` pipeline on a small
 synthetic input); only the order of arcs within a node (the order the backend visits them)
 and ties between equal-length routes may differ. Across platforms, a few lengths or shape
-points may differ in the last bit (the platform's math library). The reader returns it
-without checking it, so that opening a file does not read it all. The header has no size
+points may differ in the last bit (the platform's math library). The header has no size
 limit; it gives `format_version` (1), `spec` (a link to this section), `arrays` (for each
 array: `dtype`, `shape` and `offset` from the end of the padded header, a multiple of 64)
 and `metadata`: `crs` (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
 when every arc has a reverse arc of the same weight; scgraph does not read it yet),
 `node_order`; and, when known, `sources`: where the data comes from, each with its `name`,
-URL, SHA-256, credit, licence (SPDX identifier) and `version` (the time its data is up to,
-or a tag), so that attribution travels with the file; for a built network, `pipeline`
-(`name`, `region`, `version`), `software` (`scgraph`, `backend`, `platform`),
-`description` and `steps` (see `pipelines/__init__.py`); and `modes`, the list that
-`node_modes` indexes, for example `[{"name": "road", "source": "roads"}, {"name": "sea",
-"source": "sea"}]` (`source`, optional, must name an entry of `sources`).
-`save_as_scgraph(metadata=...)` sets the optional keys, never those scgraph writes itself.
+`url`, `sha256`, `bytes`, `credit`, `license` (an SPDX identifier, `LicenseRef-…` when
+SPDX has none, `NOASSERTION` when it could not be established), `license_url` and
+`version` (the time its data is up to, in UTC with a Z, or a tag; absent when the source
+gives none), so that attribution travels with the file; for a built network, `pipeline`
+(`name`, `region`, `version`), `software` (`scgraph`, `backend`, and `platform` with its C
+library or macOS version), `description` and `steps` (see `pipelines/__init__.py`); and
+`modes`, the list that `node_modes` indexes, for example `[{"name": "road", "source":
+"roads"}, {"name": "sea", "source": "sea"}]` (`source`, optional, must name an entry of
+`sources`). `save_as_scgraph(metadata=...)` sets the optional keys, never those scgraph
+writes itself.
 
 | Array | dtype | Shape | Content |
 |---|---|---|---|
