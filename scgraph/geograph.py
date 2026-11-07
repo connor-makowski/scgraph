@@ -741,7 +741,7 @@ class GeoGraphIO:
             - Default: False
         - `modes`
             - Type: list[str] | str | None
-            - What: The names of the modes to load (see `modes`): only their nodes and the arcs between them, copied from the file instead of mapped; `modes` is the file's list, which `node_modes` indexes
+            - What: The names of the modes to load (see `modes`): only their nodes and the arcs between them, copied from the file instead of mapped; `modes` is the file's list, which `node_modes` indexes, and the file's metadata (sources, steps, attribution, as `scgraph_info` gives it) stays the whole file's
             - Default: None (every mode)
         """
         if lazy:

@@ -181,8 +181,9 @@ def read(filename, mapped=False, modes=None):
     mode of that name; a file without it has one mode, named None), only the nodes of
     those modes and the arcs between them are read, as copies (`mapped` is ignored), in
     the file's order: nodes get new positions (their ids and modes are kept) and arcs to
-    other modes are dropped; the metadata is the whole file's. `node_modes` must be
-    sorted, as scgraph writes it; a name the file does not have raises a ValueError.
+    other modes are dropped; the metadata (sources, steps, attribution) stays the whole
+    file's. `node_modes` must be sorted, as scgraph writes it; a name the file does not
+    have raises a ValueError.
 
     With `mapped=True` (on little-endian machines), the file is mapped read-only and the
     arrays are memoryviews of it, not copies: the file stays mapped while they are
