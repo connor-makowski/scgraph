@@ -2,25 +2,20 @@
 from Geofabrik, for example `region="europe/luxembourg"`."""
 
 from scgraph.geograph import GeoGraph
-from scgraph.pipelines import download_file
-from scgraph.pipelines.steps.osm import require_osmium
+from scgraph.pipelines.steps import osm
 
 VERSION = 1
 
-SOURCES = {
-    "rail": {
-        "url": "https://download.geofabrik.de/{region}-latest.osm.pbf",
-        "credit": "© OpenStreetMap contributors",
-        "license": "ODbL-1.0",
-        "license_url": "https://www.openstreetmap.org/copyright",
-    }
-}
+SOURCES = {"rail": osm.GEOFABRIK}
 
-
-def download(url, filename):
-    require_osmium()  # before downloading a large extract it could not read
-    download_file(url, filename)
+download = osm.download  # checks osmium before downloading a large extract
 
 
 def build(files):
-    return GeoGraph.load_from_osm(files["rail"], keep={"railway": {"rail"}})
+    return GeoGraph.load_from_osm(
+        files["rail"], select=_rail, tag_keys=("railway",)
+    )
+
+
+def _rail(tags):
+    return osm.direction(tags) if tags.get("railway") == "rail" else None

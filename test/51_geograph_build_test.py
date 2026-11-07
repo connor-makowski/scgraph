@@ -5,6 +5,7 @@ import re
 import sqlite3
 import struct
 import threading
+import types
 import typing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -103,7 +104,7 @@ def source(monkeypatch):
     server.server_close()
 
 
-# A new version of the build script or of the file format, or a missing network file
+# A new version of the pipeline or of the file format, or a missing network file
 # (None), builds the network again
 @pytest.mark.parametrize("versioned", [marnet, network_file, None])
 def test_build_geograph_builds_once_per_version_and_records_the_source(
@@ -142,7 +143,7 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     )
     if versioned is None:
         cached.unlink()
-        listing = GeoGraph.list_downloadable_geographs(str(tmp_path))
+        listing = GeoGraph.list_buildable_geographs(str(tmp_path))
         assert not next(n for n in listing if n["name"] == "marnet")["cached"]
     else:
         monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
@@ -162,14 +163,13 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
         .startswith("Signature: 8a477f597d28d172789f06886806bc55")
     )
     listing = {
-        n["name"]: n
-        for n in GeoGraph.list_downloadable_geographs(str(tmp_path))
+        n["name"]: n for n in GeoGraph.list_buildable_geographs(str(tmp_path))
     }
     assert listing["marnet"]["cached"] and not listing["us_freeway"]["cached"]
 
 
 # What the cache holds: nothing, a current build, or a build by another version of the
-# build script ("stale") or of the file format; SCGRAPH_OFFLINE sets the default of
+# pipeline ("stale") or of the file format; SCGRAPH_OFFLINE sets the default of
 # local_files_only. "loaded" without a download, "built" with one, "down": the source fails.
 # As on Windows, a network file can't be replaced while it is open (here: any existing one)
 @pytest.mark.parametrize(
@@ -216,7 +216,7 @@ def test_build_geograph_downloads_only_if_allowed(
 
     if outcome == "loaded":  # with a warning that names what differs
         old, new = marnet.VERSION - 1, marnet.VERSION
-        differs = f"build script version {old}, now {new};"
+        differs = f"pipeline version {old}, now {new};"
         with pytest.warns(UserWarning, match=differs):
             assert len(build().nodes) == 4
     elif outcome == "built":
@@ -237,14 +237,34 @@ def test_build_geograph_downloads_only_if_allowed(
     assert _Source.served == (["/lines.geojson"] if downloaded else [])
 
 
+# Every page of an ArcGIS layer is read, by name or from a module of one's own (an
+# adapted copy), cached under its last name, which may not be a built-in's
+@pytest.mark.parametrize(
+    "module_name, folder",
+    [
+        (None, "north_america_rail"),
+        ("my_pipelines.rail", "rail"),
+        ("my_pipelines.north_america_rail", None),  # refused
+    ],
+)
 def test_build_geograph_reads_every_page_of_an_arcgis_layer(
-    tmp_path, source, monkeypatch
+    tmp_path, source, monkeypatch, module_name, folder
 ):
     monkeypatch.setitem(
         north_america_rail.SOURCES["lines"], "url", f"{source}/layer"
     )
-    geo = GeoGraph.build_geograph("north_america_rail", cache_dir=str(tmp_path))
+    network = "north_america_rail"
+    if module_name:
+        network = types.ModuleType(module_name)
+        for name in ("SOURCES", "VERSION", "download", "build"):
+            setattr(network, name, getattr(north_america_rail, name))
+    if folder is None:
+        with pytest.raises(ValueError, match="Invalid pipeline module name"):
+            GeoGraph.build_geograph(network, cache_dir=str(tmp_path))
+        return
+    geo = GeoGraph.build_geograph(network, cache_dir=str(tmp_path))
     assert len(geo.nodes) == 4
+    assert (tmp_path / "networks" / folder / "manifest.json").is_file()
 
 
 def test_build_geograph_names_a_region_geofabrik_does_not_have(
@@ -279,13 +299,14 @@ def test_build_geograph_leaves_nothing_after_a_failed_build(
     assert _Source.served == ["/lines.geojson"] * 2
 
 
-def test_list_downloadable_geographs_matches_the_names_build_geograph_takes(
+def test_list_buildable_geographs_matches_the_names_build_geograph_takes(
     tmp_path,
 ):
-    listing = GeoGraph.list_downloadable_geographs(str(tmp_path))
+    listing = GeoGraph.list_buildable_geographs(str(tmp_path))
     names = [n["name"] for n in listing]
     annotation = typing.get_type_hints(GeoGraph.build_geograph)["name"]
-    assert names == list(pipelines.NAMES) == list(typing.get_args(annotation))
+    literal = typing.get_args(annotation)[0]  # Literal[...] | ModuleType
+    assert names == list(pipelines.NAMES) == list(typing.get_args(literal))
 
 
 def test_build_geograph_joins_roads_and_sea_at_ports(

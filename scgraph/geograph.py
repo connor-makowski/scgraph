@@ -10,11 +10,11 @@ from scgraph.utils import (
     radians_per_degree,
 )
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
-from scgraph.helpers.polylines import lines_to_graph
+from scgraph.helpers.polylines import polylines_to_graph
 from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
 from scgraph import network_file
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
-import tempfile
+import tempfile, types
 import warnings
 from array import array
 from collections import Counter
@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from functools import partial
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 from scgraph import Graph
 
 try:
@@ -448,7 +448,7 @@ class GeoGraphIO:
             - Default: False
         - `max_km_between_nodes`
             - Type: float | int | None
-            - What: If set, nodes are only the points where lines meet or end, and a line is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`; the other points become the shape of the arcs, whose length is the length of their full line
+            - What: If set, nodes are only the points where polylines meet or end, and a polyline is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`; the other points become the shape of the arcs, whose length is the length of their full polyline
             - Default: None (every point is a node)
             - Note: Useful for sources with many points per line, such as rail or road networks, to keep the graph small
         """
@@ -482,7 +482,7 @@ class GeoGraphIO:
             uses = Counter(point for line in lines for point, _ in line)
             junctions = {point for point, count in uses.items() if count > 1}
             # Points are identified by their coordinates: the nodes keep positions as ids
-            graph, nodes, shapes, _ = lines_to_graph(
+            graph, nodes, shapes, _ = polylines_to_graph(
                 ((0, line) for line in lines), junctions, max_km_between_nodes
             )
             geograph = GeoGraph(
@@ -515,8 +515,8 @@ class GeoGraphIO:
     @staticmethod
     def load_from_osm(
         filename: str,
-        keep: dict[str, set[str | None]] | None = None,
-        directed: bool = True,
+        select: Callable | None = None,
+        tag_keys: tuple[str, ...] = ("highway",),
         max_km_between_nodes: float | int = 2,
         largest_component: bool = True,
         load_intermediate_nodes: bool = True,
@@ -529,29 +529,31 @@ class GeoGraphIO:
         - Load a GeoGraph from an OpenStreetMap file (`.osm.pbf`, `.osm` or `.osm.bz2`)
         - Needs the optional dependency `osmium`: `pip install scgraph[osm]`
         - Ways meet only where they share an OSM node: roads that cross on a bridge or in a tunnel are not connected
-        - Each arc has the length of its full line, in kilometers, so it is never shorter than the straight line between its ends
+        - Each arc has the length of its piece of way, in kilometers, so it is never shorter than the straight line between its ends
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
-        - Ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way (with `directed=True`)
+        - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
         - Memory: osmium's node filter takes about 1.5 GB, whatever the size of the file
 
         Required Arguments:
 
         - `filename`
-            - Type: str
-            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de
+            - Type: str | os.PathLike | source of readers
+            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source of readers as `scgraph.pipelines.steps.osm.located_ways` takes
 
         Optional Arguments:
 
-        - `keep`
-            - Type: dict[str, set[str]] | None
-            - What: The ways to keep: a way is kept if, for every key, its tag value is in the set; `None` in a set stands for a missing tag
-            - Default: None (main roads: `{"highway": scgraph.pipelines.steps.osm.MAIN_ROADS}`, motorway to primary and their links)
-            - Example: `{"railway": {"rail"}, "service": {None}}` for railway lines without yards, sidings and spurs
-        - `directed`
-            - Type: bool
-            - What: Whether one-way streets (`oneway=*`, roundabouts) give arcs in one direction only
-            - Default: True
+        - `select`
+            - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
+            - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
+            - Default: None: `scgraph.pipelines.steps.osm.main_roads` (motorway to primary and their links, one way as `scgraph.pipelines.steps.osm.direction(tags)` says)
+            - Example: `lambda tags: 0 if tags.get("railway") == "rail" and "service" not in tags else None` for railway lines without yards, sidings and spurs, both ways
+            - Note: Called for each way in two passes over the file: it must give the same answer each time
+        - `tag_keys`
+            - Type: tuple[str, ...]
+            - What: Tag keys of which a way must have at least one to reach `select`; osmium leaves out the other ways before Python sees them, which is faster. Empty: every way reaches `select`
+            - Default: ("highway",)
+            - Note: Give the tag keys that `select` keeps ways by, for example `("railway",)` for railway lines
         - `max_km_between_nodes`
             - Type: float | int
             - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
@@ -577,14 +579,14 @@ class GeoGraphIO:
         Raises:
 
         - `ImportError` if the optional dependency `osmium` is not installed
-        - `ValueError` if no way of the file matches `keep`
+        - `ValueError` if no way of the file has one of `tag_keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0 or None (`True` and `False` included)
         """
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_osm(
                     filename=filename,
-                    keep=keep,
-                    directed=directed,
+                    select=select,
+                    tag_keys=tag_keys,
                     max_km_between_nodes=max_km_between_nodes,
                     largest_component=largest_component,
                     load_intermediate_nodes=load_intermediate_nodes,
@@ -592,16 +594,19 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.pipelines.steps.osm import MAIN_ROADS, keep_largest_component, read_osm
+        from scgraph.pipelines.steps.osm import (
+            keep_largest_component,
+            main_roads,
+            read_osm,
+        )
 
         graph, nodes, shapes, ids = read_osm(
-            filename,
-            keep if keep is not None else {"highway": MAIN_ROADS},
-            directed,
-            max_km_between_nodes,
+            filename, select or main_roads, tag_keys, max_km_between_nodes
         )
         if not nodes:
-            raise ValueError(f"No way of {filename} matches keep={keep}")
+            raise ValueError(
+                f"No way of {filename} has one of the tag keys {tag_keys} and is kept by select"
+            )
         if largest_component:
             graph, nodes, shapes, ids = keep_largest_component(
                 graph, nodes, shapes, ids
@@ -1031,7 +1036,7 @@ class GeoGraphIO:
                 - Windows: %LOCALAPPDATA%\\scgraph\\
         - `name`
             - Type: str | None
-            - What: The network to remove, as `load_geograph` or `build_geograph` take it
+            - What: The network to remove, by the name `load_geograph` or `build_geograph` take (not a pipeline module of one's own)
             - Default: None: every network
         - `region`
             - Type: str | None
@@ -1094,7 +1099,7 @@ class GeoGraphIO:
         Function:
 
         - List what scgraph keeps in the local cache directory, read from disk only, without any network request
-        - Unlike `list_geographs` and `list_downloadable_geographs`, which list what can be loaded or built
+        - Unlike `list_geographs` and `list_buildable_geographs`, which list what can be loaded or built
 
         Optional Arguments:
 
@@ -1111,7 +1116,7 @@ class GeoGraphIO:
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder
             - `bytes`: int — its size
-            - for `"built"` only: `scgraph`, `build_version` and `format_version` — the versions of scgraph, of the network's build script and of the file format that built it
+            - for `"built"` only: `scgraph`, `build_version` and `format_version` — the versions of scgraph, of the network's pipeline and of the file format that built it
         """
         cache_path = resolve_cache_dir(cache_dir)
         info = [
@@ -1165,16 +1170,19 @@ class GeoGraphIO:
 
     @staticmethod
     def build_geograph(
-        name: Literal[
-            "eurostat_marnet",
-            "marnet",
-            "north_america_rail",
-            "oak_ridge_maritime",
-            "osm_main_roads",
-            "osm_main_roads_and_marnet",
-            "osm_rail",
-            "us_freeway",
-        ],
+        name: (
+            Literal[
+                "eurostat_marnet",
+                "marnet",
+                "north_america_rail",
+                "oak_ridge_maritime",
+                "osm_main_roads",
+                "osm_main_roads_and_marnet",
+                "osm_rail",
+                "us_freeway",
+            ]
+            | types.ModuleType
+        ),
         region: str | None = None,
         cache_dir: str | None = None,
         reduce_iterations: int = 0,
@@ -1187,25 +1195,17 @@ class GeoGraphIO:
         Function:
 
         - Download the online sources of a reference network once, build the network on this machine and keep it in the local cache; later calls load it from the cache, without any network request, until an upgrade of scgraph changes how that network is built
-        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its build script is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
+        - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its pipeline is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
         - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows every step
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
-        - `GeoGraph.list_downloadable_geographs()` lists the networks, who to credit and what is already in the cache
+        - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
 
         Required Arguments:
 
         - `name`
-            - Type: str
-            - What: The name of the network
-            - Options:
-                - 'eurostat_marnet': the sea lanes of Eurostat SeaRoute at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out, unlike `marnet` (EUPL-1.2)
-                - 'marnet': the sea lanes the published `marnet` was built from (Eurostat SeaRoute via searoute-py, EUPL-1.2)
-                - 'north_america_rail': Class I railroads of North America (U.S. Federal Railroad Administration)
-                - 'oak_ridge_maritime': the sea lanes the published `oak_ridge_maritime` was built from (Oak Ridge National Laboratory)
-                - 'osm_main_roads': main roads of an OpenStreetMap extract (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
-                - 'osm_main_roads_and_marnet': main roads of an OpenStreetMap extract joined to the `marnet` sea lanes at the ports of the World Port Index (needs `region`; `pip install scgraph[osm]`)
-                - 'osm_rail': railway lines of an OpenStreetMap extract, sidings and yards included (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
-                - 'us_freeway': freeways of the United States (Esri)
+            - Type: str | module
+            - What: The name of the network (see `GeoGraph.list_buildable_geographs()`), or a pipeline module with the contract of `scgraph.pipelines` (for example a copy of one, adapted)
+            - Note: A module is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a built-in pipeline; two modules with the same last name share that cache entry; `list_buildable_geographs` does not list it
 
         Optional Arguments:
 
@@ -1242,7 +1242,7 @@ class GeoGraphIO:
 
         Raises:
 
-        - `ValueError` for an unknown name, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
+        - `ValueError` for an unknown name or a pipeline module named like a built-in one, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
         - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; no file of the build is left in the cache, and a network already cached stays there
@@ -1263,7 +1263,18 @@ class GeoGraphIO:
             local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
         from scgraph import pipelines
 
-        if name not in pipelines.NAMES:
+        if isinstance(name, types.ModuleType):
+            network, name = name, name.__name__.rpartition(".")[2]
+            # Its cache entry would be a built-in's (each would load the other), or a
+            # path outside the cache
+            if not re.fullmatch(r"\w+", name) or (
+                name in pipelines.NAMES
+                and network.__name__ != f"scgraph.pipelines.{name}"
+            ):
+                raise ValueError(
+                    f"Invalid pipeline module name '{network.__name__}'"
+                )
+        elif name not in pipelines.NAMES:
             close = difflib.get_close_matches(name, pipelines.NAMES, n=3)
             hint = (
                 f" Did you mean {', '.join(map(repr, close))}?" if close else ""
@@ -1271,11 +1282,12 @@ class GeoGraphIO:
             raise ValueError(
                 f"Unknown network '{name}'.{hint} Available: {', '.join(pipelines.NAMES)}"
             )
-        network = importlib.import_module(f"scgraph.pipelines.{name}")
+        else:
+            network = importlib.import_module(f"scgraph.pipelines.{name}")
         regional = any(
             "{region}" in source["url"] for source in network.SOURCES.values()
         )
-        where = f"the path of a Geofabrik extract, for example 'europe/luxembourg' (see {pipelines.REGIONS})"
+        where = f"the path of a Geofabrik extract, for example 'europe/luxembourg' (see https://download.geofabrik.de)"
         if regional and region is None:
             raise ValueError(f"'{name}' needs a region: {where}")
         if not regional and region is not None:
@@ -1315,12 +1327,12 @@ class GeoGraphIO:
                 )
             if stale:
                 warnings.warn(
-                    f"The cached {name} was built with build script version "
+                    f"The cached {name} was built with pipeline version "
                     f"{built_by[0]}, now {network.VERSION}; loading it as {offline}"
                 )
         elif stale:
             logger.warning(
-                "The cached %s was built by another version of its build script or "
+                "The cached %s was built by another version of its pipeline or "
                 "of the file format; building it again",
                 name,
             )
@@ -1398,7 +1410,7 @@ class GeoGraphIO:
                     )
                 )
                 # The manifest appears last, so that it always names a whole file and
-                # the versions of the build script and file format that wrote it
+                # the versions of the pipeline and file format that wrote it
                 folder.mkdir(parents=True, exist_ok=True)
                 # A file of that name has the same content, and may be open (Windows)
                 if not built_file.exists():
@@ -1440,7 +1452,7 @@ class GeoGraphIO:
             return "unknown"
 
     @staticmethod
-    def list_downloadable_geographs(cache_dir: str | None = None) -> list[dict]:
+    def list_buildable_geographs(cache_dir: str | None = None) -> list[dict]:
         """
         Function:
 

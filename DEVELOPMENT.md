@@ -33,14 +33,14 @@ scgraph/
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, console output
-  pipelines/                     # Build scripts of build_geograph, one per network
+  pipelines/                     # Pipelines of build_geograph, one per network (contract and steps in __init__.py)
     steps/
       osm.py                     # Reading OpenStreetMap files (optional dependency osmium)
       arcgis.py                  # Downloading an ArcGIS feature layer as GeoJSON
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)
-    polylines.py                 # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
+    polylines.py                 # Polylines to a graph: nodes where they end or meet, arcs with their shape (GeoJSON, OSM)
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
@@ -116,7 +116,7 @@ For how scgraph works inside (query, graph reduction, plugging in an algorithm, 
 - Lazy loading via `LazyGeoGraph` proxy (`lazy=True`) to defer downloads/instantiation until first use
 - Configurable reduction upon loading (`reduce_iterations=0` by default, `1` or `-1` for reduction)
 - Handles I/O: load from GeoJSON, OSMNx, OpenStreetMap files, graphjson or `.scgraph` network files; save in multiple formats
-- Builds reference networks from their online sources into the local cache (`build_geograph`, scripts in `pipelines/`)
+- Builds reference networks from their online sources into the local cache (`build_geograph`, one pipeline per network in `pipelines/`)
 
 **`CHGraph`** (`contraction_hierarchies.py`) — Contraction Hierarchies:
 - Preprocessing step that contracts nodes in order of importance

@@ -12,6 +12,7 @@ land.
 import csv
 
 from scgraph.pipelines import marnet, osm_main_roads
+from scgraph.pipelines.steps import osm
 from scgraph.utils import haversine
 
 # Small sources first: a failure then costs no new download of the extract
@@ -26,11 +27,11 @@ SOURCES = {
         "license": "NOASSERTION",
         "license_url": "https://msi.nga.mil/Publications/WPI",
     },
-    "roads": osm_main_roads.SOURCES["roads"],
+    "roads": osm.GEOFABRIK,
 }
 MAX_KM = {"road": 20, "sea": 250}
 
-download = osm_main_roads.download  # for every source: checks osmium first
+download = osm.download  # for every source: checks osmium first
 
 
 def build(files):

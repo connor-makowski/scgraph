@@ -29,10 +29,14 @@ flowchart LR
 (`graph_object`) and delegate every search to it. A `GeoGraph` comes from a built-in
 network, a saved file, a GeoJSON file, an OSMnx graph or an OpenStreetMap file (`pipelines/steps/osm.py`,
 with the optional dependency `osmium`); every loader produces the same `graph`, `nodes` and
-`intermediate_nodes`. `build_geograph` builds a reference network from its online
-sources: each network has a small build script in `pipelines/` (source URLs, credit, and
-which loaders to call with which options; the road + sea network combines two networks with
-`merge_with_other_geograph`); the sources are downloaded once, the built network is written
+`intermediate_nodes`; the GeoJSON and OpenStreetMap loaders cut polylines into arcs with
+`helpers/polylines.py`. `build_geograph` builds a reference network from its online
+sources: each network has a pipeline, a module of `pipelines/` (source URLs, credit, and
+which steps of `pipelines/steps/` or loaders to call with which options; the road + sea
+network combines two networks with `merge_with_other_geograph`), whose contract is stated in
+`pipelines/__init__.py`; `build_geograph` also takes a module object, cached under the last
+part of its name. The core imports `pipelines` only when `load_from_osm` or
+`build_geograph` is called. The sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and
 later calls read the cache. Network files written by scgraph (`save_as_scgraph`, so built
 networks and the conversions of published networks, §6) number their nodes along a Hilbert
@@ -215,10 +219,10 @@ that can't be read (damaged, another format version) is made again from the `.gr
 a cache that can't be written keeps reading the `.graphjson`. In the C++ build a loaded
 conversion stays mapped: on Windows it can't be removed or replaced while a geograph read from
 it is alive. A built network is not rebuilt when its source changes, but it is
-when its manifest names another `VERSION` of its build script or of the file format, or a
+when its manifest names another `VERSION` of its pipeline or of the file format, or a
 file that is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
 default when `SCGRAPH_OFFLINE=1`), nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
-network that is not in the cache, and `build_geograph` loads a build of another build-script
+network that is not in the cache, and `build_geograph` loads a build of another pipeline
 version with a warning that names both versions, but refuses one of another file
 format. `list_geographs` lists the published networks from a fixed list in the code, without
 a request (`contents.txt` is read only for another `geograph_url`). A built network lives in

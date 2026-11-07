@@ -1,38 +1,63 @@
-"""Turn lines into a GeoGraph layout: arcs between the points where lines meet, with their
-shape."""
+"""Turn geographic polylines (roads, railways, sea lanes) into a routable graph.
+
+Nodes are the points where polylines end or meet, and along them the first point where the
+arc since the previous node reaches `max_km`; each arc carries its length along the full
+polyline and its shape (the points between its two nodes).
+"""
 
 from scgraph.helpers.hilbert import hilbert_key
 from scgraph.utils import haversine
 
 
-def lines_to_graph(lines, junctions, max_km_between_nodes):
+def cut_polylines(polylines, junctions, max_km):
     """
-    Cut each line at its ends, at its junctions and at least every `max_km_between_nodes`.
+    Cut each polyline at its ends, at its junctions and at the first point where the piece
+    since the last cut reaches `max_km`, and yield
+    `(origin_id, destination_id, km, direction, shape)` for each piece.
 
-    `lines` yields `(direction, points)`: `direction` is 1 (one way, along the points), -1
+    `polylines` yields `(direction, points)`: `direction` is 1 (one way, along the points), -1
     (one way, against them) or 0 (both ways); `points` is a list of `(id, [latitude,
-    longitude])`. Each arc has the length of its full piece of line, and its shape holds
-    the points between its two nodes (none if there are none); parallel arcs keep the
-    shortest; there are no self-loops.
-
-    Returns `(graph, nodes, intermediate_nodes, ids)`, with nodes in Hilbert order and
-    `ids` the id of each node's point.
+    longitude])`. `km` is the length of the full piece of polyline and `shape` holds the points
+    between its two ends (none if there are none). A piece may start and end at the same
+    point.
     """
-    arcs = {}  # (origin id, destination id) -> (length, shape)
-    location = {}  # id -> [latitude, longitude]
-    for direction, points in lines:
-        start, length = 0, 0.0
+    for direction, points in polylines:
+        start, km = 0, 0.0
         for i in range(1, len(points)):
-            length += haversine(points[i - 1][1], points[i][1])
+            km += haversine(points[i - 1][1], points[i][1])
             if (
                 i == len(points) - 1
                 or points[i][0] in junctions
-                or length >= max_km_between_nodes
+                or km >= max_km
             ):
-                _add_arc(
-                    arcs, location, points[start : i + 1], length, direction
-                )
-                start, length = i, 0.0
+                shape = [point for _, point in points[start + 1 : i]]
+                yield points[start][0], points[i][0], km, direction, shape
+                start, km = i, 0.0
+
+
+def polylines_to_graph(polylines, junctions, max_km_between_nodes):
+    """
+    Collect the `cut_polylines` of `polylines` into a graph: there are no self-loops, and parallel
+    arcs keep the shortest (the first seen among arcs of equal length).
+
+    Returns `(graph, nodes, shapes, node_ids)`, with nodes in Hilbert order and
+    `node_ids` the id of each node's point.
+    """
+    arcs = {}  # (origin id, destination id) -> (length, shape)
+    location = {}  # id -> [latitude, longitude]
+    for polyline in polylines:
+        where = dict(polyline[1])
+        for origin, destination, km, direction, shape in cut_polylines(
+            [polyline], junctions, max_km_between_nodes
+        ):
+            if origin == destination:
+                continue  # a loop never lies on a shortest path
+            location[origin] = where[origin]
+            location[destination] = where[destination]
+            if direction >= 0:
+                _keep_shortest(arcs, (origin, destination), km, shape)
+            if direction <= 0:
+                _keep_shortest(arcs, (destination, origin), km, shape[::-1])
 
     # Ties broken by coordinates, so that the order does not depend on the input's
     order = sorted(
@@ -51,18 +76,6 @@ def lines_to_graph(lines, junctions, max_km_between_nodes):
         if shape:
             shapes[index[origin]][index[destination]] = shape
     return graph, [location[point] for point in order], shapes, order
-
-
-def _add_arc(arcs, location, points, length, direction):
-    origin, destination = points[0][0], points[-1][0]
-    if origin == destination:
-        return  # a loop never lies on a shortest path
-    location[origin], location[destination] = points[0][1], points[-1][1]
-    shape = [point for _, point in points[1:-1]]
-    if direction >= 0:
-        _keep_shortest(arcs, (origin, destination), length, shape)
-    if direction <= 0:
-        _keep_shortest(arcs, (destination, origin), length, shape[::-1])
 
 
 def _keep_shortest(arcs, key, length, shape):
