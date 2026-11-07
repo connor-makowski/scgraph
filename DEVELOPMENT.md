@@ -37,7 +37,7 @@ scgraph/
     steps/
       osm.py                     # Reading OpenStreetMap files (optional dependency osmium)
       arcgis.py                  # Downloading an ArcGIS feature layer as GeoJSON
-      assembly.py                # Arcs to network arrays, strong components, Douglas-Peucker; C++ in cpp/src/pipelines/assembly.hpp
+      assembly.py                # Arcs to network arrays, strong components, chain contraction, Douglas-Peucker; C++ in cpp/src/pipelines/assembly.hpp
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)

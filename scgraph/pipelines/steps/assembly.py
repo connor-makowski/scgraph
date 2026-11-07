@@ -8,7 +8,10 @@ the stated types (`array("q"/"i"/"d")`; any sequences for `python`); out: `array
 
 import math
 from array import array
-from operator import le
+from bisect import bisect_left
+from functools import reduce
+from itertools import accumulate
+from operator import add, le
 from types import SimpleNamespace
 
 
@@ -106,6 +109,107 @@ def strong_components(offsets, heads):
     return labels, sizes
 
 
+def contract_chains(offsets, heads, weights, modes=None, max_km=math.inf):
+    """
+    Contract the chains of a graph stored by origin (int32 `offsets`, `heads`, rows
+    sorted by head, no self-loop; float64 `weights`): a node goes if it has two
+    distinct neighbours, both ways with each or one way through, and shares their mode
+    (uint8 `modes`, one per node, or None). Walking from its canonical end (a one-way
+    start, or the end with the lower index), a chain is cut at the first node where the
+    piece since the last cut reaches `max_km`, and a piece that would be a self-loop or
+    repeat an arc is cut at its middle node; an isolated cycle is walked from its
+    lowest node, which it keeps. Returns `(kept, origins, heads, weights,
+    member_offsets, members)` (int32, `weights` float64): the kept nodes; the arcs
+    between them (positions in `kept`), the two directions of a two-way chain cut at
+    the same nodes and summed in the same order; arc `i`'s input arcs in travel order,
+    `members[member_offsets[i]:member_offsets[i + 1]]`.
+    """
+    n = len(offsets) - 1
+    rows = [heads[offsets[u] : offsets[u + 1]] for u in range(n)]
+    ins = [[] for _ in range(n)]
+    for u, row in enumerate(rows):
+        for v in row:
+            ins[v].append(u)
+
+    def through(v):
+        out, inn = list(rows[v]), sorted(ins[v])
+        two_way = len(out) == 2 and out == inn
+        one_way = len(out) == len(inn) == 1 and out != inn
+        same = modes is None or all(modes[x] == modes[v] for x in out + inn)
+        return (two_way or one_way) and same
+
+    def contract(s, a):
+        nodes, path = [s], [a]  # walk to the next kept node
+        while not keep[heads[path[-1]]]:
+            v = heads[path[-1]]
+            row, seen[v] = rows[v], True
+            nodes.append(v)
+            path.append(offsets[v] + (len(row) == 2 and row[0] == nodes[-2]))
+        nodes.append(heads[path[-1]])
+        # Cut where the length from the canonical end reaches max_km
+        pieces, start, total = [], 0, 0.0
+        for i in range(1, len(path) + 1):
+            total += weights[path[i - 1]]
+            if total >= max_km or i == len(path):
+                pieces.append((start, i))
+                start, total = i, 0.0
+        pieces, both = pieces[::-1], len(rows[nodes[1]]) == 2
+        while pieces:
+            i, j = pieces.pop()
+            b, e = nodes[i], nodes[j]
+            if j - i > 1 and (b == e or exists(b, e) or both and exists(e, b)):
+                pieces += [(i + (j - i) // 2, j), (i, i + (j - i) // 2)]
+                continue
+            keep[b] = keep[e] = True
+            emit(b, e, path[i:j], path[i:j])
+            if both:
+                back = [
+                    offsets[nodes[k + 1]]
+                    + bisect_left(rows[nodes[k + 1]], nodes[k])
+                    for k in range(i, j)
+                ]
+                emit(e, b, back[::-1], back)
+
+    def emit(u, v, members, canonical):
+        # Summed in order from the canonical end, as C++ does (sum() compensates
+        # since Python 3.12)
+        km = reduce(add, (weights[a] for a in canonical), 0.0)
+        arcs.append((u, v, km, members))
+        pairs.add((u, v))
+
+    def exists(u, v):  # an input arc, or an arc made
+        return (u, v) in pairs or v in rows[u]
+
+    chain = [through(v) for v in range(n)]
+    keep, seen = [not c for c in chain], [False] * n
+    arcs = [
+        (u, heads[a], weights[a], [a])
+        for u in range(n)
+        for a in range(offsets[u], offsets[u + 1])
+        if keep[u] and keep[heads[a]]
+    ]
+    pairs = set()  # (origin, head) of the arcs made by contraction
+    for s in range(n):
+        for a in range(offsets[s], offsets[s + 1]):
+            if not chain[s] and chain[heads[a]] and not seen[heads[a]]:
+                contract(s, a)
+    for v in range(n):
+        if chain[v] and not seen[v]:
+            keep[v] = seen[v] = True
+            contract(v, offsets[v])
+    kept = array("i", (v for v in range(n) if keep[v]))
+    position = {v: i for i, v in enumerate(kept)}
+    arcs.sort(key=lambda arc_: arc_[:2])
+    return (
+        kept,
+        array("i", (position[arc_[0]] for arc_ in arcs)),
+        array("i", (position[arc_[1]] for arc_ in arcs)),
+        array("d", (arc_[2] for arc_ in arcs)),
+        array("i", accumulate((len(arc_[3]) for arc_ in arcs), initial=0)),
+        array("i", (a for arc_ in arcs for a in arc_[3])),
+    )
+
+
 _METRES = 6371000.0 * math.pi / 1.8e9  # per 1e-7 degree of latitude
 
 
@@ -181,9 +285,15 @@ def simplify_shapes(points, offsets, ends, tolerance_m):
 python = SimpleNamespace(
     csr_from_arcs=csr_from_arcs,
     strong_components=strong_components,
+    contract_chains=contract_chains,
     simplify_shapes=simplify_shapes,
 )
 try:
-    from scgraph.cpp import csr_from_arcs, simplify_shapes, strong_components
+    from scgraph.cpp import (
+        contract_chains,
+        csr_from_arcs,
+        simplify_shapes,
+        strong_components,
+    )
 except ImportError:
     pass

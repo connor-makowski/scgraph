@@ -2,7 +2,10 @@
 // it is compiled without fused multiply-add (CMakeLists.txt), so that the kernels round as
 // their pure-Python twins
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/optional.h>
 #include <nanobind/stl/tuple.h>
+#include <limits>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -12,6 +15,7 @@
 namespace nb = nanobind;
 
 using Ids = nb::ndarray<const int64_t, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
+using Modes = nb::ndarray<const uint8_t, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
 
 // A read-only memoryview that owns the vector
 template <class T>
@@ -37,6 +41,18 @@ void bind_pipelines(nb::module_& m) {
                                              (int64_t)heads.shape(0));
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
     }, nb::arg("offsets"), nb::arg("heads"));
+    m.def("contract_chains", [](CsrInts offsets, CsrInts heads, CsrDoubles weights, std::optional<Modes> modes,
+                                double max_km) {
+        const int64_t n = (int64_t)offsets.shape(0) - 1;
+        if (weights.shape(0) != heads.shape(0) || (modes && (int64_t)modes->shape(0) != n))
+            throw std::invalid_argument("expected one weight per arc and one mode per node");
+        auto c = assembly::contract_chains(offsets.data(), heads.data(), weights.data(),
+                                           modes ? modes->data() : nullptr, n, (int64_t)heads.shape(0), max_km);
+        return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
+                              owned_view(std::move(c.heads)), owned_view(std::move(c.weights)),
+                              owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("modes") = nb::none(),
+       nb::arg("max_km") = std::numeric_limits<double>::infinity());
     m.def("simplify_shapes", [](CsrInts points, CsrInts offsets, CsrInts ends, double tolerance_m) {
         const int64_t shapes = (int64_t)offsets.shape(0) - 1;
         if (points.shape(0) % 2 || (int64_t)ends.shape(0) != 4 * shapes)

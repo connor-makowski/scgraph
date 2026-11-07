@@ -1,3 +1,4 @@
+import math
 import random
 from array import array
 
@@ -132,6 +133,129 @@ def test_strong_components_groups_nodes_that_reach_each_other(backend, rows):
     # Numbered in the order of their smallest node
     assert list(dict.fromkeys(labels)) == list(range(len(sizes)))
     assert sizes == [labels.count(label) for label in range(len(sizes))]
+
+
+def _csr(one_way=(), two_way=()):
+    # (origin, destination, km) arcs, two_way ones in both directions, by origin
+    arcs = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]
+    columns = (array(t, c) for t, c in zip("qqd", zip(*arcs)))
+    return assembly.python.csr_from_arcs(*columns)[1:4]
+
+
+def _random_chains(seed):
+    # Junctions 0-19 joined by chains of new nodes, both ways or one way (loops and
+    # parallel chains among them), numbered at random, the same length both ways; a few
+    # nodes of another mode
+    rng = random.Random(seed)
+    ids, arcs, count = rng.sample(range(10**6), 400), ([], []), 20
+    for _ in range(60):
+        size = rng.randrange(6)
+        path = [
+            rng.randrange(20),
+            *range(count, count + size),
+            rng.randrange(20),
+        ]
+        count += size
+        arcs[rng.random() < 0.7].extend(
+            (ids[u], ids[v], (0.1, 0.2, 0.3)[(u + v) % 3])
+            for u, v in zip(path, path[1:])
+            if u != v
+        )
+    graph = _csr(*arcs)
+    modes = array("B", (rng.random() < 0.05 for _ in range(len(graph[0]) - 1)))
+    return graph, modes, rng.choice([math.inf, 0.5])
+
+
+def _two_way(*pairs):
+    return _csr(two_way=[(u, v, 1.0) for u, v in pairs])
+
+
+@both_backends
+@pytest.mark.parametrize(
+    "graph, modes, max_km, kept",
+    [
+        # A dead-end spur (4) stays
+        (
+            _two_way((0, 1), (1, 2), (2, 3), (1, 4)),
+            None,
+            math.inf,
+            [0, 1, 3, 4],
+        ),
+        # Of two parallel chains, the second (taken from the lower end, in row order, so
+        # that both backends agree) is cut at its middle
+        (_two_way((0, 1), (1, 3), (0, 2), (2, 3)), None, math.inf, [0, 2, 3]),
+        # A one-way loop off node 0 is cut at its middle
+        (
+            _csr([(0, 1, 1), (1, 2, 1), (2, 3, 1), (3, 0, 1)], [(0, 4, 1)]),
+            None,
+            math.inf,
+            [0, 2, 4],
+        ),
+        # A one-way merge into 2 is not a chain; an isolated cycle keeps its lowest node
+        (_csr([(0, 2, 1), (1, 2, 1), (2, 3, 1)]), None, math.inf, [0, 1, 2, 3]),
+        (
+            _csr([(1, 2, 1), (2, 3, 1), (3, 0, 1), (0, 1, 1)]),
+            None,
+            math.inf,
+            [0, 2],
+        ),
+        # A port (2) between road (0, 1) and sea (3, 4) is never contracted
+        (
+            _two_way((0, 1), (1, 2), (2, 3), (3, 4)),
+            array("B", [0, 0, 1, 2, 2]),
+            math.inf,
+            [0, 1, 2, 3, 4],
+        ),
+        # Cut every 2 km from the lower end, 0, along 0-4-3-2-1-5
+        (
+            _two_way((5, 1), (1, 2), (2, 3), (3, 4), (4, 0)),
+            None,
+            2.0,
+            [0, 1, 3, 5],
+        ),
+        # Random chains: the same result as the pure-Python version
+        *((*_random_chains(seed), None) for seed in range(6)),
+    ],
+)
+def test_contract_chains_keeps_every_arc_and_contracts_through_nodes(
+    backend, graph, modes, max_km, kept
+):
+    offsets, heads, weights = graph
+    result = backend.contract_chains(offsets, heads, weights, modes, max_km)
+    nodes, origins, ends, km, member_offsets, members = map(list, result)
+    if kept is None:
+        expected = assembly.python.contract_chains(
+            offsets, heads, weights, modes, max_km
+        )
+        assert [nodes, origins, ends, km, member_offsets, members] == list(
+            map(list, expected)
+        )
+    else:
+        assert nodes == kept
+    # Each input arc on exactly one arc, which follows it between kept nodes
+    tails = [
+        u
+        for u in range(len(offsets) - 1)
+        for _ in range(offsets[u], offsets[u + 1])
+    ]
+    assert sorted(members) == list(range(len(heads)))
+    walks = {}
+    for i, (u, v) in enumerate(zip(origins, ends)):
+        walk = members[member_offsets[i] : member_offsets[i + 1]]
+        stops = [tails[walk[0]], *(heads[a] for a in walk)]
+        assert stops[0] == nodes[u] and stops[-1] == nodes[v] and u != v
+        assert all(
+            tails[b] == heads[a] and heads[a] not in nodes
+            for a, b in zip(walk, walk[1:])
+        )
+        assert math.isclose(km[i], sum(weights[a] for a in walk))
+        walks[stops[0], stops[-1]] = (stops, km[i])
+    assert len(walks) == len(origins)
+    assert list(zip(origins, ends)) == sorted(zip(origins, ends))
+    # Both directions of a chain have the same length to the last bit
+    for (u, v), (stops, length) in walks.items():
+        back = walks.get((v, u))
+        assert back is None or back[0] != stops[::-1] or back[1] == length
 
 
 # At the equator, 1e-7 degree is about 1.1 cm

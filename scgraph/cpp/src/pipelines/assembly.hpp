@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -252,6 +253,127 @@ inline Components strong_components(const int32_t* offsets, const int32_t* heads
         ++result.sizes[label];
     }
     result.labels = std::move(component);
+    return result;
+}
+
+struct Contracted {
+    std::vector<int32_t> kept, origins, heads, member_offsets, members;
+    std::vector<double> weights;
+};
+
+// Same rules and order of operations as the Python twin (contract_chains)
+inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
+                                  const uint8_t* modes, int64_t node_count, int64_t arc_count, double max_km) {
+    check_offsets(offsets, node_count, arc_count);
+    const int32_t n = static_cast<int32_t>(node_count);
+    std::vector<int32_t> indegree(n, 0), first(n, -1), second(n, -1);
+    for (int32_t u = 0; u < n; ++u) {
+        for (int32_t a = offsets[u]; a < offsets[u + 1]; ++a) {
+            const int32_t v = heads[a];
+            if (v < 0 || v >= n || v == u || (a > offsets[u] && v <= heads[a - 1]))
+                throw std::out_of_range("rows must rise within the nodes, without loops");
+            if (indegree[v] == 0) first[v] = u;
+            else if (indegree[v] == 1) second[v] = u;
+            ++indegree[v];
+        }
+    }
+    auto degree = [&](int32_t v) { return offsets[v + 1] - offsets[v]; };
+    std::vector<char> chain(n), keep(n), seen(n, 0);
+    for (int32_t v = 0; v < n; ++v) {
+        const int32_t* out = heads + offsets[v];
+        // Predecessors are seen in rising order, so first < second
+        const bool two_way = degree(v) == 2 && indegree[v] == 2 && first[v] == out[0] && second[v] == out[1];
+        const bool one_way = degree(v) == 1 && indegree[v] == 1 && first[v] != out[0];
+        chain[v] = (two_way || one_way) &&
+                   (!modes || (modes[out[0]] == modes[v] && modes[two_way ? out[1] : first[v]] == modes[v]));
+        keep[v] = !chain[v];
+    }
+    auto arc = [&](int32_t u, int32_t v) {  // the index of arc u -> v
+        return static_cast<int32_t>(std::lower_bound(heads + offsets[u], heads + offsets[u + 1], v) - heads);
+    };
+    std::unordered_set<uint64_t> pairs;  // (origin, head) of the arcs made by contraction
+    auto exists = [&](int32_t u, int32_t v) {  // an input arc, or an arc made
+        return pairs.count(static_cast<uint64_t>(u) << 32 | v) || std::binary_search(heads + offsets[u], heads + offsets[u + 1], v);
+    };
+    struct Arc { int32_t u, v; double km; int64_t first, count; };
+    std::vector<Arc> arcs;
+    std::vector<int32_t> pool;  // the arcs' members, each arc's in a run
+    auto add = [&](int32_t u, int32_t v, double km, int64_t first) {
+        arcs.push_back({u, v, km, first, static_cast<int64_t>(pool.size()) - first});
+        pairs.insert(static_cast<uint64_t>(u) << 32 | v);
+    };
+    for (int32_t u = 0; u < n; ++u) {
+        for (int32_t a = offsets[u]; a < offsets[u + 1]; ++a) {
+            if (keep[u] && keep[heads[a]]) pool.push_back(a), arcs.push_back({u, heads[a], weights[a], (int64_t)pool.size() - 1, 1});
+        }
+    }
+    std::vector<int32_t> nodes, path;
+    std::vector<std::pair<int32_t, int32_t>> pieces;
+    auto contract = [&](int32_t s, int32_t a) {
+        nodes.assign(1, s);
+        path.assign(1, a);
+        while (!keep[heads[path.back()]]) {  // walk to the next kept node
+            const int32_t v = heads[path.back()];
+            seen[v] = 1;
+            nodes.push_back(v);
+            path.push_back(offsets[v] + (degree(v) == 2 && heads[offsets[v]] == nodes[nodes.size() - 2]));
+        }
+        nodes.push_back(heads[path.back()]);
+        // Cut where the length from the canonical end reaches max_km
+        const int32_t length = static_cast<int32_t>(path.size());
+        double total = 0.0;
+        pieces.clear();
+        for (int32_t i = 1, start = 0; i <= length; ++i) {
+            total += weights[path[i - 1]];
+            if (total >= max_km || i == length) pieces.push_back({start, i}), start = i, total = 0.0;
+        }
+        std::reverse(pieces.begin(), pieces.end());
+        const bool both = degree(nodes[1]) == 2;
+        while (!pieces.empty()) {
+            const auto [i, j] = pieces.back();
+            pieces.pop_back();
+            const int32_t b = nodes[i], e = nodes[j];
+            if (j - i > 1 && (b == e || exists(b, e) || (both && exists(e, b)))) {
+                pieces.push_back({i + (j - i) / 2, j});
+                pieces.push_back({i, i + (j - i) / 2});
+                continue;
+            }
+            keep[b] = keep[e] = 1;
+            const int64_t forward = static_cast<int64_t>(pool.size());
+            double km = 0;
+            for (int32_t k = i; k < j; ++k) km += weights[path[k]], pool.push_back(path[k]);
+            add(b, e, km, forward);
+            if (both) {  // members in travel order, summed from the canonical end
+                const int64_t backward = static_cast<int64_t>(pool.size());
+                km = 0;
+                for (int32_t k = i; k < j; ++k) km += weights[arc(nodes[k + 1], nodes[k])];
+                for (int32_t k = j - 1; k >= i; --k) pool.push_back(arc(nodes[k + 1], nodes[k]));
+                add(e, b, km, backward);
+            }
+        }
+    };
+    for (int32_t s = 0; s < n; ++s) {
+        for (int32_t a = offsets[s]; a < offsets[s + 1]; ++a) {
+            if (!chain[s] && chain[heads[a]] && !seen[heads[a]]) contract(s, a);
+        }
+    }
+    for (int32_t v = 0; v < n; ++v) {  // isolated cycles
+        if (chain[v] && !seen[v]) keep[v] = seen[v] = 1, contract(v, offsets[v]);
+    }
+    Contracted result;
+    std::vector<int32_t> position(n, -1);
+    for (int32_t v = 0; v < n; ++v) {
+        if (keep[v]) position[v] = static_cast<int32_t>(result.kept.size()), result.kept.push_back(v);
+    }
+    std::sort(arcs.begin(), arcs.end(), [](const Arc& x, const Arc& y) { return std::pair(x.u, x.v) < std::pair(y.u, y.v); });
+    result.member_offsets.push_back(0);
+    for (const Arc& x : arcs) {
+        result.origins.push_back(position[x.u]);
+        result.heads.push_back(position[x.v]);
+        result.weights.push_back(x.km);
+        result.members.insert(result.members.end(), pool.begin() + x.first, pool.begin() + x.first + x.count);
+        result.member_offsets.push_back(static_cast<int32_t>(result.members.size()));
+    }
     return result;
 }
 

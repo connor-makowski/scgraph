@@ -39,8 +39,8 @@ part of its name. The core imports `pipelines` only when `load_from_osm` or
 `build_geograph` is called. The sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache, whose header says what built it (§7; no
 clock time, so the same inputs give the same `content_sha256`), and later calls read the
-cache. `pipelines/steps/assembly.py` (arcs → arrays, components,
-Douglas–Peucker) has a C++ twin in `cpp/src/pipelines/`, bound in
+cache. `pipelines/steps/assembly.py` (arcs → arrays, components, chain
+contraction, Douglas–Peucker) has a C++ twin in `cpp/src/pipelines/`, bound in
 `cpp/bindings/pipelines_bindings.cpp`. Network files written by scgraph (`save_as_scgraph`, so built
 networks and the conversions of published networks, §6) number their nodes along a Hilbert
 curve over longitude and latitude (`helpers/hilbert.py`, within each mode, so that the nodes
