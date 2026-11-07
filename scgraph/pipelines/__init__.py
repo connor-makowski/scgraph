@@ -8,11 +8,10 @@ A pipeline is a module with four names:
   the `region` argument of `build_geograph`), the `credit` to cite with results, and its
   `license` (SPDX identifier, `LicenseRef-…` when SPDX has none, `NOASSERTION` when it could
   not be established) with the `license_url` where it is stated
-- `PIPELINE_VERSION`: an integer, raised (never reset) when the network built changes (its
-  `build`, or the node order of `helpers/hilbert.py`); a network that reuses others adds
-  their versions; a cached network built with another `PIPELINE_VERSION` is built again.
-  Raise `PIPELINE_VERSION` when the same sources would give a different graph; a refactoring
-  that leaves the graph unchanged does not raise it
+- `PIPELINE_VERSION`: an integer, raised when the same sources would give a different
+  graph; a refactoring that leaves the graph unchanged does not raise it; it is never lowered
+  once released. A network that reuses others adds their versions; a cached network built
+  with another `PIPELINE_VERSION` is built again
 - `build(files)`: given name -> downloaded file, returns the GeoGraph, or `(GeoGraph,
   details)` where `details` is a dict added to the manifest
 - `download(url, filename)`, optional: how to download a source (default: `download_file`)
