@@ -219,7 +219,7 @@ that can't be read (damaged, another format version) is made again from the `.gr
 a cache that can't be written keeps reading the `.graphjson`. In the C++ build a loaded
 conversion stays mapped: on Windows it can't be removed or replaced while a geograph read from
 it is alive. A built network is not rebuilt when its source changes, but it is
-when its manifest names another `VERSION` of its pipeline or of the file format, or a
+when its manifest names another `PIPELINE_VERSION` of its pipeline or of the file format, or a
 file that is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
 default when `SCGRAPH_OFFLINE=1`), nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
 network that is not in the cache, and `build_geograph` loads a build of another pipeline

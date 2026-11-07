@@ -8,9 +8,11 @@ A pipeline is a module with four names:
   the `region` argument of `build_geograph`), the `credit` to cite with results, and its
   `license` (SPDX identifier, `LicenseRef-…` when SPDX has none, `NOASSERTION` when it could
   not be established) with the `license_url` where it is stated
-- `VERSION`: an integer, raised (never reset) when the network built changes (its
+- `PIPELINE_VERSION`: an integer, raised (never reset) when the network built changes (its
   `build`, or the node order of `helpers/hilbert.py`); a network that reuses others adds
-  their versions; a cached network built with another `VERSION` is built again
+  their versions; a cached network built with another `PIPELINE_VERSION` is built again.
+  Raise `PIPELINE_VERSION` when the same sources would give a different graph; a refactoring
+  that leaves the graph unchanged does not raise it
 - `build(files)`: given name -> downloaded file, returns the GeoGraph, or `(GeoGraph,
   details)` where `details` is a dict added to the manifest
 - `download(url, filename)`, optional: how to download a source (default: `download_file`)
@@ -38,7 +40,7 @@ A pipeline of your own, here the cycleways of an OpenStreetMap extract, both way
 from scgraph import GeoGraph
 from scgraph.pipelines.steps import osm
 
-VERSION = 1
+PIPELINE_VERSION = 1
 SOURCES = {"ways": osm.GEOFABRIK}
 download = osm.download  # checks osmium before downloading the extract
 

@@ -4,7 +4,7 @@ Geofabrik, for example `region="europe/luxembourg"`."""
 from scgraph.geograph import GeoGraph
 from scgraph.pipelines.steps import osm
 
-VERSION = 1
+PIPELINE_VERSION = 1
 
 SOURCES = {"roads": osm.GEOFABRIK}
 

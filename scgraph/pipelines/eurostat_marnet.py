@@ -13,7 +13,7 @@ import struct
 
 from scgraph.geograph import GeoGraph
 
-VERSION = 1
+PIPELINE_VERSION = 1
 
 SOURCES = {
     "lines": {

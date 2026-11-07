@@ -17,7 +17,7 @@ from scgraph.utils import haversine
 
 # Small sources first: a failure then costs no new download of the extract
 # Follows the versions of the two builds it reuses
-VERSION = 2 + marnet.VERSION + osm_main_roads.VERSION
+PIPELINE_VERSION = 2 + marnet.PIPELINE_VERSION + osm_main_roads.PIPELINE_VERSION
 
 SOURCES = {
     "sea": marnet.SOURCES["lines"],

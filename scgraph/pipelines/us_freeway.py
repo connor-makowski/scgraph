@@ -3,7 +3,7 @@
 from scgraph.geograph import GeoGraph
 from scgraph.pipelines.steps import arcgis
 
-VERSION = 1
+PIPELINE_VERSION = 1
 
 SOURCES = {
     "lines": {

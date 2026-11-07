@@ -1308,7 +1308,7 @@ class GeoGraphIO:
             cached_file = folder.joinpath(Path(manifest["file"]).name)
         except (OSError, ValueError, KeyError, TypeError):
             built_by, cached_file = None, None
-        current = network.VERSION, network_file.VERSION
+        current = network.PIPELINE_VERSION, network_file.VERSION
         cached = cached_file is not None and cached_file.is_file()
         stale = cached and built_by != current
         offline = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
@@ -1328,7 +1328,7 @@ class GeoGraphIO:
             if stale:
                 warnings.warn(
                     f"The cached {name} was built with pipeline version "
-                    f"{built_by[0]}, now {network.VERSION}; loading it as {offline}"
+                    f"{built_by[0]}, now {network.PIPELINE_VERSION}; loading it as {offline}"
                 )
         elif stale:
             logger.warning(
@@ -1401,7 +1401,7 @@ class GeoGraphIO:
                             "downloaded": downloaded,
                             "sources": sources,
                             "scgraph": GeoGraph.__scgraph_version__(),
-                            "build_version": network.VERSION,
+                            "build_version": network.PIPELINE_VERSION,
                             "format_version": network_file.VERSION,
                             "file": built_file.name,
                             "node_order": NODE_ORDER,

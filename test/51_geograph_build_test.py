@@ -106,7 +106,10 @@ def source(monkeypatch):
 
 # A new version of the pipeline or of the file format, or a missing network file
 # (None), builds the network again
-@pytest.mark.parametrize("versioned", [marnet, network_file, None])
+@pytest.mark.parametrize(
+    "versioned",
+    [(marnet, "PIPELINE_VERSION"), (network_file, "VERSION"), None],
+)
 def test_build_geograph_builds_once_per_version_and_records_the_source(
     tmp_path, source, monkeypatch, versioned
 ):
@@ -120,7 +123,7 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     assert again.graph_object.graph == geo.graph_object.graph
     folder = tmp_path / "networks" / "marnet"
     manifest = json.loads((folder / "manifest.json").read_text())
-    assert manifest["build_version"] == marnet.VERSION
+    assert manifest["build_version"] == marnet.PIPELINE_VERSION
     assert manifest["sources"] == [
         {
             "name": "lines",
@@ -146,7 +149,8 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
         listing = GeoGraph.list_buildable_geographs(str(tmp_path))
         assert not next(n for n in listing if n["name"] == "marnet")["cached"]
     else:
-        monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
+        module, constant = versioned
+        monkeypatch.setattr(module, constant, getattr(module, constant) + 1)
     rebuilt = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     assert _Source.served == ["/lines.geojson"] * 2  # built again once
@@ -203,9 +207,12 @@ def test_build_geograph_downloads_only_if_allowed(
     if cached:
         GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
         _Source.served.clear()
-    versioned = {"stale": marnet, "format": network_file}.get(cached)
-    if versioned:
-        monkeypatch.setattr(versioned, "VERSION", versioned.VERSION + 1)
+    if cached == "stale":
+        monkeypatch.setattr(
+            marnet, "PIPELINE_VERSION", marnet.PIPELINE_VERSION + 1
+        )
+    if cached == "format":
+        monkeypatch.setattr(network_file, "VERSION", network_file.VERSION + 1)
     if offline:
         monkeypatch.setenv("SCGRAPH_OFFLINE", offline)
 
@@ -215,7 +222,7 @@ def test_build_geograph_downloads_only_if_allowed(
         )
 
     if outcome == "loaded":  # with a warning that names what differs
-        old, new = marnet.VERSION - 1, marnet.VERSION
+        old, new = marnet.PIPELINE_VERSION - 1, marnet.PIPELINE_VERSION
         differs = f"pipeline version {old}, now {new};"
         with pytest.warns(UserWarning, match=differs):
             assert len(build().nodes) == 4
@@ -256,7 +263,7 @@ def test_build_geograph_reads_every_page_of_an_arcgis_layer(
     network = "north_america_rail"
     if module_name:
         network = types.ModuleType(module_name)
-        for name in ("SOURCES", "VERSION", "download", "build"):
+        for name in ("SOURCES", "PIPELINE_VERSION", "download", "build"):
             setattr(network, name, getattr(north_america_rail, name))
     if folder is None:
         with pytest.raises(ValueError, match="Invalid pipeline module name"):
