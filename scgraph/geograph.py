@@ -517,7 +517,7 @@ class GeoGraphIO:
         filename: str,
         select: Callable | None = None,
         tag_keys: tuple[str, ...] = ("highway",),
-        max_km_between_nodes: float | int = 2,
+        max_km_between_nodes: float | int | None = None,
         largest_component: bool = True,
         load_intermediate_nodes: bool = True,
         reduce_iterations: int = 0,
@@ -533,7 +533,7 @@ class GeoGraphIO:
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
-        - Memory: osmium's node filter takes about 1.5 GB, whatever the size of the file
+        - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
 
@@ -555,9 +555,9 @@ class GeoGraphIO:
             - Default: ("highway",)
             - Note: Give the tag keys that `select` keeps ways by, for example `("railway",)` for railway lines
         - `max_km_between_nodes`
-            - Type: float | int
+            - Type: float | int | None
             - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
-            - Default: 2
+            - Default: None: `scgraph.pipelines.steps.osm.MAX_KM` (2)
         - `largest_component`
             - Type: bool
             - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
@@ -595,13 +595,17 @@ class GeoGraphIO:
                 )
             )
         from scgraph.pipelines.steps.osm import (
+            MAX_KM,
             keep_largest_component,
             main_roads,
             read_osm,
         )
 
         graph, nodes, shapes, ids = read_osm(
-            filename, select or main_roads, tag_keys, max_km_between_nodes
+            filename,
+            select or main_roads,
+            tag_keys,
+            max_km_between_nodes or MAX_KM,
         )
         if not nodes:
             raise ValueError(

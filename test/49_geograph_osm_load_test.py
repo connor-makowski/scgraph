@@ -175,6 +175,27 @@ def test_load_from_osm_selects_ways_and_their_direction(
     assert {arc for arc in arcs if nodes & set(arc)} == expected
 
 
+def test_located_ways_reads_every_kind_of_way_in_one_set_of_passes(osm_file):
+    # A way goes to the first select that keeps it (primary roads are main roads), and
+    # ways of two kinds meet at junctions (residential way 4 meets road way 1 at node 3)
+    selects = {
+        "residential": lambda tags: (
+            0 if tags.get("highway") == "residential" else None
+        ),
+        "roads": osm.main_roads,
+        "primary": lambda tags: 0 if tags.get("highway") == "primary" else None,
+    }
+    junctions, polylines = osm.located_ways(osm_file, selects, ("highway",))
+    nodes = {}
+    for kind, _, points in polylines:
+        nodes.setdefault(kind, set()).update(ref for ref, _ in points)
+    assert set(nodes) == {"residential", "roads"}
+    assert (
+        nodes["residential"] == {3, 7} and {1, 2, 3, 50, 51} <= nodes["roads"]
+    )
+    assert 3 in junctions and 1 not in junctions
+
+
 def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
     # Ways 1 and 2 (nodes 1 to 4, two-way) are the largest part where every node
     # reaches every other; node 7 is only reached by a one-way street

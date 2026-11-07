@@ -35,7 +35,7 @@ def cut_polylines(polylines, junctions, max_km):
                 start, km = i, 0.0
 
 
-def polylines_to_graph(polylines, junctions, max_km_between_nodes):
+def polylines_to_graph(polylines, junctions, max_km):
     """
     Collect the `cut_polylines` of `polylines` into a graph: there are no self-loops, and parallel
     arcs keep the shortest (the first seen among arcs of equal length).
@@ -48,7 +48,7 @@ def polylines_to_graph(polylines, junctions, max_km_between_nodes):
     for polyline in polylines:
         where = dict(polyline[1])
         for origin, destination, km, direction, shape in cut_polylines(
-            [polyline], junctions, max_km_between_nodes
+            [polyline], junctions, max_km
         ):
             if origin == destination:
                 continue  # a loop never lies on a shortest path

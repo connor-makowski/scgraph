@@ -24,11 +24,12 @@ layout.
 
 The steps (`scgraph.pipelines.steps`), for each scale:
 
-- a region, in memory: `osm.located_ways` -> `polylines_to_graph` (`scgraph.helpers.polylines`, also
-  used by `load_from_geojson`) -> `osm.keep_largest_component`
-- the planet, streamed: `osm.located_ways` -> `cut_polylines` (`scgraph.helpers.polylines`) ->
-  `csr_from_arcs` -> `strong_components` -> `simplify_shapes` (the last three are added
-  with the assembly kernels, #206)
+- a region, in memory: `osm.read_osm` (`osm.located_ways` -> `polylines_to_graph`, from
+  `scgraph.helpers.polylines`, also used by `load_from_geojson`) ->
+  `osm.keep_largest_component`
+- the planet, streamed: `osm.located_ways` (every kind of way in one read) ->
+  `cut_polylines` (`scgraph.helpers.polylines`) -> `csr_from_arcs` -> `strong_components`
+  -> `simplify_shapes` (the last three are added with the assembly kernels, #206)
 
 The core never imports `scgraph.pipelines` at load time: `load_from_osm` and
 `build_geograph` import it when they are called.

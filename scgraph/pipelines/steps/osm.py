@@ -27,6 +27,9 @@ MAIN_ROADS = {
     "primary",
     "primary_link",
 }
+# Length in kilometers at which a way is cut into a new arc (at the next point), so that
+# origins and destinations attach close to where they are
+MAX_KM = 2
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 
 
@@ -71,23 +74,27 @@ def _input(source):
     return source if isinstance(source, (str, os.PathLike)) else source.file()
 
 
-def _selected_ways(osmium, source, select, tag_keys, *filters):
-    """`(direction, way)` for the ways `select` keeps; ways with none of `tag_keys` are
-    skipped in osmium, before Python sees them, and so are `filters`."""
+def _selected_ways(osmium, source, selects, tag_keys, *filters):
+    """`(kind, direction, way)` for the ways one of `selects` keeps (the first, in their
+    order); ways with none of `tag_keys` are skipped in osmium, before Python sees them,
+    and so are `filters`."""
     ways = osmium.FileProcessor(_input(source), osmium.osm.WAY)
     if tag_keys:
         ways = ways.with_filter(osmium.filter.KeyFilter(*tag_keys))
     for osmium_filter in filters:
         ways = ways.with_filter(osmium_filter)
     for way in ways:
-        way_direction = select(way.tags)
-        if way_direction is None:
+        for kind, select in selects.items():
+            way_direction = select(way.tags)
+            if way_direction is not None:
+                break
+        else:
             continue
         if type(way_direction) is not int or way_direction not in (-1, 0, 1):
             raise ValueError(
                 f"select returned {way_direction!r}: 1, -1, 0 or None"
             )
-        yield way_direction, way
+        yield kind, way_direction, way
 
 
 class _Junctions:
@@ -108,13 +115,16 @@ class _Junctions:
         return i < len(self.ids) and self.ids[i] == ref
 
 
-def located_ways(source, select, tag_keys=(), node_store=None):
+def located_ways(source, selects, tag_keys=(), node_store=None):
     """
-    Locate the ways of `source` that `select` keeps.
+    Locate the ways of `source` that `selects` keep, in one set of passes for every kind
+    of way (roads and ferries, for example).
 
-    `select(tags)` gives the direction of a way: 1 (one way along its drawing), -1
-    (against it), 0 (both ways), or None to drop it. If `tag_keys` is given, the ways that
-    have none of these keys are dropped first, in osmium.
+    `selects` maps a kind of way to its `select(tags)`, which gives the direction of a way:
+    1 (one way along its drawing), -1 (against it), 0 (both ways), or None to leave it to
+    the next select; a way goes to the first select that keeps it, in the mapping's order.
+    If `tag_keys` is given, the ways that have none of these keys are dropped first, in
+    osmium.
 
     `source` is the path of an OSM file, or an object whose `file()` returns what
     `osmium.FileProcessor` reads (an `osmium.io.File` or `FileBuffer`), fresh at each call:
@@ -124,20 +134,23 @@ def located_ways(source, select, tag_keys=(), node_store=None):
     The locations of the nodes of kept ways are kept in osmium's `node_store`, an
     `osmium.index.create_map` type: in memory by default (`flex_mem`), or in a file for a
     planet (`"sparse_file_array,<path>"`, emptied first and left for the caller to delete).
-    The node ids of kept ways take about 1.5 GB in any case (one bit per possible id).
+    The node ids of kept ways take about 1.5 GB in any case (one bit per possible id),
+    and the ids of kept ways about 0.2 GB (one bit per possible way id).
 
     Returns `(junctions, polylines)`: the OSM ids of the nodes where kept ways meet or a way
-    crosses itself (`in junctions` tests one), and a generator of the polylines
-    `cut_polylines` takes, `(direction, [(id, [latitude, longitude]), ...])`, a way being
-    split where one of its nodes is missing from the file.
+    crosses itself, whatever their kind (`in junctions` tests one), and a generator of
+    `(kind, direction, points)`, `points` being `[(id, [latitude, longitude]), ...]` and
+    `(direction, points)` a polyline as `cut_polylines` takes it, a way being split where
+    one of its nodes is missing from the file.
     """
     osmium = require_osmium()
     # First pass: the nodes of kept ways; a node seen again is a junction (where ways
     # meet, or where a way crosses itself); crossings without a shared node, such as
     # bridges and tunnels, are not.
-    tracker = osmium.IdTracker()
+    tracker, kept = osmium.IdTracker(), osmium.IdTracker()
     seen, repeats = tracker.node_ids(), array("q")
-    for _, way in _selected_ways(osmium, source, select, tag_keys):
+    for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
+        kept.add_way(way.id)
         for node in way.nodes:
             if seen.get(node.ref):
                 repeats.append(node.ref)
@@ -157,28 +170,33 @@ def located_ways(source, select, tag_keys=(), node_store=None):
     junctions = _Junctions(repeats)
     del repeats
 
-    # Third pass, as the polylines are read: the located pieces of the kept ways
+    # Third pass, as the polylines are read: the located pieces of the kept ways (only
+    # those are located: the way filter comes first)
     def polylines(locations):
         locations.ignore_errors()  # a node missing from the file: invalid location
-        for way_direction, way in _selected_ways(
-            osmium, source, select, tag_keys, locations
+        for kind, way_direction, way in _selected_ways(
+            osmium, source, selects, tag_keys, kept.id_filter(), locations
         ):
             for piece in _located_pieces(way.nodes):
-                yield way_direction, piece
+                yield kind, way_direction, piece
 
     return junctions, polylines(osmium.NodeLocationsForWays(store))
 
 
-def read_osm(source, select, tag_keys=(), max_km_between_nodes=2):
+def read_osm(source, select, tag_keys=(), max_km=MAX_KM):
     """
     Build the graph of the ways of `source` that `select` keeps (`located_ways`, then
-    `polylines_to_graph`).
+    `polylines_to_graph`), a way being also cut where a piece reaches `max_km`
+    (`cut_polylines`).
 
     Returns `(graph, nodes, shapes, node_ids)` in the GeoGraph layout, `node_ids` being
     the OSM ids of the nodes.
     """
-    junctions, polylines = located_ways(source, select, tag_keys)
-    return polylines_to_graph(polylines, junctions, max_km_between_nodes)
+    junctions, polylines = located_ways(source, {"ways": select}, tag_keys)
+    polylines = (
+        (way_direction, points) for _, way_direction, points in polylines
+    )
+    return polylines_to_graph(polylines, junctions, max_km)
 
 
 def _located_pieces(way_nodes):

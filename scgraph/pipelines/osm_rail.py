@@ -13,9 +13,10 @@ download = osm.download  # checks osmium before downloading a large extract
 
 def build(files):
     return GeoGraph.load_from_osm(
-        files["rail"], select=_rail, tag_keys=("railway",)
+        files["rail"], select=rail, tag_keys=("railway",)
     )
 
 
-def _rail(tags):
+def rail(tags):
+    """The direction of a railway line (`railway=rail`), None for any other way."""
     return osm.direction(tags) if tags.get("railway") == "rail" else None
