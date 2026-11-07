@@ -36,14 +36,21 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
   `cut_polylines` (`scgraph.helpers.polylines`) -> `csr_from_arcs` -> `strong_components`
   -> `simplify_shapes` (the last three are added with the assembly kernels, #206)
 
-`build_geograph` writes into the network file's header what built it, read back by
-`GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources` (`name`,
-`url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the data has
-one), `software` (`scgraph` and its `backend`, `cpp` or `python`), `description` (the
-module docstring, so `python -OO`, which drops docstrings, gives another file) and `steps`. It holds no clock time (the download time stays in the
-cache's `cache.json`), so the same pipeline, sources and software give the same file and
-the same `content_sha256`. A cached network is built again only for another
-`PIPELINE_VERSION` or file format.
+`build_geograph` writes into the network file's header what built it (`identity_card`),
+read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
+(`name`, `url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the
+data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the
+`platform` with its C library), `description` (the module docstring, so `python -OO`,
+which drops docstrings, gives another file) and `steps`. It holds no clock time (the
+download time stays in the cache's `cache.json`). A cached network is built again only for
+another `PIPELINE_VERSION` or file format.
+
+Same pipeline, same sources, same scgraph version, same backend and same platform and C
+library: byte-identical file (tested). The C++ and Python builds give the same graph, the
+same nodes, arcs and lengths (tested with the `marnet` pipeline on a small synthetic
+input); only the order of arcs within a node and ties between equal-length routes may
+differ. Across platforms, a few lengths or shape points may differ in the last bit (the
+platform's math library).
 
 The core never imports `scgraph.pipelines` at load time: `load_from_osm` and
 `build_geograph` import it when they are called.
@@ -72,9 +79,14 @@ Give an adapted copy a name of its own: a module named like a built-in pipeline 
 and two modules with the same last name share one cache entry.
 """
 
+import inspect
 import logging
+import platform
+import sysconfig
 
 import requests
+
+from scgraph.utils import has_cpp
 
 logger = logging.getLogger("scgraph.networks")
 
@@ -91,6 +103,35 @@ NAMES = (
 LARGE_DOWNLOAD = (
     100e6  # bytes; announced with a warning, visible without logging set up
 )
+
+
+def identity_card(name, region, version, sources, description=None, steps=None):
+    """
+    The metadata that `build_geograph` writes into a network file's header: what built
+    the network, from plain values (no GeoGraph needed). `name`, `region` and `version`
+    are the pipeline's; `sources` the records of the downloaded sources; `description` the
+    pipeline's docstring; `steps` what `build` returned. `software` is added: the scgraph
+    version, the backend, and the platform with its C library (on Linux), which holds the
+    math functions.
+    """
+    from scgraph.geograph import GeoGraph
+
+    libc = " ".join(platform.libc_ver())
+    return {
+        "pipeline": {"name": name, "region": region, "version": version},
+        "sources": sources,
+        "software": {
+            "scgraph": GeoGraph.__scgraph_version__(),
+            "backend": "cpp" if has_cpp() else "python",
+            "platform": f"{sysconfig.get_platform()} {libc}".strip(),
+        },
+        **(
+            {"description": inspect.cleandoc(description)}
+            if description
+            else {}
+        ),
+        **({"steps": steps} if steps else {}),
+    }
 
 
 def download_file(url: str, filename: str) -> None:

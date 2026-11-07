@@ -1,11 +1,13 @@
 import hashlib
 import json
 import os
+import random
 import re
 import sqlite3
 import struct
 import subprocess
 import sys
+import sysconfig
 import threading
 import types
 import typing
@@ -150,6 +152,7 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
         }
     ]
     assert info["software"]["backend"] == ("cpp" if has_cpp() else "python")
+    assert info["software"]["platform"].startswith(sysconfig.get_platform())
     assert marnet.__doc__.split("\n")[0] in info["description"]
     assert (info["attribution"], info["data_up_to"]) == (
         f"{credit} (EUPL-1.2)",
@@ -272,30 +275,68 @@ def test_build_geograph_downloads_only_if_allowed(
     assert _Source.served == (["/lines.geojson"] if downloaded else [])
 
 
-# The same pipeline, sources and software give the same file, whatever the order of
-# Python's hashes (within one backend)
+# Built in separate subprocesses with different PYTHONHASHSEED values: the same backend
+# gives byte-identical files, and the pure-Python backend (scgraph.cpp hidden) the same
+# graph: the same nodes, and the same arcs and lengths (==), in any order (meaningful in
+# the C++ build; this input gives arcs without shapes)
 def test_build_geograph_gives_the_same_file_for_the_same_inputs(
-    tmp_path, source
+    tmp_path, source, monkeypatch
 ):
+    # Lines meeting at shared points, so that rows hold several arcs
+    rng = random.Random(3)
+    points = [[rng.uniform(0, 0.3), rng.uniform(0, 0.3)] for _ in range(60)]
+    lines = [rng.sample(points, rng.randint(2, 6)) for _ in range(80)]
+    geometries = [{"type": "LineString", "coordinates": line} for line in lines]
+    monkeypatch.setitem(
+        _FILES,
+        "/lines.geojson",
+        json.dumps(
+            {"type": "GeometryCollection", "geometries": geometries}
+        ).encode(),
+    )
     script = (
         "import sys\n"
+        "if sys.argv[3] == 'python':\n"
+        "    sys.modules['scgraph.cpp'] = None\n"
         "from scgraph import GeoGraph\n"
         "from scgraph.pipelines import marnet\n"
         "marnet.SOURCES['lines']['url'] = sys.argv[1]\n"
         "GeoGraph.build_geograph('marnet', cache_dir=sys.argv[2])\n"
     )
-    files = set()
-    for seed in ("1", "2"):
+    files = []
+    for seed, backend in (("1", "this"), ("2", "this"), ("3", "python")):
         cache = tmp_path / seed
         subprocess.run(
-            [sys.executable, "-c", script, f"{source}/lines.geojson", cache],
+            [sys.executable, "-c", script, f"{source}/lines.geojson", cache]
+            + [backend],
             env={**os.environ, "PYTHONHASHSEED": seed},
             check=True,
             timeout=120,
         )
-        pointer = cache / "networks" / "marnet" / "cache.json"
-        files.add(json.loads(pointer.read_text())["file"])
-    assert len(files) == 1
+        folder = cache / "networks" / "marnet"
+        files.append(
+            folder / json.loads((folder / "cache.json").read_text())["file"]
+        )
+    assert files[0].read_bytes() == files[1].read_bytes()
+    # The third build really ran in pure Python
+    assert (
+        GeoGraph.scgraph_info(str(files[2]))["software"]["backend"] == "python"
+    )
+
+    def graph(file):
+        arrays = network_file.read(str(file))[0]
+        offsets, heads, weights = (
+            arrays[k] for k in ("offsets", "heads", "weights")
+        )
+        columns = ("latitudes", "longitudes", "node_ids", "node_modes")
+        nodes = list(zip(*(arrays[k] for k in columns if k in arrays)))
+        return nodes, {
+            (tail, heads[arc], weights[arc])
+            for tail in range(len(nodes))
+            for arc in range(offsets[tail], offsets[tail + 1])
+        }
+
+    assert graph(files[0]) == graph(files[2])
 
 
 # Every page of an ArcGIS layer is read, by name or from a module of one's own (an

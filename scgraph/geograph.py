@@ -4,7 +4,6 @@ from scgraph.utils import (
     get_line_path,
     cheap_ruler,
     print_console,
-    has_cpp,
     get_lat_lon_bound_between_pts,
     resolve_cache_dir,
     earth_radius,
@@ -15,7 +14,7 @@ from scgraph.helpers.polylines import polylines_to_graph
 from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
 from scgraph import network_file
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
-import inspect, tempfile, types
+import tempfile, types
 import warnings
 from array import array
 from collections import Counter
@@ -1480,27 +1479,15 @@ class GeoGraphIO:
                 )
                 # Everything that describes the network, except clock times, so that
                 # the same rules, sources and software give the same file
-                digest = geograph.save_as_scgraph(
-                    str(building),
-                    metadata={
-                        "pipeline": {
-                            "name": name,
-                            "region": region,
-                            "version": network.PIPELINE_VERSION,
-                        },
-                        "sources": sources,
-                        "software": {
-                            "scgraph": GeoGraph.__scgraph_version__(),
-                            "backend": "cpp" if has_cpp() else "python",
-                        },
-                        **(
-                            {"description": inspect.cleandoc(network.__doc__)}
-                            if network.__doc__
-                            else {}
-                        ),
-                        **({"steps": steps} if steps else {}),
-                    },
+                card = pipelines.identity_card(
+                    name,
+                    region,
+                    network.PIPELINE_VERSION,
+                    sources,
+                    network.__doc__,
+                    steps,
                 )
+                digest = geograph.save_as_scgraph(str(building), metadata=card)
                 built_file = folder.joinpath(f"{digest}.scgraph")
                 work.joinpath("cache.json").write_text(
                     json.dumps(
