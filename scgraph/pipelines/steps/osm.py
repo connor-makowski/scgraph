@@ -91,11 +91,17 @@ def _selected_ways(osmium, source, select, tag_keys, *filters):
 
 
 class _Junctions:
-    """Node ids, sorted, looked up by bisection: a Python set of a planet's junctions
-    would take several GB, this array 8 bytes per junction."""
+    """Node ids, sorted, looked up by bisection: 8 bytes per junction once built. While
+    it is built (after the id tracker is freed), the sorted list of repeated uses takes
+    about 40 B per repeat (a node used k times appears k - 1 times), with no set; with
+    the location store still alive, a planet's ~10.8 M repeats would take about 0.43 GB
+    next to a ~1.46 GB file store (an estimate, not measured together)."""
 
     def __init__(self, ids):
-        self.ids = array("q", sorted(set(ids)))
+        self.ids = array("q")
+        for ref in sorted(ids):
+            if not self.ids or self.ids[-1] != ref:
+                self.ids.append(ref)
 
     def __contains__(self, ref):
         i = bisect_left(self.ids, ref)
