@@ -310,6 +310,8 @@ def _select(filename, file, entries, metadata, modes):
         for name in ("latitudes", "longitudes", "node_ids"):
             if name in entries:
                 result[name] += piece(name, first, last)
+        if "node_ids" not in entries:  # a node's id is its position in the file
+            result.setdefault("node_ids", array("q")).extend(range(first, last))
         if "node_modes" in entries:
             result["node_modes"] += column[first:last]
         offsets = piece("offsets", first, last + 1)

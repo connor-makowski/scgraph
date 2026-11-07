@@ -518,6 +518,11 @@ def test_network_file_reads_the_nodes_of_some_modes(
         for (u, v), weight in weights.items()
         if u in ids and v in ids
     }
+    # Without node ids, a node's id is its position in the file: kept too
+    del arrays["node_ids"]
+    network_file.write(path, arrays, {"modes": names})
+    read = network_file.read(path, modes=modes)[0]
+    assert list(read["node_ids"]) == [order.index(i) for i in ids]
 
 
 def test_load_from_scgraph_reads_an_empty_network(tmp_path):
