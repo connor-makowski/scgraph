@@ -49,6 +49,8 @@ scgraph/
     │                            #   transit_node_routing, snap_index, bmssp (template header); pipelines/assembly.hpp
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
+      pipelines_bindings.cpp     # Bindings of the pipelines' kernels (no fused multiply-add, as their Python twins)
+      array_types.hpp            # Array types shared by the binding units
 test/
   NN_module_feature_test.py      # 40+ numbered test files; named *_test.py
   conftest.py                    # pytest session fixtures for shared geographs

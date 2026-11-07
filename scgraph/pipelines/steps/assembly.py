@@ -1,8 +1,9 @@
 """
-Assemble a network file from raw arcs. The C++ kernels (`cpp/src/pipelines/assembly.hpp`), with
-the same results at the scale of the planet, replace these when built; the pure-Python
-ones stay in `python`. Arrays in: buffers of the stated types (`array("q"/"i"/"d")`;
-any sequences for `python`); out: `array` (read-only memoryviews from C++).
+Assemble a network file from raw arcs. The C++ kernels
+(`cpp/src/pipelines/assembly.hpp`), with the same results at the scale of the planet,
+replace these when built; the pure-Python ones stay in `python`. Arrays in: buffers of
+the stated types (`array("q"/"i"/"d")`; any sequences for `python`); out: `array`
+(read-only memoryviews from C++).
 """
 
 import math
@@ -112,7 +113,7 @@ def _rising(offsets):
     return offsets[0] == 0 and all(map(le, offsets, offsets[1:]))
 
 
-def simplify(points, offsets, ends, tolerance_m):
+def simplify_shapes(points, offsets, ends, tolerance_m):
     """
     Douglas-Peucker: drop the shape points within `tolerance_m` metres of the segment
     between the points kept around them, in metres on a flat map local to each arc.
@@ -180,9 +181,9 @@ def simplify(points, offsets, ends, tolerance_m):
 python = SimpleNamespace(
     csr_from_arcs=csr_from_arcs,
     strong_components=strong_components,
-    simplify=simplify,
+    simplify_shapes=simplify_shapes,
 )
 try:
-    from scgraph.cpp import csr_from_arcs, simplify, strong_components
+    from scgraph.cpp import csr_from_arcs, simplify_shapes, strong_components
 except ImportError:
     pass

@@ -261,8 +261,8 @@ struct Shapes {
 
 // Same formulas and order of operations as the Python twin, and no fused multiply-add
 // (CMakeLists.txt), so that both keep the same points
-inline Shapes simplify(const int32_t* points, int64_t point_count, const int32_t* offsets,
-                       const int32_t* ends, int64_t shape_count, double tolerance_m) {
+inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const int32_t* offsets,
+                              const int32_t* ends, int64_t shape_count, double tolerance_m) {
     if (!(tolerance_m >= 0)) throw std::invalid_argument("tolerance_m must be >= 0");
     check_offsets(offsets, shape_count, point_count);
     constexpr double PI = 3.141592653589793;

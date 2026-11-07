@@ -171,7 +171,7 @@ def test_strong_components_groups_nodes_that_reach_each_other(backend, rows):
         *((*_random_shape(seed), 20, None) for seed in range(6)),
     ],
 )
-def test_simplify_keeps_the_points_away_from_the_simplified_line(
+def test_simplify_shapes_keeps_the_points_away_from_the_simplified_line(
     backend, ends, interior, tolerance_m, expected
 ):
     # A shape without interior points first: offsets carry over
@@ -183,8 +183,8 @@ def test_simplify_keeps_the_points_away_from_the_simplified_line(
         tolerance_m,
     )
     if expected is None:
-        kept = assembly.python.simplify(*args)[0]
+        kept = assembly.python.simplify_shapes(*args)[0]
         expected = list(zip(kept[::2], kept[1::2]))
-    kept, offsets = backend.simplify(*args)
+    kept, offsets = backend.simplify_shapes(*args)
     assert list(offsets) == [0, 0, len(expected)]
     assert list(kept) == [value for point in expected for value in point]
