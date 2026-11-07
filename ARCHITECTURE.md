@@ -28,13 +28,14 @@ flowchart LR
 `Graph` knows nothing about geography. `GeoGraph` and `GridGraph` each hold a `Graph`
 (`graph_object`) and delegate every search to it. A `GeoGraph` comes from a built-in
 network, a saved file, a GeoJSON file, an OSMnx graph or an OpenStreetMap file (`osm.py`,
-with the optional dependency `osmium`, which keeps the largest strongly connected component
-with `helpers/assembly.py`: arcs to arrays, components and Douglas–Peucker, with a C++
-twin in `cpp/src/assembly.hpp` for planet-scale builds); every loader produces the same `graph`, `nodes` and
-`intermediate_nodes`. `build_geograph` builds a reference network from its online
-sources: each network has a small build script in `networks/` (source URLs, credit, and
-which loaders to call with which options; the road + sea network combines two networks with
-`merge_with_other_geograph`); the sources are downloaded once, the built network is written
+with the optional dependency `osmium`, which keeps the largest strongly connected
+component); every loader produces the same `graph`, `nodes` and `intermediate_nodes`.
+`helpers/assembly.py` (arcs → arrays, components, Douglas–Peucker) and
+`helpers/landmask.py` (Natural Earth raster, water paths) have C++ twins in `cpp/src/`.
+`build_geograph` builds a reference network from its online sources: each network has a
+small build script in `networks/` (source URLs, credit, and which loaders to call with
+which options; the road + sea network joins two networks at ports, with connectors checked
+against land and water); the sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and
 later calls read the cache. Network files written by scgraph (`save_as_scgraph`, so built
 networks and the conversions of published networks, §6) number their nodes along a Hilbert

@@ -39,12 +39,13 @@ scgraph/
     assembly.py                  # Arcs to network arrays, strong components, Douglas-Peucker; C++ in cpp/src/assembly.hpp
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)
+    landmask.py                  # Land/water raster of Natural Earth, water paths; C++ in cpp/src/landmask.hpp
     lines.py                     # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
     src/                         # C++ source: adjacency, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, assembly, bmssp (template header)
+    │                            #   transit_node_routing, snap_index, assembly, landmask, bmssp (template header)
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
 test/

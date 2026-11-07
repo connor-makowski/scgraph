@@ -1202,8 +1202,8 @@ class GeoGraphIO:
                 - 'marnet': the sea lanes the published `marnet` was built from (Eurostat SeaRoute via searoute-py, EUPL-1.2)
                 - 'north_america_rail': Class I railroads of North America (U.S. Federal Railroad Administration)
                 - 'oak_ridge_maritime': the sea lanes the published `oak_ridge_maritime` was built from (Oak Ridge National Laboratory)
-                - 'osm_main_roads': main roads of an OpenStreetMap extract (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
-                - 'osm_main_roads_and_marnet': main roads of an OpenStreetMap extract joined to the `marnet` sea lanes at the ports of the World Port Index (needs `region`; `pip install scgraph[osm]`)
+                - 'osm_main_roads': main roads and ferries of an OpenStreetMap extract (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
+                - 'osm_main_roads_and_marnet': main roads of an OpenStreetMap extract joined to the `eurostat_marnet` sea lanes at the ports of the World Port Index, connectors checked against land and water (needs `region`; `pip install scgraph[osm]`)
                 - 'osm_rail': railway lines of an OpenStreetMap extract, sidings and yards included (needs `region`; OpenStreetMap contributors, ODbL 1.0; `pip install scgraph[osm]`)
                 - 'us_freeway': freeways of the United States (Esri)
 

@@ -18,6 +18,7 @@
 #include <memory>
 #include <type_traits>
 #include <tuple>
+#include "../src/landmask.hpp"
 #include "../src/graph.hpp"
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"
@@ -990,4 +991,26 @@ NB_MODULE(cpp, m) {
 
                 return TNRGraph(nodes_count, ranks, forward_graph, backward_graph, shortcuts, original_graph, transit_nodes, distance_table, forward_access_nodes, backward_access_nodes);
             }, nb::arg("filename"), "Load a TNRGraph from a JSON file.");
+
+    // Water paths on a land raster (contract in scgraph/helpers/landmask.py)
+    m.def("water_cells", [](nb::ndarray<const uint8_t, nb::ndim<1>, nb::c_contig, nb::device::cpu> bits,
+                            int64_t width, int64_t height, bool wrap, int64_t start,
+                            nb::ndarray<const int64_t, nb::ndim<1>, nb::c_contig, nb::device::cpu> targets,
+                            double max_km, CsrDoubles east, CsrDoubles diagonal, double north) -> nb::object {
+        if (width <= 0 || height <= 0 || (int64_t)bits.shape(0) * 8 < width * height
+            || (int64_t)east.shape(0) < height || (int64_t)diagonal.shape(0) + 1 < height
+            || start < 0 || start >= width * height)
+            throw std::invalid_argument("water_cells: arrays do not match the raster");
+        std::optional<WaterPath> path;
+        {
+            nb::gil_scoped_release release;
+            path = water_cells(bits.data(), width, height, wrap, start, targets.data(),
+                               targets.shape(0), max_km, east.data(), diagonal.data(), north);
+        }
+        if (!path) return nb::none();
+        return nb::make_tuple(path->km, nb::cast(path->cells));
+    }, nb::arg("bits"), nb::arg("width"), nb::arg("height"), nb::arg("wrap"), nb::arg("start"),
+       nb::arg("targets"), nb::arg("max_km"), nb::arg("east"), nb::arg("diagonal"), nb::arg("north"),
+       "Cheapest path over water cells to a target cell: (km, cells) or None; see "
+       "scgraph.helpers.landmask.water_cells");
             }

@@ -26,7 +26,7 @@ SOURCES = {
 
 
 def build(files):
-    import sqlite3  # optional in a Python build: only this network needs it
+    import sqlite3  # optional in a Python build: only the networks of Eurostat lanes need it
 
     with contextlib.closing(sqlite3.connect(files["lines"])) as database:
         rows = database.execute('select geometry, pass from "type"').fetchall()

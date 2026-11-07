@@ -44,7 +44,8 @@ nanobind_add_module(
 # No fused multiply-add (ARM compilers fuse by default), so that the double check of each
 # candidate rounds as the Python expression does and both SnapIndex versions give the same answers.
 # The same holds for the whole bindings translation unit: the int32 to degree conversions, the A*
-# haversine heuristic (rounded as utils.haversine) and the assembly kernels (cpp/src/assembly.hpp).
+# haversine heuristic (rounded as utils.haversine), the assembly kernels (cpp/src/assembly.hpp)
+# and the landmask kernel (cpp/src/landmask.hpp).
 # The routing kernels (graph, graph_utils, contraction hierarchies, TNR) are other units, unaffected
 if(NOT MSVC)
     set_source_files_properties(scgraph/cpp/src/snap_index.cpp scgraph/cpp/bindings/graph_bindings.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
