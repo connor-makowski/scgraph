@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import platform
 import random
 import re
 import sqlite3
@@ -337,6 +338,23 @@ def test_build_geograph_gives_the_same_file_for_the_same_inputs(
         }
 
     assert graph(files[0]) == graph(files[2])
+
+
+# The platform names what holds the math functions: the C library on Linux, the system
+# version on macOS, nothing more where neither is known
+@pytest.mark.parametrize(
+    "libc, macos, system",
+    [
+        (("glibc", "2.41"), "", " glibc 2.41"),
+        (("", ""), "14.6", " macOS 14.6"),
+        (("", ""), "", ""),
+    ],
+)
+def test_identity_card_names_the_platform(monkeypatch, libc, macos, system):
+    monkeypatch.setattr(platform, "libc_ver", lambda: libc)
+    monkeypatch.setattr(platform, "mac_ver", lambda: (macos, ("", "", ""), ""))
+    card = pipelines.identity_card("x", None, 1, [])
+    assert card["software"]["platform"] == sysconfig.get_platform() + system
 
 
 # Every page of an ArcGIS layer is read, by name or from a module of one's own (an

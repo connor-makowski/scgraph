@@ -39,18 +39,18 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 `build_geograph` writes into the network file's header what built it (`identity_card`),
 read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
 (`name`, `url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the
-data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the
-`platform` with its C library), `description` (the module docstring, so `python -OO`,
-which drops docstrings, gives another file) and `steps`. It holds no clock time (the
+data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the `platform`
+with its C library or macOS version), `description` (the module docstring, so `python
+-OO`, which drops docstrings, gives another file) and `steps`. It holds no clock time (the
 download time stays in the cache's `cache.json`). A cached network is built again only for
 another `PIPELINE_VERSION` or file format.
 
 Same pipeline, same sources, same scgraph version, same backend and same platform and C
-library: byte-identical file (tested). The C++ and Python builds give the same graph, the
-same nodes, arcs and lengths (tested with the `marnet` pipeline on a small synthetic
-input); only the order of arcs within a node and ties between equal-length routes may
-differ. Across platforms, a few lengths or shape points may differ in the last bit (the
-platform's math library).
+library or macOS version: byte-identical file (tested). The C++ and Python builds give the
+same graph, the same nodes, arcs and lengths (tested with the `marnet` pipeline on a small
+synthetic input); only the order of arcs within a node and ties between equal-length
+routes may differ. Across platforms, a few lengths or shape points may differ in the last
+bit (the platform's math library).
 
 The core never imports `scgraph.pipelines` at load time: `load_from_osm` and
 `build_geograph` import it when they are called.
@@ -111,19 +111,21 @@ def identity_card(name, region, version, sources, description=None, steps=None):
     the network, from plain values (no GeoGraph needed). `name`, `region` and `version`
     are the pipeline's; `sources` the records of the downloaded sources; `description` the
     pipeline's docstring; `steps` what `build` returned. `software` is added: the scgraph
-    version, the backend, and the platform with its C library (on Linux), which holds the
-    math functions.
+    version, the backend, and the platform with what holds its math functions: the C
+    library on Linux, the system (its version) on macOS.
     """
     from scgraph.geograph import GeoGraph
 
-    libc = " ".join(platform.libc_ver())
+    libc = " ".join(platform.libc_ver()).strip()
+    macos = platform.mac_ver()[0]
+    system = f"macOS {macos}" if macos else libc
     return {
         "pipeline": {"name": name, "region": region, "version": version},
         "sources": sources,
         "software": {
             "scgraph": GeoGraph.__scgraph_version__(),
             "backend": "cpp" if has_cpp() else "python",
-            "platform": f"{sysconfig.get_platform()} {libc}".strip(),
+            "platform": f"{sysconfig.get_platform()} {system}".strip(),
         },
         **(
             {"description": inspect.cleandoc(description)}
