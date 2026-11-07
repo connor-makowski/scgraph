@@ -12,9 +12,9 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 import requests
 
-from scgraph import GeoGraph, network_file, networks
+from scgraph import GeoGraph, network_file, pipelines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph.networks import (
+from scgraph.pipelines import (
     eurostat_marnet,
     marnet,
     north_america_rail,
@@ -285,7 +285,7 @@ def test_list_downloadable_geographs_matches_the_names_build_geograph_takes(
     listing = GeoGraph.list_downloadable_geographs(str(tmp_path))
     names = [n["name"] for n in listing]
     annotation = typing.get_type_hints(GeoGraph.build_geograph)["name"]
-    assert names == list(networks.NAMES) == list(typing.get_args(annotation))
+    assert names == list(pipelines.NAMES) == list(typing.get_args(annotation))
 
 
 def test_build_geograph_joins_roads_and_sea_at_ports(

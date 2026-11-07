@@ -9,7 +9,7 @@ cells of about 600 m by 300 m at the equator. Nodes in the same cell keep their 
 
 CURVE_ORDER = 16
 # Recorded in built networks' manifests; changing it means raising VERSION in each
-# scgraph/networks/*.py, so that cached builds are built again
+# scgraph/pipelines/*.py, so that cached builds are built again
 NODE_ORDER = {
     "name": "hilbert",
     "curve_order": CURVE_ORDER,

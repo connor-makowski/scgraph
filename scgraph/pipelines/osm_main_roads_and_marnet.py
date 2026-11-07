@@ -11,7 +11,7 @@ land.
 
 import csv
 
-from scgraph.networks import marnet, osm_main_roads
+from scgraph.pipelines import marnet, osm_main_roads
 from scgraph.utils import haversine
 
 # Small sources first: a failure then costs no new download of the extract

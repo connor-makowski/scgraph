@@ -591,7 +591,7 @@ Ways meet only where they share an OSM node, so roads that cross on a bridge or 
 | Parameter | Default | Description |
 |---|---|---|
 | `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`) |
-| `keep` | `None` | Ways to keep, `{tag: {values}}`, `None` among the values for a missing tag; `None` keeps main roads (`scgraph.osm.MAIN_ROADS`) |
+| `keep` | `None` | Ways to keep, `{tag: {values}}`, `None` among the values for a missing tag; `None` keeps main roads (`scgraph.pipelines.steps.osm.MAIN_ROADS`) |
 | `directed` | `True` | Whether one-way streets give arcs in one direction only |
 | `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new arc, at the next point of the way |
 | `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |

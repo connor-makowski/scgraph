@@ -4,7 +4,7 @@ Needs the optional dependency `osmium` (`pip install scgraph[osm]`), imported on
 is read.
 """
 
-from scgraph.helpers.lines import lines_to_graph
+from scgraph.helpers.polylines import lines_to_graph
 
 MAIN_ROADS = {
     "motorway",

@@ -1,7 +1,7 @@
 """Freeways of the United States, from the Esri USA Freeway System layer."""
 
 from scgraph.geograph import GeoGraph
-from scgraph.networks import arcgis
+from scgraph.pipelines.steps import arcgis
 
 VERSION = 1
 

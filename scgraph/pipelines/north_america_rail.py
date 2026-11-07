@@ -2,7 +2,7 @@
 Federal Railroad Administration."""
 
 from scgraph.geograph import GeoGraph
-from scgraph.networks import arcgis
+from scgraph.pipelines.steps import arcgis
 
 VERSION = 1
 

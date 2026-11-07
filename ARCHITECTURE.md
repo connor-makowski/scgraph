@@ -27,10 +27,10 @@ flowchart LR
 
 `Graph` knows nothing about geography. `GeoGraph` and `GridGraph` each hold a `Graph`
 (`graph_object`) and delegate every search to it. A `GeoGraph` comes from a built-in
-network, a saved file, a GeoJSON file, an OSMnx graph or an OpenStreetMap file (`osm.py`,
+network, a saved file, a GeoJSON file, an OSMnx graph or an OpenStreetMap file (`pipelines/steps/osm.py`,
 with the optional dependency `osmium`); every loader produces the same `graph`, `nodes` and
 `intermediate_nodes`. `build_geograph` builds a reference network from its online
-sources: each network has a small build script in `networks/` (source URLs, credit, and
+sources: each network has a small build script in `pipelines/` (source URLs, credit, and
 which loaders to call with which options; the road + sea network combines two networks with
 `merge_with_other_geograph`); the sources are downloaded once, the built network is written
 as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and

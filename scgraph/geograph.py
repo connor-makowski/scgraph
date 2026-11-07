@@ -10,7 +10,7 @@ from scgraph.utils import (
     radians_per_degree,
 )
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
-from scgraph.helpers.lines import lines_to_graph
+from scgraph.helpers.polylines import lines_to_graph
 from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
 from scgraph import network_file
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
@@ -546,7 +546,7 @@ class GeoGraphIO:
         - `keep`
             - Type: dict[str, set[str]] | None
             - What: The ways to keep: a way is kept if, for every key, its tag value is in the set; `None` in a set stands for a missing tag
-            - Default: None (main roads: `{"highway": scgraph.osm.MAIN_ROADS}`, motorway to primary and their links)
+            - Default: None (main roads: `{"highway": scgraph.pipelines.steps.osm.MAIN_ROADS}`, motorway to primary and their links)
             - Example: `{"railway": {"rail"}, "service": {None}}` for railway lines without yards, sidings and spurs
         - `directed`
             - Type: bool
@@ -592,7 +592,7 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.osm import MAIN_ROADS, keep_largest_component, read_osm
+        from scgraph.pipelines.steps.osm import MAIN_ROADS, keep_largest_component, read_osm
 
         graph, nodes, shapes, ids = read_osm(
             filename,
@@ -1038,11 +1038,11 @@ class GeoGraphIO:
             - What: With `name`, the region of the built network to remove (its sub-regions are kept)
             - Default: None: every region
         """
-        from scgraph import networks
+        from scgraph import pipelines
 
         if name is not None and name not in {
             *_PUBLISHED_GEOGRAPHS,
-            *networks.NAMES,
+            *pipelines.NAMES,
         }:
             raise ValueError(f"Unknown network '{name}'")
         if region is not None and (
@@ -1261,21 +1261,21 @@ class GeoGraphIO:
             )
         if local_files_only is None:
             local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
-        from scgraph import networks
+        from scgraph import pipelines
 
-        if name not in networks.NAMES:
-            close = difflib.get_close_matches(name, networks.NAMES, n=3)
+        if name not in pipelines.NAMES:
+            close = difflib.get_close_matches(name, pipelines.NAMES, n=3)
             hint = (
                 f" Did you mean {', '.join(map(repr, close))}?" if close else ""
             )
             raise ValueError(
-                f"Unknown network '{name}'.{hint} Available: {', '.join(networks.NAMES)}"
+                f"Unknown network '{name}'.{hint} Available: {', '.join(pipelines.NAMES)}"
             )
-        network = importlib.import_module(f"scgraph.networks.{name}")
+        network = importlib.import_module(f"scgraph.pipelines.{name}")
         regional = any(
             "{region}" in source["url"] for source in network.SOURCES.values()
         )
-        where = f"the path of a Geofabrik extract, for example 'europe/luxembourg' (see {networks.REGIONS})"
+        where = f"the path of a Geofabrik extract, for example 'europe/luxembourg' (see {pipelines.REGIONS})"
         if regional and region is None:
             raise ValueError(f"'{name}' needs a region: {where}")
         if not regional and region is not None:
@@ -1346,7 +1346,7 @@ class GeoGraphIO:
                         source + "".join(Path(url).suffixes)
                     )
                     try:
-                        getattr(network, "download", networks.download_file)(
+                        getattr(network, "download", pipelines.download_file)(
                             url, str(files[source])
                         )
                     except requests.HTTPError as error:
@@ -1465,12 +1465,12 @@ class GeoGraphIO:
             - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
             - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
         """
-        from scgraph import networks
+        from scgraph import pipelines
 
         root = resolve_cache_dir(cache_dir).joinpath("networks")
         listing = []
-        for name in networks.NAMES:
-            network = importlib.import_module(f"scgraph.networks.{name}")
+        for name in pipelines.NAMES:
+            network = importlib.import_module(f"scgraph.pipelines.{name}")
             needs_region = any(
                 "{region}" in source["url"]
                 for source in network.SOURCES.values()
