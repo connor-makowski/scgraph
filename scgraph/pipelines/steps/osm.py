@@ -5,6 +5,8 @@ is read.
 """
 
 import os
+from array import array
+from bisect import bisect_left
 
 from scgraph.helpers.polylines import polylines_to_graph
 from scgraph.pipelines import download_file
@@ -64,18 +66,19 @@ def main_roads(tags):
     return direction(tags) if tags.get("highway") in MAIN_ROADS else None
 
 
-def _reader(osmium, source, entities):
-    if isinstance(source, (str, os.PathLike)):
-        return osmium.FileProcessor(source, entities)
-    return source.reader(entities)
+def _input(source):
+    # A path, or what the source gives for one pass (see located_ways)
+    return source if isinstance(source, (str, os.PathLike)) else source.file()
 
 
-def _selected_ways(osmium, source, select, tag_keys):
+def _selected_ways(osmium, source, select, tag_keys, *filters):
     """`(direction, way)` for the ways `select` keeps; ways with none of `tag_keys` are
-    skipped in osmium, before Python sees them."""
-    ways = _reader(osmium, source, osmium.osm.WAY)
+    skipped in osmium, before Python sees them, and so are `filters`."""
+    ways = osmium.FileProcessor(_input(source), osmium.osm.WAY)
     if tag_keys:
         ways = ways.with_filter(osmium.filter.KeyFilter(*tag_keys))
+    for osmium_filter in filters:
+        ways = ways.with_filter(osmium_filter)
     for way in ways:
         way_direction = select(way.tags)
         if way_direction is None:
@@ -87,7 +90,19 @@ def _selected_ways(osmium, source, select, tag_keys):
         yield way_direction, way
 
 
-def located_ways(source, select, tag_keys=()):
+class _Junctions:
+    """Node ids, sorted, looked up by bisection: a Python set of a planet's junctions
+    would take several GB, this array 8 bytes per junction."""
+
+    def __init__(self, ids):
+        self.ids = array("q", sorted(set(ids)))
+
+    def __contains__(self, ref):
+        i = bisect_left(self.ids, ref)
+        return i < len(self.ids) and self.ids[i] == ref
+
+
+def located_ways(source, select, tag_keys=(), node_store=None):
     """
     Locate the ways of `source` that `select` keeps.
 
@@ -95,44 +110,57 @@ def located_ways(source, select, tag_keys=()):
     (against it), 0 (both ways), or None to drop it. If `tag_keys` is given, the ways that
     have none of these keys are dropped first, in osmium.
 
-    `source` is the path of an OSM file, or an object whose `reader(entities)` returns a
-    fresh `osmium.FileProcessor` over `entities` at each call: the file is read in three
-    passes (ways, their nodes, ways again), so a source that is not on disk, such as a
-    stream, supplies one reader per pass.
+    `source` is the path of an OSM file, or an object whose `file()` returns what
+    `osmium.FileProcessor` reads (an `osmium.io.File` or `FileBuffer`), fresh at each call:
+    the file is read in three passes (ways, their nodes, ways again), so a source that is
+    not on disk, such as a stream, supplies one input per pass.
+
+    The locations of the nodes of kept ways are kept in osmium's `node_store`, an
+    `osmium.index.create_map` type: in memory by default (`flex_mem`), or in a file for a
+    planet (`"sparse_file_array,<path>"`, emptied first and left for the caller to delete).
+    The node ids of kept ways take about 1.5 GB in any case (one bit per possible id).
 
     Returns `(junctions, polylines)`: the OSM ids of the nodes where kept ways meet or a way
-    crosses itself, and a generator of the polylines `cut_polylines` takes, `(direction,
-    [(id, [latitude, longitude]), ...])`, a way being split where one of its nodes is
-    missing from the file.
+    crosses itself (`in junctions` tests one), and a generator of the polylines
+    `cut_polylines` takes, `(direction, [(id, [latitude, longitude]), ...])`, a way being
+    split where one of its nodes is missing from the file.
     """
     osmium = require_osmium()
-    # First pass: OSM nodes used more than once are junctions (where ways meet,
-    # or where a way crosses itself); crossings without a shared node, such as
+    # First pass: the nodes of kept ways; a node seen again is a junction (where ways
+    # meet, or where a way crosses itself); crossings without a shared node, such as
     # bridges and tunnels, are not.
-    uses = {}
+    tracker = osmium.IdTracker()
+    seen, repeats = tracker.node_ids(), array("q")
     for _, way in _selected_ways(osmium, source, select, tag_keys):
         for node in way.nodes:
-            uses[node.ref] = uses.get(node.ref, 0) + 1
-    junctions = {ref for ref, count in uses.items() if count > 1}
+            if seen.get(node.ref):
+                repeats.append(node.ref)
+            else:
+                seen.set(node.ref)
 
-    # Second pass: the positions of the nodes of kept ways only (the id filter
-    # takes about 1.5 GB whatever the file, a node index would grow with it)
-    nodes = _reader(osmium, source, osmium.osm.NODE)
-    positions = {
-        node.id: [node.lat, node.lon]
-        for node in nodes.with_filter(osmium.filter.IdFilter(uses))
-    }
-    del uses
+    # Second pass, in osmium: the locations of those nodes, into the store
+    node_store = node_store or "flex_mem"
+    if "," in node_store:  # osmium would read the locations a previous run left
+        open(node_store.partition(",")[2], "wb").close()
+    store = osmium.index.create_map(node_store)
+    with osmium.io.Reader(_input(source), osmium.osm.NODE) as nodes:
+        osmium.apply(
+            nodes, tracker.id_filter(), osmium.NodeLocationsForWays(store)
+        )
+    del tracker, seen  # before the junctions are sorted
+    junctions = _Junctions(repeats)
+    del repeats
 
     # Third pass, as the polylines are read: the located pieces of the kept ways
-    polylines = (
-        (way_direction, piece)
+    def polylines(locations):
+        locations.ignore_errors()  # a node missing from the file: invalid location
         for way_direction, way in _selected_ways(
-            osmium, source, select, tag_keys
-        )
-        for piece in _located_pieces(way.nodes, positions)
-    )
-    return junctions, polylines
+            osmium, source, select, tag_keys, locations
+        ):
+            for piece in _located_pieces(way.nodes):
+                yield way_direction, piece
+
+    return junctions, polylines(osmium.NodeLocationsForWays(store))
 
 
 def read_osm(source, select, tag_keys=(), max_km_between_nodes=2):
@@ -147,12 +175,13 @@ def read_osm(source, select, tag_keys=(), max_km_between_nodes=2):
     return polylines_to_graph(polylines, junctions, max_km_between_nodes)
 
 
-def _located_pieces(way_nodes, positions):
-    """Split a way where a node is missing from the file (outside an extract)."""
+def _located_pieces(way_nodes):
+    """Split a way where a node is missing from the file (outside an extract) or has no
+    location."""
     piece = []
     for node in way_nodes:
-        if node.ref in positions:
-            piece.append((node.ref, positions[node.ref]))
+        if node.location.valid():
+            piece.append((node.ref, [node.lat, node.lon]))
             continue
         if len(piece) > 1:
             yield piece

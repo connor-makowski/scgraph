@@ -118,14 +118,14 @@ _BRIDGE = {(5, 6), (6, 5)}  # way 3, two-way
 _FERRY = {(60, 61), (61, 60)}  # way 11, two-way
 
 
-class _Readers:
-    """A source that is not a path: it gives a fresh osmium reader for each pass."""
+class _Source:
+    """A source that is not a path: it gives what osmium reads, for each pass."""
 
     def __init__(self, path):
         self.path = path
 
-    def reader(self, entities):
-        return osmium.FileProcessor(self.path, entities)
+    def file(self):
+        return osmium.io.File(self.path)
 
 
 @pytest.mark.parametrize(
@@ -133,8 +133,8 @@ class _Readers:
     [
         # one-way streets kept one way (the default)
         (str, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
-        # the same, the file read through readers instead of its path
-        (_Readers, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
+        # the same, the file read through a source object instead of its path
+        (_Source, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
         # every kept way both ways
         (
             str,

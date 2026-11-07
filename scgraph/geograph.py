@@ -538,8 +538,8 @@ class GeoGraphIO:
         Required Arguments:
 
         - `filename`
-            - Type: str | os.PathLike | source of readers
-            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source of readers as `scgraph.pipelines.steps.osm.located_ways` takes
+            - Type: str | os.PathLike | source object
+            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.pipelines.steps.osm.located_ways` takes
 
         Optional Arguments:
 
