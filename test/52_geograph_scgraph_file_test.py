@@ -158,6 +158,15 @@ def test_nodes_keep_their_modes_through_additions_merges_and_saves(tmp_path):
     assert sorted(
         zip(loaded.node_modes, loaded.node_ids, loaded.nodes)
     ) == sorted(zip(road.node_modes, road.node_ids, road.nodes))
+    # Loaded on its roads only (lazily: on first use), the network routes on them
+    roads = GeoGraph.load_from_scgraph(path, lazy=True, modes="road")
+    assert sorted(roads.nodes) == [[0, 0], [0, 1], [0, 2]]
+    assert roads.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0},
+        destination_node={"latitude": 1, "longitude": 1},
+        node_addition_type="closest",
+        destination_node_addition_type="closest",
+    )["coordinate_path"] == [[0, 0], [0, 0], [0, 1], [1, 1]]
 
 
 def test_a_geograph_has_at_most_256_modes():

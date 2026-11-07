@@ -709,13 +709,14 @@ class GeoGraphIO:
         filename: str,
         reduce_iterations: int = 0,
         lazy: bool = False,
+        modes: list[str] | str | None = None,
     ) -> "GeoGraph":
         """
         Function:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
         - The file is checked before use: a damaged or foreign file raises a ValueError (in the C++ build, damaged arc shapes raise it when they are read)
-        - In the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
+        - Without `modes`, in the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
@@ -738,6 +739,10 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
             - Default: False
+        - `modes`
+            - Type: list[str] | str | None
+            - What: The names of the modes to load (see `modes`): only their nodes and the arcs between them, copied from the file instead of mapped; `modes` is the file's list, which `node_modes` indexes
+            - Default: None (every mode)
         """
         if lazy:
             return LazyGeoGraph(
@@ -745,13 +750,14 @@ class GeoGraphIO:
                     filename=filename,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    modes=modes,
                 )
             )
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
         # The C++ graph reads the arcs in place, from the mapped file, and checks them
-        mapped = Graph.__module__ == "scgraph.cpp"
-        arrays, metadata = network_file.read(filename, mapped=mapped)
+        mapped = Graph.__module__ == "scgraph.cpp" and modes is None
+        arrays, metadata = network_file.read(filename, mapped, modes)
         try:
             graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
