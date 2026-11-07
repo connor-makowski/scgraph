@@ -134,13 +134,14 @@ struct SnapIndex::Best {
     }
 };
 
-SnapIndex::SnapIndex(const double* latitudes, const double* longitudes, int n,
+SnapIndex::SnapIndex(Coordinates latitudes, Coordinates longitudes, int n,
                      std::shared_ptr<const void> owner)
     : n(n), lat(latitudes), lon(longitudes), owner(std::move(owner)) {
     if (n < 1) throw std::invalid_argument("a snapping index needs at least one node");
-    for (int i = 0; i < n; ++i)
-        if (!std::isfinite(latitudes[i]) || !std::isfinite(longitudes[i]))
-            throw std::invalid_argument("node coordinates must be finite numbers");
+    if (!latitudes.units)  // int32 units are always finite
+        for (int i = 0; i < n; ++i)
+            if (!std::isfinite(latitudes[i]) || !std::isfinite(longitudes[i]))
+                throw std::invalid_argument("node coordinates must be finite numbers");
     // Leaves, and the box of each leaf (BOX_SLOTS floats, rounded outward by down and up)
     int nleaves = (n + LEAF - 1) / LEAF;
     leaves.resize(nleaves);

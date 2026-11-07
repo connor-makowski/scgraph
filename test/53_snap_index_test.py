@@ -125,19 +125,28 @@ def _queries(nodes):
     return queries
 
 
+# Each builder returns the index, the nodes as indexed, and arrays that reuse the memory of
+# arrays it dropped
 def _from_points(implementation, nodes):
-    return implementation(nodes), None
+    return implementation(nodes), nodes, None
 
 
-def _from_arrays(implementation, nodes):
-    # As a network file is indexed: from two float64 arrays, which the caller then drops.
-    # Same-size arrays allocated next are likely to take their memory, so an index that
-    # read the dropped arrays in place without keeping them would read zeros
-    latitudes = array("d", [p[0] for p in nodes])
-    longitudes = array("d", [p[1] for p in nodes])
-    index = implementation.from_arrays(latitudes, longitudes)
-    del latitudes, longitudes
-    return index, [array("d", [0.0]) * len(nodes) for _ in range(4)]
+def _from_arrays(implementation, nodes, typecode="d"):
+    # As a network file is indexed: from two arrays, which the caller then drops. Same-size
+    # arrays allocated next are likely to take their memory, so an index that read the
+    # dropped arrays in place without keeping them would read zeros
+    columns = [array(typecode, [p[c] for p in nodes]) for c in (0, 1)]
+    index = implementation.from_arrays(*columns)
+    del columns
+    return index, nodes, [array(typecode, [0]) * len(nodes) for _ in range(4)]
+
+
+def _from_units(implementation, nodes):
+    # As a network file stores coordinates in int32 units of 1e-7 degree: the index finds
+    # the nearest of the nodes those units stand for
+    units = [[round(v * 1e7) for v in p] for p in nodes]
+    index, _, reused = _from_arrays(implementation, units, "i")
+    return index, [[v / 1e7 for v in p] for p in units], reused
 
 
 def _check_answers(nodes, index):
@@ -165,11 +174,16 @@ def _check_answers(nodes, index):
 @pytest.mark.parametrize(
     "network", [n for n in _networks() if n not in SCATTERED]
 )
-@pytest.mark.parametrize("build", [_from_points, _from_arrays])
+@pytest.mark.parametrize("build", [_from_points, _from_arrays, _from_units])
 def test_snap_index_finds_the_nearest_node(implementation, network, build):
-    nodes = _networks()[network]
-    index, _reused = build(implementation, nodes)
+    index, nodes, _reused = build(implementation, _networks()[network])
     _check_answers(nodes, index)
+
+
+@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+def test_snap_index_reads_two_arrays_of_one_dtype(implementation):
+    with pytest.raises(TypeError):
+        implementation.from_arrays(array("i", [0]), array("d", [0.0]))
 
 
 @pytest.mark.parametrize("implementation", IMPLEMENTATIONS)

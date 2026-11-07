@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -10,7 +11,9 @@
 // nodes together, as a Hilbert curve does (network files are stored in Hilbert order): the
 // constructor measures how many leaves a query would scan and throws node_order_error above
 // MAX_LEAVES_PER_QUERY, with the way to sort in the message. The index does not sort, as
-// the caller is the one that knows whether its node ids may change.
+// the caller is the one that knows whether its node ids may change. The coordinates are
+// float64 degrees, or int32 units of 1e-7 degree as network files may store them, decoded
+// at each read as units / 1e7, like the Python index.
 // A leaf holds 32 consecutive nodes as float unit vectors, so that one vectorised loop
 // computes the distances to a whole leaf. An implicit tree with 8 children per node keeps,
 // for each child, the box of its unit vectors and the box of its latitudes and longitudes.
@@ -34,10 +37,22 @@ struct node_order_error : std::invalid_argument {
 
 class SnapIndex {
 public:
-    // latitudes[i], longitudes[i]: node i, in degrees, for i < n. The index reads these
-    // arrays for as long as it lives and keeps `owner`, which keeps them alive.
+    // A column of coordinates, read in place: float64 degrees, or int32 units of 1e-7
+    // degree (units) decoded by the same division as the Python reader. Read only where
+    // the index builds its leaves and checks candidates, never in its vectorised loops
+    struct Coordinates {
+        const void* data;
+        bool units;
+        double operator[](int i) const {
+            return units ? static_cast<const int32_t*>(data)[i] / 1e7
+                         : static_cast<const double*>(data)[i];
+        }
+    };
+
+    // latitudes[i], longitudes[i]: node i, for i < n. The index reads these arrays for as
+    // long as it lives and keeps `owner`, which keeps them alive.
     // Throws node_order_error if the nodes are scattered (see above)
-    SnapIndex(const double* latitudes, const double* longitudes, int n,
+    SnapIndex(Coordinates latitudes, Coordinates longitudes, int n,
               std::shared_ptr<const void> owner);
 
     // Id of the node nearest to the point
@@ -72,8 +87,8 @@ private:
     struct Best;
 
     int n;
-    const double* lat;  // by node id, read in place
-    const double* lon;
+    Coordinates lat;  // by node id, read in place
+    Coordinates lon;
     std::shared_ptr<const void> owner;  // keeps lat and lon alive
     std::vector<Leaf> leaves;
     std::vector<std::vector<Group>> levels;  // levels[0] holds the parents of the leaves

@@ -16,6 +16,7 @@
 #include <string>
 #include <stdexcept>
 #include <memory>
+#include <type_traits>
 #include <tuple>
 #include "../src/graph.hpp"
 #include "../src/contraction_hierarchies.hpp"
@@ -58,6 +59,21 @@ static bool is_empty_tree_data(const TreeData& t) {
 
 using CsrInts = nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
 using CsrDoubles = nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
+
+// A SnapIndex reading two arrays of coordinates in place (float64 degrees, or int32 units of
+// 1e-7 degree), which it keeps alive
+template <typename T>
+static std::unique_ptr<SnapIndex> snap_index_from_arrays(
+        nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::device::cpu> latitudes,
+        nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::device::cpu> longitudes) {
+    if (latitudes.shape(0) != longitudes.shape(0))
+        throw std::invalid_argument("latitudes and longitudes must have the same length");
+    auto owner = std::make_shared<std::pair<decltype(latitudes), decltype(longitudes)>>(latitudes, longitudes);
+    const bool units = std::is_same_v<T, int32_t>;
+    return std::make_unique<SnapIndex>(SnapIndex::Coordinates{latitudes.data(), units},
+                                       SnapIndex::Coordinates{longitudes.data(), units},
+                                       int(latitudes.shape(0)), owner);
+}
 
 // A Graph from arcs stored by origin: copied, or read in place and kept alive (in_place)
 static std::unique_ptr<Graph> csr_graph(CsrInts offsets, CsrInts heads, CsrDoubles weights, bool in_place) {
@@ -284,19 +300,16 @@ NB_MODULE(cpp, m) {
                 owned->longitudes[i] = lo;
                 ++i;
             }
-            new (self) SnapIndex(owned->latitudes.data(), owned->longitudes.data(), int(count), owned);
+            new (self) SnapIndex({owned->latitudes.data(), false}, {owned->longitudes.data(), false},
+                                 int(count), owned);
         }, nb::arg("points"), "Index the points, a sequence of [latitude, longitude] in degrees")
-        .def_static("from_arrays", [](CsrDoubles latitudes, CsrDoubles longitudes) {
-            if (latitudes.shape(0) != longitudes.shape(0))
-                throw std::invalid_argument("latitudes and longitudes must have the same length");
-            // Read in place: the index keeps the arrays (their buffers) alive
-            auto owner = std::make_shared<std::pair<CsrDoubles, CsrDoubles>>(latitudes, longitudes);
-            return std::make_unique<SnapIndex>(latitudes.data(), longitudes.data(),
-                                               int(latitudes.shape(0)), owner);
-        }, nb::arg("latitudes"), nb::arg("longitudes"),
-           "The same index, from two float64 arrays of degrees. The index reads them in place "
-           "and keeps them while it lives: changing their values afterwards gives wrong answers "
-           "(build a new index)")
+        // float64 first: a numpy array of another dtype is then converted to degrees
+        .def_static("from_arrays", &snap_index_from_arrays<double>, nb::arg("latitudes"), nb::arg("longitudes"))
+        .def_static("from_arrays", &snap_index_from_arrays<int32_t>, nb::arg("latitudes"), nb::arg("longitudes"),
+           "The same index, from two arrays of the same dtype: float64 degrees, or int32 units of "
+           "1e-7 degree as network files may store them. The index reads them in place and keeps "
+           "them while it lives: changing their values afterwards gives wrong answers (build a new "
+           "index)")
         .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             return self.closest_idx(la, lo);
