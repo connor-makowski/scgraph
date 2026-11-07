@@ -36,6 +36,7 @@ scgraph/
   utils.py                       # Distance math, coordinate helpers, caching, console output
   networks/                      # Build scripts of build_geograph, one per network
   helpers/
+    assembly.py                  # Arcs to network arrays, strong components, Douglas-Peucker; C++ in cpp/src/assembly.hpp
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)
     lines.py                     # Lines to arcs between junctions, with shapes (GeoJSON, OSM)
@@ -43,7 +44,7 @@ scgraph/
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
     src/                         # C++ source: adjacency, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, bmssp (template header)
+    │                            #   transit_node_routing, snap_index, assembly, bmssp (template header)
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
 test/
