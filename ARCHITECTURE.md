@@ -288,21 +288,25 @@ when every arc has a reverse arc of the same weight; scgraph does not read it ye
 | `offsets` | int32 | n + 1 | the arcs of node `u` are `offsets[u]` to `offsets[u + 1] - 1` |
 | `heads` | int32 | m | destination of each arc, in the graph's order within each origin |
 | `weights` | float64 | m | weight of each arc |
-| `latitudes`, `longitudes` | float64 | n | node coordinates, in degrees |
+| `latitudes`, `longitudes` | int32 or float64 | n | node coordinates: in units of 1e-7 degree (int32) or in degrees (float64) |
 | `shape_offsets` (optional) | int32 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
-| `shape_points` (optional) | int32 | k × 2 | latitude and longitude of each shape point, in units of 1e-7 degree (rounded when written) |
+| `shape_points` (optional) | int32 or float64 | k × 2 | latitude and longitude of each shape point, as the node coordinates |
 | `node_ids` (optional) | int32 or int64 (int32 only when every id fits, as for converted built-in networks; OSM ids need int64) | n | the id of each node in its source (negative for nodes scgraph created); without it, a node's id is its position |
 | `node_modes` (optional) | uint8 | n | the mode of each node, an index into the metadata's `modes`; without it, every node has one mode |
 
 The reader checks the magic, the version, that the header and every array lie inside the
 file (the arrays after the header), and that
 the arrays describe a graph (offsets from 0 to m, non-decreasing, heads between 0 and n − 1;
-one node id and one node mode per node, the modes listed in `modes`),
+one node id and one node mode per node, the modes listed in `modes`; one dtype for the
+coordinates),
 and raises a `ValueError` otherwise; on a mapped file it leaves the order of offsets and heads to
 the C++ graph and the bounds of each shape to `ArcShapes`, which check them where they read,
 and does not read the node modes.
-Shape points are stored as int32: they must lie within ±214.7483647° and a file holds fewer than
-2³¹ of them. The writer keeps the arcs of each row in the graph's order and writes each arc once, so a row
+The coordinates (`latitudes`, `longitudes`, `shape_points`) share one dtype, which the writer
+chooses (`save_as_scgraph(coordinate_dtype=...)`, by default the GeoGraph's own): float64
+degrees, exact, or int32 in units of 1e-7 degree (OSM's encoding, about 1 cm), rounded to it; a
+reader divides an int32 value by 1e7 (that division, not a product by 1e-7, gives the stored
+value back exactly). `network_file.info` reads a file's header alone (`GeoGraph.scgraph_info`). A file holds fewer than 2³¹ shape points. The writer keeps the arcs of each row in the graph's order and writes each arc once, so a row
 holds each head once (the `symmetric` flag relies on it); the reader does not check it. It ignores header keys and arrays it does not know, so later versions
 can add optional arrays (for example the mode of each arc) that older readers skip: such additions
 keep `format_version` 1, which changes only when a reader of the current version would misread

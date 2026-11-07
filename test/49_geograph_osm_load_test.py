@@ -150,6 +150,7 @@ def test_load_from_osm_numbers_nodes_along_a_hilbert_curve_with_their_osm_ids(
 ):
     geo = GeoGraph.load_from_osm(osm_file, largest_component=False)
     assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
+    assert geo.coordinate_dtype == "int32"  # OSM's own encoding
     assert all(
         _NODES[ref] == tuple(node) for ref, node in zip(geo.node_ids, geo.nodes)
     )

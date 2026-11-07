@@ -18,6 +18,7 @@ import tempfile
 import warnings
 from array import array
 from collections import Counter
+from math import isfinite
 from operator import eq
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -239,6 +240,7 @@ class GeoGraphIO:
         filename: str,
         save_intermediate_nodes: bool = True,
         sources: list[dict] | None = None,
+        coordinate_dtype: Literal["auto", "float64", "int32"] = "auto",
     ) -> str:
         """
         Function:
@@ -247,6 +249,7 @@ class GeoGraphIO:
         - The format is described in ARCHITECTURE.md, section "Network file", and in the header of each file
         - Only the graph, the nodes, their ids and modes, their intermediate nodes and the GeoGraph defaults are saved
         - The nodes are written in Hilbert order within each mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `node_ids`
+        - Coordinates that are not finite numbers raise a ValueError
 
         Required Arguments:
 
@@ -263,11 +266,14 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to include the intermediate nodes in the saved file (if they exist)
             - Default: True
-            - Note: Their points are stored to 1e-7 degree (about 1 cm) and must lie within ±214.7483647° (otherwise a ValueError is raised)
         - `sources`
             - Type: list[dict] | None
             - What: Where the data comes from, stored in the file header so that it travels with the file: for each source, for example its `url`, `credit` and `license` (as `build_geograph` records them)
             - Default: None
+        - `coordinate_dtype`
+            - Type: str
+            - What: How coordinates are stored: 'float64' exactly, 'int32' rounded to 1e-7 degree (OSM's encoding, about 1 cm; 8 bytes less per node), 'auto' as the geograph's `coordinate_dtype`
+            - Default: 'auto'
 
         Returns:
 
@@ -275,6 +281,10 @@ class GeoGraphIO:
         """
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
+        if coordinate_dtype not in ("auto", "float64", "int32"):
+            raise ValueError(
+                "coordinate_dtype must be 'auto', 'float64' or 'int32'"
+            )
         # A cached network must stay the one its manifest describes
         built = resolve_cache_dir().joinpath("networks").resolve()
         if Path(filename).resolve().is_relative_to(built):
@@ -288,7 +298,22 @@ class GeoGraphIO:
         node_modes.extend(bytes(len(nodes) - len(node_modes)))
         # (by mode only if there are several: the key is cheaper without)
         multimodal = len(self.modes) > 1
-        order = hilbert_order(nodes, node_modes if multimodal else None)
+        try:
+            order = hilbert_order(nodes, node_modes if multimodal else None)
+        except (OverflowError, ValueError):
+            node = next(
+                (
+                    i
+                    for i, point in enumerate(nodes)
+                    if not all(map(isfinite, point))
+                ),
+                None,
+            )
+            if node is None:
+                raise
+            raise ValueError(
+                f"Node {node} has coordinates that are not finite numbers"
+            ) from None
         if all(map(eq, order, range(len(order)))):
             order = None  # already in that order: written as it is
         old = range(len(nodes)) if order is None else order
@@ -298,9 +323,9 @@ class GeoGraphIO:
             "offsets": offsets,
             "heads": heads,
             "weights": weights,
-            "latitudes": array("d", (nodes[i][0] for i in old)),
-            "longitudes": array("d", (nodes[i][1] for i in old)),
         }
+        latitudes = array("d", (nodes[i][0] for i in old))
+        longitudes = array("d", (nodes[i][1] for i in old))
         # None: each node's id is its position
         node_ids = self.node_ids.array(order)
         if node_ids is not None:
@@ -309,23 +334,33 @@ class GeoGraphIO:
             arrays["node_modes"] = array("B", (node_modes[i] for i in old))
         shapes = self.intermediate_nodes if save_intermediate_nodes else None
         if shapes is not None:
-            starts, points = array("i", [0]), array("i")
+            starts, points = array("i", [0]), array("d")
             for new, origin in enumerate(old):
                 # Nodes added after loading (add_coord_node, merges) have no shapes
                 row = shapes[origin] if origin < len(shapes) else {}
                 for arc in range(offsets[new], offsets[new + 1]):
                     head = old[heads[arc]]
-                    try:
-                        for latitude, longitude in row.get(head, ()):
-                            points.append(round(latitude * 1e7))
-                            points.append(round(longitude * 1e7))
-                    except (OverflowError, ValueError) as error:
-                        raise ValueError(
-                            f"The shape of arc {origin} -> {head} has a point "
-                            "that is not a number within ±214.7483647 degrees"
-                        ) from error
+                    for latitude, longitude in row.get(head, ()):
+                        if not (isfinite(latitude) and isfinite(longitude)):
+                            raise ValueError(
+                                f"The shape of arc {origin} -> {head} has a point "
+                                "that is not a finite number"
+                            )
+                        points.append(latitude)
+                        points.append(longitude)
                     starts.append(len(points) // 2)
-            arrays["shape_offsets"], arrays["shape_points"] = starts, points
+            arrays["shape_offsets"] = starts
+        columns = [latitudes, longitudes] + (
+            [points] if shapes is not None else []
+        )
+        if coordinate_dtype == "auto":
+            coordinate_dtype = self.coordinate_dtype
+        arrays.update(
+            zip(
+                network_file.COORDINATES,
+                network_file.coordinates(columns, coordinate_dtype),
+            )
+        )
         return network_file.write(
             filename,
             arrays,
@@ -454,6 +489,7 @@ class GeoGraphIO:
                 graph=graph,
                 nodes=nodes,
                 intermediate_nodes=shapes if load_intermediate_nodes else None,
+                coordinate_dtype="int32" if precision <= 7 else "float64",
             )
             geograph.graph_object.reduce(reduce_iterations)
             return geograph
@@ -467,7 +503,11 @@ class GeoGraphIO:
         )
         # In Hilbert order: nodes close on the globe get close ids
         geograph = _in_hilbert_order(
-            GeoGraph(graph=data["graph"], nodes=data["nodes"])
+            GeoGraph(
+                graph=data["graph"],
+                nodes=data["nodes"],
+                coordinate_dtype="int32" if precision <= 7 else "float64",
+            )
         )
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
@@ -571,6 +611,7 @@ class GeoGraphIO:
             nodes=nodes,
             intermediate_nodes=shapes if load_intermediate_nodes else None,
             node_ids=ids,
+            coordinate_dtype="int32",  # OSM's own: 1e-7 degree
         )
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
@@ -642,6 +683,26 @@ class GeoGraphIO:
         geograph = GeoGraph(**data)
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
+
+    @staticmethod
+    def scgraph_info(filename: str) -> dict:
+        """
+        Function:
+
+        - What a binary network file holds, read from its header without loading the network
+        - A damaged or foreign file raises a ValueError
+
+        Required Arguments:
+
+        - `filename`
+            - Type: str
+            - What: The network file (.scgraph) to read
+
+        Returns:
+
+        - A dict: the metadata `save_as_scgraph` wrote (`units`, `sources`, `modes`, ...), `content_sha256`, `format_version`, the number of `nodes` and `arcs`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
+        """
+        return network_file.info(filename)
 
     @staticmethod
     def load_from_scgraph(
@@ -717,6 +778,7 @@ class GeoGraphIO:
             node_ids=arrays.get("node_ids"),
             node_modes=arrays.get("node_modes"),
             modes=metadata.get("modes"),
+            coordinate_dtype=network_file.coordinate_dtype(arrays),
         )
         geograph.graph_object.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
@@ -862,6 +924,11 @@ class GeoGraphIO:
         # differ from the .graphjson's, which the nodes keep as their node_ids
         geograph = GeoGraph.load_from_graphjson(str(cached_file))
         geograph.modes = [{"name": None, "source": cached_file.name}]
+        # To 1e-7 degree, as OSM: the file's compact encoding (a few published ports
+        # have 9 decimals, from arcseconds)
+        geograph.coordinate_dtype = "int32"
+        for node in geograph.nodes:
+            node[:] = round(node[0], 7), round(node[1], 7)
         with open(cached_file, "rb") as file:
             sha256 = hashlib.file_digest(file, "sha256").hexdigest()
         source = {
@@ -1597,7 +1664,12 @@ class GeoGraphIO:
 
         # TODO: Handle time based geograph units in a better way by default.
         # See: self.geograph_units
-        geograph = GeoGraph(graph=graph, nodes=nodes, **kwargs)
+        geograph = GeoGraph(
+            graph=graph,
+            nodes=nodes,
+            coordinate_dtype="int32" if coord_precision <= 7 else "float64",
+            **kwargs,
+        )
         geograph.graph_object.reduce(reduce_iterations)
         return geograph
 
@@ -2187,6 +2259,9 @@ class GeoGraphModifiers:
         self.node_ids = network_file.NodeIds(node_ids, self.nodes)
         # Its modes follow this graph's, renumbered
         offset = len(self.modes)
+        # The finer precision of the two is kept
+        if other_geograph.coordinate_dtype == "float64":
+            self.coordinate_dtype = "float64"
         self.modes += [
             dict(row) for row in other_geograph.modes[:original_other_modes]
         ]
@@ -2317,6 +2392,7 @@ def _in_hilbert_order(geograph):
         ),
         node_modes=[geograph.node_modes[old] for old in order],
         modes=geograph.modes,
+        coordinate_dtype=geograph.coordinate_dtype,
     )
 
 
@@ -2746,6 +2822,7 @@ class GeoGraph(
         node_ids: list[int] | None = None,
         node_modes: list[int] | None = None,
         modes: list[dict] | None = None,
+        coordinate_dtype: Literal["float64", "int32"] = "float64",
     ) -> None:
         """
         Function:
@@ -2808,6 +2885,10 @@ class GeoGraph(
             - What: The modes, each a dict with its `name` (str or None) and, optionally, the `source` of its node ids (the name of an entry of the network's sources); read back as `modes`
             - Note: At most 256 modes; two modes may have the same name (two sea networks merged)
             - Default: None (one mode, without a name: `[{"name": None}]`)
+        - `coordinate_dtype`
+            - Type: str
+            - What: The coordinate dtype `save_as_scgraph` uses by default, 'float64' or 'int32' (see there); loaders that round to 7 decimals or fewer, and int32 network files, give 'int32'
+            - Default: 'float64'
         - `default_off_graph_circuity`
             - Type: float | int
             - What: The default circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
@@ -2846,6 +2927,9 @@ class GeoGraph(
         self.node_ids = network_file.NodeIds(
             range(len(nodes)) if node_ids is None else node_ids, nodes
         )
+        if coordinate_dtype not in ("float64", "int32"):
+            raise ValueError("coordinate_dtype must be 'float64' or 'int32'")
+        self.coordinate_dtype = coordinate_dtype
         self.modes = (
             [dict(mode) for mode in modes] if modes else [{"name": None}]
         )

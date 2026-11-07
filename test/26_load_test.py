@@ -132,7 +132,8 @@ def test_load_geograph_converts_a_published_geograph_once(
     )
     original = GeoGraph(
         graph=[{1: 1.5, 2: 3.0}, {0: 1.5, 2: 2.0}, {1: 2.0}],
-        nodes=[[45, 90], [-45, -90], [45, -90]],
+        # 9 decimals, read back to 1e-7 degree as OSM stores them
+        nodes=[[45.000000001, 90], [-45, -90], [45, -90]],
     )
     original.save_as_graphjson(str(published))
     if case == "damaged":
@@ -148,6 +149,7 @@ def test_load_geograph_converts_a_published_geograph_once(
     # In Hilbert order (old nodes 1, 2, 0, their node ids), the arcs renumbered
     assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
     assert list(geo.node_ids) == [1, 2, 0]
+    assert geo.coordinate_dtype == "int32"
     assert geo.graph_object.graph == [
         {2: 1.5, 1: 2.0},
         {0: 2.0},
@@ -156,7 +158,8 @@ def test_load_geograph_converts_a_published_geograph_once(
     assert published.exists() and converted.exists() != (case == "read_only")
     if case == "read_only":
         return
-    # The published file is the source of the node ids
+    # Stored as int32 in 1e-7 degree; the published file is the source of the node ids
+    assert GeoGraph.scgraph_info(str(converted))["coordinate_dtype"] == "int32"
     metadata = network_file.read(str(converted))[1]
     assert metadata["modes"] == [{"name": None, "source": "marnet.graphjson"}]
     assert [s["name"] for s in metadata["sources"]] == ["marnet.graphjson"]

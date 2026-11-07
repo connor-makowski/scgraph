@@ -410,7 +410,7 @@ output = marnet_geograph.get_shortest_path(
 
 ## Built-in Geographs: Cache Management
 
-Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access. The first load also converts the downloaded `<name>.graphjson` into a binary network file beside it, `<name>.scgraph`, which later loads read (much faster); the `.graphjson` is kept. The conversion numbers the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the `.graphjson` (lengths do not; of two routes of exactly equal length, another may be returned), and each node keeps its id in the `.graphjson` (the id it had in scgraph 3.6.0) as `node_ids[i]`, so `[geo.node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps its numbering.
+Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access. The first load also converts the downloaded `<name>.graphjson` into a binary network file beside it, `<name>.scgraph`, which later loads read (much faster); the `.graphjson` is kept. The conversion numbers the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the `.graphjson` (lengths do not; of two routes of exactly equal length, another may be returned), its coordinates are stored to 1e-7 degree (about 1 cm: a few published ports have 9 decimals), and each node keeps its id in the `.graphjson` (the id it had in scgraph 3.6.0) as `node_ids[i]`, so `[geo.node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps its numbering.
 
 ```py
 from scgraph import GeoGraph
@@ -671,7 +671,8 @@ my_geograph = GeoGraph.load_from_scgraph('my_geograph.scgraph')
 my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
-The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file.
+The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file; `GeoGraph.scgraph_info(filename)` reads that header without loading the network (metadata, sources, modes, number of nodes and arcs, `coordinate_dtype`, `content_sha256`).
+Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node): `save_as_scgraph(filename, coordinate_dtype="int32")` chooses, and by default (`"auto"`) a GeoGraph keeps its own `coordinate_dtype`, which is `"int32"` for networks read from such a file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), `"float64"` otherwise.
 In the C++ build, `load_from_scgraph` maps the file and reads it in place while the GeoGraph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
 
 A GeoGraph read from a network file (so also from `load_geograph` and `build_geograph`) reads its node coordinates from the file: `nodes` behaves as a list, but `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`. `json.dumps`, `+`, `*`, `copy()`, `sort()` and ordering comparisons need `list(nodes)` first. Its arc shapes are read the same way: `intermediate_nodes[i]` is a new read-only mapping `{destination: shape}` each time, so editing a shape changes nothing and assigning raises a `TypeError`; `copy.copy` and pickling give a list of dicts, and `json.dumps` needs `[dict(row) for row in intermediate_nodes]`.
@@ -688,6 +689,7 @@ A GeoGraph read from a network file (so also from `load_geograph` and `build_geo
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |
 | `load_from_scgraph(filename)` | Load from a binary network file |
+| `scgraph_info(filename)` | Read what a binary network file holds, without loading it |
 | `load_from_osmnx_graph(osmnx_graph)` | Load from OSMNx graph object |
 | `load_from_osm(filename)` | Load from an OpenStreetMap file (needs `pip install scgraph[osm]`) |
 

@@ -113,3 +113,5 @@ def test_osmnx_nodes_keep_their_osm_ids_in_hilbert_order():
     )
     assert list(geograph.node_ids) == [1, 2]
     assert geograph.nodes == [[0.0, 0.0], [0.0, 0.01]]
+    # Rounded to coord_precision decimals (5): saved as int32 in 1e-7 degree by default
+    assert geograph.coordinate_dtype == "int32"
