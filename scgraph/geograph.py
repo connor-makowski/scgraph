@@ -11,6 +11,7 @@ from scgraph.utils import (
 )
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.lines import lines_to_graph
+from scgraph.osm import keep_largest_component, main_roads, read_osm
 from scgraph.helpers.hilbert import NODE_ORDER, hilbert_order
 from scgraph import network_file
 import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
@@ -25,7 +26,7 @@ from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from functools import partial
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
 from scgraph import Graph
 
 try:
@@ -515,8 +516,8 @@ class GeoGraphIO:
     @staticmethod
     def load_from_osm(
         filename: str,
-        keep: dict[str, set[str | None]] | None = None,
-        directed: bool = True,
+        select: Callable = main_roads,
+        keys: tuple[str, ...] = ("highway",),
         max_km_between_nodes: float | int = 2,
         largest_component: bool = True,
         load_intermediate_nodes: bool = True,
@@ -532,7 +533,7 @@ class GeoGraphIO:
         - Each arc has the length of its full line, in kilometers, so it is never shorter than the straight line between its ends
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
-        - Ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way (with `directed=True`)
+        - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
         - Memory: osmium's node filter takes about 1.5 GB, whatever the size of the file
 
         Required Arguments:
@@ -543,15 +544,17 @@ class GeoGraphIO:
 
         Optional Arguments:
 
-        - `keep`
-            - Type: dict[str, set[str]] | None
-            - What: The ways to keep: a way is kept if, for every key, its tag value is in the set; `None` in a set stands for a missing tag
-            - Default: None (main roads: `{"highway": scgraph.osm.MAIN_ROADS}`, motorway to primary and their links)
-            - Example: `{"railway": {"rail"}, "service": {None}}` for railway lines without yards, sidings and spurs
-        - `directed`
-            - Type: bool
-            - What: Whether one-way streets (`oneway=*`, roundabouts) give arcs in one direction only
-            - Default: True
+        - `select`
+            - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
+            - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
+            - Default: `scgraph.osm.main_roads` (motorway to primary and their links, one way as `scgraph.osm.direction(tags)` says)
+            - Example: `lambda tags: 0 if tags.get("railway") == "rail" and "service" not in tags else None` for railway lines without yards, sidings and spurs, both ways
+            - Note: Called for each way in two passes over the file: it must give the same answer each time
+        - `keys`
+            - Type: tuple[str, ...]
+            - What: Tag keys of which a way must have at least one to reach `select`; osmium leaves out the other ways before Python sees them, which is faster. Empty: every way reaches `select`
+            - Default: ("highway",)
+            - Note: Give the keys that `select` keeps ways by, for example `("railway",)` for railway lines
         - `max_km_between_nodes`
             - Type: float | int
             - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
@@ -577,14 +580,14 @@ class GeoGraphIO:
         Raises:
 
         - `ImportError` if the optional dependency `osmium` is not installed
-        - `ValueError` if no way of the file matches `keep`
+        - `ValueError` if no way of the file has one of `keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0 or None (`True` and `False` included)
         """
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_osm(
                     filename=filename,
-                    keep=keep,
-                    directed=directed,
+                    select=select,
+                    keys=keys,
                     max_km_between_nodes=max_km_between_nodes,
                     largest_component=largest_component,
                     load_intermediate_nodes=load_intermediate_nodes,
@@ -592,16 +595,13 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.osm import MAIN_ROADS, keep_largest_component, read_osm
-
         graph, nodes, shapes, ids = read_osm(
-            filename,
-            keep if keep is not None else {"highway": MAIN_ROADS},
-            directed,
-            max_km_between_nodes,
+            filename, select, keys, max_km_between_nodes
         )
         if not nodes:
-            raise ValueError(f"No way of {filename} matches keep={keep}")
+            raise ValueError(
+                f"No way of {filename} has one of the keys {keys} and is kept by select"
+            )
         if largest_component:
             graph, nodes, shapes, ids = keep_largest_component(
                 graph, nodes, shapes, ids
