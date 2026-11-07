@@ -292,7 +292,7 @@ when every arc has a reverse arc of the same weight; scgraph does not read it ye
 | `shape_offsets` (optional) | int32 | m + 1 | the shape of arc `j` is points `shape_offsets[j]` to `shape_offsets[j + 1] - 1`: the points between its two nodes, which it does not repeat |
 | `shape_points` (optional) | int32 or float64 | k × 2 | latitude and longitude of each shape point, as the node coordinates |
 | `node_ids` (optional) | int32 or int64 (int32 only when every id fits, as for converted built-in networks; OSM ids need int64) | n | the id of each node in its source (negative for nodes scgraph created); without it, a node's id is its position |
-| `node_modes` (optional) | uint8 | n | the mode of each node, an index into the metadata's `modes`; without it, every node has one mode |
+| `node_modes` (optional) | uint8 | n | the mode of each node, an index into the metadata's `modes`, written sorted (which `read(filename, modes=...)` requires); without it, every node has one mode |
 
 The reader checks the magic, the version, that the header and every array lie inside the
 file (the arrays after the header), and that
@@ -302,6 +302,10 @@ coordinates),
 and raises a `ValueError` otherwise; on a mapped file it leaves the order of offsets and heads to
 the C++ graph and the bounds of each shape to `ArcShapes`, which check them where they read,
 and does not read the node modes.
+`read(filename, modes=...)`, never mapped, reads only the nodes of the modes named and the arcs
+between them, renumbered (arcs to other modes are dropped): it reads `node_modes` whole, requires
+it sorted (scgraph writes it so), finds each mode's nodes in it by bisection, and reads only their
+part of the other arrays.
 The coordinates (`latitudes`, `longitudes`, `shape_points`) share one dtype, which the writer
 chooses (`save_as_scgraph(coordinate_dtype=...)`, by default the GeoGraph's own): float64
 degrees, exact, or int32 in units of 1e-7 degree (OSM's encoding, about 1 cm), rounded to it; a
