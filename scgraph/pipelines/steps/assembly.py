@@ -109,6 +109,33 @@ def strong_components(offsets, heads):
     return labels, sizes
 
 
+def keep_largest_component(graph, nodes, shapes, node_ids):
+    """Keep the largest strongly connected component, the part where every node can reach
+    every other, so that no origin or destination is placed on a one-way dead end or on a
+    fragment cut by the border of an extract (of equal ones, the one with the smallest
+    node index)."""
+    offsets, heads = array("i", [0]), array("i")
+    for row in graph:
+        heads.extend(row)
+        offsets.append(len(heads))
+    labels, sizes = strong_components(offsets, heads)
+    largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
+    kept = [u for u, label in enumerate(labels) if label == largest]
+    index = {old: new for new, old in enumerate(kept)}
+    return (
+        [
+            {index[v]: w for v, w in graph[u].items() if v in index}
+            for u in kept
+        ],
+        [nodes[u] for u in kept],
+        [
+            {index[v]: s for v, s in shapes[u].items() if v in index}
+            for u in kept
+        ],
+        [node_ids[u] for u in kept],
+    )
+
+
 def contract_chains(offsets, heads, weights, modes=None, max_km=math.inf):
     """
     Contract the chains of a graph stored by origin (int32 `offsets`, `heads`, rows

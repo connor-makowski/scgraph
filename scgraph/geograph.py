@@ -591,9 +591,9 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
+        from scgraph.pipelines.steps.assembly import keep_largest_component
         from scgraph.pipelines.steps.stage1_extract.osm import (
             MAX_KM,
-            keep_largest_component,
             main_roads,
             read_osm,
         )
