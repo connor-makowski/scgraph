@@ -40,3 +40,19 @@ def build(
         graph, max_km=max_km, min_nodes=min_nodes
     )
     return (arrays, [{"name": None}]), steps + assembled
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION_CASES = [
+    {
+        "id": "luxembourg_to_esch",
+        "region": "europe/luxembourg",
+        "origin": (49.6116, 6.1319),
+        "destination": (49.4958, 5.9806),
+        "expected_km": 19.7,
+        "tolerance": 0.10,
+        "comment": "Luxembourg capital to Esch-sur-Alzette (A4 freeway)",
+    },
+]

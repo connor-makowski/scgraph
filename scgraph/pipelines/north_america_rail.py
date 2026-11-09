@@ -28,3 +28,26 @@ def build(files):
         max_km_between_nodes=2,
         load_intermediate_nodes=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION_CASES = [
+    {
+        "id": "chicago_to_new_orleans",
+        "origin": (41.88, -87.64),
+        "destination": (29.95, -90.07),
+        "expected_km": 1470.7,
+        "tolerance": 0.05,
+        "comment": "Mainline rail corridor (Illinois Central / CN)",
+    },
+    {
+        "id": "chicago_to_los_angeles",
+        "origin": (41.88, -87.64),
+        "destination": (34.06, -118.23),
+        "expected_km": 3411.7,
+        "tolerance": 0.05,
+        "comment": "Transcontinental Southern Transcon rail corridor (BNSF)",
+    },
+]

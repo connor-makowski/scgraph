@@ -19,3 +19,26 @@ def build(files):
     return GeoGraph.load_from_geojson(
         files["sea_lanes"], precision=4, silent=True
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION_CASES = [
+    {
+        "id": "rotterdam_to_new_york",
+        "origin": (51.95, 4.14),
+        "destination": (40.71, -74.01),
+        "expected_km": 6151.0,
+        "tolerance": 0.05,
+        "comment": "Transatlantic shipping corridor",
+    },
+    {
+        "id": "rotterdam_to_singapore",
+        "origin": (51.95, 4.14),
+        "destination": (1.28, 103.85),
+        "expected_km": 15551.1,
+        "tolerance": 0.05,
+        "comment": "Europe to Asia maritime corridor via Suez Canal",
+    },
+]

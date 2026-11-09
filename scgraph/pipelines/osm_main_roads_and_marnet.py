@@ -104,3 +104,19 @@ def build(
         graph, max_km=max_km, min_nodes=min_nodes
     )
     return (arrays, MODES), steps + assembled
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION_CASES = [
+    {
+        "id": "aarhus_to_copenhagen_intermodal",
+        "region": "europe/denmark",
+        "origin": (56.1629, 10.2039),
+        "destination": (55.6761, 12.5683),
+        "expected_km": 186.9,
+        "tolerance": 0.10,
+        "comment": "Intermodal route via Kattegat ferry connecting Jutland and Zealand",
+    },
+]

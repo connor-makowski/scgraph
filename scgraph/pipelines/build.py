@@ -44,6 +44,7 @@ def build_file(
     *,
     refresh: bool = False,
     local_files_only: bool | None = None,
+    validate: bool = False,
 ) -> str:
     """Build the network into the local cache and return its file path.
 
@@ -53,6 +54,7 @@ def build_file(
         cache_dir: Optional custom cache directory.
         refresh: Force rebuild even if a current cached artifact exists.
         local_files_only: Forbid downloading missing network sources.
+        validate: Run Stage 4 validation checks against declarative cases.
 
     Returns:
         Absolute path to the built .scgraph network file.
@@ -60,6 +62,7 @@ def build_file(
     Raises:
         ValueError: On unknown pipeline names or invalid region parameters.
         FileNotFoundError: If the network is uncached in offline mode.
+        RuntimeError: If Stage 4 validation fails.
     """
     if local_files_only is None:
         local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
@@ -277,6 +280,27 @@ def build_file(
         finally:
             # A failed download or build leaves no large file behind
             shutil.rmtree(work, ignore_errors=True)
+    if validate and hasattr(network, "VALIDATION_CASES"):
+        cases = [
+            case
+            for case in network.VALIDATION_CASES
+            if case.get("region") is None or case.get("region") == region
+        ]
+        if cases:
+            from scgraph.pipelines.steps.stage4_validation import (
+                validate_network,
+            )
+
+            logger.info(
+                "Validating %s against %d test case(s)...", name, len(cases)
+            )
+            geograph = GeoGraph.load_from_scgraph(str(cached_file))
+            result = validate_network(geograph, cases, silent=False)
+            if not result.is_success:
+                raise RuntimeError(
+                    f"Pipeline validation failed for {name}: {result.summary()}"
+                )
+            logger.info("Validation %s", result.summary())
     return str(cached_file)
 
 
@@ -291,13 +315,23 @@ def main(argv=None):
     )
     parser.add_argument("--region", help="the path of a Geofabrik extract")
     parser.add_argument("--cache-dir", help="the cache directory")
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="run Stage 4 validation test cases on the built network",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)  # each step, and the credit to cite
     try:
-        print(build_file(args.name, args.region, args.cache_dir))
+        print(
+            build_file(
+                args.name, args.region, args.cache_dir, validate=args.validate
+            )
+        )
     except (
         ValueError,
         FileNotFoundError,
+        RuntimeError,
     ) as error:  # the message is the answer
         parser.exit(2, f"{error}\n")
 

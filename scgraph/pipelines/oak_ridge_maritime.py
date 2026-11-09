@@ -19,3 +19,26 @@ def build(files):
     return GeoGraph.load_from_geojson(
         files["sea_lanes"], precision=4, silent=True
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION_CASES = [
+    {
+        "id": "rotterdam_to_new_york",
+        "origin": (51.95, 4.14),
+        "destination": (40.71, -74.01),
+        "expected_km": 6132.1,
+        "tolerance": 0.05,
+        "comment": "Transatlantic shipping corridor (ORNL 2000)",
+    },
+    {
+        "id": "panama_canal_transit",
+        "origin": (9.36, -79.90),
+        "destination": (8.95, -79.57),
+        "expected_km": 65.0,
+        "tolerance": 0.10,
+        "comment": "Panama Canal crossing between Caribbean and Pacific",
+    },
+]

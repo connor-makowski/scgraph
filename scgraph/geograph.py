@@ -1223,6 +1223,7 @@ class GeoGraphIO:
         *,
         refresh: bool = False,
         local_files_only: bool | None = None,
+        validate: bool = False,
     ) -> "GeoGraph":
         """
         Function:
@@ -1291,6 +1292,7 @@ class GeoGraphIO:
                     lazy=False,
                     refresh=refresh,
                     local_files_only=local_files_only,
+                    validate=validate,
                 )
             )
         from scgraph.pipelines.build import build_file
@@ -1302,6 +1304,7 @@ class GeoGraphIO:
                 cache_dir,
                 refresh=refresh,
                 local_files_only=local_files_only,
+                validate=validate,
             ),
             reduce_iterations=reduce_iterations,
         )
