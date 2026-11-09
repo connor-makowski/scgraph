@@ -6,7 +6,6 @@ resuming automatically after transient network errors.
 
 import json
 import logging
-import os
 import sys
 import time
 from typing import BinaryIO

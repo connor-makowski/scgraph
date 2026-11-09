@@ -45,11 +45,6 @@ MAIN_ROADS = {
 # Length in kilometers at which a way is cut into a new arc (at the next point), so that
 # origins and destinations attach close to where they are
 MAX_KM = 2
-# Pass 3 stops when, for a minute, fewer than MIN_LOOKUPS node locations a second come
-# while the process reads more than MIN_FAULTS pages a second back from disk: the node
-# store no longer fits in memory (a slow network alone does not stop it). MIN_FAULTS is
-# an order of magnitude (a run that fits takes almost none), to check on the first planet
-MIN_LOOKUPS, MIN_FAULTS = 50_000, 1_000
 FERRY_END_KM = 2  # farthest a ferry end may lie from the road node it joins
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 
@@ -224,33 +219,13 @@ def locate_ways(source, selects, tag_keys=(), node_store=None):
     # those are located: the way filter comes first)
     def polylines(locations):
         locations.ignore_errors()  # a node missing from the file: invalid location
-        located, mark = 0, (0, time.monotonic(), _faults())
         for kind, way_direction, way in _selected_ways(
             osmium, source, selects, tag_keys, kept.id_filter(), locations
         ):
-            located += len(way.nodes)
-            if located - mark[0] >= 60 * MIN_LOOKUPS:
-                mark = located, time.monotonic(), _faults()
-            elif time.monotonic() - mark[1] > 60:
-                if _faults() - mark[2] > 60 * MIN_FAULTS:
-                    raise RuntimeError(
-                        f"Fewer than {MIN_LOOKUPS} node locations a second for a "
-                        "minute: the node store does not fit in memory"
-                    )
-                mark = located, time.monotonic(), _faults()
             for piece in _located_pieces(way.nodes):
                 yield kind, way_direction, piece
 
     return junctions, polylines(osmium.NodeLocationsForWays(store))
-
-
-def _faults():
-    # Pages the process read back from disk (none where unknown: Windows)
-    try:
-        import resource
-    except ImportError:
-        return 0
-    return resource.getrusage(resource.RUSAGE_SELF).ru_majflt
 
 
 def read_osm(source, select, tag_keys=(), max_km=MAX_KM):
