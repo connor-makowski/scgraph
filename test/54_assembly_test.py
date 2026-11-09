@@ -3,6 +3,7 @@ import random
 from array import array
 
 import pytest
+from helpers import great_circle_km
 
 from scgraph.pipelines.steps import assembly
 from scgraph.utils import has_cpp
@@ -160,32 +161,78 @@ def test_keep_strongly_connected_components_keeps_components_by_size(
     assert labels[4] == labels[5] not in (labels[0], labels[1])
 
 
-def test_keep_largest_strongly_connected_component_geograph_layout():
-    # Components {10} (one way to 11), {11, 12, 13} and {14, 15} (both ways), node u
-    # with id 10 + u; each arc's shape its two nodes
-    arcs = [(0, 1), (1, 2), (2, 1), (2, 3), (3, 2), (4, 5), (5, 4)]
-    graph = [{v: 1.0 for u_, v in arcs if u_ == u} for u in range(6)]
-    shapes = [{v: [[u, v]] for v in row} for u, row in enumerate(graph)]
-    graph, nodes, shapes, ids = (
-        assembly.keep_largest_strongly_connected_component(
-            graph,
-            [[u, 0] for u in range(6)],
-            shapes,
-            [10 + u for u in range(6)],
-        )
+# Around a row boundary in the south, the antimeridian on both sides and a pole
+@pytest.mark.parametrize(
+    "centre", [(-30.1, 10), (0.1, 179.99), (-0.2, -180), (89.8, 0)]
+)
+@pytest.mark.parametrize("km", [2, 20, 500])
+def test_near_nodes_finds_every_node_within_a_distance(centre, km):
+    rng = random.Random(0)
+    lats, lons = array("d"), array("d")
+    for _ in range(2000):
+        lats.append(max(-90, min(90, centre[0] + rng.gauss(0, 2))))
+        lons.append((centre[1] + rng.gauss(0, 4) + 180) % 360 - 180)
+    near = assembly.NearNodes(lats, lons)
+    point = [centre[0], centre[1]]
+    expected = sorted(
+        (great_circle_km(point, [lats[i], lons[i]]), i)
+        for i in range(len(lats))
     )
-    kept = [11, 12, 13]
-    assert ids == kept and [node[0] + 10 for node in nodes] == kept
-    expected = {
-        (10 + u, 10 + v) for u, v in arcs if 10 + u in kept and 10 + v in kept
+    within = [i for d, i in expected if d <= km]
+    assert sorted(i for _, i in near.within(point, km)) == sorted(within)
+    assert near.nearest(point, km)[0] == (within[0] if within else None)
+
+
+def test_assemble_keeps_closed_components_and_contracts_their_chains(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        assembly.PieceArrays, "BATCH", 1
+    )  # drawings stored by batch
+    pieces = assembly.PieceArrays(folder=tmp_path)  # columns in files
+    where = {1: [0, 0], 2: [0, 0.01], 3: [0, 0.02], 4: [1, 0], 5: [1, 0.01]}
+    # Of pieces 1-2 and 2-3, each point off its piece's line
+    shape = {
+        1: [[0.003, 0.003], [0.004, 0.006]],
+        2: [[0.003, 0.013], [0.004, 0.016]],
     }
-    assert {
-        (ids[u], ids[v]) for u, row in enumerate(graph) for v in row
-    } == expected
-    assert shapes == [
-        {v: [[ids[u] - 10, ids[v] - 10]] for v in row}
-        for u, row in enumerate(graph)
+    for u, v, direction in [(1, 2, 0), (2, 3, 0), (3, 4, 1), (4, 5, 0)]:
+        ends = [where[u], where[v]]
+        pieces.append(u, v, float(u), direction, ends, shape.get(u, []))
+    arrays, _ = assembly.assemble(
+        assembly.build_graph_from_pieces(pieces), max_km=100, min_nodes=1
+    )
+    ids, offsets = arrays["node_ids"], arrays["offsets"]
+    arcs = {
+        (ids[u], ids[arrays["heads"][a]]): arrays["weights"][a]
+        for u in range(len(ids))
+        for a in range(offsets[u], offsets[u + 1])
+    }
+    # 3 -> 4 joins two components: left out; node 2 is contracted
+    assert arcs == {(1, 3): 3.0, (3, 1): 3.0, (4, 5): 4.0, (5, 4): 4.0}
+    # The shape of 1 -> 3 runs through node 2, that of 3 -> 1 back (1e-7 degree)
+    line, starts = arrays["shape_points"], arrays["shape_offsets"]
+    drawn = {
+        (ids[u], ids[arrays["heads"][a]]): list(
+            line[2 * starts[a] : 2 * starts[a + 1]]
+        )
+        for u in range(len(ids))
+        for a in range(offsets[u], offsets[u + 1])
+    }
+    along = [
+        30000,
+        30000,
+        40000,
+        60000,
+        0,
+        100000,
+        30000,
+        130000,
+        40000,
+        160000,
     ]
+    assert drawn[1, 3] == along
+    assert drawn[3, 1] == [x for k in (8, 6, 4, 2, 0) for x in along[k : k + 2]]
 
 
 def _csr(one_way=(), two_way=()):

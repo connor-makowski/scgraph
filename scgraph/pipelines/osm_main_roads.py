@@ -1,15 +1,33 @@
-"""Main roads (motorway, trunk, primary and their links) of an OpenStreetMap extract from
-Geofabrik, for example `region="europe/luxembourg"`."""
+"""Main roads (motorway, trunk, primary and their links) and vehicle ferries of an OpenStreetMap
+extract from Geofabrik, for example `region="europe/luxembourg"`.
 
-from scgraph.geograph import GeoGraph
+A vehicle ferry (`route=ferry`, unless `motor_vehicle=no` or `motorcar=no`) joins, both ways
+and with the length of its route, the road nodes nearest its two ends if both lie
+within 2 km; otherwise it is left out, as is each piece of a ferry drawn as several ways
+that meet at sea. Roads and ferries are read together: a road is also cut where a ferry
+way shares one of its nodes. Drawings: each piece's shape is simplified at 50 m when the
+way is cut; lengths are measured before. Not the graph `GeoGraph.load_from_osm` gives from
+the same file: that loader neither attaches ferries, nor contracts chains, nor simplifies
+shapes.
+"""
+
 from scgraph.pipelines.steps.stage1_extract import osm
+from scgraph.pipelines.steps.stage3_assembly import assembly
 
 PIPELINE_VERSION = 1
 
 SOURCES = {"roads": osm.GEOFABRIK}
+SELECTS = {"roads": osm.main_roads, "ferries": osm.vehicle_ferries}
 
 download = osm.download  # checks osmium before downloading a large extract
 
 
 def build(files):
-    return GeoGraph.load_from_osm(files["roads"])
+    pieces, steps = osm.build_way_pieces(
+        files["roads"], SELECTS, ("highway", "route"), osm.MAX_KM
+    )
+    graph = assembly.build_graph_from_pieces(pieces)
+    arrays, assembled = assembly.assemble(
+        graph, max_km=osm.MAX_KM, min_nodes=None
+    )
+    return (arrays, [{"name": None}]), steps + assembled

@@ -3,13 +3,16 @@ Assemble a network file from raw arcs. The C++ kernels
 (`cpp/src/pipelines/assembly.hpp`), with the same results at the scale of the planet,
 replace these when built; the pure-Python ones stay in `python`. Arrays in: buffers of
 the stated types (`array("q"/"i"/"d")`; any sequences for `python`); out: `array`
-(read-only memoryviews from C++). `build_csr_from_adjacency` and `keep_largest_strongly_connected_component` take the GeoGraph layout
+(read-only memoryviews from C++). `PieceArrays`, `build_graph_from_pieces` and `assemble` chain the
+kernels in Python; `build_csr_from_adjacency` and `keep_largest_strongly_connected_component` take the GeoGraph layout
 for `load_from_osm`.
 """
 
 import math
+import mmap
+import os
 from array import array
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from functools import reduce
 from itertools import accumulate
 from operator import add
@@ -33,6 +36,9 @@ from scgraph.helpers.douglas_peucker import (
     _is_monotonically_increasing,
     simplify_shapes as simplify_shapes_python,
 )
+from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
+from scgraph.network_file import extract_coordinates
+from scgraph.utils import haversine
 
 
 def build_csr_from_arcs_python(origins, destinations, weights):
@@ -134,6 +140,32 @@ def strongly_connected_components_python(offsets, heads):
         labels[node] = number[component[node]]
         sizes[labels[node]] += 1
     return labels, sizes
+
+
+def strongly_connected_components(offsets, heads):
+    """Compute the strongly connected components of a directed CSR graph.
+
+    A strongly connected component (SCC) is a maximal subset of nodes where every
+    node can reach every other node following the directed arcs. In logistics networks,
+    this identifies mutually accessible clusters and isolates dead ends or cut fragments.
+
+    Computed using Kosaraju's two-pass depth-first search algorithm.
+
+    Parameters:
+        offsets (array[int32]): CSR row offsets of size `num_nodes + 1`.
+        heads (array[int32]): CSR target node indices of size `num_arcs`.
+
+    Returns:
+        tuple[array[int32], array[int32]]:
+            - `labels`: Component index (0-based) for each node, numbered in order
+              of appearance of their smallest node index.
+            - `sizes`: Number of nodes in each component.
+    """
+    if _cpp_strongly_connected_components is not None and isinstance(
+        offsets, array
+    ):
+        return _cpp_strongly_connected_components(offsets, heads)
+    return strongly_connected_components_python(offsets, heads)
 
 
 def strongly_connected_components(offsets, heads):
@@ -400,6 +432,293 @@ def simplify_shapes(points, offsets, ends, tolerance_m):
     if _cpp_simplify_shapes is not None and isinstance(points, array):
         return _cpp_simplify_shapes(points, offsets, ends, tolerance_m)
     return simplify_shapes_python(points, offsets, ends, tolerance_m)
+
+
+class NearNodes:
+    """
+    The nodes near a point, from their coordinates (`lats`, `lons`: sequences of degrees
+    once multiplied by `scale`, such as int32 at 1e-7 degree at the scale of the planet),
+    without a Python object per node: node indices by rows of 0.2 degree of latitude,
+    each sorted by longitude and searched by bisection.
+    """
+
+    def __init__(self, lats, lons, scale=1):
+        self.lats, self.lons, self.rows, self.scale = lats, lons, {}, scale
+        for i, lat in enumerate(lats):
+            row = math.floor(lat * scale / 0.2)
+            self.rows.setdefault(row, array("i")).append(i)
+        for row, nodes in self.rows.items():
+            self.rows[row] = array("i", sorted(nodes, key=lons.__getitem__))
+
+    def within(self, point, km):
+        """`(km, node)` of each node within `km` of `point` ([latitude, longitude])."""
+        lat, lon = point
+        dlat = km / 110  # degrees: more than `km` (111.2 km per degree)
+        cos = math.cos(math.radians(min(90, abs(lat) + dlat)))
+        if cos < 1e-9 or (dlon := km / (110 * cos)) >= 180:
+            spans = [(-180, 180)]
+        else:  # around the antimeridian, two spans
+            spans = [(lon - dlon, lon + dlon)]
+            spans += [(w + 360, e + 360) for w, e in spans if w < -180]
+            spans += [(w - 360, e - 360) for w, e in spans[:1] if e > 180]
+        lats, lons, scale = self.lats, self.lons, self.scale
+        key = lambda i: lons[i] * scale  # degrees (x * 1 == x)
+        for row in range(
+            math.floor((lat - dlat) / 0.2), math.floor((lat + dlat) / 0.2) + 1
+        ):
+            nodes = self.rows.get(row, ())
+            for west, east in spans:
+                lo, hi = bisect_left(nodes, west, key=key), bisect_right(
+                    nodes, east, key=key
+                )
+                for i in nodes[lo:hi]:
+                    d = haversine(point, [lats[i] * scale, lons[i] * scale])
+                    if d <= km:
+                        yield d, i
+
+    def nearest(self, point, km):
+        """`(node, km)` of the node nearest to `point` within `km` (ties: the lowest
+        node), or `(None, inf)`."""
+        d, i = min(self.within(point, km), default=(math.inf, None))
+        return i, d
+
+
+class PieceArrays:
+    """The cut pieces of ways (`cut_polylines`) as growing columns: the source ids of
+    their ends (`origins`, `destinations`, int64) and the ends' coordinates (`ends`, int32
+    in 1e-7 degree, four per piece), `km` (float64), `directions` (int8, as polylines),
+    and their interior points (`points`, int32 pairs, piece `i`'s from `offsets[i]`),
+    each piece's drawing simplified at `tolerance_m` metres (`simplify_shapes`, by
+    batches of BATCH pieces), or stored as it is with `tolerance_m=None`. The columns are
+    `array`s, or files of `folder` read through memory maps; they hold the pieces up to
+    the last `flush`."""
+
+    BATCH = 10_000
+    COLUMNS = dict(origins="q", destinations="q", ends="i", km="d")
+    COLUMNS.update(directions="b", points="i", offsets="q")
+
+    def __init__(self, tolerance_m=50, folder=None):
+        self.tolerance_m, self.folder = tolerance_m, folder
+        for name, code in self.COLUMNS.items():
+            setattr(self, name, array(code))
+            if folder is not None:
+                open(os.path.join(folder, name), "wb").close()
+        self._new = {name: array(code) for name, code in self.COLUMNS.items()}
+        self._new["offsets"].append(0)
+        self._starts = [0]
+
+    def append(self, origin, destination, km, direction, ends, shape):
+        """One piece; `ends` and `shape`: [latitude, longitude] points in degrees."""
+        new = self._new
+        new["origins"].append(origin)
+        new["destinations"].append(destination)
+        new["km"].append(km)
+        new["directions"].append(direction)
+        flat = [
+            [x for point in points for x in point] for points in (ends, shape)
+        ]
+        ends, points = extract_coordinates(flat, "int32")
+        new["ends"].extend(ends)
+        new["points"].extend(points)
+        self._starts.append(len(new["points"]) // 2)
+        if len(self._starts) > self.BATCH:
+            self.flush()
+
+    def flush(self):
+        """Simplify and store the drawings of the pieces appended since the last call."""
+        new, starts = self._new, self._starts
+        if self.tolerance_m is not None:
+            new["points"], starts = simplify_shapes(
+                new["points"], array("i", starts), new["ends"], self.tolerance_m
+            )
+        stored = len(self.points) // 2
+        new["offsets"].extend(stored + start for start in starts[1:])
+        for name, column in new.items():
+            if self.folder is None:
+                getattr(self, name).extend(column)
+                continue
+            with open(os.path.join(self.folder, name), "ab+") as file:
+                file.write(column)
+                file.flush()
+                if file.tell():
+                    view = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+                    setattr(
+                        self, name, memoryview(view).cast(self.COLUMNS[name])
+                    )
+        self._new = {name: array(code) for name, code in self.COLUMNS.items()}
+        self._starts = [0]
+
+
+def build_graph_from_pieces(pieces):
+    """Build a directed CSR network graph from polyline segments (`PieceArrays`).
+
+    Each polyline piece generates directed arcs according to its legal traversal
+    direction (bidirectional, one-way forward, or one-way reverse). Parallel arcs
+    between the same pair of nodes are resolved by retaining the shortest arc.
+
+    Used across all transportation networks (road, railway, and intermodal port networks).
+
+    Parameters:
+        pieces (PieceArrays): Growing columns of cut way pieces.
+
+    Returns:
+        dict[str, array]: CSR network representation containing offsets, heads,
+            weights, latitudes, longitudes, shape_offsets, shape_points, node_ids.
+    """
+    pieces.flush()
+    piece, back = array("i"), array("b")
+    for i, direction in enumerate(pieces.directions):
+        for reverse in (0, 1) if direction == 0 else (int(direction < 0),):
+            piece.append(i)
+            back.append(reverse)
+    ends = pieces.origins, pieces.destinations
+    node_ids, offsets, heads, weights, kept = build_csr_from_arcs(
+        array("q", (ends[b][i] for i, b in zip(piece, back))),
+        array("q", (ends[1 - b][i] for i, b in zip(piece, back))),
+        array("d", (pieces.km[i] for i in piece)),
+    )
+    if not len(node_ids):
+        raise ValueError("The pieces join no two points: every one is a loop")
+    lats, lons = (array("i", bytes(4 * len(node_ids))) for _ in "xy")
+    points, shape_offsets = array("i"), array("i", [0])
+    for u in range(len(node_ids)):
+        for a in range(offsets[u], offsets[u + 1]):
+            i, b = piece[kept[a]], back[kept[a]]
+            e = pieces.ends[4 * i : 4 * i + 4]
+            lats[u], lons[u], lats[heads[a]], lons[heads[a]] = (
+                (e[2], e[3], e[0], e[1]) if b else e
+            )
+            first, last = pieces.offsets[i], pieces.offsets[i + 1]
+            line = array("i", pieces.points[2 * first : 2 * last])
+            if b:  # its points from the destination
+                line[0::2], line[1::2] = line[-2::-2], line[-1::-2]
+            points.extend(line)
+            shape_offsets.append(len(points) // 2)
+    return {
+        "offsets": offsets,
+        "heads": heads,
+        "weights": weights,
+        "latitudes": lats,
+        "longitudes": lons,
+        "shape_offsets": shape_offsets,
+        "shape_points": points,
+        "node_ids": node_ids,
+    }
+
+
+def assemble(graph, *, max_km, min_nodes):
+    """The network file's arrays of `graph` (`build_graph_from_pieces`'s layout, with
+    `node_modes` if it has several modes): keep the components
+    (`keep_strongly_connected_components` with `min_nodes`, each one closed), contract
+    the chains (`contract_chains` at `max_km`, which never merges two modes), join their
+    shapes (`build_chain_shapes`), and number the nodes by mode, then
+    along the Hilbert curve, as `GeoGraph.save_as_scgraph` does. Empties `graph`.
+    Returns `(arrays, steps)`, `steps` the counts of the components and the contraction.
+    """
+    order = keep_strongly_connected_components(
+        graph["offsets"], graph["heads"], min_nodes
+    )
+    given, graph = graph, _renumbered(graph, *order)
+    given.clear()  # freed now, not when the caller lets it go: one copy at a time
+    steps = [_counts("components", graph)]
+    modes = graph.get("node_modes")
+    kept, origins, heads, weights, member_offsets, members = contract_chains(
+        graph["offsets"], graph["heads"], graph["weights"], modes, max_km
+    )
+    points, shape_offsets = build_chain_shapes(graph, member_offsets, members)
+    offsets = array("i", bytes(4 * (len(kept) + 1)))
+    for u in origins:  # rows by origin, as contract_chains sorts them
+        offsets[u + 1] += 1
+    graph = {  # the graph before contraction is freed
+        "offsets": array("i", accumulate(offsets)),
+        "heads": heads,
+        "weights": weights,
+        "shape_offsets": shape_offsets,
+        "shape_points": points,
+        **{
+            key: array(_TYPES[key], (graph[key][u] for u in kept))
+            for key in _TYPES
+            if key in graph
+        },
+    }
+    steps.append(_counts("contract", graph))
+    lats, lons = graph["latitudes"], graph["longitudes"]
+    modes = graph.get("node_modes") or bytes(len(kept))
+
+    def key(u):  # mode, Hilbert key (below 4^CURVE_ORDER), index: one int
+        curve = hilbert_key(lats[u] * 1e-7, lons[u] * 1e-7)
+        return (modes[u] << 2 * CURVE_ORDER | curve) << 32 | u
+
+    # One int per node, not a list; the sorted ints are freed before _renumbered
+    keys = sorted(map(key, range(len(kept))))
+    order, keys = array("i", (k & 0xFFFFFFFF for k in keys)), None
+    return _renumbered(graph, order), steps
+
+
+def build_chain_shapes(graph, member_offsets, members):
+    """The shapes of the arcs that `contract_chains` gives for `graph`, as `(points,
+    offsets)` in its layout: the shapes of each arc's members in travel order, each
+    followed by the node it ends at, except the last."""
+    heads, lats, lons = graph["heads"], graph["latitudes"], graph["longitudes"]
+    starts, line = graph["shape_offsets"], graph["shape_points"]
+    points, offsets = array("i"), array("i", [0])
+    for i in range(len(member_offsets) - 1):
+        chain = members[member_offsets[i] : member_offsets[i + 1]]
+        for k, a in enumerate(chain):
+            if k:
+                node = heads[chain[k - 1]]
+                points.extend((lats[node], lons[node]))
+            points.extend(line[2 * starts[a] : 2 * starts[a + 1]])
+        offsets.append(len(points) // 2)
+    return points, offsets
+
+
+# Node columns and their types
+_TYPES = {
+    "latitudes": "i",
+    "longitudes": "i",
+    "node_ids": "q",
+    "node_modes": "B",
+}
+
+
+def _renumbered(graph, order, labels=None):
+    """`graph` with the nodes of `order` only, node `order[i]` becoming node `i`, its rows
+    sorted by head; with `labels`, only the arcs whose ends share one."""
+    new = array("i", [-1]) * (len(graph["offsets"]) - 1)
+    for i, u in enumerate(order):
+        new[u] = i
+    offsets, heads, weights = (
+        graph[key] for key in ("offsets", "heads", "weights")
+    )
+    starts, line = graph["shape_offsets"], graph["shape_points"]
+    out = {
+        "offsets": array("i", [0]),
+        "heads": array("i"),
+        "weights": array("d"),
+    }
+    out["shape_offsets"], out["shape_points"] = array("i", [0]), array("i")
+    for u in order:
+        for v, a in sorted(
+            (new[heads[a]], a) for a in range(offsets[u], offsets[u + 1])
+        ):
+            if v >= 0 and (labels is None or labels[u] == labels[heads[a]]):
+                out["heads"].append(v)
+                out["weights"].append(weights[a])
+                out["shape_points"].extend(
+                    line[2 * starts[a] : 2 * starts[a + 1]]
+                )
+                out["shape_offsets"].append(len(out["shape_points"]) // 2)
+        out["offsets"].append(len(out["heads"]))
+    for key in _TYPES:  # in this order: the same file at every run
+        if key in graph:
+            out[key] = array(_TYPES[key], (graph[key][u] for u in order))
+    return out
+
+
+def _counts(step, graph):  # a step of build metadata
+    nodes, arcs = len(graph["offsets"]) - 1, len(graph["heads"])
+    return {"step": step, "nodes": nodes, "arcs": arcs}
 
 
 python = SimpleNamespace(

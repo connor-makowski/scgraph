@@ -55,7 +55,7 @@ _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
 
 
-def coordinates(columns, dtype):
+def extract_coordinates(columns, dtype):
     """The columns of coordinates (float64 arrays of degrees) as a file stores them, in
     `dtype`: "float64" as they are, or "int32" in units of 1e-7 degree, rounded to it
     (OSM's encoding, about 1 cm). A value that is not a finite number, or beyond
@@ -254,7 +254,7 @@ def read(filename, mapped=False):
     return arrays, metadata
 
 
-def info(filename):
+def get_scgraph_info(filename):
     """What a network file holds, without reading its arrays: its metadata,
     `content_sha256`, `format_version`, `nodes`, `arcs`, `coordinate_dtype`, `shapes` and
     `node_ids`. A damaged or foreign file raises a ValueError."""
@@ -268,6 +268,10 @@ def info(filename):
         "shapes": "shape_points" in arrays,
         "node_ids": "node_ids" in arrays,
     }
+
+
+info = get_scgraph_info
+scgraph_info = get_scgraph_info
 
 
 def _read(filename, file, mapped):

@@ -1,8 +1,12 @@
 """Railway lines (`railway=rail`, sidings and yards included) of an OpenStreetMap extract
-from Geofabrik, for example `region="europe/luxembourg"`."""
+from Geofabrik, for example `region="europe/luxembourg"`.
 
-from scgraph.geograph import GeoGraph
+Drawings: each piece's shape is simplified at 50 m when the way is cut; lengths are
+measured before.
+"""
+
 from scgraph.pipelines.steps.stage1_extract import osm
+from scgraph.pipelines.steps.stage3_assembly import assembly
 
 PIPELINE_VERSION = 1
 
@@ -12,9 +16,14 @@ download = osm.download  # checks osmium before downloading a large extract
 
 
 def build(files):
-    return GeoGraph.load_from_osm(
-        files["rail"], select=rail, tag_keys=("railway",)
+    pieces, steps = osm.build_way_pieces(
+        files["rail"], {"rail": rail}, ("railway",), osm.MAX_KM
     )
+    graph = assembly.build_graph_from_pieces(pieces)
+    arrays, assembled = assembly.assemble(
+        graph, max_km=osm.MAX_KM, min_nodes=None
+    )
+    return (arrays, [{"name": None}]), steps + assembled
 
 
 def rail(tags):

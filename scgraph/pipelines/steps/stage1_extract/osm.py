@@ -4,12 +4,17 @@ Needs the optional dependency `osmium` (`pip install scgraph[osm]`), imported on
 is read.
 """
 
+import math
 import os
 from array import array
 from bisect import bisect_left
 
-from scgraph.helpers.polylines import polylines_to_graph
+from scgraph.helpers.polylines import cut_polylines, polylines_to_graph
 from scgraph.pipelines import download_file
+from scgraph.pipelines.steps.stage3_assembly.assembly import (
+    NearNodes,
+    PieceArrays,
+)
 
 # The OpenStreetMap extracts of Geofabrik, `{region}` being the path of an extract
 GEOFABRIK = {
@@ -28,6 +33,10 @@ MAIN_ROADS = {
     "primary_link",
 }
 # Length in kilometers at which a way is cut into a new arc (at the next point), so that
+# origins and destinations attach close to where they are
+MAX_KM = 2
+FERRY_END_KM = 2  # farthest a ferry end may lie from the road node it joins
+_ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 # origins and destinations attach close to where they are
 MAX_KM = 2
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
@@ -212,6 +221,54 @@ def read_osm(source, select, tag_keys=(), max_km=MAX_KM):
     return polylines_to_graph(polylines, junctions, max_km)
 
 
+def build_way_pieces(source, selects, tag_keys, max_km, folder=None):
+    """
+    The pieces (`assembly.PieceArrays`) of the ways of `source` that `selects` keep
+    (`locate_ways`, one read for every kind), cut at their junctions and where a piece
+    reaches `max_km` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
+    joins the road nodes nearest its two ends if both lie within FERRY_END_KM
+    (`build_ferry_arcs`). Returns `(pieces, steps)`; no way kept raises a ValueError.
+    With a `folder`, the node locations and the pieces are kept in files there.
+    """
+    nodes = folder is not None and os.path.join(folder, "nodes")
+    store = nodes and "sparse_file_array," + nodes
+    junctions, ways = locate_ways(source, selects, tag_keys, store)
+    pieces, ferries = PieceArrays(folder=folder), []
+    for kind, direction, points in ways:
+        if kind == "ferries":
+            ferries.append((direction, points))
+            continue
+        where = dict(points)
+        for origin, destination, km, way, shape in cut_polylines(
+            [(direction, points)], junctions, max_km
+        ):
+            ends = where[origin], where[destination]
+            pieces.append(origin, destination, km, way, ends, shape)
+    pieces.flush()
+    if not len(pieces.km):
+        raise ValueError(f"No way of {source} is kept by {', '.join(selects)}")
+    steps = [{"step": "read", "pieces": len(pieces.km)}]
+    if "ferries" in selects:
+        # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
+        # piece u // 2's origin or destination (ties in nearest: the first end)
+        lats, lons = pieces.ends[0::2], pieces.ends[1::2]
+        ids = (pieces.origins, pieces.destinations)
+        near = NearNodes(lats, lons, scale=1e-7)
+        rows, ends, shapes, _ = polylines_to_graph(ferries, junctions, math.inf)
+        arcs = list(
+            build_ferry_arcs(
+                rows, ends, shapes, lambda p: near.nearest(p, FERRY_END_KM)
+            )
+        )
+        for u, v, km, shape in arcs:
+            road = [[lats[w] * 1e-7, lons[w] * 1e-7] for w in (u, v)]
+            pieces.append(
+                ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
+            )
+        steps.append({"step": "ferries", "arcs": len(arcs)})
+    return pieces, steps
+
+
 def _located_pieces(way_nodes):
     """Split a way where a node is missing from the file (outside an extract) or has no
     location."""
@@ -225,3 +282,26 @@ def _located_pieces(way_nodes):
         piece = []
     if len(piece) > 1:
         yield piece
+
+
+def vehicle_ferries(tags):
+    """Both ways (0) for a ferry not closed to motor vehicles, None for any other way."""
+    if tags.get("route") == "ferry" and "no" not in (
+        tags.get("motor_vehicle"),
+        tags.get("motorcar"),
+    ):
+        return 0
+    return None
+
+
+def build_ferry_arcs(ferries, ends, shapes, nearest):
+    """`(u, v, km, shape)` of each ferry arc (`polylines_to_graph`'s layout) whose ends
+    lie within FERRY_END_KM of road nodes u and v (`nearest(point)` gives `(node, km)`);
+    the shape keeps the ferry's ends unless they are u and v."""
+    road = [nearest(end) for end in ends]
+    for a, row in enumerate(ferries):
+        for b, km in row.items():
+            (u, to_u), (v, to_v) = road[a], road[b]
+            if u != v and max(to_u, to_v) <= FERRY_END_KM:
+                shape = [ends[a]] * (to_u > 0) + shapes[a].get(b, [])
+                yield u, v, km, shape + [ends[b]] * (to_v > 0)

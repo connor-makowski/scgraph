@@ -22,7 +22,7 @@ A pipeline is a module with four names:
 
 The first paragraph of the module docstring describes the network (shown by
 `GeoGraph.list_buildable_geographs`). Functions that `build` passes on, such as a `select`
-of ways or a `connect` of two networks, are conventions inside `build`, not part of the
+of ways or the `road_connector` of a port, are conventions inside `build`, not part of the
 contract. Steps pass a graph as the tuple `graph, nodes, shapes, node_ids`, the GeoGraph
 layout.
 
@@ -36,6 +36,10 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
   `cut_polylines` (`scgraph.helpers.polylines`) -> `build_csr_from_arcs` ->
   `strongly_connected_components` -> `contract_chains` (with the cut's `max_km`) ->
   `simplify_shapes` (`assembly`, C++ when built)
+- ferries, in `osm_main_roads`: `vehicle_ferries` -> `ferry_arcs`, attached to the roads
+- joining modes, in `osm_main_roads_and_marnet`: `landmask.LandMask.from_natural_earth`,
+  then `road_connector` and `sea_connector` for each port (`LandMask.water_path`, kernel
+  `water_path_cells`, C++ when built)
 
 `build_geograph` writes into the network file's header what built it (`build_metadata`),
 read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
