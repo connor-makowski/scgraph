@@ -94,7 +94,6 @@ RESERVED = frozenset(
     {
         "crs",
         "units",
-        "access_multiplier",
         "modes",
         "symmetric",
         "node_order",
@@ -116,11 +115,10 @@ def header_metadata(
     *,
     units,
     modes,
-    access_multiplier=None,
 ):
     """The metadata `write` takes for a network whose nodes are in scgraph's order
-    (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`, optional
-    `access_multiplier`, `modes`, `node_order`) and the `build_metadata`, what built the network (see
+    (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`,
+    `modes`, `node_order`) and the `build_metadata`, what built the network (see
     `scgraph.pipelines`). A metadata key that scgraph writes itself, or a mode whose `source`
     names no entry of the metadata's `sources`, raises a ValueError."""
     if RESERVED & set(build_metadata):
@@ -138,11 +136,6 @@ def header_metadata(
     return {
         "crs": "EPSG:4326",
         "units": units,
-        **(
-            {"access_multiplier": access_multiplier}
-            if access_multiplier is not None and access_multiplier != 1
-            else {}
-        ),
         **({"modes": modes} if modes != [{"name": None}] else {}),
         "node_order": NODE_ORDER,
         **build_metadata,

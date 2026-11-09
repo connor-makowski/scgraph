@@ -36,7 +36,6 @@ def _small(node_ids=None):
         graph=[dict(row) for row in _GRAPH],
         nodes=[list(node) for node in _NODES],
         intermediate_nodes=_SHAPES,
-        default_off_graph_circuity=2,
         geograph_units="mi",
         node_ids=node_ids,
     )
@@ -62,10 +61,7 @@ def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
     assert loaded.intermediate_nodes == (
         _SHAPES if save_intermediate_nodes else None
     )
-    assert (loaded.default_off_graph_circuity, loaded.geograph_units) == (
-        2,
-        "mi",
-    )
+    assert loaded.geograph_units == "mi"
     if save_intermediate_nodes:
         # Read like the list of dicts it was saved from (negative indices and slices
         # included), and copied as one

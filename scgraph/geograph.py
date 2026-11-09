@@ -281,16 +281,10 @@ class GeoGraphIO:
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
-        access_mult = (
-            self.default_off_graph_circuity
-            if self.default_off_graph_circuity != 1
-            else None
-        )
         metadata = network_file.header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             units=self.geograph_units,
             modes=self.modes,
-            access_multiplier=access_mult,
         )
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
@@ -796,13 +790,6 @@ class GeoGraphIO:
                 network_file.ArcShapes(arrays)
                 if "shape_offsets" in arrays
                 else None
-            ),
-            default_off_graph_circuity=metadata.get(
-                "access_multiplier",
-                metadata.get("default_off_graph_circuity", 1),
-            ),
-            default_node_addition_circuity=metadata.get(
-                "default_node_addition_circuity", 4
             ),
             geograph_units=metadata.get("units", "km"),
             node_ids=arrays.get("node_ids"),
