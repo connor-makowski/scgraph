@@ -348,7 +348,6 @@ The header contains top-level structural fields and a nested `metadata` dictiona
   "metadata": {
     "crs": "EPSG:4326",
     "units": "km",
-    "access_multiplier": 1.0,
     "symmetric": false,
     "node_order": {
       "name": "hilbert",
@@ -395,8 +394,8 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
 | `metadata.units` | `str` | Distance units of edge weights (`km`, `m`, `mi`, `ft`). |
-| `metadata.access_multiplier` | `float` | Metric multiplier applied to off-network access legs (haversine connection legs) to convert to graph cost units (default: 1.0). |
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. |
+| `metadata.access_multiplier` *(opt)* | `float` | Optional metric multiplier applied to off-network access legs (origin/destination connection legs) when converting to graph cost units. In standard distance networks (`km`, `mi`), the natural ratio is 1.0 and this field is omitted. |
 | `metadata.node_order` | `dict` or `str` | Spatial node sorting scheme (Hilbert curve parameters: `curve_order`, axis mapping, and tie-breaking). |
 | `metadata.modes` | `list[dict]` | Optional transport mode definitions (`road`, `rail`, `sea`, `port`). |
 | `metadata.pipeline` | `dict` | Pipeline provenance: network generator name, target region, and pipeline version. |

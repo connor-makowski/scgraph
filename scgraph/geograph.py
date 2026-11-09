@@ -281,11 +281,16 @@ class GeoGraphIO:
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
+        access_mult = (
+            self.default_off_graph_circuity
+            if self.default_off_graph_circuity != 1
+            else None
+        )
         metadata = network_file.header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             units=self.geograph_units,
-            access_multiplier=self.default_off_graph_circuity,
             modes=self.modes,
+            access_multiplier=access_mult,
         )
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()

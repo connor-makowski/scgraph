@@ -357,7 +357,6 @@ def build_file(
                 header_meta = network_file.header_metadata(
                     metadata,
                     units="km",
-                    access_multiplier=1,
                     modes=modes,
                 )
                 digest = network_file.write(str(building), arrays, header_meta)
