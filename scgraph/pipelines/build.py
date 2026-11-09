@@ -45,6 +45,7 @@ def build_file(
     refresh: bool = False,
     local_files_only: bool | None = None,
     validate: bool = False,
+    stream: bool = False,
 ) -> str:
     """Build the network into the local cache and return its file path.
 
@@ -55,6 +56,7 @@ def build_file(
         refresh: Force rebuild even if a current cached artifact exists.
         local_files_only: Forbid downloading missing network sources.
         validate: Run Stage 4 validation checks against declarative cases.
+        stream: Stream OSM extracts via HTTP byte ranges instead of downloading.
 
     Returns:
         Absolute path to the built .scgraph network file.
@@ -166,9 +168,14 @@ def build_file(
                 )
                 # A source's own hook, else the module's, else a plain download
                 hook = about.get("download")
-                download = hook or getattr(
-                    network, "download", pipelines.download_file
-                )
+                if stream and about.get("url", "").endswith(".osm.pbf"):
+                    from scgraph.pipelines.steps.stage1_extract import osm
+
+                    download = osm.download_streamed
+                else:
+                    download = hook or getattr(
+                        network, "download", pipelines.download_file
+                    )
                 try:
                     # It may return what it learnt of the source: its `version`
                     learnt = download(url, str(files[source]))
@@ -320,12 +327,21 @@ def main(argv=None):
         action="store_true",
         help="run Stage 4 validation test cases on the built network",
     )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="stream OSM extracts via HTTP byte ranges instead of downloading",
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)  # each step, and the credit to cite
     try:
         print(
             build_file(
-                args.name, args.region, args.cache_dir, validate=args.validate
+                args.name,
+                args.region,
+                args.cache_dir,
+                validate=args.validate,
+                stream=args.stream,
             )
         )
     except (

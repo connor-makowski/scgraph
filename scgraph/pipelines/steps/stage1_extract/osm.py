@@ -385,8 +385,11 @@ class StreamedPbf:
         session.mount("https://", adapter)
         session.mount("http://", adapter)
 
-        head = session.head(url, headers=_AGENT, timeout=(10.0, 60.0))
+        head = session.head(
+            url, headers=_AGENT, allow_redirects=True, timeout=(10.0, 60.0)
+        )
         head.raise_for_status()
+        url = head.url
         size = int(head.headers["Content-Length"])
         tag = head.headers.get("ETag") or head.headers["Last-Modified"]
 
@@ -447,15 +450,30 @@ class StreamedPbf:
         try:
             ways = section(1, len(header), size)
             layout = [len(header), ways, section(2, ways, size)]
-            md5 = session.get(
-                url + ".md5", headers=_AGENT, timeout=(10.0, 60.0)
-            )
-            md5.raise_for_status()
+            md5_val = None
+            try:
+                md5 = session.get(
+                    url + ".md5",
+                    headers=_AGENT,
+                    allow_redirects=True,
+                    timeout=(10.0, 60.0),
+                )
+                if md5.ok:
+                    md5_val = md5.text.split()[0]
+            except Exception:
+                md5_val = None
             about = {"url": url, "size": size, "tag": tag, "layout": layout}
-            about.update(md5=md5.text.split()[0], version=version)
+            if md5_val:
+                about["md5"] = md5_val
+            if version:
+                about["version"] = version
             with open(filename, "w") as file:
                 json.dump(about, file)
-            return {"version": version, "bytes": size, "md5": about["md5"]}
+            return {
+                **({"version": version} if version else {}),
+                "bytes": size,
+                **({"md5": md5_val} if md5_val else {}),
+            }
         finally:
             session.close()
 
@@ -493,18 +511,38 @@ class StreamedPbf:
 
 
 def open_osm_source(source):
-    """Resolve an OSM source: returns a StreamedPbf when source is a JSON metadata file,
-    or source unchanged when it is an OSM file path or custom source object."""
-    if isinstance(source, (str, os.PathLike)) and str(source).endswith(".json"):
-        return StreamedPbf(str(source))
+    """Resolve an OSM source: returns a StreamedPbf when source is a JSON metadata file
+    or layout descriptor, or source unchanged when it is an OSM file path or custom source object.
+    """
+    if isinstance(source, (str, os.PathLike)):
+        path = Path(source)
+        if path.suffix == ".json":
+            return StreamedPbf(str(path))
+        if path.is_file() and path.stat().st_size < 100_000:
+            try:
+                with open(path, "rb") as f:
+                    first = f.read(16)
+                if first.startswith(b'{"url":') or first.startswith(
+                    b'{\n  "url":'
+                ):
+                    return StreamedPbf(str(path))
+            except OSError:
+                pass
     return source
+
+
+def download_streamed(url, filename):
+    """Download layout descriptor of an OSM PBF file for streamed HTTP range reading."""
+    if not has_cpp():
+        raise RuntimeError(
+            "Streaming an OSM extract needs scgraph's C++ backend"
+        )
+    return StreamedPbf.download(url, filename)
 
 
 def _planet(url, filename):
     # The planet's download hook: the world is built with the C++ backend only
-    if not has_cpp():
-        raise RuntimeError("Building the world needs scgraph's C++ backend")
-    return StreamedPbf.download(url, filename)
+    return download_streamed(url, filename)
 
 
 # The planet of a given date (never planet-latest), changed at each data release, read
