@@ -11,6 +11,8 @@ the same file: that loader neither attaches ferries, nor contracts chains, nor s
 shapes.
 """
 
+import os
+
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage3_assembly import assembly
 
@@ -32,8 +34,13 @@ def build(
 ):
     """The keywords give another scale (`world_main_roads`); `min_nodes=None` keeps
     the largest component only."""
+    stage1_folder = os.path.join(folder, "stage1") if folder else None
     pieces, steps = osm.build_way_pieces(
-        source(files["roads"]), SELECTS, ("highway", "route"), max_km, folder
+        source(files["roads"]),
+        SELECTS,
+        ("highway", "route"),
+        max_km,
+        stage1_folder,
     )
     graph = assembly.build_graph_from_pieces(pieces)
     arrays, assembled = assembly.assemble(
@@ -45,50 +52,16 @@ def build(
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
-VALIDATION_CASES = [
-    {
-        "id": "luxembourg_to_esch",
-        "region": "europe/luxembourg",
-        "origin": (49.6116, 6.1319),
-        "destination": (49.4958, 5.9806),
-        "expected_km": 19.7,
-        "tolerance": 0.10,
-        "comment": "Luxembourg capital to Esch-sur-Alzette (A4 freeway)",
+VALIDATION = {
+    "modes": ("road",),
+    "cases": {
+        "europe/denmark": ["copenhagen_odense", "copenhagen_malmo"],
+        "europe/france": [
+            "paris_marseille",
+            "paris_bordeaux",
+            "toulouse_nice",
+            "lille_strasbourg",
+        ],
+        "europe/luxembourg": ["luxembourg_to_esch"],
     },
-    {
-        "id": "paris_to_marseille",
-        "region": "europe/france",
-        "origin": (48.8566, 2.3522),
-        "destination": (43.2965, 5.3698),
-        "expected_km": 775.0,
-        "tolerance": 0.05,
-        "comment": "A6/A7 Autoroute du Soleil connecting north to south",
-    },
-    {
-        "id": "paris_to_bordeaux",
-        "region": "europe/france",
-        "origin": (48.8566, 2.3522),
-        "destination": (44.8378, -0.5792),
-        "expected_km": 585.0,
-        "tolerance": 0.05,
-        "comment": "A10 L'Aquitaine freeway corridor to south-west",
-    },
-    {
-        "id": "toulouse_to_nice",
-        "region": "europe/france",
-        "origin": (43.6047, 1.4442),
-        "destination": (43.7102, 7.2620),
-        "expected_km": 565.0,
-        "tolerance": 0.05,
-        "comment": "Southern transversal corridor (A61 / A9 / A8)",
-    },
-    {
-        "id": "lille_to_strasbourg",
-        "region": "europe/france",
-        "origin": (50.6292, 3.0573),
-        "destination": (48.5734, 7.7521),
-        "expected_km": 520.0,
-        "tolerance": 0.05,
-        "comment": "North-East diagonal corridor across Grand Est (A26 / A4)",
-    },
-]
+}

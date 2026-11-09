@@ -34,14 +34,9 @@ def rail(tags):
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
-VALIDATION_CASES = [
-    {
-        "id": "luxembourg_to_bettembourg",
-        "region": "europe/luxembourg",
-        "origin": (49.6000, 6.1333),
-        "destination": (49.5186, 6.1028),
-        "expected_km": 11.5,
-        "tolerance": 0.10,
-        "comment": "Luxembourg Central to Bettembourg rail yard corridor",
+VALIDATION = {
+    "modes": ("rail",),
+    "cases": {
+        "europe/luxembourg": ["luxembourg_to_bettembourg"],
     },
-]
+}

@@ -28,6 +28,8 @@ include = [
     "scgraph/pipelines/*.py",
     "scgraph/pipelines/steps/*.py",
     "scgraph/pipelines/steps/**/*.py",
+    "scgraph/pipelines/steps/stage4_validation/cases/*.csv",
+    "scgraph/pipelines/steps/stage4_validation/references/*",
     "scgraph/cpp/*",
     "pyproject.toml",
     "CMakeLists.txt",

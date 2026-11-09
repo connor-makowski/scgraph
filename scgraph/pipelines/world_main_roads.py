@@ -28,51 +28,32 @@ MAX_KM = 10  # the cut and the contraction (first build)
 MIN_NODES = 1000  # nodes of the smallest component kept
 
 
-def build(files: dict[str, str], *, source=osm.open_osm_source):
+def build(files: dict[str, str], *, source=osm.open_osm_source, folder=None):
     """Build the world main roads and car ferries network.
 
     Args:
         files: Mapping of source identifiers to local file paths.
         source: Factory resolving the OSM source reader (defaults to open_osm_source).
+        folder: Working directory for intermediate checkpoints.
 
     Returns:
         Tuple of ((arrays, modes), steps) describing the built network.
     """
+    if folder is None and "roads" in files:
+        folder = os.path.dirname(files["roads"])
     return osm_main_roads.build(
         files,
         source=source,
         max_km=MAX_KM,
         min_nodes=MIN_NODES,
-        folder=os.path.dirname(files["roads"]),  # the runner's, deleted after
+        folder=folder,
     )
 
 
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
-VALIDATION_CASES = [
-    {
-        "id": "paris_to_berlin",
-        "origin": (48.8686, 2.3314),
-        "destination": (52.5238, 13.3996),
-        "expected_km": 1027.7,
-        "tolerance": 0.05,
-        "comment": "European highway corridor Paris-Berlin",
-    },
-    {
-        "id": "chicago_to_houston",
-        "origin": (41.8319, -87.7520),
-        "destination": (29.8219, -95.3419),
-        "expected_km": 1652.3,
-        "tolerance": 0.05,
-        "comment": "North American Interstate corridor",
-    },
-    {
-        "id": "tokyo_to_osaka",
-        "origin": (35.6895, 139.6917),
-        "destination": (34.6937, 135.5023),
-        "expected_km": 460.4,
-        "tolerance": 0.05,
-        "comment": "Japanese expressway corridor Tomei/Meishin",
-    },
-]
+VALIDATION = {
+    "modes": ("road",),
+    "cases": ["paris_berlin", "chicago_houston", "tokyo_to_osaka"],
+}

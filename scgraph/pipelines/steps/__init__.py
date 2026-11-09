@@ -10,5 +10,6 @@ from scgraph.pipelines.steps.stage2_intermodal import landmask, ports
 from scgraph.pipelines.steps.stage1_extract import arcgis, osm
 from scgraph.pipelines.steps.stage4_validation import (
     ValidationResult,
+    load_cases,
     validate_network,
 )

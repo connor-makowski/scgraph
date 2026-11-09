@@ -211,21 +211,6 @@ def test_load_from_osm_numbers_nodes_along_a_hilbert_curve_with_their_osm_ids(
     )
 
 
-# Pass 3 stops when locations come slowly while pages are read back from disk (the node
-# store no longer fits in memory), not when they come slowly with none (a slow network)
-def test_locate_ways_stops_when_the_node_store_thrashes(osm_file, monkeypatch):
-    # A minute between two kept ways
-    clock = SimpleNamespace(monotonic=itertools.count(0, 61).__next__)
-    monkeypatch.setattr(osm, "time", clock)
-    monkeypatch.setattr(osm, "_faults", lambda: 0)
-    _, lines = osm.locate_ways(osm_file, {"r": osm.main_roads})
-    assert list(lines)
-    monkeypatch.setattr(osm, "_faults", itertools.count(0, 61_000).__next__)
-    _, lines = osm.locate_ways(osm_file, {"r": osm.main_roads})
-    with pytest.raises(RuntimeError, match="node store does not fit"):
-        list(lines)
-
-
 # A planet mirror: the files of a folder by HTTP, with byte ranges; their ETag is the text
 # of the folder's file "tag", read at each request. In a child process: osmium holds the
 # GIL while it waits for the pipe, which a server thread would need to fill

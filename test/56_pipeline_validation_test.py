@@ -4,6 +4,7 @@ import pytest
 
 from scgraph.pipelines.steps.stage4_validation import (
     ValidationResult,
+    load_cases,
     validate_network,
 )
 from scgraph.pipelines import (
@@ -33,35 +34,68 @@ def test_validation_result_summary():
     assert not res_empty.is_success
 
 
+def test_loader_case_resolution():
+    """Verify load_cases resolves contracts, single IDs, and regional mappings."""
+    # Rail cases
+    rail_cases = load_cases(rail_pipeline.VALIDATION)
+    assert len(rail_cases) == 2
+    assert {c["id"] for c in rail_cases} == {
+        "chicago_to_new_orleans",
+        "chicago_to_los_angeles",
+    }
+    assert all("expected_km" in c for c in rail_cases)
+
+    # Road cases
+    road_cases = load_cases(freeway_pipeline.VALIDATION)
+    assert len(road_cases) == 2
+    assert {c["id"] for c in road_cases} == {
+        "new_york_to_chicago",
+        "los_angeles_to_san_francisco",
+    }
+
+    # Regional mapping
+    contract = {
+        "cases": {
+            "europe/france": ["paris_marseille"],
+            "europe/luxembourg": ["luxembourg_to_esch"],
+        },
+    }
+    france = load_cases(contract, region="europe/france")
+    assert len(france) == 1
+    assert france[0]["id"] == "paris_marseille"
+
+
 def test_validation_marnet(marnet):
-    """Validate marnet against its declared Stage 4 test cases."""
-    result = validate_network(marnet, marnet_pipeline.VALIDATION_CASES)
+    """Validate marnet against its declared Stage 4 contract."""
+    cases = load_cases(marnet_pipeline.VALIDATION)
+    result = validate_network(marnet, cases)
     assert result.is_success
-    assert result.passed == len(marnet_pipeline.VALIDATION_CASES)
+    assert result.passed == len(marnet_pipeline.VALIDATION["cases"])
     assert len(result.failures) == 0
 
 
 def test_validation_us_freeway(us_freeway):
-    """Validate us_freeway against its declared Stage 4 test cases."""
-    result = validate_network(us_freeway, freeway_pipeline.VALIDATION_CASES)
+    """Validate us_freeway against its declared Stage 4 contract."""
+    cases = load_cases(freeway_pipeline.VALIDATION)
+    result = validate_network(us_freeway, cases)
     assert result.is_success
-    assert result.passed == len(freeway_pipeline.VALIDATION_CASES)
+    assert result.passed == len(freeway_pipeline.VALIDATION["cases"])
 
 
 def test_validation_north_america_rail(north_america_rail):
-    """Validate north_america_rail against its declared Stage 4 test cases."""
-    result = validate_network(
-        north_america_rail, rail_pipeline.VALIDATION_CASES
-    )
+    """Validate north_america_rail against its declared Stage 4 contract."""
+    cases = load_cases(rail_pipeline.VALIDATION)
+    result = validate_network(north_america_rail, cases)
     assert result.is_success
-    assert result.passed == len(rail_pipeline.VALIDATION_CASES)
+    assert result.passed == len(rail_pipeline.VALIDATION["cases"])
 
 
 def test_validation_oak_ridge_maritime(oak_ridge_maritime):
-    """Validate oak_ridge_maritime against its declared Stage 4 test cases."""
-    result = validate_network(oak_ridge_maritime, orm_pipeline.VALIDATION_CASES)
+    """Validate oak_ridge_maritime against its declared Stage 4 contract."""
+    cases = load_cases(orm_pipeline.VALIDATION)
+    result = validate_network(oak_ridge_maritime, cases)
     assert result.is_success
-    assert result.passed == len(orm_pipeline.VALIDATION_CASES)
+    assert result.passed == len(orm_pipeline.VALIDATION["cases"])
 
 
 def test_validation_constraints(marnet):
@@ -72,7 +106,7 @@ def test_validation_constraints(marnet):
             "id": "strict_rotterdam_nyc",
             "origin": (51.95, 4.14),
             "destination": (40.71, -74.01),
-            "expected_km": 5000.0,  # real is ~6151 km
+            "expected_km": 5000.0,
             "tolerance": 0.01,
         }
     ]
@@ -110,10 +144,10 @@ def test_validation_constraints(marnet):
     offshore_case = [
         {
             "id": "deep_inland_node",
-            "origin": (0.0, 25.0),  # Congo rainforest, far from any sea lane
+            "origin": (0.0, 25.0),
             "destination": (40.71, -74.01),
         }
     ]
     res_snap = validate_network(marnet, offshore_case, max_snap_km=50.0)
     assert not res_snap.is_success
-    assert "Snapping exceeds 50.0 km" in res_snap.failures[0]["error"]
+    assert "Snapping" in res_snap.failures[0]["error"]

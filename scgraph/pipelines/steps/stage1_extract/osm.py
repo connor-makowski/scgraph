@@ -4,12 +4,15 @@ Needs the optional dependency `osmium` (`pip install scgraph[osm]`), imported on
 is read.
 """
 
+import gc
 import json
+import logging
 import math
 import os
 import struct
 import subprocess
 import sys
+import threading
 import time
 from array import array
 from bisect import bisect_left
@@ -25,6 +28,8 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
     PieceArrays,
 )
 from scgraph.utils import has_cpp
+
+logger = logging.getLogger(__name__)
 
 # The OpenStreetMap extracts of Geofabrik, `{region}` being the path of an extract
 GEOFABRIK = {
@@ -155,7 +160,7 @@ class _Junctions:
         return i < len(self.ids) and self.ids[i] == ref
 
 
-def locate_ways(source, selects, tag_keys=(), node_store=None):
+def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
     """
     Locate the ways of `source` that `selects` keep, in one set of passes for every kind
     of way (roads and ferries, for example).
@@ -186,34 +191,127 @@ def locate_ways(source, selects, tag_keys=(), node_store=None):
     one of its nodes is missing from the file.
     """
     osmium = require_osmium()
-    # First pass: the nodes of kept ways; a node seen again is a junction (where ways
-    # meet, or where a way crosses itself); crossings without a shared node, such as
-    # bridges and tunnels, are not.
-    tracker, kept = osmium.IdTracker(), osmium.IdTracker()
-    seen, repeats = tracker.node_ids(), array("q")
-    for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
-        kept.add_way(way.id)
-        for node in way.nodes:
-            if seen.get(node.ref):
-                repeats.append(node.ref)
-            else:
-                seen.set(node.ref)
+    if folder is not None:
+        os.makedirs(folder, exist_ok=True)
+    pass1_done = os.path.join(folder, "pass1.done") if folder else None
+    pass1_junctions = (
+        os.path.join(folder, "pass1_junctions.bin") if folder else None
+    )
+    pass1_ways = os.path.join(folder, "pass1_ways.bin") if folder else None
+    pass2_done = os.path.join(folder, "pass2.done") if folder else None
+    nodes_file = (
+        node_store.partition(",")[2]
+        if (node_store and "," in node_store)
+        else None
+    )
 
-    # Second pass, in osmium: the locations of those nodes, into the store
-    node_store = node_store or "flex_mem"
-    if "," in node_store:  # osmium would read the locations a previous run left
-        open(node_store.partition(",")[2], "wb").close()
-    store = osmium.index.create_map(node_store)
-    with (
-        _opened(source, osmium.osm.NODE) as file,
-        osmium.io.Reader(file, osmium.osm.NODE) as nodes,
-    ):
-        osmium.apply(
-            nodes, tracker.id_filter(), osmium.NodeLocationsForWays(store)
+    can_skip_pass1_and_2 = (
+        folder is not None
+        and pass2_done is not None
+        and os.path.isfile(pass2_done)
+        and pass1_junctions is not None
+        and os.path.isfile(pass1_junctions)
+        and pass1_ways is not None
+        and os.path.isfile(pass1_ways)
+        and nodes_file is not None
+        and os.path.isfile(nodes_file)
+        and os.path.getsize(nodes_file) > 0
+    )
+
+    if can_skip_pass1_and_2:
+        logger.info(
+            "Resuming OSM extract: Pass 1 and Pass 2 loaded from checkpoints"
         )
-    del tracker, seen  # before the junctions are sorted
-    junctions = _Junctions(repeats)
-    del repeats
+        junctions = _Junctions.__new__(_Junctions)
+        junctions.ids = array("q")
+        with open(pass1_junctions, "rb") as f:
+            junctions.ids.fromfile(f, os.path.getsize(pass1_junctions) // 8)
+        kept = osmium.IdTracker()
+        kept_ways = array("q")
+        with open(pass1_ways, "rb") as f:
+            kept_ways.fromfile(f, os.path.getsize(pass1_ways) // 8)
+        for wid in kept_ways:
+            kept.add_way(wid)
+        del kept_ways
+        store = osmium.index.create_map(node_store)
+    else:
+        # First pass: the nodes of kept ways; a node seen again is a junction (where ways
+        # meet, or where a way crosses itself); crossings without a shared node, such as
+        # bridges and tunnels, are not.
+        tracker, kept = osmium.IdTracker(), osmium.IdTracker()
+        seen, repeats = tracker.node_ids(), array("q")
+        kept_ways = array("q") if folder else None
+        for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
+            kept.add_way(way.id)
+            if kept_ways is not None:
+                kept_ways.append(way.id)
+            for node in way.nodes:
+                if seen.get(node.ref):
+                    repeats.append(node.ref)
+                else:
+                    seen.set(node.ref)
+
+        junctions = _Junctions(repeats)
+        del repeats
+        gc.collect()
+
+        if folder is not None and pass1_junctions and pass1_ways and pass1_done:
+            with open(pass1_junctions + ".tmp", "wb") as f:
+                junctions.ids.tofile(f)
+            os.replace(pass1_junctions + ".tmp", pass1_junctions)
+            with open(pass1_ways + ".tmp", "wb") as f:
+                kept_ways.tofile(f)
+            os.replace(pass1_ways + ".tmp", pass1_ways)
+            del kept_ways
+            Path(pass1_done).write_text("done\n")
+
+        # Second pass, in osmium: the locations of those nodes, into the store
+        node_store = node_store or "flex_mem"
+        if nodes_file:
+            open(nodes_file, "wb").close()
+        store = osmium.index.create_map(node_store)
+
+        stop_adviser = threading.Event()
+        adviser_thread = None
+        if (
+            nodes_file
+            and hasattr(os, "posix_fadvise")
+            and hasattr(os, "POSIX_FADV_DONTNEED")
+        ):
+
+            def _drop_cache():
+                while not stop_adviser.wait(timeout=10.0):
+                    try:
+                        fd = os.open(nodes_file, os.O_RDONLY)
+                        try:
+                            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+                        finally:
+                            os.close(fd)
+                    except OSError:
+                        pass
+
+            adviser_thread = threading.Thread(target=_drop_cache, daemon=True)
+            adviser_thread.start()
+
+        try:
+            with (
+                _opened(source, osmium.osm.NODE) as file,
+                osmium.io.Reader(file, osmium.osm.NODE) as nodes,
+            ):
+                osmium.apply(
+                    nodes,
+                    tracker.id_filter(),
+                    osmium.NodeLocationsForWays(store),
+                )
+        finally:
+            stop_adviser.set()
+            if adviser_thread:
+                adviser_thread.join(timeout=1.0)
+            del tracker, seen
+            gc.collect()
+
+        if folder is not None and pass2_done:
+            Path(pass2_done).write_text("done\n")
 
     # Third pass, as the polylines are read: the located pieces of the kept ways (only
     # those are located: the way filter comes first)
@@ -252,9 +350,25 @@ def build_way_pieces(source, selects, tag_keys, max_km, folder=None):
     (`build_ferry_arcs`). Returns `(pieces, steps)`; no way kept raises a ValueError. With a
     `folder`, the node locations and the pieces are kept in files there.
     """
+    if folder is not None:
+        done_marker = os.path.join(folder, "stage1.done")
+        if os.path.isfile(done_marker):
+            try:
+                with open(done_marker, "r") as f:
+                    steps = json.load(f)
+                pieces = PieceArrays(folder=folder, truncate=False)
+                logger.info(
+                    "Resuming Stage 1 from checkpoint: %d pieces loaded",
+                    len(pieces.km),
+                )
+                return pieces, steps
+            except Exception:
+                pass
     nodes = folder is not None and os.path.join(folder, "nodes")
     store = nodes and "sparse_file_array," + nodes
-    junctions, ways = locate_ways(source, selects, tag_keys, store)
+    junctions, ways = locate_ways(
+        source, selects, tag_keys, store, folder=folder
+    )
     pieces, ferries = PieceArrays(folder=folder), []
     for kind, direction, points in ways:
         if kind == "ferries":
@@ -288,6 +402,12 @@ def build_way_pieces(source, selects, tag_keys, max_km, folder=None):
                 ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
             )
         steps.append({"step": "ferries", "arcs": len(arcs)})
+    if folder is not None:
+        done_marker = os.path.join(folder, "stage1.done")
+        tmp_marker = done_marker + ".tmp"
+        with open(tmp_marker, "w") as f:
+            json.dump(steps, f)
+        os.replace(tmp_marker, done_marker)
     return pieces, steps
 
 

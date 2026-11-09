@@ -26,21 +26,7 @@ def build(files):
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
-VALIDATION_CASES = [
-    {
-        "id": "new_york_to_chicago",
-        "origin": (40.75, -73.98),
-        "destination": (41.83, -87.75),
-        "expected_km": 1326.0,
-        "tolerance": 0.05,
-        "comment": "I-80 / I-90 freeway corridor from East Coast to Midwest",
-    },
-    {
-        "id": "los_angeles_to_san_francisco",
-        "origin": (34.05, -118.25),
-        "destination": (37.77, -122.42),
-        "expected_km": 619.7,
-        "tolerance": 0.05,
-        "comment": "I-5 corridor connecting Southern and Northern California",
-    },
-]
+VALIDATION = {
+    "modes": ("road",),
+    "cases": ["new_york_to_chicago", "los_angeles_to_san_francisco"],
+}

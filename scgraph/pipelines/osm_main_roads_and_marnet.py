@@ -25,6 +25,8 @@
 - Not for: navigation or travel times; inland navigation between two river points.
 """
 
+import os
+
 from scgraph.pipelines import eurostat_marnet
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage2_intermodal import ports
@@ -80,8 +82,14 @@ def build(
 ):
     """The keywords give another scale (`world_main_roads_and_marnet`);
     `min_nodes=None` keeps the largest component only."""
+    stage1_folder = os.path.join(folder, "stage1") if folder else None
+    stage2_folder = os.path.join(folder, "stage2") if folder else None
     pieces, steps = osm.build_way_pieces(
-        source(files["roads"]), SELECTS, ("highway", "route"), max_km, folder
+        source(files["roads"]),
+        SELECTS,
+        ("highway", "route"),
+        max_km,
+        stage1_folder,
     )
     graph = assembly.build_graph_from_pieces(pieces)
     sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
@@ -99,7 +107,7 @@ def build(
     )
     wpi = ports.world_port_index(files["ports"])
     wpi = [p for p in wpi if mask.cell(*p[:2]) is not None]
-    graph, joined = ports.join(graph, sea, wpi, mask, folder)
+    graph, joined = ports.join(graph, sea, wpi, mask, stage2_folder)
     steps.append({"step": "ports", "joined": joined})
     arrays, assembled = assembly.assemble(
         graph, max_km=max_km, min_nodes=min_nodes
@@ -110,14 +118,9 @@ def build(
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
-VALIDATION_CASES = [
-    {
-        "id": "aarhus_to_copenhagen_intermodal",
-        "region": "europe/denmark",
-        "origin": (56.1629, 10.2039),
-        "destination": (55.6761, 12.5683),
-        "expected_km": 186.9,
-        "tolerance": 0.10,
-        "comment": "Intermodal route via Kattegat ferry connecting Jutland and Zealand",
+VALIDATION = {
+    "modes": ("road", "port", "sea"),
+    "cases": {
+        "europe/denmark": ["aarhus_to_copenhagen_intermodal"],
     },
-]
+}

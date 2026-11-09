@@ -39,51 +39,36 @@ MIN_NODES = 1000  # nodes of the smallest component kept
 download = regional.download  # for the other sources: checks osmium first
 
 
-def build(files: dict[str, str], *, source=osm.open_osm_source):
+def build(files: dict[str, str], *, source=osm.open_osm_source, folder=None):
     """Build the world main roads and marnet intermodal network.
 
     Args:
         files: Mapping of source identifiers to local file paths.
         source: Factory resolving the OSM source reader (defaults to open_osm_source).
+        folder: Working directory for intermediate checkpoints.
 
     Returns:
         Tuple of ((arrays, modes), steps) describing the built multimodal network.
     """
+    if folder is None and "roads" in files:
+        folder = os.path.dirname(files["roads"])
     return regional.build(
         files,
         source=source,
         max_km=MAX_KM,
         min_nodes=MIN_NODES,
-        folder=os.path.dirname(files["roads"]),  # the runner's, deleted after
+        folder=folder,
     )
 
 
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
-VALIDATION_CASES = [
-    {
-        "id": "paris_to_berlin_road",
-        "origin": (48.8686, 2.3314),
-        "destination": (52.5238, 13.3996),
-        "expected_km": 1027.7,
-        "tolerance": 0.05,
-        "comment": "European highway corridor Paris-Berlin",
-    },
-    {
-        "id": "rotterdam_to_new_york_intermodal",
-        "origin": (51.95, 4.14),
-        "destination": (40.71, -74.01),
-        "expected_km": 6150.9,
-        "tolerance": 0.05,
-        "comment": "Transatlantic intermodal route (road -> port -> sea -> port -> road)",
-    },
-    {
-        "id": "shanghai_to_los_angeles_intermodal",
-        "origin": (31.23, 121.47),
-        "destination": (34.05, -118.25),
-        "expected_km": 10655.9,
-        "tolerance": 0.05,
-        "comment": "Transpacific intermodal corridor",
-    },
-]
+VALIDATION = {
+    "modes": ("road", "port", "sea"),
+    "cases": [
+        "paris_berlin",
+        "rotterdam_to_new_york_intermodal",
+        "shanghai_to_los_angeles_intermodal",
+    ],
+}
