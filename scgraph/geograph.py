@@ -591,7 +591,9 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.pipelines.steps.assembly import keep_largest_component
+        from scgraph.pipelines.steps.stage3_assembly.assembly import (
+            keep_largest_strongly_connected_component,
+        )
         from scgraph.pipelines.steps.stage1_extract.osm import (
             MAX_KM,
             main_roads,
@@ -609,8 +611,10 @@ class GeoGraphIO:
                 f"No way of {filename} has one of the tag keys {tag_keys} and is kept by select"
             )
         if largest_component:
-            graph, nodes, shapes, ids = keep_largest_component(
-                graph, nodes, shapes, ids
+            graph, nodes, shapes, ids = (
+                keep_largest_strongly_connected_component(
+                    graph, nodes, shapes, ids
+                )
             )
         geograph = GeoGraph(
             graph=graph,

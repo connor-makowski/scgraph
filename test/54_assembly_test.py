@@ -85,8 +85,8 @@ def test_csr_from_arcs_stores_the_shortest_arcs_by_origin(
     )
     args = array("q", origins), array("q", destinations), array("d", weights)
     if expected is None:
-        expected = tuple(map(list, assembly.python.csr_from_arcs(*args)))
-    assert tuple(map(list, backend.csr_from_arcs(*args))) == expected
+        expected = tuple(map(list, assembly.python.build_csr_from_arcs(*args)))
+    assert tuple(map(list, backend.build_csr_from_arcs(*args))) == expected
 
 
 def _random_graph(seed):
@@ -118,12 +118,16 @@ def _reachable(rows, start):
         *(_random_graph(seed) for seed in range(20)),
     ],
 )
-def test_strong_components_groups_nodes_that_reach_each_other(backend, rows):
+def test_strongly_connected_components_groups_nodes_that_reach_each_other(
+    backend, rows
+):
     offsets, heads = array("i", [0]), array("i")
     for row in rows:
         heads.extend(row)
         offsets.append(len(heads))
-    labels, sizes = map(list, backend.strong_components(offsets, heads))
+    labels, sizes = map(
+        list, backend.strongly_connected_components(offsets, heads)
+    )
     reach = [_reachable(rows, u) for u in range(len(rows))]
     assert all(
         (labels[u] == labels[v]) == (v in reach[u] and u in reach[v])
@@ -137,25 +141,40 @@ def test_strong_components_groups_nodes_that_reach_each_other(backend, rows):
 
 @pytest.mark.parametrize(
     "min_nodes, kept",
-    [
-        (None, [11, 12, 13]),
-        (2, [11, 12, 13, 14, 15]),
-        (1, [10, 11, 12, 13, 14, 15]),
-    ],
+    [(None, [1, 2, 3]), (2, [1, 2, 3, 4, 5]), (1, [0, 1, 2, 3, 4, 5])],
 )
-def test_keep_largest_component_keeps_components_by_size(min_nodes, kept):
+def test_keep_strongly_connected_components_keeps_components_by_size(
+    min_nodes, kept
+):
+    # Components {0} (one way to 1), {1, 2, 3} and {4, 5} (both ways)
+    arcs = [(0, 1), (1, 2), (2, 1), (2, 3), (3, 2), (4, 5), (5, 4)]
+    offsets, heads = array("i", [0]), array("i")
+    for u in range(6):
+        heads.extend(v for origin, v in arcs if origin == u)
+        offsets.append(len(heads))
+    nodes, labels = assembly.keep_strongly_connected_components(
+        offsets, heads, min_nodes
+    )
+    assert list(nodes) == kept
+    assert labels[1] == labels[2] == labels[3] != labels[0]
+    assert labels[4] == labels[5] not in (labels[0], labels[1])
+
+
+def test_keep_largest_strongly_connected_component_geograph_layout():
     # Components {10} (one way to 11), {11, 12, 13} and {14, 15} (both ways), node u
     # with id 10 + u; each arc's shape its two nodes
     arcs = [(0, 1), (1, 2), (2, 1), (2, 3), (3, 2), (4, 5), (5, 4)]
     graph = [{v: 1.0 for u_, v in arcs if u_ == u} for u in range(6)]
     shapes = [{v: [[u, v]] for v in row} for u, row in enumerate(graph)]
-    graph, nodes, shapes, ids = assembly.keep_largest_component(
-        graph,
-        [[u, 0] for u in range(6)],
-        shapes,
-        [10 + u for u in range(6)],
-        min_nodes=min_nodes,
+    graph, nodes, shapes, ids = (
+        assembly.keep_largest_strongly_connected_component(
+            graph,
+            [[u, 0] for u in range(6)],
+            shapes,
+            [10 + u for u in range(6)],
+        )
     )
+    kept = [11, 12, 13]
     assert ids == kept and [node[0] + 10 for node in nodes] == kept
     expected = {
         (10 + u, 10 + v) for u, v in arcs if 10 + u in kept and 10 + v in kept
@@ -173,7 +192,7 @@ def _csr(one_way=(), two_way=()):
     # (origin, destination, km) arcs, two_way ones in both directions, by origin
     arcs = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]
     columns = (array(t, c) for t, c in zip("qqd", zip(*arcs)))
-    return assembly.python.csr_from_arcs(*columns)[1:4]
+    return assembly.python.build_csr_from_arcs(*columns)[1:4]
 
 
 def _random_chains(seed):

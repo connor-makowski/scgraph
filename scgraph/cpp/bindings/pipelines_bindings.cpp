@@ -27,7 +27,7 @@ static nb::object owned_view(std::vector<T>&& values) {
 
 void bind_pipelines(nb::module_& m) {
     // Assembly kernels (contracts in scgraph/pipelines/steps/assembly.py)
-    m.def("csr_from_arcs", [](Ids origins, Ids destinations, CsrDoubles weights) {
+    auto bind_csr = [](Ids origins, Ids destinations, CsrDoubles weights) {
         const int64_t m = (int64_t)origins.shape(0);
         if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m)
             throw std::invalid_argument("one destination and one weight per origin expected");
@@ -35,12 +35,14 @@ void bind_pipelines(nb::module_& m) {
         return nb::make_tuple(owned_view(std::move(t.node_ids)), owned_view(std::move(t.offsets)),
                               owned_view(std::move(t.heads)), owned_view(std::move(t.weights)),
                               owned_view(std::move(t.kept)));
-    }, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"));
-    m.def("strong_components", [](CsrInts offsets, CsrInts heads) {
-        auto c = assembly::strong_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
-                                             (int64_t)heads.shape(0));
+    };
+    m.def("build_csr_from_arcs", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"));
+    auto bind_scc = [](CsrInts offsets, CsrInts heads) {
+        auto c = assembly::strongly_connected_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
+                                                         (int64_t)heads.shape(0));
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
-    }, nb::arg("offsets"), nb::arg("heads"));
+    };
+    m.def("strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
     m.def("contract_chains", [](CsrInts offsets, CsrInts heads, CsrDoubles weights, std::optional<Modes> modes,
                                 double max_km) {
         const int64_t n = (int64_t)offsets.shape(0) - 1;

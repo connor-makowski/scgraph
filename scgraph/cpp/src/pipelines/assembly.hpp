@@ -185,8 +185,8 @@ struct Components {
     std::vector<int32_t> labels, sizes;
 };
 
-inline Components strong_components(const int32_t* offsets, const int32_t* heads, int64_t node_count,
-                                    int64_t arc_count) {
+inline Components strongly_connected_components(const int32_t* offsets, const int32_t* heads, int64_t node_count,
+                                                int64_t arc_count) {
     check_offsets(offsets, node_count, arc_count);
     const int32_t n = static_cast<int32_t>(node_count);
     for (int64_t a = 0; a < arc_count; ++a) {
@@ -288,6 +288,7 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
                    (!modes || (modes[out[0]] == modes[v] && modes[two_way ? out[1] : first[v]] == modes[v]));
         keep[v] = !chain[v];
     }
+    for (auto* unused : {&indegree, &first, &second}) std::vector<int32_t>().swap(*unused);
     auto arc = [&](int32_t u, int32_t v) {  // the index of arc u -> v
         return static_cast<int32_t>(std::lower_bound(heads + offsets[u], heads + offsets[u + 1], v) - heads);
     };
@@ -295,16 +296,19 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
     auto exists = [&](int32_t u, int32_t v) {  // an input arc, or an arc made
         return pairs.count(static_cast<uint64_t>(u) << 32 | v) || std::binary_search(heads + offsets[u], heads + offsets[u + 1], v);
     };
-    struct Arc { int32_t u, v; double km; int64_t first, count; };
+    // Each input arc is the member of one arc at most: reserved once, never copied as
+    // they grow, and only the pages used are resident
+    struct Arc { int32_t u, v; double km; int32_t first, count; };
     std::vector<Arc> arcs;
     std::vector<int32_t> pool;  // the arcs' members, each arc's in a run
+    arcs.reserve(arc_count), pool.reserve(arc_count);
     auto add = [&](int32_t u, int32_t v, double km, int64_t first) {
-        arcs.push_back({u, v, km, first, static_cast<int64_t>(pool.size()) - first});
+        arcs.push_back({u, v, km, static_cast<int32_t>(first), static_cast<int32_t>(pool.size() - first)});
         pairs.insert(static_cast<uint64_t>(u) << 32 | v);
     };
     for (int32_t u = 0; u < n; ++u) {
         for (int32_t a = offsets[u]; a < offsets[u + 1]; ++a) {
-            if (keep[u] && keep[heads[a]]) pool.push_back(a), arcs.push_back({u, heads[a], weights[a], (int64_t)pool.size() - 1, 1});
+            if (keep[u] && keep[heads[a]]) pool.push_back(a), arcs.push_back({u, heads[a], weights[a], (int32_t)pool.size() - 1, 1});
         }
     }
     std::vector<int32_t> nodes, path;
@@ -360,19 +364,28 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
     for (int32_t v = 0; v < n; ++v) {  // isolated cycles
         if (chain[v] && !seen[v]) keep[v] = seen[v] = 1, contract(v, offsets[v]);
     }
+    std::unordered_set<uint64_t>().swap(pairs);  // freed before the result is built
+    std::vector<char>().swap(chain), std::vector<char>().swap(seen);
     Contracted result;
     std::vector<int32_t> position(n, -1);
     for (int32_t v = 0; v < n; ++v) {
         if (keep[v]) position[v] = static_cast<int32_t>(result.kept.size()), result.kept.push_back(v);
     }
     std::sort(arcs.begin(), arcs.end(), [](const Arc& x, const Arc& y) { return std::pair(x.u, x.v) < std::pair(y.u, y.v); });
+    // The members first, then the pool is freed; then the arcs' columns
+    result.members.reserve(pool.size());
+    result.member_offsets.reserve(arcs.size() + 1);
     result.member_offsets.push_back(0);
+    for (const Arc& x : arcs) {
+        result.members.insert(result.members.end(), pool.begin() + x.first, pool.begin() + x.first + x.count);
+        result.member_offsets.push_back(static_cast<int32_t>(result.members.size()));
+    }
+    std::vector<int32_t>().swap(pool);
+    result.origins.reserve(arcs.size()), result.heads.reserve(arcs.size()), result.weights.reserve(arcs.size());
     for (const Arc& x : arcs) {
         result.origins.push_back(position[x.u]);
         result.heads.push_back(position[x.v]);
         result.weights.push_back(x.km);
-        result.members.insert(result.members.end(), pool.begin() + x.first, pool.begin() + x.first + x.count);
-        result.member_offsets.push_back(static_cast<int32_t>(result.members.size()));
     }
     return result;
 }
