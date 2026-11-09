@@ -349,13 +349,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     "crs": "EPSG:4326",
     "units": "km",
     "symmetric": false,
-    "node_order": {
-      "name": "hilbert",
-      "curve_order": 16,
-      "x": "longitude",
-      "y": "latitude",
-      "ties": "previous id"
-    },
+    "node_order": "hilbert",
     "pipeline": {
       "name": "osm_main_roads",
       "region": "europe/luxembourg",
@@ -395,7 +389,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
 | `metadata.units` | `str` | Distance units of edge weights (`km`, `m`, `mi`, `ft`). |
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. |
-| `metadata.node_order` | `dict` or `str` | Spatial node sorting scheme (Hilbert curve parameters: `curve_order`, axis mapping, and tie-breaking). |
+| `metadata.node_order` | `str` | Spatial node sorting scheme (`"hilbert"` for 2D Hilbert space-filling curve order). |
 | `metadata.modes` | `list[dict]` | Optional transport mode definitions (`road`, `rail`, `sea`, `port`). |
 | `metadata.pipeline` | `dict` | Pipeline provenance: network generator name, target region, and pipeline version. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |

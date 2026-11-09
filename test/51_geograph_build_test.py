@@ -206,7 +206,7 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     )
     assert pointer["downloaded"] not in json.dumps(info)
     # Nodes numbered along the Hilbert curve, as the file says
-    assert info["node_order"]["name"] == "hilbert"
+    assert info["node_order"] == "hilbert"
     assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
     # The source has changed since (except for the damaged file, rebuilt under the same
     # name): the new build replaces the cached network
