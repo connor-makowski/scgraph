@@ -57,4 +57,3 @@ VALIDATION = {
         "luxembourg_to_bettembourg",
     ],
 }
-

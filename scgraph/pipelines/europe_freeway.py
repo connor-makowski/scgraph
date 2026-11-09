@@ -58,4 +58,3 @@ VALIDATION = {
         "luxembourg_to_esch",
     ],
 }
-
