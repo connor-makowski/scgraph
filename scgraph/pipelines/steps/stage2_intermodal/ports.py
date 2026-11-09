@@ -2,8 +2,11 @@
 sea connector over water (`landmask`)."""
 
 import csv
+import logging
 import math
 from array import array
+
+import requests
 
 from scgraph.pipelines.steps.stage3_assembly.assembly import (
     NearNodes,
@@ -13,10 +16,61 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
 )
 from scgraph.utils import haversine
 
+logger = logging.getLogger(__name__)
+
 ROAD_KM, SEA_KM = 20, 2500  # longest road and sea connectors
 # Water a road connector may cross: 3 km, 10 km for an open roadstead
 WATER_KM, ROADSTEAD_WATER_KM = 3, 10
 CIRCUITY = 1.2  # of a straight road connector
+
+
+def download(url: str, filename: str) -> dict:
+    """Download World Port Index data as CSV, falling back to NGA's ArcGIS service if direct download fails."""
+    from scgraph.pipelines import download_file
+
+    try:
+        download_file(url, filename)
+        return {}
+    except requests.HTTPError as err:
+        if err.response is None or err.response.status_code not in (
+            500,
+            502,
+            503,
+            504,
+        ):
+            raise
+        logger.warning(
+            "NGA MSI portal returned HTTP %s, falling back to official ArcGIS WPI service",
+            err.response.status_code,
+        )
+        base_url = "https://services.arcgis.com/hRUr1F8lE8Jq2uJo/arcgis/rest/services/World_Port_Index/FeatureServer/0/query"
+        features, offset = [], 0
+        while True:
+            params = {
+                "where": "1=1",
+                "outFields": "LATITUDE,LONGITUDE,HARBORTYPE",
+                "f": "json",
+                "resultOffset": offset,
+                "resultRecordCount": 2000,
+            }
+            resp = requests.get(base_url, params=params, timeout=30)
+            resp.raise_for_status()
+            page = resp.json().get("features", [])
+            if not page:
+                break
+            features.extend(page)
+            offset += len(page)
+        with open(filename, "w", newline="", encoding="utf-8") as file:
+            writer = csv.writer(file)
+            writer.writerow(["Latitude", "Longitude", "Harbor Type"])
+            for feat in features:
+                attrs = feat.get("attributes", {})
+                lat, lon = attrs.get("LATITUDE"), attrs.get("LONGITUDE")
+                if lat is not None and lon is not None:
+                    writer.writerow(
+                        [lat, lon, attrs.get("HARBORTYPE") or "Unknown"]
+                    )
+        return {"version": "ArcGIS-WPI"}
 
 
 def world_port_index(filename):

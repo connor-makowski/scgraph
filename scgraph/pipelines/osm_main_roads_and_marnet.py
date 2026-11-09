@@ -49,6 +49,7 @@ SOURCES = {
     "sea": eurostat_marnet.SOURCES["sea_lanes"],
     "ports": {
         "url": "https://msi.nga.mil/api/publications/download?type=view&key=16920959/SFH00000/UpdatedPub150.csv",
+        "download": ports.download,
         "credit": "National Geospatial-Intelligence Agency, World Port Index (Pub. 150)",
         "license": "NOASSERTION",
         "license_url": "https://msi.nga.mil/Publications/WPI",
