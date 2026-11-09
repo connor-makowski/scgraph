@@ -37,6 +37,33 @@ _CACHEDIR_TAG = (
 )
 
 
+STAGE_INVALIDATIONS = {
+    "stage1": ["*.done", "*_junctions.bin", "*_ways.bin", "nodes"],
+    "pass1": ["*.done", "*_junctions.bin", "*_ways.bin", "nodes"],
+    "pass2": [
+        "pass2.done",
+        "stage1.done",
+        "stage2.done",
+        "stage3.done",
+        "nodes",
+    ],
+    "pass3": ["stage1.done", "stage2.done", "stage3.done"],
+    "stage2": ["stage2.done", "stage3.done"],
+    "stage3": ["stage3.done"],
+}
+
+
+def _clean_work(work: Path, cache: Path) -> None:
+    shutil.rmtree(work, ignore_errors=True)
+    parent = work.parent
+    while parent != cache and parent.exists() and not any(parent.iterdir()):
+        try:
+            parent.rmdir()
+            parent = parent.parent
+        except OSError:
+            break
+
+
 def _validate_pipeline(network, name, region, cached_file):
     contract = getattr(network, "VALIDATION", None) or getattr(
         network, "VALIDATION_CASES", None
@@ -202,7 +229,7 @@ def build_file(
         work = (
             Path(work_dir)
             if work_dir
-            else cache.joinpath("work", name, region or "")
+            else cache.joinpath(".work", name, region or "")
         )
 
         if clean or not resume:
@@ -210,51 +237,14 @@ def build_file(
                 shutil.rmtree(work, ignore_errors=True)
 
         if from_stage:
-            valid_stages = [
-                "stage1",
-                "pass1",
-                "pass2",
-                "pass3",
-                "stage2",
-                "stage3",
-                "stage4",
-            ]
-            if from_stage not in valid_stages:
+            patterns = STAGE_INVALIDATIONS.get(from_stage)
+            if not patterns:
                 raise ValueError(
-                    f"Unknown stage '{from_stage}'. Valid stages: {', '.join(valid_stages)}"
+                    f"Unknown stage '{from_stage}'. Valid: {', '.join(STAGE_INVALIDATIONS)}"
                 )
-            if from_stage in ("stage1", "pass1"):
-                for pattern in (
-                    "*.done",
-                    "*_junctions.bin",
-                    "*_ways.bin",
-                    "nodes",
-                ):
-                    for p in work.rglob(pattern):
-                        p.unlink(missing_ok=True)
-            elif from_stage == "pass2":
-                for marker in (
-                    "pass2.done",
-                    "stage1.done",
-                    "stage2.done",
-                    "stage3.done",
-                ):
-                    for p in work.rglob(marker):
-                        p.unlink(missing_ok=True)
-                for p in work.rglob("nodes"):
+            for pattern in patterns:
+                for p in work.rglob(pattern):
                     p.unlink(missing_ok=True)
-            elif from_stage == "pass3":
-                for marker in ("stage1.done", "stage2.done", "stage3.done"):
-                    for p in work.rglob(marker):
-                        p.unlink(missing_ok=True)
-            elif from_stage == "stage2":
-                for marker in ("stage2.done", "stage3.done"):
-                    for p in work.rglob(marker):
-                        p.unlink(missing_ok=True)
-            elif from_stage == "stage3":
-                for marker in ("stage3.done",):
-                    for p in work.rglob(marker):
-                        p.unlink(missing_ok=True)
 
         work.mkdir(parents=True, exist_ok=True)
         building = work.joinpath(f"{name}.scgraph")
@@ -286,14 +276,9 @@ def build_file(
                     and meta_path.is_file()
                 ):
                     try:
-                        with open(meta_path, "r") as mf:
-                            saved = json.load(mf)
-                        sources.append(saved)
-                        logger.info(
-                            "Using cached source download: %s", source_path
-                        )
+                        sources.append(json.loads(meta_path.read_text()))
                         continue
-                    except Exception:
+                    except (json.JSONDecodeError, OSError):
                         pass
 
                 try:
@@ -333,10 +318,7 @@ def build_file(
                 }
                 sources.append(source_record)
                 try:
-                    tmp_meta = meta_path.with_suffix(".tmp")
-                    with open(tmp_meta, "w") as mf:
-                        json.dump(source_record, mf)
-                    tmp_meta.replace(meta_path)
+                    meta_path.write_text(json.dumps(source_record))
                 except OSError:
                     pass
 
@@ -410,18 +392,10 @@ def build_file(
         except (Exception, KeyboardInterrupt) as error:
             if keep_work or custom_work or isinstance(error, KeyboardInterrupt):
                 logger.info(
-                    "Intermediate files retained in %s for resumption (use --clean to discard)",
-                    work,
+                    "Intermediate files retained in %s for resumption", work
                 )
             else:
-                shutil.rmtree(work, ignore_errors=True)
-                parent = work.parent
-                while parent != cache and parent.exists():
-                    try:
-                        parent.rmdir()
-                        parent = parent.parent
-                    except OSError:
-                        break
+                _clean_work(work, cache)
             if cached and isinstance(error, OSError):
                 error.add_note(
                     f"The cache still holds {name}: build_geograph(..., "
@@ -430,14 +404,7 @@ def build_file(
             raise
         else:
             if not keep_work and not custom_work:
-                shutil.rmtree(work, ignore_errors=True)
-                parent = work.parent
-                while parent != cache and parent.exists():
-                    try:
-                        parent.rmdir()
-                        parent = parent.parent
-                    except OSError:
-                        break
+                _clean_work(work, cache)
     if validate:
         _validate_pipeline(network, name, region, cached_file)
     return str(cached_file)
