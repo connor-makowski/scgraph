@@ -138,7 +138,7 @@ void GraphUtils::ensure_inverse_graph() {
     if (inverse_graph_computed) return;
     // Counting sort of the arcs by head: each inverse row lists its origins in
     // increasing order
-    const Adjacency& g = graph();
+    const CsrGraph& g = graph();
     const int n = g.size();
     std::vector<int32_t> offsets(n + 1, 0);
     for (int origin_id = 0; origin_id < n; ++origin_id) {
@@ -162,7 +162,7 @@ void GraphUtils::ensure_inverse_graph() {
             }
         }
     }
-    inverse_graph = Adjacency(std::move(offsets), std::move(heads), std::move(weights));
+    inverse_graph = CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
     inverse_graph_computed = true;
 }
 
@@ -180,7 +180,7 @@ double GraphUtils::get_max_edge_weight() const {
 
 bool GraphUtils::connected_check(int origin_id) {
     ensure_inverse_graph();
-    const Adjacency& graph = this->graph();
+    const CsrGraph& graph = this->graph();
 
     // Forward traversal
     std::vector<int> visited(graph.size(), 0);
@@ -217,7 +217,7 @@ bool GraphUtils::connected_check(int origin_id) {
 }
 
 bool GraphUtils::symmetric_check() const {
-    const Adjacency& graph = this->graph();
+    const CsrGraph& graph = this->graph();
     for (size_t origin_id = 0; origin_id < graph.size(); ++origin_id) {
         for (const auto& [dest_id, distance] : graph[origin_id]) {
             bool found = false;
@@ -235,7 +235,7 @@ bool GraphUtils::symmetric_check() const {
 }
 
 void GraphUtils::validate(bool check_symmetry, bool check_connected) {
-    const Adjacency& graph = this->graph();
+    const CsrGraph& graph = this->graph();
     size_t len_graph = graph.size();
     if (len_graph == 0) {
         throw std::invalid_argument("The provided graph must contain at least one node");

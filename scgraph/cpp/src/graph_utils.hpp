@@ -7,7 +7,7 @@
 #include <optional>
 #include <functional>
 #include <stdexcept>
-#include "adjacency.hpp"
+#include "csr_graph.hpp"
 
 struct PathNotFoundException : public std::runtime_error {
     using std::runtime_error::runtime_error;
@@ -42,21 +42,23 @@ bool origin_id_contains(const NodeIdVariant& origin_id, int node_id);
 
 class GraphUtils {
 private:
-    // The arcs, read through graph(). Edits change copies of the rows they touch, and the
-    // next read packs them into new arrays, so that a series of edits costs one packing.
-    // graph() const writes this state: safe because the bindings never release the GIL
-    mutable Adjacency packed_graph;
+    // CSR graph storage and Copy-on-Write edit buffer.
+    // - packed_graph: contiguous CSR arrays
+    // - edits: pending row modifications
+    // Dynamic updates write into `edits`; graph() packs them on subsequent read queries.
+    // Note: graph() const mutates this cache; safe because Python bindings hold the GIL.
+    mutable CsrGraph packed_graph;
     mutable RowEdits edits;
 
 protected:
-    const Adjacency& graph() const {
-        if (edits.count >= 0) {
+    const CsrGraph& graph() const {
+        if (edits.has_edits()) {
             packed_graph = edits.apply(packed_graph);
             edits = RowEdits();
         }
         return packed_graph;
     }
-    void set_graph(Adjacency arcs) {
+    void set_graph(CsrGraph arcs) {
         packed_graph = std::move(arcs);
         edits = RowEdits();
     }
@@ -67,7 +69,7 @@ protected:
         return EditableRows(packed_graph, edits);
     }
     // Inverse graph (lazily computed)
-    Adjacency inverse_graph;
+    CsrGraph inverse_graph;
     bool inverse_graph_computed = false;
     // Cached trees by origin: only computed trees take memory
     std::unordered_map<int, TreeData> cache;
@@ -100,10 +102,10 @@ public:
     // Access
     const std::unordered_map<int, double> get(int idx) const;
     // The number of nodes, without packing pending edits
-    int size() const { return edits.count >= 0 ? edits.count : packed_graph.size(); }
+    int size() const { return edits.has_edits() ? edits.node_count : packed_graph.size(); }
     const std::vector<std::unordered_map<int, double>> get_graph() const;
     // The arcs by origin, pending edits packed
-    const Adjacency& arcs() const { return graph(); }
+    const CsrGraph& arcs() const { return graph(); }
     std::vector<std::unordered_map<int, double>> get_inverse_graph();
     const std::unordered_map<int, TreeData>& get_cache() const { return cache; }
     void set_cache(std::unordered_map<int, TreeData> new_cache) { cache = std::move(new_cache); }

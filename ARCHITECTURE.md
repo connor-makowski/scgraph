@@ -63,16 +63,50 @@ The `pipelines/` package builds reference transportation networks from authorita
 
 ### In-Memory Graph Representation
 
-A graph is represented as an adjacency list of dictionaries:
+To combine developer ergonomics in Python with high-performance routing in C++, `scgraph` uses a **dual-layer data model**: a straightforward adjacency list in Python, backed by a compact Compressed Sparse Row (CSR) engine in C++.
+
+#### 1. Conceptual View (Python Adjacency List)
+
+In Python, a graph is represented as a list of dictionaries where each index corresponds to a source node ID:
 
 ```python
-graph[u] = {v: weight, ...}
+# graph[source_node] = {target_node: edge_weight, ...}
+graph = [
+    {1: 4.5, 2: 7.2},  # Node 0 connects to Node 1 (dist: 4.5) and Node 2 (dist: 7.2)
+    {2: 2.1},          # Node 1 connects to Node 2 (dist: 2.1)
+    {0: 7.2},          # Node 2 connects to Node 0 (dist: 7.2)
+    {},                # Node 3 has no outgoing edges (dead-end or isolated node)
+]
 ```
 
-* **Directed Edges**: Every edge is directed. A bidirectional road is represented as two opposite directed arcs: `graph[u][v]` and `graph[v][u]`.
-* **Zero-Degree Nodes**: Every node from `0` to `n - 1` has an entry in `graph`, even if it has no outgoing edges (`graph[u] = {}`).
-* **Inverse Graph**: Backward searches use the reverse adjacency structure `inverse_graph[v] = {u: weight}`, constructed on demand.
-* **C++ Backend CSR Storage**: The C++ extension stores edges internally in Compressed Sparse Row (CSR) arrays (`offsets`, `heads`, `weights`). Edits are buffered, and arrays are repacked before the next search.
+* **Directed Arcs**: Every connection is strictly directional. A two-way road between `A` and `B` is stored as two distinct opposite arcs: `graph[A][B] = w` and `graph[B][A] = w`.
+* **Dense Node Numbering**: Nodes are identified by consecutive integers from `0` to `n - 1`. Every node has an entry in `graph`, even if it has no outgoing connections (`graph[u] = {}`).
+* **Reverse Graph (`inverse_graph`)**: Bidirectional searches need to explore backward from the destination. The reverse structure `inverse_graph[v] = {u: weight}` is built lazily on demand when first queried.
+* **Search View (`graph` vs `search_graph`)**:
+  * `graph`: Always references the original, full-resolution network.
+  * `search_graph`: The active structure traversed by search algorithms. When `graph.reduce()` is called to collapse long pass-through chains into shortcuts, `search_graph` switches to the compacted graph, while `graph` stays intact.
+
+#### 2. High-Performance Engine (C++ Compressed Sparse Row / CSR)
+
+While Python dictionaries are flexible, allocating millions of small hash tables consumes excessive memory and degrades CPU cache locality on large networks.
+
+In the C++ extension, [`CsrGraph`](file:///home/rsoulign/scgraph/scgraph/cpp/src/csr_graph.hpp) packs the entire topology into **three contiguous memory arrays**:
+
+```
+Node IDs:      0         1      2   3
+Offsets:     [ 0,        2,     3,  4,  4 ]  (length: n + 1)
+               │         │      │   │   │
+               └──┬───┘  └──┬─┘ └─┬─┘ └─┴─ (Node 3 has 0 edges: 4 - 4 = 0)
+                  ▼         ▼     ▼
+Heads:       [ 1,   2,     2,     0   ]      (length: m = total arcs)
+Weights:     [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total arcs)
+```
+
+* **How Edge Traversal Works**: To iterate over the outgoing arcs of node `u`, the engine reads `heads_[i]` and `weights_[i]` for indices $i \in [\text{offsets\_}[u], \text{offsets\_}[u + 1][$.
+* **Zero-Copy Memory Mapping (`mmap`)**: When opening a `.scgraph` binary network file, `CsrGraph` directly references the mapped memory on disk without allocating or copying vectors.
+* **Copy-on-Write Dynamic Updates**:
+  * Because CSR arrays are immutable, dynamic edits (`add_node`, `add_edge`, `remove_edge`) are staged in a temporary hash map (`RowEdits`).
+  * The next time a search query runs, all changes and untouched rows are repacked in a single pass into a fresh, contiguous `CsrGraph`.
 
 ### Geographic Attributes (`GeoGraph`)
 

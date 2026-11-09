@@ -15,7 +15,6 @@ from scgraph.helpers.hilbert import hilbert_order
 from scgraph import network_file
 import hashlib, importlib, json, logging, os, re, requests, secrets, shutil
 import types
-import warnings
 from array import array
 from collections import Counter
 from math import isfinite
@@ -2897,6 +2896,8 @@ class GeoGraph(
         # keeps the index of the networks before the merge while it connects them); direct
         # edits of nodes are not detected
         if self.__snap_index__ is None:
+            if self.__geokdtree__ is not None:
+                return self.__geokdtree__
             nodes = self.nodes
             try:
                 self.__snap_index__ = (
@@ -2927,15 +2928,10 @@ class GeoGraph(
     @property
     def geokdtree(self):
         """
-        Deprecated: a `geokdtree.GeoKDTree` of the nodes. GeoGraph snaps with `snap_index`,
-        which has the same `closest_idx` and `closest_idx_per_quadrant` methods.
+        A `geokdtree.GeoKDTree` of the nodes.
+        Interchangeable with `snap_index`, sharing the same `closest_idx` and
+        `closest_idx_per_quadrant` methods.
         """
-        warnings.warn(
-            "GeoGraph.geokdtree is deprecated: GeoGraph snaps with snap_index, which has "
-            "the same closest_idx and closest_idx_per_quadrant methods",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         if self.__geokdtree__ is None:
             from geokdtree import GeoKDTree
 
@@ -2944,10 +2940,8 @@ class GeoGraph(
 
     @geokdtree.setter
     def geokdtree(self, geokdtree) -> None:
-        # Setting it to None asked for a rebuild after editing the nodes: drop the index too
-        if geokdtree is None:
-            self.snap_index = None
         self.__geokdtree__ = geokdtree
+        self.snap_index = geokdtree
 
     def __get_node_radians__(self) -> tuple[array, array]:
         # Also rebuilt when nodes were appended or removed directly; in-place edits of

@@ -46,12 +46,12 @@ scgraph/
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
-    src/                         # C++ source: adjacency, graph, graph_utils, graph_reducer, contraction_hierarchies,
+    src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
     │                            #   transit_node_routing, snap_index, bmssp (template header); pipelines/assembly.hpp, landmask.hpp
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
       pipelines_bindings.cpp     # Bindings of the pipelines' kernels (no fused multiply-add, as their Python twins)
-      array_types.hpp            # Array types shared by the binding units
+      ndarray_types.hpp          # nanobind ndarray types shared across binding units
 test/
   NN_module_feature_test.py      # 40+ numbered test files; named *_test.py
   conftest.py                    # pytest session fixtures for shared geographs
@@ -115,7 +115,7 @@ For how scgraph works inside (query, graph reduction, plugging in an algorithm, 
 
 **`GeoGraph` / `LazyGeoGraph`** (`geograph.py`) — geographic routing:
 - Combines `Graph` with lat/lon node coordinates
-- Snaps arbitrary coordinates to the network with its own snapping index (`snap_index`; C++ `cpp/src/snap_index.cpp`, Python `helpers/snap_index.py`); `geokdtree` only backs the deprecated `geokdtree` attribute
+- Snaps arbitrary coordinates to the network with its own snapping index (`snap_index`; C++ `cpp/src/snap_index.cpp`, Python `helpers/snap_index.py`) or `geokdtree` (interchangeable spatial index attribute)
 - Manages caching of shortest path trees and downloaded built-in networks
 - Lazy loading via `LazyGeoGraph` proxy (`lazy=True`) to defer downloads/instantiation until first use
 - Configurable reduction upon loading (`reduce_iterations=0` by default, `1` or `-1` for reduction)

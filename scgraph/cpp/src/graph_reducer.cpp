@@ -24,7 +24,7 @@ void GraphReducer::reduce(int iterations) {
         return;
     }
     this->ensure_inverse_graph();
-    const Adjacency& graph = this->graph();
+    const CsrGraph& graph = this->graph();
 
     size_t n = graph.size();
     is_reduced.assign(n, false);
@@ -339,8 +339,8 @@ void GraphReducer::reduce(int iterations) {
         }
     }
 
-    this->reduced_graph = Adjacency(reduced_graph);
-    this->reduced_inverse_graph = Adjacency(reduced_inverse_graph);
+    this->reduced_graph = CsrGraph(reduced_graph);
+    this->reduced_inverse_graph = CsrGraph(reduced_inverse_graph);
     has_reduced_graph = true;
     for (double weight : this->reduced_graph.all_weights()) {
         if (weight > reduced_max_edge_weight) {

@@ -36,7 +36,7 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
             weights.push_back(weight);
         }
     }
-    this->set_graph(Adjacency(std::move(offsets), std::move(heads), std::move(weights)));
+    this->set_graph(CsrGraph(std::move(offsets), std::move(heads), std::move(weights)));
     this->reset_cache();
     if (validate) {
         this->validate();
@@ -64,9 +64,9 @@ void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double*
         }
     }
     if (owner) {
-        this->set_graph(Adjacency(std::move(owner), offsets, heads, weights, n, m));
+        this->set_graph(CsrGraph(std::move(owner), offsets, heads, weights, n, m));
     } else {
-        this->set_graph(Adjacency(std::vector<int32_t>(offsets, offsets + n + 1),
+        this->set_graph(CsrGraph(std::vector<int32_t>(offsets, offsets + n + 1),
                                   std::vector<int32_t>(heads, heads + m),
                                   std::vector<double>(weights, weights + m)));
     }
@@ -86,7 +86,7 @@ void Graph::reset_cache() {
 // 8 times the median edge weight of the searched graph (1 if that median is 0), and never so
 // small that a bucket ring would exceed 2^16 + 1 buckets. Same rule as
 // GraphUtils.__get_bucket_width__ in graph_utils.py
-double Graph::resolve_bucket_width(const Adjacency& g,
+double Graph::resolve_bucket_width(const CsrGraph& g,
                                    std::optional<double> bucket_width, double max_weight) {
     double width;
     if (bucket_width.has_value()) {
@@ -240,7 +240,7 @@ TreeData Graph::get_shortest_path_tree(const NodeIdVariant& origin_id) {
     return shortest_path_tree(this->graph(), origin_id);
 }
 
-TreeData Graph::shortest_path_tree(const Adjacency& g,
+TreeData Graph::shortest_path_tree(const CsrGraph& g,
                                    const NodeIdVariant& origin_id) const {
     auto origin_entries = get_node_entries(origin_id);
 
@@ -370,7 +370,7 @@ thread_local std::vector<std::pair<double, int>> tl_bidir_backward_open;
 GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id) {
     input_check(origin_id, destination_id);
 
-    auto run_dijkstra = [this](const Adjacency& g,
+    auto run_dijkstra = [this](const CsrGraph& g,
                                const NodeIdVariant& orig,
                                const NodeIdVariant& dest) -> GraphResult {
         auto origin_entries = get_node_entries(orig);
@@ -472,7 +472,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
     input_check(origin_id, destination_id);
 
     auto run_bidir = [this](
-        const Adjacency& fwd_g,
+        const CsrGraph& fwd_g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
     ) -> GraphResult {
@@ -633,7 +633,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
     input_check(origin_id, destination_id);
 
     auto run_buckets = [this, max_edge_weight, bucket_width](
-        const Adjacency& g,
+        const CsrGraph& g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
     ) -> GraphResult {
@@ -746,7 +746,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
     input_check(origin_id, destination_id);
 
     auto run_bidir_buckets = [this, max_edge_weight, bucket_width](
-        const Adjacency& fwd_g,
+        const CsrGraph& fwd_g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
     ) -> GraphResult {
@@ -954,7 +954,7 @@ GraphResult Graph::dijkstra_negative(const NodeIdVariant& origin_id, const NodeI
     input_check(origin_id, destination_id);
 
     auto run_negative = [this, cycle_check_iterations](
-        const Adjacency& g,
+        const CsrGraph& g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
     ) -> GraphResult {
@@ -1032,7 +1032,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
     input_check(origin_id, destination_id);
 
     auto run_astar = [this, heuristic_fn](
-        const Adjacency& g,
+        const CsrGraph& g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
     ) -> GraphResult {
@@ -1149,7 +1149,7 @@ GraphResult Graph::bellman_ford(const NodeIdVariant& origin_id, const NodeIdVari
     input_check(origin_id, destination_id);
 
     auto run_bf = [this](
-        const Adjacency& g,
+        const CsrGraph& g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
     ) -> GraphResult {
@@ -1218,7 +1218,7 @@ GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& de
     input_check(origin_id, destination_id);
 
     auto run_bmssp = [](
-        const Adjacency& g,
+        const CsrGraph& g,
         const NodeIdVariant& orig,
         const NodeIdVariant& dest
     ) -> GraphResult {
@@ -1328,7 +1328,7 @@ GraphResult Graph::cached_shortest_path(const NodeIdVariant& origin_id, const No
     if (is_single_origin) {
         // After reduce(), the tree is built on the reduced graph, as the other searches
         auto run_cached = [this, orig, length_only, &origin_id, &destination_id](
-                              const Adjacency& g,
+                              const CsrGraph& g,
                               const NodeIdVariant& orig_v,
                               const NodeIdVariant& dest) -> GraphResult {
             if (has_reduced_graph && is_same_chain(origin_id, destination_id)) {
