@@ -1,0 +1,21 @@
+id,origin_lat,origin_lon,destination_lat,destination_lon,reference,source,tolerance,tolerance_reason,wpi_number,country,waterway
+rotterdam,51.9,4.483333,52.00,3.90,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,31140,NL,Nieuwe Maas (Rhine delta)
+antwerpen,51.216667,4.4,51.45,3.30,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,31250,BE,Scheldt
+hamburg,53.55,9.933333,54.00,8.30,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,30780,DE,Elbe
+bremen,53.133333,8.766667,53.90,8.10,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,30900,DE,Weser
+sevilla,37.366667,-6.0,36.70,-6.50,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,38270,ES,Guadalquivir
+galati,45.416667,28.083333,45.00,29.90,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,43600,RO,Danube
+montreal,45.516667,-73.55,49.50,-66.00,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,2235,CA,St Lawrence
+chicago,41.883333,-87.6,49.50,-66.00,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,4800,US,Great Lakes / St Lawrence Seaway
+duluth,46.766667,-92.1,49.50,-66.00,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,5460,US,Lake Superior / St Lawrence Seaway
+new_orleans,29.95,-90.05,28.90,-89.20,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,8860,US,Mississippi
+baton_rouge,30.45,-91.183333,28.90,-89.20,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,8970,US,Mississippi
+houston,29.75,-95.283333,29.20,-94.60,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,9240,US,Houston Ship Channel
+portland,45.516667,-122.666667,46.25,-124.30,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,16940,US,Columbia / Willamette
+albany,42.65,-73.75,40.40,-73.80,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,7720,US,Hudson
+rosario,-32.95,-60.633333,-35.20,-56.50,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,13630,AR,Parana
+manaus,-3.133333,-60.016667,0.50,-48.00,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,12560,BR,Amazon
+nanjing,32.083333,118.75,31.20,122.50,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,60000,CN,Yangtze
+guangzhou,23.116667,113.233333,22.10,113.80,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,57830,CN,Pearl River
+calcutta,22.55,88.333333,21.30,88.20,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,49560,IN,Hooghly
+bangkok,13.75,100.5,13.20,100.60,,"port: NGA World Port Index (Pub. 150, UpdatedPub150.csv SHA-256 315644f1); offshore point: chosen at the waterway mouth (S30)",,,57450,TH,Chao Phraya

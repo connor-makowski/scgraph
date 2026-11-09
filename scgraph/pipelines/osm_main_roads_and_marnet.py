@@ -1,7 +1,7 @@
 """Main roads of an OpenStreetMap extract from Geofabrik joined to the sea lanes of
 `eurostat_marnet` at the ports of the World Port Index, for example `region="europe/denmark"`.
 
-- A distance is in km along the network: main roads and vehicle ferries (directed, as
+- A distance is in km along the network: main roads and car ferries (directed, as
   `osm_main_roads`), sea lanes (undirected, as `eurostat_marnet`) and the two connectors
   of each joined port. There are no times, and changing mode at a port costs nothing.
 - A port with a position joins when it has both connectors; the others stay out rather
@@ -69,9 +69,18 @@ MODES = [
 download = osm.download  # for every source: checks osmium first
 
 
-def build(files):
+def build(
+    files,
+    *,
+    source=osm.open_osm_source,
+    max_km=osm.MAX_KM,
+    min_nodes=None,
+    folder=None,
+):
+    """The keywords give another scale (`world_main_roads_and_marnet`);
+    `min_nodes=None` keeps the largest component only."""
     pieces, steps = osm.build_way_pieces(
-        files["roads"], SELECTS, ("highway", "route"), osm.MAX_KM
+        source(files["roads"]), SELECTS, ("highway", "route"), max_km, folder
     )
     graph = assembly.build_graph_from_pieces(pieces)
     sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
@@ -89,9 +98,9 @@ def build(files):
     )
     wpi = ports.world_port_index(files["ports"])
     wpi = [p for p in wpi if mask.cell(*p[:2]) is not None]
-    graph, joined = ports.join(graph, sea, wpi, mask)
+    graph, joined = ports.join(graph, sea, wpi, mask, folder)
     steps.append({"step": "ports", "joined": joined})
     arrays, assembled = assembly.assemble(
-        graph, max_km=osm.MAX_KM, min_nodes=None
+        graph, max_km=max_km, min_nodes=min_nodes
     )
     return (arrays, MODES), steps + assembled

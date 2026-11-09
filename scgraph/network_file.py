@@ -17,6 +17,7 @@ import os
 import secrets
 import sys
 from array import array
+from bisect import bisect_left
 from collections.abc import MutableSequence, Sequence
 from itertools import islice
 from operator import eq, index, le
@@ -148,14 +149,25 @@ def header_metadata(
 
 
 def write(filename, arrays, metadata):
-    """Write the arrays of a graph (by name, as stored: see `ARRAYS`; `shape_points`
-    flat, two per point, in the dtype of the latitudes and longitudes, see `coordinates`;
-    any objects with the buffer protocol, not
-    copied on little-endian machines) and a JSON-serializable metadata dict. Bytes 8 to
-    39 hold the SHA-256 of every byte after them, the identity of the file, returned as
-    hex (`content_sha256`). Rows hold each head once.
+    """Serialize graph arrays and metadata into a binary `.scgraph` network file.
+
+    Parameters:
+        filename (str): Target destination path for the `.scgraph` file.
+        arrays (dict[str, array]): Dictionary mapping array names to binary arrays
+            (e.g., `offsets`, `heads`, `weights`, `latitudes`, `longitudes`, etc.).
+            See `ARRAYS` for valid keys and dtypes.
+        metadata (dict): JSON-serializable dictionary of network metadata (modes,
+            sources, attributions, etc.).
+
+    Returns:
+        str: Hex-encoded SHA-256 digest of the file content (`content_sha256`).
+
+    Raises:
+        TypeError: If an array contains values incompatible with its required dtype.
+        PermissionError: If the destination file cannot be replaced on Windows
+            because an active memory-map handle is holding it.
     """
-    symmetric = _symmetric(
+    symmetric = _is_symmetric(
         arrays["offsets"], arrays["heads"], arrays["weights"]
     )
 
@@ -232,20 +244,30 @@ def write(filename, arrays, metadata):
     return content.hexdigest()
 
 
-def read(filename, mapped=False):
-    """Return the arrays (by name) and the metadata of a network file, after checking that
-    they describe a valid graph; a damaged or foreign file raises a ValueError. The
-    metadata also holds the file's `content_sha256` (its bytes 8 to 39, as hex).
+def read(filename, mapped=False, modes=None):
+    """Read graph arrays and metadata from a `.scgraph` network file.
 
-    With `mapped=True` (on little-endian machines), the file is mapped read-only and the
-    arrays are memoryviews of it, not copies: the file stays mapped while they are
-    referenced. Offsets and heads are then left to the reader to check (the C++
-    `Graph.from_csr` does), so that opening does not read every arc.
+    Parameters:
+        filename (str): Path of the binary `.scgraph` file to read.
+        mapped (bool): When True on little-endian platforms, returns memory-mapped
+            views instead of copying arrays into RAM. Defaults to False.
+        modes (str | list[str] | None): Optional mode filter selecting specific
+            modal subnetworks.
+
+    Returns:
+        tuple[dict[str, array | memoryview], dict]:
+            A 2-tuple containing:
+            - `arrays`: Dictionary of graph arrays (`offsets`, `heads`, `weights`, etc.).
+            - `metadata`: JSON metadata dictionary including `content_sha256`.
+
+    Raises:
+        ValueError: If file headers, checksum, or array contents are corrupted.
+        FileNotFoundError: If the file does not exist.
     """
-    mapped = mapped and sys.byteorder == "little"
+    mapped = mapped and sys.byteorder == "little" and modes is None
     try:
         with open(filename, "rb") as file:
-            arrays, metadata = _read(filename, file, mapped)
+            arrays, metadata = _read(filename, file, mapped, modes)
     except ValueError:
         raise
     except (AttributeError, KeyError, OverflowError, TypeError) as error:
@@ -255,9 +277,18 @@ def read(filename, mapped=False):
 
 
 def get_scgraph_info(filename):
-    """What a network file holds, without reading its arrays: its metadata,
-    `content_sha256`, `format_version`, `nodes`, `arcs`, `coordinate_dtype`, `shapes` and
-    `node_ids`. A damaged or foreign file raises a ValueError."""
+    """Extract metadata and high-level structure of a `.scgraph` file without loading arrays.
+
+    Parameters:
+        filename (str): Path of the binary `.scgraph` file.
+
+    Returns:
+        dict: Summary dictionary containing `metadata`, `content_sha256`, `format_version`,
+            `nodes`, `arcs`, `coordinate_dtype`, `shapes`, and `node_ids`.
+
+    Raises:
+        ValueError: If the file header is corrupted or unreadable.
+    """
     arrays, metadata = read(filename, mapped=True)
     return {
         **metadata,
@@ -270,11 +301,7 @@ def get_scgraph_info(filename):
     }
 
 
-info = get_scgraph_info
-scgraph_info = get_scgraph_info
-
-
-def _read(filename, file, mapped):
+def _read(filename, file, mapped, modes):
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
     digest = file.read(32)
@@ -291,7 +318,7 @@ def _read(filename, file, mapped):
         )
     if mapped:
         view = memoryview(mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ))
-    arrays = {}
+    arrays, entries = {}, {}
     for name, entry in header["arrays"].items():
         if name not in ARRAYS:
             continue  # added by a later version, not needed to read the graph
@@ -313,12 +340,89 @@ def _read(filename, file, mapped):
             end = start + count * values.itemsize
             arrays[name] = view[start:end].cast(typecode)
             continue
+        entries[name] = typecode, start, count
+        if modes is not None:
+            continue  # only the selection is read, below
         file.seek(start)
         values.fromfile(file, count)
         arrays[name] = _little_endian(values)
+    if modes is not None:
+        arrays = _select(filename, file, entries, header["metadata"], modes)
     metadata = dict(header["metadata"])
     metadata["content_sha256"] = digest.hex()
     return arrays, metadata
+
+
+def _select(filename, file, entries, metadata, modes):
+    # node_modes is sorted (scgraph writes it so): each mode found by bisection
+    def piece(name, first, last):
+        typecode, start, count = entries[name]
+        if not 0 <= first <= last <= count:
+            raise ValueError(f"{filename}: invalid array '{name}'")
+        values = array(typecode)
+        file.seek(start + first * values.itemsize)
+        values.fromfile(file, last - first)
+        return _little_endian(values)
+
+    modes = (modes,) if isinstance(modes, str) else modes
+    rows = [row["name"] for row in metadata.get("modes") or [{"name": None}]]
+    unknown = [mode for mode in modes if mode not in rows]
+    if unknown:
+        raise ValueError(f"{filename}: unknown modes {unknown}")
+    n = entries["offsets"][2] - 1
+    for name in ("latitudes", "longitudes", "node_ids", "node_modes"):
+        if name in entries and entries[name][2] != n:
+            raise ValueError(f"{filename}: one {name} value per node expected")
+    # Without node_modes, every node is in the first mode
+    column = bytes(max(n, 0))
+    if "node_modes" in entries:
+        column = piece("node_modes", 0, n)
+        if not _is_sorted(column) or max(column, default=0) >= len(rows):
+            raise ValueError(f"{filename}: unsorted or unknown node modes")
+    starts = [bisect_left(column, row) for row in range(len(rows) + 1)]
+    shift, count = {}, 0  # new position - old position, by mode row read
+    for row, name in enumerate(rows):
+        if name in modes:
+            shift[row] = count - starts[row]
+            count += starts[row + 1] - starts[row]
+    result = {name: array(entries[name][0]) for name in entries}
+    result["offsets"].append(0)
+    if "shape_offsets" in entries:
+        result["shape_offsets"].append(0)
+    for row in shift:
+        first, last = starts[row], starts[row + 1]
+        for name in ("latitudes", "longitudes", "node_ids"):
+            if name in entries:
+                result[name] += piece(name, first, last)
+        if "node_ids" not in entries:  # a node's id is its position in the file
+            result.setdefault("node_ids", array("q")).extend(range(first, last))
+        if "node_modes" in entries:
+            result["node_modes"] += column[first:last]
+        offsets = piece("offsets", first, last + 1)
+        if not _is_sorted(offsets):
+            raise ValueError(f"{filename}: invalid offsets")
+        base, end, total = offsets[0], offsets[-1], len(result["heads"])
+        heads, weights = piece("heads", base, end), piece("weights", base, end)
+        if heads and not (min(heads) >= 0 and max(heads) < n):
+            raise ValueError(f"{filename}: arc to a missing node")
+        kept = array(
+            "i", (a for a, head in enumerate(heads) if column[head] in shift)
+        )
+        result["offsets"].extend(
+            total + bisect_left(kept, o - base) for o in offsets[1:]
+        )
+        result["heads"].extend(heads[a] + shift[column[heads[a]]] for a in kept)
+        result["weights"].extend(weights[a] for a in kept)
+        if "shape_offsets" in entries:
+            bounds = piece("shape_offsets", base, end + 1)
+            if not _is_sorted(bounds):
+                raise ValueError(f"{filename}: invalid shape offsets")
+            skip, points = 2 * bounds[0], result["shape_points"]
+            shape = piece("shape_points", skip, 2 * bounds[-1])
+            for a in kept:
+                points += shape[2 * bounds[a] - skip : 2 * bounds[a + 1] - skip]
+                result["shape_offsets"].append(len(points) // 2)
+    return result
 
 
 class ArcShapes(Sequence):
@@ -616,9 +720,7 @@ def _check(filename, arrays, metadata, arcs=True):
     require(len(arrays["weights"]) == m, "one weight per arc expected")
     if arcs:
         # The loops over the arcs run in C (map, min, max), not in Python
-        require(
-            all(map(le, offsets, islice(offsets, 1, None))), "invalid offsets"
-        )
+        require(_is_sorted(offsets), "invalid offsets")
         require(
             not m or (min(heads) >= 0 and max(heads) < n),
             "arc to a missing node",
@@ -648,7 +750,7 @@ def _check(filename, arrays, metadata, arcs=True):
         )
         # Mapped, each shape's offsets are checked where it is read (ArcShapes)
         require(
-            not arcs or all(map(le, shapes, islice(shapes, 1, None))),
+            not arcs or _is_sorted(shapes),
             "invalid shape offsets",
         )
     for name, what in (("node_ids", "node id"), ("node_modes", "node mode")):
@@ -666,7 +768,11 @@ def _check(filename, arrays, metadata, arcs=True):
         )
 
 
-def _symmetric(offsets, heads, weights):
+def _is_sorted(values):
+    return all(map(le, values, islice(values, 1, None)))  # in C, not in Python
+
+
+def _is_symmetric(offsets, heads, weights):
     # Whether every arc has a reverse arc of the same weight. Arc u -> v is looked up in
     # v's row only if v has at most u's degree, so that no hub's row is read once per arc;
     # an arc to a node of higher degree is counted instead: their number must equal that

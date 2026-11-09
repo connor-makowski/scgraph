@@ -7,39 +7,51 @@ A pipeline is a module with four names:
 - `SOURCES`: name -> each source to download: its `url` (`{region}` in it is replaced by
   the `region` argument of `build_geograph`), the `credit` to cite with results, and its
   `license` (SPDX identifier, `LicenseRef-…` when SPDX has none, `NOASSERTION` when it could
-  not be established) with the `license_url` where it is stated, and for a pinned source
-  its `version` (a tag or a date)
+  not be established) with the `license_url` where it is stated, for a pinned source its
+  `version` (a tag or a date), and optionally its own `download(url, filename)`, used for
+  that source only: it writes to `filename` what `build` reads (the file, or how to read
+  it in place, never stored), and the record it returns says what identifies the source
+  in place of the file's `sha256` and `bytes`
 - `PIPELINE_VERSION`: an integer, raised when the same sources would give a different
   graph; a refactoring that leaves the graph unchanged does not raise it; it is never lowered
   once released. A network that reuses others adds their versions; a cached network built
   with another `PIPELINE_VERSION` is built again
-- `build(files)`: given name -> downloaded file, returns the GeoGraph, or `(GeoGraph,
-  steps)` where `steps` lists what each step did, `{"step": name, <count>: int, ...}`
-  (a network that reuses others concatenates their steps)
-- `download(url, filename)`, optional: how to download a source (default: `download_file`);
+- `build(files)`: given name -> downloaded file, returns a GeoGraph, `(GeoGraph,
+  steps)` or `((arrays, modes), steps)`, `steps` listing what each step did,
+  `{"step": name, <count>: int, ...}` (a network that reuses others concatenates their
+  steps). The GeoJSON and ArcGIS pipelines return a GeoGraph; the OSM pipelines the
+  network file's arrays as `network_file.write` takes them, nodes already in scgraph's
+  order (`helpers.hilbert`, within each mode), and the `modes` table, `[{"name": None}]`
+  for one mode (`assembly.assemble`), written with units km and the GeoGraph's default
+  circuities. `build_geograph` writes either and returns the GeoGraph it reads back from
+  the file: to look at a pipeline's network, build it with
+  `GeoGraph.build_geograph(module, region=...)`
+- `download(url, filename)`, optional: how to download the sources without their own
+  (default: `download_file`);
   it may return a dict added to the source's record, such as the `version` of its data
   (`osm.download`: the time an OSM extract is up to; `arcgis.download`: a layer's last edit)
 
 The first paragraph of the module docstring describes the network (shown by
 `GeoGraph.list_buildable_geographs`). Functions that `build` passes on, such as a `select`
-of ways or the `road_connector` of a port, are conventions inside `build`, not part of the
-contract. Steps pass a graph as the tuple `graph, nodes, shapes, node_ids`, the GeoGraph
-layout.
+of ways or the road connector of a port, are conventions inside `build`, not part of the
+contract. From `assembly.build_graph_from_pieces` on, the OSM steps pass a graph as the network
+file's arrays; `read_osm` and `keep_largest_strongly_connected_component` keep the GeoGraph layout for
+`load_from_osm`.
 
 The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 
-- `stage1_extract`: data extraction and ingestion (`osm.py`, `arcgis.py`)
-- a region, in memory: `osm.read_osm` (`osm.locate_ways` -> `polylines_to_graph`, from
-  `scgraph.helpers.polylines`, also used by `load_from_geojson`) ->
-  `assembly.keep_largest_strongly_connected_component`
-- the planet, streamed: `osm.locate_ways` (every kind of way in one read) ->
-  `cut_polylines` (`scgraph.helpers.polylines`) -> `build_csr_from_arcs` ->
-  `strongly_connected_components` -> `contract_chains` (with the cut's `max_km`) ->
-  `simplify_shapes` (`assembly`, C++ when built)
-- ferries, in `osm_main_roads`: `vehicle_ferries` -> `ferry_arcs`, attached to the roads
-- joining modes, in `osm_main_roads_and_marnet`: `landmask.LandMask.from_natural_earth`,
-  then `road_connector` and `sea_connector` for each port (`LandMask.water_path`, kernel
-  `water_path_cells`, C++ when built)
+- Stage 1 - Ingestion & Extraction (`stage1_extract`):
+  - OpenStreetMap (`osm`): `osm.build_way_pieces` (`locate_ways`, one read for
+    every kind of way; `cut_polylines` at `MAX_KM`; ferries attached to road nodes
+    via `osm.build_ferry_arcs`; drawings simplified at 50 m via `simplify_shapes`).
+  - ArcGIS (`arcgis`): downloads feature layers and extracts polylines.
+- Stage 2 - Intermodal Connectors (`stage2_intermodal`):
+  - Joining modes (`ports.join`): `landmask.LandMask`, `ports.road_connector`,
+    `ports.sea_connector`; sea and port nodes on indices, with their modes.
+- Stage 3 - Graph Assembly & Contraction (`stage3_assembly`):
+  - Assembly (`assembly`): `assembly.build_graph_from_pieces` ->
+    `assembly.assemble` (`keep_strongly_connected_components` -> `contract_chains`
+    at `MAX_KM`, never across two modes -> `build_chain_shapes` -> Hilbert order).
 
 `build_geograph` writes into the network file's header what built it (`build_metadata`),
 read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
@@ -93,7 +105,7 @@ import requests
 
 from scgraph.utils import has_cpp
 
-logger = logging.getLogger("scgraph.networks")
+logger = logging.getLogger(__name__)
 
 NAMES = (
     "eurostat_marnet",
@@ -104,6 +116,8 @@ NAMES = (
     "osm_main_roads_and_marnet",
     "osm_rail",
     "us_freeway",
+    "world_main_roads",
+    "world_main_roads_and_marnet",
 )
 LARGE_DOWNLOAD = (
     100e6  # bytes; announced with a warning, visible without logging set up

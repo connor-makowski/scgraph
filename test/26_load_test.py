@@ -159,7 +159,9 @@ def test_load_geograph_converts_a_published_geograph_once(
     if case == "read_only":
         return
     # Stored as int32 in 1e-7 degree; the published file is the source of the node ids
-    assert GeoGraph.scgraph_info(str(converted))["coordinate_dtype"] == "int32"
+    assert (
+        GeoGraph.get_scgraph_info(str(converted))["coordinate_dtype"] == "int32"
+    )
     metadata = network_file.read(str(converted))[1]
     assert metadata["modes"] == [{"name": None, "source": "marnet.graphjson"}]
     assert [s["name"] for s in metadata["sources"]] == ["marnet.graphjson"]
@@ -262,7 +264,7 @@ def filled_cache(tmp_path):
 
 
 def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
-    info = GeoGraph.cache_info(str(filled_cache))
+    info = GeoGraph.get_cache_info(str(filled_cache))
     marnet_bytes = (filled_cache / "networks/marnet/m.scgraph").stat().st_size
     assert [
         (i["kind"], i["name"], i["region"], Path(i["file"]).name, i["bytes"])

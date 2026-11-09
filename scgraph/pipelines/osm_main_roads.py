@@ -22,12 +22,21 @@ SELECTS = {"roads": osm.main_roads, "ferries": osm.vehicle_ferries}
 download = osm.download  # checks osmium before downloading a large extract
 
 
-def build(files):
+def build(
+    files,
+    *,
+    source=osm.open_osm_source,
+    max_km=osm.MAX_KM,
+    min_nodes=None,
+    folder=None,
+):
+    """The keywords give another scale (`world_main_roads`); `min_nodes=None` keeps
+    the largest component only."""
     pieces, steps = osm.build_way_pieces(
-        files["roads"], SELECTS, ("highway", "route"), osm.MAX_KM
+        source(files["roads"]), SELECTS, ("highway", "route"), max_km, folder
     )
     graph = assembly.build_graph_from_pieces(pieces)
     arrays, assembled = assembly.assemble(
-        graph, max_km=osm.MAX_KM, min_nodes=None
+        graph, max_km=max_km, min_nodes=min_nodes
     )
     return (arrays, [{"name": None}]), steps + assembled

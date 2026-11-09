@@ -28,6 +28,7 @@ from scgraph.pipelines import (
     osm_main_roads,
     osm_main_roads_and_marnet,
 )
+from scgraph.pipelines import build
 from scgraph.pipelines.steps import assembly, osm
 from scgraph.utils import has_cpp, haversine
 
@@ -471,6 +472,53 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
         GeoGraph.build_geograph(
             "osm_main_roads", region="nowhere", cache_dir=str(tmp_path)
         )
+
+
+# From the command line, a network is built into the cache without being loaded, and
+# the path of its file is printed; build_geograph then loads that file
+def test_build_command_builds_the_file_build_geograph_loads(
+    tmp_path, source, monkeypatch, capsys
+):
+    monkeypatch.setitem(
+        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
+    )
+    build.main(["marnet", "--cache-dir", str(tmp_path)])
+    path = capsys.readouterr().out.strip()
+    folder = tmp_path / "networks" / "marnet"
+    assert path == str(
+        folder / json.loads((folder / "cache.json").read_text())["file"]
+    )
+    geo = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
+    assert _Source.served == ["/lines.geojson"]  # loaded, not built again
+    assert len(geo.nodes) == 4
+
+
+# A source's own download hook is called for that source only, and its record says
+# what identifies the source, in place of the downloaded file's sha256 and size
+def test_build_geograph_calls_the_download_hook_of_a_source(tmp_path):
+    calls = []
+
+    def stream(url, filename):
+        calls.append(url)
+        with open(filename, "wb") as file:
+            file.write(_GEOJSON)
+        return {"bytes": 10**11, "md5": "0" * 32}
+
+    module = types.ModuleType("my_pipelines.streamed")
+    url = "https://planet.example/lines.geojson"
+    module.SOURCES = {
+        "sea_lanes": {
+            **marnet.SOURCES["sea_lanes"],
+            "url": url,
+            "download": stream,
+        }
+    }
+    module.PIPELINE_VERSION, module.build = 1, marnet.build
+    module.download = lambda url, filename: pytest.fail("module's hook called")
+    geo = GeoGraph.build_geograph(module, cache_dir=str(tmp_path))
+    (record,) = geo.metadata["sources"]
+    assert calls == [url] and "sha256" not in record
+    assert (record["bytes"], record["md5"]) == (10**11, "0" * 32)
 
 
 def test_build_geograph_leaves_nothing_after_a_failed_build(

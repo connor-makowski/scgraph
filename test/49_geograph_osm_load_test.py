@@ -1,7 +1,13 @@
+import itertools
+import subprocess
+import sys
+from types import SimpleNamespace
+
 import pytest
 from helpers import great_circle_km
 
 from scgraph import GeoGraph
+from scgraph.pipelines import osm_main_roads, world_main_roads
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.helpers.hilbert import hilbert_order
 
@@ -118,23 +124,11 @@ _BRIDGE = {(5, 6), (6, 5)}  # way 3, two-way
 _FERRY = {(60, 61), (61, 60)}  # way 11, two-way
 
 
-class _Source:
-    """A source that is not a path: it gives what osmium reads, for each pass."""
-
-    def __init__(self, path):
-        self.path = path
-
-    def file(self):
-        return osmium.io.File(self.path)
-
-
 @pytest.mark.parametrize(
     "source, select, tag_keys, expected",
     [
         # one-way streets kept one way (the default)
         (str, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
-        # the same, the file read through a source object instead of its path
-        (_Source, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
         # every kept way both ways
         (
             str,
@@ -215,3 +209,98 @@ def test_load_from_osm_numbers_nodes_along_a_hilbert_curve_with_their_osm_ids(
     assert all(
         _NODES[ref] == tuple(node) for ref, node in zip(geo.node_ids, geo.nodes)
     )
+
+
+# Pass 3 stops when locations come slowly while pages are read back from disk (the node
+# store no longer fits in memory), not when they come slowly with none (a slow network)
+def test_locate_ways_stops_when_the_node_store_thrashes(osm_file, monkeypatch):
+    # A minute between two kept ways
+    clock = SimpleNamespace(monotonic=itertools.count(0, 61).__next__)
+    monkeypatch.setattr(osm, "time", clock)
+    monkeypatch.setattr(osm, "_faults", lambda: 0)
+    _, lines = osm.locate_ways(osm_file, {"r": osm.main_roads})
+    assert list(lines)
+    monkeypatch.setattr(osm, "_faults", itertools.count(0, 61_000).__next__)
+    _, lines = osm.locate_ways(osm_file, {"r": osm.main_roads})
+    with pytest.raises(RuntimeError, match="node store does not fit"):
+        list(lines)
+
+
+# A planet mirror: the files of a folder by HTTP, with byte ranges; their ETag is the text
+# of the folder's file "tag", read at each request. In a child process: osmium holds the
+# GIL while it waits for the pipe, which a server thread would need to fill
+_MIRROR = r"""
+import http.server, pathlib, sys
+folder = pathlib.Path(sys.argv[1])
+class Mirror(http.server.BaseHTTPRequestHandler):
+    def do_GET(self, body=True):
+        data = (folder / self.path[1:]).read_bytes()
+        ranged = self.headers.get("Range", "bytes=0-").removeprefix("bytes=")
+        first, last = (int(x) if x else len(data) - 1 for x in ranged.split("-"))
+        end = min(len(data), last + 1)
+        self.send_response(206 if "Range" in self.headers else 200)
+        self.send_header("Content-Range", f"bytes {first}-{end - 1}/{len(data)}")
+        self.send_header("Content-Length", str(end - first))
+        self.send_header("ETag", (folder / "tag").read_text())
+        self.end_headers()
+        self.wfile.write(data[first:end] if body else b"")
+    def do_HEAD(self):
+        self.do_GET(body=False)
+    def log_message(self, *args):
+        pass
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Mirror)
+print(server.server_port, flush=True)
+server.serve_forever()
+"""
+
+
+# The ways of a PBF read by byte ranges are those of the file; a file that changes on the
+# server stops the read
+def test_streamed_pbf_reads_the_ways_of_the_file(
+    osm_file, tmp_path, monkeypatch
+):
+    header, pbf = osmium.io.Header(), tmp_path / "small.osm.pbf"
+    header.set("osmosis_replication_timestamp", "2026-11-02T00:00:00Z")
+    with osmium.SimpleWriter(str(pbf), header=header) as writer:
+        for entity in osmium.FileProcessor(osm_file):
+            writer.add(entity)
+    (tmp_path / "small.osm.pbf.md5").write_text("9a8b  small.osm.pbf\n")
+    (tmp_path / "tag").write_text('"one"')
+    mirror = subprocess.Popen(
+        [sys.executable, "-c", _MIRROR, str(tmp_path)], stdout=subprocess.PIPE
+    )
+    try:
+        url = f"http://127.0.0.1:{int(mirror.stdout.readline())}/small.osm.pbf"
+        layout = str(tmp_path / "layout.json")
+        monkeypatch.setattr(osm, "_SCAN", 0)  # bisection down to single bytes
+        record = osm.StreamedPbf.download(url, layout)
+        assert record == {
+            "version": "2026-11-02T00:00:00Z",
+            "bytes": pbf.stat().st_size,
+            "md5": "9a8b",
+        }
+
+        def ways(source):
+            junctions, lines = osm.locate_ways(source, {"r": osm.main_roads})
+            return list(junctions.ids), list(lines)
+
+        stream = osm.StreamedPbf(layout)
+        assert ways(stream) == ways(str(pbf))
+        # The world: C++ only, checked before any download; then the regional build
+        # with the world's source (a stream) and folder (the runner's)
+        with monkeypatch.context() as patch:
+            patch.setattr(osm, "has_cpp", lambda: False)
+            with pytest.raises(RuntimeError, match="C\\+\\+ backend"):
+                osm.PLANET["download"](url, layout)
+        monkeypatch.setattr(world_main_roads, "MAX_KM", osm.MAX_KM)
+        monkeypatch.setattr(world_main_roads, "MIN_NODES", None)
+        world, _ = world_main_roads.build({"roads": layout})
+        assert world == osm_main_roads.build({"roads": str(pbf)})[0]
+        world_from_local, _ = world_main_roads.build({"roads": str(pbf)})
+        assert world_from_local == world
+        (tmp_path / "tag").write_text('"two"')
+        with pytest.raises(RuntimeError, match="Reading http"):
+            ways(stream)
+    finally:
+        mirror.kill()
+        mirror.wait()

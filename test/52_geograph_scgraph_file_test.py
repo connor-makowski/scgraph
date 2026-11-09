@@ -4,6 +4,7 @@ import json
 import os
 import pickle
 from array import array
+from itertools import accumulate
 
 import pytest
 
@@ -168,6 +169,15 @@ def test_nodes_keep_their_modes_through_additions_merges_and_saves(tmp_path):
     assert sorted(
         zip(loaded.node_modes, loaded.node_ids, loaded.nodes)
     ) == sorted(zip(road.node_modes, road.node_ids, road.nodes))
+    # Loaded on its roads only (lazily: on first use), the network routes on them
+    roads = GeoGraph.load_from_scgraph(path, lazy=True, modes="road")
+    assert sorted(roads.nodes) == [[0, 0], [0, 1], [0, 2]]
+    assert roads.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0},
+        destination_node={"latitude": 1, "longitude": 1},
+        node_addition_type="closest",
+        destination_node_addition_type="closest",
+    )["coordinate_path"] == [[0, 0], [0, 0], [0, 1], [1, 1]]
 
 
 def test_a_geograph_has_at_most_256_modes():
@@ -291,7 +301,7 @@ def test_scgraph_info_reads_what_a_network_file_holds(tmp_path):
     digest = _small().save_as_scgraph(
         path, metadata={"sources": dated}, coordinate_dtype="int32"
     )
-    info = GeoGraph.scgraph_info(path)
+    info = GeoGraph.get_scgraph_info(path)
     assert {
         key: info[key] for key in ("nodes", "arcs", "coordinate_dtype")
     } == {
@@ -441,20 +451,116 @@ def test_network_file_written_from_arrays(
 
 
 @pytest.mark.parametrize(
-    "columns, message",
+    "columns, selected, message",
     [
-        ({"node_ids": array("q", [1, 2])}, "one node id per node"),
-        ({"node_modes": array("B", [0, 0])}, "one node mode per node"),
-        ({"node_modes": array("B", [0, 0, 2])}, "invalid node modes"),
-        ({"modes": None}, "without a list of modes"),
-        ({"latitudes": array("i", [0, 0, 10**7])}, "coordinates of two dtypes"),
+        ({"node_ids": array("q", [1, 2])}, None, "one node id per node"),
+        ({"node_modes": array("B", [0, 0])}, None, "one node mode per node"),
+        ({"node_modes": array("B", [0, 0, 2])}, None, "invalid node modes"),
+        ({"modes": None}, None, "without a list of modes"),
+        (
+            {"latitudes": array("i", [0, 0, 10**7])},
+            None,
+            "coordinates of two dtypes",
+        ),
+        # Read by mode, node_modes must be sorted
+        ({"node_modes": array("B", [1, 0, 0])}, ("road",), "unsorted"),
+        ({"node_modes": array("B", [0, 0, 2])}, ("road",), "unknown node"),
+        ({"node_ids": array("q", [1, 2, 3, 4])}, ("road",), "per node"),
+        ({}, ("rail",), r"unknown modes \['rail'\]"),
+        # and each block read must be valid
+        ({"offsets": array("i", [0, 2, 1, 2])}, ("road",), "invalid offsets"),
+        ({"heads": array("i", [-1, 0])}, ("road",), "arc to a missing node"),
+        (
+            {
+                "shape_offsets": array("i", [0, 1, 0]),
+                "shape_points": array("d"),
+            },
+            ("road",),
+            "invalid shape offsets",
+        ),
     ],
 )
-def test_network_file_rejects_invalid_node_columns(tmp_path, columns, message):
+def test_network_file_rejects_invalid_node_columns(
+    tmp_path, columns, selected, message
+):
     path = str(tmp_path / "arrays.scgraph")
     _write_from_arrays(path, Graph([{1: 1.0}, {0: 1.0}, {}]), **columns)
     with pytest.raises(ValueError, match=message):
-        network_file.read(path)
+        network_file.read(path, modes=selected)
+
+
+@pytest.mark.parametrize(
+    "modes, ids, coordinates",
+    [
+        ("road", [10, 11], "i"),
+        # In the file's order, each mode's nodes moved by their own shift
+        (("sea", "road"), [10, 11, 30, 31], "d"),
+    ],
+)
+def test_network_file_reads_the_nodes_of_some_modes(
+    tmp_path, modes, ids, coordinates
+):
+    # Node id -> mode (road, port, sea), the nodes sorted by mode as scgraph writes them;
+    # the arcs (by node id, by origin) with their weights and shapes of 0 to 2 points;
+    # coordinates (one typecode, kept when read) equal to the ids, as stored
+    node_modes = {10: 0, 11: 0, 20: 1, 30: 2, 31: 2}
+    weights = {(10, 11): 1.0, (11, 10): 1.5, (11, 20): 2.0, (20, 30): 3.0}
+    weights |= {(30, 31): 4.0, (31, 20): 5.0, (31, 30): 6.0}
+
+    def shape(u, v):
+        return [u, v] * (u % 3)
+
+    order = list(node_modes)
+    origins = [order.index(u) for u, _ in weights]
+    arrays = {
+        "offsets": array(
+            "i", accumulate(map(origins.count, range(len(order))), initial=0)
+        ),
+        "heads": array("i", (order.index(v) for _, v in weights)),
+        "weights": array("d", weights.values()),
+        "latitudes": array(coordinates, order),
+        "longitudes": array(coordinates, [-i for i in order]),
+        "node_ids": array("i", order),
+        "node_modes": array("B", node_modes.values()),
+        "shape_offsets": array("i", [0]),
+        "shape_points": array(coordinates),
+    }
+    for arc in weights:
+        arrays["shape_points"].extend(shape(*arc))
+        arrays["shape_offsets"].append(len(arrays["shape_points"]) // 2)
+    path = str(tmp_path / "modes.scgraph")
+    names = [{"name": name} for name in ("road", "port", "sea")]
+    network_file.write(path, arrays, {"modes": names})
+    read = network_file.read(path, modes=modes)[0]
+    assert list(read["node_ids"]) == ids
+    assert list(read["latitudes"]) == ids
+    assert list(read["longitudes"]) == [-i for i in ids]
+    assert (
+        read["shape_points"].typecode
+        == read["latitudes"].typecode
+        == coordinates
+    )
+    assert list(read["node_modes"]) == [node_modes[i] for i in ids]
+    offsets, heads, starts = (
+        read[k] for k in ("offsets", "heads", "shape_offsets")
+    )
+    assert {
+        (ids[u], ids[heads[arc]]): (
+            read["weights"][arc],
+            list(read["shape_points"][2 * starts[arc] : 2 * starts[arc + 1]]),
+        )
+        for u in range(len(ids))
+        for arc in range(offsets[u], offsets[u + 1])
+    } == {
+        (u, v): (weight, shape(u, v))
+        for (u, v), weight in weights.items()
+        if u in ids and v in ids
+    }
+    # Without node ids, a node's id is its position in the file: kept too
+    del arrays["node_ids"]
+    network_file.write(path, arrays, {"modes": names})
+    read = network_file.read(path, modes=modes)[0]
+    assert list(read["node_ids"]) == [order.index(i) for i in ids]
 
 
 def test_load_from_scgraph_reads_an_empty_network(tmp_path):
