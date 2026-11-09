@@ -1436,7 +1436,7 @@ class GeoGraphIO:
                 )
                 # Everything that describes the network, except clock times, so that
                 # the same rules, sources and software give the same file
-                card = pipelines.identity_card(
+                metadata = pipelines.build_metadata(
                     name,
                     region,
                     network.PIPELINE_VERSION,
@@ -1444,7 +1444,9 @@ class GeoGraphIO:
                     network.__doc__,
                     steps,
                 )
-                digest = geograph.save_as_scgraph(str(building), metadata=card)
+                digest = geograph.save_as_scgraph(
+                    str(building), metadata=metadata
+                )
                 built_file = folder.joinpath(f"{digest}.scgraph")
                 work.joinpath("cache.json").write_text(
                     json.dumps(

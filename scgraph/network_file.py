@@ -88,7 +88,7 @@ def _scale(values):
     return 1e7 if memoryview(values).format == "i" else 1.0
 
 
-# Header keys that scgraph writes or computes itself, which a card cannot set
+# Header keys that scgraph writes or computes itself, which build metadata cannot set
 RESERVED = frozenset(
     {
         "crs",
@@ -112,7 +112,7 @@ RESERVED = frozenset(
 
 
 def header_metadata(
-    card,
+    build_metadata,
     *,
     units,
     default_off_graph_circuity,
@@ -121,13 +121,15 @@ def header_metadata(
 ):
     """The metadata `write` takes for a network whose nodes are in scgraph's order
     (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`, the GeoGraph
-    defaults, `modes`, `node_order`) and the `card`, what built the network (see
-    `scgraph.pipelines`). A card key that scgraph writes itself, or a mode whose `source`
-    names no entry of the card's `sources`, raises a ValueError."""
-    if RESERVED & set(card):
-        raise ValueError(f"metadata may not set {sorted(RESERVED & set(card))}")
+    defaults, `modes`, `node_order`) and the `build_metadata`, what built the network (see
+    `scgraph.pipelines`). A metadata key that scgraph writes itself, or a mode whose `source`
+    names no entry of the metadata's `sources`, raises a ValueError."""
+    if RESERVED & set(build_metadata):
+        raise ValueError(
+            f"metadata may not set {sorted(RESERVED & set(build_metadata))}"
+        )
     # A mode cites the source of its node ids by name
-    names = {source.get("name") for source in card.get("sources", [])}
+    names = {source.get("name") for source in build_metadata.get("sources", [])}
     for mode in modes:
         if "source" in mode and mode["source"] not in names:
             raise ValueError(
@@ -141,7 +143,7 @@ def header_metadata(
         "default_node_addition_circuity": default_node_addition_circuity,
         **({"modes": modes} if modes != [{"name": None}] else {}),
         "node_order": NODE_ORDER,
-        **card,
+        **build_metadata,
     }
 
 

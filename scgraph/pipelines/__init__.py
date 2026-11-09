@@ -36,7 +36,7 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
   `cut_polylines` (`scgraph.helpers.polylines`) -> `csr_from_arcs` -> `strong_components`
   -> `simplify_shapes` (the last three are added with the assembly kernels, #206)
 
-`build_geograph` writes into the network file's header what built it (`identity_card`),
+`build_geograph` writes into the network file's header what built it (`build_metadata`),
 read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
 (`name`, `url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the
 data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the `platform`
@@ -105,9 +105,10 @@ LARGE_DOWNLOAD = (
 )
 
 
-def identity_card(name, region, version, sources, description=None, steps=None):
-    """
-    The identity card that `build_geograph` writes into a network file's header (its
+def build_metadata(
+    name, region, version, sources, description=None, steps=None
+):
+    """The build metadata that `build_geograph` writes into a network file's header (its
     fields: this module's docstring), from plain values, without a GeoGraph: `name`,
     `region` and `version` are the pipeline's, `sources` the records of the downloaded
     sources, `description` the pipeline's docstring and `steps` what `build` returned;

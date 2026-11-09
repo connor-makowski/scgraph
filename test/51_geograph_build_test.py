@@ -301,7 +301,7 @@ def test_build_geograph_gives_the_same_file_for_the_same_inputs(
         "    sys.modules['scgraph.cpp'] = None\n"
         "from scgraph import GeoGraph\n"
         "from scgraph.pipelines import marnet\n"
-        "marnet.SOURCES['lines']['url'] = sys.argv[1]\n"
+        "marnet.SOURCES['sea_lanes']['url'] = sys.argv[1]\n"
         "GeoGraph.build_geograph('marnet', cache_dir=sys.argv[2])\n"
     )
     files = []
@@ -350,11 +350,11 @@ def test_build_geograph_gives_the_same_file_for_the_same_inputs(
         (("", ""), "", ""),
     ],
 )
-def test_identity_card_names_the_platform(monkeypatch, libc, macos, system):
+def test_build_metadata_names_the_platform(monkeypatch, libc, macos, system):
     monkeypatch.setattr(platform, "libc_ver", lambda: libc)
     monkeypatch.setattr(platform, "mac_ver", lambda: (macos, ("", "", ""), ""))
-    card = pipelines.identity_card("x", None, 1, [])
-    assert card["software"]["platform"] == sysconfig.get_platform() + system
+    metadata = pipelines.build_metadata("x", None, 1, [])
+    assert metadata["software"]["platform"] == sysconfig.get_platform() + system
 
 
 # Every page of an ArcGIS layer is read, by name or from a module of one's own (an
