@@ -94,8 +94,7 @@ RESERVED = frozenset(
     {
         "crs",
         "units",
-        "default_off_graph_circuity",
-        "default_node_addition_circuity",
+        "access_multiplier",
         "modes",
         "symmetric",
         "node_order",
@@ -116,19 +115,22 @@ def header_metadata(
     build_metadata,
     *,
     units,
-    default_off_graph_circuity,
-    default_node_addition_circuity,
+    access_multiplier=1,
     modes,
+    default_off_graph_circuity=None,
+    default_node_addition_circuity=None,
 ):
     """The metadata `write` takes for a network whose nodes are in scgraph's order
-    (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`, the GeoGraph
-    defaults, `modes`, `node_order`) and the `build_metadata`, what built the network (see
+    (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`, `access_multiplier`,
+    `modes`, `node_order`) and the `build_metadata`, what built the network (see
     `scgraph.pipelines`). A metadata key that scgraph writes itself, or a mode whose `source`
     names no entry of the metadata's `sources`, raises a ValueError."""
     if RESERVED & set(build_metadata):
         raise ValueError(
             f"metadata may not set {sorted(RESERVED & set(build_metadata))}"
         )
+    if default_off_graph_circuity is not None and access_multiplier == 1:
+        access_multiplier = default_off_graph_circuity
     # A mode cites the source of its node ids by name
     names = {source.get("name") for source in build_metadata.get("sources", [])}
     for mode in modes:
@@ -140,8 +142,7 @@ def header_metadata(
     return {
         "crs": "EPSG:4326",
         "units": units,
-        "default_off_graph_circuity": default_off_graph_circuity,
-        "default_node_addition_circuity": default_node_addition_circuity,
+        "access_multiplier": access_multiplier,
         **({"modes": modes} if modes != [{"name": None}] else {}),
         "node_order": NODE_ORDER,
         **build_metadata,

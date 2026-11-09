@@ -348,11 +348,40 @@ The header contains top-level structural fields and a nested `metadata` dictiona
   "metadata": {
     "crs": "EPSG:4326",
     "units": "km",
-    "default_off_graph_circuity": 1.0,
-    "default_node_addition_circuity": 4.0,
-    "node_order": "hilbert",
-    "pipeline": {"name": "osm_main_roads", "region": "europe/luxembourg", "version": 1},
-    "sources": [...]
+    "access_multiplier": 1.0,
+    "symmetric": false,
+    "node_order": {
+      "name": "hilbert",
+      "curve_order": 16,
+      "x": "longitude",
+      "y": "latitude",
+      "ties": "previous id"
+    },
+    "pipeline": {
+      "name": "osm_main_roads",
+      "region": "europe/luxembourg",
+      "version": 1
+    },
+    "software": {
+      "scgraph": "4.0.0.dev0",
+      "backend": "cpp",
+      "platform": "linux-x86_64 glibc 2.36"
+    },
+    "sources": [
+      {
+        "name": "roads",
+        "url": "https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf",
+        "sha256": "...",
+        "bytes": 35600000,
+        "license": "ODbL-1.0",
+        "credit": "© OpenStreetMap contributors",
+        "version": "2026-11-07T21:21:36Z"
+      }
+    ],
+    "steps": [
+      {"step": "read", "pieces": 1200},
+      {"step": "contract", "nodes": 10000, "arcs": 25000}
+    ]
   }
 }
 ```
@@ -366,11 +395,14 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
 | `metadata.units` | `str` | Distance units of edge weights (`km`, `m`, `mi`, `ft`). |
-| `metadata.default_off_graph_circuity` | `float` | Metric multiplier applied to access legs after routing. |
-| `metadata.default_node_addition_circuity` | `float` | Algorithmic penalty applied to access legs during search. |
-| `metadata.node_order` | `str` | Spatial node sorting scheme (e.g. `hilbert`). |
+| `metadata.access_multiplier` | `float` | Metric multiplier applied to off-network access legs (haversine connection legs) to convert to graph cost units (default: 1.0). |
+| `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. |
+| `metadata.node_order` | `dict` or `str` | Spatial node sorting scheme (Hilbert curve parameters: `curve_order`, axis mapping, and tie-breaking). |
 | `metadata.modes` | `list[dict]` | Optional transport mode definitions (`road`, `rail`, `sea`, `port`). |
-| `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, and data timestamps. |
+| `metadata.pipeline` | `dict` | Pipeline provenance: network generator name, target region, and pipeline version. |
+| `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
+| `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, URLs, file digests, and data timestamps. |
+| `metadata.steps` | `list[dict]` | Assembly execution trace recording intermediate counts across stages (extract, components, contraction). |
 
 ---
 

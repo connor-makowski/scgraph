@@ -284,8 +284,7 @@ class GeoGraphIO:
         metadata = network_file.header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             units=self.geograph_units,
-            default_off_graph_circuity=self.default_off_graph_circuity,
-            default_node_addition_circuity=self.default_node_addition_circuity,
+            access_multiplier=self.default_off_graph_circuity,
             modes=self.modes,
         )
         # A cached network must stay the one its cache.json names
@@ -794,7 +793,8 @@ class GeoGraphIO:
                 else None
             ),
             default_off_graph_circuity=metadata.get(
-                "default_off_graph_circuity", 1
+                "access_multiplier",
+                metadata.get("default_off_graph_circuity", 1),
             ),
             default_node_addition_circuity=metadata.get(
                 "default_node_addition_circuity", 4

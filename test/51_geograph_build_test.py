@@ -649,11 +649,7 @@ def test_osm_main_roads_joins_roads_by_vehicle_ferries_ending_near_them(
 def _geograph(arrays, path):
     """The GeoGraph that a network file of `arrays` reads back."""
     units = {"units": "km", "modes": [{"name": None}]}
-    circuities = {
-        "default_off_graph_circuity": 1,
-        "default_node_addition_circuity": 4,
-    }
-    metadata = network_file.header_metadata({}, **units, **circuities)
+    metadata = network_file.header_metadata({}, **units, access_multiplier=1)
     network_file.write(str(path), arrays, metadata)
     return GeoGraph.load_from_scgraph(str(path))
 
