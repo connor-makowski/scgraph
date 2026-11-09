@@ -45,3 +45,34 @@ def build(files: dict[str, str], *, source=osm.open_osm_source):
         min_nodes=MIN_NODES,
         folder=os.path.dirname(files["roads"]),  # the runner's, deleted after
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION_CASES = [
+    {
+        "id": "paris_to_berlin",
+        "origin": (48.8686, 2.3314),
+        "destination": (52.5238, 13.3996),
+        "expected_km": 1027.7,
+        "tolerance": 0.05,
+        "comment": "European highway corridor Paris-Berlin",
+    },
+    {
+        "id": "chicago_to_houston",
+        "origin": (41.8319, -87.7520),
+        "destination": (29.8219, -95.3419),
+        "expected_km": 1652.3,
+        "tolerance": 0.05,
+        "comment": "North American Interstate corridor",
+    },
+    {
+        "id": "tokyo_to_osaka",
+        "origin": (35.6895, 139.6917),
+        "destination": (34.6937, 135.5023),
+        "expected_km": 460.4,
+        "tolerance": 0.05,
+        "comment": "Japanese expressway corridor Tomei/Meishin",
+    },
+]
