@@ -1,7 +1,7 @@
 import gc
 import inspect
-from heapq import heappop, heappush
 from functools import wraps
+from heapq import heappop, heappush
 
 
 def algorithm(
@@ -519,7 +519,9 @@ class GraphReducer:
                         effective_origin_dict[exit_u] = tot
                         origin_map[exit_u] = oid
             if not effective_origin_dict:
-                raise Exception(
+                from scgraph.graph import PathNotFoundError
+
+                raise PathNotFoundError(
                     "Something went wrong, the origin and destination nodes are not connected."
                 )
             args = list(args)
@@ -573,7 +575,9 @@ class GraphReducer:
                         boundary_entries_map[entry_u] = (did, entry_u)
 
         if not effective_dest_dict:
-            raise Exception(
+            from scgraph.graph import PathNotFoundError
+
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
@@ -681,7 +685,9 @@ class GraphReducer:
                                 open_leaves, (possible_distance, connected_id)
                             )
         if best_dest_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            from scgraph.graph import PathNotFoundError
+
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 

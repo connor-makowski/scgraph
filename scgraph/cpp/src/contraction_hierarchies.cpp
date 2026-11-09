@@ -466,7 +466,7 @@ GraphResult CHGraph::search(const NodeIdVariant& origin_id, const NodeIdVariant&
             query_b_parents[v] = -1;
         }
         query_visited.clear();
-        throw std::runtime_error("No path found between origin and destination");
+        throw PathNotFoundException("No path found between origin and destination");
     }
 
     std::vector<int> path;

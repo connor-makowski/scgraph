@@ -11,6 +11,17 @@ from scgraph.transit_node_routing import TNRGraph
 from bmsspy import Bmssp
 from scgraph.graph_reducer import GraphReducer, algorithm
 
+try:
+    from scgraph.cpp import PathNotFoundError
+except ImportError:
+
+    class PathNotFoundError(RuntimeError):
+        """Raised when no path exists between origin and destination nodes."""
+
+
+class NegativeCycleError(RuntimeError):
+    """Raised when a graph contains a negative weight cycle."""
+
 
 class GraphTrees:
     def get_shortest_path_tree(
@@ -123,7 +134,7 @@ class GraphTrees:
         if len(tree_orig_dict) == 1:
             tree_root = next(iter(tree_orig_dict.keys()))
             if tree_root not in origin_dict:
-                raise Exception(
+                raise ValueError(
                     "The origin node must be the same as the spanning node for this function to work."
                 )
             start_dist = origin_dict[tree_root] - tree_orig_dict[tree_root]
@@ -139,7 +150,7 @@ class GraphTrees:
                     best_dest_node = did
 
         if best_dest_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
         if length_only:
@@ -237,7 +248,7 @@ class GraphAlgorithms:
                             )
 
         if best_dest_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
@@ -352,7 +363,7 @@ class GraphAlgorithms:
                             heappush(backward_open, (new_d, u))
 
         if meeting_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
@@ -503,7 +514,7 @@ class GraphAlgorithms:
                         nodes_in_buckets += 1
 
         if best_dest_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
@@ -685,7 +696,7 @@ class GraphAlgorithms:
                                 bwd_nodes_in_buckets += 1
 
         if meeting_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
@@ -797,7 +808,7 @@ class GraphAlgorithms:
                 best_dest_node = did
 
         if best_dest_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
@@ -906,7 +917,7 @@ class GraphAlgorithms:
                             ),
                         )
         if best_dest_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 
@@ -1030,7 +1041,7 @@ class GraphAlgorithms:
                         predecessor[connected_id] = current_id
                         updated = True
                         if i == len_graph - 1:
-                            raise Exception(
+                            raise NegativeCycleError(
                                 "Graph contains a negative weight cycle"
                             )
             if not updated:
@@ -1044,7 +1055,7 @@ class GraphAlgorithms:
                 best_dest_node = did
 
         if best_dest_node == -1 or best_dist == float("inf"):
-            raise Exception(
+            raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
 

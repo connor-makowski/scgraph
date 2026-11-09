@@ -16,10 +16,7 @@ except ImportError:
 
 
 def run_network_test(geograph_name, geograph):
-    print(f"\n=======================================================")
-    print(f"Loading {geograph_name} geograph...")
     g_large = geograph.graph_object
-    print(f"Loaded! Graph has {len(g_large.graph)} nodes.")
 
     # Pick 5 OD pairs
     origins = [0, 1000, 5000, 10000, 11000]
@@ -113,28 +110,7 @@ def run_network_test(geograph_name, geograph):
         for c in range(len(dm_nodes)):
             assert abs(dm_orig[r][c] - dm_red[r][c]) < 1e-5
 
-    # Print results
-    print(
-        f"\nGraph Reduction Consistency & Timing Benchmarks ({geograph_name})"
-    )
-    print(f"-------------------------------------------------------")
-    for algo, data in timings.items():
-        orig_ms = data["original"] * 1000
-        red_ms = data["reduced"] * 1000
-        speedup = orig_ms / red_ms if red_ms > 0 else 0.0
-        print(
-            f"{algo:<25} Solve Orig: {orig_ms:>7.2f} ms | Solve Red: {red_ms:>7.2f} ms | Solve Speedup: {speedup:>5.2f}x"
-        )
-        if "build_original" in data:
-            build_orig_ms = data["build_original"] * 1000
-            build_red_ms = data["build_reduced"] * 1000
-            build_speedup = (
-                build_orig_ms / build_red_ms if build_red_ms > 0 else 0.0
-            )
-            print(
-                f"  └─ {algo + ' (build)':<20} Build Orig: {build_orig_ms:>7.2f} ms | Build Red: {build_red_ms:>7.2f} ms | Build Speedup: {build_speedup:>5.2f}x"
-            )
-    print(f"=======================================================")
+    # Timing verification completed
 
 
 def test_reduction_consistency(published):

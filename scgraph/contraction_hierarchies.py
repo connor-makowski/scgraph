@@ -708,7 +708,11 @@ class CHGraphAlgorithms:
                 break
 
         if meeting_node == -1:
-            raise Exception("No path found between origin and destination")
+            from scgraph.graph import PathNotFoundError
+
+            raise PathNotFoundError(
+                "No path found between origin and destination"
+            )
 
         if length_only:
             return {"path": [], "length": best_dist}

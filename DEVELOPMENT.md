@@ -34,10 +34,11 @@ scgraph/
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, console output
   pipelines/                     # Pipelines of build_geograph, one per network (contract and steps in __init__.py)
-    steps/
-      osm.py                     # Reading OpenStreetMap files (optional dependency osmium)
-      arcgis.py                  # Downloading an ArcGIS feature layer as GeoJSON
-      assembly.py                # Arcs to network arrays, strong components, chain contraction, Douglas-Peucker; C++ in cpp/src/pipelines/assembly.hpp
+    build.py                     # The runner: build_file (download, build, cache) and python -m scgraph.pipelines.build
+    steps/                       # Sequential execution stages:
+      stage1_extract/            # Ingestion & raw extraction (osm, arcgis, pbf_range_streamer)
+      stage2_intermodal/         # Intermodal connectors & domain logic (landmask, ports)
+      stage3_assembly/           # Topology, CSR assembly, chain contraction (assembly)
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)
@@ -46,7 +47,7 @@ scgraph/
     visvalingam.py               # Visvalingam-Whyatt line simplification
   cpp/
     src/                         # C++ source: adjacency, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, bmssp (template header); pipelines/assembly.hpp
+    │                            #   transit_node_routing, snap_index, bmssp (template header); pipelines/assembly.hpp, landmask.hpp
     bindings/
       graph_bindings.cpp         # nanobind Python/C++ interface
       pipelines_bindings.cpp     # Bindings of the pipelines' kernels (no fused multiply-add, as their Python twins)
@@ -180,6 +181,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, and `published` (a built-in network in the node numbering of its `.graphjson`)
   - The tests download these networks into their own cache, a temporary directory per session, never the user's. Set `SCGRAPH_CACHE_DIR` to a directory to keep the downloads between runs (or to run the tests offline from a filled cache).
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
+- `acceptance/` — the acceptance suite of a built network file (`test_<kind>.py`, with its own `pytest.ini`), not collected by `uv run pytest`: run `uv run pytest acceptance --network FILE`
 
 **Naming convention:** `NN_module_feature_test.py` (zero-padded for ordered display)
 

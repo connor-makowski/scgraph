@@ -76,10 +76,10 @@ void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double*
 // Override reset_cache
 void Graph::reset_cache() {
     GraphReducer::reset_cache();
-    __ch_graph__ = nullptr;
-    __tnr_graph__ = nullptr;
-    bucket_width_cache = -1.0;
-    reduced_bucket_width_cache = -1.0;
+    ch_graph_ = nullptr;
+    tnr_graph_ = nullptr;
+    bucket_width_cache_ = -1.0;
+    reduced_bucket_width_cache_ = -1.0;
 }
 
 // Width of the buckets of dijkstra_buckets and bidirectional_buckets: the given width, else
@@ -95,7 +95,7 @@ double Graph::resolve_bucket_width(const Adjacency& g,
             throw std::invalid_argument("bucket_width must be a finite number greater than 0.");
         }
     } else {
-        double& cache = (&g == &this->reduced_graph) ? reduced_bucket_width_cache : bucket_width_cache;
+        double& cache = (&g == &this->reduced_graph) ? reduced_bucket_width_cache_ : bucket_width_cache_;
         if (cache < 0.0) {
             std::vector<double> weights(g.all_weights().begin(), g.all_weights().end());
             double median = 0.0;
@@ -161,7 +161,7 @@ GraphResult Graph::run_query_with_reducer(
             }
         }
         if (boundary_origins.empty()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
         search_origin = boundary_origins;
     }
@@ -211,7 +211,7 @@ GraphResult Graph::run_query_with_reducer(
     }
 
     if (boundary_dests.empty()) {
-        throw std::runtime_error("The origin and destination nodes are not connected.");
+        throw PathNotFoundException("The origin and destination nodes are not connected.");
     }
 
     GraphResult res = query_fn(this->reduced_graph, search_origin, boundary_dests);
@@ -309,7 +309,7 @@ GraphResult Graph::get_tree_path(const NodeIdVariant& origin_id, const NodeIdVar
     }
 
     if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-        throw std::runtime_error("The origin and destination nodes are not connected.");
+        throw PathNotFoundException("The origin and destination nodes are not connected.");
     }
 
     if (length_only) {
@@ -447,7 +447,7 @@ GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant&
         }
 
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         std::vector<int> output_path;
@@ -594,7 +594,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
         }
 
         if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         std::vector<int> forward_path;
@@ -728,7 +728,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
         }
 
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         return GraphResult{
@@ -916,7 +916,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
         }
 
         if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         std::vector<int> forward_path;
@@ -1011,7 +1011,7 @@ GraphResult Graph::dijkstra_negative(const NodeIdVariant& origin_id, const NodeI
         }
 
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         return GraphResult{
@@ -1128,7 +1128,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
         }
 
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         std::vector<int> path;
@@ -1202,7 +1202,7 @@ GraphResult Graph::bellman_ford(const NodeIdVariant& origin_id, const NodeIdVari
         }
 
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         return GraphResult{
@@ -1282,7 +1282,7 @@ GraphResult Graph::bmssp(const NodeIdVariant& origin_id, const NodeIdVariant& de
         }
 
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
-            throw std::runtime_error("The origin and destination nodes are not connected.");
+            throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
 
         std::vector<int> path;
@@ -1355,10 +1355,10 @@ GraphResult Graph::cached_shortest_path(const NodeIdVariant& origin_id, const No
 }
 
 std::shared_ptr<CHGraph> Graph::create_contraction_hierarchy(std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) {
-    if (__ch_graph__ == nullptr) {
-        __ch_graph__ = create_ch_graph(heuristic_fn, settled_limit);
+    if (ch_graph_ == nullptr) {
+        ch_graph_ = create_ch_graph(heuristic_fn, settled_limit);
     }
-    return __ch_graph__;
+    return ch_graph_;
 }
 
 GraphResult Graph::contraction_hierarchy(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) {
@@ -1369,10 +1369,10 @@ GraphResult Graph::contraction_hierarchy(const NodeIdVariant& origin_id, const N
         }
         return res;
     }
-    if (__ch_graph__ == nullptr) {
+    if (ch_graph_ == nullptr) {
         create_contraction_hierarchy();
     }
-    auto res = __ch_graph__->search(origin_id, destination_id, length_only);
+    auto res = ch_graph_->search(origin_id, destination_id, length_only);
     if (has_reduced_graph && !length_only) {
         res.path = expand_path(res.path);
     }
@@ -1380,14 +1380,14 @@ GraphResult Graph::contraction_hierarchy(const NodeIdVariant& origin_id, const N
 }
 
 std::shared_ptr<TNRGraph> Graph::create_tnr_hierarchy(int num_transit_nodes, std::function<double(CHGraph*, int)> heuristic_fn, int settled_limit) {
-    if (__tnr_graph__ == nullptr) {
-        __tnr_graph__ = create_tnr_graph(num_transit_nodes, heuristic_fn, settled_limit);
+    if (tnr_graph_ == nullptr) {
+        tnr_graph_ = create_tnr_graph(num_transit_nodes, heuristic_fn, settled_limit);
     }
-    return __tnr_graph__;
+    return tnr_graph_;
 }
 
 void Graph::set_tnr_graph(std::shared_ptr<TNRGraph> tnr_graph) {
-    __tnr_graph__ = tnr_graph;
+    tnr_graph_ = tnr_graph;
 }
 
 GraphResult Graph::tnr(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) {
@@ -1398,10 +1398,10 @@ GraphResult Graph::tnr(const NodeIdVariant& origin_id, const NodeIdVariant& dest
         }
         return res;
     }
-    if (__tnr_graph__ == nullptr) {
+    if (tnr_graph_ == nullptr) {
         create_tnr_hierarchy();
     }
-    auto res = __tnr_graph__->search(origin_id, destination_id, length_only);
+    auto res = tnr_graph_->search(origin_id, destination_id, length_only);
     if (has_reduced_graph && !length_only) {
         res.path = expand_path(res.path);
     }

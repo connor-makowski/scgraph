@@ -6,7 +6,12 @@
 #include <utility>
 #include <optional>
 #include <functional>
+#include <stdexcept>
 #include "adjacency.hpp"
+
+struct PathNotFoundException : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
 
 using NodeIdVariant = std::variant<int, std::unordered_map<int, double>, std::set<int>>;
 
