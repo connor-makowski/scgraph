@@ -540,17 +540,12 @@ def download_streamed(url, filename):
     return StreamedPbf.download(url, filename)
 
 
-def _planet(url, filename):
-    # The planet's download hook: the world is built with the C++ backend only
-    return download_streamed(url, filename)
-
-
 # The planet of a given date (never planet-latest), changed at each data release, read
 # by byte ranges from a mirror that serves them
 PLANET = {
     **GEOFABRIK,
     "url": "https://osm-planet-eu-central-1.s3.dualstack.eu-central-1.amazonaws.com/planet/pbf/2026/planet-261102.osm.pbf",
-    "download": _planet,
+    "download": download_streamed,
 }
 _AGENT = {"User-Agent": "scgraph"}
 _SCAN = 1 << 23  # bytes below which the layout of a PBF is found blob by blob
