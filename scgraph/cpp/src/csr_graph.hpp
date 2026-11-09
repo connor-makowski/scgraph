@@ -240,9 +240,6 @@ public:
         return false;
     }
 
-    // Backward-compatible alias
-    bool row_has(int u, int head) const { return has_arc(u, head); }
-
     void push_back(std::vector<std::pair<int, double>> row) {
         edits_.rows_[edits_.node_count++] = std::move(row);
     }

@@ -401,7 +401,7 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
         }
     } else {
         for (int u = 0; u < graph.size(); ++u) {
-            if (!graph.row_has(u, node_id)) {
+            if (!graph.has_arc(u, node_id)) {
                 continue;
             }
             auto& node_edges = graph[u];
