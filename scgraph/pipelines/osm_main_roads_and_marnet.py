@@ -12,7 +12,7 @@ land.
 import csv
 
 from scgraph.pipelines import marnet, osm_main_roads
-from scgraph.pipelines.steps import osm
+from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.utils import haversine
 
 # Small sources first: a failure then costs no new download of the extract
@@ -20,7 +20,7 @@ from scgraph.utils import haversine
 PIPELINE_VERSION = 2 + marnet.PIPELINE_VERSION + osm_main_roads.PIPELINE_VERSION
 
 SOURCES = {
-    "sea": marnet.SOURCES["lines"],
+    "sea": marnet.SOURCES["sea_lanes"],
     "ports": {
         "url": "https://msi.nga.mil/api/publications/download?type=view&key=16920959/SFH00000/UpdatedPub150.csv",
         "credit": "National Geospatial-Intelligence Agency, World Port Index (Pub. 150)",
@@ -36,7 +36,7 @@ download = osm.download  # for every source: checks osmium first
 
 def build(files):
     roads = osm_main_roads.build({"roads": files["roads"]})
-    sea = marnet.build({"lines": files["sea"]})
+    sea = marnet.build({"sea_lanes": files["sea"]})
     ports = [
         port
         for port in _ports(files["ports"])

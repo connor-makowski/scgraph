@@ -16,7 +16,7 @@ from scgraph.geograph import GeoGraph
 PIPELINE_VERSION = 1
 
 SOURCES = {
-    "lines": {
+    "sea_lanes": {
         "url": "https://raw.githubusercontent.com/eurostat/searoute/88a2e568a8e0144d1f5a81c3931a7bc2bcce6901/modules/core/src/main/resources/marnet/marnet_plus_5km.gpkg",
         "credit": "Eurostat, SeaRoute maritime network (from the Oak Ridge National Laboratory Global Shipping Lane Network, 2000, enriched with AIS-based lines around European coasts)",
         "license": "EUPL-1.2",
@@ -26,9 +26,9 @@ SOURCES = {
 
 
 def build(files):
-    import sqlite3  # optional in a Python build: only this network needs it
+    import sqlite3  # optional in a Python build: only the networks of Eurostat lanes need it
 
-    with contextlib.closing(sqlite3.connect(files["lines"])) as database:
+    with contextlib.closing(sqlite3.connect(files["sea_lanes"])) as database:
         rows = database.execute('select geometry, pass from "type"').fetchall()
     lines = []
     for geometry, passage in rows:
@@ -47,7 +47,7 @@ def build(files):
                 ],
             }
         )
-    geojson = files["lines"] + ".geojson"
+    geojson = files["sea_lanes"] + ".geojson"
     with open(geojson, "w") as file:
         json.dump({"type": "GeometryCollection", "geometries": lines}, file)
     return GeoGraph.load_from_geojson(geojson, precision=5, silent=True)

@@ -539,7 +539,7 @@ class GeoGraphIO:
 
         - `filename`
             - Type: str | os.PathLike | source object
-            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.pipelines.steps.osm.located_ways` takes
+            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.pipelines.steps.osm.locate_ways` takes
 
         Optional Arguments:
 
@@ -594,7 +594,7 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.pipelines.steps.osm import (
+        from scgraph.pipelines.steps.stage1_extract.osm import (
             MAX_KM,
             keep_largest_component,
             main_roads,

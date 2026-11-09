@@ -2,7 +2,7 @@ import pytest
 from helpers import great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines.steps import osm
+from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.helpers.hilbert import hilbert_order
 
 osmium = pytest.importorskip("osmium")
@@ -175,7 +175,7 @@ def test_load_from_osm_selects_ways_and_their_direction(
     assert {arc for arc in arcs if nodes & set(arc)} == expected
 
 
-def test_located_ways_reads_every_kind_of_way_in_one_set_of_passes(osm_file):
+def test_locate_ways_reads_every_kind_of_way_in_one_set_of_passes(osm_file):
     # A way goes to the first select that keeps it (primary roads are main roads), and
     # ways of two kinds meet at junctions (residential way 4 meets road way 1 at node 3)
     selects = {
@@ -185,7 +185,7 @@ def test_located_ways_reads_every_kind_of_way_in_one_set_of_passes(osm_file):
         "roads": osm.main_roads,
         "primary": lambda tags: 0 if tags.get("highway") == "primary" else None,
     }
-    junctions, polylines = osm.located_ways(osm_file, selects, ("highway",))
+    junctions, polylines = osm.locate_ways(osm_file, selects, ("highway",))
     nodes = {}
     for kind, _, points in polylines:
         nodes.setdefault(kind, set()).update(ref for ref, _ in points)

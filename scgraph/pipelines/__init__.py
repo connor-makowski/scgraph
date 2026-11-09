@@ -22,12 +22,13 @@ of ways or a `connect` of two networks, are conventions inside `build`, not part
 contract. Steps pass a graph as the tuple `graph, nodes, shapes, node_ids`, the GeoGraph
 layout.
 
-The steps (`scgraph.pipelines.steps`), for each scale:
+The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 
-- a region, in memory: `osm.read_osm` (`osm.located_ways` -> `polylines_to_graph`, from
+- `stage1_extract`: data extraction and ingestion (`osm.py`, `arcgis.py`)
+- a region, in memory: `osm.read_osm` (`osm.locate_ways` -> `polylines_to_graph`, from
   `scgraph.helpers.polylines`, also used by `load_from_geojson`) ->
   `osm.keep_largest_component`
-- the planet, streamed: `osm.located_ways` (every kind of way in one read) ->
+- the planet, streamed: `osm.locate_ways` (every kind of way in one read) ->
   `cut_polylines` (`scgraph.helpers.polylines`) -> `csr_from_arcs` -> `strong_components`
   -> `simplify_shapes` (the last three are added with the assembly kernels, #206)
 

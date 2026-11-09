@@ -114,7 +114,7 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     tmp_path, source, monkeypatch, versioned
 ):
     monkeypatch.setitem(
-        marnet.SOURCES["lines"], "url", f"{source}/lines.geojson"
+        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
     )
     geo = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
     again = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
@@ -126,13 +126,13 @@ def test_build_geograph_builds_once_per_version_and_records_the_source(
     assert manifest["build_version"] == marnet.PIPELINE_VERSION
     assert manifest["sources"] == [
         {
-            "name": "lines",
+            "name": "sea_lanes",
             "url": f"{source}/lines.geojson",
             "sha256": hashlib.sha256(_GEOJSON).hexdigest(),
             "bytes": len(_GEOJSON),
-            "credit": marnet.SOURCES["lines"]["credit"],
+            "credit": marnet.SOURCES["sea_lanes"]["credit"],
             "license": "EUPL-1.2",
-            "license_url": marnet.SOURCES["lines"]["license_url"],
+            "license_url": marnet.SOURCES["sea_lanes"]["license_url"],
         }
     ]
     cached = folder / manifest["file"]
@@ -193,7 +193,7 @@ def test_build_geograph_downloads_only_if_allowed(
     tmp_path, source, monkeypatch, cached, offline, options, outcome
 ):
     monkeypatch.setitem(
-        marnet.SOURCES["lines"], "url", f"{source}/lines.geojson"
+        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
     )
     monkeypatch.delenv("SCGRAPH_OFFLINE", raising=False)
     replace = os.replace
@@ -258,7 +258,7 @@ def test_build_geograph_reads_every_page_of_an_arcgis_layer(
     tmp_path, source, monkeypatch, module_name, folder
 ):
     monkeypatch.setitem(
-        north_america_rail.SOURCES["lines"], "url", f"{source}/layer"
+        north_america_rail.SOURCES["rail_lines"], "url", f"{source}/layer"
     )
     network = "north_america_rail"
     if module_name:
@@ -291,7 +291,7 @@ def test_build_geograph_leaves_nothing_after_a_failed_build(
     tmp_path, source, monkeypatch
 ):
     monkeypatch.setitem(
-        marnet.SOURCES["lines"], "url", f"{source}/lines.geojson"
+        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
     )
 
     def broken(files):
@@ -390,7 +390,7 @@ def test_eurostat_marnet_joins_the_antimeridian_and_leaves_out_arctic_passages(
         )
     database.commit()
     database.close()
-    geo = eurostat_marnet.build({"lines": gpkg})
+    geo = eurostat_marnet.build({"sea_lanes": gpkg})
 
     def km(origin, destination):
         return geo.get_shortest_path(

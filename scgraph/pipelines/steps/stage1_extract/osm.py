@@ -70,7 +70,7 @@ def main_roads(tags):
 
 
 def _input(source):
-    # A path, or what the source gives for one pass (see located_ways)
+    # A path, or what the source gives for one pass (see locate_ways)
     return source if isinstance(source, (str, os.PathLike)) else source.file()
 
 
@@ -115,7 +115,7 @@ class _Junctions:
         return i < len(self.ids) and self.ids[i] == ref
 
 
-def located_ways(source, selects, tag_keys=(), node_store=None):
+def locate_ways(source, selects, tag_keys=(), node_store=None):
     """
     Locate the ways of `source` that `selects` keep, in one set of passes for every kind
     of way (roads and ferries, for example).
@@ -185,14 +185,14 @@ def located_ways(source, selects, tag_keys=(), node_store=None):
 
 def read_osm(source, select, tag_keys=(), max_km=MAX_KM):
     """
-    Build the graph of the ways of `source` that `select` keeps (`located_ways`, then
+    Build the graph of the ways of `source` that `select` keeps (`locate_ways`, then
     `polylines_to_graph`), a way being also cut where a piece reaches `max_km`
     (`cut_polylines`).
 
     Returns `(graph, nodes, shapes, node_ids)` in the GeoGraph layout, `node_ids` being
     the OSM ids of the nodes.
     """
-    junctions, polylines = located_ways(source, {"ways": select}, tag_keys)
+    junctions, polylines = locate_ways(source, {"ways": select}, tag_keys)
     polylines = (
         (way_direction, points) for _, way_direction, points in polylines
     )

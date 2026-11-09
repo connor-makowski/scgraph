@@ -2,7 +2,7 @@
 Geofabrik, for example `region="europe/luxembourg"`."""
 
 from scgraph.geograph import GeoGraph
-from scgraph.pipelines.steps import osm
+from scgraph.pipelines.steps.stage1_extract import osm
 
 PIPELINE_VERSION = 1
 
