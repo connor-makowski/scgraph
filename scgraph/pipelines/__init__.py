@@ -108,6 +108,8 @@ from scgraph.utils import has_cpp
 logger = logging.getLogger(__name__)
 
 NAMES = (
+    "europe_freeway",
+    "europe_rail",
     "eurostat_marnet",
     "marnet",
     "north_america_rail",

@@ -64,6 +64,16 @@ def test_loader_case_resolution():
     assert len(france) == 1
     assert france[0]["id"] == "paris_marseille"
 
+    # Europe pipelines
+    from scgraph.pipelines import europe_freeway, europe_rail
+
+    assert len(load_cases(europe_freeway.VALIDATION)) == len(
+        europe_freeway.VALIDATION["cases"]
+    )
+    assert len(load_cases(europe_rail.VALIDATION)) == len(
+        europe_rail.VALIDATION["cases"]
+    )
+
 
 def test_validation_marnet(marnet):
     """Validate marnet against its declared Stage 4 contract."""

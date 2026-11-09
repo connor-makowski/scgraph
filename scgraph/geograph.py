@@ -1203,6 +1203,8 @@ class GeoGraphIO:
     def build_geograph(
         name: (
             Literal[
+                "europe_freeway",
+                "europe_rail",
                 "eurostat_marnet",
                 "marnet",
                 "north_america_rail",
