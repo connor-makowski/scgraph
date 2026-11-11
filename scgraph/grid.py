@@ -429,13 +429,13 @@ class GridGraph:
             )
         return closest_node_id, closest_distance
 
-    def format_coordinate(self, cooinate_dict, output_coorinate_path):
-        if output_coorinate_path == "list_of_tuples":
-            return (cooinate_dict["x"], cooinate_dict["y"])
-        elif output_coorinate_path == "list_of_lists":
-            return [cooinate_dict["x"], cooinate_dict["y"]]
-        elif output_coorinate_path == "list_of_dicts":
-            return {"x": cooinate_dict["x"], "y": cooinate_dict["y"]}
+    def format_coordinate(self, coordinate_dict, output_coordinate_path):
+        if output_coordinate_path == "list_of_tuples":
+            return (coordinate_dict["x"], coordinate_dict["y"])
+        elif output_coordinate_path == "list_of_lists":
+            return [coordinate_dict["x"], coordinate_dict["y"]]
+        elif output_coordinate_path == "list_of_dicts":
+            return {"x": coordinate_dict["x"], "y": coordinate_dict["y"]}
         else:
             raise ValueError("Invalid output_coordinate_path format")
 
