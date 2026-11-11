@@ -57,6 +57,4 @@ def build(
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
-VALIDATION = {
-    "cases": ["paris_berlin", "chicago_houston", "tokyo_to_osaka"],
-}
+VALIDATION = {"cases": ["road_distances", "crossings", "coverage"]}

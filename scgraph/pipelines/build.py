@@ -69,12 +69,10 @@ def _validate_pipeline(network, name, region, file):
     cases = load_cases(contract, region=region)
     if not cases:
         return
-    logger.info("Validating %s against %d test case(s)...", name, len(cases))
-    geograph = GeoGraph.load_from_scgraph(str(file))
-    result = validate_network(geograph, cases, silent=False)
-    # In the C++ build the geograph maps the file, and Windows does not move a
-    # mapped file: the caller moves a file that passes into the cache
-    del geograph
+    logger.info("Validating %s against %d case(s)", name, len(cases))
+    # The file is read here and released on return: Windows does not move a
+    # mapped file, and the caller moves a file that passes into the cache
+    result = validate_network(file, cases)
     if not result.is_success:
         raise RuntimeError(
             f"Pipeline validation failed for {name}: {result.summary()}"

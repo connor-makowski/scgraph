@@ -53,7 +53,7 @@ The `pipelines/` package builds reference networks from online sources. Each net
 * **Stage 3 - Topology & Assembly (`steps.stage3_assembly`)**:
   CSR graph construction (`build_csr_from_arcs`), strongly connected components (`strongly_connected_components`), pass-through chain contraction (`contract_chains`), Douglas-Peucker simplification of arc shapes (`simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`), and node ordering along a Hilbert curve (`assemble`). The runner then writes the arrays to a `.scgraph` file.
 * **Stage 4 - Validation (`steps.stage4_validation`)**:
-  `validate_network` routes the test cases of `cases/*.csv` on a built network. It checks the snapping distance, the route length against a reference, and the boxes a route must enter or avoid. The runner calls it when `build_file` gets `validate=True`, on the built file before it enters the cache: a network that fails is not cached.
+  `validate_network` checks a built network against cases. A case describes a known route of the real world: a driving distance, a published sea distance, a rail corridor, a passage such as Suez, the road access of a large city. Each kind of case has its own rule and its own CSV file in `cases/`. The docstring of `steps/stage4_validation` lists the kinds and their rules. The runner calls it when `build_file` gets `validate=True`, on the built file before it enters the cache: a network that fails is not cached.
 * **Runner & Orchestrator (`build.py`)**:
   `build_file` downloads the sources, builds the network in a work folder, and moves the finished file into the cache. It writes the metadata of the build (pipeline, sources, software) into the header of the `.scgraph` file.
 * **C++ Acceleration (`scgraph/cpp/src/pipelines/`)**:

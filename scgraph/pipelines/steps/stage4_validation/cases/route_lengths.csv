@@ -1,0 +1,18 @@
+id,origin_lat,origin_lon,destination_lat,destination_lon,reference,source,tolerance,tolerance_reason
+aarhus_to_copenhagen_intermodal,56.1629,10.2039,55.6761,12.5683,186.9,Molslinjen / Geofabrik,0.10,Kattegat vehicle ferry
+chicago_to_new_orleans,41.88,-87.64,29.95,-90.07,1470.7,FRA NTAD Class I,0.05,Illinois Central / CN mainline
+luxembourg_to_bettembourg,49.6000,6.1333,49.5186,6.1028,11.5,CFL / OSM,0.10,CFL Line 60 corridor
+chicago_to_los_angeles,41.88,-87.64,34.06,-118.23,3411.7,FRA NTAD Class I,0.05,Transcontinental Southern Transcon (BNSF)
+new_york_to_chicago,40.75,-73.98,41.83,-87.75,1326.0,BTS / Interstate Highway Network,0.05,I-80/I-90 freeway corridor
+los_angeles_to_san_francisco,34.05,-118.25,37.77,-122.42,619.7,Caltrans / Interstate Highway Network,0.05,I-5 corridor California
+luxembourg_to_esch,49.6116,6.1319,49.4958,5.9806,19.7,OSM / Geofabrik,0.10,A4 freeway corridor
+paris_marseille,48.8566,2.3522,43.2965,5.3698,775.0,APRR / ASF / Autoroute du Soleil,0.05,A6/A7 corridor
+paris_bordeaux,48.8566,2.3522,44.8378,-0.5792,585.0,Cofiroute / A10 Aquitaine,0.05,A10 corridor
+toulouse_nice,43.6047,1.4442,43.7102,7.2620,565.0,Vinci Autoroutes / A61-A9-A8,0.05,Southern transversal
+lille_strasbourg,50.6292,3.0573,48.5734,7.7521,520.0,Sanef / A26-A4,0.05,Grand Est diagonal
+tokyo_to_osaka,35.6895,139.6917,34.6937,135.5023,460.4,NEXCO Central / Tomei-Meishin,0.08,Japanese expressway corridor
+rotterdam_to_new_york,51.95,4.14,40.71,-74.01,6151.0,CERDI / NGA Pub 151,0.05,North Atlantic shipping lane
+rotterdam_to_singapore,51.95,4.14,1.28,103.85,15551.1,CERDI / NGA Pub 151,0.05,Via Suez and Malacca
+rotterdam_to_new_york_intermodal,51.95,4.14,40.71,-74.01,6150.9,World Intermodal,0.05,Transatlantic intermodal corridor
+shanghai_to_los_angeles_intermodal,31.23,121.47,34.05,-118.25,10655.9,World Intermodal,0.05,Transpacific intermodal corridor
+panama_canal_transit,9.36,-79.90,8.95,-79.57,65.0,ORNL / Panama Canal Authority,0.10,Panama Canal transit Caribbean to Pacific

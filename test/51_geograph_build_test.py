@@ -537,9 +537,17 @@ def _lines_pipeline(source, build=marnet.build, expected_km=2.22):
         }
     }
     module.PIPELINE_VERSION, module.build = 1, build
-    ends = {"origin": (0, 0), "destination": (0, 0.02)}
     module.VALIDATION = {
-        "cases": [{"id": "end_to_end", **ends, "expected_km": expected_km}]
+        "cases": [
+            {
+                "id": "end_to_end",
+                "kind": "route_lengths",
+                "origin": (0, 0),
+                "destination": (0, 0.02),
+                "reference": expected_km,
+                "tolerance": None,
+            }
+        ]
     }
     return module
 
