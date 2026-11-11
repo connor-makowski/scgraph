@@ -31,10 +31,11 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 - `stage1_extract`: data extraction and ingestion (`osm.py`, `arcgis.py`)
 - a region, in memory: `osm.read_osm` (`osm.locate_ways` -> `polylines_to_graph`, from
   `scgraph.helpers.polylines`, also used by `load_from_geojson`) ->
-  `osm.keep_largest_component`
+  `assembly.keep_largest_strongly_connected_component`
 - the planet, streamed: `osm.locate_ways` (every kind of way in one read) ->
-  `cut_polylines` (`scgraph.helpers.polylines`) -> `csr_from_arcs` -> `strong_components`
-  -> `simplify_shapes` (the last three are added with the assembly kernels, #206)
+  `cut_polylines` (`scgraph.helpers.polylines`) -> `build_csr_from_arcs` ->
+  `strongly_connected_components` -> `contract_chains` (with the cut's `max_km`) ->
+  `simplify_shapes` (`assembly`, C++ when built)
 
 `build_geograph` writes into the network file's header what built it (`build_metadata`),
 read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`

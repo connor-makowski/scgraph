@@ -1,6 +1,7 @@
 import json
 
 from scgraph.utils import hard_round, print_console, haversine
+from scgraph.helpers.douglas_peucker import douglas_peucker
 from scgraph.helpers.visvalingam import visvalingam
 
 
@@ -44,6 +45,8 @@ def simplify_geojson(
     pct_to_keep: int | float = 100,
     min_points=3,
     silent: bool = False,
+    algorithm: str = "visvalingam",
+    tolerance: float = 0.0,
 ):
     """
     Simplify the GeoJSON features by rounding coordinates and ensuring all geometries are MultiLineStrings.
@@ -63,13 +66,16 @@ def simplify_geojson(
         - Defaults to None, meaning the output will not be written to a file.
     - precision: Decimal places to round coordinates
     - pct_to_keep: Percentage of the interior line points to keep (0.0 to 100.0)
-        - Note: See `visvalingam` function for how this is applied.
+        - Note: Used when algorithm is 'visvalingam'. See `visvalingam` function for how this is applied.
     - min_points: Minimum number of points to keep in the simplified line
-        - Note: See `visvalingam` function for how this is applied.
+        - Note: Applied across all simplification algorithms.
     - silent: Whether to suppress console output
         - Type: bool
         - Default: False
-        - Defaults to False, meaning console output will not be suppressed.
+    - algorithm: Simplification algorithm to use
+        - Options: 'visvalingam' (default), 'douglas_peucker', or a custom callable `(coords, min_points=...)`
+    - tolerance: Distance threshold for 'douglas_peucker'
+        - Default: 0.0 (removes strictly colinear points)
 
     Returns:
 
@@ -120,11 +126,26 @@ def simplify_geojson(
                     new_line.append(new_coord)
                     prev_coord = new_coord
             if len(new_line) > 1:
-                single_multi_line.append(
-                    visvalingam(
-                        new_line, pct_to_keep=pct_to_keep, min_points=min_points
+                if algorithm == "visvalingam":
+                    simplified = visvalingam(
+                        new_line,
+                        pct_to_keep=pct_to_keep,
+                        min_points=min_points,
                     )
-                )
+                elif algorithm == "douglas_peucker":
+                    simplified = douglas_peucker(
+                        new_line,
+                        tolerance=tolerance,
+                        min_points=min_points,
+                    )
+                elif callable(algorithm):
+                    simplified = algorithm(new_line, min_points=min_points)
+                else:
+                    raise ValueError(
+                        f"Unsupported simplification algorithm: {algorithm}. "
+                        "Choose 'visvalingam', 'douglas_peucker', or provide a callable."
+                    )
+                single_multi_line.append(simplified)
             if idx % 10000 == 0:
                 print_console(
                     f"Simplified {idx} line geometries", end="\r", silent=silent

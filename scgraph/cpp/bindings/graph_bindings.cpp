@@ -22,6 +22,7 @@
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"
 #include "../src/snap_index.hpp"
+#include "array_types.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -56,9 +57,6 @@ static TreeData dict_to_tree_data(const nb::dict& d) {
 static bool is_empty_tree_data(const TreeData& t) {
     return t.predecessors.empty();
 }
-
-using CsrInts = nb::ndarray<const int32_t, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
-using CsrDoubles = nb::ndarray<const double, nb::ndim<1>, nb::c_contig, nb::device::cpu>;
 
 // Coordinates as network files store them: int32 in 1e-7 degree (OSM's) or float64 degrees
 template <typename T>
@@ -286,7 +284,12 @@ static nb::dict quadrant_dict(const int out[4]) {
     return d;
 }
 
+// The pipelines' kernels, in their own translation unit (pipelines_bindings.cpp)
+void bind_pipelines(nb::module_& m);
+
 NB_MODULE(cpp, m) {
+    bind_pipelines(m);
+
     // float64 first: an array of another dtype (e.g. numpy's) is then converted to degrees
     m.def("coordinate_lists", &coordinate_lists<double>, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"));
     m.def("coordinate_lists", &coordinate_lists<int32_t>, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"),
