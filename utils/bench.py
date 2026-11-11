@@ -467,6 +467,21 @@ def bench_hierarchy(results):
                 # Relative to the unreduced Dijkstra of the same network
                 results.cell("hierarchy", row, f"{query} Speedup", speedup, "x")
 
+    # A grid has many paths of equal length: the costly case for a hierarchy
+    from scgraph import GridGraph
+
+    print("  - 50x50 grid")
+    g = Graph(
+        GridGraph(
+            x_size=50, y_size=50, blocks=[], add_exterior_walls=True
+        ).graph
+    )
+    row = ["50x50 Open Grid", "Original"]
+    ms, _ = timed(g.create_contraction_hierarchy)
+    results.cell("hierarchy", row, "CH Prep", ms)
+    ms, _ = timed(g.create_tnr_hierarchy, num_transit_nodes=20)
+    results.cell("hierarchy", row, "TNR Prep", ms)
+
 
 def bench_misc(results):
     from scgraph import GeoGraph
