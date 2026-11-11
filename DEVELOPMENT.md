@@ -39,7 +39,9 @@ scgraph/
       stage1_extract/            # Ingestion & raw extraction (osm, arcgis, pbf_range_streamer)
       stage2_intermodal/         # Intermodal connectors & domain logic (landmask, ports)
       stage3_assembly/           # Topology, CSR assembly, chain contraction (assembly)
+      stage4_validation/         # Validation of a built network: validate_network, cases in cases/*.csv
   helpers/
+    douglas_peucker.py           # Douglas-Peucker line simplification (coordinates, shape arrays)
     geojson.py                   # GeoJSON parsing and simplification
     hilbert.py                   # Hilbert-curve order of nodes (network files, loaders that number nodes)
     polylines.py                 # Polylines to a graph: nodes where they end or meet, arcs with their shape (GeoJSON, OSM)
@@ -182,7 +184,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, and `published` (a built-in network in the node numbering of its `.graphjson`)
   - The tests download these networks into their own cache, a temporary directory per session, never the user's. Set `SCGRAPH_CACHE_DIR` to a directory to keep the downloads between runs (or to run the tests offline from a filled cache).
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
-- `acceptance/` — the acceptance suite of a built network file (`test_<kind>.py`, with its own `pytest.ini`), not collected by `uv run pytest`: run `uv run pytest acceptance --network FILE`
+- `scgraph/pipelines/steps/stage4_validation/` — the validation of a built network. `validate_network(geograph, cases)` routes each case and checks the snapping distance, the route length against a reference, and the boxes the route must enter or avoid. The cases are rows of `cases/*.csv`; a pipeline lists the ids of its cases in its `VALIDATION` dictionary, and `load_cases` reads them. `test/56_pipeline_validation_test.py` runs it on four built-in networks with `uv run pytest`. On a network in the cache: `python -m scgraph.pipelines.build NAME --validate-only` (`--validate` builds first).
 
 **Naming convention:** `NN_module_feature_test.py` (zero-padded for ordered display)
 

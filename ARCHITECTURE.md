@@ -40,22 +40,24 @@ All core graph operations exist in two mirrored implementations:
 1. **C++ Extension (`scgraph/cpp/`)**: Compiled via nanobind with C++20 and `-O3`. Provides ~10x speedup on pathfinding and graph reduction.
 2. **Pure Python Fallback**: Standard Python implementation with identical semantics, used automatically when the C++ extension is not compiled.
 
-When `scgraph` is imported, it automatically selects the C++ classes if available, falling back seamlessly to Python.
+When `scgraph` is imported, it uses the C++ classes if the extension is compiled. Otherwise it uses the Python classes.
 
 ### Pipeline Subsystem (`scgraph.pipelines`)
 
-The `pipelines/` package builds reference transportation networks from authoritative online sources (OpenStreetMap, Natural Earth, US DOT, NGA World Port Index) through an explicit multi-stage architecture:
+The `pipelines/` package builds reference networks from online sources. Each network has one pipeline module, which names its sources. A build runs in stages:
 
 * **Stage 1 - Ingestion & Extraction (`steps.stage1_extract`)**:
   Streamed raw ingestion (`osm`, `pbf_range_streamer`, `arcgis`), polyline extraction, way filtering, and early geometry simplification at 50 m.
 * **Stage 2 - Intermodal Connectors (`steps.stage2_intermodal`)**:
-  Multi-modal integration (`ports`, `landmask`), finding water-constrained paths (`find_water_path_cells`) across Natural Earth raster masks to join sea lanes and road networks at deep-water ports.
+  Multi-modal integration (`ports`, `landmask`), finding water-constrained paths (`find_water_path_cells`) across Natural Earth raster masks to join sea lanes and road networks at ports.
 * **Stage 3 - Topology & Assembly (`steps.stage3_assembly`)**:
-  CSR graph construction (`build_csr_from_arcs`), Tarjan's strongly connected components (`strongly_connected_components`), static pass-through chain contraction (`contract_chains`), and Hilbert space-filling curve spatial re-indexing before serialization into binary `.scgraph` files.
+  CSR graph construction (`build_csr_from_arcs`), strongly connected components (`strongly_connected_components`), pass-through chain contraction (`contract_chains`), Douglas-Peucker simplification of arc shapes (`simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`), and node ordering along a Hilbert curve (`assemble`). The runner then writes the arrays to a `.scgraph` file.
+* **Stage 4 - Validation (`steps.stage4_validation`)**:
+  `validate_network` routes the test cases of `cases/*.csv` on a built network. It checks the snapping distance, the route length against a reference, and the boxes a route must enter or avoid. The runner calls it when `build_file` gets `validate=True`.
 * **Runner & Orchestrator (`build.py`)**:
-  `build_file` manages download caches, builds networks atomically in temporary workspaces, and embeds provenance metadata into binary `.scgraph` headers.
+  `build_file` downloads the sources, builds the network in a work folder, and moves the finished file into the cache. It writes the metadata of the build (pipeline, sources, software) into the header of the `.scgraph` file.
 * **C++ Acceleration (`scgraph/cpp/src/pipelines/`)**:
-  Heavy computational kernels run in C++ with zero-copy memory views (`nb::ndarray`), with 100% pure-Python fallback.
+  The costly kernels of stages 2 and 3 (`assembly.hpp`, `landmask.hpp`) have a C++ version. Each one also has a pure-Python version.
 
 ---
 
@@ -63,7 +65,7 @@ The `pipelines/` package builds reference transportation networks from authorita
 
 ### In-Memory Graph Representation
 
-To combine developer ergonomics in Python with high-performance routing in C++, `scgraph` uses a **dual-layer data model**: a straightforward adjacency list in Python, backed by a compact Compressed Sparse Row (CSR) engine in C++.
+`scgraph` stores a graph in two ways: an adjacency list in Python, and Compressed Sparse Row (CSR) arrays in C++.
 
 #### 1. Conceptual View (Python Adjacency List)
 
@@ -86,11 +88,11 @@ graph = [
   * `graph`: Always references the original, full-resolution network.
   * `search_graph`: The active structure traversed by search algorithms. When `graph.reduce()` is called to collapse long pass-through chains into shortcuts, `search_graph` switches to the compacted graph, while `graph` stays intact.
 
-#### 2. High-Performance Engine (C++ Compressed Sparse Row / CSR)
+#### 2. C++ Engine (Compressed Sparse Row / CSR)
 
 While Python dictionaries are flexible, allocating millions of small hash tables consumes excessive memory and degrades CPU cache locality on large networks.
 
-In the C++ extension, [`CsrGraph`](file:///home/rsoulign/scgraph/scgraph/cpp/src/csr_graph.hpp) packs the entire topology into **three contiguous memory arrays**:
+In the C++ extension, [`CsrGraph`](scgraph/cpp/src/csr_graph.hpp) packs the entire topology into **three contiguous memory arrays**:
 
 ```
 Node IDs:      0         1      2   3
@@ -134,7 +136,7 @@ Algorithms return a standardized dictionary:
 
 ## 3. Answering a Geographic Query
 
-When `GeoGraph.get_shortest_path` receives GPS coordinates, it executes a four-stage pipeline:
+When `GeoGraph.get_shortest_path` receives GPS coordinates, it runs five steps:
 
 ```mermaid
 flowchart TD
@@ -144,15 +146,15 @@ flowchart TD
     D --> E["5. Output Assembly<br/>Apply access circuity, format geometry and units"]
 ```
 
-### 1. Direct Distance Check
-If the origin and destination coordinates are closer to each other than to any network node, `scgraph` returns a direct line path without running graph search.
+### 1. Input Coordinates
+The origin and the destination are dictionaries with `latitude` and `longitude` in degrees.
 
 ### 2. Network Snapping (`SnapIndex`)
 Spatial coordinates are snapped to the network using `SnapIndex`, an 8-ary spatial bounding-box tree:
 * **Snapping Strategies (`node_addition_type`)**:
   * `'closest'`: Connects to the single nearest network node.
   * `'quadrant'`: Connects to the nearest node in each spatial quadrant (up to 4 candidates).
-  * `'all'`: Connects to all network nodes within a spatial bounding box.
+  * `'all'`: Connects to every network node within `node_addition_lat_lon_bound` degrees of latitude and of longitude of the point. If there is none, it connects to the nearest node.
 * **Algorithmic Search Penalty (`node_addition_circuity`, default: 4)**:
   * When using `'quadrant'` or `'all'`, multiple candidate entry nodes exist.
   * During the pathfinding search, off-graph connection legs are artificially multiplied by `node_addition_circuity`.
@@ -160,6 +162,8 @@ Spatial coordinates are snapped to the network using `SnapIndex`, an 8-ary spati
   * It forces the route to enter the network at a nearby node.
 
 ### 3. Shortest Path Search
+If the straight line from origin to destination is not longer than the shortest connection of either point to the network, `scgraph` returns the straight line and runs no search. Both lengths include `node_addition_circuity`.
+
 The selected algorithm (default: `bidirectional_buckets`) runs from the origin candidates to the destination candidates:
 * Searches operate on `search_graph` (the reduced graph if `reduce()` was called, otherwise the original graph).
 * For `a_star`, great-circle lower bounds are computed using cached spherical radian coordinates.
@@ -196,19 +200,6 @@ flowchart TD
     end
 ```
 
-### Comparison of Reduction Systems
-
-| Feature | Dynamic Query Reduction (`GraphReducer`) | Static CSR Contraction (`assembly.contract_chains`) |
-| :--- | :--- | :--- |
-| **Engine** | `scgraph.graph_reducer.GraphReducer` | `scgraph.pipelines.steps.assembly.contract_chains` |
-| **Input Data** | In-memory adjacency list of dicts | Contiguous CSR arrays (`offsets`, `heads`, `weights`) |
-| **Node Identity** | Preserves all original node IDs | Prunes contracted nodes; re-indexes kept nodes |
-| **Internal Snapping** | Fully supported ($O(1)$ dual-sided chain entry) | Not supported (snaps to composite arc polylines) |
-| **Segment Length** | Unbounded | Capped at `max_km` (default: 2 km in OSM) |
-| **Primary Use Case** | Fast queries on loaded in-memory graphs | High-throughput compression during pipeline file builds |
-
----
-
 ### Dynamic Query Reduction (`GraphReducer`)
 
 Operates on an instantiated `Graph` via `graph.reduce(iterations=-1)`:
@@ -228,12 +219,13 @@ Operates on an instantiated `Graph` via `graph.reduce(iterations=-1)`:
 ### Static CSR Contraction (`assembly.contract_chains`)
 
 Operates directly on flat C-style arrays during pipeline assembly:
-* Takes `(offsets, heads, weights, modes, max_km)` and returns a `ContractedGraph` namedtuple:
+* Takes `(offsets, heads, weights, node_modes, max_km_between_nodes)` and returns a `ContractedGraph` namedtuple:
   * `kept`: Indices of retained nodes.
   * `origins`, `heads`, `weights`: Compressed composite edges.
   * `member_offsets`, `members`: Indices of original input arcs forming each composite edge.
-* `max_km` splits long chains to preserve geographic snapping resolution.
-* Multi-edges and self-loops are bifurcated at midpoints.
+* `node_modes` is optional. A chain is never contracted across two modes.
+* `max_km_between_nodes` cuts a chain into segments of about that length (default: no cut).
+* A segment that would create a self-loop or a duplicate arc is split at its midpoint.
 * The aggregated geometry is generated by `build_chain_shapes` using `members`.
 
 ---
@@ -296,8 +288,8 @@ The `inverse_graph` is preserved across edits and updated incrementally.
 ### Persistent Filesystem Cache (`SCGRAPH_CACHE_DIR`)
 
 Networks built or downloaded by `scgraph` are cached on disk (default: `~/.cache/scgraph`):
-* **Hierarchy**: `networks/<name>/<region>/<content_sha256>.scgraph` alongside a `cache.json` tracking source timestamps.
-* **Atomic Writes**: Builds write to a temporary `.building-*` folder before moving the completed `.scgraph` file and `cache.json` into place via atomic `os.replace`.
+* **Hierarchy**: `networks/<name>/<region>/<content_sha256>.scgraph` next to a `cache.json` that names the file and gives the download time.
+* **Atomic Writes**: A build writes into the work folder `.work/<name>/<region>` of the cache directory. It then moves the finished `.scgraph` file into place, and `cache.json` after it, each with an atomic rename. `cache.json` therefore always names a whole file.
 * **Offline Operation**: Setting `SCGRAPH_OFFLINE=1` or `local_files_only=True` prevents all network requests, loading only existing cached builds.
 * **Cache Management**: `GeoGraph.clear_geograph_cache()` safely removes cached networks without altering user files.
 
@@ -324,7 +316,7 @@ All multi-byte integers are stored in **little-endian** byte order:
 | `0 .. 7` | 8 bytes | ASCII | Magic Bytes | Constant magic identifier: `SCGRAPH1` |
 | `8 .. 39` | 32 bytes | Binary | Content SHA-256 | Raw SHA-256 hash of all bytes from offset 40 to EOF |
 | `40 .. 47` | 8 bytes | uint64 | Header Length | Byte length of the unpadded JSON header ($L_H$) |
-| `48 .. 48 + L_H - 1` | $L_H$ bytes | UTF-8 | Header JSON | Canonical UTF-8 JSON text (sorted keys, no whitespace) |
+| `48 .. 48 + L_H - 1` | $L_H$ bytes | UTF-8 | Header JSON | UTF-8 JSON text with sorted keys (`json.dumps(header, sort_keys=True)`) |
 | Next | $0 .. 63$ bytes | Zeros | Padding | Zero padding up to the next 64-byte boundary |
 | Array Section | Variable | Binary | Contiguous Arrays | Data arrays, each aligned to a 64-byte boundary |
 
@@ -332,7 +324,7 @@ All multi-byte integers are stored in **little-endian** byte order:
 
 ### Header JSON Schema
 
-The header contains top-level structural fields and a nested `metadata` dictionary:
+The header contains top-level structural fields and a nested `metadata` dictionary. The values below are examples:
 
 ```json
 {
@@ -356,7 +348,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
       "version": 1
     },
     "software": {
-      "scgraph": "4.0.0.dev0",
+      "scgraph": "<version>",
       "backend": "cpp",
       "platform": "linux-x86_64 glibc 2.36"
     },
@@ -418,4 +410,4 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 
 `scgraph` supports two coordinate encodings:
 * **`float64`**: Full 64-bit IEEE 754 precision (exact).
-* **`int32` ($10^{-7}$ degrees)**: Standard OpenStreetMap fixed-point encoding (~1.1 cm precision at equator). Saves 50% memory on coordinate arrays and enables fast integer SIMD comparisons.
+* **`int32` ($10^{-7}$ degrees)**: OpenStreetMap's fixed-point encoding (about 1.1 cm at the equator). A coordinate takes 4 bytes instead of 8.
