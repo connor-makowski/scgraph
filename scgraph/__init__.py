@@ -909,6 +909,21 @@ output = us_freeway_geograph.get_shortest_path(
 print(output['length'])
 ```
 
+A hierarchy can be saved and loaded again instead of being rebuilt. A hierarchy with transit nodes (`algorithm_fn='tnr'`) is built and saved the same way:
+
+```py
+from scgraph import CHGraph
+
+graph = us_freeway_geograph.graph_object
+ch = graph.create_contraction_hierarchy()
+ch.save_as_chjson("us_freeway.chjson")
+ch = CHGraph.load_from_chjson("us_freeway.chjson")
+print(ch.get_shortest_path(0, 100)['length'])  # between two node ids
+
+tnr = graph.create_tnr_hierarchy()
+tnr.save_as_tnrjson("us_freeway.tnrjson")
+```
+
 ---
 
 # Distance Utilities

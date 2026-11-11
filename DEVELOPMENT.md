@@ -34,7 +34,7 @@ Two defaults to know: `Graph.reduce(iterations=-1)` reduces until nothing change
 
 ```
 scgraph/
-  __init__.py                  # Exports Graph, CHGraph, TNRGraph, GeoGraph, LazyGeoGraph, GridGraph; its docstring repeats README.md
+  __init__.py                  # Exports Graph, CHGraph, GeoGraph, GridGraph and the two exceptions; its docstring repeats README.md
   graph.py                     # Graph: the search algorithms, trees, reduce()
   graph_reducer.py             # GraphReducer and the @algorithm decorator
   graph_utils.py               # GraphUtils (validation, path reconstruction), GraphModifiers
