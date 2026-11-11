@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 
 import requests
@@ -9,7 +10,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-def download(url: str, filename: str) -> dict:
+def download(url: str, filename: str | os.PathLike) -> dict:
     """Write the layer as GeoJSON; return its `version`, the time of the last edit of its
     data (ISO 8601 in UTC, with a Z, as OSM's), if the layer gives it."""
     layer = _get(url, f="json")

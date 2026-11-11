@@ -1,6 +1,5 @@
 import json
 from heapq import heappush, heappop, heapify
-from typing import Any
 from collections.abc import Callable
 from scgraph.graph_utils import (
     GraphUtils,
@@ -315,7 +314,8 @@ class CHGraphPreprocessing:
         return witness_distances
 
     def __preprocess__(
-        self, heuristic_fn: Callable[[Any, int], int | float] | None = None
+        self,
+        heuristic_fn: Callable[["CHGraph", int], int | float] | None = None,
     ) -> None:
         """
         Function:
@@ -521,7 +521,7 @@ class CHGraphAlgorithms:
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
         length_only: bool = False,
-    ) -> dict[str, Any]:
+    ) -> dict:
         """
         Function:
 
@@ -832,7 +832,7 @@ class CHGraph(
     def __init__(
         self,
         graph: list[dict[int, int | float]] | None = None,
-        heuristic_fn: Callable[[Any, int], int | float] | None = None,
+        heuristic_fn: Callable[["CHGraph", int], int | float] | None = None,
         ranks: list[int] | None = None,
         forward_graph: list[dict[int, int | float]] | None = None,
         backward_graph: list[dict[int, int | float]] | None = None,
@@ -958,8 +958,8 @@ class CHGraph(
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
-        **kwargs: Any,
-    ) -> dict[str, Any]:
+        **kwargs,
+    ) -> dict:
         """
         Function:
 

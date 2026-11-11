@@ -15,9 +15,9 @@ def _is_monotonically_increasing(offsets):
 
 
 def perpendicular_distance(
-    point: Sequence[int | float],
-    start: Sequence[int | float],
-    end: Sequence[int | float],
+    point: Sequence[float],
+    start: Sequence[float],
+    end: Sequence[float],
 ) -> float:
     """Calculate the perpendicular distance from a 2D point to a line segment.
 

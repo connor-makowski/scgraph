@@ -2,7 +2,7 @@ import json
 import time
 import platform
 import os
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from math import pi, sin, cos, asin
 
@@ -18,8 +18,8 @@ cheap_e2 = (1 / 298.257223563) * (2 - (1 / 298.257223563))
 
 
 def haversine(
-    origin: list[float | int],
-    destination: list[float | int],
+    origin: Sequence[float],
+    destination: Sequence[float],
     units: str = "km",
     circuity: float = 1,
 ) -> float:
@@ -68,8 +68,8 @@ def haversine(
 
 
 def cheap_ruler(
-    origin: list[float | int],
-    destination: list[float | int],
+    origin: Sequence[float],
+    destination: Sequence[float],
     units: str = "km",
     circuity: float = 1,
 ) -> float:
@@ -184,7 +184,9 @@ def distance_converter(
     return (distance / km_table[input_units]) * km_table[output_units]
 
 
-def get_line_path(output: list | dict, filename: str | None = None) -> dict:
+def get_line_path(
+    output: list | dict, filename: str | os.PathLike | None = None
+) -> dict:
     """
     Function:
 
@@ -376,7 +378,7 @@ def cpp_check() -> None:
         print("Using Pure Python implementation of SCGraph.")
 
 
-def resolve_cache_dir(cache_dir: str | None = None) -> Path:
+def resolve_cache_dir(cache_dir: str | os.PathLike | None = None) -> Path:
     """
     The cache directory of every function that uses the cache: `cache_dir` if given, else the
     `SCGRAPH_CACHE_DIR` environment variable if set, else the platform's cache directory

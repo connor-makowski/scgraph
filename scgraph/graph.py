@@ -1,8 +1,7 @@
 from array import array
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from heapq import heappop, heappush
 from math import asin, ceil, cos, sin
-from typing import Any
 from scgraph.graph_utils import (
     GraphUtils,
     GraphModifiers,
@@ -828,7 +827,7 @@ class GraphAlgorithms:
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
-        heuristic_fn: callable = None,
+        heuristic_fn: Callable[[int, int], int | float] | None = None,
     ) -> dict:
         """
         Function:
@@ -1073,8 +1072,8 @@ class GraphAlgorithms:
     @algorithm
     def bmssp(
         self,
-        origin_id: int | set[int],
-        destination_id: int,
+        origin_id: int | set[int] | dict[int, int | float],
+        destination_id: int | set[int] | dict[int, int | float],
         use_constant_degree_graph: bool = True,
     ) -> dict:
         """
@@ -1205,7 +1204,7 @@ class GraphAlgorithms:
         heuristic_fn: Callable[[CHGraph, int], int | float] | None = None,
         ch_graph_kwargs: dict | None = None,
         settled_limit: int = 50,
-    ) -> Any:
+    ) -> CHGraph:
         """
         Function:
 
@@ -1240,10 +1239,10 @@ class GraphAlgorithms:
     def create_tnr_hierarchy(
         self,
         num_transit_nodes: int = 100,
-        tnr_graph_kwargs: dict = None,
+        tnr_graph_kwargs: dict | None = None,
         settled_limit: int = 50,
         heuristic_fn: Callable[[CHGraph, int], int | float] | None = None,
-    ) -> Any:
+    ) -> TNRGraph:
         """
         Function:
 
@@ -1330,7 +1329,7 @@ class GraphAlgorithms:
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
         length_only: bool = False,
-    ) -> dict[str, Any]:
+    ) -> dict:
         """
         Function:
 
@@ -1437,9 +1436,9 @@ class Graph(
 
     @staticmethod
     def from_csr(
-        offsets: Sequence[int],
-        heads: Sequence[int],
-        weights: Sequence[int | float],
+        offsets: array | memoryview,
+        heads: array | memoryview,
+        weights: array | memoryview,
     ) -> "Graph":
         """
         Function:

@@ -474,7 +474,9 @@ class GraphUtils:
 
 class GraphModifiers:
     def add_node(
-        self, node_dict: dict[int, int | float] = None, symmetric: bool = False
+        self,
+        node_dict: dict[int, int | float] | None = None,
+        symmetric: bool = False,
     ) -> int:
         """
         Function:

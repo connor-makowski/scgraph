@@ -1,6 +1,5 @@
 import json
 from heapq import heappush, heappop, heapify
-from typing import Any
 from scgraph.contraction_hierarchies import CHGraph
 from scgraph.graph_utils import normalize_node_input
 
@@ -407,7 +406,7 @@ class TNRGraphAlgorithms:
         destination_id: int | set[int] | dict[int, int | float],
         length_only: bool = False,
         **kwargs,
-    ) -> dict[str, Any]:
+    ) -> dict:
         """
         Function:
         - Perform a TNR search with a highly pruned local CH fallback
@@ -537,6 +536,6 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
-        **kwargs: Any,
-    ) -> dict[str, Any]:
+        **kwargs,
+    ) -> dict:
         return self.search(origin_id, destination_id, **kwargs)

@@ -1,9 +1,10 @@
 import json
+import os
 
 from scgraph.utils import hard_round, print_console, haversine
 from scgraph.helpers.douglas_peucker import douglas_peucker
 from scgraph.helpers.visvalingam import visvalingam
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 
 def lessThanAbs(  # noqa: N802 (public since 3.6.0)
@@ -24,7 +25,7 @@ def _latitude(value):
 
 
 def format_coord_tuple(
-    coord: list[float | int], round_to: int = 3
+    coord: Sequence[float], round_to: int = 3
 ) -> tuple[float, float]:
     # Rounded again after the wrap, whose floating point noise (-169.15020000000004 for
     # 190.8498) would make two nodes of one point
@@ -34,9 +35,7 @@ def format_coord_tuple(
     )
 
 
-def format_coord_list(
-    coord: list[float | int], round_to: int = 3
-) -> list[float]:
+def format_coord_list(coord: Sequence[float], round_to: int = 3) -> list[float]:
     # Rounded again after the wrap, whose floating point noise (-169.15020000000004 for
     # 190.8498) would make two nodes of one point
     return [
@@ -46,7 +45,7 @@ def format_coord_list(
 
 
 def simplify_geojson(
-    filename_in: str,
+    filename_in: str | os.PathLike,
     filename_out: str | None = None,
     precision: int = 4,
     pct_to_keep: float = 100,
@@ -54,7 +53,7 @@ def simplify_geojson(
     silent: bool = False,
     algorithm: str | Callable = "visvalingam",
     tolerance: float = 0.0,
-) -> list[list[list[int | float]]]:
+) -> list[list[list[float]]]:
     """
     Simplify the GeoJSON features by rounding coordinates and ensuring all geometries are MultiLineStrings.
     Removes empty features or features with only single points after simplification.
@@ -180,7 +179,7 @@ def simplify_geojson(
 
 
 def parse_geojson(
-    filename_in: str,
+    filename_in: str | os.PathLike,
     precision: int = 4,
     pct_to_keep: float = 100,
     min_points: int = 3,

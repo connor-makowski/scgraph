@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from heapq import heappush, heappop
 
 
@@ -84,7 +85,7 @@ def visvalingam(
     coords: list[list[int | float]],
     pct_to_keep: float,
     min_points: int = 2,
-    weight_fn: callable = triangle_area,
+    weight_fn: Callable = triangle_area,
 ) -> list[list[int | float]]:
     """
     Simplify a linestring using Visvalingam-Whyatt algorithm.

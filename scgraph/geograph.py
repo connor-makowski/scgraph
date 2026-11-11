@@ -83,7 +83,7 @@ class GeoGraphIO:
         destination_idx: int,
         sequence: str,
         save_intermediate_nodes: bool,
-    ) -> list[list[float | int]]:
+    ) -> list[list[int | float]]:
         """Build the coordinates for one exported edge."""
         origin = self.nodes[origin_idx]
         destination = self.nodes[destination_idx]
@@ -109,7 +109,7 @@ class GeoGraphIO:
 
     def save_as_geojson(
         self,
-        filename: str,
+        filename: str | os.PathLike,
         compact: bool = False,
         save_intermediate_nodes: bool = True,
     ) -> None:
@@ -381,7 +381,7 @@ class GeoGraphIO:
     # Load Methods
     @staticmethod
     def load_from_geojson(
-        filename: str,
+        filename: str | os.PathLike,
         precision: int = 5,
         pct_to_keep: float = 100,
         min_points: int = 3,
@@ -514,7 +514,7 @@ class GeoGraphIO:
 
     @staticmethod
     def load_from_osm(
-        filename: str,
+        filename: str | os.PathLike,
         select: Callable | None = None,
         tag_keys: tuple[str, ...] = ("highway",),
         max_km_between_nodes: float | None = None,
@@ -699,7 +699,7 @@ class GeoGraphIO:
         return geograph
 
     @staticmethod
-    def get_scgraph_info(filename: str) -> dict:
+    def get_scgraph_info(filename: str | os.PathLike) -> dict:
         """
         Function:
 
@@ -871,7 +871,7 @@ class GeoGraphIO:
     @staticmethod
     def load_geograph(
         name: str,
-        cache_dir: str | None = None,
+        cache_dir: str | os.PathLike | None = None,
         geograph_url: str = _GEOGRAPH_URL,
         reduce_iterations: int = 0,
         lazy: bool = False,
@@ -990,7 +990,7 @@ class GeoGraphIO:
 
     @staticmethod
     def list_geographs(
-        cache_dir: str | None = None,
+        cache_dir: str | os.PathLike | None = None,
         geograph_url: str = _GEOGRAPH_URL,
     ) -> list[dict]:
         """
@@ -1044,7 +1044,7 @@ class GeoGraphIO:
 
     @staticmethod
     def clear_geograph_cache(
-        cache_dir: str | None = None,
+        cache_dir: str | os.PathLike | None = None,
         *,
         name: str | None = None,
         region: str | None = None,
@@ -1125,7 +1125,9 @@ class GeoGraphIO:
             cache_path.rmdir()
 
     @staticmethod
-    def get_cache_info(cache_dir: str | None = None) -> list[dict]:
+    def get_cache_info(
+        cache_dir: str | os.PathLike | None = None,
+    ) -> list[dict]:
         """
         Function:
 
@@ -1223,7 +1225,7 @@ class GeoGraphIO:
             | types.ModuleType
         ),
         region: str | None = None,
-        cache_dir: str | None = None,
+        cache_dir: str | os.PathLike | None = None,
         reduce_iterations: int = 0,
         lazy: bool = False,
         *,
@@ -1324,7 +1326,9 @@ class GeoGraphIO:
             return "unknown"
 
     @staticmethod
-    def list_buildable_geographs(cache_dir: str | None = None) -> list[dict]:
+    def list_buildable_geographs(
+        cache_dir: str | os.PathLike | None = None,
+    ) -> list[dict]:
         """
         Function:
 
@@ -1559,7 +1563,7 @@ class GeoGraphIO:
     @staticmethod
     def get_multi_path_geojson(
         routes: list[dict],
-        filename: str | None = None,
+        filename: str | os.PathLike | None = None,
         show_progress: bool = False,
         get_intermediate_nodes: bool = True,
     ) -> dict:
@@ -1740,8 +1744,8 @@ class GeoGraphModifiers:
 
     def add_coord_edge(
         self,
-        origin_coord_dict: dict[str, float | int],
-        destination_coord_dict: dict[str, float | int],
+        origin_coord_dict: dict[str, int | float],
+        destination_coord_dict: dict[str, int | float],
         symmetric: bool = True,
         distance: float | None = None,
         circuity: float = 1,
@@ -1841,7 +1845,7 @@ class GeoGraphModifiers:
 
     def add_coord_node(
         self,
-        coord_dict: dict[str, float | int],
+        coord_dict: dict[str, int | float],
         auto_edge: bool = True,
         circuity: float = 1,
         node_addition_type: str = "quadrant",
@@ -2423,7 +2427,7 @@ class GeoGraphUtils:
 
     def __get_intermediate_nodes__(
         self, origin_idx: int, destination_idx: int, sequence: str = "lat_lon"
-    ) -> list[list[float | int]]:
+    ) -> list[list[int | float]]:
         """
         Function:
 
@@ -2457,7 +2461,7 @@ class GeoGraphUtils:
 
     def __format_coordinates__(
         self,
-        coordinate_path: list[list[float | int]],
+        coordinate_path: list[list[int | float]],
         output_format: str = "list_of_lists",
     ) -> list:
         """
@@ -2493,7 +2497,7 @@ class GeoGraphUtils:
 
     def __get_coordinate_path__(
         self, path: list[int], get_intermediate_nodes: bool = False
-    ) -> list[list[float | int]]:
+    ) -> list[list[int | float]]:
         """
         Function:
 
@@ -2715,9 +2719,9 @@ class GeoGraph(
     def __init__(
         self,
         graph: list[dict[int, int | float]],
-        nodes: list[list[float | int]],
+        nodes: list[list[int | float]],
         validate: bool = False,
-        intermediate_nodes: list[list[list[float | int]]] = None,
+        intermediate_nodes: list[list[list[int | float]]] | None = None,
         default_off_graph_circuity: float = 1,
         default_node_addition_circuity: float = 4,
         geograph_units: Literal["km", "m", "mi", "ft"] = "km",
@@ -3062,11 +3066,11 @@ class GeoGraph(
 
     def get_shortest_path(
         self,
-        origin_node: dict[str, float | int],
-        destination_node: dict[str, float | int],
+        origin_node: dict[str, int | float],
+        destination_node: dict[str, int | float],
         output_units: str = "km",
-        algorithm_fn: str = "bidirectional_buckets",
-        algorithm_kwargs: dict = None,
+        algorithm_fn: str | Callable = "bidirectional_buckets",
+        algorithm_kwargs: dict | None = None,
         off_graph_circuity: float = 1,
         node_addition_type: str = "kdclosest",
         node_addition_circuity: float = 4,
@@ -3078,7 +3082,7 @@ class GeoGraph(
         auto_lat_lon_bound_max: float = 2,
         silent: bool = False,
         length_only: bool = False,
-        get_intermediate_nodes: bool = None,
+        get_intermediate_nodes: bool | None = None,
         **kwargs,
     ) -> dict:
         """
@@ -3413,11 +3417,11 @@ class GeoGraph(
 
     def distance_matrix(
         self,
-        nodes: list[dict[str, float | int]],
+        nodes: list[dict[str, int | float]],
         off_graph_circuity: float = 1,
         output_units: str = "km",
         silent: bool = False,
-    ) -> list[list[float | int | None]]:
+    ) -> list[list[int | float | None]]:
         """
         Function:
 
