@@ -7,14 +7,18 @@ A pipeline is a module with four names:
 - `SOURCES`: name -> each source to download: its `url` (`{region}` in it is replaced by
   the `region` argument of `build_geograph`), the `credit` to cite with results, and its
   `license` (SPDX identifier, `LicenseRef-…` when SPDX has none, `NOASSERTION` when it could
-  not be established) with the `license_url` where it is stated
+  not be established) with the `license_url` where it is stated, and for a pinned source
+  its `version` (a tag or a date)
 - `PIPELINE_VERSION`: an integer, raised when the same sources would give a different
   graph; a refactoring that leaves the graph unchanged does not raise it; it is never lowered
   once released. A network that reuses others adds their versions; a cached network built
   with another `PIPELINE_VERSION` is built again
 - `build(files)`: given name -> downloaded file, returns the GeoGraph, or `(GeoGraph,
-  details)` where `details` is a dict added to the manifest
-- `download(url, filename)`, optional: how to download a source (default: `download_file`)
+  steps)` where `steps` lists what each step did, `{"step": name, <count>: int, ...}`
+  (a network that reuses others concatenates their steps)
+- `download(url, filename)`, optional: how to download a source (default: `download_file`);
+  it may return a dict added to the source's record, such as the `version` of its data
+  (`osm.download`: the time an OSM extract is up to; `arcgis.download`: a layer's last edit)
 
 The first paragraph of the module docstring describes the network (shown by
 `GeoGraph.list_buildable_geographs`). Functions that `build` passes on, such as a `select`
@@ -31,6 +35,22 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 - the planet, streamed: `osm.locate_ways` (every kind of way in one read) ->
   `cut_polylines` (`scgraph.helpers.polylines`) -> `csr_from_arcs` -> `strong_components`
   -> `simplify_shapes` (the last three are added with the assembly kernels, #206)
+
+`build_geograph` writes into the network file's header what built it (`build_metadata`),
+read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
+(`name`, `url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the
+data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the `platform`
+with its C library or macOS version), `description` (the module docstring, so `python
+-OO`, which drops docstrings, gives another file) and `steps`. It holds no clock time (the
+download time stays in the cache's `cache.json`). A cached network is built again only for
+another `PIPELINE_VERSION` or file format.
+
+Same pipeline, same sources, same scgraph version, same backend and same platform and C
+library or macOS version: byte-identical file (tested). The C++ and Python builds give the
+same graph, the same nodes, arcs and lengths (tested with the `marnet` pipeline on a small
+synthetic input); only the order of arcs within a node and ties between equal-length
+routes may differ. Across platforms, a few lengths or shape points may differ in the last
+bit (the platform's math library).
 
 The core never imports `scgraph.pipelines` at load time: `load_from_osm` and
 `build_geograph` import it when they are called.
@@ -59,9 +79,14 @@ Give an adapted copy a name of its own: a module named like a built-in pipeline 
 and two modules with the same last name share one cache entry.
 """
 
+import inspect
 import logging
+import platform
+import sysconfig
 
 import requests
+
+from scgraph.utils import has_cpp
 
 logger = logging.getLogger("scgraph.networks")
 
@@ -78,6 +103,37 @@ NAMES = (
 LARGE_DOWNLOAD = (
     100e6  # bytes; announced with a warning, visible without logging set up
 )
+
+
+def build_metadata(
+    name, region, version, sources, description=None, steps=None
+):
+    """The build metadata that `build_geograph` writes into a network file's header (its
+    fields: this module's docstring), from plain values, without a GeoGraph: `name`,
+    `region` and `version` are the pipeline's, `sources` the records of the downloaded
+    sources, `description` the pipeline's docstring and `steps` what `build` returned;
+    `software` is added.
+    """
+    from scgraph.geograph import GeoGraph
+
+    libc = " ".join(platform.libc_ver()).strip()
+    macos = platform.mac_ver()[0]
+    system = f"macOS {macos}" if macos else libc
+    return {
+        "pipeline": {"name": name, "region": region, "version": version},
+        "sources": sources,
+        "software": {
+            "scgraph": GeoGraph.__scgraph_version__(),
+            "backend": "cpp" if has_cpp() else "python",
+            "platform": f"{sysconfig.get_platform()} {system}".strip(),
+        },
+        **(
+            {"description": inspect.cleandoc(description)}
+            if description
+            else {}
+        ),
+        **({"steps": steps} if steps else {}),
+    }
 
 
 def download_file(url: str, filename: str) -> None:

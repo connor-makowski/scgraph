@@ -37,11 +37,12 @@ network combines two networks with `merge_with_other_geograph`), whose contract 
 `pipelines/__init__.py`; `build_geograph` also takes a module object, cached under the last
 part of its name. The core imports `pipelines` only when `load_from_osm` or
 `build_geograph` is called. The sources are downloaded once, the built network is written
-as a `.scgraph` network file to the local cache with a manifest of what was downloaded, and
-later calls read the cache. Network files written by scgraph (`save_as_scgraph`, so built
+as a `.scgraph` network file to the local cache, whose header says what built it (§7; no
+clock time, so the same inputs give the same `content_sha256`), and later calls read the
+cache. Network files written by scgraph (`save_as_scgraph`, so built
 networks and the conversions of published networks, §6) number their nodes along a Hilbert
 curve over longitude and latitude (`helpers/hilbert.py`, within each mode, so that the nodes
-of a mode stay together; manifest key `node_order`), so that nodes close on the globe get
+of a mode stay together; header key `node_order`), so that nodes close on the globe get
 close ids; the GeoGraph saved is not renumbered (`Graph._csr(order)` gives the renumbered
 arcs, one copy). `_in_hilbert_order` renumbers a GeoGraph in memory, for the conversions of
 published networks and `load_from_geojson`. `CHGraph` and `TNRGraph` are built from a `Graph` on the first
@@ -219,22 +220,22 @@ that can't be read (damaged, another format version) is made again from the `.gr
 a cache that can't be written keeps reading the `.graphjson`. In the C++ build a loaded
 conversion stays mapped: on Windows it can't be removed or replaced while a geograph read from
 it is alive. A built network is not rebuilt when its source changes, but it is
-when its manifest names another `PIPELINE_VERSION` of its pipeline or of the file format, or a
-file that is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
+when its file's header names another `PIPELINE_VERSION` or its file format is another, or its
+file is missing, or when `refresh=True` asks for it. With `local_files_only=True` (the
 default when `SCGRAPH_OFFLINE=1`), nothing is downloaded: `load_geograph` and `build_geograph` raise `FileNotFoundError` for a
 network that is not in the cache, and `build_geograph` loads a build of another pipeline
 version with a warning that names both versions, but refuses one of another file
 format. `list_geographs` lists the published networks from a fixed list in the code, without
 a request (`contents.txt` is read only for another `geograph_url`). A built network lives in
 `networks/<name>/<region>/` of the cache: a
-file named by its content (`<content_sha256>.scgraph`, §7) and a `manifest.json` that names
-it. Each build works in its own `.building-*` folder at the root of the cache, then moves
-the network file and then the manifest into place (`os.replace`), so a manifest always
-names a whole file (a file of the same name has the same content and is kept: it may be
+file named by its content (`<content_sha256>.scgraph`, §7) and a `cache.json` that names
+it, with the download time (the only clock time). Each build works in its own `.building-*`
+folder at the root of the cache, then moves the network file and then `cache.json` into
+place (`os.replace`), so `cache.json` always names a whole file (a file of the same name has the same content and is kept: it may be
 open); the old file is removed last, or stays as an orphan if it cannot be
-(Windows, still open). Two builds of one network can run at once: the last manifest wins.
+(Windows, still open). Two builds of one network can run at once: the last `cache.json` wins.
 `save_as_scgraph` and `save_as_graphjson` refuse a target under `networks/` of the cache
-directory, so that a cached file always matches its manifest. Whenever scgraph builds a
+directory, so that a cached file stays the one its `cache.json` names. Whenever scgraph builds a
 network, it writes a `CACHEDIR.TAG` in `networks/` (https://bford.info/cachedir/).
 `cache_info` reads the cache from disk only; `clear_geograph_cache` removes only the files
 scgraph writes (all of them, or those of one network or region), and leaves a file it can't
@@ -266,7 +267,9 @@ the graph is edited. Windows does not replace a mapped file, so there, saving on
 an open geograph was read from raises a `PermissionError`.
 `network_file.write` takes the arrays as stored; `save_as_scgraph` passes it the graph's arcs
 from the private `Graph._csr()`, in the C++ backend views of the graph's own arrays, so that
-saving copies no arc there.
+saving copies no arc there, and the metadata from `network_file.header_metadata` (scgraph's
+keys plus the identity card, the keys scgraph writes refused), which a writer of arrays uses
+too.
 
 | Bytes | Content |
 |---|---|
@@ -277,15 +280,30 @@ saving copies no arc there.
 | then | arrays, little-endian, each starting at a multiple of 64 bytes |
 
 `content_sha256` is the identity of the file, header included, so a file named by it
-(`build_geograph`'s) holds exactly those bytes; it identifies the file, not the graph: arcs
-are written in the order the backend visits them, which is not the same in the C++ and
-Python builds. The reader returns it without checking it, so that opening a file does not
-read it all. The header has no size limit; it gives `format_version` (1), `spec` (a link to
-this section), `arrays` (for each array: `dtype`, `shape` and `offset` from the end of the
-padded header, a multiple of 64) and `metadata`: `crs`
-(`EPSG:4326`), `units` of the weights, the GeoGraph defaults
+(`build_geograph`'s) holds exactly those bytes; the reader returns it unchecked, so that
+opening a file does not read the whole file. It identifies a build: same pipeline, same
+sources, same scgraph version, same backend and same platform and C library or macOS
+version give a byte-identical file (tested). The C++ and Python builds give the same
+graph, the same nodes, arcs and lengths (tested with the `marnet` pipeline on a small
+synthetic input); only the order of arcs within a node (the order the backend visits them)
+and ties between equal-length routes may differ. Across platforms, a few lengths or shape
+points may differ in the last bit (the platform's math library). The header has no size
+limit; it gives `format_version` (1), `spec` (a link to this section), `arrays` (for each
+array: `dtype`, `shape` and `offset` from the end of the padded header, a multiple of 64)
+and `metadata`: `crs` (`EPSG:4326`), `units` of the weights, the GeoGraph defaults
 `default_off_graph_circuity` and `default_node_addition_circuity`, and `symmetric` (true
-when every arc has a reverse arc of the same weight; scgraph does not read it yet); and, when known, `sources`: where the data comes from, each with its URL, SHA-256, credit and licence (SPDX identifier), so that attribution travels with the file; and `modes`, the list that `node_modes` indexes, for example `[{"name": "road", "source": "roads"}, {"name": "sea", "source": "sea"}]` (`source`, optional, names an entry of `sources`).
+when every arc has a reverse arc of the same weight; scgraph does not read it yet),
+`node_order`; and, when known, `sources`: where the data comes from, each with its `name`,
+`url`, `sha256`, `bytes`, `credit`, `license` (an SPDX identifier, `LicenseRef-…` when
+SPDX has none, `NOASSERTION` when it could not be established), `license_url` and
+`version` (the time its data is up to, in UTC with a Z, or a tag; absent when the source
+gives none), so that attribution travels with the file; for a built network, `pipeline`
+(`name`, `region`, `version`), `software` (`scgraph`, `backend`, and `platform` with its C
+library or macOS version), `description` and `steps` (see `pipelines/__init__.py`); and
+`modes`, the list that `node_modes` indexes, for example `[{"name": "road", "source":
+"roads"}, {"name": "sea", "source": "sea"}]` (`source`, optional, must name an entry of
+`sources`). `save_as_scgraph(metadata=...)` sets the optional keys, never those scgraph
+writes itself.
 
 | Array | dtype | Shape | Content |
 |---|---|---|---|

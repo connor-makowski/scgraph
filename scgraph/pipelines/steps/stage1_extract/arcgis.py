@@ -2,13 +2,16 @@
 
 import json
 import logging
+from datetime import datetime, timezone
 
 import requests
 
 logger = logging.getLogger("scgraph.networks.arcgis")
 
 
-def download(url: str, filename: str) -> None:
+def download(url: str, filename: str) -> dict:
+    """Write the layer as GeoJSON; return its `version`, the time of the last edit of its
+    data (ISO 8601 in UTC, with a Z, as OSM's), if the layer gives it."""
     layer = _get(url, f="json")
     count = _get(f"{url}/query", where="1=1", returnCountOnly="true", f="json")[
         "count"
@@ -35,6 +38,13 @@ def download(url: str, filename: str) -> None:
         )
     with open(filename, "w") as file:
         json.dump({"type": "FeatureCollection", "features": features}, file)
+    # The last edit of its data (in ms), not of its schema, when the layer says
+    editing = layer.get("editingInfo", {})
+    edited = editing.get("dataLastEditDate", editing.get("lastEditDate"))
+    if edited is None:
+        return {}
+    time = datetime.fromtimestamp(edited / 1000, timezone.utc)
+    return {"version": time.strftime("%Y-%m-%dT%H:%M:%SZ")}
 
 
 def _get(url, **params):

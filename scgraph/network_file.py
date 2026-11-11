@@ -22,6 +22,8 @@ from itertools import islice
 from operator import eq, index, le
 from types import MappingProxyType
 
+from scgraph.helpers.hilbert import NODE_ORDER
+
 try:
     from scgraph.cpp import coordinate_lists as _coordinate_lists
     from scgraph.cpp import shape_path as _shape_path
@@ -84,6 +86,65 @@ def coordinate_dtype(arrays):
 def _scale(values):
     # Units of a coordinate array per degree: 1e7 for int32 (OSM's), 1 for float64
     return 1e7 if memoryview(values).format == "i" else 1.0
+
+
+# Header keys that scgraph writes or computes itself, which build metadata cannot set
+RESERVED = frozenset(
+    {
+        "crs",
+        "units",
+        "default_off_graph_circuity",
+        "default_node_addition_circuity",
+        "modes",
+        "symmetric",
+        "node_order",
+        "content_sha256",
+        "format_version",
+        "nodes",
+        "arcs",
+        "coordinate_dtype",
+        "shapes",
+        "node_ids",
+        "attribution",
+        "data_up_to",
+    }
+)
+
+
+def header_metadata(
+    build_metadata,
+    *,
+    units,
+    default_off_graph_circuity,
+    default_node_addition_circuity,
+    modes,
+):
+    """The metadata `write` takes for a network whose nodes are in scgraph's order
+    (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`, the GeoGraph
+    defaults, `modes`, `node_order`) and the `build_metadata`, what built the network (see
+    `scgraph.pipelines`). A metadata key that scgraph writes itself, or a mode whose `source`
+    names no entry of the metadata's `sources`, raises a ValueError."""
+    if RESERVED & set(build_metadata):
+        raise ValueError(
+            f"metadata may not set {sorted(RESERVED & set(build_metadata))}"
+        )
+    # A mode cites the source of its node ids by name
+    names = {source.get("name") for source in build_metadata.get("sources", [])}
+    for mode in modes:
+        if "source" in mode and mode["source"] not in names:
+            raise ValueError(
+                f"Mode {mode} names no source: pass metadata with a source of "
+                f"that name in its 'sources'"
+            )
+    return {
+        "crs": "EPSG:4326",
+        "units": units,
+        "default_off_graph_circuity": default_off_graph_circuity,
+        "default_node_addition_circuity": default_node_addition_circuity,
+        **({"modes": modes} if modes != [{"name": None}] else {}),
+        "node_order": NODE_ORDER,
+        **build_metadata,
+    }
 
 
 def write(filename, arrays, metadata):

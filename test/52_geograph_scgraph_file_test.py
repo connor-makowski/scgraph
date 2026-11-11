@@ -44,11 +44,18 @@ def _small(node_ids=None):
 @pytest.mark.parametrize("save_intermediate_nodes", [True, False])
 def test_save_load_scgraph(tmp_path, save_intermediate_nodes):
     path = str(tmp_path / "small.scgraph")
-    _small().save_as_scgraph(path, save_intermediate_nodes, sources=_SOURCES)
+    _small().save_as_scgraph(
+        path, save_intermediate_nodes, metadata={"sources": _SOURCES}
+    )
     arrays, metadata = network_file.read(path)
     assert metadata["symmetric"] is False
     assert metadata["sources"] == _SOURCES
     loaded = GeoGraph.load_from_scgraph(path)
+    # What the file says of how the network was built is kept, and saved again
+    assert loaded.metadata == {"sources": _SOURCES}
+    loaded.save_as_scgraph(str(tmp_path / "again.scgraph"))
+    again = network_file.read(str(tmp_path / "again.scgraph"))[1]
+    assert again["sources"] == _SOURCES
     assert loaded.graph_object.graph == _GRAPH
     assert loaded.nodes == _NODES
     assert loaded.intermediate_nodes == (
@@ -129,14 +136,16 @@ def test_nodes_keep_their_modes_through_additions_merges_and_saves(tmp_path):
         nodes=[[0, 1], [0, 0]],
         modes=[{"name": "road", "source": "osm"}],
     )
+    road.metadata = {"sources": [{"name": "osm"}]}
     # A node of the mode without a name, then one of the road
     road.add_coord_node({"latitude": 0, "longitude": 3})
     road.add_coord_node({"latitude": 0, "longitude": 2}, mode="road")
     sea = GeoGraph(
         graph=[{1: 1.0}, {0: 1.0}],
         nodes=[[1, 0], [1, 1]],
-        modes=[{"name": "sea"}],
+        modes=[{"name": "sea", "source": "lanes"}],
     )
+    sea.metadata = {"sources": [{"name": "lanes"}]}
     road.merge_with_other_geograph(
         sea, connection_nodes=[[0.5, 0.5]], mode="port"
     )
@@ -144,10 +153,12 @@ def test_nodes_keep_their_modes_through_additions_merges_and_saves(tmp_path):
         {"name": "road", "source": "osm"},
         {"name": None},
         {"name": "port"},
-        {"name": "sea"},
+        {"name": "sea", "source": "lanes"},
     ]
     assert list(road.node_modes) == [0, 0, 1, 0, 2, 3, 3]
-    assert (sea.modes, list(sea.node_modes)) == ([{"name": "sea"}], [0, 0])
+    assert list(sea.node_modes) == [0, 0]
+    # The merged graph cites both sources, so that each mode's source is named
+    assert road.metadata["sources"] == [{"name": "osm"}, {"name": "lanes"}]
     # Saved by mode, then along the curve: each node keeps its mode and its id
     path = str(tmp_path / "modes.scgraph")
     road.save_as_scgraph(path)
@@ -272,8 +283,13 @@ def test_save_as_scgraph_rejects_coordinates_it_cannot_store(
 
 def test_scgraph_info_reads_what_a_network_file_holds(tmp_path):
     path = str(tmp_path / "small.scgraph")
+    dated = [
+        {**_SOURCES[0], "version": "2026-11-06T20:21:43Z"},
+        {**_SOURCES[1], "version": "2026-10-01T00:00:00Z"},
+        {**_SOURCES[2], "credit": "NGA", "license": "NOASSERTION"},
+    ]
     digest = _small().save_as_scgraph(
-        path, sources=_SOURCES[:1], coordinate_dtype="int32"
+        path, metadata={"sources": dated}, coordinate_dtype="int32"
     )
     info = GeoGraph.scgraph_info(path)
     assert {
@@ -288,7 +304,29 @@ def test_scgraph_info_reads_what_a_network_file_holds(tmp_path):
         False,
         "mi",
     )
-    assert (info["sources"], info["content_sha256"]) == (_SOURCES[:1], digest)
+    assert (info["sources"], info["content_sha256"]) == (dated, digest)
+    # The credit line to cite, each credit once, and the newest time the data is up to
+    assert info["attribution"] == (
+        "© OpenStreetMap contributors (ODbL-1.0); NGA (NOASSERTION)"
+    )
+    assert info["data_up_to"] == "2026-11-06T20:21:43Z"
+
+
+# Metadata cannot contradict what scgraph writes, and a mode cites a source by name
+@pytest.mark.parametrize(
+    "metadata, message",
+    [
+        ({"units": "km"}, "may not set"),
+        ({"sources": [{"name": "elsewhere"}]}, "names no source"),
+    ],
+)
+def test_save_as_scgraph_refuses_contradicting_metadata(
+    tmp_path, metadata, message
+):
+    geo = _small()
+    geo.modes = [{"name": None, "source": "region-0"}]
+    with pytest.raises(ValueError, match=message):
+        geo.save_as_scgraph(str(tmp_path / "x.scgraph"), metadata=metadata)
 
 
 def _route_0_to_1(geograph):
@@ -438,9 +476,11 @@ def test_save_as_scgraph_records_the_sha256_of_the_file(tmp_path):
     )
     # The same network and metadata, whatever the order of their keys, give the same file
     reordered = [dict(reversed(source.items())) for source in _SOURCES]
-    assert _small().save_as_scgraph(str(path), sources=_SOURCES) == (
+    assert _small().save_as_scgraph(
+        str(path), metadata={"sources": _SOURCES}
+    ) == (
         _small().save_as_scgraph(
-            str(tmp_path / "again.scgraph"), sources=reordered
+            str(tmp_path / "again.scgraph"), metadata={"sources": reordered}
         )
     )
 
