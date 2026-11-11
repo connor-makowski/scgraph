@@ -401,8 +401,8 @@ class GraphAlgorithms:
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
-        max_edge_weight: int | float | None = None,
-        bucket_width: int | float | None = None,
+        max_edge_weight: float | None = None,
+        bucket_width: float | None = None,
     ) -> dict:
         """
         Function:
@@ -534,8 +534,8 @@ class GraphAlgorithms:
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
-        max_edge_weight: int | float | None = None,
-        bucket_width: int | float | None = None,
+        max_edge_weight: float | None = None,
+        bucket_width: float | None = None,
     ) -> dict:
         """
         Function:

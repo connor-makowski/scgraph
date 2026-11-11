@@ -200,7 +200,8 @@ def build_file(
         if stale:
             warnings.warn(
                 f"The cached {name} was built with pipeline version "
-                f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}"
+                f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}",
+                stacklevel=3,  # the caller of GeoGraph.build_geograph
             )
     elif stale:
         logger.warning(

@@ -969,9 +969,6 @@ Originally inspired by [searoute](https://github.com/genthalili/searoute-py), in
 
 import logging
 
-# Messages go through logging; the application decides what is shown (Python Logging HOWTO)
-logging.getLogger(__name__).addHandler(logging.NullHandler())
-
 from scgraph.graph import NegativeCycleError, PathNotFoundError
 from scgraph.graph_reducer import algorithm
 
@@ -986,3 +983,6 @@ except ImportError:
 
 from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
+
+# Messages go through logging; the application decides what is shown (Python Logging HOWTO)
+logging.getLogger(__name__).addHandler(logging.NullHandler())

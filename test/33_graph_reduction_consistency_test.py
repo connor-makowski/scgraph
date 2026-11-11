@@ -4,6 +4,7 @@ import random
 import threading
 from copy import deepcopy
 import pytest
+from scgraph import PathNotFoundError
 from scgraph.graph import Graph as PyGraph
 
 try:
@@ -213,7 +214,8 @@ def _fail_instead_of_looping(seconds):
                 try:
                     test(*args, **kwargs)
                     outcome.append(None)
-                except BaseException as error:
+                # Recorded here and raised again in the thread of the test
+                except BaseException as error:  # noqa: BLE001
                     outcome.append(error)
 
             thread = threading.Thread(target=run, daemon=True)
@@ -247,12 +249,12 @@ def _assert_stored_paths_are_valid(graph, g):
 
     hidden = g.reduced_graph_connections
     for x, row in enumerate(g.reduced_graph):
-        for B, length in row.items():
-            assert_path([x, *(hidden[x] or {}).get(B, []), B], length, B)
+        for b, length in row.items():
+            assert_path([x, *(hidden[x] or {}).get(b, []), b], length, b)
     hidden = g.reduced_inverse_graph_connections
     for x, row in enumerate(g.reduced_inverse_graph):
-        for A, length in row.items():
-            assert_path([A, *(hidden[x] or {}).get(A, []), x], length, A)
+        for a, length in row.items():
+            assert_path([a, *(hidden[x] or {}).get(a, []), x], length, a)
 
 
 # Raise locally for a longer run: each round adds one graph per structure.
@@ -345,7 +347,7 @@ def test_reduced_graph_matches_unreduced_graph(
                     case = (graph, origin, destination)
                     try:
                         expected = reference.dijkstra(origin, destination)
-                    except Exception:
+                    except PathNotFoundError:
                         continue  # not connected in the original graph
                     if algorithm == "bmssp" and (
                         n < 2 or (GraphClass is PyGraph and destination == 0)

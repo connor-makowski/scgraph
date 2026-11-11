@@ -80,7 +80,7 @@ def build(
     files: dict[str, str],
     *,
     source: Callable = osm.open_osm_source,
-    max_km_between_nodes: float | int = osm.MAX_KM,
+    max_km_between_nodes: float = osm.MAX_KM,
     min_nodes_per_strongly_connected_component: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[tuple[dict, list[dict]], list[dict]]:

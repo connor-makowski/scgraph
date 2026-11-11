@@ -1,6 +1,6 @@
 import json
 from heapq import heappush, heappop, heapify
-from typing import Any, Optional
+from typing import Any
 from scgraph.contraction_hierarchies import CHGraph
 from scgraph.graph_utils import normalize_node_input
 
@@ -211,7 +211,7 @@ class TNRGraphAlgorithms:
         destination_id: int | set[int] | dict[int, int | float],
         upper_bound: float,
         length_only: bool,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         origin_dict = normalize_node_input(origin_id)
         destination_dict = normalize_node_input(destination_id)
 
@@ -478,10 +478,10 @@ class TNRGraphAlgorithms:
 class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
     def __init__(
         self,
-        graph: Optional[list[dict[int, int | float]]] = None,
+        graph: list[dict[int, int | float]] | None = None,
         num_transit_nodes: int = 100,
         settled_limit: int = 50,
-        inverse_graph: Optional[list[dict[int, int | float]]] = None,
+        inverse_graph: list[dict[int, int | float]] | None = None,
         **kwargs,
     ):
         """

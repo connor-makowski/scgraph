@@ -46,7 +46,7 @@ def find_water_path_cells(
     wrap: bool,
     start: int,
     targets: array | list[int],
-    max_km: int | float,
+    max_km: float,
     east: array,
     diagonal: array,
     north: float,
@@ -220,8 +220,8 @@ class LandMask:
         self,
         start: list[float],
         targets: array,
-        max_km: int | float,
-        start_on_land_km: int | float = 6,
+        max_km: float,
+        start_on_land_km: float = 6,
     ) -> tuple[float, list[list[float]]] | None:
         """`(km, cell centres)` of the cheapest water path from `start` to a cell of
         `targets` (an array('q'), sorted), or None beyond `max_km`, from the water cell

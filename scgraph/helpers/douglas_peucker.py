@@ -111,7 +111,7 @@ def simplify_shapes(
     shape_points: array | memoryview,
     shape_offsets: array | memoryview,
     endpoint_coords: array | memoryview,
-    tolerance_meters: int | float,
+    tolerance_meters: float,
 ) -> tuple[array, array]:
     """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
 

@@ -1,6 +1,7 @@
 import io
 import sys
-from scgraph import GeoGraph
+import pytest
+from scgraph import GeoGraph, PathNotFoundError
 
 _NODES = [
     [0.0, 0.0],
@@ -18,9 +19,8 @@ def test_silent_produces_no_output():
     buf = io.StringIO()
     sys.stdout = buf
     try:
-        geo.get_shortest_path(_ORIGIN, _DESTINATION, silent=True)
-    except Exception:
-        pass
+        with pytest.raises(PathNotFoundError):
+            geo.get_shortest_path(_ORIGIN, _DESTINATION, silent=True)
     finally:
         sys.stdout = sys.__stdout__
     assert buf.getvalue() == "", f"Expected no output, got: {buf.getvalue()!r}"
@@ -31,9 +31,8 @@ def test_non_silent_produces_output():
     buf = io.StringIO()
     sys.stdout = buf
     try:
-        geo.get_shortest_path(_ORIGIN, _DESTINATION, silent=False)
-    except Exception:
-        pass
+        with pytest.raises(PathNotFoundError):
+            geo.get_shortest_path(_ORIGIN, _DESTINATION, silent=False)
     finally:
         sys.stdout = sys.__stdout__
     assert (

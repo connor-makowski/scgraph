@@ -378,8 +378,8 @@ class GridGraph:
 
     def __get_closest_node_with_connections__(
         self,
-        x: int | float,
-        y: int | float,
+        x: float,
+        y: float,
     ):
         """
         Function:
@@ -688,11 +688,13 @@ class GridGraph:
             else filename + ".gridgraph"
         )
         try:
-            import pickle, zlib, os
-        except ImportError:
+            import pickle
+            import zlib
+            import os
+        except ImportError as error:
             raise ImportError(
                 "os, pickle and zlib are required to export the graph"
-            )
+            ) from error
         export_data = {
             "graph_attributes": {
                 "graph": self.graph,
@@ -742,11 +744,12 @@ class GridGraph:
             else filename + ".gridgraph"
         )
         try:
-            import pickle, zlib
-        except ImportError:
+            import pickle
+            import zlib
+        except ImportError as error:
             raise ImportError(
                 "pickle and zlib are required to import the graph"
-            )
+            ) from error
         with open(filename, "rb") as f:
             import_data = pickle.loads(zlib.decompress(f.read()))
 
@@ -757,12 +760,12 @@ class GridGraph:
             )
         # Create a new basic GridGraph object and overwrite the attributes with the imported data
         # This is done as the init method calls the __create_graph__ method which is not needed here
-        GridGraph_object = GridGraph(
+        grid_graph = GridGraph(
             x_size=1, y_size=1, blocks=[], add_exterior_walls=False
         )
         for key, value in import_data["graph_attributes"].items():
-            GridGraph_object.__setattr__(key, value)
+            grid_graph.__setattr__(key, value)
 
-        GridGraph_object.graph_object = Graph(GridGraph_object.graph)
-        GridGraph_object.graph_object.set_cache(import_data["graph_cache"])
-        return GridGraph_object
+        grid_graph.graph_object = Graph(grid_graph.graph)
+        grid_graph.graph_object.set_cache(import_data["graph_cache"])
+        return grid_graph

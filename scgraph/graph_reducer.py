@@ -334,28 +334,28 @@ class GraphReducer:
         reduced_inverse_graph = self.reduced_inverse_graph
         previous_nodes = self.__hidden_previous__
 
-        for A in range(len(graph)):
-            if is_reduced[A]:
+        for a in range(len(graph)):
+            if is_reduced[a]:
                 continue
-            best_dist = {A: 0}
+            best_dist = {a: 0}
             predecessor = {}
-            open_leaves = [(0, A)]
+            open_leaves = [(0, a)]
 
             while open_leaves:
                 dist, u = heappop(open_leaves)
                 if dist > best_dist[u]:
                     continue
 
-                if u != A:
-                    if predecessor[u] != A:
+                if u != a:
+                    if predecessor[u] != a:
                         if previous_nodes[u] is None:
                             previous_nodes[u] = {}
-                        previous_nodes[u][A] = predecessor[u]
+                        previous_nodes[u][a] = predecessor[u]
                     if is_reduced[u]:
-                        reduced_inverse_graph[u][A] = dist
+                        reduced_inverse_graph[u][a] = dist
                     else:
                         # Boundary non-reduced node. Record connection.
-                        reduced_graph[A][u] = dist
+                        reduced_graph[a][u] = dist
                         continue
 
                 for v, w in graph[u].items():
@@ -372,28 +372,28 @@ class GraphReducer:
         self.reduced_graph_connections = None  # rebuilt on first read
         next_nodes = self.__hidden_next__
 
-        for B in range(len(graph)):
-            if is_reduced[B]:
+        for b in range(len(graph)):
+            if is_reduced[b]:
                 continue
-            best_dist = {B: 0}
+            best_dist = {b: 0}
             predecessor = {}
-            open_leaves = [(0, B)]
+            open_leaves = [(0, b)]
 
             while open_leaves:
                 dist, u = heappop(open_leaves)
                 if dist > best_dist[u]:
                     continue
 
-                if u != B:
-                    if predecessor[u] != B:
+                if u != b:
+                    if predecessor[u] != b:
                         if next_nodes[u] is None:
                             next_nodes[u] = {}
-                        next_nodes[u][B] = predecessor[u]
+                        next_nodes[u][b] = predecessor[u]
                     if is_reduced[u]:
-                        reduced_graph[u][B] = dist
+                        reduced_graph[u][b] = dist
                     else:
                         # Boundary non-reduced node reaching B
-                        reduced_inverse_graph[B][u] = dist
+                        reduced_inverse_graph[b][u] = dist
                         continue
 
                 for v, w in inverse_graph[u].items():

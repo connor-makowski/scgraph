@@ -63,8 +63,8 @@ def test_get_tree_path_dict_inputs(sample_graph, GraphClass):
     assert res_set["path"] == [0, 1, 2, 5]
     assert abs(res_set["length"] - 7.0) < 1e-6
 
-    # Origin mismatch raises exception
-    with pytest.raises(Exception):
+    # Origin mismatch raises: RuntimeError in C++, ValueError in pure Python
+    with pytest.raises(Exception):  # noqa: B017
         g.get_tree_path(
             origin_id=1,
             destination_id=3,
@@ -452,7 +452,7 @@ def test_geograph_a_star_haversine_after_node_changes():
         )
         for change in (
             None,
-            lambda: geograph.add_coord_node(
+            lambda geograph=geograph: geograph.add_coord_node(
                 {"latitude": 0.4, "longitude": 0.0}
             ),
             geograph.remove_coord_node,

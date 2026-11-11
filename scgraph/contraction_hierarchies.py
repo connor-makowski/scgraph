@@ -1,6 +1,7 @@
 import json
 from heapq import heappush, heappop, heapify
-from typing import Callable, Any, Optional, Union
+from typing import Any
+from collections.abc import Callable
 from scgraph.graph_utils import (
     GraphUtils,
     GraphModifiers,
@@ -234,7 +235,7 @@ class CHGraphPreprocessing:
         self,
         start_node: int,
         avoid_node: int,
-        max_dist: int | float,
+        max_dist: float,
         targets: dict[int, float],
         target_ids: list[int],
     ) -> list[float]:
@@ -314,7 +315,7 @@ class CHGraphPreprocessing:
         return witness_distances
 
     def __preprocess__(
-        self, heuristic_fn: Optional[Callable[[Any, int], int | float]] = None
+        self, heuristic_fn: Callable[[Any, int], int | float] | None = None
     ) -> None:
         """
         Function:
@@ -342,7 +343,9 @@ class CHGraphPreprocessing:
         self._witness_visited = []
 
         if heuristic_fn is None:
-            heuristic_fn = lambda g, n: g.default_heuristic(n)
+
+            def heuristic_fn(graph, node):
+                return graph.default_heuristic(node)
 
         contracting_graph = self.contracting_graph
         contracting_inverse_graph = self.contracting_inverse_graph
@@ -828,16 +831,16 @@ class CHGraph(
 ):
     def __init__(
         self,
-        graph: Optional[list[dict[int, int | float]]] = None,
-        heuristic_fn: Optional[Callable[[Any, int], int | float]] = None,
-        ranks: Optional[list[int]] = None,
-        forward_graph: Optional[list[dict[int, int | float]]] = None,
-        backward_graph: Optional[list[dict[int, int | float]]] = None,
-        shortcuts: Optional[dict[Union[str, tuple[int, int]], int]] = None,
-        nodes_count: Optional[int] = None,
-        original_graph: Optional[list[dict[int, int | float]]] = None,
+        graph: list[dict[int, int | float]] | None = None,
+        heuristic_fn: Callable[[Any, int], int | float] | None = None,
+        ranks: list[int] | None = None,
+        forward_graph: list[dict[int, int | float]] | None = None,
+        backward_graph: list[dict[int, int | float]] | None = None,
+        shortcuts: dict[str | tuple[int, int], int] | None = None,
+        nodes_count: int | None = None,
+        original_graph: list[dict[int, int | float]] | None = None,
         settled_limit: int = 50,
-        inverse_graph: Optional[list[dict[int, int | float]]] = None,
+        inverse_graph: list[dict[int, int | float]] | None = None,
     ):
         """
         Function:
