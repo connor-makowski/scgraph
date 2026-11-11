@@ -16,6 +16,7 @@ places v5.1.2 (public domain), by NE_ID.
 
 import csv
 import json
+import os
 import re
 import sys
 import time
@@ -56,21 +57,21 @@ PAIRS = [
 ]
 
 
-def places(ne_path):
+def places(ne_path: str | os.PathLike) -> dict:
     return {
         f["properties"]["NE_ID"]: f["properties"]
         for f in json.load(open(ne_path))["features"]
     }
 
 
-def slug(text):
+def slug(text: str) -> str:
     text = (
         unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
     )
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
 
-def fetch(ne_path):
+def fetch(ne_path: str | os.PathLike) -> None:
     import requests
 
     if RAW.exists():
@@ -104,7 +105,7 @@ def fetch(ne_path):
                 time.sleep(1.5)
 
 
-def cases(ne_path):
+def cases(ne_path: str | os.PathLike) -> None:
     if CASES.exists():
         sys.exit(f"{CASES.name} exists: the references are frozen")
     p = places(ne_path)

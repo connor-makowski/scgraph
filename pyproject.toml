@@ -3,6 +3,19 @@ line-length = 80
 target-version = ['py312']
 exclude = '/.*(migrations|__pycache__|geographs).*/'
 
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+# A short list that the code passes; a rule is added when the code passes it.
+select = ["F", "T201", "B006"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # imports that make the public names
+"scgraph/utils.py" = ["T201"]  # console helpers of 3.6.0
+"scgraph/pipelines/steps/stage4_validation/references/*.py" = ["T201"]  # command-line scripts
+"test/*" = ["T201"]
+
 [build-system]
 requires = ["scikit-build-core", "nanobind>=3.1.0"]
 build-backend = "scikit_build_core.build"
@@ -65,7 +78,8 @@ dev = [
     "osmium>=4.0; platform_python_implementation == 'CPython'",
     "pytest>=9.0.3",
     "pamda>=2.10.0",
-    "autoflake>=2.3.1",
+    "ruff>=0.17",
+    "pyrefly>=1.4",
     "black>=25.1.0",
     "build>=1.2.2",
     "nox>=2026.4.10",

@@ -1,6 +1,5 @@
 import pytest
 from scgraph.graph import Graph as PyGraph
-from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
 
 try:
     from scgraph.cpp import Graph as CppGraph

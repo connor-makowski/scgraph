@@ -2,7 +2,7 @@
 Pipelines: how `GeoGraph.build_geograph` builds a network from its online sources, one
 module per network, each a starting point to copy and adapt.
 
-A pipeline is a module with four names:
+A pipeline is a module with these names:
 
 - `SOURCES`: name -> each source to download: its `url` (`{region}` in it is replaced by
   the `region` argument of `build_geograph`), the `credit` to cite with results, and its
@@ -14,18 +14,21 @@ A pipeline is a module with four names:
   in place of the file's `sha256` and `bytes`
 - `PIPELINE_VERSION`: an integer, raised when the same sources would give a different
   graph; a refactoring that leaves the graph unchanged does not raise it; it is never lowered
-  once released. A network that reuses others adds their versions; a cached network built
-  with another `PIPELINE_VERSION` is built again
-- `build(files)`: given name -> downloaded file, returns a GeoGraph, `(GeoGraph,
+  once released. A cached network built with another `PIPELINE_VERSION` is built again
+- `build(files)`, or `build(files, *, work_dir=None)` to keep files between the steps of a
+  long build in the runner's work folder: given name -> downloaded file, returns a GeoGraph, `(GeoGraph,
   steps)` or `((arrays, modes), steps)`, `steps` listing what each step did,
   `{"step": name, <count>: int, ...}` (a network that reuses others concatenates their
   steps). The GeoJSON and ArcGIS pipelines return a GeoGraph; the OSM pipelines the
   network file's arrays as `network_file.write` takes them, nodes already in scgraph's
   order (`helpers.hilbert`, within each mode), and the `modes` table, `[{"name": None}]`
-  for one mode (`assembly.assemble`), written with units km and the GeoGraph's default
-  circuities. `build_geograph` writes either and returns the GeoGraph it reads back from
+  for one mode (`assembly.assemble`), written with units km. `build_geograph` writes either and returns the GeoGraph it reads back from
   the file: to look at a pipeline's network, build it with
   `GeoGraph.build_geograph(module, region=...)`
+- `VALIDATION`, optional: `{"cases": [...]}`, the ids of the cases of
+  `steps/stage4_validation/cases/*.csv` (a route with its expected length, or a box it
+  must enter or avoid) that a built network is checked against on request
+  (`build_file(validate=True)`); for a regional pipeline, region -> ids
 - `download(url, filename)`, optional: how to download the sources without their own
   (default: `download_file`);
   it may return a dict added to the source's record, such as the `version` of its data
@@ -127,8 +130,13 @@ LARGE_DOWNLOAD = (
 
 
 def build_metadata(
-    name, region, version, sources, description=None, steps=None
-):
+    name: str,
+    region: str | None,
+    version: int,
+    sources: list[dict],
+    description: str | None = None,
+    steps: list[dict] | None = None,
+) -> dict:
     """The build metadata that `build_geograph` writes into a network file's header (its
     fields: this module's docstring), from plain values, without a GeoGraph: `name`,
     `region` and `version` are the pipeline's, `sources` the records of the downloaded

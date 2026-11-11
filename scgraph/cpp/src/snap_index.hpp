@@ -24,11 +24,12 @@
 //
 // helpers/snap_index.py is the pure-Python version. It gives the same answers. The double
 // check here uses the same expression as the Python distance, with the platform's cos and
-// sin, and is compiled without fused multiply-add (CMakeLists.txt). So both return the
-// same node when two nodes tie to the last bit. Both must keep the same quadrant rules and
-// tie rule, which set the answers. They also share LEAF, FANOUT and the leaves-per-query
-// measure and limit, so that they accept and refuse the same orders (the limit is a cost
-// bound, not a contract: orders close to it may be judged differently).
+// sin, and is compiled without fused multiply-add (-ffp-contract=off in CMakeLists.txt).
+// So both return the same node when two nodes tie to the last bit. Both must keep the
+// same quadrant rules and tie rule, which set the answers. They also share LEAF, FANOUT
+// and the leaves-per-query measure and limit, so that they accept and refuse the same
+// orders (the limit is a cost bound, not a contract: orders close to it may be judged
+// differently).
 
 // Thrown when the nodes are too scattered for the index to be useful (see above)
 struct node_order_error : std::invalid_argument {
@@ -68,8 +69,9 @@ private:
     static constexpr int LEAF = 32;
     static constexpr int FANOUT = 8;
     // Most leaves a query may scan on average: the sum of the leaves' box areas over the
-    // area of the box around all nodes. Over twice the most measured on nodes sorted per mode, as
-    // build_geograph sorts them (7.0: three world-spanning modes, one after the other)
+    // area of the box around all nodes. Over twice the most measured on nodes sorted per
+    // mode, as build_geograph sorts them (7.0: three world-spanning modes, one after the
+    // other)
     static constexpr double MAX_LEAVES_PER_QUERY = 16.0;
     // A box is BOX_SLOTS values: min x, max x, min y, max y, min z, max z of the unit
     // vectors (the first UNIT_SLOTS), then min lat, max lat, min lon, max lon. Even slots

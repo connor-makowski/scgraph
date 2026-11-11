@@ -189,7 +189,7 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
     monkeypatch.setattr(
         assembly.PieceArrays, "BATCH", 1
     )  # drawings stored by batch
-    pieces = assembly.PieceArrays(folder=tmp_path)  # columns in files
+    pieces = assembly.PieceArrays(work_dir=tmp_path)  # columns in files
     where = {1: [0, 0], 2: [0, 0.01], 3: [0, 0.02], 4: [1, 0], 5: [1, 0.01]}
     # Of pieces 1-2 and 2-3, each point off its piece's line
     shape = {
@@ -200,7 +200,9 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
         ends = [where[u], where[v]]
         pieces.append(u, v, float(u), direction, ends, shape.get(u, []))
     arrays, _ = assembly.assemble(
-        assembly.build_graph_from_pieces(pieces), max_km=100, min_nodes=1
+        assembly.build_graph_from_pieces(pieces),
+        max_km_between_nodes=100,
+        min_nodes_per_strongly_connected_component=1,
     )
     ids, offsets = arrays["node_ids"], arrays["offsets"]
     arcs = {

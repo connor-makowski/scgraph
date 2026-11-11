@@ -8,11 +8,11 @@
 #include <vector>
 
 // Kernels that assemble a network file from raw arcs, for networks too large for Python
-// (the planet's roads). Each has a pure-Python twin in scgraph/pipelines/steps/assembly.py
-// that gives the same results; the contracts are written there.
+// (the planet's roads). Each has a pure-Python twin in
+// scgraph/pipelines/steps/stage3_assembly/assembly.py that gives the same results; the
+// contracts are written there.
 namespace assembly {
 
-constexpr int64_t MAX_INT32 = 2147483647;
 // Arcs and ids are read at random positions: the memory of the one AHEAD is fetched while
 // the current one is handled
 constexpr int64_t AHEAD = 16;
@@ -47,39 +47,39 @@ inline void sort_unique(std::vector<int64_t>& ids) {
 // bits starts narrows the binary search to a few ids
 class IdIndex {
 public:
-    explicit IdIndex(const std::vector<int64_t>& ids) : ids(ids) {
+    explicit IdIndex(const std::vector<int64_t>& ids) : ids_(ids) {
         if (ids.empty()) return;
         const uint64_t range = bucket(ids.back());
-        while (shift < 63 && (range >> shift) > ids.size() / 4) ++shift;
-        start.assign((range >> shift) + 2, 0);
-        for (int64_t id : ids) ++start[(bucket(id) >> shift) + 1];
-        for (size_t b = 1; b < start.size(); ++b) start[b] += start[b - 1];
+        while (shift_ < 63 && (range >> shift_) > ids.size() / 4) ++shift_;
+        start_.assign((range >> shift_) + 2, 0);
+        for (int64_t id : ids) ++start_[(bucket(id) >> shift_) + 1];
+        for (size_t b = 1; b < start_.size(); ++b) start_[b] += start_[b - 1];
     }
     // f(a, position of keys[a]) for each key, fetching ahead the table entry then the ids
     template <class F>
     void find_each(const int64_t* keys, int64_t count, F&& f) const {
         for (int64_t a = 0; a < count; ++a) {
             if (a + 2 * AHEAD < count) ASSEMBLY_PREFETCH(entry(keys[a + 2 * AHEAD]));
-            if (a + AHEAD < count && entry(keys[a + AHEAD])) ASSEMBLY_PREFETCH(&ids[*entry(keys[a + AHEAD])]);
+            if (a + AHEAD < count && entry(keys[a + AHEAD])) ASSEMBLY_PREFETCH(&ids_[*entry(keys[a + AHEAD])]);
             const int64_t* range = entry(keys[a]);
             int64_t position = -1;
             if (range) {
-                auto first = ids.begin() + range[0], last = ids.begin() + range[1];
+                auto first = ids_.begin() + range[0], last = ids_.begin() + range[1];
                 auto found = std::lower_bound(first, last, keys[a]);
-                if (found != last && *found == keys[a]) position = found - ids.begin();
+                if (found != last && *found == keys[a]) position = found - ids_.begin();
             }
             f(a, position);
         }
     }
 
 private:
-    const std::vector<int64_t>& ids;
-    int shift = 0;
-    std::vector<int64_t> start;
-    uint64_t bucket(int64_t id) const { return static_cast<uint64_t>(id) - static_cast<uint64_t>(ids.front()); }
+    const std::vector<int64_t>& ids_;
+    int shift_ = 0;
+    std::vector<int64_t> start_;
+    uint64_t bucket(int64_t id) const { return static_cast<uint64_t>(id) - static_cast<uint64_t>(ids_.front()); }
     const int64_t* entry(int64_t id) const {
-        if (ids.empty() || id < ids.front() || id > ids.back()) return nullptr;
-        return &start[bucket(id) >> shift];
+        if (ids_.empty() || id < ids_.front() || id > ids_.back()) return nullptr;
+        return &start_[bucket(id) >> shift_];
     }
 };
 
@@ -91,7 +91,7 @@ struct ArcTable {
 
 inline ArcTable csr_from_arcs(const int64_t* origins, const int64_t* destinations,
                               const double* weights, int64_t arc_count) {
-    if (arc_count > MAX_INT32) throw std::invalid_argument("at most 2**31 - 1 arcs");
+    if (arc_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 arcs");
     // The origins, then the destinations that are not origins (few: most nodes are both)
     ArcTable table;
     std::vector<int64_t>& ids = table.node_ids;
@@ -112,7 +112,7 @@ inline ArcTable csr_from_arcs(const int64_t* origins, const int64_t* destination
         while (j > 0) ids[--k] = i > 0 && ids[i - 1] > others[j - 1] ? ids[--i] : others[--j];
     }
     ids.shrink_to_fit();
-    if (static_cast<int64_t>(ids.size()) > MAX_INT32) throw std::invalid_argument("at most 2**31 - 1 nodes");
+    if (static_cast<int64_t>(ids.size()) > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 nodes");
     const int32_t n = static_cast<int32_t>(ids.size());
 
     // Arcs by position, self-loops marked -1
@@ -263,7 +263,8 @@ struct Contracted {
 
 // Same rules and order of operations as the Python twin (contract_chains)
 inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
-                                  const uint8_t* modes, int64_t node_count, int64_t arc_count, double max_km) {
+                                  const uint8_t* node_modes, int64_t node_count, int64_t arc_count,
+                                  double max_km_between_nodes) {
     check_offsets(offsets, node_count, arc_count);
     const int32_t n = static_cast<int32_t>(node_count);
     std::vector<int32_t> indegree(n, 0), first(n, -1), second(n, -1);
@@ -285,7 +286,8 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         const bool two_way = degree(v) == 2 && indegree[v] == 2 && first[v] == out[0] && second[v] == out[1];
         const bool one_way = degree(v) == 1 && indegree[v] == 1 && first[v] != out[0];
         chain[v] = (two_way || one_way) &&
-                   (!modes || (modes[out[0]] == modes[v] && modes[two_way ? out[1] : first[v]] == modes[v]));
+                   (!node_modes || (node_modes[out[0]] == node_modes[v] &&
+                                    node_modes[two_way ? out[1] : first[v]] == node_modes[v]));
         keep[v] = !chain[v];
     }
     for (auto* unused : {&indegree, &first, &second}) std::vector<int32_t>().swap(*unused);
@@ -323,13 +325,13 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
             path.push_back(offsets[v] + (degree(v) == 2 && heads[offsets[v]] == nodes[nodes.size() - 2]));
         }
         nodes.push_back(heads[path.back()]);
-        // Cut where the length from the canonical end reaches max_km
+        // Cut where the length from the canonical end reaches max_km_between_nodes
         const int32_t length = static_cast<int32_t>(path.size());
         double total = 0.0;
         pieces.clear();
         for (int32_t i = 1, start = 0; i <= length; ++i) {
             total += weights[path[i - 1]];
-            if (total >= max_km || i == length) pieces.push_back({start, i}), start = i, total = 0.0;
+            if (total >= max_km_between_nodes || i == length) pieces.push_back({start, i}), start = i, total = 0.0;
         }
         std::reverse(pieces.begin(), pieces.end());
         const bool both = degree(nodes[1]) == 2;
@@ -397,19 +399,19 @@ struct Shapes {
 // Same formulas and order of operations as the Python twin, and no fused multiply-add
 // (CMakeLists.txt), so that both keep the same points
 inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const int32_t* offsets,
-                              const int32_t* ends, int64_t shape_count, double tolerance_m) {
-    if (!(tolerance_m >= 0)) throw std::invalid_argument("tolerance_m must be >= 0");
+                              const int32_t* endpoint_coords, int64_t shape_count, double tolerance_meters) {
+    if (!(tolerance_meters >= 0)) throw std::invalid_argument("tolerance_meters must be >= 0");
     check_offsets(offsets, shape_count, point_count);
     constexpr double PI = 3.141592653589793;
     constexpr double METRES = 6371000.0 * PI / 1.8e9;  // per 1e-7 degree of latitude
-    const double tolerance2 = tolerance_m * tolerance_m;
+    const double tolerance2 = tolerance_meters * tolerance_meters;
     Shapes result;
     result.offsets.push_back(0);
     std::vector<double> x, y;
     std::vector<char> keep;
     std::vector<std::pair<int64_t, int64_t>> stack;
     for (int64_t s = 0; s < shape_count; ++s) {
-        const int32_t* end = ends + 4 * s;
+        const int32_t* end = endpoint_coords + 4 * s;
         const int64_t base = 2 * (static_cast<int64_t>(offsets[s]) - 1);  // point i of the polyline at base + 2 * i
         const int64_t last = offsets[s + 1] - offsets[s] + 1;
         const double kx = METRES * std::cos(end[0] * PI / 1.8e9);

@@ -169,3 +169,11 @@ def test_edge_to_missing_node_raises():
     # not be indexed out of bounds
     with pytest.raises(IndexError):
         Graph([{5: 1}]).reduce(1)
+
+
+def test_path_not_found_error_raised():
+    from scgraph import PathNotFoundError
+
+    g = Graph([{1: 1.0}, {0: 1.0}, {3: 1.0}, {2: 1.0}])
+    with pytest.raises(PathNotFoundError):
+        g.dijkstra(0, 3)

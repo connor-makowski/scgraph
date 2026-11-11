@@ -1,111 +1,45 @@
 """Tests for Stage 4 pipeline acceptance validation."""
 
+import importlib
+
 import pytest
 
+from scgraph import pipelines
 from scgraph.pipelines.steps.stage4_validation import (
-    ValidationResult,
     load_cases,
     validate_network,
 )
-from scgraph.pipelines import (
-    marnet as marnet_pipeline,
-    north_america_rail as rail_pipeline,
-    oak_ridge_maritime as orm_pipeline,
-    us_freeway as freeway_pipeline,
+
+
+# Every case that a pipeline names exists, under one id, and a region without
+# cases gets none
+def test_every_pipeline_names_existing_validation_cases():
+    for name in pipelines.NAMES:
+        contract = getattr(
+            importlib.import_module(f"scgraph.pipelines.{name}"),
+            "VALIDATION",
+            None,
+        )
+        assert contract is None or load_cases(contract)
+    regional = {"cases": {"europe/france": ["paris_marseille"]}}
+    assert [
+        case["id"] for case in load_cases(regional, region="europe/france")
+    ] == ["paris_marseille"]
+    assert load_cases(regional, region="europe/spain") == []
+    with pytest.raises(ValueError, match="no_such_case"):
+        load_cases({"cases": ["no_such_case"]})
+
+
+@pytest.mark.parametrize(
+    "name", ["marnet", "us_freeway", "north_america_rail", "oak_ridge_maritime"]
 )
-
-
-def test_validation_result_summary():
-    """Verify ValidationResult summary representation and status flag."""
-    res_ok = ValidationResult(passed=3, failed=0, total=3)
-    assert res_ok.is_success
-    assert "PASSED: 3/3 checks OK" in res_ok.summary()
-
-    res_fail = ValidationResult(
-        passed=2,
-        failed=1,
-        total=3,
-        failures=[{"id": "c1", "errors": ["Too long"]}],
+def test_published_network_passes_its_validation_cases(name, request):
+    contract = importlib.import_module(f"scgraph.pipelines.{name}").VALIDATION
+    result = validate_network(
+        request.getfixturevalue(name), load_cases(contract)
     )
-    assert not res_fail.is_success
-    assert "FAILED: 2/3 checks OK (failed: 1)" in res_fail.summary()
-
-    res_empty = ValidationResult(total=0)
-    assert not res_empty.is_success
-
-
-def test_loader_case_resolution():
-    """Verify load_cases resolves contracts, single IDs, and regional mappings."""
-    # Rail cases
-    rail_cases = load_cases(rail_pipeline.VALIDATION)
-    assert len(rail_cases) == 2
-    assert {c["id"] for c in rail_cases} == {
-        "chicago_to_new_orleans",
-        "chicago_to_los_angeles",
-    }
-    assert all("expected_km" in c for c in rail_cases)
-
-    # Road cases
-    road_cases = load_cases(freeway_pipeline.VALIDATION)
-    assert len(road_cases) == 2
-    assert {c["id"] for c in road_cases} == {
-        "new_york_to_chicago",
-        "los_angeles_to_san_francisco",
-    }
-
-    # Regional mapping
-    contract = {
-        "cases": {
-            "europe/france": ["paris_marseille"],
-            "europe/luxembourg": ["luxembourg_to_esch"],
-        },
-    }
-    france = load_cases(contract, region="europe/france")
-    assert len(france) == 1
-    assert france[0]["id"] == "paris_marseille"
-
-    # Europe pipelines
-    from scgraph.pipelines import europe_freeway, europe_rail
-
-    assert len(load_cases(europe_freeway.VALIDATION)) == len(
-        europe_freeway.VALIDATION["cases"]
-    )
-    assert len(load_cases(europe_rail.VALIDATION)) == len(
-        europe_rail.VALIDATION["cases"]
-    )
-
-
-def test_validation_marnet(marnet):
-    """Validate marnet against its declared Stage 4 contract."""
-    cases = load_cases(marnet_pipeline.VALIDATION)
-    result = validate_network(marnet, cases)
-    assert result.is_success
-    assert result.passed == len(marnet_pipeline.VALIDATION["cases"])
-    assert len(result.failures) == 0
-
-
-def test_validation_us_freeway(us_freeway):
-    """Validate us_freeway against its declared Stage 4 contract."""
-    cases = load_cases(freeway_pipeline.VALIDATION)
-    result = validate_network(us_freeway, cases)
-    assert result.is_success
-    assert result.passed == len(freeway_pipeline.VALIDATION["cases"])
-
-
-def test_validation_north_america_rail(north_america_rail):
-    """Validate north_america_rail against its declared Stage 4 contract."""
-    cases = load_cases(rail_pipeline.VALIDATION)
-    result = validate_network(north_america_rail, cases)
-    assert result.is_success
-    assert result.passed == len(rail_pipeline.VALIDATION["cases"])
-
-
-def test_validation_oak_ridge_maritime(oak_ridge_maritime):
-    """Validate oak_ridge_maritime against its declared Stage 4 contract."""
-    cases = load_cases(orm_pipeline.VALIDATION)
-    result = validate_network(oak_ridge_maritime, cases)
-    assert result.is_success
-    assert result.passed == len(orm_pipeline.VALIDATION["cases"])
+    assert result.is_success, result.failures
+    assert result.passed == len(contract["cases"])
 
 
 def test_validation_constraints(marnet):

@@ -114,29 +114,31 @@ class GraphUtils:
         def _validate_node_arg(arg, name):
             if isinstance(arg, int):
                 if not (0 <= arg < num_nodes):
-                    raise Exception(f"{name} node ({arg}) is not in this graph")
+                    raise ValueError(
+                        f"{name} node ({arg}) is not in this graph"
+                    )
             elif isinstance(arg, set):
                 if len(arg) == 0:
-                    raise Exception(f"{name} set cannot be empty")
+                    raise ValueError(f"{name} set cannot be empty")
                 for oid in arg:
                     if not (isinstance(oid, int) and 0 <= oid < num_nodes):
-                        raise Exception(
+                        raise ValueError(
                             f"{name} node ({oid}) is not in this graph"
                         )
             elif isinstance(arg, dict):
                 if len(arg) == 0:
-                    raise Exception(f"{name} dictionary cannot be empty")
+                    raise ValueError(f"{name} dictionary cannot be empty")
                 for oid, dist in arg.items():
                     if not (isinstance(oid, int) and 0 <= oid < num_nodes):
-                        raise Exception(
+                        raise ValueError(
                             f"{name} node ({oid}) is not in this graph"
                         )
                     if not (isinstance(dist, (int, float)) and dist >= 0):
-                        raise Exception(
+                        raise ValueError(
                             f"{name} distance for node ({oid}) must be a non-negative number"
                         )
             else:
-                raise Exception(
+                raise TypeError(
                     f"{name} must be an integer, a set of integers, or a dict mapping node integers to distances"
                 )
 
@@ -223,7 +225,7 @@ class GraphUtils:
             if cycle_id == -1:
                 return
             if cycle_id == node_id:
-                raise Exception(
+                raise RuntimeError(
                     f"Cycle detected in the graph at node {node_id}"
                 )
 
@@ -371,7 +373,9 @@ class GraphUtils:
         assert isinstance(graph, list), "Your graph must be a list"
         len_graph = len(graph)
         if len_graph == 0:
-            raise Exception("The provided graph must contain at least one node")
+            raise ValueError(
+                "The provided graph must contain at least one node"
+            )
         for origin_id, origin_dict in enumerate(graph):
             assert isinstance(
                 origin_dict, dict

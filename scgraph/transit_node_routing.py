@@ -515,7 +515,7 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
             ]
 
             # Initialize CH part
-            ch_data = kwargs.get("ch_data")
+            ch_data = kwargs["ch_data"]
             # Convert graph keys to integers
             for key in ["forward_graph", "backward_graph", "original_graph"]:
                 if ch_data.get(key) is not None:

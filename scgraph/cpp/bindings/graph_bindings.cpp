@@ -22,7 +22,7 @@
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"
 #include "../src/snap_index.hpp"
-#include "array_types.hpp"
+#include "ndarray_types.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -99,7 +99,7 @@ static nb::object coordinate_lists(CoordinateArray<T> latitudes, CoordinateArray
 
 // `coordinates` (one per node of `path`) with the shape of each arc of the path between them
 template <typename T>
-static nb::object shape_path(CsrInts offsets, CsrInts heads, CsrInts shape_offsets, CoordinateArray<T> shape_points,
+static nb::object shape_path(Int32Array offsets, Int32Array heads, Int32Array shape_offsets, CoordinateArray<T> shape_points,
                              nb::list path, nb::list coordinates) {
     const int32_t* off = offsets.data();
     const int32_t* head = heads.data();
@@ -177,13 +177,13 @@ static std::unique_ptr<SnapIndex> snap_index_from_arrays(
 }
 
 // A Graph from arcs stored by origin: copied, or read in place and kept alive (in_place)
-static std::unique_ptr<Graph> csr_graph(CsrInts offsets, CsrInts heads, CsrDoubles weights, bool in_place) {
+static std::unique_ptr<Graph> csr_graph(Int32Array offsets, Int32Array heads, DoubleArray weights, bool in_place) {
     if (offsets.shape(0) < 1 || heads.shape(0) != weights.shape(0)) {
         throw std::invalid_argument("expected one offset per node plus one and one weight per arc");
     }
     std::shared_ptr<const void> owner;
     if (in_place) {
-        owner = std::make_shared<std::tuple<CsrInts, CsrInts, CsrDoubles>>(offsets, heads, weights);
+        owner = std::make_shared<std::tuple<Int32Array, Int32Array, DoubleArray>>(offsets, heads, weights);
     }
     auto graph = std::make_unique<Graph>(std::vector<std::unordered_map<int, double>>{});
     graph->load_csr(offsets.data(), heads.data(), weights.data(),
@@ -196,8 +196,8 @@ static std::unique_ptr<Graph> csr_graph(CsrInts offsets, CsrInts heads, CsrDoubl
 // them alive after the graph is edited or deleted. With an order (order[new] = old), the
 // rows of the nodes in that order, heads renumbered, in one new copy
 static nb::tuple graph_csr(const Graph& graph, std::optional<std::vector<int32_t>> order) {
-    auto* arcs = new Adjacency(graph.arcs());
-    nb::capsule owner(arcs, [](void* arcs) noexcept { delete static_cast<Adjacency*>(arcs); });
+    auto* arcs = new CsrGraph(graph.arcs());
+    nb::capsule owner(arcs, [](void* arcs) noexcept { delete static_cast<CsrGraph*>(arcs); });
     if (order) {
         const int n = arcs->size();
         std::vector<int32_t> new_id(n, -1), offsets{0}, heads;
@@ -215,10 +215,10 @@ static nb::tuple graph_csr(const Graph& graph, std::optional<std::vector<int32_t
                 heads.push_back(new_id[head]);
                 weights.push_back(weight);
             }
-            // At most the graph's arc count, which fits in int32 (Adjacency)
+            // At most the graph's arc count, which fits in int32 (CsrGraph)
             offsets.push_back(static_cast<int32_t>(heads.size()));
         }
-        *arcs = Adjacency(std::move(offsets), std::move(heads), std::move(weights));
+        *arcs = CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
     }
     auto view = [&](auto values) {
         using Value = typename decltype(values)::element_type;
@@ -307,6 +307,8 @@ NB_MODULE(cpp, m) {
 
     // Raised by SnapIndex when the nodes are too scattered; a ValueError for callers
     nb::exception<node_order_error>(m, "NodeOrderError", PyExc_ValueError);
+    nb::exception<PathNotFoundException>(m, "PathNotFoundError", PyExc_RuntimeError);
+    nb::exception<NegativeCycleException>(m, "NegativeCycleError", PyExc_RuntimeError);
     nb::class_<SnapIndex>(m, "SnapIndex",
         "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
         .def("__init__", [](SnapIndex* self, nb::handle points) {
@@ -392,7 +394,7 @@ NB_MODULE(cpp, m) {
             const auto& rg = self.get_reduced_graph_internal();
             for (size_t i = 0; i < rg.size(); ++i) {
                 for (const auto& edge : rg[i]) {
-                    res[i][edge.first] = edge.second;
+                    res[i][edge.head] = edge.weight;
                 }
             }
             return res;
@@ -438,7 +440,7 @@ NB_MODULE(cpp, m) {
             const auto& rig = self.get_reduced_inverse_graph_internal();
             for (size_t i = 0; i < rig.size(); ++i) {
                 for (const auto& edge : rig[i]) {
-                    res[i][edge.first] = edge.second;
+                    res[i][edge.head] = edge.weight;
                 }
             }
             return res;
@@ -599,12 +601,12 @@ NB_MODULE(cpp, m) {
            nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("radius"),
            "A* with the great-circle distance as heuristic, computed natively from node latitudes and longitudes in radians")
 
-        .def_static("from_csr", [](CsrInts offsets, CsrInts heads, CsrDoubles weights) {
+        .def_static("from_csr", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
             return csr_graph(offsets, heads, weights, false);
         }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"),
            "Create a Graph from its arcs stored by origin (compressed sparse rows), as in a .scgraph network file")
         // For load_from_scgraph: the arrays of a file mapped read-only, read in place
-        .def_static("_from_mapped_csr", [](CsrInts offsets, CsrInts heads, CsrDoubles weights) {
+        .def_static("_from_mapped_csr", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
             return csr_graph(offsets, heads, weights, true);
         }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"))
 

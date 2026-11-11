@@ -6,11 +6,10 @@ root = Path(__file__).parent.parent
 
 subprocess.run(
     [
-        sys.executable, "-m", "autoflake",
-        "--in-place",
-        "--remove-all-unused-imports",
-        "--ignore-init-module-imports",
-        "-r",
+        sys.executable, "-m", "ruff", "check",
+        "--select", "F401",
+        "--fix",
+        "--quiet",
         str(root / "scgraph"),
     ],
     check=True,

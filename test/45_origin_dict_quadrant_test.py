@@ -2,8 +2,6 @@ import pytest
 from scgraph.graph import Graph as PyGraph
 from scgraph.contraction_hierarchies import CHGraph as PyCHGraph
 from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
-from scgraph.geograph import GeoGraph
-from helpers import assert_result
 
 try:
     from scgraph.cpp import (

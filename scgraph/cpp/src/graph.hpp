@@ -14,12 +14,12 @@
 
 class Graph : public GraphReducer {
 private:
-    std::shared_ptr<CHGraph> __ch_graph__ = nullptr;
-    std::shared_ptr<TNRGraph> __tnr_graph__ = nullptr;
+    std::shared_ptr<CHGraph> ch_graph_ = nullptr;
+    std::shared_ptr<TNRGraph> tnr_graph_ = nullptr;
     // Default bucket width of the bucket algorithms (base and reduced graph), -1 until computed
-    double bucket_width_cache = -1.0;
-    double reduced_bucket_width_cache = -1.0;
-    double resolve_bucket_width(const Adjacency& g,
+    double bucket_width_cache_ = -1.0;
+    double reduced_bucket_width_cache_ = -1.0;
+    double resolve_bucket_width(const CsrGraph& g,
                                 std::optional<double> bucket_width, double max_weight);
 
     template <typename QueryFn>
@@ -30,7 +30,7 @@ private:
         bool bidirectional = false
     );
     // Shortest path tree of get_shortest_path_tree, on the graph g
-    TreeData shortest_path_tree(const Adjacency& g,
+    TreeData shortest_path_tree(const CsrGraph& g,
                                 const NodeIdVariant& origin_id) const;
 
 public:

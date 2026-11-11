@@ -17,7 +17,7 @@ import urllib.request
 QUERIES = {
     "rotterdam_duisburg": ["Maasvlakte, Rotterdam", "Duisburg Hauptbahnhof"],
     "hamburg_munich": ["Hamburg-Harburg Bahnhof", "München Hauptbahnhof"],
-    "paris_marseille": [
+    "paris_marseille_rail": [
         "Paris Gare de Lyon railway station",
         "Gare de Marseille-Saint-Charles",
     ],
@@ -33,7 +33,10 @@ QUERIES = {
         "Yaroslavsky railway station Moscow",
         "Vladivostok railway station",
     ],
-    "beijing_shanghai": ["Beijing railway station", "Shanghai railway station"],
+    "beijing_shanghai_rail": [
+        "Beijing railway station",
+        "Shanghai railway station",
+    ],
     "chongqing_duisburg": [
         "Tuanjiecun railway station Chongqing",
         "Duisburg Hauptbahnhof",

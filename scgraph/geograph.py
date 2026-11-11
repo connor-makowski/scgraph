@@ -15,7 +15,6 @@ from scgraph.helpers.hilbert import hilbert_order
 from scgraph import network_file
 import hashlib, importlib, json, logging, os, re, requests, secrets, shutil
 import types
-import warnings
 from array import array
 from collections import Counter
 from math import isfinite
@@ -252,6 +251,7 @@ class GeoGraphIO:
             - Type: str
             - What: The filename to save the network file as
             - Note: The filename must end with .scgraph
+            - Note: The file does not hold `default_node_addition_circuity` and `default_off_graph_circuity`: a geograph loaded from it has the defaults (4 and 1); a `.graphjson` file keeps them
             - Note: A file inside the `networks/` folder of the cache directory (`build_geograph`'s) raises a ValueError: save it elsewhere
             - Note: On Windows (C++ build), a file that a live GeoGraph (or its `snap_index`) was loaded from raises a PermissionError: save to another name
 
@@ -285,8 +285,6 @@ class GeoGraphIO:
         metadata = network_file.header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             units=self.geograph_units,
-            default_off_graph_circuity=self.default_off_graph_circuity,
-            default_node_addition_circuity=self.default_node_addition_circuity,
             modes=self.modes,
         )
         # A cached network must stay the one its cache.json names
@@ -597,7 +595,7 @@ class GeoGraphIO:
             filename,
             select or main_roads,
             tag_keys,
-            max_km_between_nodes or MAX_KM,
+            MAX_KM if max_km_between_nodes is None else max_km_between_nodes,
         )
         if not nodes:
             raise ValueError(
@@ -793,12 +791,6 @@ class GeoGraphIO:
                 network_file.ArcShapes(arrays)
                 if "shape_offsets" in arrays
                 else None
-            ),
-            default_off_graph_circuity=metadata.get(
-                "default_off_graph_circuity", 1
-            ),
-            default_node_addition_circuity=metadata.get(
-                "default_node_addition_circuity", 4
             ),
             geograph_units=metadata.get("units", "km"),
             node_ids=arrays.get("node_ids"),
@@ -1108,8 +1100,7 @@ class GeoGraphIO:
                     remove(cache_path.joinpath(published + suffix))
         if name is None:
             remove(root)
-            for work in cache_path.glob(".building-*"):  # interrupted builds
-                remove(work)
+            remove(cache_path.joinpath(".work"))  # interrupted or kept builds
         elif region is None:
             remove(root.joinpath(name))
         else:
@@ -1139,7 +1130,7 @@ class GeoGraphIO:
 
         - A list of dicts, one per file or folder:
             - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running or was interrupted; `clear_geograph_cache()` removes it)
-            - `name`: str | None — the network name (None for `"building"`)
+            - `name`: str | None — the network name
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder
             - `bytes`: int — its size
@@ -1185,11 +1176,11 @@ class GeoGraphIO:
                     "scgraph": versions[1],
                 }
             )
-        for work in sorted(cache_path.glob(".building-*")):
+        for work in sorted(cache_path.glob(".work/*")):
             info.append(
                 {
                     "kind": "building",
-                    "name": None,
+                    "name": work.name,
                     "region": None,
                     "file": str(work),
                     "bytes": sum(
@@ -1223,14 +1214,8 @@ class GeoGraphIO:
         reduce_iterations: int = 0,
         lazy: bool = False,
         *,
-        resume: bool = True,
-        clean: bool = False,
-        from_stage: str | None = None,
-        keep_work: bool = False,
-        work_dir: str | None = None,
         refresh: bool = False,
         local_files_only: bool | None = None,
-        validate: bool = False,
     ) -> "GeoGraph":
         """
         Function:
@@ -1240,7 +1225,7 @@ class GeoGraphIO:
         - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows every step
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
         - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
-        - The network file's header says what built it (pipeline, sources and the time their data is up to, software): `GeoGraph.scgraph_info(file)` reads it
+        - The network file's header says what built it (pipeline, sources and the time their data is up to, software): `GeoGraph.get_scgraph_info(file)` reads it
 
         Required Arguments:
 
@@ -1248,6 +1233,8 @@ class GeoGraphIO:
             - Type: str | module
             - What: The name of the network (see `GeoGraph.list_buildable_geographs()`), or a pipeline module with the contract of `scgraph.pipelines` (for example a copy of one, adapted)
             - Note: A module is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a built-in pipeline; two modules with the same last name share that cache entry; `list_buildable_geographs` does not list it
+
+        - The runner behind this function, `scgraph.pipelines.build.build_file`, has more options: keeping the work folder of a long build to resume it, and checking the built network against its validation cases.
 
         Optional Arguments:
 
@@ -1297,14 +1284,8 @@ class GeoGraphIO:
                     cache_dir=cache_dir,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
-                    resume=resume,
-                    clean=clean,
-                    from_stage=from_stage,
-                    keep_work=keep_work,
-                    work_dir=work_dir,
                     refresh=refresh,
                     local_files_only=local_files_only,
-                    validate=validate,
                 )
             )
         from scgraph.pipelines.build import build_file
@@ -1314,14 +1295,8 @@ class GeoGraphIO:
                 name,
                 region,
                 cache_dir,
-                resume=resume,
-                clean=clean,
-                from_stage=from_stage,
-                keep_work=keep_work,
-                work_dir=work_dir,
                 refresh=refresh,
                 local_files_only=local_files_only,
-                validate=validate,
             ),
             reduce_iterations=reduce_iterations,
         )
@@ -1710,12 +1685,12 @@ class GeoGraphIO:
                 }
             )
             if show_progress:
-                print(
+                print(  # noqa: T201
                     f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
                     end="\r",
                 )
         if show_progress:
-            print()
+            print()  # noqa: T201
         if filename is not None:
             json.dump(output, open(filename, "w"))
         return output
@@ -2927,15 +2902,10 @@ class GeoGraph(
     @property
     def geokdtree(self):
         """
-        Deprecated: a `geokdtree.GeoKDTree` of the nodes. GeoGraph snaps with `snap_index`,
-        which has the same `closest_idx` and `closest_idx_per_quadrant` methods.
+        A `geokdtree.GeoKDTree` of the nodes.
+        Interchangeable with `snap_index`, sharing the same `closest_idx` and
+        `closest_idx_per_quadrant` methods.
         """
-        warnings.warn(
-            "GeoGraph.geokdtree is deprecated: GeoGraph snaps with snap_index, which has "
-            "the same closest_idx and closest_idx_per_quadrant methods",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         if self.__geokdtree__ is None:
             from geokdtree import GeoKDTree
 
@@ -2944,10 +2914,8 @@ class GeoGraph(
 
     @geokdtree.setter
     def geokdtree(self, geokdtree) -> None:
-        # Setting it to None asked for a rebuild after editing the nodes: drop the index too
-        if geokdtree is None:
-            self.snap_index = None
         self.__geokdtree__ = geokdtree
+        self.snap_index = geokdtree
 
     def __get_node_radians__(self) -> tuple[array, array]:
         # Also rebuilt when nodes were appended or removed directly; in-place edits of
@@ -3518,7 +3486,7 @@ class GeoGraph(
                         + entry_length_start
                         + entry_length_end
                     )
-                except Exception as e:
+                except Exception:
                     print_console(
                         f"Error calculating distance between nodes {node_idx_start} and {node_idx_end} with entry indices {entry_idx_start} and {entry_idx_end}.",
                         silent=silent,

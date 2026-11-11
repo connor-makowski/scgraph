@@ -6,9 +6,14 @@ measured before.
 """
 
 import os
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage3_assembly import assembly
+
+if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
+    import osmium
 
 PIPELINE_VERSION = 1
 
@@ -18,31 +23,33 @@ download = osm.download  # checks osmium before downloading a large extract
 
 
 def build(
-    files,
+    files: dict[str, str],
     *,
-    source=osm.open_osm_source,
-    max_km=osm.MAX_KM,
-    min_nodes=None,
-    folder=None,
-):
-    """The keywords give another scale (`europe_rail`); `min_nodes=None` keeps
+    source: Callable = osm.open_osm_source,
+    max_km_between_nodes: float | int = osm.MAX_KM,
+    min_nodes_per_strongly_connected_component: int | None = None,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
+    """The keywords give another scale (`europe_rail`); `min_nodes_per_strongly_connected_component=None` keeps
     the largest component only."""
-    stage1_folder = os.path.join(folder, "stage1") if folder else None
+    stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     pieces, steps = osm.build_way_pieces(
         source(files["rail"]),
         {"rail": rail},
         ("railway",),
-        max_km,
-        stage1_folder,
+        max_km_between_nodes=max_km_between_nodes,
+        work_dir=stage1_work_dir,
     )
     graph = assembly.build_graph_from_pieces(pieces)
     arrays, assembled = assembly.assemble(
-        graph, max_km=max_km, min_nodes=min_nodes
+        graph,
+        max_km_between_nodes=max_km_between_nodes,
+        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
     )
     return (arrays, [{"name": None}]), steps + assembled
 
 
-def rail(tags):
+def rail(tags: "osmium.osm.TagList") -> int | None:
     """The direction of a railway line (`railway=rail`), None for any other way."""
     return osm.direction(tags) if tags.get("railway") == "rail" else None
 
@@ -51,7 +58,6 @@ def rail(tags):
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("rail",),
     "cases": {
         "europe/luxembourg": ["luxembourg_to_bettembourg"],
     },

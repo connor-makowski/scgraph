@@ -25,7 +25,7 @@ SOURCES = {
 }
 
 
-def build(files):
+def build(files: dict[str, str]) -> GeoGraph:
     import sqlite3  # optional in a Python build: only the networks of Eurostat lanes need it
 
     with contextlib.closing(sqlite3.connect(files["sea_lanes"])) as database:
@@ -57,6 +57,5 @@ def build(files):
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("sea",),
     "cases": ["rotterdam_to_new_york", "rotterdam_to_singapore"],
 }

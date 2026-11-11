@@ -10,13 +10,7 @@ cells of about 600 m by 300 m at the equator. Nodes in the same cell keep their 
 CURVE_ORDER = 16
 # Recorded in network files' headers; changing it means raising PIPELINE_VERSION in each
 # scgraph/pipelines/*.py, so that cached builds are built again
-NODE_ORDER = {
-    "name": "hilbert",
-    "curve_order": CURVE_ORDER,
-    "x": "longitude",
-    "y": "latitude",
-    "ties": "previous id",
-}
+NODE_ORDER = "hilbert"
 
 
 def hilbert_key(latitude: float, longitude: float) -> int:

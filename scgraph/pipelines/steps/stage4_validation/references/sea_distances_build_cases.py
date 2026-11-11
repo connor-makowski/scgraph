@@ -21,6 +21,7 @@ Usage: python -I sea_distances_build_cases.py WPI_DEC.csv CERDI_PAIRS.json
 
 import csv
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -214,7 +215,7 @@ PAIRS = [
 ]
 
 
-def main(wpi_path, cerdi_path):
+def main(wpi_path: str | os.PathLike, cerdi_path: str | os.PathLike) -> None:
     if OUT.exists():
         sys.exit(f"{OUT.name} exists: the references are frozen")
     wpi = {}

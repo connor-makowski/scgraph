@@ -97,7 +97,9 @@ class SnapIndex:
     """
 
     @classmethod
-    def from_arrays(cls, latitudes, longitudes) -> "SnapIndex":
+    def from_arrays(
+        cls, latitudes: array | memoryview, longitudes: array | memoryview
+    ) -> "SnapIndex":
         dtypes = {
             memoryview(values).format for values in (latitudes, longitudes)
         }
@@ -199,7 +201,7 @@ class SnapIndex:
                 dz = 0.0
         return dx * dx + dy * dy + dz * dz
 
-    def closest_idx(self, point) -> int:
+    def closest_idx(self, point: list[float] | tuple[float, float]) -> int:
         qx, qy, qz = _unit(point[0], point[1])
         X, Y, Z, n = self.x, self.y, self.z, self.n
         levels, bound = self.levels, self._bound
@@ -227,7 +229,9 @@ class SnapIndex:
             stack.extend(children)
         return best_p
 
-    def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
+    def closest_idx_per_quadrant(
+        self, point: list[float] | tuple[float, float]
+    ) -> dict[str, int | None]:
         qlat, qlon = float(point[0]), float(point[1])
         qx, qy, qz = _unit(qlat, qlon)
         X, Y, Z, n = self.x, self.y, self.z, self.n

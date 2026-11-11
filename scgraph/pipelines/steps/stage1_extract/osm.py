@@ -15,8 +15,11 @@ import sys
 import time
 from array import array
 from bisect import bisect_left
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from types import ModuleType
+from typing import TYPE_CHECKING
 
 import requests
 
@@ -27,6 +30,9 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
     PieceArrays,
 )
 from scgraph.utils import has_cpp
+
+if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
+    import osmium
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +59,7 @@ FERRY_END_KM = 2  # farthest a ferry end may lie from the road node it joins
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 
 
-def require_osmium():
+def require_osmium() -> ModuleType:
     try:
         import osmium
     except ImportError as error:
@@ -63,7 +69,7 @@ def require_osmium():
     return osmium
 
 
-def download(url, filename):
+def download(url: str, filename: str) -> dict[str, str]:
     """Download an OSM file; return its `version`, the time its data is up to (the
     `osmosis_replication_timestamp` of its header, as Geofabrik writes it), if it has one.
     """
@@ -81,7 +87,7 @@ def download(url, filename):
     return {"version": version} if version else {}
 
 
-def direction(tags):
+def direction(tags: "osmium.osm.TagList") -> int:
     """The direction of a way from its tags: 1 (one way, along its drawing) for
     `oneway=yes`, `true` or `1`, and for motorways and roundabouts without `oneway`; -1
     (one way, against it) for `oneway=-1` or `reverse`; 0 (both ways) otherwise.
@@ -97,7 +103,7 @@ def direction(tags):
     return 0
 
 
-def main_roads(tags):
+def main_roads(tags: "osmium.osm.TagList") -> int | None:
     """The direction of a main road (`MAIN_ROADS`), None for any other way."""
     return direction(tags) if tags.get("highway") in MAIN_ROADS else None
 
@@ -159,15 +165,23 @@ class _Junctions:
         return i < len(self.ids) and self.ids[i] == ref
 
 
-def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
+def locate_ways(
+    source: "str | os.PathLike | StreamedPbf",
+    way_selectors: dict[str, Callable],
+    required_tag_keys: tuple[str, ...] = (),
+    node_store: str | None = None,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[
+    _Junctions, Iterator[tuple[str, int, list[tuple[int, list[float]]]]]
+]:
     """
-    Locate the ways of `source` that `selects` keep, in one set of passes for every kind
+    Locate the ways of `source` that `way_selectors` keep, in one set of passes for every kind
     of way (roads and ferries, for example).
 
-    `selects` maps a kind of way to its `select(tags)`, which gives the direction of a way:
+    `way_selectors` maps a kind of way to its `select(tags)`, which gives the direction of a way:
     1 (one way along its drawing), -1 (against it), 0 (both ways), or None to leave it to
     the next select; a way goes to the first select that keeps it, in the mapping's order.
-    If `tag_keys` is given, the ways that have none of these keys are dropped first, in
+    If `required_tag_keys` is given, the ways that have none of these keys are dropped first, in
     osmium.
 
     `source` is the path of an OSM file, or an object whose `file(entities)` returns what
@@ -190,11 +204,13 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
     one of its nodes is missing from the file.
     """
     osmium = require_osmium()
-    if folder:
-        os.makedirs(folder, exist_ok=True)
-    pass2_done = os.path.join(folder, "pass2.done") if folder else None
-    junc_file = os.path.join(folder, "pass1_junctions.bin") if folder else None
-    ways_file = os.path.join(folder, "pass1_ways.bin") if folder else None
+    if work_dir:
+        os.makedirs(work_dir, exist_ok=True)
+    pass2_done = os.path.join(work_dir, "pass2.done") if work_dir else None
+    junc_file = (
+        os.path.join(work_dir, "pass1_junctions.bin") if work_dir else None
+    )
+    ways_file = os.path.join(work_dir, "pass1_ways.bin") if work_dir else None
     nodes_file = (
         node_store.partition(",")[2]
         if (node_store and "," in node_store)
@@ -203,7 +219,7 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
 
     # Resume: if pass 2 was already completed, reload junctions and kept ways from disk
     if (
-        folder
+        work_dir
         and pass2_done
         and os.path.isfile(pass2_done)
         and os.path.isfile(junc_file)
@@ -228,8 +244,10 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
         # First pass: the nodes of kept ways; a node seen again is a junction
         tracker, kept = osmium.IdTracker(), osmium.IdTracker()
         seen, repeats = tracker.node_ids(), array("q")
-        kept_ways = array("q") if folder else None
-        for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
+        kept_ways = array("q") if work_dir else None
+        for _, _, way in _selected_ways(
+            osmium, source, way_selectors, required_tag_keys
+        ):
             kept.add_way(way.id)
             if kept_ways is not None:
                 kept_ways.append(way.id)
@@ -243,13 +261,12 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
         del repeats
         gc.collect()
 
-        if folder and junc_file and ways_file:
+        if work_dir and junc_file and ways_file:
             with open(junc_file, "wb") as f:
                 junctions.ids.tofile(f)
             with open(ways_file, "wb") as f:
                 kept_ways.tofile(f)
             del kept_ways
-            Path(folder, "pass1.done").write_text("done\n")
 
         # Second pass: locations of kept nodes into store
         node_store = node_store or "flex_mem"
@@ -275,14 +292,19 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
             except OSError:
                 pass
 
-        if folder and pass2_done:
+        if work_dir and pass2_done:
             Path(pass2_done).write_text("done\n")
 
     # Third pass, as the polylines are read: the located pieces of the kept ways
     def polylines(locations):
         locations.ignore_errors()
         for kind, way_direction, way in _selected_ways(
-            osmium, source, selects, tag_keys, kept.id_filter(), locations
+            osmium,
+            source,
+            way_selectors,
+            required_tag_keys,
+            kept.id_filter(),
+            locations,
         ):
             for piece in _located_pieces(way.nodes):
                 yield kind, way_direction, piece
@@ -290,61 +312,106 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
     return junctions, polylines(osmium.NodeLocationsForWays(store))
 
 
-def read_osm(source, select, tag_keys=(), max_km=MAX_KM):
+def read_osm(
+    source: "str | os.PathLike | StreamedPbf",
+    way_filter: Callable,
+    required_tag_keys: tuple[str, ...] = (),
+    max_km_between_nodes: float | int = MAX_KM,
+) -> tuple[
+    list[dict[int, float]],
+    list[list[float]],
+    list[dict[int, list[list[float]]]],
+    list[int],
+]:
     """
-    Build the graph of the ways of `source` that `select` keeps (`locate_ways`, then
-    `polylines_to_graph`), a way being also cut where a piece reaches `max_km`
+    Build the graph of the ways of `source` that `way_filter` keeps (`locate_ways`, then
+    `polylines_to_graph`), a way being also cut where a piece reaches `max_km_between_nodes`
     (`cut_polylines`).
 
     Returns `(graph, nodes, shapes, node_ids)` in the GeoGraph layout, `node_ids` being
     the OSM ids of the nodes.
     """
-    junctions, polylines = locate_ways(source, {"ways": select}, tag_keys)
+    junctions, polylines = locate_ways(
+        source, {"ways": way_filter}, required_tag_keys
+    )
     polylines = (
         (way_direction, points) for _, way_direction, points in polylines
     )
-    return polylines_to_graph(polylines, junctions, max_km)
+    return polylines_to_graph(polylines, junctions, max_km_between_nodes)
 
 
-def build_way_pieces(source, selects, tag_keys, max_km, folder=None):
-    """The pieces (`assembly.PieceArrays`) of the ways of `source` that `selects` keep
+def build_way_pieces(
+    source: "str | os.PathLike | StreamedPbf",
+    way_selectors: dict[str, Callable],
+    required_tag_keys: tuple[str, ...],
+    max_km_between_nodes: float | int,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[PieceArrays, list[dict[str, str | int]]]:
+    """The pieces (`assembly.PieceArrays`) of the ways of `source` that `way_selectors` keep
     (`locate_ways`, one read for every kind), cut at their junctions and where a piece
-    reaches `max_km` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
+    reaches `max_km_between_nodes` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
     joins the road nodes nearest its two ends if both lie within FERRY_END_KM
     (`build_ferry_arcs`). Returns `(pieces, steps)`; no way kept raises a ValueError. With a
-    `folder`, the node locations and the pieces are kept in files there.
+    `work_dir`, the node locations and the pieces are kept in files there.
     """
-    if folder:
-        done_marker = os.path.join(folder, "stage1.done")
-        if os.path.isfile(done_marker):
-            try:
-                with open(done_marker, "r") as f:
-                    return PieceArrays(
-                        folder=folder, truncate=False
-                    ), json.load(f)
-            except OSError:
-                pass
-    nodes = folder and os.path.join(folder, "nodes")
+    if work_dir:
+        os.makedirs(work_dir, exist_ok=True)
+        done_marker = os.path.join(work_dir, "stage1.done")
+        # A work directory serves one build: what it holds is reused only for
+        # the same source, selection and cut
+        inputs = {
+            "source": (
+                os.fspath(source)
+                if isinstance(source, (str, os.PathLike))
+                else source.about
+            ),
+            "way_selectors": {
+                kind: getattr(select, "__qualname__", type(select).__name__)
+                for kind, select in way_selectors.items()
+            },
+            "required_tag_keys": list(required_tag_keys),
+            "max_km_between_nodes": max_km_between_nodes,
+        }
+        inputs_file = os.path.join(work_dir, "stage1.inputs.json")
+        try:
+            with open(inputs_file) as f:
+                same_inputs = json.load(f) == inputs
+        except (OSError, ValueError):
+            same_inputs = False
+        if not same_inputs:
+            for marker in ("pass2.done", "stage1.done"):
+                Path(work_dir, marker).unlink(missing_ok=True)
+            with open(inputs_file, "w") as f:
+                json.dump(inputs, f)
+        try:
+            with open(done_marker) as f:
+                steps = json.load(f)
+            return PieceArrays(work_dir=work_dir, truncate=False), steps
+        except (OSError, ValueError):
+            pass
+    nodes = work_dir and os.path.join(work_dir, "nodes")
     store = nodes and "sparse_file_array," + nodes
     junctions, ways = locate_ways(
-        source, selects, tag_keys, store, folder=folder
+        source, way_selectors, required_tag_keys, store, work_dir=work_dir
     )
-    pieces, ferries = PieceArrays(folder=folder), []
+    pieces, ferries = PieceArrays(work_dir=work_dir), []
     for kind, direction, points in ways:
         if kind == "ferries":
             ferries.append((direction, points))
             continue
         where = dict(points)
         for origin, destination, km, way, shape in cut_polylines(
-            [(direction, points)], junctions, max_km
+            [(direction, points)], junctions, max_km_between_nodes
         ):
             ends = where[origin], where[destination]
             pieces.append(origin, destination, km, way, ends, shape)
     pieces.flush()
     if not len(pieces.km):
-        raise ValueError(f"No way of {source} is kept by {', '.join(selects)}")
+        raise ValueError(
+            f"No way of {source} is kept by {', '.join(way_selectors)}"
+        )
     steps = [{"step": "read", "pieces": len(pieces.km)}]
-    if "ferries" in selects:
+    if "ferries" in way_selectors:
         # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
         # piece u // 2's origin or destination (ties in nearest: the first end)
         lats, lons = pieces.ends[0::2], pieces.ends[1::2]
@@ -362,9 +429,12 @@ def build_way_pieces(source, selects, tag_keys, max_km, folder=None):
                 ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
             )
         steps.append({"step": "ferries", "arcs": len(arcs)})
-    if folder:
-        with open(os.path.join(folder, "stage1.done"), "w") as f:
+    if work_dir:
+        # The marker appears last and whole: it says that every piece is on disk
+        pieces.flush()
+        with open(done_marker + ".part", "w") as f:
             json.dump(steps, f)
+        os.replace(done_marker + ".part", done_marker)
     return pieces, steps
 
 
@@ -383,7 +453,7 @@ def _located_pieces(way_nodes):
         yield piece
 
 
-def vehicle_ferries(tags):
+def vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
     """Both ways (0) for a ferry not closed to motor vehicles, None for any other way."""
     if tags.get("route") == "ferry" and "no" not in (
         tags.get("motor_vehicle"),
@@ -393,7 +463,12 @@ def vehicle_ferries(tags):
     return None
 
 
-def build_ferry_arcs(ferries, ends, shapes, nearest):
+def build_ferry_arcs(
+    ferries: list[dict[int, float]],
+    ends: list[list[float]],
+    shapes: list[dict[int, list[list[float]]]],
+    nearest: Callable,
+) -> Iterator[tuple[int, int, float, list[list[float]]]]:
     """`(u, v, km, shape)` of each ferry arc (`polylines_to_graph`'s layout) whose ends
     lie within FERRY_END_KM of road nodes u and v (`nearest(point)` gives `(node, km)`);
     the shape keeps the ferry's ends unless they are u and v."""
@@ -420,7 +495,7 @@ class StreamedPbf:
             self.about = json.load(file)
 
     @staticmethod
-    def download(url, filename):
+    def download(url: str, filename: str) -> dict[str, str | int]:
         """Write to `filename` the layout of the PBF at `url` (the header, then the node
         and way sections, found by bisection) with its `size`, `tag`, `md5` (the
         published one, not recomputed) and `version`; return `{version, bytes, md5}`.
@@ -529,7 +604,7 @@ class StreamedPbf:
         finally:
             session.close()
 
-    def file(self, entities):
+    def file(self, entities: "osmium.osm.osm_entity_bits") -> "osmium.io.File":
         """The header and the node (`osmium.osm.NODE`) or way section, from a pipe."""
         if sys.platform == "win32":
             raise NotImplementedError(
@@ -548,7 +623,7 @@ class StreamedPbf:
         os.close(write)
         return osmium.io.File(f"/dev/fd/{self._pipe}", "pbf")
 
-    def close(self, stop=False):
+    def close(self, stop: bool = False) -> None:
         """Wait for the child of the last pass, or `stop` it; raise if it failed (then
         osmium read only part of the section, maybe up to a blob boundary, unaware).
         """
@@ -562,7 +637,9 @@ class StreamedPbf:
             )
 
 
-def open_osm_source(source):
+def open_osm_source(
+    source: "str | os.PathLike | StreamedPbf",
+) -> "str | os.PathLike | StreamedPbf":
     """Resolve an OSM source: returns a StreamedPbf when source is a JSON metadata file
     or layout descriptor, or source unchanged when it is an OSM file path or custom source object.
     """
@@ -583,7 +660,7 @@ def open_osm_source(source):
     return source
 
 
-def download_streamed(url, filename):
+def download_streamed(url: str, filename: str) -> dict[str, str | int]:
     """Download layout descriptor of an OSM PBF file for streamed HTTP range reading."""
     if not has_cpp():
         raise RuntimeError(

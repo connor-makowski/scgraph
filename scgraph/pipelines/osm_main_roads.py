@@ -12,6 +12,7 @@ shapes.
 """
 
 import os
+from collections.abc import Callable
 
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage3_assembly import assembly
@@ -25,26 +26,28 @@ download = osm.download  # checks osmium before downloading a large extract
 
 
 def build(
-    files,
+    files: dict[str, str],
     *,
-    source=osm.open_osm_source,
-    max_km=osm.MAX_KM,
-    min_nodes=None,
-    folder=None,
-):
-    """The keywords give another scale (`world_main_roads`); `min_nodes=None` keeps
+    source: Callable = osm.open_osm_source,
+    max_km_between_nodes: float | int = osm.MAX_KM,
+    min_nodes_per_strongly_connected_component: int | None = None,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
+    """The keywords give another scale (`world_main_roads`); `min_nodes_per_strongly_connected_component=None` keeps
     the largest component only."""
-    stage1_folder = os.path.join(folder, "stage1") if folder else None
+    stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     pieces, steps = osm.build_way_pieces(
         source(files["roads"]),
         SELECTS,
         ("highway", "route"),
-        max_km,
-        stage1_folder,
+        max_km_between_nodes=max_km_between_nodes,
+        work_dir=stage1_work_dir,
     )
     graph = assembly.build_graph_from_pieces(pieces)
     arrays, assembled = assembly.assemble(
-        graph, max_km=max_km, min_nodes=min_nodes
+        graph,
+        max_km_between_nodes=max_km_between_nodes,
+        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
     )
     return (arrays, [{"name": None}]), steps + assembled
 
@@ -53,7 +56,6 @@ def build(
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("road",),
     "cases": {
         "europe/denmark": ["copenhagen_odense", "copenhagen_malmo"],
         "europe/france": [

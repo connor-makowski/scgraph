@@ -247,7 +247,7 @@ def filled_cache(tmp_path):
         "networks/osm_rail/europe/france/f.scgraph": b"x" * 40,
         "networks/osm_rail/europe/france/cache.json": "f.scgraph",
         "networks/us_freeway/cache.json": "gone.scgraph",
-        ".building-x/rail.osm.pbf": b"x" * 50,
+        ".work/osm_rail/europe/sources/rail.osm.pbf": b"x" * 50,
     }
     for path, content in files.items():
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
@@ -275,7 +275,7 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         ("built", "marnet", None, "m.scgraph", marnet_bytes),
         ("built", "osm_rail", "europe", "e.scgraph", 30),
         ("built", "osm_rail", "europe/france", "f.scgraph", 40),
-        ("building", None, None, ".building-x", 50),
+        ("building", "osm_rail", None, "osm_rail", 50),
     ]
     # Versions read from the file; None for a file that can't be read
     assert (info[2]["pipeline_version"], info[2]["scgraph"]) == (3, "9.9")

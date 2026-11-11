@@ -155,8 +155,14 @@ def _catalog() -> dict[str, dict[str, Any]]:
             continue
         with open(path, newline="", encoding="utf-8") as file:
             for row in csv.DictReader(file):
-                if not row["id"].startswith("#"):
-                    cases[row["id"]] = _row_to_case(row)
+                if row["id"].startswith("#"):
+                    continue
+                if row["id"] in cases:
+                    raise ValueError(
+                        f"Validation case '{row['id']}' is defined twice; "
+                        f"the second time in {path.name}"
+                    )
+                cases[row["id"]] = _row_to_case(row)
     return cases
 
 
@@ -183,25 +189,20 @@ def load_cases(
     if isinstance(contract, dict):
         spec = contract.get("cases", contract)
         if isinstance(spec, dict):
-            matched = spec.get(region)
-            if matched is None and region:
-                matched = spec.get(region.split("/")[-1])
-            spec = (
-                matched
-                if matched is not None
-                else [c for sub in spec.values() for c in sub]
-            )
+            if region is None:  # every region's cases
+                spec = [c for sub in spec.values() for c in sub]
+            else:  # a region without cases is not checked against another's
+                spec = spec.get(region, [])
         contract = spec
 
     if not contract:
         return []
 
     cat = _catalog()
-    return [
-        c if isinstance(c, dict) else cat[c]
-        for c in contract
-        if isinstance(c, dict) or c in cat
-    ]
+    unknown = [c for c in contract if not isinstance(c, dict) and c not in cat]
+    if unknown:
+        raise ValueError(f"Unknown validation case(s): {', '.join(unknown)}")
+    return [c if isinstance(c, dict) else cat[c] for c in contract]
 
 
 def validate_network(

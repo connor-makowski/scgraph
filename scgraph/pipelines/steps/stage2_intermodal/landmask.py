@@ -40,9 +40,18 @@ MAX_CELLS = 6_000_000
 
 
 def find_water_path_cells(
-    bits, width, height, wrap, start, targets, max_km, east, diagonal, north,
-    max_cells,
-):  # fmt: skip
+    bits: bytes | bytearray,
+    width: int,
+    height: int,
+    wrap: bool,
+    start: int,
+    targets: array | list[int],
+    max_km: int | float,
+    east: array,
+    diagonal: array,
+    north: float,
+    max_cells: int,
+) -> tuple[float, list[int]] | None:
     """Find the shortest path over water cells from a start cell to target cells.
 
     Uses Dijkstra search on the 8-connected grid to find the least-cost path
@@ -122,8 +131,12 @@ class LandMask:
 
     @staticmethod
     def from_natural_earth(
-        land, lakes, rivers, cells_per_degree=240, bbox=None
-    ):
+        land: str,
+        lakes: str,
+        rivers: str,
+        cells_per_degree: int = 240,
+        bbox: tuple[float, float, float, float] | None = None,
+    ) -> "LandMask":
         """Construct a 1-bit land/water raster mask from Natural Earth vector features.
 
         Rasterizes 10m Natural Earth vector polygons and lines into a grid where
@@ -138,9 +151,9 @@ class LandMask:
            navigable inland river channels.
 
         Parameters:
-            land (str | dict): Path to Natural Earth land GeoJSON file or parsed dict.
-            lakes (str | dict): Path to Natural Earth lakes GeoJSON file or parsed dict.
-            rivers (str | dict): Path to Natural Earth rivers GeoJSON file or parsed dict.
+            land (str): Path to Natural Earth land GeoJSON file.
+            lakes (str): Path to Natural Earth lakes GeoJSON file.
+            rivers (str): Path to Natural Earth rivers GeoJSON file.
             cells_per_degree (int): Resolution in cells per degree. Defaults to 240
                 (1/240 degree per cell, ~460m at the equator).
             bbox (tuple[float, float, float, float] | None): Optional bounding box
@@ -186,7 +199,7 @@ class LandMask:
                         bits[(y * width + x) >> 3] &= ~(1 << (x & 7))
         return LandMask(bits, south / k, west / k, height, width, k)
 
-    def cell(self, lat, lon):
+    def cell(self, lat: float, lon: float) -> int | None:
         """The cell of a point, None outside the raster."""
         row = math.floor((lat - self.south) / self.size)
         column = math.floor((lon - self.west) / self.size)
@@ -194,16 +207,22 @@ class LandMask:
             return row * self.width + column
         return None
 
-    def centre(self, cell):
+    def centre(self, cell: int) -> list[float]:
         row, column = divmod(cell, self.width)
         s = self.size
         return [self.south + (row + 0.5) * s, self.west + (column + 0.5) * s]
 
-    def on_land(self, lat, lon):
+    def on_land(self, lat: float, lon: float) -> bool:
         cell = self.cell(lat, lon)
         return cell is None or bool(_is_land(self.bits, cell))
 
-    def water_path(self, start, targets, max_km, start_on_land_km=6):
+    def water_path(
+        self,
+        start: list[float],
+        targets: array,
+        max_km: int | float,
+        start_on_land_km: int | float = 6,
+    ) -> tuple[float, list[list[float]]] | None:
         """`(km, cell centres)` of the cheapest water path from `start` to a cell of
         `targets` (an array('q'), sorted), or None beyond `max_km`, from the water cell
         nearest to `start` within `start_on_land_km` (`km` counts the leg to it).

@@ -1,4 +1,3 @@
-import time
 import pytest
 from scgraph import GeoGraph
 from scgraph.graph import Graph as PyGraph

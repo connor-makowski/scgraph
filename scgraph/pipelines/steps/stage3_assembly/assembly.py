@@ -4,7 +4,7 @@ Assemble a network file from raw arcs. The C++ kernels
 replace these when built; the pure-Python ones stay in `python`. Arrays in: buffers of
 the stated types (`array("q"/"i"/"d")`; any sequences for `python`); out: `array`
 (read-only memoryviews from C++). `PieceArrays`, `build_graph_from_pieces` and `assemble` chain the
-kernels in Python; `build_csr_from_adjacency` and `keep_largest_strongly_connected_component` take the GeoGraph layout
+kernels in Python; `build_csr_from_adjacency_list` and `keep_largest_strongly_connected_component` take the GeoGraph layout
 for `load_from_osm`.
 """
 
@@ -13,6 +13,7 @@ import mmap
 import os
 from array import array
 from bisect import bisect_left, bisect_right
+from collections.abc import Iterable, Iterator, Sequence
 from functools import reduce
 from itertools import accumulate
 from operator import add
@@ -41,7 +42,11 @@ from scgraph.network_file import extract_coordinates
 from scgraph.utils import haversine
 
 
-def build_csr_from_arcs_python(origins, destinations, weights):
+def build_csr_from_arcs_python(
+    origins: Sequence[int],
+    destinations: Sequence[int],
+    weights: Sequence[float | int],
+) -> tuple[array, array, array, array, array]:
     """Pure-Python implementation of CSR construction from raw arcs."""
     if not len(origins) == len(destinations) == len(weights):
         raise ValueError("one destination and one weight per origin expected")
@@ -69,7 +74,17 @@ def build_csr_from_arcs_python(origins, destinations, weights):
     )
 
 
-def build_csr_from_arcs(origins, destinations, weights):
+def build_csr_from_arcs(
+    origins: Sequence[int],
+    destinations: Sequence[int],
+    weights: Sequence[float | int],
+) -> tuple[
+    array | memoryview,
+    array | memoryview,
+    array | memoryview,
+    array | memoryview,
+    array | memoryview,
+]:
     """
     Store arcs between source ids (int64 `origins`, `destinations`; float64 `weights`)
     by origin. Returns `(node_ids, offsets, heads, weights, kept)`: the arcs' end ids,
@@ -79,12 +94,16 @@ def build_csr_from_arcs(origins, destinations, weights):
     (an id on self-loops only is no node); of parallel arcs the shortest is kept, the
     first in the input on a tie.
     """
-    if _cpp_build_csr_from_arcs is not None and isinstance(origins, array):
+    if _cpp_build_csr_from_arcs is not None and isinstance(
+        origins, (array, memoryview)
+    ):
         return _cpp_build_csr_from_arcs(origins, destinations, weights)
     return build_csr_from_arcs_python(origins, destinations, weights)
 
 
-def strongly_connected_components_python(offsets, heads):
+def strongly_connected_components_python(
+    offsets: Sequence[int], heads: Sequence[int]
+) -> tuple[array, array]:
     """Pure-Python implementation of Kosaraju's strongly connected components."""
     n = len(offsets) - 1
     if (
@@ -142,7 +161,9 @@ def strongly_connected_components_python(offsets, heads):
     return labels, sizes
 
 
-def strongly_connected_components(offsets, heads):
+def strongly_connected_components(
+    offsets: Sequence[int], heads: Sequence[int]
+) -> tuple[array | memoryview, array | memoryview]:
     """Compute the strongly connected components of a directed CSR graph.
 
     A strongly connected component (SCC) is a maximal subset of nodes where every
@@ -162,42 +183,18 @@ def strongly_connected_components(offsets, heads):
             - `sizes`: Number of nodes in each component.
     """
     if _cpp_strongly_connected_components is not None and isinstance(
-        offsets, array
+        offsets, (array, memoryview)
     ):
         return _cpp_strongly_connected_components(offsets, heads)
     return strongly_connected_components_python(offsets, heads)
 
 
-def strongly_connected_components(offsets, heads):
-    """Compute the strongly connected components of a directed CSR graph.
-
-    A strongly connected component (SCC) is a maximal subset of nodes where every
-    node can reach every other node following the directed arcs. In logistics networks,
-    this identifies mutually accessible clusters and isolates dead ends or cut fragments.
-
-    Computed using Kosaraju's two-pass depth-first search algorithm.
-
-    Parameters:
-        offsets (array[int32]): CSR row offsets of size `num_nodes + 1`.
-        heads (array[int32]): CSR target node indices of size `num_arcs`.
-
-    Returns:
-        tuple[array[int32], array[int32]]:
-            - `labels`: Component index (0-based) for each node, numbered in order
-              of appearance of their smallest node index.
-            - `sizes`: Number of nodes in each component.
-    """
-    if _cpp_strongly_connected_components is not None and isinstance(
-        offsets, array
-    ):
-        return _cpp_strongly_connected_components(offsets, heads)
-    return strongly_connected_components_python(offsets, heads)
-
-
-def build_csr_from_adjacency(rows):
+def build_csr_from_adjacency_list(
+    adjacency_list: list[dict[int, int | float]],
+) -> tuple[array, array, array]:
     """Store a graph from an adjacency list representation into CSR format.
 
-    `rows[u]` maps head -> weight.
+    `adjacency_list[u]` maps head -> weight.
     Returns:
         tuple[array[int32], array[int32], array[float64]]:
             - offsets (int32)
@@ -205,7 +202,7 @@ def build_csr_from_adjacency(rows):
             - weights (float64)
     """
     offsets, heads, weights = array("i", [0]), array("i"), array("d")
-    for row in rows:
+    for row in adjacency_list:
         for head in sorted(row):
             heads.append(head)
             weights.append(row[head])
@@ -213,7 +210,11 @@ def build_csr_from_adjacency(rows):
     return offsets, heads, weights
 
 
-def keep_strongly_connected_components(offsets, heads, min_nodes=None):
+def keep_strongly_connected_components(
+    offsets: Sequence[int],
+    heads: Sequence[int],
+    min_nodes: int | None = None,
+) -> tuple[array, array | memoryview]:
     """Filter a CSR graph to retain only viable strongly connected components (SCCs).
 
     In logistics and road routing, every location must be mutually reachable so that
@@ -248,10 +249,20 @@ def keep_strongly_connected_components(offsets, heads, min_nodes=None):
     return array("i", (u for u, c in enumerate(labels) if wanted[c])), labels
 
 
-def keep_largest_strongly_connected_component(graph, nodes, shapes, node_ids):
+def keep_largest_strongly_connected_component(
+    graph: list[dict[int, int | float]],
+    nodes: list[list[float]],
+    shapes: list[dict[int, list[list[float]]]],
+    node_ids: list[int],
+) -> tuple[
+    list[dict[int, int | float]],
+    list[list[float]],
+    list[dict[int, list[list[float]]]],
+    list[int],
+]:
     """Filter a GeoGraph-layout graph to keep only its largest strongly connected component."""
     kept, _ = keep_strongly_connected_components(
-        *build_csr_from_adjacency(graph)[:2]
+        *build_csr_from_adjacency_list(graph)[:2]
     )
     index = {old: new for new, old in enumerate(kept)}
 
@@ -290,13 +301,32 @@ class ContractedGraph(NamedTuple):
 
 
 def contract_chains_python(
-    offsets, heads, weights, modes=None, max_km=math.inf
+    offsets: Sequence[int],
+    heads: Sequence[int],
+    weights: Sequence[float | int],
+    node_modes: Sequence[int] | None = None,
+    max_km_between_nodes: float | int = math.inf,
 ) -> ContractedGraph:
     """Pure-Python implementation of CSR degree-2 chain contraction."""
     n = len(offsets) - 1
+    if len(weights) != len(heads) or (
+        node_modes is not None and len(node_modes) != n
+    ):
+        raise ValueError("expected one weight per arc and one mode per node")
+    if (
+        n < 0
+        or offsets[n] != len(heads)
+        or not _is_monotonically_increasing(offsets)
+    ):
+        raise ValueError("offsets must rise from 0 to the number of items")
     rows = [heads[offsets[u] : offsets[u + 1]] for u in range(n)]
     ins = [[] for _ in range(n)]
     for u, row in enumerate(rows):
+        if any(
+            not 0 <= v < n or v == u or (i and v <= row[i - 1])
+            for i, v in enumerate(row)
+        ):
+            raise IndexError("rows must rise within the nodes, without loops")
         for v in row:
             ins[v].append(u)
 
@@ -304,7 +334,9 @@ def contract_chains_python(
         out, inn = list(rows[v]), sorted(ins[v])
         two_way = len(out) == 2 and out == inn
         one_way = len(out) == len(inn) == 1 and out != inn
-        same = modes is None or all(modes[x] == modes[v] for x in out + inn)
+        same = node_modes is None or all(
+            node_modes[x] == node_modes[v] for x in out + inn
+        )
         return (two_way or one_way) and same
 
     def contract(s, a):
@@ -315,11 +347,11 @@ def contract_chains_python(
             nodes.append(v)
             path.append(offsets[v] + (len(row) == 2 and row[0] == nodes[-2]))
         nodes.append(heads[path[-1]])
-        # Cut where the length from the canonical end reaches max_km
+        # Cut where the length from the canonical end reaches max_km_between_nodes
         pieces, start, total = [], 0, 0.0
         for i in range(1, len(path) + 1):
             total += weights[path[i - 1]]
-            if total >= max_km or i == len(path):
+            if total >= max_km_between_nodes or i == len(path):
                 pieces.append((start, i))
                 start, total = i, 0.0
         pieces, both = pieces[::-1], len(rows[nodes[1]]) == 2
@@ -380,7 +412,11 @@ def contract_chains_python(
 
 
 def contract_chains(
-    offsets, heads, weights, modes=None, max_km=math.inf
+    offsets: Sequence[int],
+    heads: Sequence[int],
+    weights: Sequence[float | int],
+    node_modes: Sequence[int] | None = None,
+    max_km_between_nodes: float | int = math.inf,
 ) -> ContractedGraph:
     """Contract degree-2 pass-through chains into composite weighted edges.
 
@@ -388,7 +424,7 @@ def contract_chains(
     either bidirectional with each or one-way through) and shares their mode.
     Walking from its canonical end (a one-way start, or the end with the lower
     index), a chain is segmented at the first node where the segment reaches
-    `max_km`, and any segment that would create a self-loop or duplicate arc is
+    `max_km_between_nodes`, and any segment that would create a self-loop or duplicate arc is
     split at its midpoint. Isolated cycles are walked from their lowest-index
     node, which is retained.
 
@@ -399,9 +435,9 @@ def contract_chains(
         offsets (array[int32]): CSR row offsets of size `num_nodes + 1`.
         heads (array[int32]): Target node indices of size `num_arcs`.
         weights (array[float64]): Arc lengths in kilometres.
-        modes (array[uint8] | None): Optional per-node travel mode. If provided,
+        node_modes (array[uint8] | None): Optional per-node travel mode. If provided,
             chains are never contracted across different modes.
-        max_km (float): Maximum length of a contracted composite segment in km.
+        max_km_between_nodes (float): Maximum length of a contracted composite segment in km.
             Defaults to infinity (unlimited segment length).
 
     Returns:
@@ -413,25 +449,44 @@ def contract_chains(
             - `member_offsets`: Offsets into `members` for each contracted arc.
             - `members`: Input arc indices comprising each contracted arc, in travel order.
     """
-    if _cpp_contract_chains is not None and isinstance(offsets, array):
+    if _cpp_contract_chains is not None and isinstance(
+        offsets, (array, memoryview)
+    ):
         return ContractedGraph(
-            *_cpp_contract_chains(offsets, heads, weights, modes, max_km)
+            *_cpp_contract_chains(
+                offsets, heads, weights, node_modes, max_km_between_nodes
+            )
         )
     return contract_chains_python(
-        offsets, heads, weights, modes=modes, max_km=max_km
+        offsets,
+        heads,
+        weights,
+        node_modes=node_modes,
+        max_km_between_nodes=max_km_between_nodes,
     )
 
 
-def simplify_shapes(points, offsets, ends, tolerance_m):
+def simplify_shapes(
+    shape_points: Sequence[int],
+    shape_offsets: Sequence[int],
+    endpoint_coords: Sequence[int],
+    tolerance_meters: float | int,
+) -> tuple[array | memoryview, array | memoryview]:
     """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
 
-    Drops intermediate shape points that fall within `tolerance_m` metres of the
+    Drops intermediate shape points that fall within `tolerance_meters` metres of the
     segment connecting the retained endpoints, calculated on a local flat-map
     projection for each arc.
     """
-    if _cpp_simplify_shapes is not None and isinstance(points, array):
-        return _cpp_simplify_shapes(points, offsets, ends, tolerance_m)
-    return simplify_shapes_python(points, offsets, ends, tolerance_m)
+    if _cpp_simplify_shapes is not None and isinstance(
+        shape_points, (array, memoryview)
+    ):
+        return _cpp_simplify_shapes(
+            shape_points, shape_offsets, endpoint_coords, tolerance_meters
+        )
+    return simplify_shapes_python(
+        shape_points, shape_offsets, endpoint_coords, tolerance_meters
+    )
 
 
 class NearNodes:
@@ -450,7 +505,9 @@ class NearNodes:
         for row, nodes in self.rows.items():
             self.rows[row] = array("i", sorted(nodes, key=lons.__getitem__))
 
-    def within(self, point, km):
+    def within(
+        self, point: list[float | int], km: float | int
+    ) -> Iterator[tuple[float, int]]:
         """`(km, node)` of each node within `km` of `point` ([latitude, longitude])."""
         lat, lon = point
         dlat = km / 110  # degrees: more than `km` (111.2 km per degree)
@@ -476,7 +533,9 @@ class NearNodes:
                     if d <= km:
                         yield d, i
 
-    def nearest(self, point, km):
+    def nearest(
+        self, point: list[float | int], km: float | int
+    ) -> tuple[int | None, float]:
         """`(node, km)` of the node nearest to `point` within `km` (ties: the lowest
         node), or `(None, inf)`."""
         d, i = min(self.within(point, km), default=(math.inf, None))
@@ -488,22 +547,24 @@ class PieceArrays:
     their ends (`origins`, `destinations`, int64) and the ends' coordinates (`ends`, int32
     in 1e-7 degree, four per piece), `km` (float64), `directions` (int8, as polylines),
     and their interior points (`points`, int32 pairs, piece `i`'s from `offsets[i]`),
-    each piece's drawing simplified at `tolerance_m` metres (`simplify_shapes`, by
-    batches of BATCH pieces), or stored as it is with `tolerance_m=None`. The columns are
-    `array`s, or files of `folder` read through memory maps; they hold the pieces up to
+    each piece's drawing simplified at `tolerance_meters` metres (`simplify_shapes`, by
+    batches of BATCH pieces), or stored as it is with `tolerance_meters=None`. The columns are
+    `array`s, or files of `work_dir` read through memory maps; they hold the pieces up to
     the last `flush`."""
 
     BATCH = 10_000
     COLUMNS = dict(origins="q", destinations="q", ends="i", km="d")
     COLUMNS.update(directions="b", points="i", offsets="q")
 
-    def __init__(self, tolerance_m=50, folder=None, truncate=True):
-        self.tolerance_m, self.folder = tolerance_m, folder
-        if folder is not None:
-            os.makedirs(folder, exist_ok=True)
+    def __init__(self, tolerance_meters=50, work_dir=None, truncate=True):
+        self.tolerance_meters, self.work_dir = tolerance_meters, work_dir
+        if work_dir is not None:
+            os.makedirs(work_dir, exist_ok=True)
         self._views = []
         for name, code in self.COLUMNS.items():
-            path = os.path.join(folder, name) if folder is not None else None
+            path = (
+                os.path.join(work_dir, name) if work_dir is not None else None
+            )
             if (
                 not truncate
                 and path is not None
@@ -516,21 +577,30 @@ class PieceArrays:
                 setattr(self, name, memoryview(view).cast(code))
             else:
                 setattr(self, name, array(code))
-                if folder is not None and truncate:
+                if work_dir is not None and truncate:
                     open(path, "wb").close()
         self._new = {name: array(code) for name, code in self.COLUMNS.items()}
         self._new["offsets"].append(0)
         self._starts = [0]
 
-    def append(self, origin, destination, km, direction, ends, shape):
-        """One piece; `ends` and `shape`: [latitude, longitude] points in degrees."""
+    def append(
+        self,
+        origin_id: int,
+        destination_id: int,
+        length_km: float | int,
+        direction: int,
+        endpoint_coords: Iterable[Iterable[float | int]],
+        shape_points: Iterable[Iterable[float | int]],
+    ) -> None:
+        """One piece; `endpoint_coords` and `shape_points`: [latitude, longitude] points in degrees."""
         new = self._new
-        new["origins"].append(origin)
-        new["destinations"].append(destination)
-        new["km"].append(km)
+        new["origins"].append(origin_id)
+        new["destinations"].append(destination_id)
+        new["km"].append(length_km)
         new["directions"].append(direction)
         flat = [
-            [x for point in points for x in point] for points in (ends, shape)
+            [x for point in points for x in point]
+            for points in (endpoint_coords, shape_points)
         ]
         ends, points = extract_coordinates(flat, "int32")
         new["ends"].extend(ends)
@@ -539,20 +609,23 @@ class PieceArrays:
         if len(self._starts) > self.BATCH:
             self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         """Simplify and store the drawings of the pieces appended since the last call."""
         new, starts = self._new, self._starts
-        if self.tolerance_m is not None:
+        if self.tolerance_meters is not None:
             new["points"], starts = simplify_shapes(
-                new["points"], array("i", starts), new["ends"], self.tolerance_m
+                new["points"],
+                array("i", starts),
+                new["ends"],
+                self.tolerance_meters,
             )
         stored = len(self.points) // 2
         new["offsets"].extend(stored + start for start in starts[1:])
         for name, column in new.items():
-            if self.folder is None:
+            if self.work_dir is None:
                 getattr(self, name).extend(column)
                 continue
-            with open(os.path.join(self.folder, name), "ab+") as file:
+            with open(os.path.join(self.work_dir, name), "ab+") as file:
                 file.write(column)
                 file.flush()
                 if file.tell():
@@ -563,7 +636,7 @@ class PieceArrays:
         self._new = {name: array(code) for name, code in self.COLUMNS.items()}
         self._starts = [0]
 
-    def close(self):
+    def close(self) -> None:
         """Release mapped memory views."""
         for file, view in getattr(self, "_views", []):
             try:
@@ -577,7 +650,9 @@ class PieceArrays:
         self._views = []
 
 
-def build_graph_from_pieces(pieces):
+def build_graph_from_pieces(
+    pieces: PieceArrays,
+) -> dict[str, array | memoryview]:
     """Build a directed CSR network graph from polyline segments (`PieceArrays`).
 
     Each polyline piece generates directed arcs according to its legal traversal
@@ -634,24 +709,35 @@ def build_graph_from_pieces(pieces):
     }
 
 
-def assemble(graph, *, max_km, min_nodes):
+def assemble(
+    graph: dict[str, array | memoryview],
+    *,
+    max_km_between_nodes: float | int,
+    min_nodes_per_strongly_connected_component: int | None,
+) -> tuple[dict[str, array], list[dict[str, str | int]]]:
     """The network file's arrays of `graph` (`build_graph_from_pieces`'s layout, with
     `node_modes` if it has several modes): keep the components
-    (`keep_strongly_connected_components` with `min_nodes`, each one closed), contract
-    the chains (`contract_chains` at `max_km`, which never merges two modes), join their
-    shapes (`build_chain_shapes`), and number the nodes by mode, then
-    along the Hilbert curve, as `GeoGraph.save_as_scgraph` does. Empties `graph`.
+    (`keep_strongly_connected_components` with `min_nodes_per_strongly_connected_component`,
+    each one closed), contract the chains (`contract_chains` at `max_km_between_nodes`,
+    which never merges two modes), join their shapes (`build_chain_shapes`), and number the
+    nodes by mode, then along the Hilbert curve, as `GeoGraph.save_as_scgraph` does. Empties `graph`.
     Returns `(arrays, steps)`, `steps` the counts of the components and the contraction.
     """
     order = keep_strongly_connected_components(
-        graph["offsets"], graph["heads"], min_nodes
+        graph["offsets"],
+        graph["heads"],
+        min_nodes_per_strongly_connected_component,
     )
     given, graph = graph, _renumbered(graph, *order)
     given.clear()  # freed now, not when the caller lets it go: one copy at a time
     steps = [_counts("components", graph)]
     modes = graph.get("node_modes")
     kept, origins, heads, weights, member_offsets, members = contract_chains(
-        graph["offsets"], graph["heads"], graph["weights"], modes, max_km
+        graph["offsets"],
+        graph["heads"],
+        graph["weights"],
+        node_modes=modes,
+        max_km_between_nodes=max_km_between_nodes,
     )
     points, shape_offsets = build_chain_shapes(graph, member_offsets, members)
     offsets = array("i", bytes(4 * (len(kept) + 1)))
@@ -683,7 +769,11 @@ def assemble(graph, *, max_km, min_nodes):
     return _renumbered(graph, order), steps
 
 
-def build_chain_shapes(graph, member_offsets, members):
+def build_chain_shapes(
+    graph: dict[str, array | memoryview],
+    member_offsets: Sequence[int],
+    members: Sequence[int],
+) -> tuple[array, array]:
     """The shapes of the arcs that `contract_chains` gives for `graph`, as `(points,
     offsets)` in its layout: the shapes of each arc's members in travel order, each
     followed by the node it ends at, except the last."""
@@ -750,6 +840,7 @@ def _counts(step, graph):  # a step of build metadata
 
 
 python = SimpleNamespace(
+    build_csr_from_adjacency_list=build_csr_from_adjacency_list,
     build_csr_from_arcs=build_csr_from_arcs_python,
     strongly_connected_components=strongly_connected_components_python,
     contract_chains=contract_chains_python,

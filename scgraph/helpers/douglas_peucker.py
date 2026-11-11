@@ -2,6 +2,7 @@
 
 import math
 from array import array
+from collections.abc import Sequence
 from operator import le
 
 # Metres per 1e-7 degree of latitude
@@ -13,7 +14,11 @@ def _is_monotonically_increasing(offsets):
     return offsets[0] == 0 and all(map(le, offsets, offsets[1:]))
 
 
-def perpendicular_distance(point, start, end):
+def perpendicular_distance(
+    point: Sequence[int | float],
+    start: Sequence[int | float],
+    end: Sequence[int | float],
+) -> float:
     """Calculate the perpendicular distance from a 2D point to a line segment.
 
     Parameters:
@@ -102,22 +107,27 @@ def douglas_peucker(
     return [coords[i] for i in range(n) if keep[i]]
 
 
-def simplify_shapes(points, offsets, ends, tolerance_m):
+def simplify_shapes(
+    shape_points: array | memoryview,
+    shape_offsets: array | memoryview,
+    endpoint_coords: array | memoryview,
+    tolerance_meters: int | float,
+) -> tuple[array, array]:
     """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
 
-    Drops intermediate shape points that fall within `tolerance_m` metres of the
+    Drops intermediate shape points that fall within `tolerance_meters` metres of the
     segment connecting the retained endpoints, calculated on a local flat-map
     projection for each arc.
 
     Parameters:
-        points (array[int32]): Flat sequence of intermediate `[lat, lon]` pairs
+        shape_points (array[int32]): Flat sequence of intermediate `[lat, lon]` pairs
             encoded in 1e-7 degrees.
-        offsets (array[int32]): Offsets indexing into `points // 2` for each shape.
-            Shape `i` occupies slice `offsets[i]:offsets[i + 1]`.
-        ends (array[int32]): Four coordinates per shape: origin latitude, origin
+        shape_offsets (array[int32]): Offsets indexing into `shape_points // 2` for each shape.
+            Shape `i` occupies slice `shape_offsets[i]:shape_offsets[i + 1]`.
+        endpoint_coords (array[int32]): Four coordinates per shape: origin latitude, origin
             longitude, destination latitude, destination longitude in 1e-7 degrees.
             These endpoints are always preserved.
-        tolerance_m (float): Distance threshold in metres. Must be non-negative.
+        tolerance_meters (float): Distance threshold in metres. Must be non-negative.
 
     Returns:
         tuple[array[int32], array[int32]]:
@@ -125,29 +135,33 @@ def simplify_shapes(points, offsets, ends, tolerance_m):
             coordinate pairs and their corresponding slice offsets.
 
     Raises:
-        ValueError: If `tolerance_m < 0`, coordinates are malformed, or offsets
+        ValueError: If `tolerance_meters < 0`, coordinates are malformed, or offsets
             do not monotonically increase from 0.
     """
-    shapes = len(offsets) - 1
-    if not tolerance_m >= 0:
-        raise ValueError("tolerance_m must be >= 0")
-    if shapes < 0 or len(points) % 2 or len(ends) != 4 * shapes:
-        raise ValueError("expected two ints per point and four ends per shape")
-    if offsets[shapes] != len(points) // 2 or not _is_monotonically_increasing(
-        offsets
+    shapes = len(shape_offsets) - 1
+    if not tolerance_meters >= 0:
+        raise ValueError("tolerance_meters must be >= 0")
+    if (
+        shapes < 0
+        or len(shape_points) % 2
+        or len(endpoint_coords) != 4 * shapes
     ):
+        raise ValueError("expected two ints per point and four ends per shape")
+    if shape_offsets[shapes] != len(
+        shape_points
+    ) // 2 or not _is_monotonically_increasing(shape_offsets):
         raise ValueError("offsets must rise from 0 to the number of items")
 
-    tolerance2 = tolerance_m * tolerance_m
+    tolerance2 = tolerance_meters * tolerance_meters
     kept, kept_offsets = array("i"), array("i", [0])
     for s in range(shapes):
-        lat0, lon0 = ends[4 * s], ends[4 * s + 1]
+        lat0, lon0 = endpoint_coords[4 * s], endpoint_coords[4 * s + 1]
         kx = _METRES * math.cos(lat0 * math.pi / 1.8e9)
         x, y = [], []
-        line = points[2 * offsets[s] : 2 * offsets[s + 1]]
+        line = shape_points[2 * shape_offsets[s] : 2 * shape_offsets[s + 1]]
         for latitude, longitude in zip(
-            [lat0, *line[::2], ends[4 * s + 2]],
-            [lon0, *line[1::2], ends[4 * s + 3]],
+            [lat0, *line[::2], endpoint_coords[4 * s + 2]],
+            [lon0, *line[1::2], endpoint_coords[4 * s + 3]],
         ):
             dlon = longitude - lon0
             if dlon > 1800000000:

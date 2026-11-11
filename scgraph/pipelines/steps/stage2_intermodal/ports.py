@@ -5,6 +5,8 @@ import csv
 import logging
 import math
 from array import array
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING
 
 import requests
 
@@ -15,6 +17,10 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
     strongly_connected_components,
 )
 from scgraph.utils import haversine
+
+if TYPE_CHECKING:
+    from scgraph.geograph import GeoGraph
+    from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +79,7 @@ def download(url: str, filename: str) -> dict:
         return {"version": "ArcGIS-WPI"}
 
 
-def world_port_index(filename):
+def world_port_index(filename: str) -> Iterator[list[float | str]]:
     """[latitude, longitude, harbour type] of each port with a position in the CSV file
     of the World Port Index."""
     with open(filename, newline="", encoding="utf-8-sig") as file:
@@ -83,38 +89,53 @@ def world_port_index(filename):
                 yield [lat, lon, row["Harbor Type"]]
 
 
-def join(graph, sea, port_rows, mask, folder=None):
+def join(
+    road_graph: dict[str, array | memoryview],
+    sea_network: "GeoGraph",
+    port_records: Iterable[list[float | str]],
+    land_mask: "LandMask",
+    work_dir: str | None = None,
+) -> tuple[dict, int]:
     """
-    `graph` (`assembly.road_graph`'s layout) joined to the sea lanes of the GeoGraph `sea`
-    at the ports of `port_rows` ([latitude, longitude, harbour type]) that have both
+    `road_graph` (`assembly.road_graph`'s layout) joined to the sea lanes of the GeoGraph `sea_network`
+    at the ports of `port_records` ([latitude, longitude, harbour type]) that have both
     connectors, on node indices: the sea nodes follow the road nodes, then the ports, each
     in their order; `node_modes` 0 for a road node, 1 for a port, 2 for a sea node; the
     ports' `node_ids` are scgraph's (negative). The drawings are kept as they are (the
-    roads' were simplified when cut). Returns `(graph, ports joined)`; empties `graph`
-    and releases the raster of `mask`, spent.
-    With a `folder`, the arcs are kept in files there (`PieceArrays`).
+    roads' were simplified when cut). Returns `(graph, ports joined)`; empties `road_graph`
+    and releases the raster of `land_mask`, spent.
+    With a `work_dir`, the arcs are kept in files there (`PieceArrays`).
     """
-    offsets, heads, weights = graph["offsets"], graph["heads"], graph["weights"]
-    starts, line = graph["shape_offsets"], graph["shape_points"]
+    offsets, heads, weights = (
+        road_graph["offsets"],
+        road_graph["heads"],
+        road_graph["weights"],
+    )
+    starts, line = road_graph["shape_offsets"], road_graph["shape_points"]
     labels, sizes = strongly_connected_components(offsets, heads)
     components = array("i", (sizes[label] for label in labels))
-    roads, seas = len(offsets) - 1, len(sea.nodes)
+    roads, seas = len(offsets) - 1, len(sea_network.nodes)
     # The road nodes' coordinates at 1e-7 degree, read in place
-    lats, lons = graph["latitudes"], graph["longitudes"]
+    lats, lons = road_graph["latitudes"], road_graph["longitudes"]
     near = NearNodes(lats, lons, scale=1e-7)
-    others = list(sea.nodes)  # then the ports, in degrees
+    others = list(sea_network.nodes)  # then the ports, in degrees
     cells = {}  # mask cell -> its first sea node
-    for s, node in enumerate(sea.nodes):
-        cells.setdefault(mask.cell(*node), s)
+    for s, node in enumerate(sea_network.nodes):
+        cells.setdefault(land_mask.cell(*node), s)
     cells.pop(None, None)
     targets = array("q", sorted(cells))
     # Every arc, one way, on node indices
-    pieces = PieceArrays(tolerance_m=None, folder=folder)
+    pieces = PieceArrays(tolerance_meters=None, work_dir=work_dir)
 
+    # ruff reports the names that `del` removes below as undefined in the two
+    # functions that read them; both are called for the last time before it
     def at(u):  # [latitude, longitude] of node u
         if u < roads:
-            return [lats[u] * 1e-7, lons[u] * 1e-7]
+            return [lats[u] * 1e-7, lons[u] * 1e-7]  # noqa: F821
         return others[u - roads]
+
+    def road(port):
+        return road_connector(port, near, components, land_mask)  # noqa: F821
 
     def add(u, v, km, shape):
         pieces.append(u, v, km, 1, [at(u), at(v)], shape)
@@ -126,14 +147,16 @@ def join(graph, sea, port_rows, mask, folder=None):
                 [x * 1e-7, y * 1e-7] for x, y in zip(points[::2], points[1::2])
             ]
             add(u, heads[a], weights[a], shape)
-    sea_shapes = sea.intermediate_nodes or [{}] * seas
-    for u, row in enumerate(sea.graph_object.graph):
+    sea_shapes = sea_network.intermediate_nodes or [{}] * seas
+    for u, row in enumerate(sea_network.graph_object.graph):
         for v, km in row.items():
             add(roads + u, roads + v, km, sea_shapes[u].get(v, []))
     for point, arcs in port_connectors(
-        port_rows,
-        lambda port: road_connector(port, near, components, mask),
-        lambda point: sea_connector(point, targets, cells, sea.nodes, mask),
+        port_records,
+        road,
+        lambda point: sea_connector(
+            point, targets, cells, sea_network.nodes, land_mask
+        ),
         roads + seas,
         roads,
     ):
@@ -141,9 +164,9 @@ def join(graph, sea, port_rows, mask, folder=None):
         for a, b, km, shape in arcs:
             add(a, b, km, shape)
     ports = len(others) - seas
-    ids = array("q", graph["node_ids"]) + array("q", sea.node_ids)
-    graph.clear()  # freed before the joined graph is built, and the raster
-    mask.bits = None
+    ids = array("q", road_graph["node_ids"]) + array("q", sea_network.node_ids)
+    road_graph.clear()  # freed before the joined graph is built, and the raster
+    land_mask.bits = None
     del lats, lons, near, labels, sizes, components
     del offsets, heads, weights, starts, line
     joined = build_graph_from_pieces(pieces)
@@ -154,19 +177,26 @@ def join(graph, sea, port_rows, mask, folder=None):
     return joined, ports
 
 
-def port_connectors(ports, road, sea, first_port, first_sea):
-    """`(point, arcs)` of each port of `ports` ([latitude, longitude, harbour type]) with
-    a road connector, `road(port)` -> `(road node, km)`, and a sea connector, `sea(point)`
-    -> `(sea node, km, path)` (None if none), ports numbered from `first_port`, sea nodes
-    from `first_sea`. `arcs`: `(origin, destination, km, shape)` both ways, 1.2 times the
-    straight line to the road, the water path to the sea."""
-    p = first_port
-    for port in ports:
-        to_road = road(port)
-        to_sea = to_road and sea(port[:2])
+def port_connectors(
+    port_records: Iterable[list[float | str]],
+    road_connector_fn: Callable,
+    sea_connector_fn: Callable,
+    first_port_id: int,
+    first_sea_id: int,
+) -> Iterator[tuple[list[float | str], list[tuple]]]:
+    """`(point, arcs)` of each port of `port_records` ([latitude, longitude, harbour type]) with
+    a road connector, `road_connector_fn(port)` -> `(road node, km)`, and a sea connector,
+    `sea_connector_fn(point)` -> `(sea node, km, path)` (None if none), ports numbered from
+    `first_port_id`, sea nodes from `first_sea_id`. `arcs`: `(origin, destination, km, shape)`
+    both ways, 1.2 times the straight line to the road, the water path to the sea.
+    """
+    p = first_port_id
+    for port in port_records:
+        to_road = road_connector_fn(port)
+        to_sea = to_road and sea_connector_fn(port[:2])
         if to_sea:
             (u, road_km), (s, sea_km, path) = to_road, to_sea
-            road_km, s = CIRCUITY * road_km, first_sea + s
+            road_km, s = CIRCUITY * road_km, first_sea_id + s
             yield port[:2], [
                 (p, u, road_km, []),
                 (u, p, road_km, []),
@@ -176,41 +206,60 @@ def port_connectors(ports, road, sea, first_port, first_sea):
             p += 1
 
 
-def road_connector(port, near, components, mask):
+def road_connector(
+    port_record: list[float | str],
+    road_spatial_index: NearNodes,
+    component_sizes: Sequence[int],
+    land_mask: "LandMask",
+) -> tuple[int, float] | None:
     """
-    `(road node, km)`: the road connector of `port` ([latitude, longitude, harbour type]),
-    or None. `near`: the road nodes' `assembly.NearNodes`; `components`: the size of each
+    `(road node, km)`: the road connector of `port_record` ([latitude, longitude, harbour type]),
+    or None. `road_spatial_index`: the road nodes' `assembly.NearNodes`; `component_sizes`: the size of each
     node's strongly connected component.
     """
-    point = port[:2]
-    water_km = ROADSTEAD_WATER_KM if port[2] == "Open Roadstead" else WATER_KM
+    point = port_record[:2]
+    water_km = (
+        ROADSTEAD_WATER_KM if port_record[2] == "Open Roadstead" else WATER_KM
+    )
     # Largest component first, then nearest
     for _, km, i in sorted(
-        (-components[i], km, i) for km, i in near.within(point, ROAD_KM)
+        (-component_sizes[i], km, i)
+        for km, i in road_spatial_index.within(point, ROAD_KM)
     ):
-        target = [near.lats[i] * near.scale, near.lons[i] * near.scale]
-        if _water_km(mask, point, target, km) < water_km:
+        target = [
+            road_spatial_index.lats[i] * road_spatial_index.scale,
+            road_spatial_index.lons[i] * road_spatial_index.scale,
+        ]
+        if _water_km(land_mask, point, target, km) < water_km:
             return i, km
     return None
 
 
-def sea_connector(point, targets, cells, sea_nodes, mask):
-    """`(sea node, km, path)`: the sea connector of `point`, or None. `targets`: the mask
-    cells of the sea nodes, sorted in an array('q'); `cells`: {cell: sea node}.
+def sea_connector(
+    port_coords: list[float],
+    sea_cell_targets: array,
+    cell_to_sea_node: dict[int, int],
+    sea_node_coords: Sequence[list[float]],
+    land_mask: "LandMask",
+) -> tuple[int, float, list[list[float]]] | None:
+    """`(sea node, km, path)`: the sea connector of `port_coords`, or None. `sea_cell_targets`: the mask
+    cells of the sea nodes, sorted in an array('q'); `cell_to_sea_node`: {cell: sea node}.
     """
-    found = mask.water_path(point, targets, SEA_KM)
+    found = land_mask.water_path(port_coords, sea_cell_targets, SEA_KM)
     if not found:
         return None
     km, path = found
-    s = cells[mask.cell(*path[-1])]
-    return s, km + haversine(path[-1], sea_nodes[s]), path
+    s = cell_to_sea_node[land_mask.cell(*path[-1])]
+    return s, km + haversine(path[-1], sea_node_coords[s]), path
 
 
-def _water_km(mask, a, b, km):
-    """km of water along the straight line a-b (`km` long), sampled every 0.25 km."""
-    n = max(1, math.ceil(km / 0.25))
+def _water_km(land_mask, point_a, point_b, distance_km):
+    """km of water along the straight line point_a-point_b (`distance_km` long), sampled every 0.25 km."""
+    n = max(1, math.ceil(distance_km / 0.25))
     water = sum(
-        not mask.on_land(*(x + (j + 0.5) / n * (y - x) for x, y in zip(a, b)))
+        not land_mask.on_land(
+            *(x + (j + 0.5) / n * (y - x) for x, y in zip(point_a, point_b))
+        )
         for j in range(n)
     )
-    return km * water / n
+    return distance_km * water / n

@@ -128,7 +128,7 @@ def test_performance_timing():
         red_results.append(p)
 
     # Assert correctness and print times
-    print(f"\n[Reduction Timing Results on 5 OD Pairs (us_freeway)]")
+    print("\n[Reduction Timing Results on 5 OD Pairs (us_freeway)]")
     print(f"Reduction Preprocessing time: {t_reduce:.4f}s")
     for i, (org, dest) in enumerate(pairs):
         p_orig = orig_results[i]

@@ -129,7 +129,7 @@ def cheap_ruler(origin, destination, units="km", circuity=1):
     return (dx**2 + dy**2) ** 0.5 * circuity
 
 
-def hard_round(decimal_places: int, a: [float | int]):
+def hard_round(decimal_places: int, a: float | int):
     """
     Function:
 
@@ -150,7 +150,7 @@ def hard_round(decimal_places: int, a: [float | int]):
 
 
 def distance_converter(
-    distance: [float | int], input_units: str, output_units: str
+    distance: float | int, input_units: str, output_units: str
 ):
     """
     Function:
@@ -175,7 +175,7 @@ def distance_converter(
     return (distance / km_table[input_units]) * km_table[output_units]
 
 
-def get_line_path(output: [list, dict], filename=None):
+def get_line_path(output: list | dict, filename=None):
     """
     Function:
 

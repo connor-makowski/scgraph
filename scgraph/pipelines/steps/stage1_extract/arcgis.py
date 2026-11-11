@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import requests
 
-logger = logging.getLogger("scgraph.networks.arcgis")
+logger = logging.getLogger(__name__)
 
 
 def download(url: str, filename: str) -> dict:
