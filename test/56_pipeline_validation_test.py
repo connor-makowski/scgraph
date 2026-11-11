@@ -1,7 +1,5 @@
 """Tests for Stage 4 pipeline acceptance validation."""
 
-import pytest
-
 from scgraph.pipelines.steps.stage4_validation import (
     ValidationResult,
     load_cases,

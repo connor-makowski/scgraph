@@ -31,3 +31,17 @@ def tests(session):
         env={"SCGRAPH_NO_BUILD": "1"},
     )
     session.run("pytest", env={"SCGRAPH_REQUIRE_PYTHON": "1"})
+
+
+@nox.session
+def lint(session):
+    session.run_install(
+        "uv",
+        "sync",
+        "--extra",
+        "dev",
+        external=True,
+        env={"SCGRAPH_NO_BUILD": "1"},
+    )
+    session.run("ruff", "check", "scgraph", "test")
+    session.run("pyrefly", "check", "scgraph")

@@ -1,4 +1,3 @@
-import os
 import pytest
 from scgraph import GeoGraph
 from scgraph.transit_node_routing import TNRGraph as PyTNRGraph

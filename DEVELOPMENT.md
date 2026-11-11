@@ -59,10 +59,10 @@ test/
 utils/
   bench.py                       # Fast benchmark runner (<30s); outputs benchmark.md
   compare_versions.py            # Before/after of two git refs with bench.py (report.md)
-  prettify.py                    # autoflake (unused imports) + black (line-length=80)
+  prettify.py                    # ruff (unused imports) + black (line-length=80)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
-noxfile.py                       # nox sessions: runs pytest across Python 3.11–3.14
-pyproject.toml                   # Package metadata, scikit-build-core config, black + pytest config
+noxfile.py                       # nox sessions: pytest across Python 3.11–3.14, and lint (ruff, pyrefly)
+pyproject.toml                   # Package metadata, scikit-build-core config, black + ruff + pytest config
 CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
 publish.sh                       # PyPI publishing script — DO NOT RUN
 ```
@@ -79,7 +79,8 @@ publish.sh                       # PyPI publishing script — DO NOT RUN
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
 | `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `python3 utils/compare_versions.py 3.6.0 origin/dev` | Compare two versions on this machine, output `bench-results/…/report.md` |
-| `uv run utils/prettify.py` | Format with autoflake + black |
+| `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
+| `uv run nox -s lint` | Check the code with ruff and the types with pyrefly |
 
 Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`. Install them with `uv sync --extra dev`.
 
@@ -214,6 +215,8 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
     )
 ```
 
+**Fake functions:** a test may put a fake in place of `requests.get`, the function that downloads, so that it runs without Internet. A test does not replace a function or a constant of scgraph: such a test depends on internal code and breaks when that code is reorganised.
+
 When adding a new feature, add a corresponding `NN_*_test.py` file. pytest discovers all `*_test.py` files in `test/` automatically.
 
 ---
@@ -222,7 +225,14 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 
 - **Line length**: 80 characters (black config in `pyproject.toml`)
 - **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
-- **Formatting**: Always run `uv run python utils/prettify.py` before committing
+- **Formatting and checks**: Always run `uv run python utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR. The `ruff` rule list in `pyproject.toml` is short on purpose: add a rule when the code passes it.
+- **Names**: A function name starts with a verb (`build_*`, `find_*`, `extract_*`); a function that returns a boolean starts with `is_`, `has_`, `can_` or `should_`. Internal names take one leading underscore in Python and one trailing underscore for C++ members; double underscores are for Python's own methods.
+- **Parameter names**: A name says what the value is, with its unit and its scope in full words (`max_km_between_nodes`, `tolerance_meters`, `node_modes`, `work_dir`). One value keeps one name in every function that passes it on, and in the C++ binding. A renaming changes the definition and every caller in one commit.
+- **Types**: Public functions annotate their parameters and their return in the signature, with built-in types and `X | Y` (`origin_id: int | set[int]`, `-> dict`). The annotation is optional for names that start with `_`. A type from an optional dependency is written as a string. Nothing checks types at run time.
+- **Docstrings**: Summary, parameters and return, always; raised exceptions and notes when there is something to say. A docstring does not repeat the type: it gives the unit, the constraints, and the content of a dictionary or a tuple.
+- **Comments**: A comment gives a reason (a decision, a constraint, an invariant) in full sentences. It does not restate the code, tell the history of a change, or name an issue.
+- **Exceptions**: Raise a specific type (`ValueError`, `KeyError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
+- **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time
 - **Messages**: through `logging.getLogger(__name__)` (a `NullHandler` on `scgraph`), `warnings.warn` for what the caller can avoid, exceptions for errors; no `print` and no `silent=` in new code (older functions still have `silent=`; see #115)
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called

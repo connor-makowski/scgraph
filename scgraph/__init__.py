@@ -951,7 +951,8 @@ uv sync --extra dev
 | `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
 | `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
-| `uv run utils/prettify.py` | Format with autoflake + black |
+| `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
+| `uv run nox -s lint` | Check the code with ruff and the types with pyrefly |
 
 For full developer documentation see [DEVELOPMENT.md](DEVELOPMENT.md).
 

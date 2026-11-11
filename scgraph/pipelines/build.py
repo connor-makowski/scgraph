@@ -155,7 +155,7 @@ def build_file(
     regional = any(
         "{region}" in source["url"] for source in network.SOURCES.values()
     )
-    where = f"the path of a Geofabrik extract, for example 'europe/luxembourg' (see https://download.geofabrik.de)"
+    where = "the path of a Geofabrik extract, for example 'europe/luxembourg' (see https://download.geofabrik.de)"
     if regional and region is None:
         raise ValueError(f"'{name}' needs a region: {where}")
     if not regional and region is not None:
@@ -410,7 +410,7 @@ def build_file(
     return str(cached_file)
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m scgraph.pipelines.build",
         description="Build a network from its online sources into the cache, without "
@@ -473,7 +473,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)  # each step, and the credit to cite
     try:
-        print(
+        print(  # noqa: T201
             build_file(
                 args.name,
                 args.region,

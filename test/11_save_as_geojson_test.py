@@ -1,5 +1,4 @@
 import json
-import os
 import pytest
 from helpers import great_circle_km
 from scgraph import GeoGraph

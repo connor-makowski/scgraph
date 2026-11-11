@@ -1701,12 +1701,12 @@ class GeoGraphIO:
                 }
             )
             if show_progress:
-                print(
+                print(  # noqa: T201
                     f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
                     end="\r",
                 )
         if show_progress:
-            print()
+            print()  # noqa: T201
         if filename is not None:
             json.dump(output, open(filename, "w"))
         return output
@@ -3504,7 +3504,7 @@ class GeoGraph(
                         + entry_length_start
                         + entry_length_end
                     )
-                except Exception as e:
+                except Exception:
                     print_console(
                         f"Error calculating distance between nodes {node_idx_start} and {node_idx_end} with entry indices {entry_idx_start} and {entry_idx_end}.",
                         silent=silent,
