@@ -129,7 +129,7 @@ void GraphUtils::cycle_check(const std::vector<int>& predecessor_matrix, int nod
             return;
         }
         if (cycle_id == node_id) {
-            throw std::runtime_error("Cycle detected in the graph at node " + std::to_string(node_id));
+            throw NegativeCycleException("Cycle detected in the graph at node " + std::to_string(node_id));
         }
     }
 }

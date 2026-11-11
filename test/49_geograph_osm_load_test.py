@@ -126,18 +126,20 @@ _FERRY = {(60, 61), (61, 60)}  # way 11, two-way
     "source, select, tag_keys, expected",
     [
         # one-way streets kept one way (the default)
-        (str, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
+        (str, osm.select_main_roads, ("highway",), _ONE_WAY | _BRIDGE),
         # every kept way both ways
         (
             str,
-            lambda tags: None if osm.main_roads(tags) is None else 0,
+            lambda tags: None if osm.select_main_roads(tags) is None else 0,
             ("highway",),
             _ONE_WAY | {(b, a) for a, b in _ONE_WAY} | _BRIDGE,
         ),
         # a way left out
         (
             str,
-            lambda tags: None if "bridge" in tags else osm.main_roads(tags),
+            lambda tags: (
+                None if "bridge" in tags else osm.select_main_roads(tags)
+            ),
             ("highway",),
             _ONE_WAY,
         ),
@@ -145,7 +147,9 @@ _FERRY = {(60, 61), (61, 60)}  # way 11, two-way
         (
             str,
             lambda tags: (
-                0 if tags.get("route") == "ferry" else osm.main_roads(tags)
+                0
+                if tags.get("route") == "ferry"
+                else osm.select_main_roads(tags)
             ),
             ("highway", "route"),
             _ONE_WAY | _BRIDGE | _FERRY,
@@ -174,7 +178,7 @@ def test_locate_ways_reads_every_kind_of_way_in_one_set_of_passes(osm_file):
         "residential": lambda tags: (
             0 if tags.get("highway") == "residential" else None
         ),
-        "roads": osm.main_roads,
+        "roads": osm.select_main_roads,
         "primary": lambda tags: 0 if tags.get("highway") == "primary" else None,
     }
     junctions, polylines = osm.locate_ways(osm_file, selects, ("highway",))
@@ -282,7 +286,9 @@ def test_streamed_pbf_reads_the_ways_of_the_file(
         }
 
         def ways(source):
-            junctions, lines = osm.locate_ways(source, {"r": osm.main_roads})
+            junctions, lines = osm.locate_ways(
+                source, {"r": osm.select_main_roads}
+            )
             return list(junctions.ids), list(lines)
 
         stream = osm.StreamedPbf(layout)

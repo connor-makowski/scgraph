@@ -534,7 +534,7 @@ class GeoGraphIO:
         - `select`
             - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
-            - Default: None: `scgraph.pipelines.steps.osm.main_roads` (motorway to primary and their links, one way as `scgraph.pipelines.steps.osm.direction(tags)` says)
+            - Default: None: `scgraph.pipelines.steps.osm.select_main_roads` (motorway to primary and their links, one way as `scgraph.pipelines.steps.osm.get_way_direction(tags)` says)
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and "service" not in tags else None` for railway lines without yards, sidings and spurs, both ways
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -587,13 +587,13 @@ class GeoGraphIO:
         )
         from scgraph.pipelines.steps.stage1_extract.osm import (
             MAX_KM,
-            main_roads,
+            select_main_roads,
             read_osm,
         )
 
         graph, nodes, shapes, ids = read_osm(
             filename,
-            select or main_roads,
+            select or select_main_roads,
             tag_keys,
             MAX_KM if max_km_between_nodes is None else max_km_between_nodes,
         )
@@ -1302,7 +1302,7 @@ class GeoGraphIO:
         )
 
     @staticmethod
-    def __scgraph_version__() -> str:
+    def _get_scgraph_version() -> str:
         try:
             return version("scgraph")
         except (
@@ -1933,7 +1933,7 @@ class GeoGraphModifiers:
         if not temp_node:
             self.__original_graph_length__ += 1
 
-        mode_row = self.__mode_row__(mode)  # before any change: may raise
+        mode_row = self._get_mode_row(mode)  # before any change: may raise
         # Create the node
         new_node_id = self.graph_object.add_node(
             node_dict=node_dict, symmetric=True
@@ -1943,7 +1943,7 @@ class GeoGraphModifiers:
         self.snap_index = None
         return new_node_id
 
-    def __mode_row__(self, name: str | None) -> int:
+    def _get_mode_row(self, name: str | None) -> int:
         # The row of the first mode named `name`, added if there is none
         for row, mode in enumerate(self.modes):
             if mode.get("name") == name:
@@ -2917,7 +2917,7 @@ class GeoGraph(
         self.__geokdtree__ = geokdtree
         self.snap_index = geokdtree
 
-    def __get_node_radians__(self) -> tuple[array, array]:
+    def _get_node_radians(self) -> tuple[array, array]:
         # Also rebuilt when nodes were appended or removed directly; in-place edits of
         # existing nodes are not detected (as for the snapping index)
         if self.__node_radians__ is None or len(
@@ -3247,7 +3247,7 @@ class GeoGraph(
                 is GeoGraphDistanceCalculations.haversine
             ):
                 # The built-in haversine heuristic is computed natively in the C++ build
-                latitudes, longitudes = self.__get_node_radians__()
+                latitudes, longitudes = self._get_node_radians()
                 algorithm_kwargs.pop("heuristic_fn")
                 algorithm_fn = partial(
                     self.graph_object.a_star_great_circle,

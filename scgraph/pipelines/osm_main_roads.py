@@ -20,7 +20,10 @@ from scgraph.pipelines.steps.stage3_assembly import assembly
 PIPELINE_VERSION = 1
 
 SOURCES = {"roads": osm.GEOFABRIK}
-SELECTS = {"roads": osm.main_roads, "ferries": osm.vehicle_ferries}
+SELECTS = {
+    "roads": osm.select_main_roads,
+    "ferries": osm.select_vehicle_ferries,
+}
 
 download = osm.download  # checks osmium before downloading a large extract
 

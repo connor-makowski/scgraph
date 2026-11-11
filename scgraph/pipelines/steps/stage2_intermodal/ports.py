@@ -79,7 +79,7 @@ def download(url: str, filename: str) -> dict:
         return {"version": "ArcGIS-WPI"}
 
 
-def world_port_index(filename: str) -> Iterator[list[float | str]]:
+def read_world_port_index(filename: str) -> Iterator[list[float | str]]:
     """[latitude, longitude, harbour type] of each port with a position in the CSV file
     of the World Port Index."""
     with open(filename, newline="", encoding="utf-8-sig") as file:
@@ -135,7 +135,9 @@ def join(
         return others[u - roads]
 
     def road(port):
-        return road_connector(port, near, components, land_mask)  # noqa: F821
+        return find_road_connector(
+            port, near, components, land_mask  # noqa: F821
+        )
 
     def add(u, v, km, shape):
         pieces.append(u, v, km, 1, [at(u), at(v)], shape)
@@ -151,10 +153,10 @@ def join(
     for u, row in enumerate(sea_network.graph_object.graph):
         for v, km in row.items():
             add(roads + u, roads + v, km, sea_shapes[u].get(v, []))
-    for point, arcs in port_connectors(
+    for point, arcs in build_port_connectors(
         port_records,
         road,
-        lambda point: sea_connector(
+        lambda point: find_sea_connector(
             point, targets, cells, sea_network.nodes, land_mask
         ),
         roads + seas,
@@ -177,7 +179,7 @@ def join(
     return joined, ports
 
 
-def port_connectors(
+def build_port_connectors(
     port_records: Iterable[list[float | str]],
     road_connector_fn: Callable,
     sea_connector_fn: Callable,
@@ -206,7 +208,7 @@ def port_connectors(
             p += 1
 
 
-def road_connector(
+def find_road_connector(
     port_record: list[float | str],
     road_spatial_index: NearNodes,
     component_sizes: Sequence[int],
@@ -235,7 +237,7 @@ def road_connector(
     return None
 
 
-def sea_connector(
+def find_sea_connector(
     port_coords: list[float],
     sea_cell_targets: array,
     cell_to_sea_node: dict[int, int],

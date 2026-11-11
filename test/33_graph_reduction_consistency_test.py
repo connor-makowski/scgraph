@@ -322,6 +322,12 @@ def test_reduced_graph_matches_unreduced_graph(
                     inverse[v][u] = w
             assert g.graph == g.unreduced_graph == graph
             assert g.inverse_graph == inverse
+            # get(node) gives a row of the original graph, also when the graph
+            # is stored as a class attribute; an id outside the graph raises
+            holder = type("Holder", (), {"graph": g})
+            assert [holder.graph.get(u) for u in range(len(graph))] == graph
+            with pytest.raises(IndexError):
+                g.get(-1)
             assert g.search_graph == g.reduced_graph
             assert g.search_inverse_graph == g.reduced_inverse_graph
             for o in range(len(graph)):

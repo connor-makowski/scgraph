@@ -87,7 +87,7 @@ def download(url: str, filename: str) -> dict[str, str]:
     return {"version": version} if version else {}
 
 
-def direction(tags: "osmium.osm.TagList") -> int:
+def get_way_direction(tags: "osmium.osm.TagList") -> int:
     """The direction of a way from its tags: 1 (one way, along its drawing) for
     `oneway=yes`, `true` or `1`, and for motorways and roundabouts without `oneway`; -1
     (one way, against it) for `oneway=-1` or `reverse`; 0 (both ways) otherwise.
@@ -103,9 +103,11 @@ def direction(tags: "osmium.osm.TagList") -> int:
     return 0
 
 
-def main_roads(tags: "osmium.osm.TagList") -> int | None:
+def select_main_roads(tags: "osmium.osm.TagList") -> int | None:
     """The direction of a main road (`MAIN_ROADS`), None for any other way."""
-    return direction(tags) if tags.get("highway") in MAIN_ROADS else None
+    return (
+        get_way_direction(tags) if tags.get("highway") in MAIN_ROADS else None
+    )
 
 
 @contextmanager
@@ -169,7 +171,6 @@ def locate_ways(
     source: "str | os.PathLike | StreamedPbf",
     way_selectors: dict[str, Callable],
     required_tag_keys: tuple[str, ...] = (),
-    node_store: str | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[
     _Junctions, Iterator[tuple[str, int, list[tuple[int, list[float]]]]]
@@ -191,9 +192,10 @@ def locate_ways(
     (`osmium.osm.WAY` or `NODE`) the pass reads; its `close(stop)` is called at the end
     of each pass (`stop` true when the pass ended on an exception).
 
-    The locations of the nodes of kept ways are kept in osmium's `node_store`, an
-    `osmium.index.create_map` type: in memory by default (`flex_mem`), or in a file for a
-    planet (`"sparse_file_array,<path>"`, emptied first and left for the caller to delete).
+    The locations of the nodes of kept ways are kept in an osmium index
+    (`osmium.index.create_map`): in memory by default (`flex_mem`), or with a `work_dir`
+    in its file `nodes` (`sparse_file_array`, emptied first and left for the caller to
+    delete), as a planet needs.
     The node ids of kept ways take about 1.5 GB in any case (one bit per possible id),
     and the ids of kept ways about 0.2 GB (one bit per possible way id).
 
@@ -211,11 +213,8 @@ def locate_ways(
         os.path.join(work_dir, "pass1_junctions.bin") if work_dir else None
     )
     ways_file = os.path.join(work_dir, "pass1_ways.bin") if work_dir else None
-    nodes_file = (
-        node_store.partition(",")[2]
-        if (node_store and "," in node_store)
-        else None
-    )
+    nodes_file = os.path.join(work_dir, "nodes") if work_dir else None
+    node_store = "sparse_file_array," + nodes_file if nodes_file else "flex_mem"
 
     # Resume: if pass 2 was already completed, reload junctions and kept ways from disk
     if (
@@ -269,7 +268,6 @@ def locate_ways(
             del kept_ways
 
         # Second pass: locations of kept nodes into store
-        node_store = node_store or "flex_mem"
         if nodes_file:
             open(nodes_file, "wb").close()
         store = osmium.index.create_map(node_store)
@@ -389,10 +387,8 @@ def build_way_pieces(
             return PieceArrays(work_dir=work_dir, truncate=False), steps
         except (OSError, ValueError):
             pass
-    nodes = work_dir and os.path.join(work_dir, "nodes")
-    store = nodes and "sparse_file_array," + nodes
     junctions, ways = locate_ways(
-        source, way_selectors, required_tag_keys, store, work_dir=work_dir
+        source, way_selectors, required_tag_keys, work_dir=work_dir
     )
     pieces, ferries = PieceArrays(work_dir=work_dir), []
     for kind, direction, points in ways:
@@ -453,7 +449,7 @@ def _located_pieces(way_nodes):
         yield piece
 
 
-def vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
+def select_vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
     """Both ways (0) for a ferry not closed to motor vehicles, None for any other way."""
     if tags.get("route") == "ferry" and "no" not in (
         tags.get("motor_vehicle"),
@@ -640,20 +636,16 @@ class StreamedPbf:
 def open_osm_source(
     source: "str | os.PathLike | StreamedPbf",
 ) -> "str | os.PathLike | StreamedPbf":
-    """Resolve an OSM source: returns a StreamedPbf when source is a JSON metadata file
-    or layout descriptor, or source unchanged when it is an OSM file path or custom source object.
+    """Resolve an OSM source: returns a StreamedPbf when source is a layout file that
+    `StreamedPbf.download` wrote, or source unchanged when it is an OSM file path or custom source object.
     """
     if isinstance(source, (str, os.PathLike)):
         path = Path(source)
-        if path.suffix == ".json":
-            return StreamedPbf(str(path))
         if path.is_file() and path.stat().st_size < 100_000:
             try:
                 with open(path, "rb") as f:
                     first = f.read(16)
-                if first.startswith(b'{"url":') or first.startswith(
-                    b'{\n  "url":'
-                ):
+                if first.startswith(b'{"url":'):
                     return StreamedPbf(str(path))
             except OSError:
                 pass

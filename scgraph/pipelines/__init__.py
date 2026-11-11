@@ -49,8 +49,8 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
     via `osm.build_ferry_arcs`; drawings simplified at 50 m via `simplify_shapes`).
   - ArcGIS (`arcgis`): downloads feature layers and extracts polylines.
 - Stage 2 - Intermodal Connectors (`stage2_intermodal`):
-  - Joining modes (`ports.join`): `landmask.LandMask`, `ports.road_connector`,
-    `ports.sea_connector`; sea and port nodes on indices, with their modes.
+  - Joining modes (`ports.join`): `landmask.LandMask`, `ports.find_road_connector`,
+    `ports.find_sea_connector`; sea and port nodes on indices, with their modes.
 - Stage 3 - Graph Assembly & Contraction (`stage3_assembly`):
   - Assembly (`assembly`): `assembly.build_graph_from_pieces` ->
     `assembly.assemble` (`keep_strongly_connected_components` -> `contract_chains`
@@ -152,7 +152,7 @@ def build_metadata(
         "pipeline": {"name": name, "region": region, "version": version},
         "sources": sources,
         "software": {
-            "scgraph": GeoGraph.__scgraph_version__(),
+            "scgraph": GeoGraph._get_scgraph_version(),
             "backend": "cpp" if has_cpp() else "python",
             "platform": f"{sysconfig.get_platform()} {system}".strip(),
         },

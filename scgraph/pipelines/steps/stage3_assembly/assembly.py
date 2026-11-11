@@ -560,7 +560,6 @@ class PieceArrays:
         self.tolerance_meters, self.work_dir = tolerance_meters, work_dir
         if work_dir is not None:
             os.makedirs(work_dir, exist_ok=True)
-        self._views = []
         for name, code in self.COLUMNS.items():
             path = (
                 os.path.join(work_dir, name) if work_dir is not None else None
@@ -571,9 +570,8 @@ class PieceArrays:
                 and os.path.isfile(path)
                 and os.path.getsize(path) > 0
             ):
-                file = open(path, "rb")
-                view = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
-                self._views.append((file, view))
+                with open(path, "rb") as file:
+                    view = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
                 setattr(self, name, memoryview(view).cast(code))
             else:
                 setattr(self, name, array(code))
@@ -635,19 +633,6 @@ class PieceArrays:
                     )
         self._new = {name: array(code) for name, code in self.COLUMNS.items()}
         self._starts = [0]
-
-    def close(self) -> None:
-        """Release mapped memory views."""
-        for file, view in getattr(self, "_views", []):
-            try:
-                view.close()
-            except Exception:
-                pass
-            try:
-                file.close()
-            except Exception:
-                pass
-        self._views = []
 
 
 def build_graph_from_pieces(

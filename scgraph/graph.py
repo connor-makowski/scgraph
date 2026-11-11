@@ -55,9 +55,9 @@ class GraphTrees:
         """
         # Input Validation
         self.__input_check__(origin_id=origin_id, destination_id=0)
-        return self.__shortest_path_tree__(self.graph, origin_id)
+        return self._get_shortest_path_tree(self.graph, origin_id)
 
-    def __shortest_path_tree__(
+    def _get_shortest_path_tree(
         self,
         graph: list[dict[int, int | float]],
         origin_id: int | set[int] | dict[int, int | float],
@@ -439,7 +439,7 @@ class GraphAlgorithms:
         graph = self.search_graph
 
         max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
-        width = self.__get_bucket_width__(bucket_width, max_edge_weight)
+        width = self._get_bucket_width(bucket_width, max_edge_weight)
 
         # Variable Initialization
         distance_matrix = [float("inf")] * len(graph)
@@ -577,7 +577,7 @@ class GraphAlgorithms:
         num_nodes = len(graph)
 
         max_edge_weight = self.__get_max_edge_weight__(max_edge_weight)
-        width = self.__get_bucket_width__(bucket_width, max_edge_weight)
+        width = self._get_bucket_width(bucket_width, max_edge_weight)
 
         num_buckets = ceil(max_edge_weight / width) + 1
         forward_dist = [float("inf")] * num_nodes
@@ -1180,7 +1180,7 @@ class GraphAlgorithms:
 
         if is_single_origin:
             if self.__cache__[orig_node] == 0:
-                self.__cache__[orig_node] = self.__shortest_path_tree__(
+                self.__cache__[orig_node] = self._get_shortest_path_tree(
                     self.search_graph, orig_node
                 )
             return self.get_tree_path(
