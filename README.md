@@ -911,7 +911,7 @@ print(output['length'])
 A hierarchy can be saved and loaded again instead of being rebuilt. A hierarchy with transit nodes (`algorithm_fn='tnr'`) is built and saved the same way:
 
 ```py
-from scgraph import CHGraph
+from scgraph import CHGraph, TNRGraph
 
 graph = us_freeway_geograph.graph_object
 ch = graph.create_contraction_hierarchy()
@@ -921,6 +921,7 @@ print(ch.get_shortest_path(0, 100)['length'])  # between two node ids
 
 tnr = graph.create_tnr_hierarchy()
 tnr.save_as_tnrjson("us_freeway.tnrjson")
+tnr = TNRGraph.load_from_tnrjson("us_freeway.tnrjson")
 ```
 
 ---
