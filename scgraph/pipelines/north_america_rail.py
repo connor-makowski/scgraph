@@ -2,12 +2,12 @@
 Federal Railroad Administration."""
 
 from scgraph.geograph import GeoGraph
-from scgraph.networks import arcgis
+from scgraph.pipelines.steps.stage1_extract import arcgis
 
-VERSION = 1
+PIPELINE_VERSION = 1
 
 SOURCES = {
-    "lines": {
+    "rail_lines": {
         "url": "https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_North_American_Rail_Network_Lines_Class_I_Railroads/FeatureServer/0",
         "credit": "Federal Railroad Administration and Bureau of Transportation Statistics, North American Rail Network Lines, Class I (NTAD)",
         "license": "LicenseRef-US-Government-Work",
@@ -22,7 +22,7 @@ def build(files):
     # Arcs keep the length of their full shape, but not the shape itself: with about
     # 2 million points, it would make the network ten times slower to load
     return GeoGraph.load_from_geojson(
-        files["lines"],
+        files["rail_lines"],
         precision=4,
         silent=True,
         max_km_between_nodes=2,

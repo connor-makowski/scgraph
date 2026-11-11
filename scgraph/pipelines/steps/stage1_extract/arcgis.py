@@ -5,7 +5,7 @@ import logging
 
 import requests
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("scgraph.networks.arcgis")
 
 
 def download(url: str, filename: str) -> None:

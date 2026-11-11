@@ -484,8 +484,8 @@ luxembourg = GeoGraph.build_geograph("osm_main_roads", region="europe/luxembourg
 # Class I railroads of North America, from the U.S. Federal Railroad Administration
 rail = GeoGraph.build_geograph("north_america_rail")
 
-# What can be downloaded, who to credit, and what is already in the cache
-GeoGraph.list_downloadable_geographs()
+# What can be built, who to credit, and what is already in the cache
+GeoGraph.list_buildable_geographs()
 # [{"name": "marnet", "description": "Sea lanes of the published `marnet` network (...)",
 #   "credit": "Eurostat SeaRoute, via searoute-py (edited for scgraph)", "license": "EUPL-1.2",
 #   "needs_region": False, "cached": False, "cached_regions": []},
@@ -505,9 +505,11 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index |
 
-Each network is kept in the cache directory under `networks/<name>/` (`networks/<name>/<region>/` for the `osm_*` networks): a network file named by its content, `<content_sha256>.scgraph` (the SHA-256 of the file after its first 40 bytes, stored in its bytes 8 to 39), and a `manifest.json` that names it (download date, scgraph, build-script and file-format versions, the file, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its build script or the file format, or when the file its manifest names is missing; `refresh=True` downloads and builds it again anyway. With `local_files_only=True`, nothing is downloaded: a network built with another version of its build script is loaded with a warning that names what differs (refused if its file format differs), and one that is not in the cache raises a `FileNotFoundError`. Two installs of different versions sharing one cache build the same network in turn: give each its own `SCGRAPH_CACHE_DIR`, or use `local_files_only=True` in the older one. A rebuild writes the new file (or keeps the old one if the content is the same), then the manifest, then removes the old file; on Windows, an old file still open in another process stays until the cache is cleared. `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory: save an edited network elsewhere. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks.
+Each network is kept in the cache directory under `networks/<name>/` (`networks/<name>/<region>/` for the `osm_*` networks): a network file named by its content, `<content_sha256>.scgraph` (the SHA-256 of the file after its first 40 bytes, stored in its bytes 8 to 39), and a `manifest.json` that names it (download date, scgraph, pipeline and file-format versions, the file, and for each source its URL, SHA-256, size, credit and licence as an SPDX identifier or `NOASSERTION`). The downloaded sources are deleted once the network is built. A network is built again when an upgrade of scgraph changes its pipeline or the file format, or when the file its manifest names is missing; `refresh=True` downloads and builds it again anyway. With `local_files_only=True`, nothing is downloaded: a network built with another version of its pipeline is loaded with a warning that names what differs (refused if its file format differs), and one that is not in the cache raises a `FileNotFoundError`. Two installs of different versions sharing one cache build the same network in turn: give each its own `SCGRAPH_CACHE_DIR`, or use `local_files_only=True` in the older one. A rebuild writes the new file (or keeps the old one if the content is the same), then the manifest, then removes the old file; on Windows, an old file still open in another process stays until the cache is cleared. `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory: save an edited network elsewhere. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks.
 
 In `osm_main_roads_and_marnet`, a port joins the two networks only if a road node is within 20 km and a sea node within 250 km; connectors are straight lines, 1.2 times the great-circle distance, and are not checked against land and water. Each node has its mode, `road`, `port` or `sea` (`geo.node_modes[i]`, a row of `geo.modes`, which also names the source of the node's id: OSM for roads), and the file stores the nodes of each mode together. Routes use kilometers for every mode.
+
+Each network is built by a pipeline, a module of `scgraph.pipelines`; the docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. `build_geograph` also takes a pipeline module of your own, such as an adapted copy of one under another name, and caches it under `networks/<last part of the module name>/` (a module named like a built-in pipeline is refused; `list_buildable_geographs` does not list it).
 
 These networks are built from the current version of their sources: they are not the built-in files, their node numbers differ and results can differ slightly from those of `load_geograph`. They also have more nodes (one at every junction and at least every 2 km); `reduce_iterations=-1` removes those that are not needed for routing.
 
@@ -515,7 +517,7 @@ These networks are built from the current version of their sources: they are not
 
 | Parameter | Default | Description |
 |---|---|---|
-| `name` | required | Name of the network (table above) |
+| `name` | required | Name of the network (table above), or a pipeline module |
 | `region` | `None` | For the `osm_*` networks: the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL (e.g. `'europe/luxembourg'`, `'north-america/us/texas'`) |
 | `cache_dir` | `None` | Custom cache directory; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
@@ -574,22 +576,27 @@ from scgraph import GeoGraph
 # Main roads (motorway to primary, with their links); one-way streets are respected
 michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
 
-# Other ways: a way is kept if, for every key, its tag value is in the set
-# (None for a missing tag): here railway lines without yards, sidings and spurs
+# Other ways: select(tags) gives the direction of a way (1 or -1: one way, 0: both
+# ways) or None to leave it out; only ways with one of the tag keys reach select.
+# Here railway lines without yards, sidings and spurs, both ways
 michigan_rail = GeoGraph.load_from_osm(
-    "michigan-latest.osm.pbf", keep={"railway": {"rail"}, "service": {None}}
+    "michigan-latest.osm.pbf",
+    select=lambda tags: (
+        0 if tags.get("railway") == "rail" and "service" not in tags else None
+    ),
+    tag_keys=("railway",),
 )
 ```
 
-Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its full line, in kilometers, and a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below; `load_from_geojson` still loads such files.
+Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its piece of way, in kilometers, and a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below; `load_from_geojson` still loads such files.
 
 ### `load_from_osm` Parameters
 
 | Parameter | Default | Description |
 |---|---|---|
-| `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`) |
-| `keep` | `None` | Ways to keep, `{tag: {values}}`, `None` among the values for a missing tag; `None` keeps main roads (`scgraph.osm.MAIN_ROADS`) |
-| `directed` | `True` | Whether one-way streets give arcs in one direction only |
+| `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`), or a source object (`scgraph.pipelines.steps.osm.locate_ways`) |
+| `select` | `None` (`scgraph.pipelines.steps.osm.main_roads`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.pipelines.steps.osm.MAIN_ROADS`), one way as `scgraph.pipelines.steps.osm.direction(tags)` says |
+| `tag_keys` | `("highway",)` | Tag keys of which a way must have at least one to reach `select`, filtered in osmium (faster); `()` sends every way to `select` |
 | `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new arc, at the next point of the way |
 | `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |
 | `load_intermediate_nodes` | `True` | Keep the shape of each arc, to draw routes |
@@ -681,7 +688,7 @@ A GeoGraph read from a network file (so also from `load_geograph` and `build_geo
 | `save_as_scgraph(filename)` | Save as a binary network file (fastest reload) |
 | `load_geograph(name)` | Load a built-in geograph by name (cached download) |
 | `build_geograph(name, region=None)` | Download the source of a reference network, build it and keep it in the cache |
-| `list_downloadable_geographs()` | List the networks `build_geograph` builds, their credit and what is cached |
+| `list_buildable_geographs()` | List the networks `build_geograph` builds, their credit and what is cached |
 | `cache_info()` | List what the cache holds on disk, with sizes and build versions |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |

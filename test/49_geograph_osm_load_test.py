@@ -2,9 +2,10 @@ import pytest
 from helpers import great_circle_km
 
 from scgraph import GeoGraph
+from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.helpers.hilbert import hilbert_order
 
-pytest.importorskip("osmium")
+osmium = pytest.importorskip("osmium")
 
 # OSM ids -> (latitude, longitude)
 _NODES = {
@@ -27,6 +28,8 @@ _NODES = {
     41: (4.0, 0.01),
     50: (5.0, 0.0),  # motorway, one way without a oneway tag
     51: (5.0, 0.01),
+    60: (6.0, 0.0),  # ferry route, without a highway tag
+    61: (6.0, 0.01),
 }
 _WAYS = [
     (1, [1, 2, 3], {"highway": "primary"}),
@@ -39,6 +42,7 @@ _WAYS = [
     (8, [30, 31], {"highway": "primary", "oneway": "-1"}),
     (9, [40, 41], {"highway": "primary", "junction": "roundabout"}),
     (10, [50, 51], {"highway": "motorway"}),
+    (11, [60, 61], {"route": "ferry"}),
 ]
 
 
@@ -97,15 +101,6 @@ def test_load_from_osm_keeps_main_roads_by_default(arcs):
     assert {arc for arc in arcs if 7 in arc} == {(4, 7)}
 
 
-def test_load_from_osm_keeps_ways_by_tags(osm_file):
-    # Primary roads without a bridge tag: way 3 (the bridge 5-6) is left out
-    keep = {"highway": {"primary"}, "bridge": {None}}
-    arcs = _arcs(
-        GeoGraph.load_from_osm(osm_file, keep=keep, largest_component=False)
-    )
-    assert (1, 2) in arcs and not any(5 in arc for arc in arcs)
-
-
 def test_load_from_osm_does_not_join_across_a_missing_node(arcs):
     # Way 7 runs 20 -> 99 -> 21, node 99 is missing from the file
     assert not any(20 in arc or 21 in arc for arc in arcs)
@@ -119,20 +114,86 @@ def test_load_from_osm_arc_lengths_follow_the_shape(arcs):
 
 
 _ONE_WAY = {(4, 7), (31, 30), (40, 41), (50, 51)}
+_BRIDGE = {(5, 6), (6, 5)}  # way 3, two-way
+_FERRY = {(60, 61), (61, 60)}  # way 11, two-way
+
+
+class _Source:
+    """A source that is not a path: it gives what osmium reads, for each pass."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def file(self):
+        return osmium.io.File(self.path)
 
 
 @pytest.mark.parametrize(
-    "directed, expected",
-    [(True, _ONE_WAY), (False, _ONE_WAY | {(b, a) for a, b in _ONE_WAY})],
+    "source, select, tag_keys, expected",
+    [
+        # one-way streets kept one way (the default)
+        (str, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
+        # the same, the file read through a source object instead of its path
+        (_Source, osm.main_roads, ("highway",), _ONE_WAY | _BRIDGE),
+        # every kept way both ways
+        (
+            str,
+            lambda tags: None if osm.main_roads(tags) is None else 0,
+            ("highway",),
+            _ONE_WAY | {(b, a) for a, b in _ONE_WAY} | _BRIDGE,
+        ),
+        # a way left out
+        (
+            str,
+            lambda tags: None if "bridge" in tags else osm.main_roads(tags),
+            ("highway",),
+            _ONE_WAY,
+        ),
+        # ways with any one of the keys: main roads or ferry routes
+        (
+            str,
+            lambda tags: (
+                0 if tags.get("route") == "ferry" else osm.main_roads(tags)
+            ),
+            ("highway", "route"),
+            _ONE_WAY | _BRIDGE | _FERRY,
+        ),
+    ],
 )
-def test_load_from_osm_follows_one_way_streets(osm_file, directed, expected):
+def test_load_from_osm_selects_ways_and_their_direction(
+    osm_file, source, select, tag_keys, expected
+):
     arcs = _arcs(
         GeoGraph.load_from_osm(
-            osm_file, directed=directed, largest_component=False
+            source(osm_file),
+            select=select,
+            tag_keys=tag_keys,
+            largest_component=False,
         )
     )
-    one_way_nodes = {7, 30, 40, 50}
-    assert {arc for arc in arcs if one_way_nodes & set(arc)} == expected
+    nodes = {5, 7, 30, 40, 50, 60}  # the bridge, one-way streets and the ferry
+    assert {arc for arc in arcs if nodes & set(arc)} == expected
+
+
+def test_locate_ways_reads_every_kind_of_way_in_one_set_of_passes(osm_file):
+    # A way goes to the first select that keeps it (primary roads are main roads), and
+    # ways of two kinds meet at junctions (residential way 4 meets road way 1 at node 3)
+    selects = {
+        "residential": lambda tags: (
+            0 if tags.get("highway") == "residential" else None
+        ),
+        "roads": osm.main_roads,
+        "primary": lambda tags: 0 if tags.get("highway") == "primary" else None,
+    }
+    junctions, polylines = osm.locate_ways(osm_file, selects, ("highway",))
+    nodes = {}
+    for kind, _, points in polylines:
+        nodes.setdefault(kind, set()).update(ref for ref, _ in points)
+    assert set(nodes) == {"residential", "roads"}
+    assert (
+        nodes["residential"] == {3, 7} and {1, 2, 3, 50, 51} <= nodes["roads"]
+    )
+    assert 3 in junctions and 1 not in junctions
 
 
 def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):

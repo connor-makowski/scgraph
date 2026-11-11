@@ -87,7 +87,7 @@ def test_cache_directory_is_cache_dir_else_the_environment_variable(
     (shared / "networks" / "us_freeway" / "built.scgraph").write_bytes(b"")
     assert len(GeoGraph.load_geograph("marnet").nodes) == 2
     assert len(GeoGraph.load_geograph("marnet", cache_dir=str(mine)).nodes) == 3
-    listing = {n["name"]: n for n in GeoGraph.list_downloadable_geographs()}
+    listing = {n["name"]: n for n in GeoGraph.list_buildable_geographs()}
     assert listing["us_freeway"]["cached"]
     (shared / "notes.txt").write_text("the user's own file")
     GeoGraph.clear_geograph_cache()
