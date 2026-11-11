@@ -636,8 +636,9 @@ class StreamedPbf:
 def open_osm_source(
     source: "str | os.PathLike | StreamedPbf",
 ) -> "str | os.PathLike | StreamedPbf":
-    """Resolve an OSM source: returns a StreamedPbf when source is a layout file that
-    `StreamedPbf.download` wrote, or source unchanged when it is an OSM file path or custom source object.
+    """Resolve an OSM source: a `StreamedPbf` when `source` is a layout file
+    that `StreamedPbf.download` wrote; otherwise `source` unchanged (the path of
+    an OSM file, or a source object of one's own).
     """
     if isinstance(source, (str, os.PathLike)):
         path = Path(source)
