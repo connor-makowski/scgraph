@@ -259,11 +259,12 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 
 ## Release Checklist (owner only — do not execute)
 
-1. Bump `version` in `pyproject.toml`
+1. Set `version` in `pyproject.toml` (and `uv.lock`) to the release number, dropping the `.devN` suffix
 2. Run `uv run python utils/prettify.py`
 3. Run `uv run nox` — all sessions must pass
 4. Run `uv run python utils/docs.py` to regenerate docs
 5. Build and publish via `publish.sh`
+6. Right after the release, set the next development version on `dev` with a `.dev0` suffix (PEP 440), e.g. `4.1.0.dev0`
 
 ---
 
