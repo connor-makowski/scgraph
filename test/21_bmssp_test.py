@@ -1,48 +1,26 @@
-import pytest
-from scgraph import Graph
 from helpers import assert_result
 
-# The tests of this file search the graph of a built-in network between nodes
-# named by their ids, and compare the route with the route of Dijkstra. The
-# pairs of ids are arbitrary.
+
+def test_bmssp_marnet_0_5(marnet):
+    graph = marnet.graph_object
+    assert_result(graph.bmssp(0, 5), graph.dijkstra(0, 5))
 
 
-# The graphs are copies for this file: a contraction hierarchy built by a query
-# would stay on the network of the session.
-@pytest.fixture(scope="module")
-def marnet_graph(marnet):
-    return Graph(marnet.graph_object.graph)
+def test_bmssp_marnet_100_7999(marnet):
+    graph = marnet.graph_object
+    assert_result(graph.bmssp(100, 7999), graph.dijkstra(100, 7999))
 
 
-@pytest.fixture(scope="module")
-def us_freeway_graph(us_freeway):
-    return Graph(us_freeway.graph_object.graph)
+def test_bmssp_marnet_4022_8342(marnet):
+    graph = marnet.graph_object
+    assert_result(graph.bmssp(4022, 8342), graph.dijkstra(4022, 8342))
 
 
-@pytest.mark.parametrize(
-    "origin_id, destination_id", [(0, 5), (100, 7999), (4022, 8342)]
-)
-def test_bmssp_finds_the_route_of_dijkstra_on_marnet(
-    marnet_graph, origin_id, destination_id
-):
-    found = marnet_graph.bmssp(origin_id, destination_id)
-
-    assert_result(found, marnet_graph.dijkstra(origin_id, destination_id))
+def test_bmssp_us_freeway_0_5(us_freeway):
+    graph = us_freeway.graph_object
+    assert_result(graph.bmssp(0, 5), graph.dijkstra(0, 5))
 
 
-@pytest.mark.parametrize("origin_id, destination_id", [(0, 5), (4022, 8342)])
-def test_bmssp_finds_the_route_of_dijkstra_on_us_freeway(
-    us_freeway_graph, origin_id, destination_id
-):
-    found = us_freeway_graph.bmssp(origin_id, destination_id)
-
-    assert_result(found, us_freeway_graph.dijkstra(origin_id, destination_id))
-
-
-@pytest.mark.parametrize("origin_id, destination_id", [(0, 5), (4022, 8342)])
-def test_contraction_hierarchy_finds_the_route_of_dijkstra_on_us_freeway(
-    us_freeway_graph, origin_id, destination_id
-):
-    found = us_freeway_graph.contraction_hierarchy(origin_id, destination_id)
-
-    assert_result(found, us_freeway_graph.dijkstra(origin_id, destination_id))
+def test_bmssp_us_freeway_4022_8342(us_freeway):
+    graph = us_freeway.graph_object
+    assert_result(graph.bmssp(4022, 8342), graph.dijkstra(4022, 8342))

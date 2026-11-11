@@ -1,24 +1,26 @@
 import pytest
-from scgraph import NegativeCycleError
-
-# Two algorithms accept negative weights: dijkstra_negative and bellman_ford.
+from scgraph import Graph, NegativeCycleError
 
 
-def test_dijkstra_negative_finds_a_path_over_a_negative_link(Graph):
-    # A one-way triangle 0 -> 1 -> 2 -> 0 of weights -1, 2 and 2: the cycle
-    # weighs 3, so it is not a negative cycle
+def test_no_negative_cycle():
     graph = Graph([{1: -1}, {2: 2}, {0: 2}])
-
-    found = graph.dijkstra_negative(
+    output = graph.dijkstra_negative(
         origin_id=0, destination_id=1, cycle_check_iterations=10
     )
+    assert output == {"path": [0, 1], "length": -1}
 
-    assert found == {"path": [0, 1], "length": -1}
+
+def test_negative_cycle_raises():
+    graph = Graph([{1: -5}, {2: 2}, {0: 2}])
+    with pytest.raises(NegativeCycleError):
+        graph.dijkstra_negative(
+            origin_id=0, destination_id=1, cycle_check_iterations=10
+        )
 
 
-def test_bellman_ford_finds_the_shortest_path_through_a_negative_link(Graph):
-    # From 0 to 3: 0 -> 1 -> 3 weighs 4 + 1 = 5, and the detour by the negative
-    # link 2 -> 1 weighs 1 - 2 + 1 = 0
+def test_bellman_ford_finds_the_shortest_path_through_a_negative_link():
+    # From node 0 to node 3, the path 0 -> 1 -> 3 weighs 4 + 1 = 5. The path
+    # 0 -> 2 -> 1 -> 3 uses the negative link 2 -> 1 and weighs 1 - 2 + 1 = 0.
     graph = Graph([{1: 4, 2: 1}, {3: 1}, {1: -2}, {}])
 
     found = graph.bellman_ford(origin_id=0, destination_id=3)
@@ -26,33 +28,22 @@ def test_bellman_ford_finds_the_shortest_path_through_a_negative_link(Graph):
     assert found == {"path": [0, 2, 1, 3], "length": 0}
 
 
-def test_bellman_ford_goes_on_until_no_distance_changes(Graph):
-    # A chain of 30 nodes whose links of weight 1 point from each node to the
-    # one before: 29 -> 28 -> ... -> 0. A pass over the nodes in the order of
-    # their ids settles only one more node, so the search needs 29 passes.
-    chain = [{}] + [{node_id - 1: 1} for node_id in range(1, 30)]
-    graph = Graph(chain)
+def test_bellman_ford_goes_on_until_no_distance_changes():
+    # A chain of 30 nodes: 29 -> 28 -> ... -> 0, each link of weight 1.
+    # Bellman-Ford reads the nodes in the order of their ids, so each pass
+    # finds the final distance of one more node. The search needs 29 passes.
+    chain_from_29_to_0 = [{}] + [{node_id - 1: 1} for node_id in range(1, 30)]
+    graph = Graph(chain_from_29_to_0)
 
     found = graph.bellman_ford(origin_id=29, destination_id=0)
 
     assert found == {"path": list(range(29, -1, -1)), "length": 29}
 
 
-def test_dijkstra_negative_reports_a_negative_cycle_on_the_path(Graph):
-    # A one-way triangle 0 -> 1 -> 2 -> 0 of weights -5, 2 and 2: each turn of
-    # the cycle makes the path from 0 to 1 shorter by 1
-    graph = Graph([{1: -5}, {2: 2}, {0: 2}])
-
-    with pytest.raises(NegativeCycleError):
-        graph.dijkstra_negative(
-            origin_id=0, destination_id=1, cycle_check_iterations=10
-        )
-
-
-def test_bellman_ford_reports_a_negative_cycle_off_the_path(Graph):
-    # The path from 0 to 3 is one link. The origin also reaches the cycle
-    # 1 -> 2 -> 1, of weight 1 - 3 = -2, which does not lead to node 3.
+def test_bellman_ford_reports_a_negative_cycle_off_the_path():
+    # The path from node 0 to node 3 is one link. Node 0 also reaches the
+    # cycle 1 -> 2 -> 1, which weighs 1 - 3 = -2 and does not lead to node 3.
     graph = Graph([{1: 1, 3: 1}, {2: 1}, {1: -3}, {}])
 
-    with pytest.raises(NegativeCycleError):
+    with pytest.raises(NegativeCycleError, match="negative weight cycle"):
         graph.bellman_ford(origin_id=0, destination_id=3)

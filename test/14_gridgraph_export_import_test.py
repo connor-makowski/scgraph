@@ -1,33 +1,93 @@
+import pytest
 from scgraph import GridGraph
 
+_X_SIZE = 300
+_Y_SIZE = 300
+_BLOCKS = [(5, i) for i in range(3, _Y_SIZE)]
+_SHAPE = [(0, 0), (0, 1), (1, 0), (1, 1)]
+_ORIGIN = {"x": 1, "y": 8}
+_DEST = {"x": 8, "y": 8}
 
-def test_imported_grid_routes_from_the_exported_cache(tmp_path):
-    # A grid with a wall on the column x = 5 from y = 3 to the top, and a route
-    # from one side of the wall to the other
+
+@pytest.fixture(scope="module")
+def exported_grid(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("gridgraph")
+    grid = GridGraph(
+        x_size=_X_SIZE,
+        y_size=_Y_SIZE,
+        blocks=_BLOCKS,
+        shape=_SHAPE,
+        add_exterior_walls=True,
+    )
+    grid.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        algorithm_fn="cached_shortest_path",
+    )
+    export_path = str(tmp / "test.gridgraph")
+    grid.export_object(filename=export_path)
+    return GridGraph.import_object(filename=export_path)
+
+
+def test_import_cached_path_matches(exported_grid):
+    original = GridGraph(
+        x_size=_X_SIZE,
+        y_size=_Y_SIZE,
+        blocks=_BLOCKS,
+        shape=_SHAPE,
+        add_exterior_walls=True,
+    )
+    original_output = original.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+    )
+    imported_output = exported_grid.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        algorithm_fn="cached_shortest_path",
+    )
+    assert round(original_output["length"], 4) == round(
+        imported_output["length"], 4
+    )
+
+
+def test_import_keeps_cache_and_cached_path_matches_dijkstra(tmp_path):
+    # A grid of its own: the other test fills the cache of exported_grid
     grid = GridGraph(
         x_size=11,
         y_size=10,
-        blocks=[(5, y) for y in range(3, 10)],
-        shape=[(0, 0), (0, 1), (1, 0), (1, 1)],
+        blocks=[(5, i) for i in range(3, 10)],
+        shape=_SHAPE,
         add_exterior_walls=True,
     )
-    query = {
-        "origin_node": {"x": 1, "y": 8},
-        "destination_node": {"x": 8, "y": 8},
-        "output_coordinate_path": "list_of_lists",
-    }
-    # This first cached query puts the shortest path tree of the origin in the
-    # cache of the grid
-    grid.get_shortest_path(**query, algorithm_fn="cached_shortest_path")
-    filename = str(tmp_path / "test.gridgraph")
+    # This cached query stores the shortest path tree of the origin
+    grid.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        algorithm_fn="cached_shortest_path",
+    )
+    export_path = str(tmp_path / "test.gridgraph")
+    grid.export_object(filename=export_path)
+    imported = GridGraph.import_object(filename=export_path)
 
-    grid.export_object(filename=filename)
-    imported = GridGraph.import_object(filename=filename)
+    # Verify that the cache was successfully imported
+    cache = imported.graph_object.get_cache()
+    assert cache[imported.get_idx(**_ORIGIN)], "Cache was not imported properly"
 
-    # The imported grid holds the tree of the origin, and its cached route is
-    # the route that Dijkstra finds on the grid before the export
-    origin_id = imported.get_idx(x=1, y=8)
-    assert imported.graph_object.get_cache()[origin_id]
-    assert imported.get_shortest_path(
-        **query, algorithm_fn="cached_shortest_path"
-    ) == grid.get_shortest_path(**query, algorithm_fn="dijkstra")
+    dijkstra_output = grid.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        algorithm_fn="dijkstra",
+    )
+    imported_output = imported.get_shortest_path(
+        origin_node=_ORIGIN,
+        destination_node=_DEST,
+        output_coordinate_path="list_of_lists",
+        algorithm_fn="cached_shortest_path",
+    )
+    assert imported_output == dijkstra_output

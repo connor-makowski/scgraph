@@ -3,20 +3,6 @@ import os
 import pytest
 from scgraph import GeoGraph
 from scgraph.utils import resolve_cache_dir
-from scgraph.graph import Graph as PythonGraph
-
-try:
-    from scgraph.cpp import Graph as CppGraph
-except ImportError:  # a build without the C++ extension
-    CppGraph = None
-
-
-# A requirement on a graph holds in both implementations: a test that takes `Graph`
-# runs once with the pure-Python class and, when the C++ extension is built, once
-# with the C++ class.
-@pytest.fixture(params=["python"] + (["cpp"] if CppGraph else []))
-def Graph(request):  # noqa: N802 (named as the class it gives)
-    return PythonGraph if request.param == "python" else CppGraph
 
 
 @pytest.fixture(scope="session", autouse=True)

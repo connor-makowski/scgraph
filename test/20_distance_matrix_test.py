@@ -1,32 +1,57 @@
-from itertools import permutations
+import time
 
-import pytest
+_CITIES = {
+    "Los Angeles": (34.0522, -118.2437),
+    "New York City": (40.7128, -74.0060),
+    "Chicago": (41.8781, -87.6298),
+    "Houston": (29.7604, -95.3698),
+    "Phoenix": (33.4484, -112.0740),
+    "Denver": (39.7392, -104.9903),
+    "Seattle": (47.6062, -122.3321),
+    "Miami": (25.7617, -80.1918),
+    "Washington D.C.": (38.9072, -77.0369),
+    "San Francisco": (37.7749, -122.4194),
+    "Omaha": (41.2565, -95.9345),
+    "Atlanta": (33.7490, -84.3880),
+    "Austin": (30.2672, -97.7431),
+    "Boston": (42.3601, -71.0589),
+    "Las Vegas": (36.1699, -115.1398),
+    "Detroit": (42.3314, -83.0458),
+}
 
-CITIES = [
-    {"latitude": 34.0522, "longitude": -118.2437},  # Los Angeles
-    {"latitude": 40.7128, "longitude": -74.0060},  # New York City
-    {"latitude": 41.8781, "longitude": -87.6298},  # Chicago
-    {"latitude": 29.7604, "longitude": -95.3698},  # Houston
-]
+
+def test_distance_matrix_matches_shortest_path(us_freeway):
+    city_nodes = [
+        {"longitude": coord[1], "latitude": coord[0]}
+        for coord in _CITIES.values()
+    ]
+    dm = us_freeway.distance_matrix(
+        city_nodes, off_graph_circuity=1, output_units="km"
+    )
+    for i, origin in enumerate(city_nodes):
+        for j, destination in enumerate(city_nodes):
+            direct = us_freeway.get_shortest_path(
+                origin_node=origin, destination_node=destination
+            )
+            assert abs(dm[i][j] - direct["length"]) < 0.001
 
 
-def test_distance_matrix_holds_the_length_of_the_route_between_two_points(
-    us_freeway,
-):
-    matrix = us_freeway.distance_matrix(
-        CITIES, off_graph_circuity=1, output_units="km"
+if __name__ == "__main__":
+    from scgraph import GeoGraph
+
+    geograph = GeoGraph.load_geograph("us_freeway")
+    now = time.perf_counter()
+    test_distance_matrix_matches_shortest_path(geograph)
+    print(f"Time taken: {time.perf_counter() - now:.2f} seconds")
+
+    now = time.perf_counter()
+    geograph.graph_object.reduce()
+    print(
+        f"Time taken to reduce graph: {time.perf_counter() - now:.2f} seconds"
     )
 
-    # The cell of row i and column j is the route from city i to city j
-    for i, j in permutations(range(4), 2):
-        route = us_freeway.get_shortest_path(CITIES[i], CITIES[j])
-        assert matrix[i][j] == pytest.approx(route["length"], abs=0.001)
-
-
-def test_distance_matrix_is_zero_from_a_point_to_itself(us_freeway):
-    matrix = us_freeway.distance_matrix(
-        CITIES, off_graph_circuity=1, output_units="km"
+    now = time.perf_counter()
+    test_distance_matrix_matches_shortest_path(geograph)
+    print(
+        f"Time taken after reduction: {time.perf_counter() - now:.2f} seconds"
     )
-
-    diagonal = [matrix[i][i] for i in range(4)]
-    assert diagonal == pytest.approx([0, 0, 0, 0], abs=0.001)

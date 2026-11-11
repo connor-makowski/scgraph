@@ -6,7 +6,13 @@ from copy import deepcopy
 import pytest
 from scgraph import PathNotFoundError
 from scgraph.graph import Graph as PyGraph
-from helpers import GRAPH_CLASSES
+
+try:
+    from scgraph.cpp import Graph as CppGraph
+
+    GRAPH_CLASSES = [PyGraph, CppGraph]
+except ImportError:
+    GRAPH_CLASSES = [PyGraph]
 
 
 def run_network_test(geograph_name, geograph):

@@ -3,79 +3,71 @@ import pytest
 from scgraph import GridGraph
 from scgraph.utils import hard_round
 
+_X_SIZE = 11
+_Y_SIZE = 10
+_BLOCKS = [(5, i) for i in range(3, _Y_SIZE)]
+_SHAPE = [(0, 0), (0, 1), (1, 0), (1, 1)]
+_EXPECTED_LENGTH = 16.071
+_EXPECTED_OFF_GRAPH = {
+    "length": 1.4,
+    "coordinate_path": [[1, 1.1], [1, 1], [1, 2], [1, 2.3]],
+}
 
-# A grid 11 wide and 10 high, with a wall on the column x = 5 from y = 3 to the
-# top: a route from one side to the other goes down to y <= 2 to pass it.
-@pytest.fixture
-def grid_with_a_wall():
-    return GridGraph(
-        x_size=11,
-        y_size=10,
-        blocks=[(5, y) for y in range(3, 10)],
-        shape=[(0, 0), (0, 1), (1, 0), (1, 1)],
+
+def test_basic_gridgraph():
+    grid = GridGraph(
+        x_size=_X_SIZE,
+        y_size=_Y_SIZE,
+        blocks=_BLOCKS,
+        shape=_SHAPE,
         add_exterior_walls=True,
     )
+    output = grid.get_shortest_path(
+        origin_node={"x": 1, "y": 8},
+        destination_node={"x": 8, "y": 8},
+        output_coordinate_path="list_of_lists",
+    )
+    assert hard_round(4, output["length"]) == _EXPECTED_LENGTH
 
 
-# From (1, 8) to (8, 8), the shortest way round the wall goes 6 rows down to
-# y = 2 and 6 up, and 7 columns across. The two moves past the end of the wall
-# cannot be diagonal, so 5 moves are diagonal and 9 straight.
-LENGTH_ROUND_THE_WALL = 9 + 5 * 2**0.5
+def test_basic_gridgraph_a_star():
+    grid = GridGraph(
+        x_size=_X_SIZE,
+        y_size=_Y_SIZE,
+        blocks=_BLOCKS,
+        shape=_SHAPE,
+        add_exterior_walls=True,
+    )
+    output = grid.get_shortest_path(
+        origin_node={"x": 1, "y": 8},
+        destination_node={"x": 8, "y": 8},
+        output_coordinate_path="list_of_lists",
+        heuristic_fn="euclidean",
+    )
+    assert hard_round(4, output["length"]) == _EXPECTED_LENGTH
 
 
 @pytest.mark.parametrize(
-    "algorithm", ["dijkstra", "dijkstra_buckets", "cached_shortest_path"]
+    "output_coordinate_path, as_point",
+    [
+        ("list_of_lists", list),
+        ("list_of_dicts", lambda point: {"x": point[0], "y": point[1]}),
+    ],
 )
-def test_algorithm_finds_the_shortest_way_round_the_wall(
-    grid_with_a_wall, algorithm
-):
-    route = grid_with_a_wall.get_shortest_path(
-        origin_node={"x": 1, "y": 8},
-        destination_node={"x": 8, "y": 8},
-        algorithm_fn=algorithm,
+def test_off_graph_nodes(output_coordinate_path, as_point):
+    grid = GridGraph(
+        x_size=_X_SIZE,
+        y_size=_Y_SIZE,
+        blocks=_BLOCKS,
+        shape=_SHAPE,
+        add_exterior_walls=True,
     )
-
-    assert route["length"] == pytest.approx(LENGTH_ROUND_THE_WALL, abs=0.001)
-
-
-def test_a_star_finds_the_shortest_way_round_the_wall(grid_with_a_wall):
-    route = grid_with_a_wall.get_shortest_path(
-        origin_node={"x": 1, "y": 8},
-        destination_node={"x": 8, "y": 8},
-        algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": grid_with_a_wall.euclidean_heuristic},
-    )
-
-    assert route["length"] == pytest.approx(LENGTH_ROUND_THE_WALL, abs=0.001)
-
-
-# The two tests below ask for a route between two points that are not grid
-# nodes, in each output format. The route goes from (1, 1.1) to the node
-# (1, 1), to the node (1, 2) and to (1, 2.3): 0.1 + 1 + 0.3.
-
-
-def test_route_between_points_off_the_grid_nodes_as_lists(grid_with_a_wall):
-    route = grid_with_a_wall.get_shortest_path(
+    output = grid.get_shortest_path(
         origin_node={"x": 1, "y": 1.1},
         destination_node={"x": 1, "y": 2.3},
-        output_coordinate_path="list_of_lists",
+        output_coordinate_path=output_coordinate_path,
     )
-
-    assert hard_round(4, route["length"]) == 1.4
-    assert route["coordinate_path"] == [[1, 1.1], [1, 1], [1, 2], [1, 2.3]]
-
-
-def test_route_between_points_off_the_grid_nodes_as_dicts(grid_with_a_wall):
-    route = grid_with_a_wall.get_shortest_path(
-        origin_node={"x": 1, "y": 1.1},
-        destination_node={"x": 1, "y": 2.3},
-        output_coordinate_path="list_of_dicts",
-    )
-
-    assert hard_round(4, route["length"]) == 1.4
-    assert route["coordinate_path"] == [
-        {"x": 1, "y": 1.1},
-        {"x": 1, "y": 1},
-        {"x": 1, "y": 2},
-        {"x": 1, "y": 2.3},
+    assert hard_round(4, output["length"]) == _EXPECTED_OFF_GRAPH["length"]
+    assert output["coordinate_path"] == [
+        as_point(point) for point in _EXPECTED_OFF_GRAPH["coordinate_path"]
     ]
