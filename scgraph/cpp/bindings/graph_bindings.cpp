@@ -308,6 +308,7 @@ NB_MODULE(cpp, m) {
     // Raised by SnapIndex when the nodes are too scattered; a ValueError for callers
     nb::exception<node_order_error>(m, "NodeOrderError", PyExc_ValueError);
     nb::exception<PathNotFoundException>(m, "PathNotFoundError", PyExc_RuntimeError);
+    nb::exception<NegativeCycleException>(m, "NegativeCycleError", PyExc_RuntimeError);
     nb::class_<SnapIndex>(m, "SnapIndex",
         "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
         .def("__init__", [](SnapIndex* self, nb::handle points) {

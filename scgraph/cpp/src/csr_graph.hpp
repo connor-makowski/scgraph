@@ -7,25 +7,22 @@
 #include <utility>
 #include <vector>
 
-// Force inlining on performance-critical traversal loops (GCC / MSVC).
-// Prevents function call overhead during tight graph searches (e.g. Dijkstra).
+// Reading an arc must cost what reading a pair did: GCC does not inline these calls
+// inside the large search loops by itself (seen in the bucket searches)
 #if defined(_MSC_VER)
 #define SCGRAPH_INLINE __forceinline
 #else
 #define SCGRAPH_INLINE inline __attribute__((always_inline))
 #endif
 
-// Directed edge (arc) representation.
-// Uses clean domain naming while supporting C++17 structured bindings (`auto [v, w]`):
-// - head:   target node ID
-// - weight: edge traversal weight (distance)
+// One arc: `head` is the node it leads to. An aggregate, so that a loop over a row can
+// name both members (`auto [node, distance]`)
 struct Arc {
     int head;
     double weight;
 };
 
-// Read-only view over the outgoing arcs of a single node.
-// Iterates directly over contiguous CSR memory without allocating.
+// The arcs of one node, read in place
 class Row {
     const int32_t* heads_;
     const double* weights_;
@@ -50,13 +47,12 @@ public:
     SCGRAPH_INLINE iterator begin() const { return {heads_, weights_}; }
     SCGRAPH_INLINE iterator end() const { return {heads_ + count_, weights_ + count_}; }
 
-    // Append outgoing arcs to destination arrays
     void append_to(std::vector<int32_t>& to_heads, std::vector<double>& to_weights) const {
         to_heads.insert(to_heads.end(), heads_, heads_ + count_);
         to_weights.insert(to_weights.end(), weights_, weights_ + count_);
     }
 
-    // Convert row to a vector of (head, weight) pairs for third-party libraries (e.g. BMSSP)
+    // A copy as pairs: the form of an edited row (RowEdits) and of the rows BMSSP reads
     std::vector<std::pair<int, double>> to_vector() const {
         std::vector<std::pair<int, double>> arcs;
         arcs.reserve(count_);
@@ -67,23 +63,17 @@ public:
     }
 };
 
-// Compressed Sparse Row (CSR) graph storage.
-//
-// Matches the binary memory layout of .scgraph network files:
-// - offsets_: indices where each node's arcs begin (size: node_count_ + 1)
-// - heads_:   target node IDs (size: arc_count_)
-// - weights_: arc weights (size: arc_count_)
-//
-// Key design principles:
-// - Immutable CSR core: dynamic edits are isolated in RowEdits (Copy-on-Write).
-// - Zero-copy mmap: borrows pointers directly from memory-mapped files via `owner_`.
-// - 32-bit indices: supports up to 2^31 - 1 arcs per graph.
+// Arcs stored by origin, as in a .scgraph file (compressed sparse rows): the arcs of
+// node u are heads_[offsets_[u]] .. heads_[offsets_[u + 1] - 1], with their weights. Read
+// only: edits go to RowEdits, and the next read packs them into new arrays (GraphUtils).
+// Offsets are 32-bit, as in the file: at most 2^31 - 1 arcs. The arrays are owned, or
+// borrowed (a mapped file) and kept alive by `owner_`
 class CsrGraph {
     struct Owned {
         std::vector<int32_t> offsets, heads;
         std::vector<double> weights;
     };
-    std::shared_ptr<const void> owner_; // Keeps borrowed buffer alive (e.g. mmap)
+    std::shared_ptr<const void> owner_;
     const int32_t* offsets_ = nullptr;
     const int32_t* heads_ = nullptr;
     const double* weights_ = nullptr;
@@ -91,10 +81,9 @@ class CsrGraph {
     int64_t arc_count_ = 0;
 
 public:
-    // Empty graph constructor (0 nodes, 0 arcs)
     CsrGraph() : CsrGraph(std::vector<int32_t>{0}, {}, {}) {}
 
-    // Construct from owned contiguous vectors
+    // Arrays already checked by the caller
     CsrGraph(std::vector<int32_t> offsets, std::vector<int32_t> heads, std::vector<double> weights) {
         auto arrays = std::make_shared<Owned>(Owned{std::move(offsets), std::move(heads), std::move(weights)});
         *this = CsrGraph(arrays, arrays->offsets.data(), arrays->heads.data(), arrays->weights.data(),
@@ -102,7 +91,7 @@ public:
                          static_cast<int64_t>(arrays->heads.size()));
     }
 
-    // Construct from borrowed arrays (e.g. memory-mapped file)
+    // Arrays that `owner` keeps alive (a mapped file, for instance), already checked
     CsrGraph(std::shared_ptr<const void> owner, const int32_t* offsets, const int32_t* heads,
              const double* weights, int node_count, int64_t arc_count)
         : owner_(std::move(owner)),
@@ -112,7 +101,6 @@ public:
           node_count_(node_count),
           arc_count_(arc_count) {}
 
-    // Construct from an adjacency list: vector of outgoing (head, weight) pairs
     explicit CsrGraph(const std::vector<std::vector<std::pair<int, double>>>& rows) {
         std::vector<int32_t> offsets{0};
         offsets.reserve(rows.size() + 1);
@@ -137,7 +125,6 @@ public:
         *this = CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
     }
 
-    // Export to an adjacency list for third-party libraries (e.g. BMSSP solver)
     std::vector<std::vector<std::pair<int, double>>> to_rows() const {
         std::vector<std::vector<std::pair<int, double>>> rows(size());
         for (int u = 0; u < size(); ++u) {
@@ -146,7 +133,6 @@ public:
         return rows;
     }
 
-    // Access outgoing arcs for node u
     SCGRAPH_INLINE Row operator[](int u) const {
         return {heads_ + offsets_[u], weights_ + offsets_[u], offsets_[u + 1] - offsets_[u]};
     }
@@ -154,7 +140,7 @@ public:
     int size() const { return node_count_; }
     int64_t arcs() const { return arc_count_; }
 
-    // Direct spans over contiguous CSR arrays (for binary serialization)
+    // The whole arrays, in place
     std::span<const int32_t> all_offsets() const { return {offsets_, static_cast<size_t>(node_count_) + 1}; }
     std::span<const int32_t> all_heads() const { return {heads_, static_cast<size_t>(arc_count_)}; }
     std::span<const double> all_weights() const { return {weights_, static_cast<size_t>(arc_count_)}; }
@@ -162,29 +148,26 @@ public:
     void clear() { *this = CsrGraph(); }
 };
 
-// Copy-on-Write overlay tracking dynamic graph mutations (add_node, add_edge, etc.).
-//
-// Lifecycle:
-// 1. Edits only copy and modify affected rows in `rows_`.
-// 2. Untouched rows stay in the immutable CsrGraph.
-// 3. Before running queries, apply() packs all rows back into a new contiguous CsrGraph.
+// Pending edits over a CsrGraph: the rows changed since it was packed (each copied as a
+// vector at its first change) and the number of nodes. Indexed and resized as a vector of
+// rows, so that the edit functions read as on one
 struct RowEdits {
-    std::unordered_map<int, std::vector<std::pair<int, double>>> rows_;
-    int node_count = -1;  // -1 indicates no pending edits
+    std::unordered_map<int, std::vector<std::pair<int, double>>> rows;
+    int node_count = -1;  // -1: no pending edit
 
     bool has_edits() const { return node_count >= 0; }
 
-    // Access or create the mutable row for node u
+    // The row of node u, to change
     std::vector<std::pair<int, double>>& at(const CsrGraph& base, int u) {
-        auto found = rows_.find(u);
-        if (found == rows_.end()) {
-            found = rows_.emplace(u, u < base.size() ? base[u].to_vector()
+        auto found = rows.find(u);
+        if (found == rows.end()) {
+            found = rows.emplace(u, u < base.size() ? base[u].to_vector()
                                                      : std::vector<std::pair<int, double>>{}).first;
         }
         return found->second;
     }
 
-    // Pack all pending edits and untouched rows into a new CsrGraph instance
+    // The arrays with the edits applied: untouched rows are copied as they are
     CsrGraph apply(const CsrGraph& base) const {
         std::vector<int32_t> offsets{0}, heads;
         std::vector<double> weights;
@@ -192,8 +175,8 @@ struct RowEdits {
         heads.reserve(base.arcs());
         weights.reserve(base.arcs());
         for (int u = 0; u < node_count; ++u) {
-            auto edited = rows_.find(u);
-            if (edited != rows_.end()) {
+            auto edited = rows.find(u);
+            if (edited != rows.end()) {
                 for (const auto& [head, weight] : edited->second) {
                     heads.push_back(head);
                     weights.push_back(weight);
@@ -210,7 +193,7 @@ struct RowEdits {
     }
 };
 
-// Adapter providing mutable row access during dynamic graph updates.
+// What the edit functions index: a view of the arrays and their pending edits
 class EditableRows {
     const CsrGraph& base_;
     RowEdits& edits_;
@@ -224,10 +207,10 @@ public:
 
     std::vector<std::pair<int, double>>& operator[](int u) { return edits_.at(base_, u); }
 
-    // Check if node u has an arc to `head` without copying its row
+    // Without copying the row of node u
     bool has_arc(int u, int head) const {
-        auto edited = edits_.rows_.find(u);
-        if (edited != edits_.rows_.end()) {
+        auto edited = edits_.rows.find(u);
+        if (edited != edits_.rows.end()) {
             for (const auto& arc : edited->second) {
                 if (arc.first == head) return true;
             }
@@ -241,10 +224,10 @@ public:
     }
 
     void push_back(std::vector<std::pair<int, double>> row) {
-        edits_.rows_[edits_.node_count++] = std::move(row);
+        edits_.rows[edits_.node_count++] = std::move(row);
     }
     void pop_back() {
-        edits_.rows_.erase(--edits_.node_count);
+        edits_.rows.erase(--edits_.node_count);
     }
     int size() const { return edits_.node_count; }
 };

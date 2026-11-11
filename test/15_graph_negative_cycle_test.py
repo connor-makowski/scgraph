@@ -1,5 +1,5 @@
 import pytest
-from scgraph import Graph
+from scgraph import Graph, NegativeCycleError
 
 
 def test_no_negative_cycle():
@@ -41,5 +41,5 @@ def test_bellman_ford_negative_cycle_off_path():
     # reached directly: the cycle must be reported, and a broken detection would
     # return [0, 3] at once instead of looping on the cycle
     graph = Graph([{1: 1, 3: 1}, {2: 1}, {1: -3}, {}])
-    with pytest.raises(Exception, match="negative weight cycle"):
+    with pytest.raises(NegativeCycleError, match="negative weight cycle"):
         graph.bellman_ford(origin_id=0, destination_id=3)

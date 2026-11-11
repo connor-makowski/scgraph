@@ -94,7 +94,9 @@ def build_csr_from_arcs(
     (an id on self-loops only is no node); of parallel arcs the shortest is kept, the
     first in the input on a tie.
     """
-    if _cpp_build_csr_from_arcs is not None and isinstance(origins, array):
+    if _cpp_build_csr_from_arcs is not None and isinstance(
+        origins, (array, memoryview)
+    ):
         return _cpp_build_csr_from_arcs(origins, destinations, weights)
     return build_csr_from_arcs_python(origins, destinations, weights)
 
@@ -181,7 +183,7 @@ def strongly_connected_components(
             - `sizes`: Number of nodes in each component.
     """
     if _cpp_strongly_connected_components is not None and isinstance(
-        offsets, array
+        offsets, (array, memoryview)
     ):
         return _cpp_strongly_connected_components(offsets, heads)
     return strongly_connected_components_python(offsets, heads)
@@ -307,9 +309,24 @@ def contract_chains_python(
 ) -> ContractedGraph:
     """Pure-Python implementation of CSR degree-2 chain contraction."""
     n = len(offsets) - 1
+    if len(weights) != len(heads) or (
+        node_modes is not None and len(node_modes) != n
+    ):
+        raise ValueError("expected one weight per arc and one mode per node")
+    if (
+        n < 0
+        or offsets[n] != len(heads)
+        or not _is_monotonically_increasing(offsets)
+    ):
+        raise ValueError("offsets must rise from 0 to the number of items")
     rows = [heads[offsets[u] : offsets[u + 1]] for u in range(n)]
     ins = [[] for _ in range(n)]
     for u, row in enumerate(rows):
+        if any(
+            not 0 <= v < n or v == u or (i and v <= row[i - 1])
+            for i, v in enumerate(row)
+        ):
+            raise IndexError("rows must rise within the nodes, without loops")
         for v in row:
             ins[v].append(u)
 
@@ -432,7 +449,9 @@ def contract_chains(
             - `member_offsets`: Offsets into `members` for each contracted arc.
             - `members`: Input arc indices comprising each contracted arc, in travel order.
     """
-    if _cpp_contract_chains is not None and isinstance(offsets, array):
+    if _cpp_contract_chains is not None and isinstance(
+        offsets, (array, memoryview)
+    ):
         return ContractedGraph(
             *_cpp_contract_chains(
                 offsets, heads, weights, node_modes, max_km_between_nodes
@@ -459,7 +478,9 @@ def simplify_shapes(
     segment connecting the retained endpoints, calculated on a local flat-map
     projection for each arc.
     """
-    if _cpp_simplify_shapes is not None and isinstance(shape_points, array):
+    if _cpp_simplify_shapes is not None and isinstance(
+        shape_points, (array, memoryview)
+    ):
         return _cpp_simplify_shapes(
             shape_points, shape_offsets, endpoint_coords, tolerance_meters
         )

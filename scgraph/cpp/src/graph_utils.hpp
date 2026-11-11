@@ -13,6 +13,10 @@ struct PathNotFoundException : public std::runtime_error {
     using std::runtime_error::runtime_error;
 };
 
+struct NegativeCycleException : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 using NodeIdVariant = std::variant<int, std::unordered_map<int, double>, std::set<int>>;
 
 struct GraphResult {

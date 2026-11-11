@@ -3,7 +3,6 @@
 // their pure-Python twins
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/optional.h>
-#include <nanobind/stl/tuple.h>
 #include <limits>
 #include <nanobind/stl/vector.h>
 #include <optional>
@@ -16,10 +15,7 @@
 
 namespace nb = nanobind;
 
-using Ids = Int64Array;
-using Modes = Uint8Array;
-
-// A read-only memoryview that owns the vector
+// A memoryview that owns the vector
 template <class T>
 static nb::object owned_view(std::vector<T>&& values) {
     auto* owned = new std::vector<T>(std::move(values));
@@ -28,8 +24,8 @@ static nb::object owned_view(std::vector<T>&& values) {
 }
 
 void bind_pipelines(nb::module_& m) {
-    // Assembly kernels (contracts in scgraph/pipelines/steps/assembly.py)
-    auto bind_csr = [](Ids origins, Ids destinations, DoubleArray weights) {
+    // Assembly kernels (contracts in scgraph/pipelines/steps/stage3_assembly/assembly.py)
+    auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights) {
         const int64_t m = (int64_t)origins.shape(0);
         if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m)
             throw std::invalid_argument("one destination and one weight per origin expected");
@@ -45,7 +41,7 @@ void bind_pipelines(nb::module_& m) {
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
     };
     m.def("strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
-    m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Modes> node_modes,
+    m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Uint8Array> node_modes,
                                 double max_km_between_nodes) {
         const int64_t n = (int64_t)offsets.shape(0) - 1;
         if (weights.shape(0) != heads.shape(0) || (node_modes && (int64_t)node_modes->shape(0) != n))
@@ -66,9 +62,9 @@ void bind_pipelines(nb::module_& m) {
         return nb::make_tuple(owned_view(std::move(r.points)), owned_view(std::move(r.offsets)));
     }, nb::arg("shape_points"), nb::arg("shape_offsets"), nb::arg("endpoint_coords"), nb::arg("tolerance_meters"));
 
-    // Water paths on a land raster (contract in scgraph/pipelines/steps/landmask.py)
+    // Water paths on a land raster (contract in scgraph/pipelines/steps/stage2_intermodal/landmask.py)
     auto bind_water = [](Uint8Array bits,
-                         int64_t width, int64_t height, bool wrap, int64_t start, Ids targets,
+                         int64_t width, int64_t height, bool wrap, int64_t start, Int64Array targets,
                          double max_km, DoubleArray east, DoubleArray diagonal, double north,
                          size_t max_cells) -> nb::object {
         if (width <= 0 || height <= 0 || (int64_t)bits.shape(0) * 8 < width * height
@@ -88,5 +84,5 @@ void bind_pipelines(nb::module_& m) {
        nb::arg("targets"), nb::arg("max_km"), nb::arg("east"), nb::arg("diagonal"), nb::arg("north"),
        nb::arg("max_cells"),
        "Cheapest path over water cells to a target cell: (km, cells) or None; see "
-       "scgraph.pipelines.steps.landmask.python.find_water_path_cells");
+       "scgraph.pipelines.steps.stage2_intermodal.landmask.python.find_water_path_cells");
 }

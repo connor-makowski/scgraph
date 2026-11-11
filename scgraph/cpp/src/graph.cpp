@@ -1179,7 +1179,7 @@ GraphResult Graph::bellman_ford(const NodeIdVariant& origin_id, const NodeIdVari
                         predecessor[connected_id] = current_id;
                         updated = true;
                         if (i == n - 1) {
-                            throw std::runtime_error("Graph contains a negative weight cycle");
+                            throw NegativeCycleException("Graph contains a negative weight cycle");
                         }
                     }
                 }

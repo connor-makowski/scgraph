@@ -19,8 +19,12 @@ except ImportError:
         """Raised when no path exists between origin and destination nodes."""
 
 
-class NegativeCycleError(RuntimeError):
-    """Raised when a graph contains a negative weight cycle."""
+try:
+    from scgraph.cpp import NegativeCycleError
+except ImportError:
+
+    class NegativeCycleError(RuntimeError):
+        """Raised when a graph contains a negative weight cycle."""
 
 
 class GraphTrees:
