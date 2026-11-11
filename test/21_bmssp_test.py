@@ -13,7 +13,6 @@ _PAIRS = {
 @pytest.mark.parametrize(
     "name, algorithm",
     [
-        ("marnet", "a_star"),
         ("marnet", "bmssp"),
         ("us_freeway", "bmssp"),
         ("us_freeway", "contraction_hierarchy"),

@@ -18,6 +18,11 @@ def test_cpp_availability():
             has_cpp()
         ), "SCGRAPH_REQUIRE_CPP=1 but the extension is unavailable"
         assert Graph.__module__ == "scgraph.cpp"
+        # Route coordinates are built natively: without this function the
+        # library falls back to Python without a word
+        import scgraph.cpp
+
+        assert hasattr(scgraph.cpp, "coordinate_lists")
     elif require_python:
         assert (
             not has_cpp()

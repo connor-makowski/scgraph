@@ -40,8 +40,15 @@ def test_shortest_path_whatever_the_algorithm(
     GraphClass, graph_data, algorithm
 ):
     graph = GraphClass(graph_data)
+    # Without a heuristic, a_star hands the search to dijkstra
+    options = (
+        {"heuristic_fn": lambda node_id, destination_id: 0}
+        if algorithm == "a_star"
+        else {}
+    )
     assert_result(
-        getattr(graph, algorithm)(origin_id=0, destination_id=5), _EXPECTED
+        getattr(graph, algorithm)(origin_id=0, destination_id=5, **options),
+        _EXPECTED,
     )
 
 
