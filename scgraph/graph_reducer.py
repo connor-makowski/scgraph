@@ -321,9 +321,9 @@ class GraphReducer:
                             queue.append(v)
                 current_chain_id += 1
 
-        # 3. Search from each non-reduced node A through reduced nodes: it gives
-        # the reduced_graph edges A -> B to non-reduced nodes B, and the
-        # reduced_inverse_graph edges A -> B into reduced nodes B (whose own
+        # 3. Search from each non-reduced node a through reduced nodes: it gives
+        # the reduced_graph edges a -> b to non-reduced nodes b, and the
+        # reduced_inverse_graph edges a -> b into reduced nodes b (whose own
         # searches would cost O(L) each on a chain of L nodes). Hidden nodes are
         # stored as pointers from these searches (see hidden_nodes).
         self.reduced_graph = [{} for _ in range(len(graph))]
@@ -366,8 +366,8 @@ class GraphReducer:
                         heappush(open_leaves, (new_dist, v))
 
         # 4. Inverse search into each non-reduced node B: it gives the
-        # reduced_inverse_graph edges A -> B from non-reduced nodes A, and the
-        # reduced_graph edges A -> B from reduced nodes A.
+        # reduced_inverse_graph edges a -> b from non-reduced nodes a, and the
+        # reduced_graph edges a -> b from reduced nodes a.
         self.__hidden_next__ = [None] * len(graph)
         self.reduced_graph_connections = None  # rebuilt on first read
         next_nodes = self.__hidden_next__
@@ -392,7 +392,7 @@ class GraphReducer:
                     if is_reduced[u]:
                         reduced_graph[u][b] = dist
                     else:
-                        # Boundary non-reduced node reaching B
+                        # Boundary non-reduced node reaching b
                         reduced_inverse_graph[b][u] = dist
                         continue
 

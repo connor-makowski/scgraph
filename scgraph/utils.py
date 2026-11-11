@@ -362,7 +362,7 @@ def time_test(
 
 def has_cpp() -> bool:
     try:
-        from scgraph.cpp import Graph  # noqa: F401
+        from scgraph.cpp import Graph  # noqa: F401 (the import is the check)
 
         return True
     except ImportError:
@@ -371,7 +371,7 @@ def has_cpp() -> bool:
 
 def cpp_check() -> None:
     try:
-        from scgraph.cpp import Graph  # noqa: F401
+        from scgraph.cpp import Graph  # noqa: F401 (the import is the check)
 
         print("Using C++ & Python implementation of SCGraph.")
     except ImportError:

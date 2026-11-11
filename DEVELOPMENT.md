@@ -227,23 +227,7 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 
 - **Line length**: 80 characters (black config in `pyproject.toml`)
 - **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
-- **Formatting and checks**: Always run `uv run python utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR. `pyrefly` runs with its `basic` preset.
-- **What the tools check**: The `ruff` rule list in `pyproject.toml` holds the conventions below that a tool can check, and likely defects. A `noqa` carries its reason in a comment.
-  - `E4`, `E7`, `E9`: imports and statements that are errors or hide one.
-  - `F`: undefined and unused names.
-  - `B`: likely defects (a mutable default argument, a test that accepts any exception, a `raise` in an `except` without `from`).
-  - `BLE001`, `TRY002`: an `except` names the exception types it handles; a `raise` names a specific type.
-  - `N802`, `N803`, `N806`: function, argument and variable names in lower case. Names public since 3.6.0 keep their form; in tests, a name that holds a class is written as a class.
-  - `UP006`, `UP007`, `UP035`, `UP045`: annotations with built-in types and `X | Y`.
-  - `PYI041`: a number parameter is annotated `float`; `int | float` is kept for values whose integer type shows in a result (stored weights, lengths, returns).
-  - `T201`: no `print` in library code.
-- **Rules not adopted**:
-  - `B905`: `strict=True` on every `zip` would raise where two sequences legitimately differ in length; each `zip` would need its own analysis.
-  - `PT011`: it would tie tests to the text of error messages.
-  - `C4`, `SIM`, `RET`, `PERF`: style preferences that prevent no defect here.
-  - `PLR`: magic values and size limits give many findings, and their value is not established.
-  - `D`: the docstrings of scgraph follow their own form, which no `pydocstyle` convention describes.
-- **What stays with the review**: a verb at the start of a function name, the content of a docstring, the intent of a test, and the parity of the two builds.
+- **Formatting and checks**: Run `uv run python utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR: fix it, or silence it with a `noqa` that gives its reason. The rules and why each is there are in `pyproject.toml`. No tool checks a verb at the start of a function name, the content of a docstring, the intent of a test, or the parity of the two builds: the review does.
 - **Names**: A function name starts with a verb (`build_*`, `find_*`, `extract_*`); a function that returns a boolean starts with `is_`, `has_`, `can_` or `should_`. Internal names take one leading underscore in Python and one trailing underscore for C++ members; double underscores are for Python's own methods.
 - **Parameter names**: A name says what the value is, with its unit and its scope in full words (`max_km_between_nodes`, `tolerance_meters`, `node_modes`, `work_dir`). One value keeps one name in every function that passes it on, and in the C++ binding. A renaming changes the definition and every caller in one commit.
 - **Types**: Public functions annotate their parameters and their return in the signature, with built-in types and `X | Y` (`origin_id: int | set[int]`, `-> dict`). The annotation is optional for names that start with `_`. A type from an optional dependency is written as a string. Nothing checks types at run time. One kind of value has one form: a number parameter `float`; a number whose integer type shows in a result (stored weight, length, return) `int | float`; a `[latitude, longitude]` pair `Sequence[float]`; a buffer of a kernel `array | memoryview`; a file path `str | os.PathLike`; a graph `list[dict[int, int | float]]`; a default of `None` adds `| None`; a function `Callable[[...], ...]` or `Callable` from `collections.abc`; anything `object`, not `Any`.
