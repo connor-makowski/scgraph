@@ -83,7 +83,7 @@ class GeoGraphIO:
         destination_idx: int,
         sequence: str,
         save_intermediate_nodes: bool,
-    ) -> list[list[int | float]]:
+    ) -> list[list[float]]:
         """Build the coordinates for one exported edge."""
         origin = self.nodes[origin_idx]
         destination = self.nodes[destination_idx]
@@ -2427,7 +2427,7 @@ class GeoGraphUtils:
 
     def __get_intermediate_nodes__(
         self, origin_idx: int, destination_idx: int, sequence: str = "lat_lon"
-    ) -> list[list[int | float]]:
+    ) -> list[list[float]]:
         """
         Function:
 
@@ -2497,7 +2497,7 @@ class GeoGraphUtils:
 
     def __get_coordinate_path__(
         self, path: list[int], get_intermediate_nodes: bool = False
-    ) -> list[list[int | float]]:
+    ) -> list[list[float]]:
         """
         Function:
 
@@ -2719,7 +2719,7 @@ class GeoGraph(
     def __init__(
         self,
         graph: list[dict[int, int | float]],
-        nodes: list[list[int | float]],
+        nodes: list[list[float]],
         validate: bool = False,
         intermediate_nodes: list[list[list[int | float]]] | None = None,
         default_off_graph_circuity: float = 1,
