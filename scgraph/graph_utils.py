@@ -461,6 +461,7 @@ class GraphUtils:
         Returns:
 
         - The adjacency dictionary for the specified node: the weight of each arc by the id of its destination node
+        - Note: The pure-Python build returns the graph's own dictionary, with the weights as they were given; the C++ build returns a copy with float weights. Do not modify the result
 
         Raises:
 
