@@ -833,12 +833,12 @@ def test_saving_into_the_built_networks_of_the_cache_is_refused(
 
 def test_piece_arrays_resume_mapping(tmp_path):
     folder = tmp_path / "stage1"
-    pieces = assembly.PieceArrays(folder=str(folder))
+    pieces = assembly.PieceArrays(work_dir=str(folder))
     pieces.append(
         101, 102, 12.5, 0, [[48.8, 2.3], [48.9, 2.4]], [[48.85, 2.35]]
     )
     pieces.flush()
-    reloaded = assembly.PieceArrays(folder=str(folder), truncate=False)
+    reloaded = assembly.PieceArrays(work_dir=str(folder), truncate=False)
     assert len(reloaded.km) == 1 and reloaded.origins[0] == 101
     assert reloaded.destinations[0] == 102 and reloaded.km[0] == 12.5
     graph = assembly.build_graph_from_pieces(reloaded)

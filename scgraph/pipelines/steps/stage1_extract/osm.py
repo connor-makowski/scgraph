@@ -159,15 +159,17 @@ class _Junctions:
         return i < len(self.ids) and self.ids[i] == ref
 
 
-def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
+def locate_ways(
+    source, way_selectors, required_tag_keys=(), node_store=None, work_dir=None
+):
     """
-    Locate the ways of `source` that `selects` keep, in one set of passes for every kind
+    Locate the ways of `source` that `way_selectors` keep, in one set of passes for every kind
     of way (roads and ferries, for example).
 
-    `selects` maps a kind of way to its `select(tags)`, which gives the direction of a way:
+    `way_selectors` maps a kind of way to its `select(tags)`, which gives the direction of a way:
     1 (one way along its drawing), -1 (against it), 0 (both ways), or None to leave it to
     the next select; a way goes to the first select that keeps it, in the mapping's order.
-    If `tag_keys` is given, the ways that have none of these keys are dropped first, in
+    If `required_tag_keys` is given, the ways that have none of these keys are dropped first, in
     osmium.
 
     `source` is the path of an OSM file, or an object whose `file(entities)` returns what
@@ -190,11 +192,13 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
     one of its nodes is missing from the file.
     """
     osmium = require_osmium()
-    if folder:
-        os.makedirs(folder, exist_ok=True)
-    pass2_done = os.path.join(folder, "pass2.done") if folder else None
-    junc_file = os.path.join(folder, "pass1_junctions.bin") if folder else None
-    ways_file = os.path.join(folder, "pass1_ways.bin") if folder else None
+    if work_dir:
+        os.makedirs(work_dir, exist_ok=True)
+    pass2_done = os.path.join(work_dir, "pass2.done") if work_dir else None
+    junc_file = (
+        os.path.join(work_dir, "pass1_junctions.bin") if work_dir else None
+    )
+    ways_file = os.path.join(work_dir, "pass1_ways.bin") if work_dir else None
     nodes_file = (
         node_store.partition(",")[2]
         if (node_store and "," in node_store)
@@ -203,7 +207,7 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
 
     # Resume: if pass 2 was already completed, reload junctions and kept ways from disk
     if (
-        folder
+        work_dir
         and pass2_done
         and os.path.isfile(pass2_done)
         and os.path.isfile(junc_file)
@@ -228,8 +232,10 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
         # First pass: the nodes of kept ways; a node seen again is a junction
         tracker, kept = osmium.IdTracker(), osmium.IdTracker()
         seen, repeats = tracker.node_ids(), array("q")
-        kept_ways = array("q") if folder else None
-        for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
+        kept_ways = array("q") if work_dir else None
+        for _, _, way in _selected_ways(
+            osmium, source, way_selectors, required_tag_keys
+        ):
             kept.add_way(way.id)
             if kept_ways is not None:
                 kept_ways.append(way.id)
@@ -243,13 +249,13 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
         del repeats
         gc.collect()
 
-        if folder and junc_file and ways_file:
+        if work_dir and junc_file and ways_file:
             with open(junc_file, "wb") as f:
                 junctions.ids.tofile(f)
             with open(ways_file, "wb") as f:
                 kept_ways.tofile(f)
             del kept_ways
-            Path(folder, "pass1.done").write_text("done\n")
+            Path(work_dir, "pass1.done").write_text("done\n")
 
         # Second pass: locations of kept nodes into store
         node_store = node_store or "flex_mem"
@@ -275,14 +281,19 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
             except OSError:
                 pass
 
-        if folder and pass2_done:
+        if work_dir and pass2_done:
             Path(pass2_done).write_text("done\n")
 
     # Third pass, as the polylines are read: the located pieces of the kept ways
     def polylines(locations):
         locations.ignore_errors()
         for kind, way_direction, way in _selected_ways(
-            osmium, source, selects, tag_keys, kept.id_filter(), locations
+            osmium,
+            source,
+            way_selectors,
+            required_tag_keys,
+            kept.id_filter(),
+            locations,
         ):
             for piece in _located_pieces(way.nodes):
                 yield kind, way_direction, piece
@@ -290,61 +301,73 @@ def locate_ways(source, selects, tag_keys=(), node_store=None, folder=None):
     return junctions, polylines(osmium.NodeLocationsForWays(store))
 
 
-def read_osm(source, select, tag_keys=(), max_km=MAX_KM):
+def read_osm(
+    source, way_filter, required_tag_keys=(), max_km_between_nodes=MAX_KM
+):
     """
-    Build the graph of the ways of `source` that `select` keeps (`locate_ways`, then
-    `polylines_to_graph`), a way being also cut where a piece reaches `max_km`
+    Build the graph of the ways of `source` that `way_filter` keeps (`locate_ways`, then
+    `polylines_to_graph`), a way being also cut where a piece reaches `max_km_between_nodes`
     (`cut_polylines`).
 
     Returns `(graph, nodes, shapes, node_ids)` in the GeoGraph layout, `node_ids` being
     the OSM ids of the nodes.
     """
-    junctions, polylines = locate_ways(source, {"ways": select}, tag_keys)
+    junctions, polylines = locate_ways(
+        source, {"ways": way_filter}, required_tag_keys
+    )
     polylines = (
         (way_direction, points) for _, way_direction, points in polylines
     )
-    return polylines_to_graph(polylines, junctions, max_km)
+    return polylines_to_graph(polylines, junctions, max_km_between_nodes)
 
 
-def build_way_pieces(source, selects, tag_keys, max_km, folder=None):
-    """The pieces (`assembly.PieceArrays`) of the ways of `source` that `selects` keep
+def build_way_pieces(
+    source,
+    way_selectors,
+    required_tag_keys,
+    max_km_between_nodes,
+    work_dir=None,
+):
+    """The pieces (`assembly.PieceArrays`) of the ways of `source` that `way_selectors` keep
     (`locate_ways`, one read for every kind), cut at their junctions and where a piece
-    reaches `max_km` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
+    reaches `max_km_between_nodes` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
     joins the road nodes nearest its two ends if both lie within FERRY_END_KM
     (`build_ferry_arcs`). Returns `(pieces, steps)`; no way kept raises a ValueError. With a
-    `folder`, the node locations and the pieces are kept in files there.
+    `work_dir`, the node locations and the pieces are kept in files there.
     """
-    if folder:
-        done_marker = os.path.join(folder, "stage1.done")
+    if work_dir:
+        done_marker = os.path.join(work_dir, "stage1.done")
         if os.path.isfile(done_marker):
             try:
                 with open(done_marker, "r") as f:
                     return PieceArrays(
-                        folder=folder, truncate=False
+                        work_dir=work_dir, truncate=False
                     ), json.load(f)
             except OSError:
                 pass
-    nodes = folder and os.path.join(folder, "nodes")
+    nodes = work_dir and os.path.join(work_dir, "nodes")
     store = nodes and "sparse_file_array," + nodes
     junctions, ways = locate_ways(
-        source, selects, tag_keys, store, folder=folder
+        source, way_selectors, required_tag_keys, store, work_dir=work_dir
     )
-    pieces, ferries = PieceArrays(folder=folder), []
+    pieces, ferries = PieceArrays(work_dir=work_dir), []
     for kind, direction, points in ways:
         if kind == "ferries":
             ferries.append((direction, points))
             continue
         where = dict(points)
         for origin, destination, km, way, shape in cut_polylines(
-            [(direction, points)], junctions, max_km
+            [(direction, points)], junctions, max_km_between_nodes
         ):
             ends = where[origin], where[destination]
             pieces.append(origin, destination, km, way, ends, shape)
     pieces.flush()
     if not len(pieces.km):
-        raise ValueError(f"No way of {source} is kept by {', '.join(selects)}")
+        raise ValueError(
+            f"No way of {source} is kept by {', '.join(way_selectors)}"
+        )
     steps = [{"step": "read", "pieces": len(pieces.km)}]
-    if "ferries" in selects:
+    if "ferries" in way_selectors:
         # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
         # piece u // 2's origin or destination (ties in nearest: the first end)
         lats, lons = pieces.ends[0::2], pieces.ends[1::2]
@@ -362,8 +385,8 @@ def build_way_pieces(source, selects, tag_keys, max_km, folder=None):
                 ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
             )
         steps.append({"step": "ferries", "arcs": len(arcs)})
-    if folder:
-        with open(os.path.join(folder, "stage1.done"), "w") as f:
+    if work_dir:
+        with open(os.path.join(work_dir, "stage1.done"), "w") as f:
             json.dump(steps, f)
     return pieces, steps
 

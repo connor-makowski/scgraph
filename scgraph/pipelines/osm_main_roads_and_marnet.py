@@ -76,20 +76,21 @@ def build(
     files,
     *,
     source=osm.open_osm_source,
-    max_km=osm.MAX_KM,
-    min_nodes=None,
-    folder=None,
+    max_km_between_nodes=osm.MAX_KM,
+    min_nodes_per_strongly_connected_component=None,
+    work_dir=None,
 ):
     """The keywords give another scale (`world_main_roads_and_marnet`);
-    `min_nodes=None` keeps the largest component only."""
-    stage1_folder = os.path.join(folder, "stage1") if folder else None
-    stage2_folder = os.path.join(folder, "stage2") if folder else None
+    `min_nodes_per_strongly_connected_component=None` keeps the largest component only.
+    """
+    stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
+    stage2_work_dir = os.path.join(work_dir, "stage2") if work_dir else None
     pieces, steps = osm.build_way_pieces(
         source(files["roads"]),
         SELECTS,
         ("highway", "route"),
-        max_km,
-        stage1_folder,
+        max_km_between_nodes,
+        stage1_work_dir,
     )
     graph = assembly.build_graph_from_pieces(pieces)
     sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
@@ -107,10 +108,12 @@ def build(
     )
     wpi = ports.world_port_index(files["ports"])
     wpi = [p for p in wpi if mask.cell(*p[:2]) is not None]
-    graph, joined = ports.join(graph, sea, wpi, mask, stage2_folder)
+    graph, joined = ports.join(graph, sea, wpi, mask, work_dir=stage2_work_dir)
     steps.append({"step": "ports", "joined": joined})
     arrays, assembled = assembly.assemble(
-        graph, max_km=max_km, min_nodes=min_nodes
+        graph,
+        max_km_between_nodes=max_km_between_nodes,
+        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
     )
     return (arrays, MODES), steps + assembled
 

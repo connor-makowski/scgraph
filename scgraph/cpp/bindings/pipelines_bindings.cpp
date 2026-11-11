@@ -45,26 +45,26 @@ void bind_pipelines(nb::module_& m) {
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
     };
     m.def("strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
-    m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Modes> modes,
-                                double max_km) {
+    m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Modes> node_modes,
+                                double max_km_between_nodes) {
         const int64_t n = (int64_t)offsets.shape(0) - 1;
-        if (weights.shape(0) != heads.shape(0) || (modes && (int64_t)modes->shape(0) != n))
+        if (weights.shape(0) != heads.shape(0) || (node_modes && (int64_t)node_modes->shape(0) != n))
             throw std::invalid_argument("expected one weight per arc and one mode per node");
         auto c = assembly::contract_chains(offsets.data(), heads.data(), weights.data(),
-                                           modes ? modes->data() : nullptr, n, (int64_t)heads.shape(0), max_km);
+                                           node_modes ? node_modes->data() : nullptr, n, (int64_t)heads.shape(0), max_km_between_nodes);
         return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
                               owned_view(std::move(c.heads)), owned_view(std::move(c.weights)),
                               owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
-    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("modes") = nb::none(),
-       nb::arg("max_km") = std::numeric_limits<double>::infinity());
-    m.def("simplify_shapes", [](Int32Array points, Int32Array offsets, Int32Array ends, double tolerance_m) {
-        const int64_t shapes = (int64_t)offsets.shape(0) - 1;
-        if (points.shape(0) % 2 || (int64_t)ends.shape(0) != 4 * shapes)
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("node_modes") = nb::none(),
+       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity());
+    m.def("simplify_shapes", [](Int32Array shape_points, Int32Array shape_offsets, Int32Array endpoint_coords, double tolerance_meters) {
+        const int64_t shapes = (int64_t)shape_offsets.shape(0) - 1;
+        if (shape_points.shape(0) % 2 || (int64_t)endpoint_coords.shape(0) != 4 * shapes)
             throw std::invalid_argument("expected two ints per point and four ends per shape");
-        auto r = assembly::simplify_shapes(points.data(), (int64_t)points.shape(0) / 2, offsets.data(), ends.data(),
-                                           shapes, tolerance_m);
+        auto r = assembly::simplify_shapes(shape_points.data(), (int64_t)shape_points.shape(0) / 2, shape_offsets.data(), endpoint_coords.data(),
+                                           shapes, tolerance_meters);
         return nb::make_tuple(owned_view(std::move(r.points)), owned_view(std::move(r.offsets)));
-    }, nb::arg("points"), nb::arg("offsets"), nb::arg("ends"), nb::arg("tolerance_m"));
+    }, nb::arg("shape_points"), nb::arg("shape_offsets"), nb::arg("endpoint_coords"), nb::arg("tolerance_meters"));
 
     // Water paths on a land raster (contract in scgraph/pipelines/steps/landmask.py)
     auto bind_water = [](Uint8Array bits,

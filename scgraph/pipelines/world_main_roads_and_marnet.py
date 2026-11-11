@@ -39,25 +39,25 @@ MIN_NODES = 1000  # nodes of the smallest component kept
 download = regional.download  # for the other sources: checks osmium first
 
 
-def build(files: dict[str, str], *, source=osm.open_osm_source, folder=None):
+def build(files: dict[str, str], *, source=osm.open_osm_source, work_dir=None):
     """Build the world main roads and marnet intermodal network.
 
     Args:
         files: Mapping of source identifiers to local file paths.
         source: Factory resolving the OSM source reader (defaults to open_osm_source).
-        folder: Working directory for intermediate checkpoints.
+        work_dir: Working directory for intermediate checkpoints.
 
     Returns:
         Tuple of ((arrays, modes), steps) describing the built multimodal network.
     """
-    if folder is None and "roads" in files:
-        folder = os.path.dirname(files["roads"])
+    if work_dir is None and "roads" in files:
+        work_dir = os.path.dirname(files["roads"])
     return regional.build(
         files,
         source=source,
-        max_km=MAX_KM,
-        min_nodes=MIN_NODES,
-        folder=folder,
+        max_km_between_nodes=MAX_KM,
+        min_nodes_per_strongly_connected_component=MIN_NODES,
+        work_dir=work_dir,
     )
 
 

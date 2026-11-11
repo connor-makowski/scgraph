@@ -325,7 +325,9 @@ def build_file(
             logger.info("Building %s", name)
             sig = inspect.signature(network.build)
             build_kwargs = {}
-            if "folder" in sig.parameters:
+            if "work_dir" in sig.parameters:
+                build_kwargs["work_dir"] = str(work)
+            elif "folder" in sig.parameters:
                 build_kwargs["folder"] = str(work)
             network_built = network.build(
                 {source: str(path) for source, path in files.items()},

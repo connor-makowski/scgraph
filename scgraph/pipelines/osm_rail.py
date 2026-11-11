@@ -21,23 +21,25 @@ def build(
     files,
     *,
     source=osm.open_osm_source,
-    max_km=osm.MAX_KM,
-    min_nodes=None,
-    folder=None,
+    max_km_between_nodes=osm.MAX_KM,
+    min_nodes_per_strongly_connected_component=None,
+    work_dir=None,
 ):
-    """The keywords give another scale (`europe_rail`); `min_nodes=None` keeps
+    """The keywords give another scale (`europe_rail`); `min_nodes_per_strongly_connected_component=None` keeps
     the largest component only."""
-    stage1_folder = os.path.join(folder, "stage1") if folder else None
+    stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     pieces, steps = osm.build_way_pieces(
         source(files["rail"]),
         {"rail": rail},
         ("railway",),
-        max_km,
-        stage1_folder,
+        max_km_between_nodes=max_km_between_nodes,
+        work_dir=stage1_work_dir,
     )
     graph = assembly.build_graph_from_pieces(pieces)
     arrays, assembled = assembly.assemble(
-        graph, max_km=max_km, min_nodes=min_nodes
+        graph,
+        max_km_between_nodes=max_km_between_nodes,
+        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
     )
     return (arrays, [{"name": None}]), steps + assembled
 

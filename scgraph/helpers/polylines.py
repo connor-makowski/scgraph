@@ -9,10 +9,10 @@ from scgraph.helpers.hilbert import hilbert_key
 from scgraph.utils import haversine
 
 
-def cut_polylines(polylines, junctions, max_km):
+def cut_polylines(polylines, junctions, max_km_between_nodes):
     """
     Cut each polyline at its ends, at its junctions and at the first point where the piece
-    since the last cut reaches `max_km`, and yield
+    since the last cut reaches `max_km_between_nodes`, and yield
     `(origin_id, destination_id, km, direction, shape)` for each piece.
 
     `polylines` yields `(direction, points)`: `direction` is 1 (one way, along the points), -1
@@ -28,14 +28,14 @@ def cut_polylines(polylines, junctions, max_km):
             if (
                 i == len(points) - 1
                 or points[i][0] in junctions
-                or km >= max_km
+                or km >= max_km_between_nodes
             ):
                 shape = [point for _, point in points[start + 1 : i]]
                 yield points[start][0], points[i][0], km, direction, shape
                 start, km = i, 0.0
 
 
-def polylines_to_graph(polylines, junctions, max_km):
+def polylines_to_graph(polylines, junctions, max_km_between_nodes):
     """
     Collect the `cut_polylines` of `polylines` into a graph: there are no self-loops, and parallel
     arcs keep the shortest (the first seen among arcs of equal length).
@@ -48,7 +48,7 @@ def polylines_to_graph(polylines, junctions, max_km):
     for polyline in polylines:
         where = dict(polyline[1])
         for origin, destination, km, direction, shape in cut_polylines(
-            [polyline], junctions, max_km
+            [polyline], junctions, max_km_between_nodes
         ):
             if origin == destination:
                 continue  # a loop never lies on a shortest path
