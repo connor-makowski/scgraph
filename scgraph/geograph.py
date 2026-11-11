@@ -1113,7 +1113,9 @@ class GeoGraphIO:
                     remove(cache_path.joinpath(published + suffix))
         if name is None:
             remove(root)
-            remove(cache_path.joinpath(".work"))  # interrupted or kept builds
+            remove(
+                cache_path.joinpath(".work")
+            )  # failed, interrupted or kept builds
         elif region is None:
             remove(root.joinpath(name))
         else:
@@ -1144,7 +1146,7 @@ class GeoGraphIO:
         Returns:
 
         - A list of dicts, one per file or folder:
-            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running or was interrupted; `clear_geograph_cache()` removes it)
+            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
             - `name`: str | None — the network name
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder
@@ -1289,7 +1291,7 @@ class GeoGraphIO:
         - `ValueError` for an unknown name or a pipeline module named like a built-in one, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
-        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; no file of the build is left in the cache, and a network already cached stays there
+        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps what it downloaded in `.work/` of the cache directory, for the next call to resume from (`clear_geograph_cache()` removes it)
         """
         if lazy:
             return LazyGeoGraph(
