@@ -24,13 +24,17 @@ from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from functools import partial
 from pathlib import Path
-from typing import Callable, Literal
+from typing import TYPE_CHECKING, Callable, Literal
 from scgraph import Graph
 
 try:
     from scgraph.cpp import NodeOrderError, SnapIndex
 except ImportError:
     from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
+
+if TYPE_CHECKING:  # annotations only: imported where they are used
+    import networkx
+    from geokdtree import GeoKDTree
 
 logger = logging.getLogger(__name__)
 
@@ -371,13 +375,13 @@ class GeoGraphIO:
         filename: str,
         precision: int = 5,
         pct_to_keep: int | float = 100,
-        min_points=3,
+        min_points: int = 3,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
         reduce_iterations: int = 0,
         lazy: bool = False,
         max_km_between_nodes: float | int | None = None,
-    ):
+    ) -> "GeoGraph":
         """
         Function:
 
@@ -1372,7 +1376,7 @@ class GeoGraphIO:
 
     @staticmethod
     def load_from_osmnx_graph(
-        osmnx_graph,
+        osmnx_graph: "networkx.MultiDiGraph",
         coord_precision: int = 5,
         weight_precision: int = 3,
         weight_key: Literal["length", "travel_time"] = "length",
@@ -1381,7 +1385,7 @@ class GeoGraphIO:
         silent: bool = False,
         reduce_iterations: int = 0,
         lazy: bool = False,
-    ):
+    ) -> "GeoGraph":
         """
         Function:
 
@@ -2010,7 +2014,7 @@ class GeoGraphModifiers:
 
     def merge_with_other_geograph(
         self,
-        other_geograph,
+        other_geograph: "GeoGraph",
         connection_nodes: list[list[int | float]],
         circuity_to_current_geograph: float | int = 1.2,
         circuity_to_other_geograph: float | int = 1.2,
@@ -2634,7 +2638,7 @@ class GeoGraphDistanceCalculations:
         self,
         origin_id: int,
         destination_id: int,
-    ):
+    ) -> float:
         """
         Function:
 
@@ -2665,7 +2669,7 @@ class GeoGraphDistanceCalculations:
         self,
         origin_id: int,
         destination_id: int,
-    ):
+    ) -> float:
         """
         Function:
 
@@ -2900,7 +2904,7 @@ class GeoGraph(
             self.__geokdtree__ = None
 
     @property
-    def geokdtree(self):
+    def geokdtree(self) -> "GeoKDTree":
         """
         A `geokdtree.GeoKDTree` of the nodes.
         Interchangeable with `snap_index`, sharing the same `closest_idx` and
@@ -2913,7 +2917,7 @@ class GeoGraph(
         return self.__geokdtree__
 
     @geokdtree.setter
-    def geokdtree(self, geokdtree) -> None:
+    def geokdtree(self, geokdtree: "GeoKDTree | None") -> None:
         self.__geokdtree__ = geokdtree
         self.snap_index = geokdtree
 

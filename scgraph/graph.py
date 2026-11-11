@@ -1,3 +1,5 @@
+from array import array
+from collections.abc import Callable, Sequence
 from heapq import heappop, heappush
 from math import asin, ceil, cos, sin
 from typing import Any
@@ -934,8 +936,8 @@ class GraphAlgorithms:
         self,
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
-        latitudes,
-        longitudes,
+        latitudes: array | memoryview,
+        longitudes: array | memoryview,
         radius: float,
     ) -> dict:
         """
@@ -1074,7 +1076,7 @@ class GraphAlgorithms:
         origin_id: int | set[int],
         destination_id: int,
         use_constant_degree_graph: bool = True,
-    ):
+    ) -> dict:
         """
         Function:
 
@@ -1130,7 +1132,7 @@ class GraphAlgorithms:
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
         length_only: bool = False,
-    ):
+    ) -> dict:
         """
         Function:
 
@@ -1199,7 +1201,10 @@ class GraphAlgorithms:
         return res
 
     def create_contraction_hierarchy(
-        self, heuristic_fn=None, ch_graph_kwargs=None, settled_limit: int = 50
+        self,
+        heuristic_fn: Callable[[CHGraph, int], int | float] | None = None,
+        ch_graph_kwargs: dict | None = None,
+        settled_limit: int = 50,
     ) -> Any:
         """
         Function:
@@ -1237,7 +1242,7 @@ class GraphAlgorithms:
         num_transit_nodes: int = 100,
         tnr_graph_kwargs: dict = None,
         settled_limit: int = 50,
-        heuristic_fn=None,
+        heuristic_fn: Callable[[CHGraph, int], int | float] | None = None,
     ) -> Any:
         """
         Function:
@@ -1431,7 +1436,11 @@ class Graph(
             self.validate()
 
     @staticmethod
-    def from_csr(offsets, heads, weights) -> "Graph":
+    def from_csr(
+        offsets: Sequence[int],
+        heads: Sequence[int],
+        weights: Sequence[int | float],
+    ) -> "Graph":
         """
         Function:
 

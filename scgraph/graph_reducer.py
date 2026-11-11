@@ -1,15 +1,20 @@
 import gc
 import inspect
+from collections.abc import Callable
 from functools import wraps
 from heapq import heappop, heappush
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # annotations only
+    from scgraph.contraction_hierarchies import CHGraph
 
 
 def algorithm(
-    func=None,
+    func: Callable | None = None,
     *,
     bidirectional: bool = False,
     name: str | None = None,
-):
+) -> Callable:
     """
     Function:
 
@@ -45,7 +50,9 @@ def algorithm(
     return decorator
 
 
-def hidden_nodes(pointers, node: int, root: int, inverse: bool) -> list[int]:
+def hidden_nodes(
+    pointers: list[dict[int, int] | None], node: int, root: int, inverse: bool
+) -> list[int]:
     """
     Function:
 
@@ -67,7 +74,9 @@ def hidden_nodes(pointers, node: int, root: int, inverse: bool) -> list[int]:
     return path
 
 
-def connections(pointers, inverse: bool) -> list[dict[int, list[int]] | None]:
+def connections(
+    pointers: list[dict[int, int] | None], inverse: bool
+) -> list[dict[int, list[int]] | None]:
     """
     Function:
 
@@ -122,7 +131,9 @@ class GraphReducer:
         return self.__reduced_graph_connections__
 
     @reduced_graph_connections.setter
-    def reduced_graph_connections(self, value) -> None:
+    def reduced_graph_connections(
+        self, value: list[dict[int, list[int]] | None] | None
+    ) -> None:
         self.__reduced_graph_connections__ = value
 
     @property
@@ -139,7 +150,9 @@ class GraphReducer:
         return self.__reduced_inverse_graph_connections__
 
     @reduced_inverse_graph_connections.setter
-    def reduced_inverse_graph_connections(self, value) -> None:
+    def reduced_inverse_graph_connections(
+        self, value: list[dict[int, list[int]] | None] | None
+    ) -> None:
         self.__reduced_inverse_graph_connections__ = value
 
     @_without_gc
@@ -390,7 +403,10 @@ class GraphReducer:
                         predecessor[v] = u
                         heappush(open_leaves, (new_dist, v))
 
-    def wrap_heuristic(self, heuristic_fn=None):
+    def wrap_heuristic(
+        self,
+        heuristic_fn: Callable[["CHGraph", int], int | float] | None = None,
+    ) -> Callable[["CHGraph", int], int | float] | None:
         """
         Function:
 
@@ -409,8 +425,8 @@ class GraphReducer:
         )
 
     def run_with_reduced(
-        self, func, *args, is_bidirectional: bool = False, **kwargs
-    ):
+        self, func: Callable, *args, is_bidirectional: bool = False, **kwargs
+    ) -> dict:
         """
         Function:
 
