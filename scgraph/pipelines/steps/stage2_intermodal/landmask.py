@@ -151,9 +151,9 @@ class LandMask:
            navigable inland river channels.
 
         Parameters:
-            land (str | dict): Path to Natural Earth land GeoJSON file or parsed dict.
-            lakes (str | dict): Path to Natural Earth lakes GeoJSON file or parsed dict.
-            rivers (str | dict): Path to Natural Earth rivers GeoJSON file or parsed dict.
+            land (str): Path to Natural Earth land GeoJSON file.
+            lakes (str): Path to Natural Earth lakes GeoJSON file.
+            rivers (str): Path to Natural Earth rivers GeoJSON file.
             cells_per_degree (int): Resolution in cells per degree. Defaults to 240
                 (1/240 degree per cell, ~460m at the equator).
             bbox (tuple[float, float, float, float] | None): Optional bounding box
