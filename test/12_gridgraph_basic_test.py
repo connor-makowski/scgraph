@@ -1,3 +1,5 @@
+import pytest
+
 from scgraph import GridGraph
 from scgraph.utils import hard_round
 
@@ -45,7 +47,14 @@ def test_basic_gridgraph_a_star():
     assert hard_round(4, output["length"]) == _EXPECTED_LENGTH
 
 
-def test_off_graph_nodes():
+@pytest.mark.parametrize(
+    "output_coordinate_path, as_point",
+    [
+        ("list_of_lists", list),
+        ("list_of_dicts", lambda point: {"x": point[0], "y": point[1]}),
+    ],
+)
+def test_off_graph_nodes(output_coordinate_path, as_point):
     grid = GridGraph(
         x_size=_X_SIZE,
         y_size=_Y_SIZE,
@@ -56,7 +65,9 @@ def test_off_graph_nodes():
     output = grid.get_shortest_path(
         origin_node={"x": 1, "y": 1.1},
         destination_node={"x": 1, "y": 2.3},
-        output_coordinate_path="list_of_lists",
+        output_coordinate_path=output_coordinate_path,
     )
     assert hard_round(4, output["length"]) == _EXPECTED_OFF_GRAPH["length"]
-    assert output["coordinate_path"] == _EXPECTED_OFF_GRAPH["coordinate_path"]
+    assert output["coordinate_path"] == [
+        as_point(point) for point in _EXPECTED_OFF_GRAPH["coordinate_path"]
+    ]

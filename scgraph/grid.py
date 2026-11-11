@@ -434,7 +434,7 @@ class GridGraph:
             return (cooinate_dict["x"], cooinate_dict["y"])
         elif output_coorinate_path == "list_of_lists":
             return [cooinate_dict["x"], cooinate_dict["y"]]
-        elif output_coordinate_path == "list_of_dicts":
+        elif output_coorinate_path == "list_of_dicts":
             return {"x": cooinate_dict["x"], "y": cooinate_dict["y"]}
         else:
             raise ValueError("Invalid output_coordinate_path format")
