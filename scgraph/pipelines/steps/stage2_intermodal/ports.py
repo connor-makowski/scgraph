@@ -244,7 +244,7 @@ def find_sea_connector(
     port_coords: Sequence[float],
     sea_cell_targets: array,
     cell_to_sea_node: dict[int, int],
-    sea_node_coords: Sequence[list[float]],
+    sea_node_coords: Sequence[Sequence[float]],
     land_mask: "LandMask",
 ) -> tuple[int, float, list[list[float]]] | None:
     """`(sea node, km, path)`: the sea connector of `port_coords`, or None. `sea_cell_targets`: the mask

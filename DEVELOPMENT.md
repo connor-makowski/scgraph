@@ -217,7 +217,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
     )
 ```
 
-**Fakes:** a test may replace the download (`requests.get`, or a source URL pointed at a local server), nothing of scgraph or of the standard library.
+**Fakes:** a test may replace the download (`requests.get`, or a source URL pointed at a local server); it does not replace a function or a constant of scgraph.
 
 When adding a new feature, add a corresponding `NN_*_test.py` file. pytest discovers all `*_test.py` files in `test/` automatically.
 
@@ -228,8 +228,8 @@ When adding a new feature, add a corresponding `NN_*_test.py` file. pytest disco
 - **Line length**: 80 characters (black config in `pyproject.toml`)
 - **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
 - **Checks**: Run `uv run python utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR; a `noqa` gives its reason. The rules are in `pyproject.toml`.
-- **Names**: A function starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`), a boolean function with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members.
-- **Types**: Public functions annotate parameters and return, with built-in types and `X | Y`. One kind of value has one form: a number parameter `float`; a weight or length whose integer type shows in a result `int | float`; a `[latitude, longitude]` pair `Sequence[float]`; a buffer of a kernel `array | memoryview`; a path `str | os.PathLike`; a default of `None` adds `| None`; anything `object`. A type of an optional dependency is a string.
+- **Names**: A function starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`), a boolean function with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members; double underscores are for Python's own methods.
+- **Types**: Public functions annotate parameters and return, with built-in types and `X | Y`; names that start with `_` may. One kind of value has one form: a number parameter `float`; a returned length, and the weights inside a graph, `int | float`; a `[latitude, longitude]` pair `Sequence[float]`; a buffer of a kernel `array | memoryview`; a path `str | os.PathLike`; a function `Callable` (from `collections.abc`), with its signature where it is known; a default of `None` adds `| None`; a value of any type is `object`, not `Any`. A type of an optional dependency is a string.
 - **Docstrings and comments**: A docstring gives summary, parameters and return; it adds the unit, the constraints and the content of a result, not the type. A comment gives a reason, in full sentences; no history, no issue number.
 - **Exceptions**: A specific type (`ValueError`, `PathNotFoundError`…), the same in C++ and in pure Python.
 - **Numbers**: Integer coordinates (1e-7 degree) are widened to 64 bits before a difference or a product; distances are `float64`.

@@ -590,8 +590,8 @@ class PieceArrays:
         destination_id: int,
         length_km: float,
         direction: int,
-        endpoint_coords: Iterable[Iterable[float]],
-        shape_points: Iterable[Iterable[float]],
+        endpoint_coords: Iterable[Sequence[float]],
+        shape_points: Iterable[Sequence[float]],
     ) -> None:
         """One piece; `endpoint_coords` and `shape_points`: [latitude, longitude] points in degrees."""
         new = self._new
