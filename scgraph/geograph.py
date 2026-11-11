@@ -370,7 +370,7 @@ class GeoGraphIO:
         arrays.update(
             zip(
                 network_file.COORDINATES,
-                network_file.coordinates(columns, coordinate_dtype),
+                network_file.extract_coordinates(columns, coordinate_dtype),
             )
         )
         return network_file.write(filename, arrays, metadata=metadata)
@@ -695,7 +695,7 @@ class GeoGraphIO:
         return geograph
 
     @staticmethod
-    def scgraph_info(filename: str) -> dict:
+    def get_scgraph_info(filename: str) -> dict:
         """
         Function:
 
@@ -713,7 +713,7 @@ class GeoGraphIO:
         - A dict: the metadata `save_as_scgraph` wrote (`units`, `sources`, `modes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `arcs`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
-        info = network_file.info(filename)
+        info = network_file.get_scgraph_info(filename)
         if "sources" in info:
             sources = info["sources"]
             credits = dict.fromkeys(
@@ -729,6 +729,8 @@ class GeoGraphIO:
             ]
             info["data_up_to"] = max(dates, default=None)
         return info
+
+    scgraph_info = get_scgraph_info
 
     @staticmethod
     def load_from_scgraph(
@@ -1428,19 +1430,17 @@ class GeoGraphIO:
                         }
                     )
                 logger.info("Building %s", name)
-                # Written in Hilbert order within each mode: nodes close on the globe
-                # get close ids
-                geograph = network.build(
+                network_built = network.build(
                     {source: str(path) for source, path in files.items()}
                 )
-                geograph, steps = (
-                    geograph
-                    if isinstance(geograph, tuple)
-                    else (geograph, None)
+                network_built, steps = (
+                    network_built
+                    if isinstance(network_built, tuple)
+                    else (network_built, None)
                 )
                 # Everything that describes the network, except clock times, so that
                 # the same rules, sources and software give the same file
-                metadata = pipelines.build_metadata(
+                metadata_card = pipelines.build_metadata(
                     name,
                     region,
                     network.PIPELINE_VERSION,
@@ -1448,9 +1448,20 @@ class GeoGraphIO:
                     network.__doc__,
                     steps,
                 )
-                digest = geograph.save_as_scgraph(
-                    str(building), metadata=metadata
-                )
+                if isinstance(network_built, GeoGraph):
+                    digest = network_built.save_as_scgraph(
+                        str(building), metadata=metadata_card
+                    )
+                else:  # the network file's arrays, already in that order
+                    arrays, modes = network_built
+                    metadata = network_file.header_metadata(
+                        metadata_card,
+                        units="km",
+                        default_off_graph_circuity=1,
+                        default_node_addition_circuity=4,
+                        modes=modes,
+                    )
+                    digest = network_file.write(str(building), arrays, metadata)
                 built_file = folder.joinpath(f"{digest}.scgraph")
                 work.joinpath("cache.json").write_text(
                     json.dumps(
