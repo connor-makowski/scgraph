@@ -84,3 +84,11 @@ def test_python_tnr_save_load(tmp_path):
 @pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
 def test_cpp_tnr_save_load(tmp_path):
     _test_save_load(CppTNRGraph, tmp_path)
+
+
+# A saved hierarchy is loaded with the class that the package exports, whatever
+# the build
+def test_tnr_save_load_with_the_exported_class(tmp_path):
+    from scgraph import TNRGraph
+
+    _test_save_load(TNRGraph, tmp_path)
