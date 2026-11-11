@@ -15,7 +15,7 @@ SOURCES = {
 }
 
 
-def build(files):
+def build(files: dict[str, str]) -> GeoGraph:
     return GeoGraph.load_from_geojson(
         files["sea_lanes"], precision=4, silent=True
     )

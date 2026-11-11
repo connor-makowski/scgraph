@@ -6,9 +6,14 @@ measured before.
 """
 
 import os
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage3_assembly import assembly
+
+if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
+    import osmium
 
 PIPELINE_VERSION = 1
 
@@ -18,13 +23,13 @@ download = osm.download  # checks osmium before downloading a large extract
 
 
 def build(
-    files,
+    files: dict[str, str],
     *,
-    source=osm.open_osm_source,
-    max_km_between_nodes=osm.MAX_KM,
-    min_nodes_per_strongly_connected_component=None,
-    work_dir=None,
-):
+    source: Callable = osm.open_osm_source,
+    max_km_between_nodes: float | int = osm.MAX_KM,
+    min_nodes_per_strongly_connected_component: int | None = None,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
     """The keywords give another scale (`europe_rail`); `min_nodes_per_strongly_connected_component=None` keeps
     the largest component only."""
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
@@ -44,7 +49,7 @@ def build(
     return (arrays, [{"name": None}]), steps + assembled
 
 
-def rail(tags):
+def rail(tags: "osmium.osm.TagList") -> int | None:
     """The direction of a railway line (`railway=rail`), None for any other way."""
     return osm.direction(tags) if tags.get("railway") == "rail" else None
 

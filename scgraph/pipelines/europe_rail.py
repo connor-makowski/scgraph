@@ -6,6 +6,7 @@ measured before.
 """
 
 import os
+from collections.abc import Callable
 
 from scgraph.pipelines import osm_rail
 from scgraph.pipelines.steps.stage1_extract import osm
@@ -23,7 +24,12 @@ MAX_KM = 5  # intermediate continental resolution
 MIN_NODES = 50  # retain regional rail networks
 
 
-def build(files: dict[str, str], *, source=osm.open_osm_source, work_dir=None):
+def build(
+    files: dict[str, str],
+    *,
+    source: Callable = osm.open_osm_source,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
     """Build the Europe railway network.
 
     Args:

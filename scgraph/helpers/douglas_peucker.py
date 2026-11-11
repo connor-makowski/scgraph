@@ -2,6 +2,7 @@
 
 import math
 from array import array
+from collections.abc import Sequence
 from operator import le
 
 # Metres per 1e-7 degree of latitude
@@ -13,7 +14,11 @@ def _is_monotonically_increasing(offsets):
     return offsets[0] == 0 and all(map(le, offsets, offsets[1:]))
 
 
-def perpendicular_distance(point, start, end):
+def perpendicular_distance(
+    point: Sequence[int | float],
+    start: Sequence[int | float],
+    end: Sequence[int | float],
+) -> float:
     """Calculate the perpendicular distance from a 2D point to a line segment.
 
     Parameters:
@@ -103,8 +108,11 @@ def douglas_peucker(
 
 
 def simplify_shapes(
-    shape_points, shape_offsets, endpoint_coords, tolerance_meters
-):
+    shape_points: array | memoryview,
+    shape_offsets: array | memoryview,
+    endpoint_coords: array | memoryview,
+    tolerance_meters: int | float,
+) -> tuple[array, array]:
     """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
 
     Drops intermediate shape points that fall within `tolerance_meters` metres of the

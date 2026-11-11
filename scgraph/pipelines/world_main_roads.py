@@ -17,6 +17,7 @@ from the OpenStreetMap planet: `osm_main_roads` at the scale of the planet.
 """
 
 import os
+from collections.abc import Callable
 
 from scgraph.pipelines import osm_main_roads
 from scgraph.pipelines.steps.stage1_extract import osm
@@ -28,7 +29,12 @@ MAX_KM = 10  # the cut and the contraction (first build)
 MIN_NODES = 1000  # nodes of the smallest component kept
 
 
-def build(files: dict[str, str], *, source=osm.open_osm_source, work_dir=None):
+def build(
+    files: dict[str, str],
+    *,
+    source: Callable = osm.open_osm_source,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
     """Build the world main roads and car ferries network.
 
     Args:

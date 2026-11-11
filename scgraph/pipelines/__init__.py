@@ -127,8 +127,13 @@ LARGE_DOWNLOAD = (
 
 
 def build_metadata(
-    name, region, version, sources, description=None, steps=None
-):
+    name: str,
+    region: str | None,
+    version: int,
+    sources: list[dict],
+    description: str | None = None,
+    steps: list[dict] | None = None,
+) -> dict:
     """The build metadata that `build_geograph` writes into a network file's header (its
     fields: this module's docstring), from plain values, without a GeoGraph: `name`,
     `region` and `version` are the pipeline's, `sources` the records of the downloaded

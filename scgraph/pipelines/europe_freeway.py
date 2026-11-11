@@ -6,6 +6,7 @@ measured before. Vehicle ferries attach to road nodes within 2 km.
 """
 
 import os
+from collections.abc import Callable
 
 from scgraph.pipelines import osm_main_roads
 from scgraph.pipelines.steps.stage1_extract import osm
@@ -23,7 +24,12 @@ MAX_KM = 5  # intermediate continental resolution
 MIN_NODES = 100  # retain European islands and regional networks
 
 
-def build(files: dict[str, str], *, source=osm.open_osm_source, work_dir=None):
+def build(
+    files: dict[str, str],
+    *,
+    source: Callable = osm.open_osm_source,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
     """Build the Europe freeway and main roads network.
 
     Args:

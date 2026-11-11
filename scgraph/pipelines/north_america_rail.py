@@ -18,7 +18,7 @@ SOURCES = {
 download = arcgis.download  # the layer is read page by page
 
 
-def build(files):
+def build(files: dict[str, str]) -> GeoGraph:
     # Arcs keep the length of their full shape, but not the shape itself: with about
     # 2 million points, it would make the network ten times slower to load
     return GeoGraph.load_from_geojson(

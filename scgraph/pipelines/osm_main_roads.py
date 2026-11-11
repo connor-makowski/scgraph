@@ -12,6 +12,7 @@ shapes.
 """
 
 import os
+from collections.abc import Callable
 
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage3_assembly import assembly
@@ -25,13 +26,13 @@ download = osm.download  # checks osmium before downloading a large extract
 
 
 def build(
-    files,
+    files: dict[str, str],
     *,
-    source=osm.open_osm_source,
-    max_km_between_nodes=osm.MAX_KM,
-    min_nodes_per_strongly_connected_component=None,
-    work_dir=None,
-):
+    source: Callable = osm.open_osm_source,
+    max_km_between_nodes: float | int = osm.MAX_KM,
+    min_nodes_per_strongly_connected_component: int | None = None,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
     """The keywords give another scale (`world_main_roads`); `min_nodes_per_strongly_connected_component=None` keeps
     the largest component only."""
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None

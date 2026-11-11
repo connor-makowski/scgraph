@@ -18,7 +18,7 @@ import secrets
 import sys
 from array import array
 from bisect import bisect_left
-from collections.abc import MutableSequence, Sequence
+from collections.abc import Iterable, MutableSequence, Sequence
 from itertools import islice
 from operator import eq, index, le
 from types import MappingProxyType
@@ -56,7 +56,9 @@ _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
 
 
-def extract_coordinates(columns, dtype):
+def extract_coordinates(
+    columns: Sequence[Sequence[float]], dtype: str
+) -> list[Sequence[float]]:
     """The columns of coordinates (float64 arrays of degrees) as a file stores them, in
     `dtype`: "float64" as they are, or "int32" in units of 1e-7 degree, rounded to it
     (OSM's encoding, about 1 cm). A value that is not a finite number, or beyond
@@ -79,7 +81,7 @@ def extract_coordinates(columns, dtype):
     return list(columns)
 
 
-def coordinate_dtype(arrays):
+def coordinate_dtype(arrays: dict[str, array | memoryview]) -> str:
     """The dtype of the coordinates of `read`'s arrays: "int32" or "float64"."""
     return "int32" if _scale(arrays["latitudes"]) != 1 else "float64"
 
@@ -111,11 +113,11 @@ RESERVED = frozenset(
 
 
 def header_metadata(
-    build_metadata,
+    build_metadata: dict,
     *,
-    units,
-    modes,
-):
+    units: str,
+    modes: list[dict],
+) -> dict:
     """The metadata `write` takes for a network whose nodes are in scgraph's order
     (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`,
     `modes`, `node_order`) and the `build_metadata`, what built the network (see
@@ -142,7 +144,11 @@ def header_metadata(
     }
 
 
-def write(filename, arrays, metadata):
+def write(
+    filename: str | os.PathLike,
+    arrays: dict[str, array | memoryview],
+    metadata: dict,
+) -> str:
     """Serialize graph arrays and metadata into a binary `.scgraph` network file.
 
     Parameters:
@@ -238,7 +244,11 @@ def write(filename, arrays, metadata):
     return content.hexdigest()
 
 
-def read(filename, mapped=False, modes=None):
+def read(
+    filename: str | os.PathLike,
+    mapped: bool = False,
+    modes: str | list[str] | None = None,
+) -> tuple[dict[str, array | memoryview], dict]:
     """Read graph arrays and metadata from a `.scgraph` network file.
 
     Parameters:
@@ -270,7 +280,7 @@ def read(filename, mapped=False, modes=None):
     return arrays, metadata
 
 
-def get_scgraph_info(filename):
+def get_scgraph_info(filename: str | os.PathLike) -> dict:
     """Extract metadata and high-level structure of a `.scgraph` file without loading arrays.
 
     Parameters:
@@ -467,7 +477,9 @@ class ArcShapes(Sequence):
             for i in range(0, len(flat), 2)
         ]
 
-    def coordinate_path(self, path, coordinates):
+    def coordinate_path(
+        self, path: Sequence[int], coordinates: list[list[float]]
+    ) -> list[list[float]]:
         """`coordinates` (one [latitude, longitude] per node of `path`) with the shape of
         each arc of the path between them; in one C loop in the C++ build"""
         if _shape_path is not None:
@@ -547,7 +559,7 @@ class NodeIds(Sequence):
     def __reduce__(self):
         return NodeIds, (list(self), self._nodes)
 
-    def take(self, positions):
+    def take(self, positions: Iterable[int]) -> array:
         """The ids of the nodes at `positions`, as an int64 array."""
         ids = self._ids
         if len(ids) < len(self):  # nodes were added since
@@ -556,7 +568,7 @@ class NodeIds(Sequence):
             return array("q", positions)
         return array("q", (ids[i] for i in positions))
 
-    def array(self, order=None):
+    def array(self, order: Iterable[int] | None = None) -> array | None:
         """The ids (in `order`, `order[new] = old`, if given) as an int64 array, int32
         if every id fits, or None if every node's id is its position."""
         ids, count = self._ids, len(self)
@@ -615,12 +627,12 @@ class NodeCoordinates(MutableSequence):
     def __delitem__(self, i):
         del self._added[self._in_added(i)]
 
-    def insert(self, i, value):
+    def insert(self, i: int, value: list[float]) -> None:
         if i < len(self):
             self._own()
         self._added.insert(i - len(self._latitudes), value)
 
-    def take(self, ids):
+    def take(self, ids: Iterable[int]) -> list[list[float]]:
         """`[nodes[i] for i in ids]` (a route's path), without a method call per node: in one
         C loop in the C++ build when no node was added"""
         latitudes, longitudes = self._latitudes, self._longitudes
@@ -656,7 +668,7 @@ class NodeCoordinates(MutableSequence):
         # Copied and pickled as a list (the file's mapping can't be)
         return list, (list(self),)
 
-    def arrays(self):
+    def arrays(self) -> tuple[array | memoryview, array | memoryview]:
         """The latitudes and the longitudes as two arrays, as the file stores them (int32
         in 1e-7 degree or float64 degrees) if no node was added, else as float64.
         """

@@ -5,6 +5,8 @@ import csv
 import logging
 import math
 from array import array
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from typing import TYPE_CHECKING
 
 import requests
 
@@ -15,6 +17,10 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
     strongly_connected_components,
 )
 from scgraph.utils import haversine
+
+if TYPE_CHECKING:
+    from scgraph.geograph import GeoGraph
+    from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +79,7 @@ def download(url: str, filename: str) -> dict:
         return {"version": "ArcGIS-WPI"}
 
 
-def world_port_index(filename):
+def world_port_index(filename: str) -> Iterator[list[float | str]]:
     """[latitude, longitude, harbour type] of each port with a position in the CSV file
     of the World Port Index."""
     with open(filename, newline="", encoding="utf-8-sig") as file:
@@ -83,7 +89,13 @@ def world_port_index(filename):
                 yield [lat, lon, row["Harbor Type"]]
 
 
-def join(road_graph, sea_network, port_records, land_mask, work_dir=None):
+def join(
+    road_graph: dict[str, array | memoryview],
+    sea_network: "GeoGraph",
+    port_records: Iterable[list[float | str]],
+    land_mask: "LandMask",
+    work_dir: str | None = None,
+) -> tuple[dict, int]:
     """
     `road_graph` (`assembly.road_graph`'s layout) joined to the sea lanes of the GeoGraph `sea_network`
     at the ports of `port_records` ([latitude, longitude, harbour type]) that have both
@@ -161,12 +173,12 @@ def join(road_graph, sea_network, port_records, land_mask, work_dir=None):
 
 
 def port_connectors(
-    port_records,
-    road_connector_fn,
-    sea_connector_fn,
-    first_port_id,
-    first_sea_id,
-):
+    port_records: Iterable[list[float | str]],
+    road_connector_fn: Callable,
+    sea_connector_fn: Callable,
+    first_port_id: int,
+    first_sea_id: int,
+) -> Iterator[tuple[list[float | str], list[tuple]]]:
     """`(point, arcs)` of each port of `port_records` ([latitude, longitude, harbour type]) with
     a road connector, `road_connector_fn(port)` -> `(road node, km)`, and a sea connector,
     `sea_connector_fn(point)` -> `(sea node, km, path)` (None if none), ports numbered from
@@ -189,7 +201,12 @@ def port_connectors(
             p += 1
 
 
-def road_connector(port_record, road_spatial_index, component_sizes, land_mask):
+def road_connector(
+    port_record: list[float | str],
+    road_spatial_index: NearNodes,
+    component_sizes: Sequence[int],
+    land_mask: "LandMask",
+) -> tuple[int, float] | None:
     """
     `(road node, km)`: the road connector of `port_record` ([latitude, longitude, harbour type]),
     or None. `road_spatial_index`: the road nodes' `assembly.NearNodes`; `component_sizes`: the size of each
@@ -214,8 +231,12 @@ def road_connector(port_record, road_spatial_index, component_sizes, land_mask):
 
 
 def sea_connector(
-    port_coords, sea_cell_targets, cell_to_sea_node, sea_node_coords, land_mask
-):
+    port_coords: list[float],
+    sea_cell_targets: array,
+    cell_to_sea_node: dict[int, int],
+    sea_node_coords: Sequence[list[float]],
+    land_mask: "LandMask",
+) -> tuple[int, float, list[list[float]]] | None:
     """`(sea node, km, path)`: the sea connector of `port_coords`, or None. `sea_cell_targets`: the mask
     cells of the sea nodes, sorted in an array('q'); `cell_to_sea_node`: {cell: sea node}.
     """

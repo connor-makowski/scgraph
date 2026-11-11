@@ -24,6 +24,7 @@ the scale of the planet.
 """
 
 import os
+from collections.abc import Callable
 
 from scgraph.pipelines import osm_main_roads_and_marnet as regional
 from scgraph.pipelines.steps.stage1_extract import osm
@@ -39,7 +40,12 @@ MIN_NODES = 1000  # nodes of the smallest component kept
 download = regional.download  # for the other sources: checks osmium first
 
 
-def build(files: dict[str, str], *, source=osm.open_osm_source, work_dir=None):
+def build(
+    files: dict[str, str],
+    *,
+    source: Callable = osm.open_osm_source,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
     """Build the world main roads and marnet intermodal network.
 
     Args:

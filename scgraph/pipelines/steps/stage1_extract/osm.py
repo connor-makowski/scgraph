@@ -15,8 +15,11 @@ import sys
 import time
 from array import array
 from bisect import bisect_left
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from types import ModuleType
+from typing import TYPE_CHECKING
 
 import requests
 
@@ -27,6 +30,9 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
     PieceArrays,
 )
 from scgraph.utils import has_cpp
+
+if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
+    import osmium
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +59,7 @@ FERRY_END_KM = 2  # farthest a ferry end may lie from the road node it joins
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 
 
-def require_osmium():
+def require_osmium() -> ModuleType:
     try:
         import osmium
     except ImportError as error:
@@ -63,7 +69,7 @@ def require_osmium():
     return osmium
 
 
-def download(url, filename):
+def download(url: str, filename: str) -> dict[str, str]:
     """Download an OSM file; return its `version`, the time its data is up to (the
     `osmosis_replication_timestamp` of its header, as Geofabrik writes it), if it has one.
     """
@@ -81,7 +87,7 @@ def download(url, filename):
     return {"version": version} if version else {}
 
 
-def direction(tags):
+def direction(tags: "osmium.osm.TagList") -> int:
     """The direction of a way from its tags: 1 (one way, along its drawing) for
     `oneway=yes`, `true` or `1`, and for motorways and roundabouts without `oneway`; -1
     (one way, against it) for `oneway=-1` or `reverse`; 0 (both ways) otherwise.
@@ -97,7 +103,7 @@ def direction(tags):
     return 0
 
 
-def main_roads(tags):
+def main_roads(tags: "osmium.osm.TagList") -> int | None:
     """The direction of a main road (`MAIN_ROADS`), None for any other way."""
     return direction(tags) if tags.get("highway") in MAIN_ROADS else None
 
@@ -160,8 +166,14 @@ class _Junctions:
 
 
 def locate_ways(
-    source, way_selectors, required_tag_keys=(), node_store=None, work_dir=None
-):
+    source: "str | os.PathLike | StreamedPbf",
+    way_selectors: dict[str, Callable],
+    required_tag_keys: tuple[str, ...] = (),
+    node_store: str | None = None,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[
+    _Junctions, Iterator[tuple[str, int, list[tuple[int, list[float]]]]]
+]:
     """
     Locate the ways of `source` that `way_selectors` keep, in one set of passes for every kind
     of way (roads and ferries, for example).
@@ -302,8 +314,16 @@ def locate_ways(
 
 
 def read_osm(
-    source, way_filter, required_tag_keys=(), max_km_between_nodes=MAX_KM
-):
+    source: "str | os.PathLike | StreamedPbf",
+    way_filter: Callable,
+    required_tag_keys: tuple[str, ...] = (),
+    max_km_between_nodes: float | int = MAX_KM,
+) -> tuple[
+    list[dict[int, float]],
+    list[list[float]],
+    list[dict[int, list[list[float]]]],
+    list[int],
+]:
     """
     Build the graph of the ways of `source` that `way_filter` keeps (`locate_ways`, then
     `polylines_to_graph`), a way being also cut where a piece reaches `max_km_between_nodes`
@@ -322,12 +342,12 @@ def read_osm(
 
 
 def build_way_pieces(
-    source,
-    way_selectors,
-    required_tag_keys,
-    max_km_between_nodes,
-    work_dir=None,
-):
+    source: "str | os.PathLike | StreamedPbf",
+    way_selectors: dict[str, Callable],
+    required_tag_keys: tuple[str, ...],
+    max_km_between_nodes: float | int,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[PieceArrays, list[dict[str, str | int]]]:
     """The pieces (`assembly.PieceArrays`) of the ways of `source` that `way_selectors` keep
     (`locate_ways`, one read for every kind), cut at their junctions and where a piece
     reaches `max_km_between_nodes` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
@@ -406,7 +426,7 @@ def _located_pieces(way_nodes):
         yield piece
 
 
-def vehicle_ferries(tags):
+def vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
     """Both ways (0) for a ferry not closed to motor vehicles, None for any other way."""
     if tags.get("route") == "ferry" and "no" not in (
         tags.get("motor_vehicle"),
@@ -416,7 +436,12 @@ def vehicle_ferries(tags):
     return None
 
 
-def build_ferry_arcs(ferries, ends, shapes, nearest):
+def build_ferry_arcs(
+    ferries: list[dict[int, float]],
+    ends: list[list[float]],
+    shapes: list[dict[int, list[list[float]]]],
+    nearest: Callable,
+) -> Iterator[tuple[int, int, float, list[list[float]]]]:
     """`(u, v, km, shape)` of each ferry arc (`polylines_to_graph`'s layout) whose ends
     lie within FERRY_END_KM of road nodes u and v (`nearest(point)` gives `(node, km)`);
     the shape keeps the ferry's ends unless they are u and v."""
@@ -443,7 +468,7 @@ class StreamedPbf:
             self.about = json.load(file)
 
     @staticmethod
-    def download(url, filename):
+    def download(url: str, filename: str) -> dict[str, str | int]:
         """Write to `filename` the layout of the PBF at `url` (the header, then the node
         and way sections, found by bisection) with its `size`, `tag`, `md5` (the
         published one, not recomputed) and `version`; return `{version, bytes, md5}`.
@@ -552,7 +577,7 @@ class StreamedPbf:
         finally:
             session.close()
 
-    def file(self, entities):
+    def file(self, entities: "osmium.osm.osm_entity_bits") -> "osmium.io.File":
         """The header and the node (`osmium.osm.NODE`) or way section, from a pipe."""
         if sys.platform == "win32":
             raise NotImplementedError(
@@ -571,7 +596,7 @@ class StreamedPbf:
         os.close(write)
         return osmium.io.File(f"/dev/fd/{self._pipe}", "pbf")
 
-    def close(self, stop=False):
+    def close(self, stop: bool = False) -> None:
         """Wait for the child of the last pass, or `stop` it; raise if it failed (then
         osmium read only part of the section, maybe up to a blob boundary, unaware).
         """
@@ -585,7 +610,9 @@ class StreamedPbf:
             )
 
 
-def open_osm_source(source):
+def open_osm_source(
+    source: "str | os.PathLike | StreamedPbf",
+) -> "str | os.PathLike | StreamedPbf":
     """Resolve an OSM source: returns a StreamedPbf when source is a JSON metadata file
     or layout descriptor, or source unchanged when it is an OSM file path or custom source object.
     """
@@ -606,7 +633,7 @@ def open_osm_source(source):
     return source
 
 
-def download_streamed(url, filename):
+def download_streamed(url: str, filename: str) -> dict[str, str | int]:
     """Download layout descriptor of an OSM PBF file for streamed HTTP range reading."""
     if not has_cpp():
         raise RuntimeError(

@@ -5,11 +5,17 @@ arc since the previous node reaches `max_km`; each arc carries its length along 
 polyline and its shape (the points between its two nodes).
 """
 
+from collections.abc import Container, Hashable, Iterable, Iterator
+
 from scgraph.helpers.hilbert import hilbert_key
 from scgraph.utils import haversine
 
 
-def cut_polylines(polylines, junctions, max_km_between_nodes):
+def cut_polylines(
+    polylines: Iterable[tuple[int, list[tuple[Hashable, list[float]]]]],
+    junctions: Container,
+    max_km_between_nodes: int | float,
+) -> Iterator[tuple[Hashable, Hashable, float, int, list[list[float]]]]:
     """
     Cut each polyline at its ends, at its junctions and at the first point where the piece
     since the last cut reaches `max_km_between_nodes`, and yield
@@ -35,7 +41,16 @@ def cut_polylines(polylines, junctions, max_km_between_nodes):
                 start, km = i, 0.0
 
 
-def polylines_to_graph(polylines, junctions, max_km_between_nodes):
+def polylines_to_graph(
+    polylines: Iterable[tuple[int, list[tuple[Hashable, list[float]]]]],
+    junctions: Container,
+    max_km_between_nodes: int | float,
+) -> tuple[
+    list[dict[int, float]],
+    list[list[float]],
+    list[dict[int, list[list[float]]]],
+    list[Hashable],
+]:
     """
     Collect the `cut_polylines` of `polylines` into a graph: there are no self-loops, and parallel
     arcs keep the shortest (the first seen among arcs of equal length).

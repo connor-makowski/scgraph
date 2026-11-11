@@ -13,6 +13,7 @@ import mmap
 import os
 from array import array
 from bisect import bisect_left, bisect_right
+from collections.abc import Iterable, Iterator, Sequence
 from functools import reduce
 from itertools import accumulate
 from operator import add
@@ -41,7 +42,11 @@ from scgraph.network_file import extract_coordinates
 from scgraph.utils import haversine
 
 
-def build_csr_from_arcs_python(origins, destinations, weights):
+def build_csr_from_arcs_python(
+    origins: Sequence[int],
+    destinations: Sequence[int],
+    weights: Sequence[float | int],
+) -> tuple[array, array, array, array, array]:
     """Pure-Python implementation of CSR construction from raw arcs."""
     if not len(origins) == len(destinations) == len(weights):
         raise ValueError("one destination and one weight per origin expected")
@@ -69,7 +74,17 @@ def build_csr_from_arcs_python(origins, destinations, weights):
     )
 
 
-def build_csr_from_arcs(origins, destinations, weights):
+def build_csr_from_arcs(
+    origins: Sequence[int],
+    destinations: Sequence[int],
+    weights: Sequence[float | int],
+) -> tuple[
+    array | memoryview,
+    array | memoryview,
+    array | memoryview,
+    array | memoryview,
+    array | memoryview,
+]:
     """
     Store arcs between source ids (int64 `origins`, `destinations`; float64 `weights`)
     by origin. Returns `(node_ids, offsets, heads, weights, kept)`: the arcs' end ids,
@@ -84,7 +99,9 @@ def build_csr_from_arcs(origins, destinations, weights):
     return build_csr_from_arcs_python(origins, destinations, weights)
 
 
-def strongly_connected_components_python(offsets, heads):
+def strongly_connected_components_python(
+    offsets: Sequence[int], heads: Sequence[int]
+) -> tuple[array, array]:
     """Pure-Python implementation of Kosaraju's strongly connected components."""
     n = len(offsets) - 1
     if (
@@ -142,7 +159,9 @@ def strongly_connected_components_python(offsets, heads):
     return labels, sizes
 
 
-def strongly_connected_components(offsets, heads):
+def strongly_connected_components(
+    offsets: Sequence[int], heads: Sequence[int]
+) -> tuple[array | memoryview, array | memoryview]:
     """Compute the strongly connected components of a directed CSR graph.
 
     A strongly connected component (SCC) is a maximal subset of nodes where every
@@ -168,7 +187,9 @@ def strongly_connected_components(offsets, heads):
     return strongly_connected_components_python(offsets, heads)
 
 
-def build_csr_from_adjacency_list(adjacency_list):
+def build_csr_from_adjacency_list(
+    adjacency_list: list[dict[int, int | float]],
+) -> tuple[array, array, array]:
     """Store a graph from an adjacency list representation into CSR format.
 
     `adjacency_list[u]` maps head -> weight.
@@ -187,7 +208,11 @@ def build_csr_from_adjacency_list(adjacency_list):
     return offsets, heads, weights
 
 
-def keep_strongly_connected_components(offsets, heads, min_nodes=None):
+def keep_strongly_connected_components(
+    offsets: Sequence[int],
+    heads: Sequence[int],
+    min_nodes: int | None = None,
+) -> tuple[array, array | memoryview]:
     """Filter a CSR graph to retain only viable strongly connected components (SCCs).
 
     In logistics and road routing, every location must be mutually reachable so that
@@ -222,7 +247,17 @@ def keep_strongly_connected_components(offsets, heads, min_nodes=None):
     return array("i", (u for u, c in enumerate(labels) if wanted[c])), labels
 
 
-def keep_largest_strongly_connected_component(graph, nodes, shapes, node_ids):
+def keep_largest_strongly_connected_component(
+    graph: list[dict[int, int | float]],
+    nodes: list[list[float]],
+    shapes: list[dict[int, list[list[float]]]],
+    node_ids: list[int],
+) -> tuple[
+    list[dict[int, int | float]],
+    list[list[float]],
+    list[dict[int, list[list[float]]]],
+    list[int],
+]:
     """Filter a GeoGraph-layout graph to keep only its largest strongly connected component."""
     kept, _ = keep_strongly_connected_components(
         *build_csr_from_adjacency_list(graph)[:2]
@@ -264,7 +299,11 @@ class ContractedGraph(NamedTuple):
 
 
 def contract_chains_python(
-    offsets, heads, weights, node_modes=None, max_km_between_nodes=math.inf
+    offsets: Sequence[int],
+    heads: Sequence[int],
+    weights: Sequence[float | int],
+    node_modes: Sequence[int] | None = None,
+    max_km_between_nodes: float | int = math.inf,
 ) -> ContractedGraph:
     """Pure-Python implementation of CSR degree-2 chain contraction."""
     n = len(offsets) - 1
@@ -356,7 +395,11 @@ def contract_chains_python(
 
 
 def contract_chains(
-    offsets, heads, weights, node_modes=None, max_km_between_nodes=math.inf
+    offsets: Sequence[int],
+    heads: Sequence[int],
+    weights: Sequence[float | int],
+    node_modes: Sequence[int] | None = None,
+    max_km_between_nodes: float | int = math.inf,
 ) -> ContractedGraph:
     """Contract degree-2 pass-through chains into composite weighted edges.
 
@@ -405,8 +448,11 @@ def contract_chains(
 
 
 def simplify_shapes(
-    shape_points, shape_offsets, endpoint_coords, tolerance_meters
-):
+    shape_points: Sequence[int],
+    shape_offsets: Sequence[int],
+    endpoint_coords: Sequence[int],
+    tolerance_meters: float | int,
+) -> tuple[array | memoryview, array | memoryview]:
     """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
 
     Drops intermediate shape points that fall within `tolerance_meters` metres of the
@@ -438,7 +484,9 @@ class NearNodes:
         for row, nodes in self.rows.items():
             self.rows[row] = array("i", sorted(nodes, key=lons.__getitem__))
 
-    def within(self, point, km):
+    def within(
+        self, point: list[float | int], km: float | int
+    ) -> Iterator[tuple[float, int]]:
         """`(km, node)` of each node within `km` of `point` ([latitude, longitude])."""
         lat, lon = point
         dlat = km / 110  # degrees: more than `km` (111.2 km per degree)
@@ -464,7 +512,9 @@ class NearNodes:
                     if d <= km:
                         yield d, i
 
-    def nearest(self, point, km):
+    def nearest(
+        self, point: list[float | int], km: float | int
+    ) -> tuple[int | None, float]:
         """`(node, km)` of the node nearest to `point` within `km` (ties: the lowest
         node), or `(None, inf)`."""
         d, i = min(self.within(point, km), default=(math.inf, None))
@@ -514,13 +564,13 @@ class PieceArrays:
 
     def append(
         self,
-        origin_id,
-        destination_id,
-        length_km,
-        direction,
-        endpoint_coords,
-        shape_points,
-    ):
+        origin_id: int,
+        destination_id: int,
+        length_km: float | int,
+        direction: int,
+        endpoint_coords: Iterable[Iterable[float | int]],
+        shape_points: Iterable[Iterable[float | int]],
+    ) -> None:
         """One piece; `endpoint_coords` and `shape_points`: [latitude, longitude] points in degrees."""
         new = self._new
         new["origins"].append(origin_id)
@@ -538,7 +588,7 @@ class PieceArrays:
         if len(self._starts) > self.BATCH:
             self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         """Simplify and store the drawings of the pieces appended since the last call."""
         new, starts = self._new, self._starts
         if self.tolerance_meters is not None:
@@ -565,7 +615,7 @@ class PieceArrays:
         self._new = {name: array(code) for name, code in self.COLUMNS.items()}
         self._starts = [0]
 
-    def close(self):
+    def close(self) -> None:
         """Release mapped memory views."""
         for file, view in getattr(self, "_views", []):
             try:
@@ -579,7 +629,9 @@ class PieceArrays:
         self._views = []
 
 
-def build_graph_from_pieces(pieces):
+def build_graph_from_pieces(
+    pieces: PieceArrays,
+) -> dict[str, array | memoryview]:
     """Build a directed CSR network graph from polyline segments (`PieceArrays`).
 
     Each polyline piece generates directed arcs according to its legal traversal
@@ -637,11 +689,11 @@ def build_graph_from_pieces(pieces):
 
 
 def assemble(
-    graph,
+    graph: dict[str, array | memoryview],
     *,
-    max_km_between_nodes,
-    min_nodes_per_strongly_connected_component,
-):
+    max_km_between_nodes: float | int,
+    min_nodes_per_strongly_connected_component: int | None,
+) -> tuple[dict[str, array], list[dict[str, str | int]]]:
     """The network file's arrays of `graph` (`build_graph_from_pieces`'s layout, with
     `node_modes` if it has several modes): keep the components
     (`keep_strongly_connected_components` with `min_nodes_per_strongly_connected_component`,
@@ -696,7 +748,11 @@ def assemble(
     return _renumbered(graph, order), steps
 
 
-def build_chain_shapes(graph, member_offsets, members):
+def build_chain_shapes(
+    graph: dict[str, array | memoryview],
+    member_offsets: Sequence[int],
+    members: Sequence[int],
+) -> tuple[array, array]:
     """The shapes of the arcs that `contract_chains` gives for `graph`, as `(points,
     offsets)` in its layout: the shapes of each arc's members in travel order, each
     followed by the node it ends at, except the last."""

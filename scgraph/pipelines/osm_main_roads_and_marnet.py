@@ -26,6 +26,7 @@
 """
 
 import os
+from collections.abc import Callable
 
 from scgraph.pipelines import eurostat_marnet
 from scgraph.pipelines.steps.stage1_extract import osm
@@ -73,13 +74,13 @@ download = osm.download  # for every source: checks osmium first
 
 
 def build(
-    files,
+    files: dict[str, str],
     *,
-    source=osm.open_osm_source,
-    max_km_between_nodes=osm.MAX_KM,
-    min_nodes_per_strongly_connected_component=None,
-    work_dir=None,
-):
+    source: Callable = osm.open_osm_source,
+    max_km_between_nodes: float | int = osm.MAX_KM,
+    min_nodes_per_strongly_connected_component: int | None = None,
+    work_dir: str | os.PathLike | None = None,
+) -> tuple[tuple[dict, list[dict]], list[dict]]:
     """The keywords give another scale (`world_main_roads_and_marnet`);
     `min_nodes_per_strongly_connected_component=None` keeps the largest component only.
     """
