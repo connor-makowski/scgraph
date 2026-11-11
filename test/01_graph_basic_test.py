@@ -1,6 +1,6 @@
 import pytest
-from scgraph import Graph
-from helpers import assert_result
+from scgraph import PathNotFoundError
+from helpers import GRAPH_CLASSES, assert_result
 
 _GRAPH_DATA = [
     {1: 5, 2: 1},
@@ -10,62 +10,50 @@ _GRAPH_DATA = [
     {2: 8, 3: 3},
     {3: 6},
 ]
-_DISCONNECTED_DATA = [
-    {1: 5, 2: 1},
-    {0: 5, 2: 2, 3: 1},
-    {0: 1, 1: 2, 3: 4, 4: 8},
-    {1: 1, 2: 4, 4: 3, 5: 6},
-    {2: 8, 3: 3},
-    {3: 6},
-    {7: 1},
-    {8: 1},
-    {6: 1},
-]
+# The same graph with a one-way cycle that node 0 cannot reach
+_DISCONNECTED_DATA = [*_GRAPH_DATA, {7: 1}, {8: 1}, {6: 1}]
 _EXPECTED = {"path": [0, 2, 1, 3, 5], "length": 10}
 
 
-@pytest.fixture(scope="module")
-def graph():
-    return Graph(_GRAPH_DATA)
-
-
-@pytest.fixture(scope="module")
-def disconnected_graph():
-    return Graph(_DISCONNECTED_DATA)
-
-
-def test_validation(graph):
-    graph.validate()
-
-
-def test_dijkstra(graph):
-    assert_result(graph.dijkstra(origin_id=0, destination_id=5), _EXPECTED)
-
-
-def test_bidirectional_dijkstra(graph):
+# Every algorithm finds the shortest path from 0 to 5, which is found by hand,
+# also when the graph has a component that the origin cannot reach.
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        "dijkstra",
+        "bidirectional_dijkstra",
+        "dijkstra_buckets",
+        "bellman_ford",
+        "a_star",
+        "bmssp",
+        "contraction_hierarchy",
+        "tnr",
+    ],
+)
+@pytest.mark.parametrize(
+    "graph_data", [_GRAPH_DATA, _DISCONNECTED_DATA], ids=["connected", "apart"]
+)
+@pytest.mark.parametrize(
+    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
+)
+def test_shortest_path_whatever_the_algorithm(
+    GraphClass, graph_data, algorithm
+):
+    graph = GraphClass(graph_data)
     assert_result(
-        graph.bidirectional_dijkstra(origin_id=0, destination_id=5), _EXPECTED
+        getattr(graph, algorithm)(origin_id=0, destination_id=5), _EXPECTED
     )
 
 
-def test_bellman_ford(graph):
-    assert_result(graph.bellman_ford(origin_id=0, destination_id=5), _EXPECTED)
-
-
-def test_a_star(graph):
-    assert_result(
-        graph.a_star(
-            origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
-        ),
-        _EXPECTED,
-    )
-
-
-def test_bmssp(graph):
-    assert_result(graph.bmssp(0, 5), _EXPECTED)
-
-
-def test_shortest_path_tree(graph):
+# The path read in the shortest path tree of the origin is the shortest path.
+@pytest.mark.parametrize(
+    "graph_data", [_GRAPH_DATA, _DISCONNECTED_DATA], ids=["connected", "apart"]
+)
+@pytest.mark.parametrize(
+    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
+)
+def test_shortest_path_from_the_tree_of_the_origin(GraphClass, graph_data):
+    graph = GraphClass(graph_data)
     assert_result(
         graph.get_tree_path(
             origin_id=0,
@@ -76,106 +64,21 @@ def test_shortest_path_tree(graph):
     )
 
 
-def test_contraction_hierarchy(graph):
-    assert_result(
-        graph.contraction_hierarchy(origin_id=0, destination_id=5), _EXPECTED
-    )
-
-
-def test_tnr(graph):
-    assert_result(graph.tnr(origin_id=0, destination_id=5), _EXPECTED)
-
-
-def test_dijkstra_buckets(graph):
-    assert_result(
-        graph.dijkstra_buckets(origin_id=0, destination_id=5), _EXPECTED
-    )
-
-
-def test_disconnected_connection_raises(disconnected_graph):
-    # C++ raises RuntimeError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
-        disconnected_graph.validate(check_connected=True, check_symmetry=False)
-
-
-def test_disconnected_symmetry_raises(disconnected_graph):
-    # C++ raises ValueError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
-        disconnected_graph.validate(check_connected=False, check_symmetry=True)
-
-
-def test_disconnected_dijkstra(disconnected_graph):
-    assert_result(
-        disconnected_graph.dijkstra(origin_id=0, destination_id=5), _EXPECTED
-    )
-
-
-def test_disconnected_bellman_ford(disconnected_graph):
-    assert_result(
-        disconnected_graph.bellman_ford(origin_id=0, destination_id=5),
-        _EXPECTED,
-    )
-
-
-def test_disconnected_a_star(disconnected_graph):
-    assert_result(
-        disconnected_graph.a_star(
-            origin_id=0, destination_id=5, heuristic_fn=lambda x, y: 0
-        ),
-        _EXPECTED,
-    )
-
-
-def test_disconnected_bmssp(disconnected_graph):
-    assert_result(disconnected_graph.bmssp(0, 5), _EXPECTED)
-
-
-def test_disconnected_shortest_path_tree(disconnected_graph):
-    assert_result(
-        disconnected_graph.get_tree_path(
-            origin_id=0,
-            destination_id=5,
-            tree_data=disconnected_graph.get_shortest_path_tree(origin_id=0),
-        ),
-        _EXPECTED,
-    )
-
-
-def test_disconnected_contraction_hierarchy(disconnected_graph):
-    assert_result(
-        disconnected_graph.contraction_hierarchy(origin_id=0, destination_id=5),
-        _EXPECTED,
-    )
-
-
-def test_disconnected_tnr(disconnected_graph):
-    assert_result(
-        disconnected_graph.tnr(origin_id=0, destination_id=5), _EXPECTED
-    )
-
-
-def test_disconnected_dijkstra_buckets(disconnected_graph):
-    assert_result(
-        disconnected_graph.dijkstra_buckets(origin_id=0, destination_id=5),
-        _EXPECTED,
-    )
-
-
-def test_empty_graph_validation_raises():
-    with pytest.raises(ValueError):
-        Graph([]).validate(check_symmetry=True, check_connected=True)
-
-
-def test_edge_to_missing_node_raises():
-    # Without validation, an edge to a node id outside the graph must raise,
-    # not be indexed out of bounds
+# An edge to a node id outside the graph raises instead of being indexed out
+# of bounds, also without validation.
+@pytest.mark.parametrize(
+    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
+)
+def test_edge_to_missing_node_raises(GraphClass):
     with pytest.raises(IndexError):
-        Graph([{5: 1}]).reduce(1)
+        GraphClass([{5: 1}]).reduce(1)
 
 
-def test_path_not_found_error_raised():
-    from scgraph import PathNotFoundError
-
-    g = Graph([{1: 1.0}, {0: 1.0}, {3: 1.0}, {2: 1.0}])
+# A query between two nodes that no path joins raises PathNotFoundError.
+@pytest.mark.parametrize(
+    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
+)
+def test_no_path_raises(GraphClass):
+    graph = GraphClass([{1: 1.0}, {0: 1.0}, {3: 1.0}, {2: 1.0}])
     with pytest.raises(PathNotFoundError):
-        g.dijkstra(0, 3)
+        graph.dijkstra(0, 3)

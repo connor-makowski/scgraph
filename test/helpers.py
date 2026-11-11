@@ -1,6 +1,16 @@
 import math
 
+from scgraph.graph import Graph as PyGraph
 from scgraph.utils import hard_round
+
+# The graph classes a test of both implementations is parametrised with: the pure-Python
+# class and, when the extension is built, the C++ class
+try:
+    from scgraph.cpp import Graph as CppGraph
+
+    GRAPH_CLASSES = [PyGraph, CppGraph]
+except ImportError:
+    GRAPH_CLASSES = [PyGraph]
 
 
 def assert_result(realized, expected):

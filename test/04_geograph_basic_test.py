@@ -30,11 +30,10 @@ def basic_geograph():
     return GeoGraph(nodes=_NODES, graph=_GRAPH)
 
 
-def test_graph_validation(basic_geograph):
+# A valid GeoGraph of one's own passes the validation of its graph and of its
+# coordinates.
+def test_custom_geograph_is_valid(basic_geograph):
     basic_geograph.validate()
-
-
-def test_node_validation(basic_geograph):
     basic_geograph.validate_nodes()
 
 

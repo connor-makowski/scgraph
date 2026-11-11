@@ -1,55 +1,25 @@
-import time
+import pytest
 
-_CITIES = {
-    "Los Angeles": (34.0522, -118.2437),
-    "New York City": (40.7128, -74.0060),
-    "Chicago": (41.8781, -87.6298),
-    "Houston": (29.7604, -95.3698),
-    "Phoenix": (33.4484, -112.0740),
-    "Denver": (39.7392, -104.9903),
-    "Seattle": (47.6062, -122.3321),
-    "Miami": (25.7617, -80.1918),
-    "Washington D.C.": (38.9072, -77.0369),
-    "San Francisco": (37.7749, -122.4194),
-    "Omaha": (41.2565, -95.9345),
-    "Atlanta": (33.7490, -84.3880),
-    "Austin": (30.2672, -97.7431),
-    "Boston": (42.3601, -71.0589),
-    "Las Vegas": (36.1699, -115.1398),
-    "Detroit": (42.3314, -83.0458),
-}
+# Los Angeles, New York City, Chicago, Houston
+_CITIES = [
+    {"latitude": 34.0522, "longitude": -118.2437},
+    {"latitude": 40.7128, "longitude": -74.0060},
+    {"latitude": 41.8781, "longitude": -87.6298},
+    {"latitude": 29.7604, "longitude": -95.3698},
+]
 
 
-def test_distance_matrix_matches_shortest_path(us_freeway):
-    city_nodes = [
-        {"longitude": coord[1], "latitude": coord[0]}
-        for coord in _CITIES.values()
-    ]
-    dm = us_freeway.distance_matrix(
-        city_nodes, off_graph_circuity=1, output_units="km"
+# Each cell of the distance matrix is the length of the route between its two
+# points, and zero from a point to itself.
+def test_distance_matrix_holds_the_length_of_every_route(us_freeway):
+    matrix = us_freeway.distance_matrix(
+        _CITIES, off_graph_circuity=1, output_units="km"
     )
-    direct = us_freeway.get_shortest_path(
-        origin_node=city_nodes[0], destination_node=city_nodes[1]
-    )
-    assert abs(dm[0][1] - direct["length"]) < 0.001
-
-
-if __name__ == "__main__":
-    from scgraph import GeoGraph
-
-    geograph = GeoGraph.load_geograph("us_freeway")
-    now = time.perf_counter()
-    test_distance_matrix_matches_shortest_path(geograph)
-    print(f"Time taken: {time.perf_counter() - now:.2f} seconds")
-
-    now = time.perf_counter()
-    geograph.graph_object.reduce()
-    print(
-        f"Time taken to reduce graph: {time.perf_counter() - now:.2f} seconds"
-    )
-
-    now = time.perf_counter()
-    test_distance_matrix_matches_shortest_path(geograph)
-    print(
-        f"Time taken after reduction: {time.perf_counter() - now:.2f} seconds"
-    )
+    for row, origin in zip(matrix, _CITIES):
+        for cell, destination in zip(row, _CITIES):
+            expected = (
+                us_freeway.get_shortest_path(origin, destination)["length"]
+                if origin != destination
+                else 0
+            )
+            assert cell == pytest.approx(expected, abs=0.001)
