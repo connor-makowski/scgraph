@@ -7,27 +7,31 @@ exclude = '/.*(migrations|__pycache__|geographs).*/'
 line-length = 80
 
 [tool.ruff.lint]
-# The conventions of DEVELOPMENT.md that a tool can check, and likely defects; no
-# style preference. DEVELOPMENT.md ("Coding Conventions") gives the reason of each.
+# The conventions of DEVELOPMENT.md that a tool can check, and likely defects.
 select = [
-    "E4", "E7", "E9",  # imports and statements that are errors or hide one
+    "E4", "E7", "E9",  # errors in imports and statements, and a few rules of form (one import per line, no lambda bound to a name)
     "F",  # undefined and unused names
     "B",  # likely defects
     "BLE001",  # an except that catches everything
     "TRY002",  # raising a bare Exception
     "N802", "N803", "N806",  # function, argument and variable names
     "UP006", "UP007", "UP035", "UP045",  # built-in types and X | Y in annotations
-    "PYI041",  # a number parameter is float, not int | float
+    "PYI041",  # a number parameter is float; int | float stays in returns and in containers of weights
     "T201",  # print in library code
 ]
 # A zip may pair two sequences of different lengths on purpose.
 ignore = ["B905"]
+# Not adopted: PT011 would tie tests to the text of error messages; C4, SIM, RET and
+# PERF are style preferences that prevent no defect here; PLR (magic values, size
+# limits) gives many findings of unproven value; D, D417 included, expects a
+# docstring form that scgraph does not use.
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # imports that make the public names
 "scgraph/utils.py" = ["T201"]  # console helpers of 3.6.0
 "scgraph/pipelines/steps/stage4_validation/references/*.py" = ["T201"]  # command-line scripts
-"test/*" = ["T201", "N803", "N806"]  # an argument or variable that holds a class is named as a class
+# Tests may print; an argument that holds a class is named as a class (GraphClass)
+"test/*" = ["T201", "N803"]
 
 [build-system]
 requires = ["scikit-build-core", "nanobind>=3.1.0"]

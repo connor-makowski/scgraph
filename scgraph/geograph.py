@@ -1698,12 +1698,12 @@ class GeoGraphIO:
                 }
             )
             if show_progress:
-                print(  # noqa: T201
+                print(  # noqa: T201 (the progress bar that show_progress asks for)
                     f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
                     end="\r",
                 )
         if show_progress:
-            print()  # noqa: T201
+            print()  # noqa: T201 (ends the progress bar)
         if filename is not None:
             json.dump(output, open(filename, "w"))
         return output
