@@ -3,6 +3,7 @@ import json
 from scgraph.utils import hard_round, print_console, haversine
 from scgraph.helpers.douglas_peucker import douglas_peucker
 from scgraph.helpers.visvalingam import visvalingam
+from collections.abc import Callable
 
 
 def lessThanAbs(threshold: int | float, a: int | float) -> int | float:
@@ -49,7 +50,7 @@ def simplify_geojson(
     pct_to_keep: int | float = 100,
     min_points: int = 3,
     silent: bool = False,
-    algorithm: str = "visvalingam",
+    algorithm: str | Callable = "visvalingam",
     tolerance: float = 0.0,
 ) -> list[list[list[int | float]]]:
     """

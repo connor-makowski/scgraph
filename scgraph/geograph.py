@@ -2862,7 +2862,7 @@ class GeoGraph(
         self._graph = graph
 
     @property
-    def snap_index(self) -> "SnapIndex | _SortedSnapIndex":
+    def snap_index(self) -> "SnapIndex | _SortedSnapIndex | GeoKDTree":
         """
         The index that snaps coordinates to their nearest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
@@ -2895,7 +2895,7 @@ class GeoGraph(
 
     @snap_index.setter
     def snap_index(
-        self, snap_index: "SnapIndex | _SortedSnapIndex | None"
+        self, snap_index: "SnapIndex | _SortedSnapIndex | GeoKDTree | None"
     ) -> None:
         self.__snap_index__ = snap_index
         # Node coordinates in radians for the native A* heuristic, rebuilt with the index
