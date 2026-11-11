@@ -1,0 +1,14 @@
+id,origin_lat,origin_lon,destination_lat,destination_lon,reference,source,tolerance,tolerance_reason,pair,origin_ne_id,destination_name,destination_ne_id
+london_paris,51.501941,-0.118668,48.868639,2.33139,Channel Tunnel shuttle or ferry,Natural Earth NE_ID 1159151577; Natural Earth NE_ID 1159151613,,,London - Paris,1159151577,Paris,1159151613
+dover_calais,51.133712,1.300013,50.950416,1.833314,ferry or Channel Tunnel shuttle,Natural Earth NE_ID 1159135701; Natural Earth NE_ID 1159142047,,,Dover - Calais,1159135701,Calais,1159142047
+copenhagen_malmo,55.68051,12.56154,55.583337,13.033302,Oresund bridge,Natural Earth NE_ID 1159151437; Natural Earth NE_ID 1159149739,,,Copenhagen - Malmo,1159151437,Malmö,1159149739
+copenhagen_odense,55.68051,12.56154,55.400377,10.383335,Great Belt bridge,Natural Earth NE_ID 1159151437; Natural Earth NE_ID 1159143035,,,Copenhagen - Odense (Great Belt),1159151437,Odense,1159143035
+ronne_copenhagen,55.09861,14.70139,55.68051,12.56154,ferry (Ronne - Ystad or Koge),https://en.wikipedia.org/wiki/R%C3%B8nne; Natural Earth NE_ID 1159151437,,,Ronne (Bornholm) - Copenhagen,,København,1159151437
+messina_reggio_di_calabria,38.200471,15.549996,38.114998,15.64136,ferry (Strait of Messina),Natural Earth NE_ID 1159139527; Natural Earth NE_ID 1159129715,,,Messina - Reggio di Calabria,1159139527,Reggio di Calabria,1159129715
+kadikoy_istanbul,40.993389,29.037361,41.106942,29.008056,Bosphorus bridge or tunnel,https://en.wikipedia.org/wiki/Kad%C4%B1k%C3%B6y; Natural Earth NE_ID 1159151579,,,Istanbul Asian side (Kadikoy) - Istanbul,,Istanbul,1159151579
+hobart_melbourne,-42.850009,147.29503,-37.818086,144.97307,ferry (Bass Strait),Natural Earth NE_ID 1159151171; Natural Earth NE_ID 1159151565,,,Hobart - Melbourne,1159151171,Melbourne,1159151565
+sapporo_tokyo,43.076925,141.338099,35.686963,139.749462,ferry (Tsugaru Strait; Seikan is rail only),Natural Earth NE_ID 1159151399; Natural Earth NE_ID 1159151609,,,Sapporo - Tokyo,1159151399,Tokyo,1159151609
+victoria_vancouver,48.433283,-123.350001,49.275362,-123.12359,ferry (Strait of Georgia),Natural Earth NE_ID 1159151039; Natural Earth NE_ID 1159151555,,,Victoria - Vancouver,1159151039,Vancouver,1159151555
+manama_dammam,26.236136,50.583052,26.430138,50.097725,King Fahd Causeway,Natural Earth NE_ID 1159150451; Natural Earth NE_ID 1159136389,,,Manama - Dammam,1159150451,Dammam,1159136389
+singapore_johor_bahru,1.294979,103.853875,1.481971,103.728094,Johor-Singapore Causeway,Natural Earth NE_ID 1159151627; Natural Earth NE_ID 1159146479,,,Singapore - Johor Bahru,1159151627,Johor Bahru,1159146479
+aarhus_to_copenhagen_intermodal,56.1629,10.2039,55.6761,12.5683,186.9,Molslinjen / Geofabrik,0.10,Kattegat vehicle ferry,Aarhus-Copenhagen Kattegat Crossing,,,

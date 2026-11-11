@@ -13,15 +13,15 @@ from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import polylines_to_graph
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph import network_file
-import difflib, hashlib, importlib, json, logging, os, re, requests, secrets, shutil
-import tempfile, types
+import hashlib, importlib, json, logging, os, re, requests, secrets, shutil
+import types
 import warnings
 from array import array
 from collections import Counter
 from math import isfinite
 from operator import eq
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from functools import partial
 from pathlib import Path
@@ -46,14 +46,6 @@ def _cached_file(pointer: Path) -> Path | None:
     except (OSError, ValueError, KeyError, TypeError):
         return None
     return file if file.is_file() else None
-
-
-# Written in networks/ of the cache: backup and archiving tools skip a tagged directory
-_CACHEDIR_TAG = (
-    "Signature: 8a477f597d28d172789f06886806bc55\n"
-    "# This file is a cache directory tag created by scgraph."
-    " For information about cache directory tags, see https://bford.info/cachedir/\n"
-)
 
 
 _GEOGRAPH_URL = (
@@ -271,7 +263,7 @@ class GeoGraphIO:
             - Default: True
         - `metadata`
             - Type: dict | 'auto' | None
-            - What: What the file header says about how the network was built, so that it travels with the file: the identity card, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network file") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
+            - What: What the file header says about how the network was built, so that it travels with the file: the build metadata, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network file") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
             - Default: 'auto'
             - Note: Changes made to a geograph after loading are not recorded in it (its `content_sha256` changes); a merge adds the other geograph's `sources`
             - Note: A key scgraph writes itself (`crs`, `units`, `modes`, `node_order`, ...), or a mode whose `source` names no entry of `sources` (also with None), raises a ValueError
@@ -499,7 +491,7 @@ class GeoGraphIO:
             silent=silent,
         )
         # In Hilbert order: nodes close on the globe get close ids
-        geograph = _in_hilbert_order(
+        geograph = _order_by_hilbert(
             GeoGraph(
                 graph=data["graph"],
                 nodes=data["nodes"],
@@ -530,6 +522,7 @@ class GeoGraphIO:
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
+        - Not the graph of the `osm_main_roads` pipeline from the same file: this loader neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
@@ -730,20 +723,19 @@ class GeoGraphIO:
             info["data_up_to"] = max(dates, default=None)
         return info
 
-    scgraph_info = get_scgraph_info
-
     @staticmethod
     def load_from_scgraph(
         filename: str,
         reduce_iterations: int = 0,
         lazy: bool = False,
+        modes: list[str] | str | None = None,
     ) -> "GeoGraph":
         """
         Function:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
         - The file is checked before use: a damaged or foreign file raises a ValueError (in the C++ build, damaged arc shapes raise it when they are read)
-        - In the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
+        - Without `modes`, in the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
@@ -767,6 +759,10 @@ class GeoGraphIO:
             - Type: bool
             - What: Whether to delay loading the geograph until its first use
             - Default: False
+        - `modes`
+            - Type: list[str] | str | None
+            - What: The names of the modes to load (see `modes`): only their nodes and the arcs between them, copied from the file instead of mapped; `modes` is the file's list, which `node_modes` indexes, and the file's metadata (sources, steps, attribution, as `scgraph_info` gives it) stays the whole file's
+            - Default: None (every mode)
         """
         if lazy:
             return LazyGeoGraph(
@@ -774,13 +770,14 @@ class GeoGraphIO:
                     filename=filename,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    modes=modes,
                 )
             )
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
         # The C++ graph reads the arcs in place, from the mapped file, and checks them
-        mapped = Graph.__module__ == "scgraph.cpp"
-        arrays, metadata = network_file.read(filename, mapped=mapped)
+        mapped = Graph.__module__ == "scgraph.cpp" and modes is None
+        arrays, metadata = network_file.read(filename, mapped, modes)
         try:
             graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
@@ -976,7 +973,7 @@ class GeoGraphIO:
         except OSError:
             # A cache that can't be written: the .graphjson is read at every load, its
             # nodes ordered as the file would have them
-            geograph = _in_hilbert_order(geograph)
+            geograph = _order_by_hilbert(geograph)
             geograph.graph_object.reduce(reduce_iterations)
             if len(geograph.nodes):  # as load_from_scgraph
                 geograph.snap_index
@@ -1124,7 +1121,7 @@ class GeoGraphIO:
             cache_path.rmdir()
 
     @staticmethod
-    def cache_info(cache_dir: str | None = None) -> list[dict]:
+    def get_cache_info(cache_dir: str | None = None) -> list[dict]:
         """
         Function:
 
@@ -1170,7 +1167,7 @@ class GeoGraphIO:
                 continue  # not cached
             name, *region = pointer.parent.relative_to(root).parts
             try:
-                header = network_file.info(file)
+                header = network_file.get_scgraph_info(file)
                 versions = (
                     header["pipeline"]["version"],
                     header["software"]["scgraph"],
@@ -1206,6 +1203,8 @@ class GeoGraphIO:
     def build_geograph(
         name: (
             Literal[
+                "europe_freeway",
+                "europe_rail",
                 "eurostat_marnet",
                 "marnet",
                 "north_america_rail",
@@ -1214,6 +1213,8 @@ class GeoGraphIO:
                 "osm_main_roads_and_marnet",
                 "osm_rail",
                 "us_freeway",
+                "world_main_roads",
+                "world_main_roads_and_marnet",
             ]
             | types.ModuleType
         ),
@@ -1222,8 +1223,14 @@ class GeoGraphIO:
         reduce_iterations: int = 0,
         lazy: bool = False,
         *,
+        resume: bool = True,
+        clean: bool = False,
+        from_stage: str | None = None,
+        keep_work: bool = False,
+        work_dir: str | None = None,
         refresh: bool = False,
         local_files_only: bool | None = None,
+        validate: bool = False,
     ) -> "GeoGraph":
         """
         Function:
@@ -1290,217 +1297,33 @@ class GeoGraphIO:
                     cache_dir=cache_dir,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
+                    resume=resume,
+                    clean=clean,
+                    from_stage=from_stage,
+                    keep_work=keep_work,
+                    work_dir=work_dir,
                     refresh=refresh,
                     local_files_only=local_files_only,
+                    validate=validate,
                 )
             )
-        if local_files_only is None:
-            local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
-        from scgraph import pipelines
+        from scgraph.pipelines.build import build_file
 
-        if isinstance(name, types.ModuleType):
-            network, name = name, name.__name__.rpartition(".")[2]
-            # Its cache entry would be a built-in's (each would load the other), or a
-            # path outside the cache
-            if not re.fullmatch(r"\w+", name) or (
-                name in pipelines.NAMES
-                and network.__name__ != f"scgraph.pipelines.{name}"
-            ):
-                raise ValueError(
-                    f"Invalid pipeline module name '{network.__name__}'"
-                )
-        elif name not in pipelines.NAMES:
-            close = difflib.get_close_matches(name, pipelines.NAMES, n=3)
-            hint = (
-                f" Did you mean {', '.join(map(repr, close))}?" if close else ""
-            )
-            raise ValueError(
-                f"Unknown network '{name}'.{hint} Available: {', '.join(pipelines.NAMES)}"
-            )
-        else:
-            network = importlib.import_module(f"scgraph.pipelines.{name}")
-        regional = any(
-            "{region}" in source["url"] for source in network.SOURCES.values()
-        )
-        where = f"the path of a Geofabrik extract, for example 'europe/luxembourg' (see https://download.geofabrik.de)"
-        if regional and region is None:
-            raise ValueError(f"'{name}' needs a region: {where}")
-        if not regional and region is not None:
-            raise ValueError(f"'{name}' has no region")
-        # Region names are Geofabrik paths; nothing else may reach the cache path
-        if region is not None and not re.fullmatch(
-            r"[a-z0-9-]+(/[a-z0-9-]+)*", region
-        ):
-            raise ValueError(f"Invalid region '{region}': {where}")
-        cache = resolve_cache_dir(cache_dir)
-        folder = cache.joinpath("networks", name, region or "")
-        pointer = folder.joinpath("cache.json")
-        # cache.json names the network file, which is named by its content
-        cached_file = _cached_file(pointer)
-        cached = cached_file is not None
-        # Built again for another pipeline version, or a file this scgraph can't read
-        if cached:
-            try:
-                built_by = network_file.info(cached_file)["pipeline"]["version"]
-            except (
-                ValueError,
-                KeyError,
-                TypeError,
-            ):  # damaged, or another format
-                built_by = None
-        stale = cached and built_by != network.PIPELINE_VERSION
-        offline = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
-        if local_files_only:
-            if refresh:
-                raise ValueError(f"refresh=True downloads: not with {offline}")
-            if not cached:
-                raise FileNotFoundError(
-                    f"{name} is not in the cache ({folder}) and {offline} "
-                    "forbids building it"
-                )
-            if built_by is None:
-                raise ValueError(
-                    f"The cached {name} can't be read (damaged, or a file format other "
-                    f"than {network_file.VERSION}): build it again without {offline}"
-                )
-            if stale:
-                warnings.warn(
-                    f"The cached {name} was built with pipeline version "
-                    f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}"
-                )
-        elif stale:
-            logger.warning(
-                "The cached %s was built by another version of its pipeline or "
-                "of the file format; building it again",
-                name,
-            )
-        if not local_files_only and (refresh or not cached or stale):
-            # The tag goes in networks/, scgraph's own folder: a cache_dir given by the user
-            # may hold other files, which backups must not skip
-            cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
-            cache.joinpath("networks", "CACHEDIR.TAG").write_text(_CACHEDIR_TAG)
-            # The only clock time: in cache.json, not in the file
-            downloaded = datetime.now(timezone.utc).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            )
-            files, sources = {}, []
-            # One folder per build, so that builds in parallel do not share files; at the
-            # root of the cache, outside `networks/`, where no GeoGraph may be saved
-            work = Path(tempfile.mkdtemp(prefix=".building-", dir=cache))
-            building = work.joinpath(f"{name}.scgraph")
-            try:
-                for source, about in network.SOURCES.items():
-                    template = about["url"]
-                    url = template.format(region=region)
-                    # Same extension as the URL, by which readers such as osmium detect the format
-                    files[source] = work.joinpath(
-                        source + "".join(Path(url).suffixes)
-                    )
-                    try:
-                        # It may return what it learnt of the source: its `version`
-                        learnt = getattr(
-                            network, "download", pipelines.download_file
-                        )(url, str(files[source]))
-                    except requests.HTTPError as error:
-                        if (
-                            "{region}" in template
-                            and error.response.status_code == 404
-                        ):
-                            raise ValueError(
-                                f"No extract '{region}' on Geofabrik; the region is {where}"
-                            ) from error
-                        raise
-                    with open(files[source], "rb") as file:
-                        sha256 = hashlib.file_digest(file, "sha256").hexdigest()
-                    sources.append(
-                        {
-                            "name": source,
-                            "url": url,
-                            "sha256": sha256,
-                            "bytes": files[source].stat().st_size,
-                            "credit": about["credit"],
-                            "license": about["license"],
-                            "license_url": about["license_url"],
-                            **(
-                                {"version": about["version"]}
-                                if "version" in about
-                                else {}
-                            ),
-                            **(learnt or {}),
-                        }
-                    )
-                logger.info("Building %s", name)
-                network_built = network.build(
-                    {source: str(path) for source, path in files.items()}
-                )
-                network_built, steps = (
-                    network_built
-                    if isinstance(network_built, tuple)
-                    else (network_built, None)
-                )
-                # Everything that describes the network, except clock times, so that
-                # the same rules, sources and software give the same file
-                metadata_card = pipelines.build_metadata(
-                    name,
-                    region,
-                    network.PIPELINE_VERSION,
-                    sources,
-                    network.__doc__,
-                    steps,
-                )
-                if isinstance(network_built, GeoGraph):
-                    digest = network_built.save_as_scgraph(
-                        str(building), metadata=metadata_card
-                    )
-                else:  # the network file's arrays, already in that order
-                    arrays, modes = network_built
-                    metadata = network_file.header_metadata(
-                        metadata_card,
-                        units="km",
-                        default_off_graph_circuity=1,
-                        default_node_addition_circuity=4,
-                        modes=modes,
-                    )
-                    digest = network_file.write(str(building), arrays, metadata)
-                built_file = folder.joinpath(f"{digest}.scgraph")
-                work.joinpath("cache.json").write_text(
-                    json.dumps(
-                        {"file": built_file.name, "downloaded": downloaded},
-                        indent=2,
-                    )
-                )
-                # cache.json appears last, so that it always names a whole file
-                folder.mkdir(parents=True, exist_ok=True)
-                try:
-                    building.replace(built_file)
-                # Open (Windows), so whole: a file of that name has the same content
-                except PermissionError:
-                    pass
-                work.joinpath("cache.json").replace(pointer)
-                if cached_file is not None and cached_file != built_file:
-                    try:
-                        cached_file.unlink(missing_ok=True)
-                    except OSError:  # still open (Windows): left as an orphan
-                        pass
-                cached_file = built_file
-                logger.info(
-                    "Built %s. Credit: %s (%s)",
-                    name,
-                    _joined(network, "credit"),
-                    _joined(network, "license"),
-                )
-            except OSError as error:  # requests' errors included
-                if cached:
-                    error.add_note(
-                        f"The cache still holds {name}: build_geograph(..., "
-                        "local_files_only=True) loads it"
-                    )
-                raise
-            finally:
-                # A failed download or build leaves no large file behind
-                shutil.rmtree(work, ignore_errors=True)
         return GeoGraph.load_from_scgraph(
-            str(cached_file), reduce_iterations=reduce_iterations, lazy=False
+            build_file(
+                name,
+                region,
+                cache_dir,
+                resume=resume,
+                clean=clean,
+                from_stage=from_stage,
+                keep_work=keep_work,
+                work_dir=work_dir,
+                refresh=refresh,
+                local_files_only=local_files_only,
+                validate=validate,
+            ),
+            reduce_iterations=reduce_iterations,
         )
 
     @staticmethod
@@ -2426,7 +2249,7 @@ def _keep_interior_points(shapes, nodes):
                 del row[destination]
 
 
-def _in_hilbert_order(geograph):
+def _order_by_hilbert(geograph):
     # A copy of the geograph with its nodes in Hilbert order within each mode: ids
     # change, lengths do not (where two routes tie, another may be returned)
     multimodal = len(geograph.modes) > 1
@@ -2982,17 +2805,19 @@ class GeoGraph(
             - Default: 'float64'
         - `default_off_graph_circuity`
             - Type: float | int
-            - What: The default circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
-            - Note: This can be used to account for graphs in different units than kilometers (like time).
-                - EG: For time, you may opt to just make this 0 so that the off graph distance is not counted towards the total path length (time)
-                - EG: For travel_time in seconds, you could assume that the off graph travel speed is 30 km/h, so the off graph circuity should be 3600 / 30 = 120
-            - See: `off_graph_circuity` notes in `get_shortest_path` for more information on how to set this value appropriately for your use case
+            - What: The physical distance multiplier applied to final off-graph access legs (origin -> entrance node and exit node -> destination) after the route is solved
+            - Purpose: Accounts for the real-world winding of local roads or converts spatial distances to different graph units (e.g. time)
+                - EG: For distance routing, 1.0 represents straight-line (great-circle) access distance, while 1.2 models average local street circuity
+                - EG: For travel time in seconds with an assumed off-graph speed of 30 km/h, set circuity to 3600 / 30 = 120
+                - EG: Set to 0 if off-graph travel should not contribute to the reported route length/time
             - Default: 1
         - `default_node_addition_circuity`
             - Type: float | int
-            - What: The default circuity factor to apply when adding your origin and destination nodes to the distance matrix
-            - See: `default_off_graph_circuity` notes above for more information on how to set this value appropriately for your use case
-            - See: `node_addition_circuity` notes in `get_shortest_path` for more information on how to set this value appropriately for your use case
+            - What: The algorithmic search penalty applied to candidate off-graph connection legs *during* shortest path finding
+            - Purpose: Prevents the pathfinding algorithm from "flying" off-network across impassable geographic barriers (e.g. crossing land in a maritime graph or crossing water without bridges)
+                - When connecting origins/destinations with multiple candidate entry points (`node_addition_type="quadrant"` or `"all"`), this factor artificially inflates the cost of traveling off-graph during the search
+                - A higher penalty (default: 4) forces the search to enter the graph at a nearby node rather than shortcutting off-graph towards the destination
+                - Once the optimal route sequence is determined, the actual reported path length uses `default_off_graph_circuity` instead of this penalty factor
             - Default: 4
         - `geograph_units`
             - Type: str
@@ -3351,29 +3176,29 @@ class GeoGraph(
             - What: Additional keyword arguments to pass to the algorithm function assuming it accepts them
         - `off_graph_circuity`
             - Type: int | float
-            - What: The circuity factor to apply to any distance calculations between your origin and destination nodes and their connecting nodes in the graph
-            - Default: 1 (more specifically self.default_off_graph_circuity)
+            - What: The physical distance multiplier applied to final off-graph access legs (origin -> entrance node and exit node -> destination) after the route is solved
+            - Default: 1 (more specifically `self.default_off_graph_circuity`)
             - Notes:
-                - For alogrithmic solving purposes, the node_addition_circuity is applied to the origin and destination nodes when they are added to the graph
-                - This is only applied after an `optimal solution` using the `node_addition_circuity` has been found when it is then adjusted to equal the `off_graph_circuity`
-                - The off graph KM multiplied by this value is added to the total path length to account for the distance traveled off the graph
+                - During pathfinding, `node_addition_circuity` is used to penalize off-graph travel and select the entry/exit nodes
+                - Once the optimal route sequence is determined, the actual reported `length` scales the access distance by `off_graph_circuity`
+                - Set to 0 if access legs should not contribute to total route length/time
         - `node_addition_type`
             - Type: str
-            - What: The type of node addition to use when adding your origin node to the distance matrix
+            - What: The snapping strategy used to connect off-graph origin and destination coordinates to the network
             - Default: 'kdclosest'
             - Options:
-                - 'kdclosest' / 'closest': Add the closest node with the snapping index (`snap_index`)
-                - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant with the snapping index (`snap_index`)
-                - 'all': Add all nodes within the bounding box to the distance matrix for this node
+                - 'kdclosest' / 'closest': Snap to the single nearest node using `snap_index`
+                - 'kdquadrant' / 'quadrant': Snap to the nearest node in each spatial quadrant (up to 4 candidates)
+                - 'all': Snap to all nodes within the spatial bounding box
         - `node_addition_circuity`
             - Type: int | float
-            - What: The circuity factor to apply when adding your origin and destination nodes to the distance matrix
-            - Default: 4 (more specifically self.default_node_addition_circuity)
-            - Note:
-                - This defaults to 4 to prevent the algorithm from taking a direct route in direction of the destination over some impassible terrain (EG: a maritime network that goes through land)
-                - A higher value will push the algorithm to join the network at a closer node to avoid the extra distance from the circuity factor
-                - This factor affects 'all' and 'quadrant' connections but is not necessary for 'closest' since there is only one entry point.
-                - This factor is used to calculate the node sequence for the `optimal route`, however the reported `length` of the path will be calculated using the `off_graph_circuity` factor
+            - What: The algorithmic search penalty applied to candidate off-graph connection legs *during* pathfinding
+            - Default: 4 (more specifically `self.default_node_addition_circuity`)
+            - Notes:
+                - Penalizes off-network travel relative to on-network routing to prevent shortcuts across impassable terrain (e.g. crossing land in a maritime graph)
+                - A higher penalty pushes the route to enter the network at a closer node rather than traveling off-graph towards the destination
+                - Active when `node_addition_type` is 'quadrant' or 'all' (not needed for 'closest' where only one entry node exists)
+                - Only influences route selection; final reported `length` uses `off_graph_circuity`
         - `output_coordinate_path`
             - Type: str
             - What: The format of the output coordinate path

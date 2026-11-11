@@ -497,12 +497,27 @@ class PieceArrays:
     COLUMNS = dict(origins="q", destinations="q", ends="i", km="d")
     COLUMNS.update(directions="b", points="i", offsets="q")
 
-    def __init__(self, tolerance_m=50, folder=None):
+    def __init__(self, tolerance_m=50, folder=None, truncate=True):
         self.tolerance_m, self.folder = tolerance_m, folder
+        if folder is not None:
+            os.makedirs(folder, exist_ok=True)
+        self._views = []
         for name, code in self.COLUMNS.items():
-            setattr(self, name, array(code))
-            if folder is not None:
-                open(os.path.join(folder, name), "wb").close()
+            path = os.path.join(folder, name) if folder is not None else None
+            if (
+                not truncate
+                and path is not None
+                and os.path.isfile(path)
+                and os.path.getsize(path) > 0
+            ):
+                file = open(path, "rb")
+                view = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+                self._views.append((file, view))
+                setattr(self, name, memoryview(view).cast(code))
+            else:
+                setattr(self, name, array(code))
+                if folder is not None and truncate:
+                    open(path, "wb").close()
         self._new = {name: array(code) for name, code in self.COLUMNS.items()}
         self._new["offsets"].append(0)
         self._starts = [0]
@@ -547,6 +562,19 @@ class PieceArrays:
                     )
         self._new = {name: array(code) for name, code in self.COLUMNS.items()}
         self._starts = [0]
+
+    def close(self):
+        """Release mapped memory views."""
+        for file, view in getattr(self, "_views", []):
+            try:
+                view.close()
+            except Exception:
+                pass
+            try:
+                file.close()
+            except Exception:
+                pass
+        self._views = []
 
 
 def build_graph_from_pieces(pieces):

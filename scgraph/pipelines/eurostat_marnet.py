@@ -51,3 +51,12 @@ def build(files):
     with open(geojson, "w") as file:
         json.dump({"type": "GeometryCollection", "geometries": lines}, file)
     return GeoGraph.load_from_geojson(geojson, precision=5, silent=True)
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION = {
+    "modes": ("sea",),
+    "cases": ["rotterdam_to_new_york", "rotterdam_to_singapore"],
+}

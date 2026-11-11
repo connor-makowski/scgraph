@@ -19,3 +19,12 @@ def build(files):
     return GeoGraph.load_from_geojson(
         files["sea_lanes"], precision=4, silent=True
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION = {
+    "modes": ("sea",),
+    "cases": ["rotterdam_to_new_york", "panama_canal_transit"],
+}

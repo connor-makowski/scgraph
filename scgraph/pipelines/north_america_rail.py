@@ -28,3 +28,12 @@ def build(files):
         max_km_between_nodes=2,
         load_intermediate_nodes=False,
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION = {
+    "modes": ("rail",),
+    "cases": ["chicago_to_new_orleans", "chicago_to_los_angeles"],
+}

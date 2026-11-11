@@ -12,6 +12,7 @@ import sysconfig
 import threading
 import types
 import typing
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -28,6 +29,7 @@ from scgraph.pipelines import (
     osm_main_roads,
     osm_main_roads_and_marnet,
 )
+from scgraph.pipelines import build
 from scgraph.pipelines.steps import assembly, osm
 from scgraph.utils import has_cpp, haversine
 
@@ -473,6 +475,53 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
         )
 
 
+# From the command line, a network is built into the cache without being loaded, and
+# the path of its file is printed; build_geograph then loads that file
+def test_build_command_builds_the_file_build_geograph_loads(
+    tmp_path, source, monkeypatch, capsys
+):
+    monkeypatch.setitem(
+        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
+    )
+    build.main(["marnet", "--cache-dir", str(tmp_path)])
+    path = capsys.readouterr().out.strip()
+    folder = tmp_path / "networks" / "marnet"
+    assert path == str(
+        folder / json.loads((folder / "cache.json").read_text())["file"]
+    )
+    geo = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
+    assert _Source.served == ["/lines.geojson"]  # loaded, not built again
+    assert len(geo.nodes) == 4
+
+
+# A source's own download hook is called for that source only, and its record says
+# what identifies the source, in place of the downloaded file's sha256 and size
+def test_build_geograph_calls_the_download_hook_of_a_source(tmp_path):
+    calls = []
+
+    def stream(url, filename):
+        calls.append(url)
+        with open(filename, "wb") as file:
+            file.write(_GEOJSON)
+        return {"bytes": 10**11, "md5": "0" * 32}
+
+    module = types.ModuleType("my_pipelines.streamed")
+    url = "https://planet.example/lines.geojson"
+    module.SOURCES = {
+        "sea_lanes": {
+            **marnet.SOURCES["sea_lanes"],
+            "url": url,
+            "download": stream,
+        }
+    }
+    module.PIPELINE_VERSION, module.build = 1, marnet.build
+    module.download = lambda url, filename: pytest.fail("module's hook called")
+    geo = GeoGraph.build_geograph(module, cache_dir=str(tmp_path))
+    (record,) = geo.metadata["sources"]
+    assert calls == [url] and "sha256" not in record
+    assert (record["bytes"], record["md5"]) == (10**11, "0" * 32)
+
+
 def test_build_geograph_leaves_nothing_after_a_failed_build(
     tmp_path, source, monkeypatch
 ):
@@ -784,3 +833,89 @@ def test_saving_into_the_built_networks_of_the_cache_is_refused(
     assert [p.name for p in tmp_path.rglob("edited.*")] == [
         f"edited.{extension}"
     ]
+
+
+def test_piece_arrays_resume_mapping(tmp_path):
+    folder = tmp_path / "stage1"
+    pieces = assembly.PieceArrays(folder=str(folder))
+    pieces.append(
+        101, 102, 12.5, 0, [[48.8, 2.3], [48.9, 2.4]], [[48.85, 2.35]]
+    )
+    pieces.flush()
+    reloaded = assembly.PieceArrays(folder=str(folder), truncate=False)
+    assert len(reloaded.km) == 1 and reloaded.origins[0] == 101
+    assert reloaded.destinations[0] == 102 and reloaded.km[0] == 12.5
+    graph = assembly.build_graph_from_pieces(reloaded)
+    assert len(graph["offsets"]) == 3
+    reloaded.close()
+
+
+def test_build_file_checkpoint_resume_and_invalidation(tmp_path):
+    pipe = types.ModuleType("pipe")
+    pipe.__doc__, pipe.PIPELINE_VERSION = "doc", 1
+    pipe.SOURCES = {
+        "src": {
+            "url": "http://x/s.txt",
+            "credit": "c",
+            "license": "MIT",
+            "license_url": "",
+            "download": lambda url, target: Path(target).write_text("ok"),
+        }
+    }
+    pipe.build = lambda files, *, folder=None: GeoGraph(
+        graph=[{1: 1.0}, {}], nodes=[[0.0, 0.0], [1.0, 1.0]]
+    )
+    work = tmp_path / "work"
+    build.build_file(
+        pipe, cache_dir=str(tmp_path / "c"), keep_work=True, work_dir=str(work)
+    )
+    assert work.joinpath("sources", "src.txt").is_file()
+    st1 = work / "stage1"
+    st1.mkdir(parents=True, exist_ok=True)
+    (st1 / "pass1.done").write_text("1")
+    (st1 / "pass2.done").write_text("2")
+    build.build_file(
+        pipe,
+        cache_dir=str(tmp_path / "c"),
+        from_stage="pass2",
+        keep_work=True,
+        work_dir=str(work),
+        refresh=True,
+    )
+    assert (st1 / "pass1.done").is_file() and not (st1 / "pass2.done").is_file()
+    build.build_file(
+        pipe,
+        cache_dir=str(tmp_path / "c"),
+        clean=True,
+        keep_work=True,
+        work_dir=str(work),
+        refresh=True,
+    )
+    assert not (st1 / "pass1.done").is_file()
+
+
+def test_build_cli_options(tmp_path, monkeypatch, capsys):
+    calls = []
+    monkeypatch.setattr(
+        build,
+        "build_file",
+        lambda name, region=None, cache_dir=None, **kw: calls.append(kw)
+        or "/file.scgraph",
+    )
+    build.main(
+        [
+            "marnet",
+            "--cache-dir",
+            str(tmp_path),
+            "--clean",
+            "--from",
+            "stage2",
+            "--keep-work",
+            "--work-dir",
+            str(tmp_path / "w"),
+        ]
+    )
+    assert calls[0]["clean"] is True and calls[0]["from_stage"] == "stage2"
+    assert calls[0]["keep_work"] is True and calls[0]["resume"] is True
+    build.main(["marnet", "--no-resume"])
+    assert calls[-1]["resume"] is False

@@ -11,6 +11,8 @@ the same file: that loader neither attaches ferries, nor contracts chains, nor s
 shapes.
 """
 
+import os
+
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage3_assembly import assembly
 
@@ -22,12 +24,44 @@ SELECTS = {"roads": osm.main_roads, "ferries": osm.vehicle_ferries}
 download = osm.download  # checks osmium before downloading a large extract
 
 
-def build(files):
+def build(
+    files,
+    *,
+    source=osm.open_osm_source,
+    max_km=osm.MAX_KM,
+    min_nodes=None,
+    folder=None,
+):
+    """The keywords give another scale (`world_main_roads`); `min_nodes=None` keeps
+    the largest component only."""
+    stage1_folder = os.path.join(folder, "stage1") if folder else None
     pieces, steps = osm.build_way_pieces(
-        files["roads"], SELECTS, ("highway", "route"), osm.MAX_KM
+        source(files["roads"]),
+        SELECTS,
+        ("highway", "route"),
+        max_km,
+        stage1_folder,
     )
     graph = assembly.build_graph_from_pieces(pieces)
     arrays, assembled = assembly.assemble(
-        graph, max_km=osm.MAX_KM, min_nodes=None
+        graph, max_km=max_km, min_nodes=min_nodes
     )
     return (arrays, [{"name": None}]), steps + assembled
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION = {
+    "modes": ("road",),
+    "cases": {
+        "europe/denmark": ["copenhagen_odense", "copenhagen_malmo"],
+        "europe/france": [
+            "paris_marseille",
+            "paris_bordeaux",
+            "toulouse_nice",
+            "lille_strasbourg",
+        ],
+        "europe/luxembourg": ["luxembourg_to_esch"],
+    },
+}

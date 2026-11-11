@@ -21,3 +21,12 @@ def build(files):
     return GeoGraph.load_from_geojson(
         files["freeway_lines"], precision=4, silent=True, max_km_between_nodes=2
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 4 Validation Contract
+# ---------------------------------------------------------------------------
+VALIDATION = {
+    "modes": ("road",),
+    "cases": ["new_york_to_chicago", "los_angeles_to_san_francisco"],
+}
