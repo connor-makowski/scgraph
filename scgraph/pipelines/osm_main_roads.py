@@ -56,7 +56,6 @@ def build(
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("road",),
     "cases": {
         "europe/denmark": ["copenhagen_odense", "copenhagen_malmo"],
         "europe/france": [

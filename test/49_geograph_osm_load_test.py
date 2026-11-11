@@ -5,7 +5,7 @@ import pytest
 from helpers import great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines import osm_main_roads, world_main_roads
+from scgraph.pipelines import osm_main_roads, osm_rail, world_main_roads
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.helpers.hilbert import hilbert_order
 
@@ -212,6 +212,24 @@ def test_load_from_osm_numbers_nodes_along_a_hilbert_curve_with_their_osm_ids(
 # A planet mirror: the files of a folder by HTTP, with byte ranges; their ETag is the text
 # of the folder's file "tag", read at each request. In a child process: osmium holds the
 # GIL while it waits for the pipe, which a server thread would need to fill
+# What a work folder keeps is reused for the same build only: a build resumed there
+# gives the same network, and another selection of ways never gets this one's pieces
+def test_a_work_folder_serves_the_build_that_filled_it_and_no_other(
+    osm_file, tmp_path
+):
+    work_dir = str(tmp_path / "work")
+    roads = osm_main_roads.build({"roads": osm_file})[0]
+    for _ in range(
+        2
+    ):  # the build that fills the folder, then the one that resumes
+        assert (
+            osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)[0]
+            == roads
+        )
+    with pytest.raises(ValueError, match="No way"):  # the file has no railway
+        osm_rail.build({"rail": osm_file}, work_dir=work_dir)
+
+
 _MIRROR = r"""
 import http.server, pathlib, sys
 folder = pathlib.Path(sys.argv[1])

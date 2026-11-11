@@ -56,8 +56,6 @@ def build(
     Returns:
         Tuple of ((arrays, modes), steps) describing the built multimodal network.
     """
-    if work_dir is None and "roads" in files:
-        work_dir = os.path.dirname(files["roads"])
     return regional.build(
         files,
         source=source,
@@ -71,7 +69,6 @@ def build(
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("road", "port", "sea"),
     "cases": [
         "paris_berlin",
         "rotterdam_to_new_york_intermodal",

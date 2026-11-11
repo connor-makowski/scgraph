@@ -267,7 +267,6 @@ def locate_ways(
             with open(ways_file, "wb") as f:
                 kept_ways.tofile(f)
             del kept_ways
-            Path(work_dir, "pass1.done").write_text("done\n")
 
         # Second pass: locations of kept nodes into store
         node_store = node_store or "flex_mem"
@@ -356,15 +355,40 @@ def build_way_pieces(
     `work_dir`, the node locations and the pieces are kept in files there.
     """
     if work_dir:
+        os.makedirs(work_dir, exist_ok=True)
         done_marker = os.path.join(work_dir, "stage1.done")
-        if os.path.isfile(done_marker):
-            try:
-                with open(done_marker, "r") as f:
-                    return PieceArrays(
-                        work_dir=work_dir, truncate=False
-                    ), json.load(f)
-            except OSError:
-                pass
+        # A work directory serves one build: what it holds is reused only for
+        # the same source, selection and cut
+        inputs = {
+            "source": (
+                os.fspath(source)
+                if isinstance(source, (str, os.PathLike))
+                else source.about
+            ),
+            "way_selectors": {
+                kind: getattr(select, "__qualname__", type(select).__name__)
+                for kind, select in way_selectors.items()
+            },
+            "required_tag_keys": list(required_tag_keys),
+            "max_km_between_nodes": max_km_between_nodes,
+        }
+        inputs_file = os.path.join(work_dir, "stage1.inputs.json")
+        try:
+            with open(inputs_file) as f:
+                same_inputs = json.load(f) == inputs
+        except (OSError, ValueError):
+            same_inputs = False
+        if not same_inputs:
+            for marker in ("pass2.done", "stage1.done"):
+                Path(work_dir, marker).unlink(missing_ok=True)
+            with open(inputs_file, "w") as f:
+                json.dump(inputs, f)
+        try:
+            with open(done_marker) as f:
+                steps = json.load(f)
+            return PieceArrays(work_dir=work_dir, truncate=False), steps
+        except (OSError, ValueError):
+            pass
     nodes = work_dir and os.path.join(work_dir, "nodes")
     store = nodes and "sparse_file_array," + nodes
     junctions, ways = locate_ways(
@@ -406,8 +430,11 @@ def build_way_pieces(
             )
         steps.append({"step": "ferries", "arcs": len(arcs)})
     if work_dir:
-        with open(os.path.join(work_dir, "stage1.done"), "w") as f:
+        # The marker appears last and whole: it says that every piece is on disk
+        pieces.flush()
+        with open(done_marker + ".part", "w") as f:
             json.dump(steps, f)
+        os.replace(done_marker + ".part", done_marker)
     return pieces, steps
 
 

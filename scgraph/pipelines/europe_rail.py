@@ -40,8 +40,6 @@ def build(
     Returns:
         Tuple of ((arrays, modes), steps) describing the built network.
     """
-    if work_dir is None and "rail" in files:
-        work_dir = os.path.dirname(files["rail"])
     return osm_rail.build(
         files,
         source=source,
@@ -55,11 +53,10 @@ def build(
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("rail",),
     "cases": [
         "rotterdam_duisburg",
         "hamburg_munich",
-        "paris_marseille",
+        "paris_marseille_rail",
         "luxembourg_to_bettembourg",
     ],
 }

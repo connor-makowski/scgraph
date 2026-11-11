@@ -15,8 +15,6 @@ select = ["F", "T201", "B006"]
 "scgraph/utils.py" = ["T201"]  # console helpers of 3.6.0
 "scgraph/pipelines/steps/stage4_validation/references/*.py" = ["T201"]  # command-line scripts
 "test/*" = ["T201"]
-# Names deleted before a memory-heavy step, after the last call of the functions that read them
-"scgraph/pipelines/steps/stage2_intermodal/ports.py" = ["F821"]
 
 [build-system]
 requires = ["scikit-build-core", "nanobind>=3.1.0"]

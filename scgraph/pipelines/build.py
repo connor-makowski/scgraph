@@ -26,7 +26,6 @@ from scgraph import network_file
 from scgraph.geograph import GeoGraph, _cached_file, _joined
 from scgraph.utils import resolve_cache_dir
 
-# The runner's messages keep the name they had in geograph.py
 logger = logging.getLogger(__name__)
 
 # Written in networks/ of the cache: backup and archiving tools skip a tagged directory
@@ -37,19 +36,13 @@ _CACHEDIR_TAG = (
 )
 
 
+# What `from_stage` removes from the work folder, by the step of the OSM
+# extraction to run again: all of it, the node locations (pass 2), or the cut
+# of the ways (pass 3). The later stages keep no file.
 STAGE_INVALIDATIONS = {
     "stage1": ["*.done", "*_junctions.bin", "*_ways.bin", "nodes"],
-    "pass1": ["*.done", "*_junctions.bin", "*_ways.bin", "nodes"],
-    "pass2": [
-        "pass2.done",
-        "stage1.done",
-        "stage2.done",
-        "stage3.done",
-        "nodes",
-    ],
-    "pass3": ["stage1.done", "stage2.done", "stage3.done"],
-    "stage2": ["stage2.done", "stage3.done"],
-    "stage3": ["stage3.done"],
+    "pass2": ["pass2.done", "stage1.done", "nodes"],
+    "pass3": ["stage1.done"],
 }
 
 
@@ -65,9 +58,7 @@ def _clean_work(work: Path, cache: Path) -> None:
 
 
 def _validate_pipeline(network, name, region, cached_file):
-    contract = getattr(network, "VALIDATION", None) or getattr(
-        network, "VALIDATION_CASES", None
-    )
+    contract = getattr(network, "VALIDATION", None)
     if not contract:
         return
     from scgraph.pipelines.steps.stage4_validation import (
@@ -112,12 +103,12 @@ def build_file(
         cache_dir: Optional custom cache directory.
         resume: Resume build using existing intermediate checkpoints (default: True).
         clean: Purge working directory and intermediate artifacts before building.
-        from_stage: Invalidate and restart from a specific stage ('stage1', 'pass2', 'stage2', 'stage3').
+        from_stage: Run the OSM extraction again from a step ('stage1', 'pass2', 'pass3'), in a kept work folder.
         keep_work: Retain intermediate working directory after successful build.
         work_dir: Custom directory for intermediate build artifacts and checkpoints.
         refresh: Force rebuild even if a current cached artifact exists.
         local_files_only: Forbid downloading missing network sources.
-        validate: Run Stage 4 validation checks against declarative cases.
+        validate: Check the built network against its validation cases; a failure raises RuntimeError and leaves the file in the cache.
         validate_only: Validate cached network without rebuilding or downloading.
         stream: Stream OSM extracts via HTTP byte ranges instead of downloading.
 
@@ -327,8 +318,6 @@ def build_file(
             build_kwargs = {}
             if "work_dir" in sig.parameters:
                 build_kwargs["work_dir"] = str(work)
-            elif "folder" in sig.parameters:
-                build_kwargs["folder"] = str(work)
             network_built = network.build(
                 {source: str(path) for source, path in files.items()},
                 **build_kwargs,
@@ -372,7 +361,8 @@ def build_file(
             # cache.json appears last, so that it always names a whole file
             folder.mkdir(parents=True, exist_ok=True)
             try:
-                building.replace(built_file)
+                # A work folder may be on another disk than the cache
+                shutil.move(building, built_file)
             # Open (Windows), so whole: a file of that name has the same content
             except PermissionError:
                 pass
@@ -435,15 +425,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--from",
         dest="from_stage",
-        choices=[
-            "stage1",
-            "pass1",
-            "pass2",
-            "pass3",
-            "stage2",
-            "stage3",
-            "stage4",
-        ],
+        choices=list(STAGE_INVALIDATIONS),
         help="resume build starting from a specific stage, invalidating later stages",
     )
     parser.add_argument(

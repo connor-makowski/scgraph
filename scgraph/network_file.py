@@ -265,7 +265,7 @@ def read(
             - `metadata`: JSON metadata dictionary including `content_sha256`.
 
     Raises:
-        ValueError: If file headers, checksum, or array contents are corrupted.
+        ValueError: If the header or the layout of the arrays is not valid. The digest is not checked at reading.
         FileNotFoundError: If the file does not exist.
     """
     mapped = mapped and sys.byteorder == "little" and modes is None
@@ -287,7 +287,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         filename (str): Path of the binary `.scgraph` file.
 
     Returns:
-        dict: Summary dictionary containing `metadata`, `content_sha256`, `format_version`,
+        dict: The keys of the file's metadata, then `content_sha256`, `format_version`,
             `nodes`, `arcs`, `coordinate_dtype`, `shapes`, and `node_ids`.
 
     Raises:

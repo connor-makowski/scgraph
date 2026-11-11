@@ -2,7 +2,6 @@ import functools
 import itertools
 import random
 import threading
-import time
 from copy import deepcopy
 import pytest
 from scgraph.graph import Graph as PyGraph
@@ -39,21 +38,13 @@ def run_network_test(geograph_name, geograph):
         "cached_shortest_path",
     ]
 
-    timings = {}
-
     # 1. Run all algorithms on the ORIGINAL graph
     g_large.reset_cache()
     orig_results = {}
     for algo in algorithms:
-        orig_paths = []
-        t_orig = 0.0
-        for org, dest in pairs:
-            t0 = time.perf_counter()
-            p = getattr(g_large, algo)(org, dest)
-            t_orig += time.perf_counter() - t0
-            orig_paths.append(p)
-        orig_results[algo] = orig_paths
-        timings[algo] = {"original": t_orig, "reduced": 0.0}
+        orig_results[algo] = [
+            getattr(g_large, algo)(org, dest) for org, dest in pairs
+        ]
 
     # 2. Reduce the graph ONCE for standard algorithms
     g_large.reduce()
@@ -61,15 +52,9 @@ def run_network_test(geograph_name, geograph):
     # 3. Run all algorithms on the REDUCED graph
     red_results = {}
     for algo in algorithms:
-        red_paths = []
-        t_red = 0.0
-        for org, dest in pairs:
-            t0 = time.perf_counter()
-            p = getattr(g_large, algo)(org, dest)
-            t_red += time.perf_counter() - t0
-            red_paths.append(p)
-        red_results[algo] = red_paths
-        timings[algo]["reduced"] = t_red
+        red_results[algo] = [
+            getattr(g_large, algo)(org, dest) for org, dest in pairs
+        ]
 
     # 4. Restore the original graph to evaluate path weights
     g_large.reset_cache()
@@ -85,9 +70,7 @@ def run_network_test(geograph_name, geograph):
                 < 1e-5
             )
 
-    # CH & TNR need separate preprocessing/warmup to measure query phase only
-    # Distance Matrix timing
-    timings["distance_matrix"] = {"original": 0.0, "reduced": 0.0}
+    # The distance matrix
     dm_nodes = [
         {"latitude": geograph.nodes[i][0], "longitude": geograph.nodes[i][1]}
         for i in range(
@@ -96,14 +79,10 @@ def run_network_test(geograph_name, geograph):
     ][:10]
 
     geograph.graph_object.reset_cache()
-    t0 = time.perf_counter()
     dm_orig = geograph.distance_matrix(dm_nodes)
-    timings["distance_matrix"]["original"] = time.perf_counter() - t0
 
     geograph.graph_object.reduce()
-    t0 = time.perf_counter()
     dm_red = geograph.distance_matrix(dm_nodes)
-    timings["distance_matrix"]["reduced"] = time.perf_counter() - t0
 
     # Assert matrix equivalence
     for r in range(len(dm_nodes)):

@@ -123,7 +123,6 @@ def build(
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("road", "port", "sea"),
     "cases": {
         "europe/denmark": ["aarhus_to_copenhagen_intermodal"],
     },

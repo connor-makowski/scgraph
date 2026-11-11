@@ -58,7 +58,6 @@ def rail(tags: "osmium.osm.TagList") -> int | None:
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("rail",),
     "cases": {
         "europe/luxembourg": ["luxembourg_to_bettembourg"],
     },

@@ -127,10 +127,15 @@ def join(
     # Every arc, one way, on node indices
     pieces = PieceArrays(tolerance_meters=None, work_dir=work_dir)
 
+    # ruff reports the names that `del` removes below as undefined in the two
+    # functions that read them; both are called for the last time before it
     def at(u):  # [latitude, longitude] of node u
         if u < roads:
-            return [lats[u] * 1e-7, lons[u] * 1e-7]
+            return [lats[u] * 1e-7, lons[u] * 1e-7]  # noqa: F821
         return others[u - roads]
+
+    def road(port):
+        return road_connector(port, near, components, land_mask)  # noqa: F821
 
     def add(u, v, km, shape):
         pieces.append(u, v, km, 1, [at(u), at(v)], shape)
@@ -148,7 +153,7 @@ def join(
             add(roads + u, roads + v, km, sea_shapes[u].get(v, []))
     for point, arcs in port_connectors(
         port_records,
-        lambda port: road_connector(port, near, components, land_mask),
+        road,
         lambda point: sea_connector(
             point, targets, cells, sea_network.nodes, land_mask
         ),

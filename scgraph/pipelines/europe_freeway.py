@@ -40,8 +40,6 @@ def build(
     Returns:
         Tuple of ((arrays, modes), steps) describing the built network.
     """
-    if work_dir is None and "roads" in files:
-        work_dir = os.path.dirname(files["roads"])
     return osm_main_roads.build(
         files,
         source=source,
@@ -55,7 +53,6 @@ def build(
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
 VALIDATION = {
-    "modes": ("road",),
     "cases": [
         "paris_berlin",
         "madrid_lisbon",
