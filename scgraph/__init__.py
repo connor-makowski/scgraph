@@ -976,13 +976,14 @@ from scgraph.graph import NegativeCycleError, PathNotFoundError
 from scgraph.graph_reducer import algorithm
 
 try:
-    from scgraph.cpp import Graph, CHGraph
+    from scgraph.cpp import Graph, CHGraph, TNRGraph
 
     # Assign python methods to the cpp graph class
     Graph.algorithm = staticmethod(algorithm)
 except ImportError:
     from scgraph.graph import Graph
     from scgraph.contraction_hierarchies import CHGraph
+    from scgraph.transit_node_routing import TNRGraph
 
 from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
