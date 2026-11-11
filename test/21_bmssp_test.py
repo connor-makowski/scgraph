@@ -2,27 +2,47 @@ import pytest
 from scgraph import Graph
 from helpers import assert_result
 
-_PAIRS = {
-    "marnet": [(0, 5), (100, 7999), (4022, 8342)],
-    "us_freeway": [(0, 5), (4022, 8342)],
-}
+# The tests of this file search the graph of a built-in network between nodes
+# named by their ids, and compare the route with the route of Dijkstra. The
+# pairs of ids are arbitrary.
 
 
-# On the graph of a built-in network, between nodes named by their ids, a search
-# finds the route of Dijkstra, whatever the algorithm.
+# The graphs are copies for this file: a contraction hierarchy built by a query
+# would stay on the network of the session.
+@pytest.fixture(scope="module")
+def marnet_graph(marnet):
+    return Graph(marnet.graph_object.graph)
+
+
+@pytest.fixture(scope="module")
+def us_freeway_graph(us_freeway):
+    return Graph(us_freeway.graph_object.graph)
+
+
 @pytest.mark.parametrize(
-    "name, algorithm",
-    [
-        ("marnet", "bmssp"),
-        ("us_freeway", "bmssp"),
-        ("us_freeway", "contraction_hierarchy"),
-    ],
+    "origin_id, destination_id", [(0, 5), (100, 7999), (4022, 8342)]
 )
-def test_graph_search_finds_the_route_of_dijkstra(name, algorithm, request):
-    # A graph of its own: the contraction hierarchy would stay on the fixture
-    graph = Graph(request.getfixturevalue(name).graph_object.graph)
-    for origin_id, destination_id in _PAIRS[name]:
-        assert_result(
-            getattr(graph, algorithm)(origin_id, destination_id),
-            graph.dijkstra(origin_id, destination_id),
-        )
+def test_bmssp_finds_the_route_of_dijkstra_on_marnet(
+    marnet_graph, origin_id, destination_id
+):
+    found = marnet_graph.bmssp(origin_id, destination_id)
+
+    assert_result(found, marnet_graph.dijkstra(origin_id, destination_id))
+
+
+@pytest.mark.parametrize("origin_id, destination_id", [(0, 5), (4022, 8342)])
+def test_bmssp_finds_the_route_of_dijkstra_on_us_freeway(
+    us_freeway_graph, origin_id, destination_id
+):
+    found = us_freeway_graph.bmssp(origin_id, destination_id)
+
+    assert_result(found, us_freeway_graph.dijkstra(origin_id, destination_id))
+
+
+@pytest.mark.parametrize("origin_id, destination_id", [(0, 5), (4022, 8342)])
+def test_contraction_hierarchy_finds_the_route_of_dijkstra_on_us_freeway(
+    us_freeway_graph, origin_id, destination_id
+):
+    found = us_freeway_graph.contraction_hierarchy(origin_id, destination_id)
+
+    assert_result(found, us_freeway_graph.dijkstra(origin_id, destination_id))

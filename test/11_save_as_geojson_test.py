@@ -3,7 +3,8 @@ import pytest
 from helpers import great_circle_km
 from scgraph import GeoGraph
 
-_NODES = [
+# The [latitude, longitude] of six nodes one degree apart
+NODES = [
     [0, 0],
     [0, 1],
     [1, 0],
@@ -11,7 +12,9 @@ _NODES = [
     [1, 2],
     [2, 1],
 ]
-_GRAPH = [
+# The links of the six nodes, in both directions with the same weight. Node 4
+# only lies between nodes 2 and 3: reduce() has a node to contract.
+LINKS = [
     {1: 5, 2: 1},
     {0: 5, 2: 2, 3: 1},
     {0: 1, 1: 2, 3: 4, 4: 8},
@@ -21,65 +24,90 @@ _GRAPH = [
 ]
 
 
-@pytest.fixture
-def tmp_graph(tmp_path):
-    return GeoGraph(nodes=list(_NODES), graph=list(_GRAPH)), tmp_path
+def test_geojson_file_gives_back_the_nodes_and_the_links(tmp_path):
+    geograph = GeoGraph(nodes=list(NODES), graph=list(LINKS))
+    path = str(tmp_path / "test.geojson")
+
+    geograph.save_as_geojson(path)
+    loaded = GeoGraph.load_from_geojson(path, silent=True)
+
+    assert loaded.nodes == NODES
+    # GeoJSON stores lines, not weights: the weights of the loaded graph are
+    # the lengths of the lines, so only the pairs of linked nodes are compared
+    linked_nodes = [set(links) for links in loaded.graph_object.graph]
+    assert linked_nodes == [set(links) for links in LINKS]
 
 
-# Saving must write the original graph, whether or not the geograph was reduced
-@pytest.mark.parametrize("reduce", [False, True])
-def test_save_load_geojson(tmp_graph, reduce):
-    geo, tmp = tmp_graph
-    if reduce:
-        geo.reduce()
-    geojson_path = str(tmp / "test.geojson")
-    geo.save_as_geojson(geojson_path)
-    loaded = GeoGraph.load_from_geojson(geojson_path, silent=True)
-    assert loaded.nodes == _NODES
-    # GeoJSON stores geometries: compare edges, not their recomputed lengths
-    edges = [set(d) for d in loaded.graph_object.graph]
-    assert edges == [set(d) for d in _GRAPH]
+def test_geojson_file_of_a_reduced_geograph_holds_the_graph_before_reduction(
+    tmp_path,
+):
+    geograph = GeoGraph(nodes=list(NODES), graph=list(LINKS))
+    geograph.reduce()
+    path = str(tmp_path / "test.geojson")
+
+    geograph.save_as_geojson(path)
+    loaded = GeoGraph.load_from_geojson(path, silent=True)
+
+    assert loaded.nodes == NODES
+    linked_nodes = [set(links) for links in loaded.graph_object.graph]
+    assert linked_nodes == [set(links) for links in LINKS]
 
 
-@pytest.mark.parametrize("reduce", [False, True])
-def test_save_load_graphjson(tmp_graph, reduce):
-    geo, tmp = tmp_graph
-    if reduce:
-        geo.reduce()
-    graphjson_path = str(tmp / "test.graphjson")
-    geo.save_as_graphjson(graphjson_path)
-    loaded = GeoGraph.load_from_graphjson(graphjson_path)
-    assert loaded.graph_object.graph == _GRAPH
-    assert loaded.nodes == _NODES
+def test_graphjson_file_gives_back_the_nodes_and_the_graph(tmp_path):
+    geograph = GeoGraph(nodes=list(NODES), graph=list(LINKS))
+    path = str(tmp_path / "test.graphjson")
+
+    geograph.save_as_graphjson(path)
+    loaded = GeoGraph.load_from_graphjson(path)
+
+    assert loaded.nodes == NODES
+    assert loaded.graph_object.graph == LINKS
 
 
-def test_save_load_graphjson_keeps_route_geometry(tmp_path):
-    # Routes on a reloaded GeoGraph follow the same shapes as before saving; shapes that
-    # repeat their arc's two nodes (files of scgraph 3.6, here 0 -> 1) are read without
-    # them, shapes of points between the nodes only (1 -> 2) are read as they are
-    nodes = [[0.0, 0.0], [0.0, 0.01], [0.0, 0.02]]
+def test_graphjson_file_of_a_reduced_geograph_holds_the_graph_before_reduction(
+    tmp_path,
+):
+    geograph = GeoGraph(nodes=list(NODES), graph=list(LINKS))
+    geograph.reduce()
+    path = str(tmp_path / "test.graphjson")
 
-    def shape(a, b):
-        return [nodes[a], [0.003, (nodes[a][1] + nodes[b][1]) / 2], nodes[b]]
+    geograph.save_as_graphjson(path)
+    loaded = GeoGraph.load_from_graphjson(path)
 
-    geo = GeoGraph(
-        nodes=nodes,
+    assert loaded.nodes == NODES
+    assert loaded.graph_object.graph == LINKS
+
+
+def test_graphjson_file_gives_back_the_shapes_of_the_links(tmp_path):
+    # Three nodes on the equator, 0.01 degree apart, and one shape point per
+    # link, 0.003 degree north of the middle of the link. The shapes of
+    # 0 <-> 1 and of 2 -> 1 repeat the two nodes of their link, as the files of
+    # scgraph 3.6 do; the shape of 1 -> 2 holds only the point between the
+    # nodes. Both forms must be read as the point between the nodes.
+    geograph = GeoGraph(
+        nodes=[[0.0, 0.0], [0.0, 0.01], [0.0, 0.02]],
         graph=[{1: 1.5}, {0: 1.5, 2: 1.5}, {1: 1.5}],
         intermediate_nodes=[
-            {1: shape(0, 1)},
-            {0: shape(1, 0), 2: shape(1, 2)[1:-1]},
-            {1: shape(2, 1)},
+            {1: [[0.0, 0.0], [0.003, 0.005], [0.0, 0.01]]},
+            {
+                0: [[0.0, 0.01], [0.003, 0.005], [0.0, 0.0]],
+                2: [[0.003, 0.015]],
+            },
+            {1: [[0.0, 0.02], [0.003, 0.015], [0.0, 0.01]]},
         ],
     )
     path = str(tmp_path / "shaped.graphjson")
-    geo.save_as_graphjson(path)
+
+    geograph.save_as_graphjson(path)
     loaded = GeoGraph.load_from_graphjson(path)
-    origin = {"latitude": 0.001, "longitude": 0.0}
-    destination = {"latitude": 0.001, "longitude": 0.02}
+
     route = loaded.get_shortest_path(
-        origin, destination, output_coordinate_path="list_of_lists"
+        origin_node={"latitude": 0.001, "longitude": 0.0},
+        destination_node={"latitude": 0.001, "longitude": 0.02},
+        output_coordinate_path="list_of_lists",
     )
-    # Each node once, each arc's point between them
+    # The requested origin, each node once with the shape point of each link
+    # between them, the requested destination
     assert route["coordinate_path"] == [
         [0.001, 0.0],
         [0.0, 0.0],
@@ -91,56 +119,70 @@ def test_save_load_graphjson_keeps_route_geometry(tmp_path):
     ]
 
 
-# Coordinates on or beyond the antimeridian keep their place on the globe
-@pytest.mark.parametrize(
-    "longitude, latitude, expected",
-    [
-        (180, 0, [0, 180]),
-        (-180, 0, [0, -180]),
-        (190.5, 0, [0, -169.5]),
-        (190.8498, 0, [0, -169.1502]),
-        (-180.5, 0, [0, 179.5]),
-        (12.5, 90, [90, 12.5]),
-        (12.5, 95, ValueError),  # no latitude beyond the poles
-    ],
-)
-def test_load_from_geojson_keeps_coordinates_on_the_globe(
-    tmp_path, longitude, latitude, expected
-):
-    path = tmp_path / "line.geojson"
-    line = [[longitude - 0.5, 89.5], [longitude, latitude]]
-    path.write_text(
-        json.dumps(
-            {
-                "type": "GeometryCollection",
-                "geometries": [{"type": "LineString", "coordinates": line}],
-            }
-        )
-    )
-    if expected is ValueError:
-        with pytest.raises(ValueError, match="Latitude"):
-            GeoGraph.load_from_geojson(str(path), silent=True)
-        return
-    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
-    assert expected in loaded.nodes
-
-
-def test_load_from_geojson_lengths(tmp_path):
-    # Far from the equator and from Greenwich, where swapping latitude and longitude shows
-    path = tmp_path / "line.geojson"
+def write_geojson_line(path, coordinates):
+    """Write a GeoJSON file of one line of [longitude, latitude] points."""
     path.write_text(
         json.dumps(
             {
                 "type": "GeometryCollection",
                 "geometries": [
-                    {
-                        "type": "LineString",
-                        "coordinates": [[100, 50], [101, 51]],
-                    }
+                    {"type": "LineString", "coordinates": coordinates}
                 ],
             }
         )
     )
+
+
+# A longitude beyond 180 or below -180 is the same place as one within the
+# range, 360 degrees away; 180 and -180 are kept as they are written.
+@pytest.mark.parametrize(
+    "written_longitude, loaded_longitude",
+    [
+        (180, 180),
+        (-180, -180),
+        (190.5, -169.5),
+        (190.8498, -169.1502),
+        (-180.5, 179.5),
+    ],
+)
+def test_load_from_geojson_brings_a_longitude_back_within_180_degrees(
+    tmp_path, written_longitude, loaded_longitude
+):
+    path = tmp_path / "line.geojson"
+    # A line that ends on the equator at the longitude under test
+    write_geojson_line(
+        path, [[written_longitude - 0.5, 89.5], [written_longitude, 0]]
+    )
+
     loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+
+    assert [0, loaded_longitude] in loaded.nodes
+
+
+def test_load_from_geojson_accepts_a_point_at_the_pole(tmp_path):
+    path = tmp_path / "line.geojson"
+    write_geojson_line(path, [[12, 89.5], [12.5, 90]])
+
+    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+
+    assert [90, 12.5] in loaded.nodes
+
+
+def test_load_from_geojson_refuses_a_latitude_beyond_the_pole(tmp_path):
+    path = tmp_path / "line.geojson"
+    write_geojson_line(path, [[12, 89.5], [12.5, 95]])
+
+    with pytest.raises(ValueError, match="Latitude"):
+        GeoGraph.load_from_geojson(str(path), silent=True)
+
+
+def test_load_from_geojson_weighs_a_link_by_its_great_circle_length(tmp_path):
+    # The line is far from the equator and from Greenwich: there, a latitude
+    # taken for a longitude changes the length
+    path = tmp_path / "line.geojson"
+    write_geojson_line(path, [[100, 50], [101, 51]])
+
+    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+
     expected = great_circle_km([50, 100], [51, 101])
     assert loaded.graph_object.graph[0][1] == pytest.approx(expected, abs=0.001)

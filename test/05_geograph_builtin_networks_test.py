@@ -1,53 +1,87 @@
 import pytest
 from helpers import assert_result
 
-_PACIFIC = (
-    {"latitude": 30, "longitude": 160},
-    {"latitude": 30, "longitude": -160},
-)
-# For each built-in network: an origin, a destination and the published length
-# of the route between them
-_ROUTES = {
-    "marnet": (*_PACIFIC, 4477.148),
-    "oak_ridge_maritime": (*_PACIFIC, 3894.053),
-    "north_america_rail": (
-        {"latitude": 48.325, "longitude": -102.352},
-        {"latitude": 48.561, "longitude": -102.651},
-        39.9236,
-    ),
-    "us_freeway": (
-        {"latitude": 41.129, "longitude": -85.158},
-        {"latitude": 42.297, "longitude": -84.996},
-        138.6748,
-    ),
+# For each built-in network, one route and its published length. The two
+# maritime routes cross the Pacific from one side of the antimeridian
+# (longitude 180) to the other; the rail and road routes join two points of
+# the United States less than 150 km apart.
+PUBLISHED_ROUTES = {
+    "marnet": {
+        "origin": {"latitude": 30, "longitude": 160},
+        "destination": {"latitude": 30, "longitude": -160},
+        "length": 4477.148,
+    },
+    "oak_ridge_maritime": {
+        "origin": {"latitude": 30, "longitude": 160},
+        "destination": {"latitude": 30, "longitude": -160},
+        "length": 3894.053,
+    },
+    "north_america_rail": {
+        "origin": {"latitude": 48.325, "longitude": -102.352},
+        "destination": {"latitude": 48.561, "longitude": -102.651},
+        "length": 39.9236,
+    },
+    "us_freeway": {
+        "origin": {"latitude": 41.129, "longitude": -85.158},
+        "destination": {"latitude": 42.297, "longitude": -84.996},
+        "length": 138.6748,
+    },
 }
+BUILT_IN_NETWORKS = list(PUBLISHED_ROUTES)
 
 
-# A built-in network has valid coordinates and symmetric links; marnet is also
-# connected.
-@pytest.mark.parametrize("name", list(_ROUTES))
-def test_built_in_network_is_valid(name, request):
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
+def test_built_in_network_has_links_in_both_directions(name, request):
     geograph = request.getfixturevalue(name)
-    geograph.validate(check_symmetry=True, check_connected=name == "marnet")
+
+    geograph.validate(check_symmetry=True, check_connected=False)
+
+
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
+def test_built_in_network_has_valid_coordinates(name, request):
+    geograph = request.getfixturevalue(name)
+
     geograph.validate_nodes()
 
 
-# A built-in network gives its published distance, on a route that goes from
-# the origin to the destination through nodes that links of the network join.
-@pytest.mark.parametrize("name", list(_ROUTES))
+# marnet is the one built-in network that is required to be in one part.
+def test_marnet_joins_every_two_of_its_nodes(marnet):
+    marnet.validate(check_symmetry=False, check_connected=True)
+
+
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
 def test_built_in_network_gives_its_published_distance(name, request):
     geograph = request.getfixturevalue(name)
-    origin, destination, length = _ROUTES[name]
+    published = PUBLISHED_ROUTES[name]
+
+    route = geograph.get_shortest_path(
+        origin_node=published["origin"],
+        destination_node=published["destination"],
+        algorithm_fn="dijkstra",
+    )
+
+    assert_result({"length": route["length"]}, {"length": published["length"]})
+
+
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
+def test_route_on_a_built_in_network_follows_its_links(name, request):
+    geograph = request.getfixturevalue(name)
+    origin = PUBLISHED_ROUTES[name]["origin"]
+    destination = PUBLISHED_ROUTES[name]["destination"]
+
     route = geograph.get_shortest_path(
         origin_node=origin,
         destination_node=destination,
         algorithm_fn="dijkstra",
         output_path=True,
     )
-    assert_result({"length": route["length"]}, {"length": length})
+
+    # A link of the network joins each node of the path to the next one
     path = route["path"]
-    graph = geograph.graph_object.graph
-    assert all(v in graph[u] for u, v in zip(path, path[1:]))
+    links = geograph.graph_object.graph
+    assert all(v in links[u] for u, v in zip(path, path[1:]))
+    # The requested origin, the point of each node of the path, the requested
+    # destination
     assert route["coordinate_path"] == [
         [origin["latitude"], origin["longitude"]],
         *(geograph.nodes[node_id] for node_id in path),
@@ -55,32 +89,85 @@ def test_built_in_network_gives_its_published_distance(name, request):
     ]
 
 
-# The route does not depend on the algorithm. It is asked twice, so that the
-# second answer of cached_shortest_path comes from the tree it kept.
-@pytest.mark.parametrize(
-    "algorithm, heuristic",
-    [
-        ("a_star", "haversine"),
-        ("a_star", "cheap_ruler"),
-        ("bmssp", None),
-        ("bidirectional_dijkstra", None),
-        ("cached_shortest_path", None),
-    ],
-)
-@pytest.mark.parametrize("name", list(_ROUTES))
-def test_route_does_not_depend_on_the_algorithm(
-    name, algorithm, heuristic, request
+# The four tests below compare an algorithm with Dijkstra on the published
+# route of each network: the route does not depend on the algorithm.
+
+
+@pytest.mark.parametrize("algorithm", ["bmssp", "bidirectional_dijkstra"])
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
+def test_algorithm_finds_the_route_of_dijkstra(name, algorithm, request):
+    geograph = request.getfixturevalue(name)
+    query = {
+        "origin_node": PUBLISHED_ROUTES[name]["origin"],
+        "destination_node": PUBLISHED_ROUTES[name]["destination"],
+    }
+
+    found = geograph.get_shortest_path(**query, algorithm_fn=algorithm)
+
+    assert_result(
+        found, geograph.get_shortest_path(**query, algorithm_fn="dijkstra")
+    )
+
+
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
+def test_a_star_with_the_haversine_heuristic_finds_the_route_of_dijkstra(
+    name, request
 ):
     geograph = request.getfixturevalue(name)
-    origin, destination, _ = _ROUTES[name]
-    query = {"origin_node": origin, "destination_node": destination}
+    query = {
+        "origin_node": PUBLISHED_ROUTES[name]["origin"],
+        "destination_node": PUBLISHED_ROUTES[name]["destination"],
+    }
+
+    found = geograph.get_shortest_path(
+        **query,
+        algorithm_fn="a_star",
+        algorithm_kwargs={"heuristic_fn": geograph.haversine},
+    )
+
+    assert_result(
+        found, geograph.get_shortest_path(**query, algorithm_fn="dijkstra")
+    )
+
+
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
+def test_a_star_with_the_cheap_ruler_heuristic_finds_the_route_of_dijkstra(
+    name, request
+):
+    geograph = request.getfixturevalue(name)
+    query = {
+        "origin_node": PUBLISHED_ROUTES[name]["origin"],
+        "destination_node": PUBLISHED_ROUTES[name]["destination"],
+    }
+
+    found = geograph.get_shortest_path(
+        **query,
+        algorithm_fn="a_star",
+        algorithm_kwargs={"heuristic_fn": geograph.cheap_ruler},
+    )
+
+    assert_result(
+        found, geograph.get_shortest_path(**query, algorithm_fn="dijkstra")
+    )
+
+
+@pytest.mark.parametrize("name", BUILT_IN_NETWORKS)
+def test_cached_shortest_path_finds_the_route_of_dijkstra_twice(name, request):
+    geograph = request.getfixturevalue(name)
+    query = {
+        "origin_node": PUBLISHED_ROUTES[name]["origin"],
+        "destination_node": PUBLISHED_ROUTES[name]["destination"],
+    }
+
+    # The first call computes the shortest path tree of the origin and keeps
+    # it; the second call reads the route in the tree it kept
+    first = geograph.get_shortest_path(
+        **query, algorithm_fn="cached_shortest_path"
+    )
+    second = geograph.get_shortest_path(
+        **query, algorithm_fn="cached_shortest_path"
+    )
+
     expected = geograph.get_shortest_path(**query, algorithm_fn="dijkstra")
-    if heuristic:
-        query["algorithm_kwargs"] = {
-            "heuristic_fn": getattr(geograph, heuristic)
-        }
-    for _ in range(2):
-        assert_result(
-            geograph.get_shortest_path(**query, algorithm_fn=algorithm),
-            expected,
-        )
+    assert_result(first, expected)
+    assert_result(second, expected)
