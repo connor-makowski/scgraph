@@ -53,7 +53,7 @@ The `pipelines/` package builds reference networks from online sources. Each net
 * **Stage 3 - Topology & Assembly (`steps.stage3_assembly`)**:
   CSR graph construction (`build_csr_from_arcs`), strongly connected components (`strongly_connected_components`), pass-through chain contraction (`contract_chains`), Douglas-Peucker simplification of arc shapes (`simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`), and node ordering along a Hilbert curve (`assemble`). The runner then writes the arrays to a `.scgraph` file.
 * **Stage 4 - Validation (`steps.stage4_validation`)**:
-  `validate_network` checks a built network against cases. A case describes a known route of the real world: a driving distance, a published sea distance, a rail corridor, a passage such as Suez, the road access of a large city. Each kind of case has its own rule and its own CSV file in `cases/`. The docstring of `steps/stage4_validation` lists the kinds and their rules. The runner calls it when `build_file` gets `validate=True`, on the built file before it enters the cache: a network that fails is not cached.
+  `validate_network` checks a built network against cases. A case describes a known route of the real world: a driving distance, a published sea distance, a rail corridor, a passage such as Suez, the road access of a large city. Each kind of case has its own rule and its own CSV file in `cases/`. The docstring of `steps/stage4_validation` lists the kinds and their rules. When `build_file` gets `validate=True`, the runner calls `validate_network` on the built file. A network that fails does not enter the cache.
 * **Runner & Orchestrator (`build.py`)**:
   `build_file` downloads the sources, builds the network in a work folder, and moves the finished file into the cache. It writes the metadata of the build (pipeline, sources, software) into the header of the `.scgraph` file.
 * **C++ Acceleration (`scgraph/cpp/src/pipelines/`)**:
@@ -299,7 +299,7 @@ The `inverse_graph` is preserved across edits and updated incrementally.
 
 Networks built or downloaded by `scgraph` are cached on disk (default: `~/.cache/scgraph`):
 * **Hierarchy**: `networks/<name>/<region>/<content_sha256>.scgraph` next to a `cache.json` that names the file and gives the download time.
-* **Atomic Writes**: A build writes into the work folder `.work/<name>/<region>` of the cache directory. It then moves the finished `.scgraph` file into place, and `cache.json` after it, each with an atomic rename. `cache.json` therefore always names a whole file. A build that succeeds removes its work folder. A build that fails keeps it, with the downloaded sources, and the next build resumes from it; `refresh=True` empties it first.
+* **Atomic Writes**: A build writes into the work folder `.work/<name>/<region>` of the cache directory. It then moves the finished `.scgraph` file into place, and `cache.json` after it, each with an atomic rename. `cache.json` therefore always names a whole file. A build that succeeds removes its work folder. A build that fails keeps its work folder, with the downloaded sources. The next build resumes from it. `refresh=True` empties it first.
 * **Offline Operation**: Setting `SCGRAPH_OFFLINE=1` or `local_files_only=True` prevents all network requests, loading only existing cached builds.
 * **Cache Management**: `GeoGraph.clear_geograph_cache()` safely removes cached networks without altering user files.
 
