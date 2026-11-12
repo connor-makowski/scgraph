@@ -1,4 +1,5 @@
 import json, time, platform, os
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from math import pi, sin, cos, asin
 
@@ -18,7 +19,7 @@ def haversine(
     destination: list[float | int],
     units: str = "km",
     circuity: float | int = 1,
-):
+) -> float:
     """
     Function:
 
@@ -63,7 +64,12 @@ def haversine(
     return c * radius * circuity
 
 
-def cheap_ruler(origin, destination, units="km", circuity=1):
+def cheap_ruler(
+    origin: list[float | int],
+    destination: list[float | int],
+    units: str = "km",
+    circuity: float | int = 1,
+) -> float:
     """
     Function:
 
@@ -129,7 +135,7 @@ def cheap_ruler(origin, destination, units="km", circuity=1):
     return (dx**2 + dy**2) ** 0.5 * circuity
 
 
-def hard_round(decimal_places: int, a: float | int):
+def hard_round(decimal_places: int, a: float | int) -> float:
     """
     Function:
 
@@ -151,7 +157,7 @@ def hard_round(decimal_places: int, a: float | int):
 
 def distance_converter(
     distance: float | int, input_units: str, output_units: str
-):
+) -> float:
     """
     Function:
 
@@ -175,7 +181,7 @@ def distance_converter(
     return (distance / km_table[input_units]) * km_table[output_units]
 
 
-def get_line_path(output: list | dict, filename=None):
+def get_line_path(output: list | dict, filename: str | None = None) -> dict:
     """
     Function:
 
@@ -219,7 +225,7 @@ def get_line_path(output: list | dict, filename=None):
     return linestring
 
 
-def print_console(*args, silent: bool = False, **kwargs):
+def print_console(*args, silent: bool = False, **kwargs) -> None:
     """
     Function:
 
@@ -240,7 +246,7 @@ def print_console(*args, silent: bool = False, **kwargs):
 
 def get_lat_lon_bound_between_pts(
     origin: dict[str, int | float], destination: dict[str, int | float]
-):
+) -> float:
     """
     Function:
 
@@ -318,7 +324,7 @@ def adjacency_list_tuples_to_dict(
     ]
 
 
-def validate(name, realized, expected):
+def validate(name: str, realized: object, expected: object) -> None:
     # Custom length rounding for floating point precision issues
     if isinstance(realized, dict):
         if "length" in realized:
@@ -334,7 +340,12 @@ def validate(name, realized, expected):
         print("Realized:", realized)
 
 
-def time_test(name, function, args=None, kwargs=None):
+def time_test(
+    name: str,
+    function: Callable,
+    args: Iterable | None = None,
+    kwargs: dict | None = None,
+) -> None:
     if args is None:
         args = ()
     if kwargs is None:
@@ -344,7 +355,7 @@ def time_test(name, function, args=None, kwargs=None):
     print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
 
 
-def has_cpp():
+def has_cpp() -> bool:
     try:
         from scgraph.cpp import Graph  # noqa: F401
 
@@ -353,7 +364,7 @@ def has_cpp():
         return False
 
 
-def cpp_check():
+def cpp_check() -> None:
     try:
         from scgraph.cpp import Graph  # noqa: F401
 

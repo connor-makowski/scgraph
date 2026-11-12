@@ -149,7 +149,7 @@ class GridGraph:
         """
         return idx % self.x_size, idx // self.x_size
 
-    def get_idx(self, x: int, y: int):
+    def get_idx(self, x: int, y: int) -> int:
         """
         Function:
         - Get the index of a cell in a 2D grid given its x and y coordinates
@@ -172,7 +172,7 @@ class GridGraph:
         assert y >= 0 and y < self.y_size, "y coordinate is out of bounds"
         return x + y * self.x_size
 
-    def get_x_y(self, idx: int):
+    def get_x_y(self, idx: int) -> tuple[int, int]:
         """
         Function:
         - Get the x and y coordinates of a cell in a 2D grid given its index
@@ -429,7 +429,15 @@ class GridGraph:
             )
         return closest_node_id, closest_distance
 
-    def format_coordinate(self, coordinate_dict, output_coordinate_path):
+    def format_coordinate(
+        self,
+        coordinate_dict: dict[Literal["x", "y"], int | float],
+        output_coordinate_path: str,
+    ) -> (
+        tuple[int | float, int | float]
+        | list[int | float]
+        | dict[str, int | float]
+    ):
         if output_coordinate_path == "list_of_tuples":
             return (coordinate_dict["x"], coordinate_dict["y"])
         elif output_coordinate_path == "list_of_lists":
