@@ -16,12 +16,12 @@ from scgraph.pipelines.steps.stage4_validation import (
 # cases gets none
 def test_every_pipeline_names_existing_validation_cases():
     for name in pipelines.NAMES:
-        contract = getattr(
+        validation = getattr(
             importlib.import_module(f"scgraph.pipelines.{name}"),
             "VALIDATION",
             None,
         )
-        assert contract is None or load_cases(contract)
+        assert validation is None or load_cases(validation)
     regional = {"cases": {"europe/france": ["paris_marseille"]}}
     assert [
         case["id"] for case in load_cases(regional, region="europe/france")
@@ -35,12 +35,12 @@ def test_every_pipeline_names_existing_validation_cases():
     "name", ["marnet", "us_freeway", "north_america_rail", "oak_ridge_maritime"]
 )
 def test_published_network_passes_its_validation_cases(name, request):
-    contract = importlib.import_module(f"scgraph.pipelines.{name}").VALIDATION
+    validation = importlib.import_module(f"scgraph.pipelines.{name}").VALIDATION
     result = validate_network(
-        request.getfixturevalue(name), load_cases(contract)
+        request.getfixturevalue(name), load_cases(validation)
     )
     assert result.is_success, result.failures
-    assert result.passed == len(contract["cases"])
+    assert result.passed == len(validation["cases"])
 
 
 # The tests below use a network of two towns on the equator, one degree of
@@ -121,7 +121,7 @@ BOX_ACROSS_THE_ROAD = {
 }
 
 
-def test_a_passage_case_passes_when_the_route_goes_through_its_box(two_towns):
+def test_a_passage_case_passes_when_the_route_enters_its_box(two_towns):
     result = validate_network(
         two_towns,
         [a_case("passages", reference="enters", **BOX_ACROSS_THE_ROAD)],

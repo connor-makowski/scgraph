@@ -29,7 +29,7 @@ A pipeline is a module with these names:
   must pass when `build_file` is called with `validate=True`. A case describes a known
   route of the real world. The docstring of `steps/stage4_validation` describes the
   kinds of cases, their rules and the entries of this list. A regional pipeline gives
-  one list for each region
+  `{"cases": {region: [...]}}`, one list for each region
 - `download(url, filename)`, optional: how to download the sources without their own
   (default: `download_file`);
   it may return a dict added to the source's record, such as the `version` of its data

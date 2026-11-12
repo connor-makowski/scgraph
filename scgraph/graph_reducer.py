@@ -365,7 +365,7 @@ class GraphReducer:
                         predecessor[v] = u
                         heappush(open_leaves, (new_dist, v))
 
-        # 4. Inverse search into each non-reduced node B: it gives the
+        # 4. Inverse search into each non-reduced node b: it gives the
         # reduced_inverse_graph edges a -> b from non-reduced nodes a, and the
         # reduced_graph edges a -> b from reduced nodes a.
         self.__hidden_next__ = [None] * len(graph)

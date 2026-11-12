@@ -41,7 +41,9 @@ try:
 except ImportError:
     from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
 
-if TYPE_CHECKING:  # annotations only: imported where they are used
+if (
+    TYPE_CHECKING
+):  # Only for annotations. A function that needs one of these modules imports it.
     import networkx
     from geokdtree import GeoKDTree
 
@@ -547,7 +549,7 @@ class GeoGraphIO:
         - `select`
             - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
-            - Default: None: `scgraph.pipelines.steps.osm.select_main_roads` (motorway to primary and their links, one way as `scgraph.pipelines.steps.osm.get_way_direction(tags)` says)
+            - Default: None: `scgraph.pipelines.steps.osm.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns 1 or -1)
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and "service" not in tags else None` for railway lines without yards, sidings and spurs, both ways
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -1291,7 +1293,7 @@ class GeoGraphIO:
         - `ValueError` for an unknown name or a pipeline module named like a built-in one, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
-        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps what it downloaded in `.work/` of the cache directory, for the next call to resume from (`clear_geograph_cache()` removes it)
+        - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps its downloaded sources in the work folder (`.work/` of the cache directory). The next call resumes from it. `clear_geograph_cache()` removes it
         """
         if lazy:
             return LazyGeoGraph(

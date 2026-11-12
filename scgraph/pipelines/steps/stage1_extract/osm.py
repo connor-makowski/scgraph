@@ -193,10 +193,11 @@ def locate_ways(
     (`osmium.osm.WAY` or `NODE`) the pass reads; its `close(stop)` is called at the end
     of each pass (`stop` true when the pass ended on an exception).
 
-    The locations of the nodes of kept ways are kept in an osmium index
-    (`osmium.index.create_map`): in memory by default (`flex_mem`), or with a `work_dir`
-    in its file `nodes` (`sparse_file_array`, emptied first and left for the caller to
-    delete), as a planet needs.
+    The function keeps the locations of the nodes of kept ways in an osmium index
+    (`osmium.index.create_map`). Without `work_dir`, the index is in memory
+    (`flex_mem`). With `work_dir`, the index is the file `nodes` of that folder
+    (`sparse_file_array`), which a planet file needs. The function empties this file
+    first. The caller deletes it.
     The node ids of kept ways take about 1.5 GB in any case (one bit per possible id),
     and the ids of kept ways about 0.2 GB (one bit per possible way id).
 
@@ -637,9 +638,9 @@ class StreamedPbf:
 def open_osm_source(
     source: "str | os.PathLike | StreamedPbf",
 ) -> "str | os.PathLike | StreamedPbf":
-    """Resolve an OSM source: a `StreamedPbf` when `source` is a layout file
-    that `StreamedPbf.download` wrote; otherwise `source` unchanged (the path of
-    an OSM file, or a source object of one's own).
+    """Return a `StreamedPbf` when `source` is a layout file that
+    `StreamedPbf.download` wrote. Otherwise return `source` unchanged: `source` is
+    then the path of an OSM file, or a source object of the caller.
     """
     if isinstance(source, (str, os.PathLike)):
         path = Path(source)

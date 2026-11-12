@@ -11,9 +11,10 @@ is measured on roads only, so a sea route cannot replace it.
 
     Kind (file name)  Modes      The case passes when
     ----------------  ---------  -------------------------------------------------
-    road_distances    road       The route is within 10 % of the driving distance,
-                                 in each direction. The two directions are within
-                                 5 % of each other.
+    road_distances    road       The route is within 10 % of the driving distance
+                                 (or within the tolerance of the case), in each
+                                 direction. The two directions are within 5 % of
+                                 each other.
     crossings         road       Each end is within 5 km of a road, and a road
                                  route joins the two ends.
     coverage          road       The city is within 5 km of a road, and a road
@@ -24,8 +25,8 @@ is measured on roads only, so a sea route cannot replace it.
                                  the published length.
     sea_distances     port, sea  The water route is within 10 % of the published
                                  distance, or within 30 km of it.
-    passages          sea        The route goes through the passage (Suez, Panama)
-                                 or stays out of it (the Arctic), as the case says.
+    passages          sea        The route enters the passage (Suez, Panama) or
+                                 avoids it (the Arctic), as the case says.
     river_ports       port, sea  The port has a node within 5 km. Its water route
                                  to the sea is at most 1.8 times the straight line.
     route_lengths     all        The route is within the tolerance of the case.
@@ -35,10 +36,13 @@ entry of this list is one of:
 
 - the id of a case;
 - the name of a kind, which means all the cases of that kind;
-- a dictionary that describes a case directly, with the fields of a CSV row and a
-  `kind` field.
+- a dictionary that describes a case directly. It has the keys `id`, `kind`,
+  `origin` and `destination` (each a `(latitude, longitude)` pair) and `tolerance`
+  (a share such as 0.05, or None). It also has the other fields that the rule of
+  its kind reads, such as `reference`.
 
-A regional pipeline gives one such list for each region.
+A regional pipeline gives `{"cases": {region: [...]}}`, one such list for each
+region.
 """
 
 import csv
@@ -68,11 +72,12 @@ class ValidationResult:
 
     @property
     def is_success(self) -> bool:
+        """True when at least one case was checked and no case failed."""
         return self.failed == 0 and self.total > 0
 
     def summary(self) -> str:
         status = "PASSED" if self.is_success else "FAILED"
-        return f"{status}: {self.passed}/{self.total} checks OK (failed: {self.failed})"
+        return f"{status}: {self.passed}/{self.total} cases OK (failed: {self.failed})"
 
 
 # ----------------------------------------------------------------------------
@@ -84,9 +89,10 @@ def _find_route(
     network, origin, destination, with_path=False, from_tree=False
 ) -> dict | None:
     """Return the shortest route between two (latitude, longitude) points, or None
-    when no route joins them. Each point is moved to its nearest node first.
-    With `from_tree`, the search tree of the origin is computed once and kept:
-    the next routes from the same origin are read from it."""
+    when no route joins them. Each point is snapped to its nearest node. The
+    length includes the straight line from each point to its node.
+    With `from_tree`, the shortest path tree of the origin is computed once and
+    kept. The next routes from the same origin are read from that tree."""
     options = {"algorithm_fn": "cached_shortest_path"} if from_tree else {}
     try:
         return network.get_shortest_path(
@@ -106,11 +112,11 @@ def _find_route_km(network, origin, destination, **options) -> float | None:
 
 
 def _find_nearest_node(network, point, mode=None) -> tuple:
-    """Return `(km, node)`: the distance from `point` to the nearest node, and the
+    """Return the distance in km from `point` to the nearest node, and the
     coordinates of that node. With `mode`, only the nodes of that mode are
-    candidates. A network without that mode has one kind of node (a published
-    network, or a file with a single mode): all its nodes are then candidates.
-    """
+    candidates. When the network does not have that mode, all its nodes are
+    candidates. This is the case of a published network and of a file with a
+    single mode."""
     mode_names = [m["name"] for m in network.modes or []]
     if mode is None or mode not in mode_names:
         node = network.nodes[network.snap_index.closest_idx(point=list(point))]
@@ -124,7 +130,8 @@ def _find_nearest_node(network, point, mode=None) -> tuple:
 
 
 # ----------------------------------------------------------------------------
-# The rules. Each rule returns the reason why the case fails, or None.
+# The rules. Each rule returns None when the case passes, or a message that
+# says why the case fails.
 # ----------------------------------------------------------------------------
 
 
@@ -163,8 +170,8 @@ def _check_coverage(network, case) -> str | None:
     km, _ = _find_nearest_node(network, case["origin"])
     if km > 5.0:
         return f"the nearest road is {km:.1f} km away"
-    # All the cities of a landmass have the same main city. Its search tree is
-    # computed once and serves them all. The tree of the previous landmass is
+    # All the cities of a landmass have the same main city. Its shortest path
+    # tree is computed once and serves them all. The tree of the previous landmass is
     # dropped first: on a world network, one tree takes about 150 MB.
     main_city = case["destination"]
     if getattr(network, "main_city_of_the_kept_tree", None) != main_city:
@@ -178,7 +185,7 @@ def _check_coverage(network, case) -> str | None:
 
 
 def _check_rail_corridor(network, case) -> str | None:
-    # A missing link makes the route longer. A shorter route follows another line
+    # A missing piece of track makes the route longer. A shorter route follows another line
     # (a high-speed line, a shortcut), so the lower limit is wider.
     (origin_km, origin), (destination_km, destination) = (
         _find_nearest_node(network, case[end])
@@ -195,8 +202,9 @@ def _check_rail_corridor(network, case) -> str | None:
 
 def _check_sea_distance(network, case) -> str | None:
     # The route starts and ends at the port node of each port. When a port has no
-    # port node within 5 km, the nearest sea node replaces it: the river port rule
-    # reports ports that are not joined, and this rule checks sea distances only.
+    # port node within 5 km, the route uses the nearest sea node instead. This
+    # rule checks sea distances only. The river port rule reports a port that is
+    # not joined to the sea.
     ends = []
     for end in ("origin", "destination"):
         km, node = _find_nearest_node(network, case[end], "port")
@@ -206,7 +214,8 @@ def _check_sea_distance(network, case) -> str | None:
     km = _find_route_km(network, *ends)
     if km is None:
         return "no water route"
-    # On a short route, the way into each port counts for much: 30 km are allowed.
+    # On a short route, the approach to each port is a large part of the
+    # distance. The rule therefore also accepts a difference of 30 km.
     reference = float(case["reference"])
     if abs(km / reference - 1) > 0.10 and abs(km - reference) > 30.0:
         return f"{km:.0f} km against {reference:.0f} km"
@@ -214,7 +223,7 @@ def _check_sea_distance(network, case) -> str | None:
 
 def _check_passage(network, case) -> str | None:
     # The case gives a box around the passage. The route is tested every 5 km,
-    # because one long straight link can cross the box between two nodes.
+    # because one long straight arc can cross the box between two nodes.
     route = _find_route(
         network, case["origin"], case["destination"], with_path=True
     )
@@ -224,18 +233,18 @@ def _check_passage(network, case) -> str | None:
         float(case[f"box_{side}"])
         for side in ("south", "west", "north", "east")
     )
-    goes_through = False
+    enters = False
     points = route["coordinate_path"]
     for (lat1, lon1), (lat2, lon2) in zip(points, points[1:]):
-        # Two points on each side of longitude 180 are close to each other
+        # Two points, one on each side of longitude 180, are close to each other
         lon2 += 360 if lon1 - lon2 > 180 else -360 if lon2 - lon1 > 180 else 0
         steps = max(1, math.ceil(haversine((lat1, lon1), (lat2, lon2)) / 5.0))
         for step in range(steps + 1):
             lat = lat1 + (lat2 - lat1) * step / steps
             lon = (lon1 + (lon2 - lon1) * step / steps + 180) % 360 - 180
             if south <= lat <= north and west <= lon <= east:
-                goes_through = True
-    measured = "enters" if goes_through else "avoids"
+                enters = True
+    measured = "enters" if enters else "avoids"
     if measured != case["reference"]:
         return f"the route {measured} {case['passage']}"
 
@@ -262,8 +271,8 @@ def _check_route_length(network, case) -> str | None:
         return f"{km:.1f} km against {case['reference']} km"
 
 
-# For each kind: the modes that its routes may use, and its rule. An empty list
-# of modes means the whole network.
+# For each kind: the modes that its routes may use, and its rule. An empty tuple
+# of modes means all the modes of the network.
 RULES = {
     "road_distances": (("road",), _check_road_distance),
     "crossings": (("road",), _check_crossing),
@@ -277,7 +286,7 @@ RULES = {
 # The source of the coverage cases places a few cities in the sea, and a few
 # cities are on islands without a road link. Coverage passes when at most this
 # share of the cities fails.
-COVERAGE_MAY_FAIL = 0.01
+MAX_SHARE_OF_FAILED_CITIES = 0.01
 
 
 # ----------------------------------------------------------------------------
@@ -317,15 +326,16 @@ def _read_all_cases() -> dict[str, dict]:
     return cases
 
 
-def load_cases(contract: dict, region: str | None = None) -> list[dict]:
+def load_cases(validation: dict, region: str | None = None) -> list[dict]:
     """Return the cases that the `VALIDATION` of a pipeline lists (the module
     docstring describes the entries). For a regional pipeline, return the cases of
-    `region`, and no case when the region has none.
+    `region`, and no case when the region has none. Without `region`, return the
+    cases of every region.
 
     Raises:
         ValueError: An entry is neither the id of a case nor the name of a kind.
     """
-    entries = contract["cases"]
+    entries = validation["cases"]
     if isinstance(entries, dict):  # region -> entries
         entries = (
             entries.get(region, [])
@@ -351,9 +361,9 @@ def load_cases(contract: dict, region: str | None = None) -> list[dict]:
 
 
 def _load_on_modes(network, modes: tuple) -> GeoGraph:
-    """Return `network` with the nodes and links of `modes` only. A network file
-    is read on these modes. A GeoGraph that is already loaded is returned as it
-    is: its cases must then be of its own mode."""
+    """Load the network file `network` with the nodes and arcs of `modes` only.
+    A GeoGraph is returned unchanged. The caller must then give only cases of the
+    modes of that GeoGraph."""
     if isinstance(network, GeoGraph):
         return network
     file_modes = {
@@ -369,12 +379,19 @@ def validate_network(
     network: GeoGraph | str | os.PathLike, cases: list[dict]
 ) -> ValidationResult:
     """Check `network` against `cases`. Each case is checked by the rule of its
-    kind. A failed case is logged and recorded in the result.
+    kind. A case that fails is logged and recorded in the result. The coverage
+    cases are the exception: when at most `MAX_SHARE_OF_FAILED_CITIES` of them
+    fail, they all count as passed.
 
     Parameters:
         network: The path of a network file, or a loaded GeoGraph. A file is read
             again for each set of modes, one at a time, to limit the memory used.
+            The coverage rule resets the cache of trees of a loaded GeoGraph.
         cases: The cases, as `load_cases` returns them.
+
+    Returns:
+        A `ValidationResult`: the number of cases that passed and failed, and one
+        record (`id`, `kind`, `error`) for each case that failed.
     """
     result = ValidationResult(total=len(cases))
     modes_of = lambda case: RULES[case["kind"]][0]  # noqa: E731 (a sort key)
@@ -391,12 +408,12 @@ def validate_network(
                 failures.append(
                     {"id": case["id"], "kind": case["kind"], "error": reason}
                 )
-        # Coverage is judged on all its cities together (see COVERAGE_MAY_FAIL)
+        # Coverage is judged on all its cities together
         cities = sum(case["kind"] == "coverage" for case in cases)
         cities_failed = sum(
             failure["kind"] == "coverage" for failure in failures
         )
-        if cities_failed <= COVERAGE_MAY_FAIL * cities:
+        if cities_failed <= MAX_SHARE_OF_FAILED_CITIES * cities:
             failures = [f for f in failures if f["kind"] != "coverage"]
         for failure in failures:
             logger.warning("Case %(id)s (%(kind)s) fails: %(error)s", failure)
