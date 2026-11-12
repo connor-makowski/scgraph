@@ -12,6 +12,7 @@ import sysconfig
 import threading
 import types
 import typing
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -150,7 +151,9 @@ class _Source(BaseHTTPRequestHandler):
 def source(monkeypatch):
     """The base URL of a local server for the sources."""
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Source)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    ).start()
     monkeypatch.setattr(_Source, "served", [])
     yield f"http://127.0.0.1:{server.server_port}"
     server.shutdown()
@@ -521,22 +524,100 @@ def test_build_geograph_calls_the_download_hook_of_a_source(tmp_path):
     assert (record["bytes"], record["md5"]) == (10**11, "0" * 32)
 
 
-def test_build_geograph_leaves_nothing_after_a_failed_build(
+def _lines_pipeline(source, build=marnet.build, expected_km=2.22):
+    """A pipeline module of one's own, cached as "lines". It builds the network of
+    /lines.geojson. Its validation case is the route between the ends of the first
+    line, (0, 0) and (0, 0.02) (lat, lon): 0.02 degree of the equator, 2.22 km. The
+    validation fails for another `expected_km`."""
+    module = types.ModuleType("my_pipelines.lines")
+    module.SOURCES = {
+        "sea_lanes": {
+            **marnet.SOURCES["sea_lanes"],
+            "url": f"{source}/lines.geojson",
+        }
+    }
+    module.PIPELINE_VERSION, module.build = 1, build
+    ends = {"origin": (0, 0), "destination": (0, 0.02)}
+    module.VALIDATION = {
+        "cases": [{"id": "end_to_end", **ends, "expected_km": expected_km}]
+    }
+    return module
+
+
+def test_build_file_caches_a_network_that_passes_its_validation(
+    tmp_path, source
+):
+    network = _lines_pipeline(source)
+
+    built_file = build.build_file(network, cache_dir=tmp_path, validate=True)
+
+    cached = GeoGraph.build_geograph(
+        network, cache_dir=tmp_path, local_files_only=True
+    )
+    assert len(cached.nodes) == 4
+    assert built_file.startswith(str(tmp_path / "networks" / "lines"))
+
+
+def test_build_file_does_not_cache_a_network_that_fails_its_validation(
+    tmp_path, source
+):
+    # No route of this network is 100 km long
+    network = _lines_pipeline(source, expected_km=100)
+
+    with pytest.raises(RuntimeError, match="validation failed for lines"):
+        build.build_file(network, cache_dir=tmp_path, validate=True)
+
+    assert not (tmp_path / "networks" / "lines").exists()
+
+
+def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
     tmp_path, source, monkeypatch
 ):
-    monkeypatch.setitem(
-        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
+    earlier_file = build.build_file(_lines_pipeline(source), cache_dir=tmp_path)
+    earlier_bytes = Path(earlier_file).read_bytes()
+    # The source has changed since, and the network it gives fails its validation
+    moved_end = _GEOJSON.replace(b"0.02", b"0.03")
+    monkeypatch.setitem(_FILES, "/lines.geojson", moved_end)
+    failing = _lines_pipeline(source, expected_km=100)
+
+    with pytest.raises(RuntimeError, match="validation failed for lines"):
+        build.build_file(
+            failing, cache_dir=tmp_path, refresh=True, validate=True
+        )
+
+    cached_file = build.build_file(
+        failing, cache_dir=tmp_path, local_files_only=True
     )
+    assert cached_file == earlier_file
+    assert Path(cached_file).read_bytes() == earlier_bytes
 
-    def broken(files):
-        raise RuntimeError("build failed")
 
-    with monkeypatch.context() as patch:
-        patch.setattr(marnet, "build", broken)
-        with pytest.raises(RuntimeError):
-            GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
-    assert [p.name for p in tmp_path.rglob("*")] == ["networks", "CACHEDIR.TAG"]
-    GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))  # built now
+def _fail_to_build(files):
+    raise RuntimeError("build failed")
+
+
+def test_a_failed_build_keeps_its_sources_for_the_next_build(tmp_path, source):
+    broken = _lines_pipeline(source, build=_fail_to_build)
+    with pytest.raises(RuntimeError, match="build failed"):
+        GeoGraph.build_geograph(broken, cache_dir=tmp_path)
+
+    repaired = _lines_pipeline(source)
+    geo = GeoGraph.build_geograph(repaired, cache_dir=tmp_path)
+
+    assert len(geo.nodes) == 4
+    assert _Source.served == ["/lines.geojson"]  # downloaded once
+
+
+def test_refresh_downloads_the_sources_again_after_a_failed_build(
+    tmp_path, source
+):
+    broken = _lines_pipeline(source, build=_fail_to_build)
+    with pytest.raises(RuntimeError, match="build failed"):
+        GeoGraph.build_geograph(broken, cache_dir=tmp_path)
+
+    repaired = _lines_pipeline(source)
+    GeoGraph.build_geograph(repaired, cache_dir=tmp_path, refresh=True)
+
     assert _Source.served == ["/lines.geojson"] * 2
 
 

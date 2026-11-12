@@ -57,7 +57,7 @@ def _clean_work(work: Path, cache: Path) -> None:
             break
 
 
-def _validate_pipeline(network, name, region, cached_file):
+def _validate_pipeline(network, name, region, file):
     contract = getattr(network, "VALIDATION", None)
     if not contract:
         return
@@ -70,8 +70,11 @@ def _validate_pipeline(network, name, region, cached_file):
     if not cases:
         return
     logger.info("Validating %s against %d test case(s)...", name, len(cases))
-    geograph = GeoGraph.load_from_scgraph(str(cached_file))
+    geograph = GeoGraph.load_from_scgraph(str(file))
     result = validate_network(geograph, cases, silent=False)
+    # In the C++ build the geograph maps the file, and Windows does not move a
+    # mapped file: the caller moves a file that passes into the cache
+    del geograph
     if not result.is_success:
         raise RuntimeError(
             f"Pipeline validation failed for {name}: {result.summary()}"
@@ -104,11 +107,11 @@ def build_file(
         resume: Resume build using existing intermediate checkpoints (default: True).
         clean: Purge working directory and intermediate artifacts before building.
         from_stage: Run the OSM extraction again from a step ('stage1', 'pass2', 'pass3'), in a kept work folder.
-        keep_work: Retain intermediate working directory after successful build.
+        keep_work: Retain intermediate working directory after successful build; a build that fails always keeps it, for the next call to resume from.
         work_dir: Custom directory for intermediate build artifacts and checkpoints.
-        refresh: Force rebuild even if a current cached artifact exists.
+        refresh: Download the sources and build again, even if a current cached artifact or a kept work folder exists.
         local_files_only: Forbid downloading missing network sources.
-        validate: Check the built network against its validation cases; a failure raises RuntimeError and leaves the file in the cache.
+        validate: Check the network against its validation cases; a failure raises RuntimeError. A built network is checked before it enters the cache: one that fails is not cached, and the cache keeps what it held.
         validate_only: Validate cached network without rebuilding or downloading.
         stream: Stream OSM extracts via HTTP byte ranges instead of downloading.
 
@@ -224,7 +227,7 @@ def build_file(
             else cache.joinpath(".work", name, region or "")
         )
 
-        if clean or not resume:
+        if clean or refresh or not resume:
             if work.exists():
                 shutil.rmtree(work, ignore_errors=True)
 
@@ -352,6 +355,8 @@ def build_file(
                     modes=modes,
                 )
                 digest = network_file.write(str(building), arrays, header_meta)
+            if validate:
+                _validate_pipeline(network, name, region, building)
             built_file = folder.joinpath(f"{digest}.scgraph")
             work.joinpath("cache.json").write_text(
                 json.dumps(
@@ -381,12 +386,14 @@ def build_file(
                 _joined(network, "license"),
             )
         except (Exception, KeyboardInterrupt) as error:
-            if keep_work or custom_work or isinstance(error, KeyboardInterrupt):
-                logger.info(
-                    "Intermediate files retained in %s for resumption", work
-                )
-            else:
-                _clean_work(work, cache)
+            # Kept: it holds the downloaded sources and what the steps saved
+            logger.warning(
+                "The build of %s did not finish. Its work folder %s is kept: the "
+                "next build resumes from it, and GeoGraph.clear_geograph_cache() "
+                "removes the work folders of the cache",
+                name,
+                work,
+            )
             if cached and isinstance(error, OSError):
                 error.add_note(
                     f"The cache still holds {name}: build_geograph(..., "
@@ -396,7 +403,7 @@ def build_file(
         else:
             if not keep_work and not custom_work:
                 _clean_work(work, cache)
-    if validate:
+    elif validate:  # not built: the cached file is checked, as by validate_only
         _validate_pipeline(network, name, region, cached_file)
     return str(cached_file)
 
@@ -441,7 +448,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--validate",
         action="store_true",
-        help="run Stage 4 validation test cases on the built network",
+        help="run Stage 4 validation test cases on the built network, which "
+        "enters the cache only if it passes",
     )
     parser.add_argument(
         "--validate-only",
