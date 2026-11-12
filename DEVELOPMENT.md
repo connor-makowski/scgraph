@@ -26,6 +26,20 @@ detail lives where it is used: ARCHITECTURE.md (how the code works), pyproject.t
 | Lint rules and their reasons | `pyproject.toml`, `[tool.ruff.lint]` |
 | Build variants | `noxfile.py`; `[[tool.scikit-build.overrides]]` in `pyproject.toml` |
 
+## Key classes
+
+The methods are listed so that a search finds them; `README.md` gives their parameters.
+
+| Class (file) | Role | Main methods |
+|---|---|---|
+| `Graph` (`graph.py`) | Shortest paths on a graph given as a list of `{neighbour: weight}` dicts | `dijkstra`, `dijkstra_negative`, `dijkstra_buckets`, `bidirectional_dijkstra`, `bidirectional_buckets`, `a_star`, `bellman_ford`, `bmssp`, `cached_shortest_path`, `contraction_hierarchy`, `tnr`; `get_shortest_path_tree`, `get_tree_path`; `reduce`; `from_csr` |
+| `GraphReducer` (`graph_reducer.py`) | Replaces each chain of pass-through nodes by one arc. The `@Graph.algorithm` decorator runs an algorithm on the reduced graph and expands its path. | `reduce`, `expand_path`, `is_same_chain` |
+| `CHGraph` (`contraction_hierarchies.py`) | Contraction hierarchy built once, then fast queries | `Graph.create_contraction_hierarchy`, `search`, `get_shortest_path`, `save_as_chjson`, `load_from_chjson` |
+| `TNRGraph` (`transit_node_routing.py`) | A `CHGraph` with transit nodes and a table of distances between them | `Graph.create_tnr_hierarchy`, `search`, `save_as_tnrjson`, `load_from_tnrjson` |
+| `GeoGraph`, `LazyGeoGraph` (`geograph.py`) | Holds a `Graph` and the coordinates of its nodes. A query snaps its two points to the network, then routes. `LazyGeoGraph` loads the network at first use. | `get_shortest_path`, `distance_matrix`, `load_geograph`, `build_geograph`, `list_geographs`, `load_from_…`, `save_as_…`, `clear_geograph_cache` |
+| `GridGraph` (`grid.py`) | Paths on a 2D grid with blocked cells | `get_shortest_path`, `export_object`, `import_object` |
+| `GraphUtils`, `GraphModifiers` (`graph_utils.py`) | Parents of `Graph`: validation, path reconstruction, caches; adding and removing nodes and arcs | `validate`, `add_node`, `add_edge`, `remove_node`, `remove_edge`, `reset_cache` |
+
 Two defaults to know: `Graph.reduce(iterations=-1)` reduces until nothing changes; the loaders take `reduce_iterations=0`, no reduction.
 
 ---
