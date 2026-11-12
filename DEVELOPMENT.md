@@ -105,6 +105,10 @@ If the root-owned `build/` directory causes a permission error on a fresh instal
 - `test/conftest.py` gives the built-in networks as session fixtures (`marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `published`). They are downloaded into a temporary cache per session, never the user's; set `SCGRAPH_CACHE_DIR` to keep them between runs or to run offline.
 - `test/helpers.py`: `assert_result(realized, expected)` compares results with `length` rounded to 3 decimals.
 - A test states one requirement that a user relies on, through the public API, and runs in both builds. `test_reduced_graph_matches_unreduced_graph` in `test/33` is the general test of reduced graphs: a case of reduction is added there as data.
+- **Readable alone:** A test names its data, makes one call and checks one result. It has no `if`, no table of flags and no column that changes the assertion. Several short tests are better than one table.
+- **A test can fail:** A fix comes with a test that fails without the fix. Break the code on a copy to check a new test; a test that still passes is not kept. If a test of the feature exists, add the case to it.
+- **No timed test:** A test does not compare durations. `utils/bench.py` measures speed.
+- **Tests of release 3.6.0:** A test that release 3.6.0 contained stays as its author wrote it. Change it only for a clear gain in simplicity, speed or coverage, and state the gain in the PR.
 - **Fakes:** a test may replace the download (`requests.get`, or a source URL pointed at a local server); it does not replace a function or a constant of scgraph.
 - A built network is checked by `validate_network` (`scgraph/pipelines/steps/stage4_validation/`): `python -m scgraph.pipelines.build NAME --validate`, or `--validate-only` for a network already in the cache.
 
@@ -115,11 +119,14 @@ If the root-owned `build/` directory causes a permission error on a fresh instal
 - **Checks**: Run `uv run python utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR; a `noqa` gives its reason. The rules are in `pyproject.toml`.
 - **Names**: A function starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`), a boolean function with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members; double underscores are for Python's own methods. A renaming changes the definition and every caller in one commit.
 - **Types**: Public functions annotate parameters and return, with built-in types and `X | Y`; names that start with `_` may. One kind of value has one form: a number parameter `float`; a returned length, and the weights inside a graph, `int | float`; a `[latitude, longitude]` pair `Sequence[float]`; a buffer of a kernel `array | memoryview`; a path `str | os.PathLike`; a function `Callable` (from `collections.abc`), with its signature where it is known; a default of `None` adds `| None`; a value of any type is `object`, not `Any`. A type of an optional dependency is a string.
+- **Sentences**: Every text (docstring, comment, commit message, issue, PR) uses plain sentences. A sentence has a concrete subject, a verb and an object, holds one idea, and has about 20 words at most. Define a term where it first appears. Keep one word for one thing, with the terms of `ARCHITECTURE.md`. Do not use a label that you invented during the work.
 - **Docstrings and comments**: A docstring gives summary, parameters and return; it adds the unit, the constraints and the content of a result, not the type. A comment gives a reason, in full sentences; no history, no issue number.
 - **Exceptions**: A specific type (`ValueError`, `PathNotFoundError`…), the same in C++ and in pure Python.
 - **Numbers**: Integer coordinates (1e-7 degree) are widened to 64 bits before a difference or a product; distances are `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time
 - **Messages**: through `logging.getLogger(__name__)` (a `NullHandler` on `scgraph`), `warnings.warn` for what the caller can avoid, exceptions for errors; no `print` and no `silent=` in new code (older functions still have `silent=`; see #115)
+- **Python and C++**: Code that has a C++ kernel calls it when the extension is built. A large array crosses between Python and C++ as a buffer, without a copy.
+- **Simple code**: Remove code that nothing calls. Add an option only when a caller needs it.
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times
 - **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
@@ -131,6 +138,7 @@ If the root-owned `build/` directory causes a permission error on a fresh instal
 - A change to the public API edits `README.md` and the docstring of `scgraph/__init__.py` identically, in the same PR.
 - `dev` has no users: a file or a name that only an unreleased state of `dev` produced owes no compatibility and gets no migration code. What release 3.6.0 wrote or exposed must keep working.
 - Open an issue first, then one branch and one PR per issue. A PR title states the outcome and ends with its issue number: `Fix … (#N)`.
+- A PR description has about 150 words: what changes for the user, the proof (tests, benchmark), what is left. Its title has 72 characters at most.
 - Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`.
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
