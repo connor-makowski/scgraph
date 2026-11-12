@@ -29,8 +29,8 @@ flowchart LR
 
 `scgraph` separates topological graph algorithms from spatial and grid logic:
 
-* **`Graph`**: Pure topological graph. Knows nothing about geography or coordinates. Implements core search algorithms (Dijkstra, Bidirectional Dijkstra, A\*, Bellman-Ford, BMSSP) and dynamic graph reduction.
-* **`GeoGraph` / `LazyGeoGraph`**: Extends `Graph` with geographic coordinates (WGS84 latitude/longitude), spatial snapping via `SnapIndex`, distance metrics, and multi-modal network support. `LazyGeoGraph` defers downloading and loading until the first query.
+* **`Graph`**: Pure topological graph. Knows nothing about geography or coordinates. Implements core search algorithms (Dijkstra, Bidirectional Dijkstra, A\*, Bellman-Ford, BMSSP) and dynamic graph reduction. The *Algorithm Reference* of the [README](README.md#algorithm-reference) lists every algorithm with its use.
+* **`GeoGraph` / `LazyGeoGraph`**: Holds a `Graph` (attribute `graph_object`) and adds geographic coordinates (WGS84 latitude/longitude), spatial snapping via `SnapIndex`, distance metrics, and multi-modal network support. `LazyGeoGraph` defers downloading and loading until the first query.
 * **`GridGraph`**: 2D grid pathfinding with obstacle collision and configurable connectivity (4-way or 8-way).
 * **`CHGraph` / `TNRGraph`**: Hierarchical acceleration structures (Contraction Hierarchies and Transit Node Routing) built from a `Graph` on demand.
 
@@ -131,6 +131,16 @@ Algorithms return a standardized dictionary:
 ```python
 {"path": [node_0, node_1, ...], "length": total_path_cost}
 ```
+
+### Trees and Hierarchies
+
+Three algorithms of `Graph` prepare a structure once and then answer queries from it:
+
+* **`cached_shortest_path`**: `get_shortest_path_tree(origin_id)` runs Dijkstra from one origin to every node. `get_tree_path` reads one path from that tree. `cached_shortest_path` keeps the tree of each origin, so a second query from the same origin runs no search.
+* **`contraction_hierarchy`**: `create_contraction_hierarchy()` builds a `CHGraph` and stores it on the graph. The preprocessing contracts the nodes in order of importance and adds shortcut arcs. A query is a bidirectional Dijkstra search that only goes up in that order.
+* **`tnr`**: `create_tnr_hierarchy()` builds a `TNRGraph`. A `TNRGraph` is a `CHGraph` with a set of transit nodes (the most important nodes) and a table of the distances between them. A long query reads the table instead of searching.
+
+`contraction_hierarchy` and `tnr` build their hierarchy at the first query if it does not exist. A hierarchy can be saved and loaded (`save_as_chjson` / `CHGraph.load_from_chjson`, `save_as_tnrjson` / `TNRGraph.load_from_tnrjson`).
 
 ---
 

@@ -407,7 +407,13 @@ output = marnet_geograph.get_shortest_path(
 
 ## Built-in Geographs: Cache Management
 
-Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access. The first load also converts the downloaded `<name>.graphjson` into a binary network file beside it, `<name>.scgraph`, which later loads read (much faster); the `.graphjson` is kept. The conversion numbers the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the `.graphjson` (lengths do not; of two routes of exactly equal length, another may be returned), its coordinates are stored to 1e-7 degree (about 1 cm: a few published ports have 9 decimals), and each node keeps its id in the `.graphjson` (the id it had in scgraph 3.6.0) as `node_ids[i]`, so `[geo.node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps its numbering.
+Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access.
+
+The first load also converts the downloaded `<name>.graphjson` into a binary network file, `<name>.scgraph`, beside it. Later loads read the binary file, which is much faster. The `.graphjson` is kept. The conversion changes three things:
+
+- **Node ids**: Nodes are numbered along a Hilbert curve, so that nodes close on the globe get close ids. Route lengths do not change. When two routes have exactly the same length, the other one may be returned.
+- **Coordinates**: They are stored to 1e-7 degree (about 1 cm). A few published ports have 9 decimals.
+- **Ids of scgraph 3.6.0**: `node_ids[i]` is the id that node `i` has in the `.graphjson`, so `[geo.node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps the old numbering.
 
 ```py
 from scgraph import GeoGraph
@@ -509,13 +515,33 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `world_main_roads` | `osm_main_roads` for the world (needs the C++ backend) | OpenStreetMap planet, read by byte ranges, never stored |
 | `world_main_roads_and_marnet` | `osm_main_roads_and_marnet` for the world (needs the C++ backend) | the same, with the OpenStreetMap planet |
 
-Each network is kept in the cache directory under `networks/<name>/` (`networks/<name>/<region>/` for the `osm_*` networks): a network file named by its content, `<content_sha256>.scgraph` (the SHA-256 of the file after its first 40 bytes, stored in its bytes 8 to 39), and a `cache.json` that names it, with the download time. The network file itself says what built it, so that it travels with the file: its metadata (pipeline, sources with their data time, software; the fields are listed in the docstring of `scgraph.pipelines` and in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file)), without any clock time. `GeoGraph.get_scgraph_info(file)` reads it, with the credit line to cite (`attribution`) and the newest data time (`data_up_to`). The downloaded sources are deleted once the network is built. A build that fails keeps them in `.work/` of the cache directory, and the next call resumes from them; `refresh=True` downloads them again, and `GeoGraph.clear_geograph_cache()` removes them. A network is built again when an upgrade of scgraph changes its pipeline version or the file format, or when the file its `cache.json` names is missing; `refresh=True` downloads and builds it again anyway. With `local_files_only=True`, nothing is downloaded: a network built with another version of its pipeline is loaded with a warning that names what differs (refused if its file format differs), and one that is not in the cache raises a `FileNotFoundError`. Two installs of different versions sharing one cache build the same network in turn: give each its own `SCGRAPH_CACHE_DIR`, or use `local_files_only=True` in the older one. A rebuild writes the new file (or keeps the old one if the content is the same), then `cache.json`, then removes the old file; on Windows, an old file still open in another process stays until the cache is cleared. `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory: save an edited network elsewhere. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks.
+**Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for the `osm_*` networks. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its downloads in `.work/` of the cache directory, and the next call continues from them. `refresh=True` downloads them again, and `GeoGraph.clear_geograph_cache()` removes them. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
 
-In `osm_main_roads_and_marnet`, a port joins the two networks only through connectors checked against land and water, as the data card of `scgraph.pipelines.osm_main_roads_and_marnet` states. Each node has its mode, `road`, `port` or `sea` (`geo.node_modes[i]`, a row of `geo.modes`, which also names the source of the node's id: OSM for roads), and the file stores the nodes of each mode together. Routes use kilometers for every mode.
+**What a network file says about itself.** The file stores the pipeline, the sources with the time of their data, and the software that built it. `GeoGraph.get_scgraph_info(file)` reads this metadata, with the credit line to cite (`attribution`) and the newest data time (`data_up_to`). The fields are listed in the docstring of `scgraph.pipelines` and in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file).
 
-Each network is built by a pipeline, a module of `scgraph.pipelines`; the docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. `build_geograph` also takes a pipeline module of your own, such as an adapted copy of one under another name, and caches it under `networks/<last part of the module name>/` (a module named like a built-in pipeline is refused; `list_buildable_geographs` does not list it).
+**When a network is built again.** A network is built again in three cases:
 
-These networks are built from the current version of their sources: they are not the built-in files, their node numbers differ and results can differ slightly from those of `load_geograph`. The `osm_*`, `us_freeway` and `north_america_rail` networks also have more nodes: one at every junction and one about every 2 km along a line (in the `osm_*` networks, whose chains are contracted at 2 km, at most about 4 km apart); sea lanes are not cut. In the `osm_*` networks, the drawing of each piece of road or ferry is simplified to within 50 m (Douglas–Peucker) when the way is cut; lengths are measured on the full drawing. `reduce_iterations=-1` removes the nodes that are not needed for routing.
+- An upgrade of scgraph changed the version of its pipeline or the file format.
+- The file that `cache.json` names is missing.
+- You pass `refresh=True`.
+
+On Windows, an old file still open in another process stays until the cache is cleared.
+
+**Without network access.** With `local_files_only=True`, nothing is downloaded. A network that is not in the cache raises a `FileNotFoundError`. A network built with another version of its pipeline is loaded with a warning that names what differs. A network in another file format is refused.
+
+**Two versions of scgraph on one cache.** Each version builds again the network that the other version built. Give each version its own `SCGRAPH_CACHE_DIR`, or use `local_files_only=True` in the older one.
+
+**Saving.** `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory. Save an edited network elsewhere.
+
+In `osm_main_roads_and_marnet`, a port joins the roads and the sea lanes through connectors. Each connector is checked against land and water. The data card in the docstring of `scgraph.pipelines.osm_main_roads_and_marnet` gives the rules. Each node has a mode: `road`, `port` or `sea`. `geo.node_modes[i]` points to a row of `geo.modes`. That row names the mode and the source of the node ids (OSM for roads). The file stores the nodes of each mode together. Routes use kilometers for every mode.
+
+Each network is built by a pipeline. A pipeline is a module of `scgraph.pipelines`. The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a built-in pipeline under another name. Its network is cached under `networks/<last part of the module name>/`. A module named like a built-in pipeline is refused, and `list_buildable_geographs` does not list your module.
+
+These networks are not the built-in files. They are built from the current version of their sources, so their node numbers differ and results can differ slightly from those of `load_geograph`.
+
+The `osm_*`, `us_freeway` and `north_america_rail` networks also have more nodes: one at every junction and one about every 2 km along a line. In the `osm_*` networks, chains of nodes are contracted at 2 km, so two nodes are at most about 4 km apart. Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
+
+In the `osm_*` networks, the drawing of each piece of road or ferry is simplified to within 50 m (Douglas–Peucker). Lengths are measured on the full drawing.
 
 ### `build_geograph` Parameters
 
@@ -592,7 +618,7 @@ michigan_rail = GeoGraph.load_from_osm(
 )
 ```
 
-Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its piece of way, in kilometers, and a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below; `load_from_geojson` still loads such files.
+Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its piece of way, in kilometers. A way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below. `load_from_geojson` still loads such files.
 
 ### `load_from_osm` Parameters
 
@@ -679,11 +705,16 @@ my_geograph = GeoGraph.load_from_scgraph('my_geograph.scgraph')
 my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
-The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file; `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network (metadata, sources, modes, number of nodes and arcs, `coordinate_dtype`, `content_sha256`). A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`.
-Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node): `save_as_scgraph(filename, coordinate_dtype="int32")` chooses, and by default (`"auto"`) a GeoGraph keeps its own `coordinate_dtype`, which is `"int32"` for networks read from such a file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), `"float64"` otherwise.
-In the C++ build, `load_from_scgraph` (without `modes`) maps the file and reads it in place while the GeoGraph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
+The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, modes, number of nodes and arcs, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`.
 
-A GeoGraph read from a network file (so also from `load_geograph` and `build_geograph`) reads its node coordinates from the file: `nodes` behaves as a list, but `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`. `json.dumps`, `+`, `*`, `copy()`, `sort()` and ordering comparisons need `list(nodes)` first. Its arc shapes are read the same way: `intermediate_nodes[i]` is a new read-only mapping `{destination: shape}` each time, so editing a shape changes nothing and assigning raises a `TypeError`; `copy.copy` and pickling give a list of dicts, and `json.dumps` needs `[dict(row) for row in intermediate_nodes]`.
+**Coordinates.** They are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node). `save_as_scgraph(filename, coordinate_dtype="int32")` chooses. By default (`"auto"`), a GeoGraph keeps its own `coordinate_dtype`. It is `"int32"` for a network read from an int32 file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), and `"float64"` otherwise.
+
+**Mapped files.** In the C++ build, `load_from_scgraph` (without `modes`) maps the file and reads it in place while the GeoGraph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
+
+**Nodes and arc shapes read from the file.** A GeoGraph read from a network file (so also from `load_geograph` and `build_geograph`) reads its node coordinates and its arc shapes from the file:
+
+- `nodes` behaves as a list, but `nodes[i]` is a new list each time. To change a node, assign it: `nodes[i] = [latitude, longitude]`. `json.dumps`, `+`, `*`, `copy()`, `sort()` and ordering comparisons need `list(nodes)` first.
+- `intermediate_nodes[i]` is a new read-only mapping `{destination: shape}` each time. Editing a shape changes nothing, and assigning raises a `TypeError`. `copy.copy` and pickling give a list of dicts. `json.dumps` needs `[dict(row) for row in intermediate_nodes]`.
 
 | Method | Description |
 |---|---|
@@ -956,15 +987,20 @@ dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
 
 # Development
 
-Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`. Install them with:
+Contributions start from the `dev` branch. The current developer guide is `DEVELOPMENT.md` on `dev`. You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 
 ```bash
+git clone https://github.com/connor-makowski/scgraph.git
+cd scgraph
+git checkout dev
 uv sync --extra dev
 ```
 
+Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`.
+
 | Command | Description |
 |---|---|
-| `uv run pytest` | Run all tests |
+| `uv run pytest` | Run all tests (about 700 tests, 1 to 2 minutes) |
 | `uv run pytest test/NN_*.py` | Run a specific test file |
 | `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
