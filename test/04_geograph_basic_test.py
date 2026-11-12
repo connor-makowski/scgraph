@@ -137,6 +137,7 @@ def test_every_coordinate_path_follows_the_links_of_its_path():
         for u, v in zip(route["path"], route["path"][1:]):
             expected += _LINK_SHAPES[u].get(v, []) + [_NODES[v]]
         expected.append(_NODES[destination_id])
+        assert route["path"][-1] == destination_id
         assert route["coordinate_path"] == expected
 
 
