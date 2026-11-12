@@ -57,24 +57,22 @@ def _clean_work(work: Path, cache: Path) -> None:
             break
 
 
-def _validate_pipeline(network, name, region, file):
-    contract = getattr(network, "VALIDATION", None)
-    if not contract:
+def _validate_pipeline(pipeline, name, region, filename):
+    validation = getattr(pipeline, "VALIDATION", None)
+    if not validation:
         return
     from scgraph.pipelines.steps.stage4_validation import (
         load_cases,
         validate_network,
     )
 
-    cases = load_cases(contract, region=region)
+    cases = load_cases(validation, region=region)
     if not cases:
         return
-    logger.info("Validating %s against %d test case(s)...", name, len(cases))
-    geograph = GeoGraph.load_from_scgraph(str(file))
-    result = validate_network(geograph, cases, silent=False)
-    # In the C++ build the geograph maps the file, and Windows does not move a
-    # mapped file: the caller moves a file that passes into the cache
-    del geograph
+    logger.info("Validating %s against %d case(s)", name, len(cases))
+    # validate_network releases the file before it returns. The caller then
+    # moves the file into the cache, and Windows cannot move a mapped file.
+    result = validate_network(filename, cases)
     if not result.is_success:
         raise RuntimeError(
             f"Pipeline validation failed for {name}: {result.summary()}"
@@ -107,11 +105,11 @@ def build_file(
         resume: Resume build using existing intermediate checkpoints (default: True).
         clean: Purge working directory and intermediate artifacts before building.
         from_stage: Run the OSM extraction again from a step ('stage1', 'pass2', 'pass3'), in a kept work folder.
-        keep_work: Retain intermediate working directory after successful build; a build that fails always keeps it, for the next call to resume from.
+        keep_work: Keep the work folder after a build that succeeds. A build that fails always keeps its work folder, and the next call resumes from it.
         work_dir: Custom directory for intermediate build artifacts and checkpoints.
-        refresh: Download the sources and build again, even if a current cached artifact or a kept work folder exists.
+        refresh: Download the sources and build again, even if the cache holds a current network or a work folder exists. It empties the work folder first, also a `work_dir` that the caller gave.
         local_files_only: Forbid downloading missing network sources.
-        validate: Check the network against its validation cases; a failure raises RuntimeError. A built network is checked before it enters the cache: one that fails is not cached, and the cache keeps what it held.
+        validate: Check the network against its validation cases. A failure raises RuntimeError. A network that is built is checked before it enters the cache. If it fails, it is not cached and the cache stays unchanged.
         validate_only: Validate cached network without rebuilding or downloading.
         stream: Stream OSM extracts via HTTP byte ranges instead of downloading.
 
@@ -204,7 +202,7 @@ def build_file(
             warnings.warn(
                 f"The cached {name} was built with pipeline version "
                 f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}",
-                stacklevel=3,  # the caller of GeoGraph.build_geograph, for a direct call
+                stacklevel=3,  # the line that called GeoGraph.build_geograph
             )
     elif stale:
         logger.warning(
@@ -386,14 +384,23 @@ def build_file(
                 _joined(network, "license"),
             )
         except (Exception, KeyboardInterrupt) as error:
-            # Kept: it holds the downloaded sources and what the steps saved
-            logger.warning(
-                "The build of %s did not finish. Its work folder %s is kept: the "
-                "next build resumes from it, and GeoGraph.clear_geograph_cache() "
-                "removes the work folders of the cache",
-                name,
-                work,
-            )
+            if not custom_work and not any(
+                path.is_file() for path in work.rglob("*")
+            ):
+                # The build stopped before it wrote a file, for example on an
+                # unknown region. There is nothing to resume from.
+                _clean_work(work, cache)
+            else:
+                # The work folder is kept. It holds the downloaded sources and
+                # the files that the steps saved.
+                logger.warning(
+                    "The build of %s did not finish. Its work folder %s is kept, "
+                    "and the next build resumes from it. "
+                    "GeoGraph.clear_geograph_cache() removes a work folder that "
+                    "is in the cache",
+                    name,
+                    work,
+                )
             if cached and isinstance(error, OSError):
                 error.add_note(
                     f"The cache still holds {name}: build_geograph(..., "
@@ -448,8 +455,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--validate",
         action="store_true",
-        help="run Stage 4 validation test cases on the built network, which "
-        "enters the cache only if it passes",
+        help="check the built network against its validation cases; the "
+        "network enters the cache only if it passes",
     )
     parser.add_argument(
         "--validate-only",

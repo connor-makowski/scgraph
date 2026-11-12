@@ -70,8 +70,11 @@ def build(
 # ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": [
-        "paris_berlin",
-        "rotterdam_to_new_york_intermodal",
-        "shanghai_to_los_angeles_intermodal",
-    ],
+        "road_distances",
+        "crossings",
+        "coverage",
+        "sea_distances",
+        "passages",
+        "river_ports",
+    ]
 }

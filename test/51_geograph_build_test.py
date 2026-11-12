@@ -475,6 +475,7 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
         GeoGraph.build_geograph(
             "osm_main_roads", region="nowhere", cache_dir=str(tmp_path)
         )
+    assert GeoGraph.get_cache_info(cache_dir=str(tmp_path)) == []
 
 
 # From the command line, a network is built into the cache without being loaded, and
@@ -537,9 +538,17 @@ def _lines_pipeline(source, build=marnet.build, expected_km=2.22):
         }
     }
     module.PIPELINE_VERSION, module.build = 1, build
-    ends = {"origin": (0, 0), "destination": (0, 0.02)}
     module.VALIDATION = {
-        "cases": [{"id": "end_to_end", **ends, "expected_km": expected_km}]
+        "cases": [
+            {
+                "id": "end_to_end",
+                "kind": "route_lengths",
+                "origin": (0, 0),
+                "destination": (0, 0.02),
+                "reference": expected_km,
+                "tolerance": None,
+            }
+        ]
     }
     return module
 

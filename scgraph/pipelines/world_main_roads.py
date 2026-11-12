@@ -57,6 +57,22 @@ def build(
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
+# Every crossing except `copenhagen_odense`. The centre of Odense is 5.2 km
+# from the nearest main road, and the limit of the crossing rule is 5 km.
 VALIDATION = {
-    "cases": ["paris_berlin", "chicago_houston", "tokyo_to_osaka"],
+    "cases": [
+        "road_distances",
+        "coverage",
+        "london_paris",
+        "dover_calais",
+        "copenhagen_malmo",
+        "ronne_copenhagen",
+        "messina_reggio_di_calabria",
+        "kadikoy_istanbul",
+        "hobart_melbourne",
+        "sapporo_tokyo",
+        "victoria_vancouver",
+        "manama_dammam",
+        "singapore_johor_bahru",
+    ],
 }

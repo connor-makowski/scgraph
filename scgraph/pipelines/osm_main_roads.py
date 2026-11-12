@@ -58,9 +58,11 @@ def build(
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
+# `europe/denmark` has no case. The two Danish crossings do not fit this
+# extract: Malmo is outside it, and the centre of Odense is 5.1 km from the
+# nearest main road, above the 5 km limit of the crossing rule.
 VALIDATION = {
     "cases": {
-        "europe/denmark": ["copenhagen_odense", "copenhagen_malmo"],
         "europe/france": [
             "paris_marseille",
             "paris_bordeaux",

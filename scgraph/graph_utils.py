@@ -204,7 +204,7 @@ class GraphUtils:
 
         - Check if a cycle exists in the predecessor matrix starting from the given node_id
         - Returns None if no cycle is detected
-        - Raises a NegativeCycleError if a cycle is detected: a search only records such a loop around a negative weight cycle
+        - Raises a NegativeCycleError if a cycle is detected. The predecessors of a search form a cycle only when the graph has a cycle of negative weight
 
         Required Arguments:
 

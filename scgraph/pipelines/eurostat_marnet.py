@@ -56,6 +56,8 @@ def build(files: dict[str, str]) -> GeoGraph:
 # ---------------------------------------------------------------------------
 # Stage 4 Validation Contract
 # ---------------------------------------------------------------------------
+# The kind `sea_distances` measures between ports. This network has no port
+# node, so that kind is checked on `world_main_roads_and_marnet`.
 VALIDATION = {
-    "cases": ["rotterdam_to_new_york", "rotterdam_to_singapore"],
+    "cases": ["passages", "rotterdam_to_new_york", "rotterdam_to_singapore"],
 }

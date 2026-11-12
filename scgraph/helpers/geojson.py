@@ -46,7 +46,7 @@ def format_coord_list(coord: Sequence[float], round_to: int = 3) -> list[float]:
 
 def simplify_geojson(
     filename_in: str | os.PathLike,
-    filename_out: str | None = None,
+    filename_out: str | os.PathLike | None = None,
     precision: int = 4,
     pct_to_keep: float = 100,
     min_points: int = 3,

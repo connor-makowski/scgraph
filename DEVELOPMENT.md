@@ -11,7 +11,7 @@ This guide is for people and for coding agents who change scgraph. *Getting Star
 - **Shortest path algorithms** — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A\*, BMSSP, Contraction Hierarchies (CH), Transit Node Routing (TNR)
 - **Graph reduction** — iterative degree-2 pass-through chain contraction with O(1) same-chain detection, boundary resolution, and transparent algorithm wrapping
 - **Geographic routing & lazy loading** — lat/lon node coordinates, automatic origin/destination snapping, lazy GeoGraph proxies, haversine/cheap-ruler distances
-- **Built-in networks** — maritime, rail, highway, and combined world networks (downloaded on demand); reference networks built from their online sources
+- **Built-in networks** — maritime, rail, highway, and combined world networks (downloaded on demand); networks built from their online sources
 - **C++ acceleration** — optional compiled extension (nanobind) providing ~10x speedup; pure Python fallback always present
 - **Grid pathfinding** — 2D grid routing with obstacles and configurable connectivity
 
@@ -24,7 +24,7 @@ Winner of the 2025 MIT Prize for Open Data. Zero external runtime dependencies b
 1. Install Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 2. Get the code and switch to the `dev` branch: `git clone https://github.com/connor-makowski/scgraph.git`, `cd scgraph`, `git checkout dev`.
 3. Install the package and its dev dependencies: `uv sync --extra dev`. This also compiles the C++ extension if a compiler is present. If the root-owned `build/` directory causes a permission error, run `sudo rm -rf build/cp314-cp314-linux_x86_64`, then install again.
-4. Run the tests: `uv run pytest`. Expect about 700 tests in 1 to 2 minutes, all passing.
+4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 700 tests in 1 to 2 minutes, all passed or skipped.
 5. Check that the C++ extension was built: `uv run python -c "from scgraph.utils import has_cpp; print(has_cpp())"` prints `True`. If it prints `False`, see *C++ Extension* below.
 6. Before each commit, run `uv run utils/prettify.py`, then `uv run nox -s lint`. On a clean checkout, the formatter changes no file. Read *Contribution Workflow* before your first PR.
 
@@ -47,7 +47,8 @@ scgraph/
     steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
-    visvalingam.py               # Visvalingam-Whyatt line simplification (douglas_peucker.py: Douglas-Peucker)
+    visvalingam.py               # Visvalingam-Whyatt line simplification
+    douglas_peucker.py           # Douglas-Peucker line simplification
     polylines.py                 # Polylines to a graph: nodes where they end or meet, arcs with their shape
     hilbert.py                   # Hilbert-curve order of nodes
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
@@ -106,7 +107,7 @@ publish.sh                       # PyPI publishing script — DO NOT RUN
 - Lazy loading via `LazyGeoGraph` proxy (`lazy=True`) to defer downloads/instantiation until first use
 - Configurable reduction upon loading (`reduce_iterations=0` by default, `1` or `-1` for reduction)
 - Handles I/O: load from GeoJSON, OSMNx, OpenStreetMap files, graphjson or `.scgraph` network files; save in multiple formats
-- Builds reference networks from their online sources into the local cache (`build_geograph`, one pipeline per network)
+- Builds networks from their online sources into the local cache (`build_geograph`, one pipeline per network)
 
 **`CHGraph`** (`contraction_hierarchies.py`) / **`TNRGraph`** (`transit_node_routing.py`) — hierarchies built once for fast queries:
 - `CHGraph` contracts nodes in order of importance; `TNRGraph` extends it with transit nodes and a distance table
@@ -152,9 +153,9 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 ```
 
 **Rules for a new or changed test:**
-- **One requirement:** A test states one requirement that a user relies on, through the public API, and runs in both builds.
-- **Readable alone:** A test names its data, makes one call and checks one result. It has no `if` and no table of flags. Several short tests are better than one table.
-- **Can fail:** A fix comes with a test that fails without the fix. If a test of the feature exists, add the case to it. `test_reduced_graph_matches_unreduced_graph` in `test/33` is the general test of reduced graphs: a new case of reduction is added there as data.
+- **One requirement:** A test states one requirement that a user relies on, through the public API, and runs in both builds (with the C++ extension, and pure Python).
+- **Readable alone:** A test names its data, makes one call and checks one result. It has no `if`, and no table of options that change what the test checks. Several short tests are better than one such table.
+- **Can fail:** A fix comes with a test that fails without the fix. If a test of the feature exists, add the case to it. `test_reduced_graph_matches_unreduced_graph` in `test/33` is the general test of reduced graphs. Add a new case of reduction there as data.
 - **No clock:** A test does not compare durations. `utils/bench.py` measures speed.
 - **Fakes:** A test may replace the download (`requests.get`, or a source URL pointed at a local server). It does not replace a function or a constant of scgraph.
 - **Tests of release 3.6.0:** They stay as their author wrote them. Change one only for a clear gain in simplicity, speed or coverage, and state the gain in the PR.
@@ -163,10 +164,10 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 
 - **Line length**: 80 characters (black config in `pyproject.toml`). **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
 - **Formatting and checks**: Always run `uv run utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR. The rules and their reasons are in `pyproject.toml`.
-- **Names**: A function starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`), a boolean function with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members.
-- **Types**: Public functions annotate their parameters and their return, with built-in types and `X | Y`. Each kind of value has one form. A number parameter is `float`. A returned length, or a weight inside a graph, is `int | float`. A `[latitude, longitude]` pair is `Sequence[float]`. A path is `str | os.PathLike`. A default of `None` adds `| None`. A value of any type is `object`. A type of an optional dependency is written as a string.
+- **Names**: A function name starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`). A function that returns a boolean starts with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members.
+- **Types**: Public functions annotate their parameters and their return, with built-in types and `X | Y`. Each kind of value has one form. A number parameter is `float`. A returned length, or a weight inside a graph, is `int | float`. A `[latitude, longitude]` pair is `Sequence[float]`. A path is `str | os.PathLike`. A buffer of a C++ kernel is `array | memoryview`. A function is `Callable` (from `collections.abc`). A default of `None` adds `| None`. A value of any type is `object`. A type of an optional dependency is written as a string.
 - **Docstrings and comments**: A docstring gives a summary, the parameters and the return. It adds the unit and the constraints, not the type. A comment gives a reason, in full sentences. It does not tell the history of a change or name an issue.
-- **Sentences**: Every text (docstring, comment, commit message, issue, PR) uses plain sentences: a concrete subject, a verb, an object; one idea; about 20 words at most. Define a term where it first appears, and keep one word for one thing.
+- **Sentences**: Every text (docstring, comment, commit message, issue, PR) uses plain sentences. A sentence has a concrete subject, a verb and an object. It holds one idea in about 20 words. Define a term where it first appears, and keep one word for one thing.
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
 - **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Code that has a C++ kernel calls it when the extension is built.
@@ -174,16 +175,15 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
 - **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
-- **DO NOT generate docs**: Docs are regenerated and versioned at release time by the maintainer only
 
 ## Contribution Workflow
 
-- Open an issue first, then one branch and one PR per issue. A PR title states the outcome and ends with its issue number: `Fix … (#N)`.
-- Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`.
+- Open an issue first, then one branch and one PR per issue. A PR title states the outcome and ends with its issue number: `Fix … (#N)`. The body says what changes for the user and gives the proof.
+- Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`. A contributor without write access works from a fork.
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
 - A change to the public API edits `README.md` and the docstring of `scgraph/__init__.py` identically, in the same PR.
-- `dev` has no users: what only an unreleased state of `dev` produced gets no migration code. What release 3.6.0 wrote or exposed must keep working.
+- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working.
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.
