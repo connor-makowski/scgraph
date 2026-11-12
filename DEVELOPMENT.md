@@ -1,153 +1,190 @@
 # scgraph — Developer Guide
 
-<!-- This file is read at the start of every coding session (`.claude/CLAUDE.md` and
-`AGENTS.md` are links to it). Budget: 200 lines. A rule is one or two sentences;
-detail lives where it is used: ARCHITECTURE.md (how the code works), pyproject.toml
-(tool settings), `--help` of a script (its options). -->
+<!-- Budget: 200 lines. Coding sessions read this file first (`.claude/CLAUDE.md` and `AGENTS.md` link to it). Detail lives in ARCHITECTURE.md, README.md and pyproject.toml. -->
 
-`scgraph` is a Python library for shortest paths on geographic and supply chain networks: Dijkstra and its variants, A\*, BMSSP, Contraction Hierarchies (CH), Transit Node Routing (TNR), graph reduction, geographic snapping, built-in and buildable networks, 2D grids. An optional C++ extension (nanobind) speeds it up about tenfold; a pure-Python version of every algorithm is always present. Runtime dependencies: `geokdtree`, `bmsspy`, `requests`. Python 3.11 or later.
+## Project Purpose
 
-> **DO NOT RUN A RELEASE CYCLE.** No version bump, no docs generation (`utils/docs.py`, `docs/`), no build of distributions, no publication. Release steps are the owner's. If a release seems needed, say so and stop.
+`scgraph` is a high-performance Python library for shortest path routing on geographic and supply chain networks. Core capabilities:
 
-## Where to look
+- **Shortest path algorithms** — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A\*, BMSSP, Contraction Hierarchies (CH), Transit Node Routing (TNR)
+- **Graph reduction** — iterative degree-2 pass-through chain contraction with O(1) same-chain detection, boundary resolution, and transparent algorithm wrapping
+- **Geographic routing & lazy loading** — lat/lon node coordinates, automatic origin/destination snapping, lazy GeoGraph proxies, haversine/cheap-ruler distances
+- **Built-in networks** — maritime, rail, highway, and combined world networks (downloaded on demand); reference networks built from their online sources
+- **C++ acceleration** — optional compiled extension (nanobind) providing ~10x speedup; pure Python fallback always present
+- **Grid pathfinding** — 2D grid routing with obstacles and configurable connectivity
 
-| Need | Place |
-|---|---|
-| Public API, parameters and their defaults | `README.md` (the docstring of `scgraph/__init__.py` repeats it) |
-| Steps of a query, snapping, circuity | `ARCHITECTURE.md` §3 |
-| Graph reduction | `ARCHITECTURE.md` §4 |
-| Adding an algorithm | `ARCHITECTURE.md` §5; `test/42_graph_algorithm_decorator_test.py` |
-| Caches and their invalidation | `ARCHITECTURE.md` §6 |
-| `.scgraph` network file format | `ARCHITECTURE.md` §7; `scgraph/network_file.py` |
-| Contract of a pipeline | docstring of `scgraph/pipelines/__init__.py` |
-| Exceptions (`PathNotFoundError`, `NegativeCycleError`) | top of `scgraph/graph.py`; exported by `scgraph` |
-| Saving hierarchies (`.chjson`, `.tnrjson`) | `save_as_…` / `load_from_…` in `contraction_hierarchies.py`, `transit_node_routing.py` |
-| Benchmark sections, and which change needs which | docstring of `utils/bench.py` |
-| Lint rules and their reasons | `pyproject.toml`, `[tool.ruff.lint]` |
-| Build variants | `noxfile.py`; `[[tool.scikit-build.overrides]]` in `pyproject.toml` |
+Winner of the 2025 MIT Prize for Open Data. Zero external runtime dependencies beyond `geokdtree`, `bmsspy`, and `requests`.
 
-## Key classes
+> **IMPORTANT — DO NOT RUN A RELEASE CYCLE.** Do not bump versions, generate docs, build distributions, or publish to PyPI. Release steps are owner-only. If you think a release is needed, flag it and stop.
 
-The methods are listed so that a search finds them; `README.md` gives their parameters.
-
-| Class (file) | Role | Main methods |
-|---|---|---|
-| `Graph` (`graph.py`) | Shortest paths on a graph given as a list of `{neighbour: weight}` dicts | `dijkstra`, `dijkstra_negative`, `dijkstra_buckets`, `bidirectional_dijkstra`, `bidirectional_buckets`, `a_star`, `bellman_ford`, `bmssp`, `cached_shortest_path`, `contraction_hierarchy`, `tnr`; `get_shortest_path_tree`, `get_tree_path`; `reduce`; `from_csr` |
-| `GraphReducer` (`graph_reducer.py`) | Replaces each chain of pass-through nodes by one arc. The `@Graph.algorithm` decorator runs an algorithm on the reduced graph and expands its path. | `reduce`, `expand_path`, `is_same_chain` |
-| `CHGraph` (`contraction_hierarchies.py`) | Contraction hierarchy built once, then fast queries | `Graph.create_contraction_hierarchy`, `search`, `get_shortest_path`, `save_as_chjson`, `load_from_chjson` |
-| `TNRGraph` (`transit_node_routing.py`) | A `CHGraph` with transit nodes and a table of distances between them | `Graph.create_tnr_hierarchy`, `search`, `save_as_tnrjson`, `load_from_tnrjson` |
-| `GeoGraph`, `LazyGeoGraph` (`geograph.py`) | Holds a `Graph` and the coordinates of its nodes. A query snaps its two points to the network, then routes. `LazyGeoGraph` loads the network at first use. | `get_shortest_path`, `distance_matrix`, `load_geograph`, `build_geograph`, `list_geographs`, `load_from_…`, `save_as_…`, `clear_geograph_cache` |
-| `GridGraph` (`grid.py`) | Paths on a 2D grid with blocked cells | `get_shortest_path`, `export_object`, `import_object` |
-| `GraphUtils`, `GraphModifiers` (`graph_utils.py`) | Parents of `Graph`: validation, path reconstruction, caches; adding and removing nodes and arcs | `validate`, `add_node`, `add_edge`, `remove_node`, `remove_edge`, `reset_cache` |
-
-Two defaults to know: `Graph.reduce(iterations=-1)` reduces until nothing changes; the loaders take `reduce_iterations=0`, no reduction.
-
----
-
-## Where things are
+## Directory Layout (relevant files only)
 
 ```
 scgraph/
-  __init__.py                  # Exports Graph, CHGraph, TNRGraph, GeoGraph, GridGraph and the two exceptions; its docstring repeats README.md
-  graph.py                     # Graph: the search algorithms, trees, reduce()
-  graph_reducer.py             # GraphReducer and the @algorithm decorator
-  graph_utils.py               # GraphUtils (validation, path reconstruction), GraphModifiers
-  geograph.py                  # GeoGraph, LazyGeoGraph: snapping, loaders, savers, cache, build_geograph
-  contraction_hierarchies.py   # CHGraph
-  transit_node_routing.py      # TNRGraph (extends CHGraph)
-  grid.py                      # GridGraph
-  network_file.py              # Reading and writing .scgraph network files
-  utils.py                     # Distances, coordinate helpers, console output
-  helpers/                     # geojson, polylines, hilbert, snap_index (Python twin of the C++ one), line simplification
-  pipelines/                   # One module per buildable network; the contract is in __init__.py
-    build.py                   # The runner: build_file, and python -m scgraph.pipelines.build
-    steps/stage1_extract/      # osm, arcgis, pbf_range_streamer
-    steps/stage2_intermodal/   # landmask, ports
-    steps/stage3_assembly/     # assembly: CSR arrays, components, chain contraction
-    steps/stage4_validation/   # validate_network, cases in cases/*.csv
-  cpp/src/                     # C++ of the algorithms above; pipelines/ holds the kernels of the steps
-  cpp/bindings/                # nanobind bindings (graph_bindings.cpp, pipelines_bindings.cpp)
-test/                          # NN_module_feature_test.py, conftest.py (session fixtures), helpers.py
-utils/                         # bench.py, compare_versions.py, prettify.py, docs.py (release only)
+  __init__.py                    # Exports: Graph, CHGraph, TNRGraph, GeoGraph, GridGraph, PathNotFoundError, NegativeCycleError
+  graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
+  graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
+  geograph.py                    # GeoGraph + LazyGeoGraph — snapping, caching, built-in nets, loaders, build_geograph
+  contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
+  transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
+  grid.py                        # GridGraph — 2D grid pathfinding
+  network_file.py                # Reading and writing .scgraph network files (stdlib)
+  graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
+  utils.py                       # Distance math, coordinate helpers, caching, console output
+  pipelines/                     # One module per buildable network; the contract is the docstring of __init__.py
+    build.py                     # The runner: build_file (download, build, cache) and python -m scgraph.pipelines.build
+    steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
+  helpers/
+    geojson.py                   # GeoJSON parsing and simplification
+    visvalingam.py               # Visvalingam-Whyatt line simplification (douglas_peucker.py: Douglas-Peucker)
+    polylines.py                 # Polylines to a graph: nodes where they end or meet, arcs with their shape
+    hilbert.py                   # Hilbert-curve order of nodes
+    snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
+  cpp/
+    src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
+    │                            #   transit_node_routing, snap_index, bmssp (template header); pipelines/ (assembly, landmask)
+    bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
+test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
+utils/
+  bench.py                       # Fast benchmark runner (<30s); outputs benchmark.md
+  compare_versions.py            # Before/after of two git refs with bench.py
+  prettify.py                    # ruff (unused imports) + black (line-length=80)
+  docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
+noxfile.py                       # nox sessions: pytest across Python 3.11–3.14, and lint (ruff, pyrefly)
+pyproject.toml                   # Package metadata, scikit-build-core config, black + ruff + pytest config
+CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
+publish.sh                       # PyPI publishing script — DO NOT RUN
 ```
 
----
-
-## Commands
+## Development Commands
 
 | Command | What it does |
 |---|---|
-| `uv sync --extra dev` | Install the development dependencies and build the package |
-| `uv run pytest` / `uv run pytest test/NN_*.py` | Run all tests, or one file |
-| `uv run nox` | Tests with the C++ extension then without, on Python 3.11 to 3.14, and the lint session |
-| `uv run nox -s tests-3.14` | Both builds on one Python version |
-| `uv run utils/prettify.py` | Remove unused imports (ruff), format (black, 80 columns) |
+| `uv run pytest` / `uv run pytest test/NN_*.py` | Run all tests in the local venv, or a specific test file |
+| `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14, and the lint session |
+| `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
+| `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
+| `python3 utils/compare_versions.py BASE HEAD` | Benchmark two git refs side by side; options in `--help` |
+| `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
 | `uv run nox -s lint` | Check the code with ruff and the types with pyrefly |
-| `uv run utils/bench.py` | Benchmark (under 30 s), writes `benchmark.md` |
-| `python3 utils/compare_versions.py BASE HEAD` | Before → after of two git refs with `bench.py`; `--only`, `--backends`, `--post N` and the rest in `--help` |
 
-If the root-owned `build/` directory causes a permission error on a fresh install, run `sudo rm -rf build/cp314-cp314-linux_x86_64`, then `uv sync --extra dev`.
+Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`. Install them with `uv sync --extra dev`.
 
----
+> **Note:** If the root-owned `build/` directory causes a permission error on a fresh install, run `sudo rm -rf build/cp314-cp314-linux_x86_64` then `uv sync --extra dev` to rebuild.
 
-## The C++ extension
+**Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`. Its docstring lists the sections (`load`, `reduce`, `query`, `grid`, `hierarchy`, `misc`).
 
-- In `scgraph/cpp/`, built by scikit-build-core and nanobind: C++20, `-O3 -DNDEBUG -fno-math-errno -fomit-frame-pointer` (`/O2 /DNDEBUG` with MSVC).
-- `SCGRAPH_REQUIRE_CPP=1` makes the build fail if the extension cannot be compiled; `SCGRAPH_NO_BUILD=1` builds the pure-Python package. Check which one is installed with `scgraph.utils.has_cpp()`.
-- Without `SCGRAPH_REQUIRE_CPP=1`, a failed compilation falls back to the pure-Python package without a word (the `[[tool.scikit-build.overrides]]` of `pyproject.toml`): `uv sync` succeeds and `has_cpp()` is `False`. To see the compiler error: `uv sync --extra dev --reinstall-package scgraph -v --config-setting=build.verbose=true`.
-- The C++ build is installed as a copy: reinstall (`--reinstall-package scgraph`) after changing sources, before trusting a test run.
+## Core Architecture
 
----
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how scgraph works inside: the data model and the hierarchies (§2), the steps of a geographic query (§3), graph reduction (§4), plugging in an algorithm (§5), caches (§6), the `.scgraph` file (§7). The [README](README.md) gives every algorithm with its use (*Algorithm Reference*) and the parameters of the loaders.
 
-## Tests
+### Key Classes
 
-- pytest, files `test/NN_module_feature_test.py`. A new feature gets its file; a change extends the existing file of its feature.
-- `test/conftest.py` gives the built-in networks as session fixtures (`marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `published`). They are downloaded into a temporary cache per session, never the user's; set `SCGRAPH_CACHE_DIR` to keep them between runs or to run offline.
-- `test/helpers.py`: `assert_result(realized, expected)` compares results with `length` rounded to 3 decimals.
-- A test states one requirement that a user relies on, through the public API, and runs in both builds. `test_reduced_graph_matches_unreduced_graph` in `test/33` is the general test of reduced graphs: a case of reduction is added there as data.
-- **Readable alone:** A test names its data, makes one call and checks one result. It has no `if`, no table of flags and no column that changes the assertion. Several short tests are better than one table.
-- **A test can fail:** A fix comes with a test that fails without the fix. Break the code on a copy to check a new test; a test that still passes is not kept. If a test of the feature exists, add the case to it.
-- **No timed test:** A test does not compare durations. `utils/bench.py` measures speed.
-- **Tests of release 3.6.0:** A test that release 3.6.0 contained stays as its author wrote it. Change it only for a clear gain in simplicity, speed or coverage, and state the gain in the PR.
-- **Fakes:** a test may replace the download (`requests.get`, or a source URL pointed at a local server); it does not replace a function or a constant of scgraph.
-- A built network is checked by `validate_network` (`scgraph/pipelines/steps/stage4_validation/`): `python -m scgraph.pipelines.build NAME --validate`, or `--validate-only` for a network already in the cache.
+**`Graph`** (`graph.py`) — base graph class:
+- Algorithms: `dijkstra`, `bidirectional_dijkstra`, `bellman_ford`, `a_star`, `bmssp`, `dijkstra_buckets`, `bidirectional_buckets`, `dijkstra_negative`, `cached_shortest_path`, `contraction_hierarchy`, `tnr`
+- Graph reduction: `reduce()` to contract pass-through chains
+- Decorator: `@Graph.algorithm` wraps custom single- or bidirectional algorithms with automatic reduced-graph support
+- Tree operations for multi-destination queries (`get_shortest_path_tree`, `get_tree_path`)
+- Delegates to C++ extension when available, falls back to pure Python
 
----
+**`GraphReducer`** (`graph_reducer.py` / C++ `graph_reducer.cpp`) — detail in ARCHITECTURE.md §4:
+- Contracts degree-2 / pass-through nodes into composite weighted edges while preserving exact path lengths
+- Iterative reduction passes (`iterations=-1` for convergence, the default; `iterations=1` for one pass)
+- Transparent path reconstruction expanding compressed chains back to original node sequences
+
+**`GeoGraph` / `LazyGeoGraph`** (`geograph.py`) — geographic routing:
+- Combines `Graph` (attribute `graph_object`) with lat/lon node coordinates
+- Snaps arbitrary coordinates to the network with its snapping index (`snap_index`) or `geokdtree` (ARCHITECTURE.md §3)
+- Manages caching of shortest path trees and downloaded built-in networks (ARCHITECTURE.md §6)
+- Lazy loading via `LazyGeoGraph` proxy (`lazy=True`) to defer downloads/instantiation until first use
+- Configurable reduction upon loading (`reduce_iterations=0` by default, `1` or `-1` for reduction)
+- Handles I/O: load from GeoJSON, OSMNx, OpenStreetMap files, graphjson or `.scgraph` network files; save in multiple formats
+- Builds reference networks from their online sources into the local cache (`build_geograph`, one pipeline per network)
+
+**`CHGraph`** (`contraction_hierarchies.py`) / **`TNRGraph`** (`transit_node_routing.py`) — hierarchies built once for fast queries:
+- `CHGraph` contracts nodes in order of importance; `TNRGraph` extends it with transit nodes and a distance table
+- Serialize to `.chjson` / `.tnrjson`; how they are built and queried: ARCHITECTURE.md §2, *Trees and Hierarchies*
+
+**`GridGraph`** (`grid.py`) — 2D grid pathfinding: supports obstacles, configurable connectivity (4/8-directional), shape collisions
+
+**`GraphUtils` / `GraphModifiers`** (`graph_utils.py`):
+- Input validation, path reconstruction, negative cycle detection
+- Add/remove nodes and edges dynamically
+
+### C++ Extension
+
+Located in `scgraph/cpp/`, compiled via scikit-build-core + nanobind:
+- Provides ~10x speedup on core algorithms; pure Python implementations in the `.py` files serve as the fallback
+- Skip C++ build: `SCGRAPH_NO_BUILD=1`. Fail if it cannot be compiled: `SCGRAPH_REQUIRE_CPP=1`. Check the installed build: `scgraph.utils.has_cpp()`
+- C++20 standard, compiled with `-O3 -DNDEBUG -fno-math-errno -fomit-frame-pointer` (`/O2 /DNDEBUG` with MSVC)
+- The C++ build is installed as a copy: after a change, run `uv sync --extra dev --reinstall-package scgraph` before a test run
+
+**Debugging a C++ build:** `pyproject.toml` contains a build fallback (`[[tool.scikit-build.overrides]]`, `if.failed = true`, `wheel.cmake = false`). When C++ compilation fails, `scikit-build-core` silently falls back to building a pure Python wheel, so `uv sync` may appear to succeed while `has_cpp()` returns `False`. To surface the compiler error: `uv sync --extra dev --reinstall-package scgraph -v --config-setting=build.verbose=true`.
+
+## Test Structure
+
+Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_feature_test.py` (zero-padded for ordered display).
+
+**Shared infrastructure:**
+- `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `published`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
+- `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
+- `scgraph/pipelines/steps/stage4_validation/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.build NAME --validate` (`--validate-only` for a network in the cache)
+
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `34–39` grid performance, CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–56` network builds, `.scgraph` files, snapping index, assembly, land mask, validation
+
+**Test pattern:**
+```python
+from helpers import assert_result
+
+def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
+    assert_result(
+        marnet.get_shortest_path(
+            origin_node={"latitude": 30, "longitude": 160},
+            destination_node={"latitude": 30, "longitude": -160},
+        ),
+        {"coordinate_path": [...], "length": 4477.148},
+    )
+```
+
+**Rules for a new or changed test:**
+- **One requirement:** A test states one requirement that a user relies on, through the public API, and runs in both builds.
+- **Readable alone:** A test names its data, makes one call and checks one result. It has no `if` and no table of flags. Several short tests are better than one table.
+- **Can fail:** A fix comes with a test that fails without the fix. If a test of the feature exists, add the case to it. `test_reduced_graph_matches_unreduced_graph` in `test/33` is the general test of reduced graphs: a new case of reduction is added there as data.
+- **No clock:** A test does not compare durations. `utils/bench.py` measures speed.
+- **Fakes:** A test may replace the download (`requests.get`, or a source URL pointed at a local server). It does not replace a function or a constant of scgraph.
+- **Tests of release 3.6.0:** They stay as their author wrote them. Change one only for a clear gain in simplicity, speed or coverage, and state the gain in the PR.
+
+When adding a new feature, add a corresponding `NN_*_test.py` file. pytest discovers all `*_test.py` files in `test/` automatically.
 
 ## Coding Conventions
 
-- **Checks**: Run `uv run python utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR; a `noqa` gives its reason. The rules are in `pyproject.toml`.
-- **Names**: A function starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`), a boolean function with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members; double underscores are for Python's own methods. A renaming changes the definition and every caller in one commit.
-- **Types**: Public functions annotate parameters and return, with built-in types and `X | Y`; names that start with `_` may. One kind of value has one form: a number parameter `float`; a returned length, and the weights inside a graph, `int | float`; a `[latitude, longitude]` pair `Sequence[float]`; a buffer of a kernel `array | memoryview`; a path `str | os.PathLike`; a function `Callable` (from `collections.abc`), with its signature where it is known; a default of `None` adds `| None`; a value of any type is `object`, not `Any`. A type of an optional dependency is a string.
-- **Sentences**: Every text (docstring, comment, commit message, issue, PR) uses plain sentences. A sentence has a concrete subject, a verb and an object, holds one idea, and has about 20 words at most. Define a term where it first appears. Keep one word for one thing, with the terms of `ARCHITECTURE.md`. Do not use a label that you invented during the work.
-- **Docstrings and comments**: A docstring gives summary, parameters and return; it adds the unit, the constraints and the content of a result, not the type. A comment gives a reason, in full sentences; no history, no issue number.
-- **Exceptions**: A specific type (`ValueError`, `PathNotFoundError`…), the same in C++ and in pure Python.
-- **Numbers**: Integer coordinates (1e-7 degree) are widened to 64 bits before a difference or a product; distances are `float64`.
-- **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time
+- **Line length**: 80 characters (black config in `pyproject.toml`)
+- **Python version**: 3.11+ (use `X | Y` union syntax, `match`, etc.)
+- **Formatting and checks**: Always run `uv run python utils/prettify.py` then `uv run nox -s lint` before committing. A finding of `ruff` or `pyrefly` blocks a PR. The rules and their reasons are in `pyproject.toml`.
+- **Names**: A function starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`), a boolean function with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members.
+- **Types**: Public functions annotate parameters and return, with built-in types and `X | Y`. One kind of value has one form: a number parameter `float`; a returned length, and the weights inside a graph, `int | float`; a `[latitude, longitude]` pair `Sequence[float]`; a path `str | os.PathLike`; a default of `None` adds `| None`; a value of any type is `object`. A type of an optional dependency is a string.
+- **Docstrings and comments**: A docstring gives summary, parameters and return; it adds the unit and the constraints, not the type. A comment gives a reason, in full sentences; no history, no issue number.
+- **Sentences**: Every text (docstring, comment, commit message, issue, PR) uses plain sentences: a concrete subject, a verb, an object; one idea; about 20 words at most. Define a term where it first appears, and keep one word for one thing.
+- **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
+- **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
+- **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Code that has a C++ kernel calls it when the extension is built.
 - **Messages**: through `logging.getLogger(__name__)` (a `NullHandler` on `scgraph`), `warnings.warn` for what the caller can avoid, exceptions for errors; no `print` and no `silent=` in new code (older functions still have `silent=`; see #115)
-- **Python and C++**: Code that has a C++ kernel calls it when the extension is built. A large array crosses between Python and C++ as a buffer, without a copy.
-- **Simple code**: Remove code that nothing calls. Add an option only when a caller needs it.
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
-- **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times
+- **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
 - **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
-
----
+- **DO NOT generate docs**: Docs are regenerated and versioned at release time by the maintainer only
 
 ## Contribution Workflow
 
-- A change to the public API edits `README.md` and the docstring of `scgraph/__init__.py` identically, in the same PR.
-- `dev` has no users: a file or a name that only an unreleased state of `dev` produced owes no compatibility and gets no migration code. What release 3.6.0 wrote or exposed must keep working.
 - Open an issue first, then one branch and one PR per issue. A PR title states the outcome and ends with its issue number: `Fix … (#N)`.
-- A PR description has about 150 words: what changes for the user, the proof (tests, benchmark), what is left. Its title has 72 characters at most.
 - Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`.
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
-- A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/bench.py` on the sections it touches, against its target branch (see *Commands*; sections `load`, `reduce`, `query`, `grid`, `hierarchy`, `misc`; `--backends cpp,python` if pure-Python code changed).
+- A change to the public API edits `README.md` and the docstring of `scgraph/__init__.py` identically, in the same PR.
+- `dev` has no users: what only an unreleased state of `dev` produced gets no migration code. What release 3.6.0 wrote or exposed must keep working.
+- A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
-- After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR).
-- Only the owner merges `dev` into `main` and releases.
-
----
+- After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.
 
 ## Release Checklist (owner only — do not execute)
 
@@ -157,3 +194,5 @@ If the root-owned `build/` directory causes a permission error on a fresh instal
 4. Run `uv run python utils/docs.py` to regenerate docs
 5. Build and publish via `publish.sh`
 6. Right after the release, set the next development version on `dev` with a `.dev0` suffix (PEP 440), e.g. `4.1.0.dev0`
+
+Python: **≥ 3.11** | Runtime dependencies: `geokdtree`, `bmsspy`, `requests`
