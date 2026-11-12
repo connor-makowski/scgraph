@@ -14,7 +14,7 @@ from scgraph.utils import haversine
 def cut_polylines(
     polylines: Iterable[tuple[int, list[tuple[Hashable, list[float]]]]],
     junctions: Container,
-    max_km_between_nodes: int | float,
+    max_km_between_nodes: float,
 ) -> Iterator[tuple[Hashable, Hashable, float, int, list[list[float]]]]:
     """
     Cut each polyline at its ends, at its junctions and at the first point where the piece
@@ -44,7 +44,7 @@ def cut_polylines(
 def polylines_to_graph(
     polylines: Iterable[tuple[int, list[tuple[Hashable, list[float]]]]],
     junctions: Container,
-    max_km_between_nodes: int | float,
+    max_km_between_nodes: float,
 ) -> tuple[
     list[dict[int, float]],
     list[list[float]],

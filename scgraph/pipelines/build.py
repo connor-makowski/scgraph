@@ -200,7 +200,8 @@ def build_file(
         if stale:
             warnings.warn(
                 f"The cached {name} was built with pipeline version "
-                f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}"
+                f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}",
+                stacklevel=3,  # the caller of GeoGraph.build_geograph, for a direct call
             )
     elif stale:
         logger.warning(
@@ -455,7 +456,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)  # each step, and the credit to cite
     try:
-        print(  # noqa: T201
+        print(  # noqa: T201 (the output of the command)
             build_file(
                 args.name,
                 args.region,

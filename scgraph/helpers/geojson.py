@@ -6,7 +6,9 @@ from scgraph.helpers.visvalingam import visvalingam
 from collections.abc import Callable
 
 
-def lessThanAbs(threshold: int | float, a: int | float) -> int | float:
+def lessThanAbs(  # noqa: N802 (public since 3.6.0)
+    threshold: float, a: float
+) -> int | float:
     """Bring a longitude within [-threshold, threshold]: longitudes beyond 180 wrap around
     the globe; values in the range, including -threshold and threshold, are unchanged.
     """
@@ -47,7 +49,7 @@ def simplify_geojson(
     filename_in: str,
     filename_out: str | None = None,
     precision: int = 4,
-    pct_to_keep: int | float = 100,
+    pct_to_keep: float = 100,
     min_points: int = 3,
     silent: bool = False,
     algorithm: str | Callable = "visvalingam",
@@ -180,7 +182,7 @@ def simplify_geojson(
 def parse_geojson(
     filename_in: str,
     precision: int = 4,
-    pct_to_keep: int | float = 100,
+    pct_to_keep: float = 100,
     min_points: int = 3,
     silent: bool = False,
 ) -> dict:

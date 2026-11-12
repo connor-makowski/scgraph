@@ -136,7 +136,8 @@ def _selected_ways(osmium, source, selects, tag_keys, *filters):
         for osmium_filter in filters:
             ways = ways.with_filter(osmium_filter)
         for way in ways:
-            for kind, select in selects.items():
+            # kind is read after the loop, by the yield
+            for kind, select in selects.items():  # noqa: B007
                 way_direction = select(way.tags)
                 if way_direction is not None:
                     break
@@ -314,7 +315,7 @@ def read_osm(
     source: "str | os.PathLike | StreamedPbf",
     way_filter: Callable,
     required_tag_keys: tuple[str, ...] = (),
-    max_km_between_nodes: float | int = MAX_KM,
+    max_km_between_nodes: float = MAX_KM,
 ) -> tuple[
     list[dict[int, float]],
     list[list[float]],
@@ -342,7 +343,7 @@ def build_way_pieces(
     source: "str | os.PathLike | StreamedPbf",
     way_selectors: dict[str, Callable],
     required_tag_keys: tuple[str, ...],
-    max_km_between_nodes: float | int,
+    max_km_between_nodes: float,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[PieceArrays, list[dict[str, str | int]]]:
     """The pieces (`assembly.PieceArrays`) of the ways of `source` that `way_selectors` keep
@@ -583,7 +584,7 @@ class StreamedPbf:
                 )
                 if md5.ok:
                     md5_val = md5.text.split()[0]
-            except Exception:
+            except (requests.RequestException, OSError, IndexError):
                 md5_val = None
             about = {"url": url, "size": size, "tag": tag, "layout": layout}
             if md5_val:

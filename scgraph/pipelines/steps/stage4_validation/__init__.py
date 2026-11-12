@@ -244,7 +244,8 @@ def validate_network(
                 haversine(orig, network.nodes[c_orig]),
                 haversine(dest, network.nodes[c_dest]),
             )
-        except Exception as err:
+        # Whatever a case raises is recorded as its failure, and the next cases run
+        except Exception as err:  # noqa: BLE001
             result.failed += 1
             result.failures.append(
                 {"id": cid, "error": f"Snapping failed: {err}"}
@@ -270,7 +271,7 @@ def validate_network(
                 silent=True,
             )
             km = float(route["length"])
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001 (recorded, as above)
             result.failed += 1
             result.failures.append(
                 {"id": cid, "error": f"Routing failed: {err}"}

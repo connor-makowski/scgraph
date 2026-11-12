@@ -1,4 +1,5 @@
 import pytest
+from scgraph import PathNotFoundError
 from scgraph.graph import Graph as PyGraph
 from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
 
@@ -94,7 +95,7 @@ def _run_disconnected_graph_tests(graph_class, tnr_class):
     assert res_ch["path"] == [0, 1]
 
     # 3. Unreachable query (0 -> 2)
-    with pytest.raises(Exception):
+    with pytest.raises(PathNotFoundError):
         g.contraction_hierarchy(0, 2)
 
     # TNR behavior
@@ -106,7 +107,7 @@ def _run_disconnected_graph_tests(graph_class, tnr_class):
     assert res_tnr["path"] == [0, 1]
 
     # Unreachable
-    with pytest.raises(Exception):
+    with pytest.raises(PathNotFoundError):
         tnr.get_shortest_path(0, 2)
 
 
@@ -135,11 +136,11 @@ def _run_very_small_graph_tests(graph_class, tnr_class):
 
     # Two nodes, disconnected
     g2 = graph_class([{}, {}])
-    with pytest.raises(Exception):
+    with pytest.raises(PathNotFoundError):
         g2.contraction_hierarchy(0, 1)
 
     tnr2 = tnr_class(graph=[{}, {}], num_transit_nodes=1)
-    with pytest.raises(Exception):
+    with pytest.raises(PathNotFoundError):
         tnr2.get_shortest_path(0, 1)
 
 
@@ -310,7 +311,7 @@ def _assert_ch_matches_dijkstra(graph_class, data, g):
                 continue
             try:
                 expected = reference.dijkstra(origin, destination)["length"]
-            except Exception:
+            except PathNotFoundError:
                 continue  # not connected
             result = g.contraction_hierarchy(origin, destination)
             assert result["length"] == expected, (origin, destination)

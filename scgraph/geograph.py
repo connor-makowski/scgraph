@@ -13,7 +13,15 @@ from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import polylines_to_graph
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph import network_file
-import hashlib, importlib, json, logging, os, re, requests, secrets, shutil
+import hashlib
+import importlib
+import json
+import logging
+import os
+import re
+import requests
+import secrets
+import shutil
 import types
 from array import array
 from collections import Counter
@@ -24,8 +32,9 @@ from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal
-from scgraph import Graph
+from typing import TYPE_CHECKING, Literal
+from collections.abc import Callable
+from scgraph import Graph, PathNotFoundError
 
 try:
     from scgraph.cpp import NodeOrderError, SnapIndex
@@ -374,13 +383,13 @@ class GeoGraphIO:
     def load_from_geojson(
         filename: str,
         precision: int = 5,
-        pct_to_keep: int | float = 100,
+        pct_to_keep: float = 100,
         min_points: int = 3,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
         reduce_iterations: int = 0,
         lazy: bool = False,
-        max_km_between_nodes: float | int | None = None,
+        max_km_between_nodes: float | None = None,
     ) -> "GeoGraph":
         """
         Function:
@@ -508,7 +517,7 @@ class GeoGraphIO:
         filename: str,
         select: Callable | None = None,
         tag_keys: tuple[str, ...] = ("highway",),
-        max_km_between_nodes: float | int | None = None,
+        max_km_between_nodes: float | None = None,
         largest_component: bool = True,
         load_intermediate_nodes: bool = True,
         reduce_iterations: int = 0,
@@ -812,7 +821,7 @@ class GeoGraphIO:
         # index is built now, not at the first query (an empty network has none)
         if len(geograph.nodes):
             try:
-                geograph.snap_index
+                geograph.snap_index  # noqa: B018 (reading it builds the index)
             except ValueError as error:  # e.g. coordinates that are not finite
                 raise ValueError(f"{filename}: {error}") from error
         return geograph
@@ -972,7 +981,7 @@ class GeoGraphIO:
             geograph = _order_by_hilbert(geograph)
             geograph.graph_object.reduce(reduce_iterations)
             if len(geograph.nodes):  # as load_from_scgraph
-                geograph.snap_index
+                geograph.snap_index  # noqa: B018 (reading it builds the index)
             return geograph
         del geograph  # one copy of the network in memory at a time
         return GeoGraph.load_from_scgraph(
@@ -1380,7 +1389,7 @@ class GeoGraphIO:
         coord_precision: int = 5,
         weight_precision: int = 3,
         weight_key: Literal["length", "travel_time"] = "length",
-        off_graph_travel_speed: int | float | None = None,
+        off_graph_travel_speed: float | None = None,
         load_intermediate_nodes: bool = True,
         silent: bool = False,
         reduce_iterations: int = 0,
@@ -1689,12 +1698,12 @@ class GeoGraphIO:
                 }
             )
             if show_progress:
-                print(  # noqa: T201
+                print(  # noqa: T201 (the progress bar that show_progress asks for)
                     f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
                     end="\r",
                 )
         if show_progress:
-            print()  # noqa: T201
+            print()  # noqa: T201 (ends the progress bar)
         if filename is not None:
             json.dump(output, open(filename, "w"))
         return output
@@ -1705,7 +1714,7 @@ class GeoGraphModifiers:
         self,
         origin_id: int,
         destination_id: int,
-        distance: int | float,
+        distance: float,
         symmetric: bool = False,
     ) -> None:
         return self.graph_object.add_edge(
@@ -1734,8 +1743,8 @@ class GeoGraphModifiers:
         origin_coord_dict: dict[str, float | int],
         destination_coord_dict: dict[str, float | int],
         symmetric: bool = True,
-        distance: float | int | None = None,
-        circuity: float | int = 1,
+        distance: float | None = None,
+        circuity: float = 1,
     ) -> None:
         """
         Function:
@@ -1834,10 +1843,10 @@ class GeoGraphModifiers:
         self,
         coord_dict: dict[str, float | int],
         auto_edge: bool = True,
-        circuity: float | int = 1,
+        circuity: float = 1,
         node_addition_type: str = "quadrant",
         node_addition_math: str = "euclidean",
-        lat_lon_bound: float | int = 5,
+        lat_lon_bound: float = 5,
         silent: bool = False,
         temp_node: bool = False,
         mode: str | None = None,
@@ -2016,8 +2025,8 @@ class GeoGraphModifiers:
         self,
         other_geograph: "GeoGraph",
         connection_nodes: list[list[int | float]],
-        circuity_to_current_geograph: float | int = 1.2,
-        circuity_to_other_geograph: float | int = 1.2,
+        circuity_to_current_geograph: float = 1.2,
+        circuity_to_other_geograph: float = 1.2,
         node_addition_type_current_geograph: str = "closest",
         node_addition_type_other_geograph: str = "closest",
         node_addition_math: str = "euclidean",
@@ -2086,7 +2095,7 @@ class GeoGraphModifiers:
         # the merge, not to each other
         current_index = self.snap_index
         other_index = other_geograph.snap_index
-        for idx, node in enumerate(connection_nodes):
+        for node in connection_nodes:
             node_dict = {
                 "latitude": node[0],
                 "longitude": node[1],
@@ -2305,9 +2314,9 @@ class GeoGraphUtils:
     def __get_node_distances__(
         self,
         node: list,
-        circuity: float | int,
+        circuity: float,
         node_addition_type: str,
-        lat_lon_bound: float | int,
+        lat_lon_bound: float,
         silent: bool = False,
     ) -> dict[int, float]:
         """
@@ -2539,7 +2548,7 @@ class GeoGraphUtils:
     def get_path_weight(
         self,
         path_result: dict,
-        off_graph_circuity: float | int = None,
+        off_graph_circuity: float | None = None,
         output_units: str = "km",
     ) -> float:
         """
@@ -2709,8 +2718,8 @@ class GeoGraph(
         nodes: list[list[float | int]],
         validate: bool = False,
         intermediate_nodes: list[list[list[float | int]]] = None,
-        default_off_graph_circuity: float | int = 1,
-        default_node_addition_circuity: float | int = 4,
+        default_off_graph_circuity: float = 1,
+        default_node_addition_circuity: float = 4,
         geograph_units: Literal["km", "m", "mi", "ft"] = "km",
         node_ids: list[int] | None = None,
         node_modes: list[int] | None = None,
@@ -3058,15 +3067,15 @@ class GeoGraph(
         output_units: str = "km",
         algorithm_fn: str = "bidirectional_buckets",
         algorithm_kwargs: dict = None,
-        off_graph_circuity: float | int = 1,
+        off_graph_circuity: float = 1,
         node_addition_type: str = "kdclosest",
-        node_addition_circuity: float | int = 4,
+        node_addition_circuity: float = 4,
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
-        node_addition_lat_lon_bound: float | int | Literal["auto"] = "auto",
+        node_addition_lat_lon_bound: float | Literal["auto"] = "auto",
         node_addition_math: str = "euclidean",
         destination_node_addition_type: str = "kdclosest",
-        auto_lat_lon_bound_max: float | int = 2,
+        auto_lat_lon_bound_max: float = 2,
         silent: bool = False,
         length_only: bool = False,
         get_intermediate_nodes: bool = None,
@@ -3405,7 +3414,7 @@ class GeoGraph(
     def distance_matrix(
         self,
         nodes: list[dict[str, float | int]],
-        off_graph_circuity: float | int = 1,
+        off_graph_circuity: float = 1,
         output_units: str = "km",
         silent: bool = False,
     ) -> list[list[float | int | None]]:
@@ -3490,7 +3499,7 @@ class GeoGraph(
                         + entry_length_start
                         + entry_length_end
                     )
-                except Exception:
+                except PathNotFoundError:
                     print_console(
                         f"Error calculating distance between nodes {node_idx_start} and {node_idx_end} with entry indices {entry_idx_start} and {entry_idx_end}.",
                         silent=silent,

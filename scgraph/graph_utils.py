@@ -302,7 +302,7 @@ class GraphUtils:
 
     def __get_max_edge_weight__(
         self,
-        max_edge_weight: int | float | None,
+        max_edge_weight: float | None,
     ) -> int:
         """Infer and round up the maximum edge weight for bucket allocation."""
         if max_edge_weight is not None:
@@ -323,7 +323,7 @@ class GraphUtils:
 
     def _get_bucket_width(
         self,
-        bucket_width: int | float | None,
+        bucket_width: float | None,
         max_edge_weight: int,
     ) -> float:
         """Width of the buckets of the bucket algorithms: the given width, else 8 times the
@@ -511,7 +511,7 @@ class GraphModifiers:
         self,
         origin_id: int,
         destination_id: int,
-        distance: int | float,
+        distance: float,
         symmetric: bool = False,
     ) -> None:
         """

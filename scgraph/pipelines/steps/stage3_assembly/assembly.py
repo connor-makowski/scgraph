@@ -305,7 +305,7 @@ def contract_chains_python(
     heads: Sequence[int],
     weights: Sequence[float | int],
     node_modes: Sequence[int] | None = None,
-    max_km_between_nodes: float | int = math.inf,
+    max_km_between_nodes: float = math.inf,
 ) -> ContractedGraph:
     """Pure-Python implementation of CSR degree-2 chain contraction."""
     n = len(offsets) - 1
@@ -416,7 +416,7 @@ def contract_chains(
     heads: Sequence[int],
     weights: Sequence[float | int],
     node_modes: Sequence[int] | None = None,
-    max_km_between_nodes: float | int = math.inf,
+    max_km_between_nodes: float = math.inf,
 ) -> ContractedGraph:
     """Contract degree-2 pass-through chains into composite weighted edges.
 
@@ -470,7 +470,7 @@ def simplify_shapes(
     shape_points: Sequence[int],
     shape_offsets: Sequence[int],
     endpoint_coords: Sequence[int],
-    tolerance_meters: float | int,
+    tolerance_meters: float,
 ) -> tuple[array | memoryview, array | memoryview]:
     """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
 
@@ -506,7 +506,7 @@ class NearNodes:
             self.rows[row] = array("i", sorted(nodes, key=lons.__getitem__))
 
     def within(
-        self, point: list[float | int], km: float | int
+        self, point: list[int | float], km: float
     ) -> Iterator[tuple[float, int]]:
         """`(km, node)` of each node within `km` of `point` ([latitude, longitude])."""
         lat, lon = point
@@ -519,7 +519,10 @@ class NearNodes:
             spans += [(w + 360, e + 360) for w, e in spans if w < -180]
             spans += [(w - 360, e - 360) for w, e in spans[:1] if e > 180]
         lats, lons, scale = self.lats, self.lons, self.scale
-        key = lambda i: lons[i] * scale  # degrees (x * 1 == x)
+
+        def key(i):
+            return lons[i] * scale  # degrees (x * 1 == x)
+
         for row in range(
             math.floor((lat - dlat) / 0.2), math.floor((lat + dlat) / 0.2) + 1
         ):
@@ -534,7 +537,7 @@ class NearNodes:
                         yield d, i
 
     def nearest(
-        self, point: list[float | int], km: float | int
+        self, point: list[int | float], km: float
     ) -> tuple[int | None, float]:
         """`(node, km)` of the node nearest to `point` within `km` (ties: the lowest
         node), or `(None, inf)`."""
@@ -585,7 +588,7 @@ class PieceArrays:
         self,
         origin_id: int,
         destination_id: int,
-        length_km: float | int,
+        length_km: float,
         direction: int,
         endpoint_coords: Iterable[Iterable[float | int]],
         shape_points: Iterable[Iterable[float | int]],
@@ -697,7 +700,7 @@ def build_graph_from_pieces(
 def assemble(
     graph: dict[str, array | memoryview],
     *,
-    max_km_between_nodes: float | int,
+    max_km_between_nodes: float,
     min_nodes_per_strongly_connected_component: int | None,
 ) -> tuple[dict[str, array], list[dict[str, str | int]]]:
     """The network file's arrays of `graph` (`build_graph_from_pieces`'s layout, with

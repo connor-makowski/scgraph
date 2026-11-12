@@ -1,4 +1,7 @@
-import json, time, platform, os
+import json
+import time
+import platform
+import os
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from math import pi, sin, cos, asin
@@ -18,7 +21,7 @@ def haversine(
     origin: list[float | int],
     destination: list[float | int],
     units: str = "km",
-    circuity: float | int = 1,
+    circuity: float = 1,
 ) -> float:
     """
     Function:
@@ -68,7 +71,7 @@ def cheap_ruler(
     origin: list[float | int],
     destination: list[float | int],
     units: str = "km",
-    circuity: float | int = 1,
+    circuity: float = 1,
 ) -> float:
     """
     Function:
@@ -135,7 +138,7 @@ def cheap_ruler(
     return (dx**2 + dy**2) ** 0.5 * circuity
 
 
-def hard_round(decimal_places: int, a: float | int) -> float:
+def hard_round(decimal_places: int, a: float) -> float:
     """
     Function:
 
@@ -156,7 +159,7 @@ def hard_round(decimal_places: int, a: float | int) -> float:
 
 
 def distance_converter(
-    distance: float | int, input_units: str, output_units: str
+    distance: float, input_units: str, output_units: str
 ) -> float:
     """
     Function:
@@ -357,7 +360,7 @@ def time_test(
 
 def has_cpp() -> bool:
     try:
-        from scgraph.cpp import Graph  # noqa: F401
+        from scgraph.cpp import Graph  # noqa: F401 (the import is the check)
 
         return True
     except ImportError:
@@ -366,7 +369,7 @@ def has_cpp() -> bool:
 
 def cpp_check() -> None:
     try:
-        from scgraph.cpp import Graph  # noqa: F401
+        from scgraph.cpp import Graph  # noqa: F401 (the import is the check)
 
         print("Using C++ & Python implementation of SCGraph.")
     except ImportError:

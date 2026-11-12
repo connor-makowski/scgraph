@@ -49,7 +49,8 @@ def test_symmetric_connected_connectivity_only():
 
 
 def test_asymmetric_symmetry_raises():
-    with pytest.raises(Exception):
+    # C++ raises ValueError and pure Python AssertionError
+    with pytest.raises(Exception):  # noqa: B017
         _ASYMMETRIC.validate(check_symmetry=True, check_connected=False)
 
 
@@ -62,14 +63,16 @@ def test_disconnected_symmetry_passes():
 
 
 def test_disconnected_connectivity_raises():
-    with pytest.raises(Exception):
+    # C++ raises RuntimeError and pure Python AssertionError
+    with pytest.raises(Exception):  # noqa: B017
         _SYMMETRIC_DISCONNECTED.validate(
             check_symmetry=False, check_connected=True
         )
 
 
 def test_one_way_disconnected_raises():
-    with pytest.raises(Exception):
+    # C++ raises RuntimeError and pure Python AssertionError
+    with pytest.raises(Exception):  # noqa: B017
         _ONE_WAY_DISCONNECTED.validate(
             check_symmetry=False, check_connected=True
         )

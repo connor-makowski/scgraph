@@ -203,7 +203,7 @@ class SnapIndex:
 
     def closest_idx(self, point: list[float] | tuple[float, float]) -> int:
         qx, qy, qz = _unit(point[0], point[1])
-        X, Y, Z, n = self.x, self.y, self.z, self.n
+        xs, ys, zs, n = self.x, self.y, self.z, self.n
         levels, bound = self.levels, self._bound
         best, best_p = inf, -1
         # (bound, level, index): level 0 is a leaf
@@ -214,7 +214,7 @@ class SnapIndex:
                 continue
             if level == 0:
                 for p in range(c * LEAF, min(n, c * LEAF + LEAF)):
-                    dx, dy, dz = qx - X[p], qy - Y[p], qz - Z[p]
+                    dx, dy, dz = qx - xs[p], qy - ys[p], qz - zs[p]
                     d = dx * dx + dy * dy + dz * dz
                     if d < best or (d == best and p < best_p):
                         best, best_p = d, p
@@ -234,8 +234,8 @@ class SnapIndex:
     ) -> dict[str, int | None]:
         qlat, qlon = float(point[0]), float(point[1])
         qx, qy, qz = _unit(qlat, qlon)
-        X, Y, Z, n = self.x, self.y, self.z, self.n
-        LAT, LON = self.lat, self.lon
+        xs, ys, zs, n = self.x, self.y, self.z, self.n
+        lats, lons = self.lat, self.lon
         levels, bound = self.levels, self._bound
         best = [inf, inf, inf, inf]
         best_p = [-1, -1, -1, -1]
@@ -253,12 +253,12 @@ class SnapIndex:
                 continue
             if level == 0:
                 for p in range(c * LEAF, min(n, c * LEAF + LEAF)):
-                    dx, dy, dz = qx - X[p], qy - Y[p], qz - Z[p]
+                    dx, dy, dz = qx - xs[p], qy - ys[p], qz - zs[p]
                     d = dx * dx + dy * dy + dz * dz
                     if d > reach(mask):
                         continue
-                    la = LAT[p]
-                    dl = _wrap180(LON[p] - qlon)
+                    la = lats[p]
+                    dl = _wrap180(lons[p] - qlon)
                     north, south = la >= qlat, la <= qlat
                     east = dl >= 0.0 or dl == -180.0
                     west = dl <= 0.0 or dl == 180.0

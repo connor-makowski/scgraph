@@ -1,5 +1,6 @@
 import random
 import pytest
+from scgraph import PathNotFoundError
 from scgraph.graph import Graph as PyGraph
 from helpers import assert_result
 
@@ -119,7 +120,7 @@ def _run_basic_bidirectional_buckets_tests(graph_cls):
 
 def _run_disconnected_tests(graph_cls):
     g = graph_cls(_DISCONNECTED_DATA)
-    with pytest.raises(Exception):
+    with pytest.raises(PathNotFoundError):
         g.bidirectional_buckets(origin_id=0, destination_id=7)
 
 
