@@ -28,10 +28,12 @@ def test_distance_matrix_matches_shortest_path(us_freeway):
     dm = us_freeway.distance_matrix(
         city_nodes, off_graph_circuity=1, output_units="km"
     )
-    direct = us_freeway.get_shortest_path(
-        origin_node=city_nodes[0], destination_node=city_nodes[1]
-    )
-    assert abs(dm[0][1] - direct["length"]) < 0.001
+    for i, origin in enumerate(city_nodes):
+        for j, destination in enumerate(city_nodes):
+            direct = us_freeway.get_shortest_path(
+                origin_node=origin, destination_node=destination
+            )
+            assert abs(dm[i][j] - direct["length"]) < 0.001
 
 
 if __name__ == "__main__":

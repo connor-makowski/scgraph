@@ -1,5 +1,5 @@
 import pytest
-from scgraph import Graph
+from scgraph import Graph, PathNotFoundError
 from helpers import assert_result
 
 _GRAPH_DATA = [
@@ -166,16 +166,20 @@ def test_empty_graph_validation_raises():
         Graph([]).validate(check_symmetry=True, check_connected=True)
 
 
-def test_edge_to_missing_node_raises():
-    # Without validation, an edge to a node id outside the graph must raise,
-    # not be indexed out of bounds
+def test_link_to_a_missing_node_raises_at_construction_or_at_reduce():
+    # The only node of this graph has a link to node 5, which does not exist.
+    # The C++ class raises when the graph is built. The Python class raises
+    # later, when reduce() follows the link.
+    graph_with_a_link_to_a_missing_node = [{5: 1}]
+
     with pytest.raises(IndexError):
-        Graph([{5: 1}]).reduce(1)
+        Graph(graph_with_a_link_to_a_missing_node).reduce(1)
 
 
-def test_path_not_found_error_raised():
-    from scgraph import PathNotFoundError
+def test_dijkstra_raises_path_not_found_between_two_parts_of_a_graph():
+    # Nodes 0 and 1 are linked, and nodes 2 and 3 are linked. No link joins
+    # the two pairs.
+    graph_in_two_parts = Graph([{1: 1.0}, {0: 1.0}, {3: 1.0}, {2: 1.0}])
 
-    g = Graph([{1: 1.0}, {0: 1.0}, {3: 1.0}, {2: 1.0}])
     with pytest.raises(PathNotFoundError):
-        g.dijkstra(0, 3)
+        graph_in_two_parts.dijkstra(origin_id=0, destination_id=3)

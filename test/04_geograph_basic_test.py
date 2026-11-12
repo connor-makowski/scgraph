@@ -1,4 +1,5 @@
 import copy
+from itertools import permutations
 import pytest
 from scgraph import GeoGraph, Graph
 from helpers import assert_result
@@ -48,9 +49,42 @@ def test_shortest_path(basic_geograph):
     )
 
 
-def _shape(u, v):
-    """Two shape points on the link u -> v, ordered from u to v, offset by direction
-    (to 1e-7 degree, as a network file stores them)"""
+def test_coordinate_path_holds_each_node_and_the_shape_of_each_link():
+    # Three nodes on the equator, linked 0 - 1 - 2. The shape of a link is the
+    # list of the points that the link passes between its two nodes.
+    nodes = [[0, 0], [0, 1], [0, 2]]
+    links = [{1: 1}, {0: 1, 2: 1}, {1: 1}]
+    # The link 0 -> 1 bends to the north and the link 1 -> 0 bends to the
+    # south. The links between nodes 1 and 2 have no shape.
+    link_shapes = [{1: [[0.1, 0.5]]}, {0: [[-0.1, 0.5]]}, {}]
+    geograph = GeoGraph(
+        nodes=nodes, graph=links, intermediate_nodes=link_shapes
+    )
+
+    route = geograph.get_shortest_path(
+        origin_node={"latitude": 0, "longitude": 0},
+        destination_node={"latitude": 0, "longitude": 2},
+    )
+
+    assert route["coordinate_path"] == [
+        [0, 0],  # the requested origin
+        [0, 0],  # node 0, which is at the same place
+        [0.1, 0.5],  # the shape of the link 0 -> 1
+        [0, 1],  # node 1
+        [0, 2],  # node 2
+        [0, 2],  # the requested destination
+    ]
+
+
+def _point(node):
+    return {"latitude": node[0], "longitude": node[1]}
+
+
+def _shape_of_link(u, v):
+    """Two points on the link u -> v, at one third and at two thirds of the way.
+    They are moved 0.01 degree north when u < v and south when u > v, so the
+    shapes of u -> v and of v -> u differ. They are rounded to 1e-7 degree, as
+    a network file stores them."""
     (lat_u, lon_u), (lat_v, lon_v) = _NODES[u], _NODES[v]
     offset = 0.01 if u < v else -0.01
     return [
@@ -62,93 +96,173 @@ def _shape(u, v):
     ]
 
 
-# Every directed link has a shape, except 3 <-> 5 (node 5 is only reached through it)
-_INTERMEDIATE_NODES = [
-    {v: _shape(u, v) for v in links if {u, v} != {3, 5}}
+# The shape of every link of _GRAPH, in each direction. The links 3 -> 5 and
+# 5 -> 3 have none: every route to node 5 ends with a link without a shape.
+_LINK_SHAPES = [
+    {v: _shape_of_link(u, v) for v in links if {u, v} != {3, 5}}
     for u, links in enumerate(_GRAPH)
 ]
 
 
-def _shaped_geograph():
+def _geograph_with_link_shapes():
     return GeoGraph(
         nodes=copy.deepcopy(_NODES),
         graph=copy.deepcopy(_GRAPH),
-        intermediate_nodes=copy.deepcopy(_INTERMEDIATE_NODES),
+        intermediate_nodes=copy.deepcopy(_LINK_SHAPES),
     )
 
 
-@pytest.mark.parametrize("from_file", [False, True])
-@pytest.mark.parametrize("reduce_iterations", [0, 1])
-def test_coordinate_path_follows_path_and_link_shapes(
-    reduce_iterations, from_file, tmp_path
+def _save_and_read_back(geograph, tmp_path):
+    """Save the geograph to a network file and return the geograph read from
+    that file."""
+    filename = str(tmp_path / "shaped.scgraph")
+    geograph.save_as_scgraph(filename)
+    return GeoGraph.load_from_scgraph(filename)
+
+
+def test_every_coordinate_path_follows_the_links_of_its_path():
+    geograph = _geograph_with_link_shapes()
+
+    for origin_id, destination_id in permutations(range(6), 2):
+        route = geograph.get_shortest_path(
+            origin_node=_point(_NODES[origin_id]),
+            destination_node=_point(_NODES[destination_id]),
+            output_path=True,
+        )
+
+        # The requested origin and the first node, which are at the same place.
+        # Then, for each link of the path, the shape of the link and the node
+        # at its end. Then the requested destination.
+        expected = [_NODES[origin_id], _NODES[origin_id]]
+        for u, v in zip(route["path"], route["path"][1:]):
+            expected += _LINK_SHAPES[u].get(v, []) + [_NODES[v]]
+        expected.append(_NODES[destination_id])
+        assert route["path"][-1] == destination_id
+        assert route["coordinate_path"] == expected
+
+
+def test_reduction_changes_no_route_of_a_geograph_with_link_shapes():
+    unreduced = _geograph_with_link_shapes()
+    reduced = _geograph_with_link_shapes()
+
+    reduced.reduce(iterations=1)
+
+    for origin, destination in permutations(_NODES, 2):
+        query = {
+            "origin_node": _point(origin),
+            "destination_node": _point(destination),
+            "output_path": True,
+        }
+        expected = unreduced.get_shortest_path(**query)
+        assert reduced.get_shortest_path(**query) == expected
+
+
+def test_network_file_changes_no_route_of_a_geograph_with_link_shapes(
+    tmp_path,
 ):
-    # For every route: origin, then each path node with the shape of each link
-    # between consecutive nodes, then destination; reduction must not change it, nor
-    # saving to a network file, which is then read in place.
-    # A direct route (no network search) is just origin and destination.
-    geograph = _shaped_geograph()
-    if from_file:
-        path = str(tmp_path / "shaped.scgraph")
-        geograph.save_as_scgraph(path)
-        geograph = GeoGraph.load_from_scgraph(path)
-    geograph.reduce(iterations=reduce_iterations)
-    for o, origin in enumerate(_NODES):
-        for d, destination in enumerate(_NODES):
-            if o == d:
-                continue
-            output = geograph.get_shortest_path(
-                origin_node={"latitude": origin[0], "longitude": origin[1]},
-                destination_node={
-                    "latitude": destination[0],
-                    "longitude": destination[1],
-                },
-                output_path=True,
-            )
-            path = output["path"]
-            assert path[0] == o and path[-1] == d
-            links = list(zip(path, path[1:]))
-            assert output["length"] == pytest.approx(
-                sum(_GRAPH[u][v] for u, v in links)
-            )
-            expected = [origin, _NODES[o]]
-            for u, v in links:
-                expected += _INTERMEDIATE_NODES[u].get(v, []) + [_NODES[v]]
-            expected.append(destination)
-            assert output["coordinate_path"] == expected, (o, d)
-    # Origin and destination closer to each other than to the network: no search
-    output = geograph.get_shortest_path(
+    saved = _geograph_with_link_shapes()
+
+    read_back = _save_and_read_back(saved, tmp_path)
+
+    for origin, destination in permutations(_NODES, 2):
+        query = {
+            "origin_node": _point(origin),
+            "destination_node": _point(destination),
+            "output_path": True,
+        }
+        expected = saved.get_shortest_path(**query)
+        assert read_back.get_shortest_path(**query) == expected
+
+
+def test_reduction_changes_no_route_of_a_geograph_read_from_a_network_file(
+    tmp_path,
+):
+    # A geograph read from a network file reads the shapes of its links from
+    # the file. The reduction must work on these shapes too.
+    unreduced = _geograph_with_link_shapes()
+    reduced = _save_and_read_back(unreduced, tmp_path)
+
+    reduced.reduce(iterations=1)
+
+    for origin, destination in permutations(_NODES, 2):
+        query = {
+            "origin_node": _point(origin),
+            "destination_node": _point(destination),
+            "output_path": True,
+        }
+        expected = unreduced.get_shortest_path(**query)
+        assert reduced.get_shortest_path(**query) == expected
+
+
+def test_route_between_two_points_far_from_the_network_is_a_straight_line():
+    geograph = _geograph_with_link_shapes()
+
+    # The two points are 0.01 degree apart and about 12 degrees away from the
+    # nearest node: the route does not enter the network.
+    route = geograph.get_shortest_path(
         origin_node={"latitude": 10, "longitude": 10},
         destination_node={"latitude": 10, "longitude": 10.01},
     )
-    assert output["coordinate_path"] == [[10, 10], [10, 10.01]]
-    # Route from a node added after loading, which has no shapes
-    point = {"latitude": 3, "longitude": 1.5}
-    geograph.add_coord_node(point)
-    output = geograph.get_shortest_path(
-        point, {"latitude": 0, "longitude": 1.5}, node_addition_type="all"
+
+    assert route["coordinate_path"] == [[10, 10], [10, 10.01]]
+
+
+def test_route_from_an_added_node_starts_with_that_node():
+    geograph = _geograph_with_link_shapes()
+    # add_coord_node links the new node to the nodes around it. These new
+    # links have no shape.
+    added_point = {"latitude": 3, "longitude": 1.5}
+    geograph.add_coord_node(added_point)
+
+    # node_addition_type="all" joins the requested origin to every node
+    # around it, so also to the added node, which is at the same place.
+    route = geograph.get_shortest_path(
+        origin_node=added_point,
+        destination_node={"latitude": 0, "longitude": 1.5},
+        node_addition_type="all",
     )
-    assert output["coordinate_path"][:2] == [[3, 1.5], [3, 1.5]]
+
+    # The requested origin, then the added node. The rest of the route follows
+    # links that have a shape, which the tests above check.
+    assert route["coordinate_path"][:2] == [[3, 1.5], [3, 1.5]]
 
 
-def test_custom_algorithm_on_reduced_geograph():
-    # A custom algorithm must route every pair the same on the reduced graph
+def test_route_from_a_node_added_to_a_reduced_geograph_read_from_a_file(
+    tmp_path,
+):
+    # The same requirement as the test above, on a geograph that was read
+    # from a network file and then reduced: both change how the geograph
+    # stores its nodes and links.
+    geograph = _save_and_read_back(_geograph_with_link_shapes(), tmp_path)
+    geograph.reduce(iterations=1)
+    added_point = {"latitude": 3, "longitude": 1.5}
+    geograph.add_coord_node(added_point)
+
+    route = geograph.get_shortest_path(
+        origin_node=added_point,
+        destination_node={"latitude": 0, "longitude": 1.5},
+        node_addition_type="all",
+    )
+
+    assert route["coordinate_path"][:2] == [[3, 1.5], [3, 1.5]]
+
+
+def test_custom_algorithm_finds_the_same_routes_on_a_reduced_geograph():
+    # The custom algorithm receives the graph as a list of dictionaries and
+    # runs Dijkstra on it.
     def custom_dijkstra(origin_id, destination_id, graph):
         return Graph(graph).dijkstra(origin_id, destination_id)
 
     unreduced = GeoGraph(nodes=_NODES, graph=_GRAPH)
     reduced = GeoGraph(nodes=_NODES, graph=_GRAPH)
+
     reduced.reduce()
-    for origin in _NODES:
-        for destination in _NODES:
-            if origin == destination:
-                continue
-            query = {
-                "origin_node": {"latitude": origin[0], "longitude": origin[1]},
-                "destination_node": {
-                    "latitude": destination[0],
-                    "longitude": destination[1],
-                },
-                "algorithm_fn": custom_dijkstra,
-            }
-            expected = unreduced.get_shortest_path(**query)
-            assert reduced.get_shortest_path(**query) == expected
+
+    for origin, destination in permutations(_NODES, 2):
+        query = {
+            "origin_node": _point(origin),
+            "destination_node": _point(destination),
+            "algorithm_fn": custom_dijkstra,
+        }
+        expected = unreduced.get_shortest_path(**query)
+        assert reduced.get_shortest_path(**query) == expected

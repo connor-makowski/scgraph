@@ -1,5 +1,4 @@
 from copy import deepcopy
-import pytest
 from scgraph import GeoGraph
 
 _PORTS = [
@@ -60,46 +59,96 @@ def test_merge_and_route():
     assert abs(marnet_result["length"] - _EXPECTED_MARNET_LENGTH) < 0.1
 
 
-def _chain(start_longitude):
-    # Four nodes in a line: the two interior nodes are reduced by reduce()
+def _chain_of_four_nodes(start_longitude):
+    """Four nodes in a row on the equator, one degree (111.2 km) apart, the
+    first at `start_longitude`. reduce() contracts the two middle nodes."""
     nodes = [[0, start_longitude + i] for i in range(4)]
     graph = [{1: 111.2}, {0: 111.2, 2: 111.2}, {1: 111.2, 3: 111.2}, {2: 111.2}]
     return GeoGraph(nodes=nodes, graph=graph)
 
 
-@pytest.mark.parametrize(
-    "reduce_current, reduce_other", [(True, False), (False, True)]
-)
-def test_merge_reduced_geographs(reduce_current, reduce_other):
-    # Merging must use the original graphs, whether or not they were reduced.
-    # No connection nodes: adding nodes would already undo reduce().
-    expected = _chain(0)
-    expected.merge_with_other_geograph(_chain(10), connection_nodes=[])
-    current, other = _chain(0), _chain(10)
-    if reduce_current:
-        current.reduce()
-    if reduce_other:
-        other.reduce()
-    current.merge_with_other_geograph(other, connection_nodes=[])
+# In the two tests below, the expected geograph is the merge of the same two
+# chains when neither is reduced. The merges have no connection nodes, because
+# adding a node already undoes reduce().
+
+
+def test_reduced_geograph_receives_a_merge_as_if_it_was_not_reduced():
+    expected = _chain_of_four_nodes(0)
+    expected.merge_with_other_geograph(
+        _chain_of_four_nodes(10), connection_nodes=[]
+    )
+    reduced = _chain_of_four_nodes(0)
+    reduced.reduce()
+
+    reduced.merge_with_other_geograph(
+        _chain_of_four_nodes(10), connection_nodes=[]
+    )
+
+    assert reduced.graph_object.graph == expected.graph_object.graph
+    assert reduced.nodes == expected.nodes
+
+
+def test_reduced_geograph_is_merged_into_another_as_if_it_was_not_reduced():
+    expected = _chain_of_four_nodes(0)
+    expected.merge_with_other_geograph(
+        _chain_of_four_nodes(10), connection_nodes=[]
+    )
+    current = _chain_of_four_nodes(0)
+    reduced_other = _chain_of_four_nodes(10)
+    reduced_other.reduce()
+
+    current.merge_with_other_geograph(reduced_other, connection_nodes=[])
+
     assert current.graph_object.graph == expected.graph_object.graph
     assert current.nodes == expected.nodes
 
 
-def test_added_and_merged_nodes_get_ids_that_collide_with_none():
-    # Added nodes (and connection nodes) get negative ids below all the others; merged
-    # nodes keep theirs, the other graph's negative ids moved below this graph's
+def test_added_and_merged_nodes_get_unique_ids():
+    # Two geographs of two nodes. A third node is then added to each. An added
+    # node gets a negative id, so both geographs hold a node of id -1.
     road = GeoGraph(
         graph=[{1: 1.0}, {0: 1.0}],
         nodes=[[0, 0], [0, 1]],
         node_ids=[10, 20],
-        coordinate_dtype="int32",
     )
     road.add_coord_node({"latitude": 0, "longitude": 2})
     sea = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[1, 0], [1, 1]])
     sea.add_coord_node({"latitude": 1, "longitude": 2})
+
     road.merge_with_other_geograph(sea, connection_nodes=[[0.5, 0.5]])
-    assert list(road.node_ids) == [10, 20, -1, -2, 0, 1, -3]
-    # The finer coordinates of the two graphs are kept
-    assert road.coordinate_dtype == "float64"
+
+    assert list(road.node_ids) == [
+        10,  # the nodes of road keep their ids
+        20,
+        -1,
+        -2,  # the connection node gets the next negative id
+        0,  # the first two nodes of sea keep their ids
+        1,
+        -3,  # the added node of sea moves from -1 to the next negative id
+    ]
+
+
+def test_node_added_after_a_merge_gets_the_next_negative_id():
+    road = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 1]])
+    sea = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[1, 0], [1, 1]])
+    # The merge gives the id -1 to its connection node
+    road.merge_with_other_geograph(sea, connection_nodes=[[0.5, 0.5]])
+
     road.add_coord_node({"latitude": 2, "longitude": 2})
-    assert road.node_ids[-1] == -4
+
+    assert road.node_ids[-1] == -2
+
+
+def test_merge_keeps_the_finer_coordinate_type_of_the_two_geographs():
+    # road stores its coordinates as 32-bit integers. sea stores them as
+    # 64-bit floats, the default, which is the finer type.
+    road = GeoGraph(
+        graph=[{1: 1.0}, {0: 1.0}],
+        nodes=[[0, 0], [0, 1]],
+        coordinate_dtype="int32",
+    )
+    sea = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[1, 0], [1, 1]])
+
+    road.merge_with_other_geograph(sea, connection_nodes=[[0.5, 0.5]])
+
+    assert road.coordinate_dtype == "float64"
