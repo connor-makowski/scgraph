@@ -987,15 +987,20 @@ dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
 
 # Development
 
-Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`. Install them with:
+Contributions start from the `dev` branch. The current developer guide is `DEVELOPMENT.md` on `dev`. You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 
 ```bash
+git clone https://github.com/connor-makowski/scgraph.git
+cd scgraph
+git checkout dev
 uv sync --extra dev
 ```
 
+Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`.
+
 | Command | Description |
 |---|---|
-| `uv run pytest` | Run all tests |
+| `uv run pytest` | Run all tests (about 700 tests, 1 to 2 minutes) |
 | `uv run pytest test/NN_*.py` | Run a specific test file |
 | `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
 | `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
