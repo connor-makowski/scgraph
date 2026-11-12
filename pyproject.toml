@@ -17,6 +17,7 @@ select = [
     "N802", "N803", "N806",  # function, argument and variable names
     "UP006", "UP007", "UP035", "UP045",  # built-in types and X | Y in annotations
     "PYI041",  # a number parameter is float; int | float stays in returns and in containers of weights
+    "RUF013",  # a parameter whose default is None says | None
     "T201",  # print in library code
 ]
 # A zip may pair two sequences of different lengths on purpose.

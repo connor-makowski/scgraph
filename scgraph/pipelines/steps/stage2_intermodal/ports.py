@@ -4,6 +4,7 @@ sea connector over water (`landmask`)."""
 import csv
 import logging
 import math
+import os
 from array import array
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from typing import TYPE_CHECKING
@@ -30,7 +31,7 @@ WATER_KM, ROADSTEAD_WATER_KM = 3, 10
 CIRCUITY = 1.2  # of a straight road connector
 
 
-def download(url: str, filename: str) -> dict:
+def download(url: str, filename: str | os.PathLike) -> dict:
     """Download World Port Index data as CSV, falling back to NGA's ArcGIS service if direct download fails."""
     from scgraph.pipelines import download_file
 
@@ -79,7 +80,9 @@ def download(url: str, filename: str) -> dict:
         return {"version": "ArcGIS-WPI"}
 
 
-def read_world_port_index(filename: str) -> Iterator[list[float | str]]:
+def read_world_port_index(
+    filename: str | os.PathLike,
+) -> Iterator[list[float | str]]:
     """[latitude, longitude, harbour type] of each port with a position in the CSV file
     of the World Port Index."""
     with open(filename, newline="", encoding="utf-8-sig") as file:
@@ -94,7 +97,7 @@ def join(
     sea_network: "GeoGraph",
     port_records: Iterable[list[float | str]],
     land_mask: "LandMask",
-    work_dir: str | None = None,
+    work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, int]:
     """
     `road_graph` (`assembly.road_graph`'s layout) joined to the sea lanes of the GeoGraph `sea_network`
@@ -238,10 +241,10 @@ def find_road_connector(
 
 
 def find_sea_connector(
-    port_coords: list[float],
+    port_coords: Sequence[float],
     sea_cell_targets: array,
     cell_to_sea_node: dict[int, int],
-    sea_node_coords: Sequence[list[float]],
+    sea_node_coords: Sequence[Sequence[float]],
     land_mask: "LandMask",
 ) -> tuple[int, float, list[list[float]]] | None:
     """`(sea node, km, path)`: the sea connector of `port_coords`, or None. `sea_cell_targets`: the mask

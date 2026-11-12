@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Literal
 from scgraph import Graph
 from math import ceil
@@ -461,7 +462,7 @@ class GridGraph:
         ),
         output_coordinate_path: str = "list_of_dicts",
         output_path: bool = False,
-        algorithm_fn: str = "dijkstra_buckets",
+        algorithm_fn: str | Callable = "dijkstra_buckets",
         algorithm_kwargs: dict | None = None,
         **kwargs,
     ) -> dict:
@@ -717,7 +718,7 @@ class GridGraph:
             f.write(zlib.compress(pickle.dumps(export_data)))
 
     @staticmethod
-    def import_object(filename: str = "") -> None:
+    def import_object(filename: str = "") -> "GridGraph":
         """
         Function:
 

@@ -426,7 +426,7 @@ class GraphReducer:
 
     def run_with_reduced(
         self, func: Callable, *args, is_bidirectional: bool = False, **kwargs
-    ) -> dict:
+    ) -> object:
         """
         Function:
 
@@ -628,7 +628,7 @@ class GraphReducer:
 
     @staticmethod
     def dijkstra_on_graph(
-        graph: list[dict[int, float]],
+        graph: list[dict[int, int | float]],
         origin_id: int | set[int] | dict[int, int | float],
         destination_id: int | set[int] | dict[int, int | float],
     ) -> dict:

@@ -69,7 +69,7 @@ def require_osmium() -> ModuleType:
     return osmium
 
 
-def download(url: str, filename: str) -> dict[str, str]:
+def download(url: str, filename: str | os.PathLike) -> dict[str, str]:
     """Download an OSM file; return its `version`, the time its data is up to (the
     `osmosis_replication_timestamp` of its header, as Geofabrik writes it), if it has one.
     """
@@ -492,7 +492,7 @@ class StreamedPbf:
             self.about = json.load(file)
 
     @staticmethod
-    def download(url: str, filename: str) -> dict[str, str | int]:
+    def download(url: str, filename: str | os.PathLike) -> dict[str, str | int]:
         """Write to `filename` the layout of the PBF at `url` (the header, then the node
         and way sections, found by bisection) with its `size`, `tag`, `md5` (the
         published one, not recomputed) and `version`; return `{version, bytes, md5}`.
@@ -654,7 +654,9 @@ def open_osm_source(
     return source
 
 
-def download_streamed(url: str, filename: str) -> dict[str, str | int]:
+def download_streamed(
+    url: str, filename: str | os.PathLike
+) -> dict[str, str | int]:
     """Download layout descriptor of an OSM PBF file for streamed HTTP range reading."""
     if not has_cpp():
         raise RuntimeError(

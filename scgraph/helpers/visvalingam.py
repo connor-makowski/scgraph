@@ -1,10 +1,11 @@
+from collections.abc import Sequence, Callable
 from heapq import heappush, heappop
 
 
 def triangle_area(
-    p1: tuple[int | float, int | float],
-    p2: tuple[int | float, int | float],
-    p3: tuple[int | float, int | float],
+    p1: Sequence[float],
+    p2: Sequence[float],
+    p3: Sequence[float],
 ) -> int | float:
     """
     Calculate the 2x the area of the triangle formed by points p1, p2, and p3.
@@ -28,9 +29,9 @@ def triangle_area(
 
 
 def min_edge(
-    p1: tuple[int | float, int | float],
-    p2: tuple[int | float, int | float],
-    p3: tuple[int | float, int | float],
+    p1: Sequence[float],
+    p2: Sequence[float],
+    p3: Sequence[float],
 ) -> int | float:
     """
     Calculate the square of the length of the shortest edge of the angle formed by points p1, p2, and p3.
@@ -53,9 +54,9 @@ def min_edge(
 
 
 def triangle_area_plus_min_edge(
-    p1: tuple[int | float, int | float],
-    p2: tuple[int | float, int | float],
-    p3: tuple[int | float, int | float],
+    p1: Sequence[float],
+    p2: Sequence[float],
+    p3: Sequence[float],
 ) -> int | float:
     """
     Calculate the 2x the area of the triangle formed by points p1, p2, and p3,
@@ -84,7 +85,7 @@ def visvalingam(
     coords: list[list[int | float]],
     pct_to_keep: float,
     min_points: int = 2,
-    weight_fn: callable = triangle_area,
+    weight_fn: Callable = triangle_area,
 ) -> list[list[int | float]]:
     """
     Simplify a linestring using Visvalingam-Whyatt algorithm.

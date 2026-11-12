@@ -6,6 +6,7 @@ import json
 import math
 from array import array
 from bisect import bisect_left
+from collections.abc import Sequence
 from heapq import heappop, heappush
 from types import SimpleNamespace
 
@@ -218,7 +219,7 @@ class LandMask:
 
     def water_path(
         self,
-        start: list[float],
+        start: Sequence[float],
         targets: array,
         max_km: float,
         start_on_land_km: float = 6,

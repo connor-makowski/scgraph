@@ -18,7 +18,7 @@ from functools import reduce
 from itertools import accumulate
 from operator import add
 from types import SimpleNamespace
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 try:
     from scgraph.cpp import (
@@ -45,7 +45,7 @@ from scgraph.utils import haversine
 def build_csr_from_arcs_python(
     origins: Sequence[int],
     destinations: Sequence[int],
-    weights: Sequence[float | int],
+    weights: Sequence[int | float],
 ) -> tuple[array, array, array, array, array]:
     """Pure-Python implementation of CSR construction from raw arcs."""
     if not len(origins) == len(destinations) == len(weights):
@@ -75,9 +75,9 @@ def build_csr_from_arcs_python(
 
 
 def build_csr_from_arcs(
-    origins: Sequence[int],
-    destinations: Sequence[int],
-    weights: Sequence[float | int],
+    origins: array | memoryview,
+    destinations: array | memoryview,
+    weights: array | memoryview,
 ) -> tuple[
     array | memoryview,
     array | memoryview,
@@ -162,7 +162,7 @@ def strongly_connected_components_python(
 
 
 def strongly_connected_components(
-    offsets: Sequence[int], heads: Sequence[int]
+    offsets: array | memoryview, heads: array | memoryview
 ) -> tuple[array | memoryview, array | memoryview]:
     """Compute the strongly connected components of a directed CSR graph.
 
@@ -211,8 +211,8 @@ def build_csr_from_adjacency_list(
 
 
 def keep_strongly_connected_components(
-    offsets: Sequence[int],
-    heads: Sequence[int],
+    offsets: array | memoryview,
+    heads: array | memoryview,
     min_nodes: int | None = None,
 ) -> tuple[array, array | memoryview]:
     """Filter a CSR graph to retain only viable strongly connected components (SCCs).
@@ -292,18 +292,18 @@ class ContractedGraph(NamedTuple):
         members (sequence[int]): Input arc indices comprising each contracted arc, in travel order.
     """
 
-    kept: Any
-    origins: Any
-    heads: Any
-    weights: Any
-    member_offsets: Any
-    members: Any
+    kept: array | memoryview
+    origins: array | memoryview
+    heads: array | memoryview
+    weights: array | memoryview
+    member_offsets: array | memoryview
+    members: array | memoryview
 
 
 def contract_chains_python(
     offsets: Sequence[int],
     heads: Sequence[int],
-    weights: Sequence[float | int],
+    weights: Sequence[int | float],
     node_modes: Sequence[int] | None = None,
     max_km_between_nodes: float = math.inf,
 ) -> ContractedGraph:
@@ -412,10 +412,10 @@ def contract_chains_python(
 
 
 def contract_chains(
-    offsets: Sequence[int],
-    heads: Sequence[int],
-    weights: Sequence[float | int],
-    node_modes: Sequence[int] | None = None,
+    offsets: array | memoryview,
+    heads: array | memoryview,
+    weights: array | memoryview,
+    node_modes: array | memoryview | None = None,
     max_km_between_nodes: float = math.inf,
 ) -> ContractedGraph:
     """Contract degree-2 pass-through chains into composite weighted edges.
@@ -467,9 +467,9 @@ def contract_chains(
 
 
 def simplify_shapes(
-    shape_points: Sequence[int],
-    shape_offsets: Sequence[int],
-    endpoint_coords: Sequence[int],
+    shape_points: array | memoryview,
+    shape_offsets: array | memoryview,
+    endpoint_coords: array | memoryview,
     tolerance_meters: float,
 ) -> tuple[array | memoryview, array | memoryview]:
     """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
@@ -506,7 +506,7 @@ class NearNodes:
             self.rows[row] = array("i", sorted(nodes, key=lons.__getitem__))
 
     def within(
-        self, point: list[int | float], km: float
+        self, point: Sequence[float], km: float
     ) -> Iterator[tuple[float, int]]:
         """`(km, node)` of each node within `km` of `point` ([latitude, longitude])."""
         lat, lon = point
@@ -537,7 +537,7 @@ class NearNodes:
                         yield d, i
 
     def nearest(
-        self, point: list[int | float], km: float
+        self, point: Sequence[float], km: float
     ) -> tuple[int | None, float]:
         """`(node, km)` of the node nearest to `point` within `km` (ties: the lowest
         node), or `(None, inf)`."""
@@ -590,8 +590,8 @@ class PieceArrays:
         destination_id: int,
         length_km: float,
         direction: int,
-        endpoint_coords: Iterable[Iterable[float | int]],
-        shape_points: Iterable[Iterable[float | int]],
+        endpoint_coords: Iterable[Sequence[float]],
+        shape_points: Iterable[Sequence[float]],
     ) -> None:
         """One piece; `endpoint_coords` and `shape_points`: [latitude, longitude] points in degrees."""
         new = self._new

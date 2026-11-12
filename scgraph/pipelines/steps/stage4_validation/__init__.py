@@ -6,14 +6,18 @@ Class I freight rail corridors, and strategic canal/strait passage boxes).
 """
 
 import csv
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
 import logging
 import math
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from scgraph.utils import haversine
+
+if TYPE_CHECKING:  # annotations only
+    from scgraph.geograph import GeoGraph
 
 logger = logging.getLogger(__name__)
 CASES_DIR = Path(__file__).parent / "cases"
@@ -34,7 +38,7 @@ class ValidationResult:
     passed: int = 0
     failed: int = 0
     total: int = 0
-    failures: list[dict[str, Any]] = field(default_factory=list)
+    failures: list[dict] = field(default_factory=list)
 
     @property
     def is_success(self) -> bool:
@@ -51,7 +55,9 @@ class ValidationResult:
         return f"{status}: {self.passed}/{self.total} checks OK (failed: {self.failed})"
 
 
-def _to_lat_lon(point: Any) -> tuple[float, float]:
+def _to_lat_lon(
+    point: Sequence[float] | dict[str, float],
+) -> tuple[float, float]:
     """Normalize input coordinate to a (latitude, longitude) tuple.
 
     Parameters:
@@ -102,7 +108,7 @@ def _sampled_points(
     return out
 
 
-def _row_to_case(row: dict[str, str]) -> dict[str, Any]:
+def _row_to_case(row: dict[str, str]) -> dict:
     """Convert a raw CSV dictionary row into a standardized test case dict.
 
     Parameters:
@@ -112,7 +118,7 @@ def _row_to_case(row: dict[str, str]) -> dict[str, Any]:
         dict[str, Any]: Standardized case dictionary with origin, destination,
             tolerances, and expected distances or bounding box constraints.
     """
-    case: dict[str, Any] = {
+    case: dict = {
         "id": row["id"],
         "origin": (float(row["origin_lat"]), float(row["origin_lon"])),
         "destination": (
@@ -132,7 +138,7 @@ def _row_to_case(row: dict[str, str]) -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
-def _catalog() -> dict[str, dict[str, Any]]:
+def _catalog() -> dict[str, dict]:
     """Index all test cases from CSV datasets by their unique case ID.
 
     Scans the `cases/` directory and parses road, rail, crossing, passage,
@@ -160,8 +166,8 @@ def _catalog() -> dict[str, dict[str, Any]]:
 
 
 def load_cases(
-    contract: Any = None, region: str | None = None
-) -> list[dict[str, Any]]:
+    contract: dict | list | None = None, region: str | None = None
+) -> list[dict]:
     """Load and resolve validation test cases for a pipeline contract.
 
     Supports multiple declarative declaration patterns:
@@ -199,8 +205,8 @@ def load_cases(
 
 
 def validate_network(
-    network: Any,
-    cases: list[dict[str, Any]],
+    network: "GeoGraph",
+    cases: list[dict],
     *,
     max_snap_km: float = 50.0,
     silent: bool = True,

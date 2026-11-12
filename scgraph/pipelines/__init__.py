@@ -101,6 +101,7 @@ and two modules with the same last name share one cache entry.
 
 import inspect
 import logging
+import os
 import platform
 import sysconfig
 
@@ -165,7 +166,7 @@ def build_metadata(
     }
 
 
-def download_file(url: str, filename: str) -> None:
+def download_file(url: str, filename: str | os.PathLike) -> None:
     with requests.get(url, stream=True, timeout=60) as response:
         response.raise_for_status()
         size = int(response.headers.get("Content-Length", 0))
