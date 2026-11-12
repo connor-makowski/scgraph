@@ -180,3 +180,49 @@ def test_a_road_distance_is_not_met_by_a_sea_route(tmp_path):
     )
 
     assert result.failures[0]["error"] == "no road route"
+
+
+def test_a_road_distance_fails_when_the_route_is_much_shorter_than_driving(
+    two_towns,
+):
+    # The reference says 140 km and the road is 111 km long: 21 % shorter, and
+    # the limit is 10 %
+    result = validate_network(
+        two_towns, [a_case("road_distances", reference=140)]
+    )
+
+    assert result.failures[0]["error"] == "111 km against 140 km"
+
+
+def test_a_rail_corridor_fails_when_the_route_is_much_longer_than_published(
+    two_towns,
+):
+    # The published length is 95 km and the route is 111 km long: 17 % longer,
+    # and the limit is 10 %
+    result = validate_network(
+        two_towns, [a_case("rail_corridors", reference=95)]
+    )
+
+    assert result.failures[0]["error"] == "111 km against 95 km"
+
+
+def test_a_sea_distance_fails_when_it_is_far_from_the_published_distance(
+    two_towns,
+):
+    # The published distance is 160 km and the route is 111 km long. The
+    # difference is above both limits: 10 % and 30 km.
+    result = validate_network(
+        two_towns, [a_case("sea_distances", reference=160)]
+    )
+
+    assert result.failures[0]["error"] == "111 km against 160 km"
+
+
+def test_a_river_port_fails_when_no_node_is_near_the_port(two_towns):
+    # 0.06 degree of latitude north of the west town: 6.7 km away, and the
+    # limit is 5 km
+    port = (0.06, 0)
+
+    result = validate_network(two_towns, [a_case("river_ports", origin=port)])
+
+    assert result.failures[0]["error"] == "the nearest port node is 6.7 km away"

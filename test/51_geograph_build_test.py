@@ -475,6 +475,7 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
         GeoGraph.build_geograph(
             "osm_main_roads", region="nowhere", cache_dir=str(tmp_path)
         )
+    assert GeoGraph.get_cache_info(cache_dir=str(tmp_path)) == []
 
 
 # From the command line, a network is built into the cache without being loaded, and

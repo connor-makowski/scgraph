@@ -1748,8 +1748,8 @@ class GeoGraphModifiers:
 
     def add_coord_edge(
         self,
-        origin_coord_dict: dict[str, int | float],
-        destination_coord_dict: dict[str, int | float],
+        origin_coord_dict: dict[str, float],
+        destination_coord_dict: dict[str, float],
         symmetric: bool = True,
         distance: float | None = None,
         circuity: float = 1,
@@ -1849,7 +1849,7 @@ class GeoGraphModifiers:
 
     def add_coord_node(
         self,
-        coord_dict: dict[str, int | float],
+        coord_dict: dict[str, float],
         auto_edge: bool = True,
         circuity: float = 1,
         node_addition_type: str = "quadrant",
@@ -2725,7 +2725,7 @@ class GeoGraph(
         graph: list[dict[int, int | float]],
         nodes: list[list[float]],
         validate: bool = False,
-        intermediate_nodes: list[list[list[int | float]]] | None = None,
+        intermediate_nodes: list[dict[int, list[list[float]]]] | None = None,
         default_off_graph_circuity: float = 1,
         default_node_addition_circuity: float = 4,
         geograph_units: Literal["km", "m", "mi", "ft"] = "km",
@@ -3070,8 +3070,8 @@ class GeoGraph(
 
     def get_shortest_path(
         self,
-        origin_node: dict[str, int | float],
-        destination_node: dict[str, int | float],
+        origin_node: dict[str, float],
+        destination_node: dict[str, float],
         output_units: str = "km",
         algorithm_fn: str | Callable = "bidirectional_buckets",
         algorithm_kwargs: dict | None = None,
@@ -3421,7 +3421,7 @@ class GeoGraph(
 
     def distance_matrix(
         self,
-        nodes: list[dict[str, int | float]],
+        nodes: list[dict[str, float]],
         off_graph_circuity: float = 1,
         output_units: str = "km",
         silent: bool = False,

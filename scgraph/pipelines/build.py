@@ -107,7 +107,7 @@ def build_file(
         from_stage: Run the OSM extraction again from a step ('stage1', 'pass2', 'pass3'), in a kept work folder.
         keep_work: Keep the work folder after a build that succeeds. A build that fails always keeps its work folder, and the next call resumes from it.
         work_dir: Custom directory for intermediate build artifacts and checkpoints.
-        refresh: Download the sources and build again, even if the cache holds a current network or a work folder exists.
+        refresh: Download the sources and build again, even if the cache holds a current network or a work folder exists. It empties the work folder first, also a `work_dir` that the caller gave.
         local_files_only: Forbid downloading missing network sources.
         validate: Check the network against its validation cases. A failure raises RuntimeError. A network that is built is checked before it enters the cache. If it fails, it is not cached and the cache stays unchanged.
         validate_only: Validate cached network without rebuilding or downloading.
@@ -384,15 +384,23 @@ def build_file(
                 _joined(network, "license"),
             )
         except (Exception, KeyboardInterrupt) as error:
-            # The work folder is kept. It holds the downloaded sources and the
-            # files that the steps saved.
-            logger.warning(
-                "The build of %s did not finish. Its work folder %s is kept, and "
-                "the next build resumes from it. GeoGraph.clear_geograph_cache() "
-                "removes a work folder that is in the cache",
-                name,
-                work,
-            )
+            if not custom_work and not any(
+                path.is_file() for path in work.rglob("*")
+            ):
+                # The build stopped before it wrote a file, for example on an
+                # unknown region. There is nothing to resume from.
+                _clean_work(work, cache)
+            else:
+                # The work folder is kept. It holds the downloaded sources and
+                # the files that the steps saved.
+                logger.warning(
+                    "The build of %s did not finish. Its work folder %s is kept, "
+                    "and the next build resumes from it. "
+                    "GeoGraph.clear_geograph_cache() removes a work folder that "
+                    "is in the cache",
+                    name,
+                    work,
+                )
             if cached and isinstance(error, OSError):
                 error.add_note(
                     f"The cache still holds {name}: build_geograph(..., "

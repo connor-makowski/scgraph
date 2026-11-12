@@ -37,9 +37,9 @@ entry of this list is one of:
 - the id of a case;
 - the name of a kind, which means all the cases of that kind;
 - a dictionary that describes a case directly. It has the keys `id`, `kind`,
-  `origin` and `destination` (each a `(latitude, longitude)` pair) and `tolerance`
-  (a share such as 0.05, or None). It also has the other fields that the rule of
-  its kind reads, such as `reference`.
+  `origin` and `destination` (each a `(latitude, longitude)` pair). It also has
+  the fields that the rule of its kind reads, such as `reference`. `tolerance` is
+  optional (a share such as 0.05).
 
 A regional pipeline gives `{"cases": {region: [...]}}`, one such list for each
 region.
@@ -142,8 +142,11 @@ def _check_road_distance(network, case) -> str | None:
     back = _find_route_km(network, case["destination"], case["origin"])
     if there is None or back is None:
         return "no road route"
-    references = case["reference"], case["reference_back"] or case["reference"]
-    tolerance = case["tolerance"] or 0.10
+    references = (
+        case["reference"],
+        case.get("reference_back") or case["reference"],
+    )
+    tolerance = case.get("tolerance") or 0.10
     for km, reference in zip((there, back), references):
         if abs(km / float(reference) - 1) > tolerance:
             return f"{km:.0f} km against {float(reference):.0f} km"
@@ -267,7 +270,7 @@ def _check_route_length(network, case) -> str | None:
     km = _find_route_km(network, case["origin"], case["destination"])
     if km is None:
         return "no route"
-    if abs(km / float(case["reference"]) - 1) > (case["tolerance"] or 0.05):
+    if abs(km / float(case["reference"]) - 1) > (case.get("tolerance") or 0.05):
         return f"{km:.1f} km against {case['reference']} km"
 
 
@@ -394,12 +397,16 @@ def validate_network(
         record (`id`, `kind`, `error`) for each case that failed.
     """
     result = ValidationResult(total=len(cases))
-    modes_of = lambda case: RULES[case["kind"]][0]  # noqa: E731 (a sort key)
+
+    def modes_of(case):
+        return RULES[case["kind"]][0]
+
     # The cities of one landmass follow each other: see the coverage rule
     cases = sorted(cases, key=lambda case: case.get("landmass") or "")
     for modes, cases_on_modes in groupby(
         sorted(cases, key=modes_of), key=modes_of
     ):
+        loaded = None  # the previous network is released before the next load
         loaded = _load_on_modes(network, modes)
         failures = []
         for case in cases_on_modes:
