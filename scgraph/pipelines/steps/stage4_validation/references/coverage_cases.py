@@ -20,7 +20,6 @@ Usage: python -I coverage_cases.py NE_POPULATED_PLACES.geojson NE_LAND.geojson
 
 import csv
 import json
-import math
 import os
 import re
 import sys
@@ -29,6 +28,8 @@ from pathlib import Path
 
 from shapely import STRtree
 from shapely.geometry import Point, shape
+
+from scgraph.utils import haversine
 
 CASES = Path(__file__).resolve().parents[1] / "cases"
 NE = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/"
@@ -155,22 +156,6 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
 
-def hav_km(
-    lat1: float | int,
-    lon1: float | int,
-    lat2: float | int,
-    lon2: float | int,
-) -> float:
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    a = (
-        math.sin((p2 - p1) / 2) ** 2
-        + math.cos(p1)
-        * math.cos(p2)
-        * math.sin(math.radians(lon2 - lon1) / 2) ** 2
-    )
-    return 2 * 6371.0088 * math.asin(math.sqrt(a))
-
-
 def main(places_path: str | os.PathLike, land_path: str | os.PathLike) -> None:
     if (CASES / "coverage.csv").exists() or (CASES / "crossings.csv").exists():
         sys.exit(
@@ -200,7 +185,7 @@ def main(places_path: str | os.PathLike, land_path: str | os.PathLike) -> None:
             q = polygons[k].exterior.interpolate(
                 polygons[k].exterior.project(pt)
             )
-            off_km = hav_km(p["LATITUDE"], p["LONGITUDE"], q.y, q.x)
+            off_km = haversine([p["LATITUDE"], p["LONGITUDE"]], [q.y, q.x])
         landmass = f"land{k}" + (
             "-south-america" if p["ADM0_A3"] in SOUTH_AMERICA else ""
         )

@@ -11,7 +11,7 @@ def test_no_negative_cycle():
 
 def test_negative_cycle_raises():
     graph = Graph([{1: -5}, {2: 2}, {0: 2}])
-    with pytest.raises(Exception):
+    with pytest.raises(NegativeCycleError):
         graph.dijkstra_negative(
             origin_id=0, destination_id=1, cycle_check_iterations=10
         )

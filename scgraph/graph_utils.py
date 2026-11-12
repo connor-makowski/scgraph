@@ -204,7 +204,7 @@ class GraphUtils:
 
         - Check if a cycle exists in the predecessor matrix starting from the given node_id
         - Returns None if no cycle is detected
-        - Raises an Exception if a cycle is detected
+        - Raises a NegativeCycleError if a cycle is detected: a search only records such a loop around a negative weight cycle
 
         Required Arguments:
 
@@ -225,7 +225,9 @@ class GraphUtils:
             if cycle_id == -1:
                 return
             if cycle_id == node_id:
-                raise RuntimeError(
+                from scgraph.graph import NegativeCycleError
+
+                raise NegativeCycleError(
                     f"Cycle detected in the graph at node {node_id}"
                 )
 
@@ -319,7 +321,7 @@ class GraphUtils:
             self.__max_edge_weight__ = cached_max_edge_weight
         return cached_max_edge_weight
 
-    def __get_bucket_width__(
+    def _get_bucket_width(
         self,
         bucket_width: int | float | None,
         max_edge_weight: int,
@@ -444,7 +446,7 @@ class GraphUtils:
         ), "Cache must be the same length as the graph"
         self.__cache__ = new_cache
 
-    def __get__(self, idx: int) -> dict[int, int | float]:
+    def get(self, idx: int) -> dict[int, int | float]:
         """
         Function:
 
@@ -458,8 +460,15 @@ class GraphUtils:
 
         Returns:
 
-        - The adjacency dictionary for the specified node
+        - The adjacency dictionary for the specified node: the weight of each arc by the id of its destination node
+        - Note: The pure-Python build returns the graph's own dictionary, with the weights as they were given; the C++ build returns a copy with float weights. Do not modify the result
+
+        Raises:
+
+        - IndexError if `idx` is not the id of a node of the graph
         """
+        if not 0 <= idx < len(self.__graph__):
+            raise IndexError("Index out of range")
         return self.__graph__[idx]
 
 

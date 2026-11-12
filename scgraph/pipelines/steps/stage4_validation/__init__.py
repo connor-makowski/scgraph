@@ -17,13 +17,6 @@ from scgraph.utils import haversine
 
 logger = logging.getLogger(__name__)
 CASES_DIR = Path(__file__).parent / "cases"
-if not CASES_DIR.exists():
-    _fallback = (
-        Path(__file__).resolve().parents[4]
-        / "scgraph/pipelines/steps/stage4_validation/cases"
-    )
-    if _fallback.exists():
-        CASES_DIR = _fallback
 
 
 @dataclass

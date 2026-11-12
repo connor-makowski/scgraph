@@ -1,6 +1,6 @@
 """HTTP byte-range streamer child process for StreamedPbf.
 
-Streams requested byte ranges of a remote OSM PBF file into stdout or a binary sink,
+Streams requested byte ranges of a remote OSM PBF file into stdout,
 resuming automatically after transient network errors.
 """
 
@@ -8,49 +8,35 @@ import json
 import logging
 import sys
 import time
-from typing import BinaryIO
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
+_MAX_RETRIES = 10  # consecutive failures accepted per range
 
 
 class PbfRangeStreamer:
-    """Streams byte ranges from a remote URL to a binary stream."""
+    """Streams byte ranges from a remote URL to stdout."""
 
-    def __init__(
-        self,
-        url: str,
-        tag: str,
-        size: int,
-        user_agent: str = "scgraph",
-        timeout: tuple[float, float] = (10.0, 60.0),
-        max_retries: int = 10,
-    ) -> None:
+    def __init__(self, url: str, tag: str, size: int) -> None:
         """Initialize the range streamer.
 
         Args:
             url: Remote resource URL.
             tag: Target ETag or Last-Modified identifier.
             size: Total file size in bytes.
-            user_agent: HTTP User-Agent string.
-            timeout: Tuple of (connect_timeout, read_timeout) in seconds.
-            max_retries: Maximum consecutive retry attempts per range.
         """
         self.url = url
         self.tag = tag
         self.size = size
-        self.user_agent = user_agent
-        self.timeout = timeout
-        self.max_retries = max_retries
 
     def _create_session(self) -> requests.Session:
         """Create a requests session with connection pooling and retries."""
         session = requests.Session()
         retries = Retry(
-            total=self.max_retries,
+            total=_MAX_RETRIES,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
         )
@@ -63,16 +49,11 @@ class PbfRangeStreamer:
         session.mount("http://", adapter)
         return session
 
-    def stream_ranges(
-        self,
-        ranges: list[list[int]],
-        sink: BinaryIO = sys.stdout.buffer,
-    ) -> None:
-        """Stream byte ranges into the destination binary sink.
+    def stream_ranges(self, ranges: list[list[int]]) -> None:
+        """Stream byte ranges into stdout.
 
         Args:
             ranges: List of [start, end] byte offset pairs.
-            sink: Binary output stream destination (defaults to stdout).
 
         Raises:
             SystemExit: If the remote file tag or size changes during streaming.
@@ -80,6 +61,7 @@ class PbfRangeStreamer:
         """
         wanted = sum(end - start for start, end in ranges)
         done, shown, began = 0, 0, time.time()
+        sink = sys.stdout.buffer
         session = self._create_session()
 
         try:
@@ -87,7 +69,7 @@ class PbfRangeStreamer:
                 failures = 0
                 while start < end:
                     headers = {
-                        "User-Agent": self.user_agent,
+                        "User-Agent": "scgraph",
                         "Range": f"bytes={start}-{end - 1}",
                     }
                     try:
@@ -95,7 +77,7 @@ class PbfRangeStreamer:
                             self.url,
                             headers=headers,
                             stream=True,
-                            timeout=self.timeout,
+                            timeout=(10.0, 60.0),
                         ) as response:
                             response.raise_for_status()
                             tag = response.headers.get(
@@ -140,7 +122,7 @@ class PbfRangeStreamer:
                         TimeoutError,
                     ) as error:
                         failures += 1
-                        if failures > self.max_retries:
+                        if failures > _MAX_RETRIES:
                             raise
                         logger.warning(
                             "Transient read error at byte offset %d: %r. Retrying...",

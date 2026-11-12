@@ -35,7 +35,7 @@ def build(
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     pieces, steps = osm.build_way_pieces(
         source(files["rail"]),
-        {"rail": rail},
+        {"rail": select_rail},
         ("railway",),
         max_km_between_nodes=max_km_between_nodes,
         work_dir=stage1_work_dir,
@@ -49,9 +49,11 @@ def build(
     return (arrays, [{"name": None}]), steps + assembled
 
 
-def rail(tags: "osmium.osm.TagList") -> int | None:
+def select_rail(tags: "osmium.osm.TagList") -> int | None:
     """The direction of a railway line (`railway=rail`), None for any other way."""
-    return osm.direction(tags) if tags.get("railway") == "rail" else None
+    return (
+        osm.get_way_direction(tags) if tags.get("railway") == "rail" else None
+    )
 
 
 # ---------------------------------------------------------------------------

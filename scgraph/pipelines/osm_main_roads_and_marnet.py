@@ -63,7 +63,10 @@ SOURCES = {
     "roads": osm.GEOFABRIK,
 }
 MARGIN = 2  # degrees of raster around the roads, where sea connectors run
-SELECTS = {"roads": osm.main_roads, "ferries": osm.vehicle_ferries}
+SELECTS = {
+    "roads": osm.select_main_roads,
+    "ferries": osm.select_vehicle_ferries,
+}
 MODES = [
     {"name": "road", "source": "roads"},
     {"name": "port"},
@@ -107,7 +110,7 @@ def build(
         *(files[name] for name in ("land", "lakes", "rivers")),
         bbox=(south, west, north, east),
     )
-    wpi = ports.world_port_index(files["ports"])
+    wpi = ports.read_world_port_index(files["ports"])
     wpi = [p for p in wpi if mask.cell(*p[:2]) is not None]
     graph, joined = ports.join(graph, sea, wpi, mask, work_dir=stage2_work_dir)
     steps.append({"step": "ports", "joined": joined})
