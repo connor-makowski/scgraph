@@ -101,7 +101,7 @@ def test_an_osmnx_edge_shape_is_the_points_between_its_nodes(
 ):
     # Only the shortest parallel edge is kept, with its own geometry: its shape is the
     # points between its two nodes, from origin to destination (none: no shape)
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
     assert geograph.graph_object.graph[0] == {1: 1.112}
     assert geograph.intermediate_nodes[0] == expected_shapes
 
@@ -109,7 +109,7 @@ def test_an_osmnx_edge_shape_is_the_points_between_its_nodes(
 def test_osmnx_nodes_keep_their_osm_ids_in_hilbert_order():
     # Listed against the Hilbert order, which visits node 1 (west) first
     geograph = GeoGraph.load_from_osmnx_graph(
-        _OSMnxGraph([_STRAIGHT], node_order=(2, 1)), silent=True
+        _OSMnxGraph([_STRAIGHT], node_order=(2, 1))
     )
     assert list(geograph.node_ids) == [1, 2]
     assert geograph.nodes == [[0.0, 0.0], [0.0, 0.01]]

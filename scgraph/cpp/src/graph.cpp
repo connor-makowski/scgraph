@@ -365,6 +365,18 @@ thread_local std::vector<BidirNodeState> tl_bidir_state;
 thread_local uint32_t tl_bidir_stamp = 0;
 thread_local std::vector<std::pair<double, int>> tl_bidir_forward_open;
 thread_local std::vector<std::pair<double, int>> tl_bidir_backward_open;
+
+// The number of node scans of the last search in this thread. A search that counts its
+// node scans writes it once, at its end. reset_node_scans empties it
+thread_local std::optional<size_t> tl_node_scans;
+}
+
+void reset_node_scans() {
+    tl_node_scans.reset();
+}
+
+std::optional<size_t> get_last_node_scans() {
+    return tl_node_scans;
 }
 
 // Shortest path algorithms
@@ -418,6 +430,7 @@ GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant&
             }
         }
 
+        size_t node_scans = 0;
         while (!open_leaves.empty()) {
             std::pop_heap(open_leaves.begin(), open_leaves.end(), compare);
             auto [current_distance, current_id] = open_leaves.back();
@@ -426,6 +439,7 @@ GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant&
             if (state[current_id].stamp == stamp && current_distance > state[current_id].dist) continue;
             if (current_distance >= best_dist) break;
 
+            ++node_scans;
             for (const auto& [connected_id, connected_distance] : g[current_id]) {
                 const double possible_distance = current_distance + connected_distance;
                 if (state[connected_id].stamp != stamp || possible_distance < state[connected_id].dist) {
@@ -447,6 +461,7 @@ GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant&
             }
         }
 
+        tl_node_scans = node_scans;
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -532,6 +547,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
             }
         }
 
+        size_t node_scans = 0;
         while (!forward_open.empty() && !backward_open.empty()) {
             const double top_fwd = forward_open.front().first;
             const double top_bwd = backward_open.front().first;
@@ -545,6 +561,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
                 forward_open.pop_back();
 
                 if (state[u].forward_stamp == stamp && cur_d == state[u].forward_dist) {
+                    ++node_scans;
                     for (const auto& [v, w] : fwd_g[u]) {
                         const double new_d = cur_d + w;
                         if (state[v].forward_stamp != stamp || new_d < state[v].forward_dist) {
@@ -571,6 +588,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
                 backward_open.pop_back();
 
                 if (state[v].backward_stamp == stamp && cur_d == state[v].backward_dist) {
+                    ++node_scans;
                     for (const auto& [u, w] : inv_g[v]) {
                         const double new_d = cur_d + w;
                         if (state[u].backward_stamp != stamp || new_d < state[u].backward_dist) {
@@ -594,6 +612,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
             }
         }
 
+        tl_node_scans = node_scans;
         if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -687,6 +706,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
         // The current bucket is relaxed as one batch; nodes re-inserted into it wait for the
         // next batch
         std::vector<int> batch;
+        size_t node_scans = 0;
         while (nodes_in_buckets > 0) {
             int bucket_idx = current_dist % num_buckets;
             while (buckets[bucket_idx].empty()) {
@@ -706,6 +726,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
                     continue;
                 }
 
+                ++node_scans;
                 for (const auto& [connected_id, connected_distance] : g[current_id]) {
                     double possible_distance = distance_matrix[current_id] + connected_distance;
                     if (possible_distance < distance_matrix[connected_id]) {
@@ -728,6 +749,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
             batch.clear();
         }
 
+        tl_node_scans = node_scans;
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -828,6 +850,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
         size_t bwd_nodes_in_buckets = dest_entries.size();
 
         std::vector<int> batch;
+        size_t node_scans = 0;
         while (fwd_nodes_in_buckets > 0 && bwd_nodes_in_buckets > 0) {
             int fwd_bucket_idx = fwd_current_dist % num_buckets;
             while (forward_buckets[fwd_bucket_idx].empty()) {
@@ -862,6 +885,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
                     }
 
                     double cur_d = state[u].forward_dist;
+                    ++node_scans;
                     for (const auto& [v, w] : fwd_g[u]) {
                         double new_d = cur_d + w;
                         if (state[v].forward_stamp != stamp || new_d < state[v].forward_dist) {
@@ -892,6 +916,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
                     }
 
                     double cur_d = state[v].backward_dist;
+                    ++node_scans;
                     for (const auto& [u, w] : inv_g[v]) {
                         double new_d = cur_d + w;
                         if (state[u].backward_stamp != stamp || new_d < state[u].backward_dist) {
@@ -916,6 +941,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
             batch.clear();
         }
 
+        tl_node_scans = node_scans;
         if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -1089,6 +1115,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
             }
         }
 
+        size_t node_scans = 0;
         while (!open_leaves.empty()) {
             std::pop_heap(open_leaves.begin(), open_leaves.end(), compare);
             int current_id = open_leaves.back().second;
@@ -1104,6 +1131,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
             }
 
             double current_distance = state[current_id].dist;
+            ++node_scans;
             for (const auto& [connected_id, connected_distance] : g[current_id]) {
                 double possible_distance = current_distance + connected_distance;
                 if (state[connected_id].stamp != stamp || possible_distance < state[connected_id].dist) {
@@ -1128,6 +1156,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
             }
         }
 
+        tl_node_scans = node_scans;
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }

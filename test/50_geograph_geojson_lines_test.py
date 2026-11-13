@@ -27,9 +27,7 @@ def test_load_from_geojson_with_max_km_between_nodes(tmp_path):
             }
         )
     )
-    geo = GeoGraph.load_from_geojson(
-        str(path), silent=True, max_km_between_nodes=2
-    )
+    geo = GeoGraph.load_from_geojson(str(path), max_km_between_nodes=2)
     # Rounded to `precision` decimals (5): saved as int32 in 1e-7 degree by default
     assert geo.coordinate_dtype == "int32"
     arcs = {
