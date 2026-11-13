@@ -136,7 +136,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
 - `scgraph/pipelines/steps/stage4_validation/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.build NAME --validate` (`--validate-only` for a network in the cache)
 
-**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `34–39` grid performance, CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–57` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `34–39` grid performance, CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–58` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search
 
 **Test pattern:**
 ```python

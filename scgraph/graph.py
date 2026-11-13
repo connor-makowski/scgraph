@@ -29,6 +29,13 @@ except ImportError:
         """Raised when a graph contains a negative weight cycle."""
 
 
+# A* computes the heuristic of a node with one call of heuristic_fn per
+# destination node. Above this number of destination nodes, A* is slower than
+# Dijkstra on the built-in networks. The heuristic is then the smallest exit
+# distance, and the search scans the nodes in the order of Dijkstra.
+_MAX_DESTINATION_NODES_WITH_HEURISTIC = 4
+
+
 class GraphTrees:
     def get_shortest_path_tree(
         self,
@@ -864,6 +871,8 @@ class GraphAlgorithms:
             - Type: function
             - What: A heuristic function that takes two node ids and returns an estimated distance between them
             - Note: If None, returns the shortest path using Dijkstra's algorithm
+            - Note: The path is the shortest one if the heuristic never exceeds the real distance between the two nodes
+            - Note: With more than 4 destination nodes, the heuristic is not called and the search scans the nodes as Dijkstra's algorithm does
             - Default: None
 
         Optional Arguments:
@@ -883,7 +892,6 @@ class GraphAlgorithms:
         # Variable Initialization
         graph = self.search_graph
         distance_matrix = [float("inf")] * len(graph)
-        visited = [0] * len(graph)
         open_leaves = []
         predecessor = [-1] * len(graph)
 
@@ -896,24 +904,36 @@ class GraphAlgorithms:
                     best_dist = cand
                     best_dest_node = did
 
+        # The heuristic of a node estimates its distance to the destination
+        # point. It is the smallest sum of the estimate to a destination node
+        # and the exit distance of that node.
+        smallest_exit_distance = min(dest_dict.values())
+
         def _h(node):
             if isinstance(destination_id, int):
                 return heuristic_fn(node, destination_id)
-            return min(heuristic_fn(node, did) for did in dest_dict.keys())
+            if len(dest_dict) > _MAX_DESTINATION_NODES_WITH_HEURISTIC:
+                return smallest_exit_distance
+            return min(
+                heuristic_fn(node, did) + ddist
+                for did, ddist in dest_dict.items()
+            )
 
+        # A queue entry holds the key of a node (its distance from the origin
+        # plus its heuristic), this distance, and the node.
         for oid, odist in origin_dict.items():
             distance_matrix[oid] = odist
-            heappush(open_leaves, (odist + _h(oid), oid))
+            heappush(open_leaves, (odist + _h(oid), odist, oid))
 
         node_scans = 0
         while open_leaves:
-            current_id = heappop(open_leaves)[1]
-            if distance_matrix[current_id] >= best_dist:
+            key, current_distance, current_id = heappop(open_leaves)
+            # No route through a node left in the queue is shorter than its key.
+            if key >= best_dist:
                 break
-            if visited[current_id] == 1:
+            # A shorter distance to this node was found after this entry.
+            if current_distance > distance_matrix[current_id]:
                 continue
-            visited[current_id] = 1
-            current_distance = distance_matrix[current_id]
             if current_id in dest_dict:
                 cand = current_distance + dest_dict[current_id]
                 if cand < best_dist:
@@ -930,13 +950,11 @@ class GraphAlgorithms:
                         if cand < best_dist:
                             best_dist = cand
                             best_dest_node = connected_id
-                    if possible_distance < best_dist:
+                    connected_key = possible_distance + _h(connected_id)
+                    if connected_key < best_dist:
                         heappush(
                             open_leaves,
-                            (
-                                possible_distance + _h(connected_id),
-                                connected_id,
-                            ),
+                            (connected_key, possible_distance, connected_id),
                         )
         _last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):

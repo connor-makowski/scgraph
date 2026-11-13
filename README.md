@@ -230,6 +230,8 @@ output = my_geograph.get_shortest_path(
 | `my_geograph.haversine` | Great-circle distance heuristic (accurate), in `geograph_units`; computed natively by `get_shortest_path` A* in the C++ build |
 | `my_geograph.cheap_ruler` | Fast approximate distance (Mapbox method), in `geograph_units` |
 
+A* returns the shortest path if the heuristic never exceeds the real distance left to the destination. When the destination is connected to more than 4 nodes of the graph (for example with `destination_node_addition_type='all'`), A* does not call the heuristic and searches as Dijkstra does.
+
 ---
 
 # GeoGraph Usage
