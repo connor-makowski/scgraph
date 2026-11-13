@@ -2,14 +2,16 @@
 Pure-Python version of the C++ `SnapIndex`, with the same answers. The algorithm is
 described in `scgraph/cpp/src/snap_index.hpp`.
 
-Same as in C++: the leaves, the tree, the box slots, the quadrant rules, and the
-leaves-per-query limit that refuses scattered nodes (NodeOrderError). The boxes are kept in
-double here, not rounded to float.
+Same as in C++: the leaves, the tree, the boxes of unit vectors, the quadrant rules, and
+the leaves-per-query limit that refuses scattered nodes (NodeOrderError). The boxes are
+kept in double here, not rounded to float.
 
 Different: the search works in double throughout and compares distances exactly, so
-there is no float selection, no tolerance and no second check. It walks the tree with an
-explicit stack. It counts levels from the leaves: level 0 is a leaf here, while in C++
-`levels[0]` holds the parents of the leaves.
+there is no float selection, no tolerance and no second check. Each box also keeps the
+lowest and the highest latitude and longitude of its nodes, and the search reads the
+quadrants that a box may hold from them; the C++ index reads them from the unit vectors.
+It counts levels from the leaves: level 0 is a leaf here, while in C++ level 0 holds the
+parents of the leaves.
 """
 
 from array import array
