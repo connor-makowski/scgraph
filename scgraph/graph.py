@@ -1466,7 +1466,7 @@ class Graph(
                 "expected offsets from 0 to the number of arcs and one weight per arc"
             )
         if len(heads) and (min(heads) < 0 or max(heads) >= n):
-            raise IndexError("an arc goes to a node that is not in the graph")
+            raise ValueError("an arc goes to a node that is not in the graph")
         return Graph(
             [
                 dict(zip(heads[start:end], weights[start:end]))

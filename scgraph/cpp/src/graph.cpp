@@ -25,10 +25,11 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
         for (const auto& [node, weight] : graph_data[i]) {
             // An edge to a node outside the graph would be indexed out of bounds
             // by every algorithm (undefined behaviour, a crash in reduce()); the
-            // check is cheap here, where every edge is copied anyway. With
-            // validate=True, validate() reports it with its own message.
+            // check is cheap here, where every edge is copied anyway. It raises
+            // the type that validate() raises for this graph. With validate=True,
+            // validate() reports it with its own message.
             if (!validate && (node < 0 || node >= n)) {
-                throw std::out_of_range(
+                throw std::invalid_argument(
                     "Destination id " + std::to_string(node) + " at origin " +
                     std::to_string(i) + " is not in the graph");
             }
@@ -57,7 +58,7 @@ void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double*
     for (int u = 0; u < n; ++u) {
         for (int32_t j = offsets[u]; j < offsets[u + 1]; ++j) {
             if (heads[j] < 0 || heads[j] >= n) {
-                throw std::out_of_range(
+                throw std::invalid_argument(
                     "Destination id " + std::to_string(heads[j]) + " at origin " +
                     std::to_string(u) + " is not in the graph");
             }

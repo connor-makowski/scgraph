@@ -795,7 +795,7 @@ class GeoGraphIO:
             graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
             )
-        except (IndexError, ValueError) as error:
+        except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
             graph=graph,
