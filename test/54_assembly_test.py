@@ -592,15 +592,15 @@ def test_contracted_arcs_replace_the_chains_of_the_graph(
 # Both builds must give the same network file. Where a loop or a parallel
 # chain is cut is a choice that the two kernels make the same way.
 @needs_the_cpp_extension
-@pytest.mark.parametrize("seed", range(6))
-def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel(seed):
-    graph, modes, max_km = _random_chains(seed)
+def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel():
+    for seed in range(6):
+        graph, modes, max_km = _random_chains(seed)
 
-    contracted = cpp.contract_chains(*graph, modes, max_km)
+        contracted = cpp.contract_chains(*graph, modes, max_km)
 
-    assert list(map(list, contracted)) == list(
-        map(list, assembly.python.contract_chains(*graph, modes, max_km))
-    )
+        assert list(map(list, contracted)) == list(
+            map(list, assembly.python.contract_chains(*graph, modes, max_km))
+        ), f"seed {seed}"
 
 
 def _simplify(backend, ends, interior, tolerance_m):
@@ -732,10 +732,10 @@ def _random_shape(seed):
 
 
 @needs_the_cpp_extension
-@pytest.mark.parametrize("seed", range(6))
-def test_the_cpp_kernel_simplifies_random_walks_as_the_python_kernel(seed):
-    ends, interior = _random_shape(seed)
+def test_the_cpp_kernel_simplifies_random_walks_as_the_python_kernel():
+    for seed in range(6):
+        ends, interior = _random_shape(seed)
 
-    assert _simplify(cpp, ends, interior, 20) == _simplify(
-        assembly.python, ends, interior, 20
-    )
+        assert _simplify(cpp, ends, interior, 20) == _simplify(
+            assembly.python, ends, interior, 20
+        ), f"seed {seed}"
