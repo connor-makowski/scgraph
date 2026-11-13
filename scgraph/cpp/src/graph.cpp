@@ -377,8 +377,8 @@ thread_local uint32_t tl_bidir_stamp = 0;
 thread_local std::vector<std::pair<double, int>> tl_bidir_forward_open;
 thread_local std::vector<std::pair<double, int>> tl_bidir_backward_open;
 
-// Written once at the end of each search that counts its node scans; empty after
-// reset_node_scans (see last_node_scans)
+// The number of node scans of the last search in this thread. A search that counts its
+// node scans writes it once, at its end. reset_node_scans empties it
 thread_local std::optional<size_t> tl_node_scans;
 }
 
@@ -386,7 +386,7 @@ void reset_node_scans() {
     tl_node_scans.reset();
 }
 
-std::optional<size_t> last_node_scans() {
+std::optional<size_t> get_last_node_scans() {
     return tl_node_scans;
 }
 

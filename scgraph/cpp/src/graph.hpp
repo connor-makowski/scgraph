@@ -16,7 +16,7 @@
 // arcs of one node. Dijkstra, A* and bucket searches count them. Empty if no such search
 // ran since reset_node_scans.
 void reset_node_scans();
-std::optional<size_t> last_node_scans();
+std::optional<size_t> get_last_node_scans();
 
 class Graph : public GraphReducer {
 private:

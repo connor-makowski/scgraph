@@ -10,6 +10,18 @@ line = GeoGraph(
 )
 
 
+def _read_indicators_of_the_query(caplog):
+    """The values that the step `find the shortest path` logged at DEBUG. The
+    test fails if the step logged more than once."""
+    (indicators,) = [
+        record.scgraph
+        for record in caplog.records
+        if getattr(record, "scgraph", {}).get("step")
+        == "find the shortest path"
+    ]
+    return indicators
+
+
 @pytest.mark.parametrize(
     "algorithm, algorithm_kwargs",
     [
@@ -31,14 +43,9 @@ def test_a_query_logs_the_work_of_its_search_at_debug(
             algorithm_kwargs=algorithm_kwargs,
             output_path=True,
         )
-    (indicators,) = [
-        record.scgraph
-        for record in caplog.records
-        if getattr(record, "scgraph", {}).get("step")
-        == "find the shortest path"
-    ]
+    indicators = _read_indicators_of_the_query(caplog)
     assert indicators["algorithm"] == algorithm
-    # The search scans at least the nodes of the route before the last one
+    # A search scans every node of the route, except perhaps the last one
     assert indicators["node_scans"] >= len(route["path"]) - 1
 
 
@@ -49,13 +56,9 @@ def test_a_query_logs_how_far_its_ends_are_from_the_network(caplog):
             {"latitude": 0.1, "longitude": 0.0},
             {"latitude": 0.2, "longitude": 3.0},
         )
-    (indicators,) = [
-        record.scgraph
-        for record in caplog.records
-        if getattr(record, "scgraph", {}).get("step")
-        == "find the shortest path"
-    ]
-    # 0.1 degree of latitude is 11.12 km, whatever the circuity of the query
+    indicators = _read_indicators_of_the_query(caplog)
+    # 0.1 degree of latitude is 11.12 km. The log gives the straight distance,
+    # without the circuity factor of the query
     assert indicators["origin_snap_distance"] == pytest.approx(11.12, abs=0.01)
     assert indicators["destination_snap_distance"] == pytest.approx(
         22.24, abs=0.01
@@ -67,14 +70,10 @@ def test_a_search_that_counts_nothing_logs_no_node_scans(caplog):
         {"latitude": 0.0, "longitude": 0.0},
         {"latitude": 0.0, "longitude": 3.0},
     )
-    # Dijkstra leaves its count in the thread; Bellman-Ford counts nothing
+    # The Dijkstra search counts its node scans. Bellman-Ford counts nothing:
+    # its log must not repeat the count of the search before
     line.get_shortest_path(*ends, algorithm_fn="dijkstra")
     with caplog.at_level(logging.DEBUG, logger="scgraph"):
         line.get_shortest_path(*ends, algorithm_fn="bellman_ford")
-    (indicators,) = [
-        record.scgraph
-        for record in caplog.records
-        if getattr(record, "scgraph", {}).get("step")
-        == "find the shortest path"
-    ]
+    indicators = _read_indicators_of_the_query(caplog)
     assert "node_scans" not in indicators
