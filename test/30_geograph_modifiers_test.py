@@ -1,5 +1,6 @@
+import pytest
 from copy import deepcopy
-from scgraph import GeoGraph
+from scgraph import GeoGraph, Graph
 from scgraph.utils import haversine
 from helpers import assert_result
 
@@ -185,3 +186,36 @@ def test_add_haversine_edge():
             "length": expected_dist,
         },
     )
+
+
+# A graph of two nodes joined both ways. Its node ids are 0 and 1.
+def _two_joined_nodes():
+    return Graph([{1: 1.0}, {0: 1.0}])
+
+
+def test_add_edge_refuses_an_origin_that_is_not_in_the_graph():
+    with pytest.raises(IndexError):
+        _two_joined_nodes().add_edge(5, 0, 1.0)
+
+
+def test_add_edge_refuses_a_destination_that_is_not_in_the_graph():
+    with pytest.raises(IndexError):
+        _two_joined_nodes().add_edge(0, 5, 1.0)
+
+
+def test_remove_edge_refuses_an_origin_that_is_not_in_the_graph():
+    with pytest.raises(IndexError):
+        _two_joined_nodes().remove_edge(5, 0)
+
+
+def test_remove_edge_refuses_a_destination_that_is_not_in_the_graph():
+    with pytest.raises(IndexError):
+        _two_joined_nodes().remove_edge(0, 5)
+
+
+def test_remove_node_refuses_a_graph_without_nodes():
+    graph = Graph([{}])
+    graph.remove_node()
+
+    with pytest.raises(RuntimeError):
+        graph.remove_node()

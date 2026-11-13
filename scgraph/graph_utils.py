@@ -386,14 +386,25 @@ class GraphUtils:
                 )
             destinations = list(origin_dict.keys())
             lengths = list(origin_dict.values())
+            # A value of the wrong type raises TypeError, as the C++
+            # extension does. A value out of range raises ValueError.
             if not all(
-                isinstance(i, int) and 0 <= i < len_graph for i in destinations
+                [
+                    (isinstance(i, int) and i >= 0 and i < len_graph)
+                    for i in destinations
+                ]
             ):
-                raise ValueError(
+                are_integers = all([isinstance(i, int) for i in destinations])
+                raise (ValueError if are_integers else TypeError)(
                     f"Destination ids must be non-negative integers and equivalent to an existing index, but graph[{origin_id}] has an error in the destination ids"
                 )
-            if not all(isinstance(i, (int, float)) and i >= 0 for i in lengths):
-                raise ValueError(
+            if not all(
+                [(isinstance(i, (int, float)) and i >= 0) for i in lengths]
+            ):
+                are_numbers = all(
+                    [isinstance(i, (int, float)) for i in lengths]
+                )
+                raise (ValueError if are_numbers else TypeError)(
                     f"Distances must be integers or floats, but graph[{origin_id}] contains a non-integer or non-float distance"
                 )
 

@@ -192,6 +192,23 @@ def test_a_road_distance_is_not_met_by_a_sea_route(tmp_path):
     assert result.failures[0]["error"] == "no road route"
 
 
+def test_a_case_is_refused_when_the_file_has_none_of_its_modes(tmp_path):
+    # A passage case is checked on the sea mode. This file has roads only.
+    file = str(tmp_path / "roads_only.scgraph")
+    GeoGraph(
+        graph=[{1: ROAD_KM}, {0: ROAD_KM}],
+        nodes=[list(WEST_TOWN), list(EAST_TOWN)],
+        node_modes=[0, 0],
+        modes=[{"name": "road"}],
+    ).save_as_scgraph(file)
+
+    with pytest.raises(ValueError, match="has the modes \\['road'\\]"):
+        validate_network(
+            file,
+            [a_case("passages", reference="enters", **BOX_ACROSS_THE_ROAD)],
+        )
+
+
 def test_a_road_distance_fails_when_the_route_is_much_shorter_than_driving(
     two_towns,
 ):

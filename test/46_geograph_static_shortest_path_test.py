@@ -725,3 +725,11 @@ def test_geograph_cached_shortest_path_repeated_queries_with_multi_exit(
         destination_node_addition_type="quadrant",
     )
     assert abs(res2["length"] - dijk2["length"]) < 1e-3
+
+
+@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
+def test_set_cache_refuses_a_cache_that_is_not_a_list(sample_graph, GraphClass):
+    cache_in_a_tuple = tuple(GraphClass(sample_graph).get_cache())
+
+    with pytest.raises(TypeError):
+        GraphClass(sample_graph).set_cache(cache_in_a_tuple)

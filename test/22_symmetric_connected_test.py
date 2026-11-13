@@ -73,3 +73,32 @@ def test_one_way_disconnected_raises():
         _ONE_WAY_DISCONNECTED.validate(
             check_symmetry=False, check_connected=True
         )
+
+
+# `validate` raises the same type with the C++ extension and in pure Python:
+# TypeError for a value of the wrong type, ValueError for a wrong value.
+def test_validate_refuses_a_graph_that_is_not_a_list():
+    rows_in_a_dictionary = {0: {1: 1.0}, 1: {0: 1.0}}
+
+    with pytest.raises(TypeError):
+        Graph(rows_in_a_dictionary).validate()
+
+
+def test_validate_refuses_a_row_that_is_not_a_dictionary():
+    with pytest.raises(TypeError):
+        Graph([[1], [0]]).validate()
+
+
+def test_validate_refuses_a_destination_id_that_is_not_an_integer():
+    with pytest.raises(TypeError):
+        Graph([{"1": 1.0}, {0: 1.0}]).validate()
+
+
+def test_validate_refuses_a_distance_that_is_not_a_number():
+    with pytest.raises(TypeError):
+        Graph([{1: "far"}, {0: "far"}]).validate()
+
+
+def test_validate_refuses_a_negative_distance():
+    with pytest.raises(ValueError):
+        Graph([{1: -1.0}, {0: -1.0}]).validate()
