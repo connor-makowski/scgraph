@@ -529,7 +529,7 @@ class GridGraph:
                 - 'cached_shortest_path' -> GraphAlgorithms.cached_shortest_path
                     - Computes and caches the full shortest path tree from the origin on the first call;
                       subsequent calls from the same origin node are near-instant
-                    - Only the origin graph node is cached (not the off-graph origin coordinate)
+                    - Only the origin graph node is cached (not the off-graph origin point)
                     - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
                 - 'contraction_hierarchy' -> GraphAlgorithms.contraction_hierarchy
                     - Bidirectional Dijkstra on a preprocessed Contraction Hierarchy graph

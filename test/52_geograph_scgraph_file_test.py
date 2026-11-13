@@ -680,8 +680,7 @@ def _two_road_nodes_and_a_port():
         "offsets": array("i", [0, 1, 2, 2]),
         "heads": array("i", [1, 0]),
         "weights": array("d", [1.0, 1.0]),
-        "latitudes": array("d", [0.0, 0.0, 1.0]),
-        "longitudes": array("d", [0.0, 1.0, 1.0]),
+        "node_points": array("d", [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
         "node_ids": array("q", [2**40, 7, -1]),
         "node_modes": array("B", [0, 0, 1]),
     }
@@ -728,9 +727,12 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
             id="a node mode beyond the list of modes",
         ),
         pytest.param(
-            {"latitudes": array("i", [0, 0, 10**7])},
+            {
+                "shape_offsets": array("i", [0, 0, 0]),
+                "shape_points": array("i"),
+            },
             "coordinates of two dtypes",
-            id="latitudes and longitudes of two dtypes",
+            id="node points and shape points of two dtypes",
         ),
     ],
 )
@@ -832,8 +834,10 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
         "offsets": array("i", [0, 1, 3, 4, 5, 7]),
         "heads": array("i", [1, 0, 2, 3, 4, 2, 3]),
         "weights": array("d", [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]),
-        "latitudes": array(coordinate_typecode, [10, 11, 20, 30, 31]),
-        "longitudes": array(coordinate_typecode, [-10, -11, -20, -30, -31]),
+        "node_points": array(
+            coordinate_typecode,
+            [10, -10, 11, -11, 20, -20, 30, -30, 31, -31],
+        ),
         "node_ids": array("i", [10, 11, 20, 30, 31]),
         "node_modes": array("B", [0, 0, 1, 2, 2]),
         "shape_offsets": array("i", [0, 1, 3, 5, 7, 7, 8, 9]),
@@ -971,8 +975,7 @@ def test_a_save_that_fails_leaves_the_previous_file_and_no_other_file(
         "offsets": array("i", [0, 1, 2]),
         "heads": array("i", [1, 0]),
         "weights": every_second_value,
-        "latitudes": array("d", [0.0, 0.0]),
-        "longitudes": array("d", [0.0, 1.0]),
+        "node_points": array("d", [0.0, 0.0, 0.0, 1.0]),
     }
 
     with pytest.raises(TypeError):

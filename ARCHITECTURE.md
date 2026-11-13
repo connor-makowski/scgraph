@@ -345,8 +345,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     "offsets": {"dtype": "int32", "shape": [10001], "offset": 0},
     "heads": {"dtype": "int32", "shape": [25000], "offset": 40064},
     "weights": {"dtype": "float64", "shape": [25000], "offset": 140096},
-    "latitudes": {"dtype": "int32", "shape": [10000], "offset": 340096},
-    "longitudes": {"dtype": "int32", "shape": [10000], "offset": 380096}
+    "node_points": {"dtype": "int32", "shape": [10000, 2], "offset": 340096}
   },
   "metadata": {
     "crs": "EPSG:4326",
@@ -403,6 +402,8 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 
 ### Stored Binary Arrays
 
+A **point** is a place, given as one `[latitude, longitude]` pair. Its **coordinates** are its latitude and its longitude. A coordinate is one of these two numbers. A **node** is a vertex of the graph, numbered from `0` to `n - 1`. Its position is a point. The points of an arc between its two nodes are its **shape points**. They are not nodes: the search never visits them. The attribute `intermediate_nodes` of release 3.6.0 holds the shape points of each arc. The name is kept for compatibility. `node_points` and `shape_points` are arrays of points: the latitude of a point, then its longitude.
+
 All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 bytes:
 
 | Array Name | Data Type | Dimensions | Description |
@@ -410,10 +411,9 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `offsets` | `int32` | $N + 1$ | CSR row index. Arcs originating from node $u$ span index `offsets[u]` to `offsets[u+1] - 1`. |
 | `heads` | `int32` | $M$ | Destination node ID of each arc. |
 | `weights` | `float64` | $M$ | Cost / length of each arc. |
-| `latitudes` | `int32` or `float64` | $N$ | Node latitudes. If `int32`, values are scaled by $10^7$ (~1 cm precision). |
-| `longitudes` | `int32` or `float64` | $N$ | Node longitudes. If `int32`, values are scaled by $10^7$. |
+| `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, values are scaled by $10^7$ (~1 cm precision). |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed arc polylines. |
-| `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | Interleaved latitude and longitude coordinates of interior arc points. |
+| `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior arc point, in the dtype of `node_points`. |
 | `node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). |
 | `node_modes` *(opt)* | `uint8` | $N$ | Mode index corresponding to `metadata.modes`. |
 

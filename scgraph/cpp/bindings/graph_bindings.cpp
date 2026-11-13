@@ -65,14 +65,14 @@ using CoordinateArray = nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::devi
 static inline double degrees(int32_t units) { return units / 1e7; }
 static inline double degrees(double value) { return value; }
 
-// [[latitudes[i], longitudes[i]] for i in ids] in degrees, in one C loop (NodeCoordinates.take)
+// [[latitude, longitude] of node i for i in ids] in degrees, in one C loop
+// (NodeCoordinates.take). node_points holds the latitude and the longitude of each node
 template <typename T>
-static nb::object coordinate_lists(CoordinateArray<T> latitudes, CoordinateArray<T> longitudes, nb::list ids) {
-    const T* la = latitudes.data();
-    const T* lo = longitudes.data();
-    const Py_ssize_t n = (Py_ssize_t)latitudes.shape(0);
-    if ((Py_ssize_t)longitudes.shape(0) != n)
-        throw std::invalid_argument("latitudes and longitudes must have the same length");
+static nb::object coordinate_lists(CoordinateArray<T> node_points, nb::list ids) {
+    const T* point = node_points.data();
+    const Py_ssize_t n = (Py_ssize_t)node_points.shape(0) / 2;
+    if (node_points.shape(0) % 2)
+        throw std::invalid_argument("node_points must hold a latitude and a longitude per node");
     const Py_ssize_t count = PyList_Size(ids.ptr());
     nb::object result = nb::steal(PyList_New(count));
     if (!result.is_valid()) throw nb::python_error();
@@ -84,8 +84,8 @@ static nb::object coordinate_lists(CoordinateArray<T> latitudes, CoordinateArray
         PyObject* pair = PyList_New(2);
         if (!pair) throw nb::python_error();
         PyList_SetItem(result.ptr(), k, pair);
-        PyObject* a = PyFloat_FromDouble(degrees(la[i]));
-        PyObject* b = PyFloat_FromDouble(degrees(lo[i]));
+        PyObject* a = PyFloat_FromDouble(degrees(point[2 * i]));
+        PyObject* b = PyFloat_FromDouble(degrees(point[2 * i + 1]));
         if (!a || !b) {
             Py_XDECREF(a);
             Py_XDECREF(b);
@@ -112,7 +112,7 @@ static nb::object shape_path(Int32Array offsets, Int32Array heads, Int32Array sh
         throw std::invalid_argument("one shape offset per arc, plus one, expected");
     const Py_ssize_t count = PyList_Size(path.ptr());
     if (PyList_Size(coordinates.ptr()) != count)
-        throw std::invalid_argument("one coordinate per path node expected");
+        throw std::invalid_argument("one point per path node expected");
     nb::object result = nb::steal(PyList_New(0));
     if (!result.is_valid()) throw nb::python_error();
     auto append = [&](PyObject* item) {
@@ -161,17 +161,14 @@ static nb::object shape_path(Int32Array offsets, Int32Array heads, Int32Array sh
     return result;
 }
 
-// A SnapIndex reading two arrays of coordinates in place (float64 degrees, or int32 units of
+// A SnapIndex reading the points of the nodes in place (float64 degrees, or int32 units of
 // 1e-7 degree), which it keeps alive
 template <typename T>
-static std::unique_ptr<SnapIndex> snap_index_from_arrays(
-        nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::device::cpu> latitudes,
-        nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::device::cpu> longitudes) {
-    if (latitudes.shape(0) != longitudes.shape(0))
-        throw std::invalid_argument("latitudes and longitudes must have the same length");
-    auto owner = std::make_shared<std::pair<decltype(latitudes), decltype(longitudes)>>(latitudes, longitudes);
-    return std::make_unique<SnapIndex>(latitudes.data(), longitudes.data(),
-                                       int(latitudes.shape(0)), owner);
+static std::unique_ptr<SnapIndex> snap_index_from_array(CoordinateArray<T> node_points) {
+    if (node_points.shape(0) % 2)
+        throw std::invalid_argument("node_points must hold a latitude and a longitude per node");
+    auto owner = std::make_shared<decltype(node_points)>(node_points);
+    return std::make_unique<SnapIndex>(node_points.data(), int(node_points.shape(0) / 2), owner);
 }
 
 // A Graph from arcs stored by origin: copied, or read in place and kept alive (in_place)
@@ -289,11 +286,11 @@ NB_MODULE(cpp, m) {
     bind_pipelines(m);
 
     // float64 first: an array of another dtype (e.g. numpy's) is then converted to degrees
-    m.def("coordinate_lists", &coordinate_lists<double>, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"));
-    m.def("coordinate_lists", &coordinate_lists<int32_t>, nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("ids"),
-       "[[latitudes[i], longitudes[i]] for i in ids] in one C loop, from two arrays of coordinates (int32 in "
-       "1e-7 degree or float64 degrees) and a list of ids (negative ids count from the end); a route's "
-       "coordinates for NodeCoordinates.take");
+    m.def("coordinate_lists", &coordinate_lists<double>, nb::arg("node_points"), nb::arg("ids"));
+    m.def("coordinate_lists", &coordinate_lists<int32_t>, nb::arg("node_points"), nb::arg("ids"),
+       "[[latitude, longitude] of node i for i in ids] in one C loop, from the points of the nodes "
+       "(latitude then longitude of each node, int32 in 1e-7 degree or float64 degrees) and a list of "
+       "ids (negative ids count from the end); a route's coordinates for NodeCoordinates.take");
 
     m.def("shape_path", &shape_path<double>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));
@@ -310,28 +307,24 @@ NB_MODULE(cpp, m) {
     nb::class_<SnapIndex>(m, "SnapIndex",
         "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
         .def("__init__", [](SnapIndex* self, nb::handle points) {
-            struct Owned { std::vector<double> latitudes, longitudes; };
-            auto owned = std::make_shared<Owned>();
+            auto owned = std::make_shared<std::vector<double>>();
             nb::sequence seq = nb::borrow<nb::sequence>(points);
             size_t count = nb::len(seq);
-            owned->latitudes.resize(count);
-            owned->longitudes.resize(count);
-            size_t i = 0;
+            owned->reserve(2 * count);
             for (nb::handle point : seq) {
                 auto [la, lo] = read_point(point);
-                owned->latitudes[i] = la;
-                owned->longitudes[i] = lo;
-                ++i;
+                owned->push_back(la);
+                owned->push_back(lo);
             }
-            new (self) SnapIndex(owned->latitudes.data(), owned->longitudes.data(), int(count), owned);
+            new (self) SnapIndex(owned->data(), int(count), owned);
         }, nb::arg("points"), "Index the points, a sequence of [latitude, longitude] in degrees")
         // float64 first: a numpy array of another dtype is then converted to degrees
-        .def_static("from_arrays", &snap_index_from_arrays<double>, nb::arg("latitudes"), nb::arg("longitudes"))
-        .def_static("from_arrays", &snap_index_from_arrays<int32_t>, nb::arg("latitudes"), nb::arg("longitudes"),
-           "The same index, from two arrays of the same dtype: float64 degrees, or int32 units of "
-           "1e-7 degree as network files may store them. The index reads them in place and keeps "
-           "them while it lives: changing their values afterwards gives wrong answers (build a new "
-           "index)")
+        .def_static("from_array", &snap_index_from_array<double>, nb::arg("node_points"))
+        .def_static("from_array", &snap_index_from_array<int32_t>, nb::arg("node_points"),
+           "The same index, from one array that holds the latitude then the longitude of each node: "
+           "float64 degrees, or int32 units of 1e-7 degree as network files store them. The index "
+           "reads it in place and keeps it while it lives: changing its values afterwards gives "
+           "wrong answers (build a new index)")
         .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             return self.closest_idx(la, lo);
@@ -588,13 +581,13 @@ NB_MODULE(cpp, m) {
             if (latitudes.shape(0) < (size_t)self.size() || longitudes.shape(0) < (size_t)self.size()) {
                 throw std::invalid_argument("latitudes and longitudes must have an entry for every graph node");
             }
-            const double* lat = latitudes.data();
-            const double* lon = longitudes.data();
+            const double* latitude = latitudes.data();
+            const double* longitude = longitudes.data();
             // Same formula and operation order as scgraph.utils.haversine
-            std::function<double(int, int)> heuristic_fn = [lat, lon, radius](int origin, int destination) {
-                double a = std::pow(std::sin((lat[destination] - lat[origin]) / 2), 2)
-                    + std::cos(lat[origin]) * std::cos(lat[destination])
-                    * std::pow(std::sin((lon[destination] - lon[origin]) / 2), 2);
+            std::function<double(int, int)> heuristic_fn = [latitude, longitude, radius](int origin, int destination) {
+                double a = std::pow(std::sin((latitude[destination] - latitude[origin]) / 2), 2)
+                    + std::cos(latitude[origin]) * std::cos(latitude[destination])
+                    * std::pow(std::sin((longitude[destination] - longitude[origin]) / 2), 2);
                 return 2 * std::asin(std::pow(a, 0.5)) * radius;
             };
             return graph_result_to_dict(self.a_star(origin_id, destination_id, heuristic_fn));

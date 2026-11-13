@@ -18,12 +18,14 @@
 //   south-west.
 //
 // WHAT IT READS
-//   The index reads the coordinates of the nodes in place, in the order given: position =
-//   node id. It keeps the caller's arrays alive through `owner` and never copies them.
-//   The coordinates are float64 degrees, or int32 units of 1e-7 degree, as network files
-//   may store them. An int32 value is decoded at each read as units / 1e7, as the Python
-//   index does. Latitudes are from -90 to 90.
-//   Example: the int32 values 488566000 and 23522000 are the node (48.8566 N, 2.3522 E).
+//   The index reads the coordinates of the nodes in place, from one array of "points": the
+//   latitude of node 0, its longitude, the latitude of node 1, and so on. Node ids are the
+//   positions in this order. The index keeps the caller's array alive through `owner` and
+//   never copies it. The coordinates are float64 degrees, or int32 units of 1e-7 degree,
+//   as network files store them. An int32 value is decoded at each read as units / 1e7, as
+//   the Python index does. Latitudes are from -90 to 90.
+//   Example: the int32 values 488566000, 23522000 at positions 0 and 1 are node 0, at
+//   (48.8566 N, 2.3522 E).
 //   The order of the nodes must keep nearby nodes together, as a Hilbert curve does
 //   (network files are stored in Hilbert order). The constructor measures how many leaves
 //   (blocks of LEAF consecutive nodes, see below) a query would scan. Above
@@ -127,28 +129,28 @@ struct node_order_error : std::invalid_argument {
 
 class SnapIndex {
 public:
-    // A column of coordinates in degrees, read in place. It is built from a pointer to
+    // The points of the nodes, read in place, in degrees. They are built from a pointer to
     // float64 degrees or to int32 units of 1e-7 degree: the type of the pointer says which.
     // An int32 value is decoded by the same division as the Python reader. The index reads
-    // a column only where it builds its leaves and checks candidates, never in its loops
+    // the points only where it builds its leaves and checks candidates, never in its loops
     // over 4 floats
-    class Coordinates {
+    class Points {
     public:
-        Coordinates(const double* degrees) : degrees_(degrees) {}
-        Coordinates(const int32_t* units) : units_(units) {}
-        double operator[](int i) const { return degrees_ ? degrees_[i] : units_[i] / 1e7; }
+        Points(const double* degrees) : degrees_(degrees) {}
+        Points(const int32_t* units) : units_(units) {}
+        double latitude(int node) const { return at(2 * int64_t(node)); }
+        double longitude(int node) const { return at(2 * int64_t(node) + 1); }
 
     private:
+        double at(int64_t i) const { return degrees_ ? degrees_[i] : units_[i] / 1e7; }
         const double* degrees_ = nullptr;  // set for float64 degrees
         const int32_t* units_ = nullptr;   // set for int32 units of 1e-7 degree
     };
 
-    // latitudes[i], longitudes[i]: node i, for i < node_count. Both columns are built from pointers
-    // of the same type. The index reads these arrays for as long as it lives and keeps
-    // `owner`, which keeps them alive.
+    // `points` holds the latitude and the longitude of nodes 0 to node_count - 1. The index
+    // reads them for as long as it lives and keeps `owner`, which keeps them alive.
     // Throws node_order_error if the nodes are scattered (see above)
-    SnapIndex(Coordinates latitudes, Coordinates longitudes, int node_count,
-              std::shared_ptr<const void> owner);
+    SnapIndex(Points points, int node_count, std::shared_ptr<const void> owner);
 
     // Id of the node nearest to the point (latitude and longitude in degrees)
     int closest_idx(double latitude, double longitude) const;
@@ -188,9 +190,8 @@ private:
     struct Nearest;
     struct Visit;
 
-    Coordinates latitudes_;  // by node id, read in place
-    Coordinates longitudes_;
-    std::shared_ptr<const void> owner_;  // keeps the two columns alive
+    Points points_;                      // by node id, read in place
+    std::shared_ptr<const void> owner_;  // keeps the points alive
     std::vector<Leaf> leaves_;
     // The groups of every level, level 0 first. level_start_[level] is the position of the
     // first group of a level. Child k of group g of a level is leaf (or, above level 0,

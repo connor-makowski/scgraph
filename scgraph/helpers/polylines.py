@@ -1,8 +1,58 @@
-"""Turn geographic polylines (roads, railways, sea lanes) into a routable graph.
+"""Turn polylines into a graph for routing.
 
-Nodes are the points where polylines end or meet, and along them the first point where the
-arc since the previous node reaches `max_km`; each arc carries its length along the full
-polyline and its shape (the points between its two nodes).
+A "polyline" is a road, a railway or a sea lane, given as a list of "vertices". A vertex
+is a pair (id, point). A point is [latitude, longitude]. The id names the vertex in its
+source, for example an OSM node id. Two vertices with the same id have the same point.
+
+WHAT IT ANSWERS
+    `build_graph_from_polylines` builds a graph from the polylines. A path in the graph
+    goes from one node to another node along the polylines, in the directions that they
+    allow. Its length is the length along the polylines, in kilometers. Thus the shortest
+    path between two nodes is the shortest route between them along the polylines.
+    A path can go from one polyline to another only at a node. So each place where two
+    polylines meet must be a node. Such a place is a "junction". The caller gives the ids
+    of the junctions.
+    `cut_polylines` gives the "pieces" of the polylines. A piece is the part of a polyline
+    between two consecutive nodes. Each piece becomes an arc.
+
+HOW A POLYLINE IS CUT
+    A walk along a polyline cuts it at a vertex in three cases:
+    1. the vertex is the last vertex of the polyline;
+    2. the vertex is a junction;
+    3. the piece since the last cut is `max_km_between_nodes` long or longer.
+    The first vertex starts the first piece. Each vertex where a piece starts or ends
+    becomes a node. The vertices inside a piece become its "shape points". They give the
+    shape of the arc, but a route cannot start or end there.
+    Case 3 keeps a node every few kilometers. GeoGraph snaps an origin or a destination to
+    a node, so a long arc with no node would make it snap far from the road. A piece cut
+    in case 3 can be longer than the limit, by less than the length of its last segment.
+    Example, with `max_km_between_nodes` = 2. Road A goes both ways. Its vertices 1 to 5
+    are on the equator, at the longitudes 0, 0.01, 0.02, 0.03 and 0.04. Two consecutive
+    vertices are 1.112 km apart. Road B goes one way, from vertex 2 north to vertex 6, at
+    [0.01, 0.01]. Vertex 2 is the only junction.
+    - Road A. Vertex 2 is a junction, so the walk cuts there: piece 1 -> 2, 1.112 km. At
+      vertex 3, the new piece is 1.112 km long, so there is no cut. At vertex 4, it is
+      2.224 km long, so the walk cuts there: piece 2 -> 4, 2.224 km, with the shape point
+      [0, 0.02]. Vertex 5 is the last vertex: piece 4 -> 5, 1.112 km.
+    - Road B. Vertex 6 is the last vertex: piece 2 -> 6, 1.112 km.
+    The nodes are the vertices 1, 2, 4, 5 and 6. Vertex 3 is a shape point.
+
+HOW THE PIECES BECOME A GRAPH
+    1. A piece of a two-way polyline gives an arc in each direction. A piece of a one-way
+       polyline gives one arc. The reverse arc has the shape points in reverse order.
+    2. The graph keeps one arc from a node to another node: the shortest one. Among arcs
+       of equal length, it keeps the first one. A piece that starts and ends at the same
+       node is dropped. Such an arc is never part of a shortest path.
+    3. Each node gets an "index": its position in the lists that describe the graph,
+       from 0. The indexes follow a Hilbert curve (`scgraph.helpers.hilbert`). Nodes
+       that are close on the globe then get close indexes. `SnapIndex`, which finds the
+       node nearest to a point, needs this order. Two nodes at the same position on the
+       curve are ordered by their point, then by their id. Thus the indexes do not
+       depend on the order of the polylines.
+    Example, with the roads above. The nodes get the indexes 0 to 4, in this order: the
+    vertices 1, 2, 6, 4 and 5. The graph has seven arcs: 0 <-> 1 (1.112 km), 1 <-> 3
+    (2.224 km, with the shape point [0, 0.02]), 3 <-> 4 (1.112 km), and 1 -> 2 (1.112 km,
+    one way).
 """
 
 from collections.abc import Container, Hashable, Iterable, Iterator
@@ -17,31 +67,38 @@ def cut_polylines(
     max_km_between_nodes: float,
 ) -> Iterator[tuple[Hashable, Hashable, float, int, list[list[float]]]]:
     """
-    Cut each polyline at its ends, at its junctions and at the first point where the piece
-    since the last cut reaches `max_km_between_nodes`, and yield
-    `(origin_id, destination_id, km, direction, shape)` for each piece.
+    Cut each polyline into pieces, as *How a polyline is cut* in the module docstring
+    says.
 
-    `polylines` yields `(direction, points)`: `direction` is 1 (one way, along the points), -1
-    (one way, against them) or 0 (both ways); `points` is a list of `(id, [latitude,
-    longitude])`. `km` is the length of the full piece of polyline and `shape` holds the points
-    between its two ends (none if there are none). A piece may start and end at the same
-    point.
+    Args:
+        polylines: Pairs `(direction, vertices)`. `direction` is 1 for one way along the
+            vertices, -1 for one way against them, and 0 for both ways. `vertices` is a
+            list of pairs `(id, point)`.
+        junctions: The ids of the vertices where polylines meet.
+        max_km_between_nodes: The length in kilometers at which a piece ends, at the
+            next vertex.
+
+    Yields:
+        `(origin_id, destination_id, km, direction, shape)` for each piece, in the order
+        of the polylines. `km` is the length of the piece along the polyline. `shape` is
+        the list of its shape points, empty if it has none. `direction` is the direction
+        of its polyline. The origin and the destination can be the same vertex.
     """
-    for direction, points in polylines:
+    for direction, vertices in polylines:
         start, km = 0, 0.0
-        for i in range(1, len(points)):
-            km += haversine(points[i - 1][1], points[i][1])
+        for i in range(1, len(vertices)):
+            km += haversine(vertices[i - 1][1], vertices[i][1])
             if (
-                i == len(points) - 1
-                or points[i][0] in junctions
+                i == len(vertices) - 1
+                or vertices[i][0] in junctions
                 or km >= max_km_between_nodes
             ):
-                shape = [point for _, point in points[start + 1 : i]]
-                yield points[start][0], points[i][0], km, direction, shape
+                shape = [point for _, point in vertices[start + 1 : i]]
+                yield vertices[start][0], vertices[i][0], km, direction, shape
                 start, km = i, 0.0
 
 
-def polylines_to_graph(
+def build_graph_from_polylines(
     polylines: Iterable[tuple[int, list[tuple[Hashable, list[float]]]]],
     junctions: Container,
     max_km_between_nodes: float,
@@ -52,47 +109,60 @@ def polylines_to_graph(
     list[Hashable],
 ]:
     """
-    Collect the `cut_polylines` of `polylines` into a graph: there are no self-loops, and parallel
-    arcs keep the shortest (the first seen among arcs of equal length).
+    Build a graph from the pieces of `polylines`, as *How the pieces become a graph* in
+    the module docstring says.
 
-    Returns `(graph, nodes, shapes, node_ids)`, with nodes in Hilbert order and
-    `node_ids` the id of each node's point.
+    Args:
+        polylines: As in `cut_polylines`.
+        junctions: As in `cut_polylines`.
+        max_km_between_nodes: As in `cut_polylines`.
+
+    Returns:
+        `(graph, nodes, shapes, node_ids)`, where `i` and `j` are node indexes. `graph[i]`
+        maps each node `j` that an arc from node `i` reaches to the length of that arc,
+        in kilometers. `nodes[i]` is the point of node `i`. `shapes[i][j]` is the list of
+        shape points of the arc from `i` to `j`, if the arc has any. `node_ids[i]` is the
+        id of the vertex that became node `i`.
     """
-    arcs = {}  # (origin id, destination id) -> (length, shape)
-    location = {}  # id -> [latitude, longitude]
+    arcs = {}  # (origin id, destination id) -> (km, shape)
+    points = {}  # id of a node -> its point
     for polyline in polylines:
-        where = dict(polyline[1])
-        for origin, destination, km, direction, shape in cut_polylines(
+        vertex_points = dict(polyline[1])
+        for origin_id, destination_id, km, direction, shape in cut_polylines(
             [polyline], junctions, max_km_between_nodes
         ):
-            if origin == destination:
-                continue  # a loop never lies on a shortest path
-            location[origin] = where[origin]
-            location[destination] = where[destination]
+            # 2. Drop a loop
+            if origin_id == destination_id:
+                continue
+            points[origin_id] = vertex_points[origin_id]
+            points[destination_id] = vertex_points[destination_id]
+            # 1. One arc for each direction of travel. 2. Keep the shortest.
             if direction >= 0:
-                _keep_shortest(arcs, (origin, destination), km, shape)
+                _keep_shortest(arcs, (origin_id, destination_id), km, shape)
             if direction <= 0:
-                _keep_shortest(arcs, (destination, origin), km, shape[::-1])
+                _keep_shortest(
+                    arcs, (destination_id, origin_id), km, shape[::-1]
+                )
 
-    # Ties broken by coordinates, so that the order does not depend on the input's
-    order = sorted(
-        location,
-        key=lambda point: (
-            hilbert_key(*location[point]),
-            *location[point],
-            point,
+    # 3. Give each node its index, along the Hilbert curve
+    node_ids = sorted(
+        points,
+        key=lambda node_id: (
+            hilbert_key(*points[node_id]),
+            *points[node_id],
+            node_id,
         ),
     )
-    index = {point: i for i, point in enumerate(order)}
-    graph = [{} for _ in order]
-    shapes = [{} for _ in order]
-    for (origin, destination), (length, shape) in arcs.items():
-        graph[index[origin]][index[destination]] = length
+    node_index = {node_id: i for i, node_id in enumerate(node_ids)}
+    graph = [{} for _ in node_ids]
+    shapes = [{} for _ in node_ids]
+    for (origin_id, destination_id), (km, shape) in arcs.items():
+        graph[node_index[origin_id]][node_index[destination_id]] = km
         if shape:
-            shapes[index[origin]][index[destination]] = shape
-    return graph, [location[point] for point in order], shapes, order
+            shapes[node_index[origin_id]][node_index[destination_id]] = shape
+    return graph, [points[node_id] for node_id in node_ids], shapes, node_ids
 
 
-def _keep_shortest(arcs, key, length, shape):
-    if key not in arcs or length < arcs[key][0]:
-        arcs[key] = (length, shape)
+def _keep_shortest(arcs, key, km, shape):
+    if key not in arcs or km < arcs[key][0]:
+        arcs[key] = (km, shape)

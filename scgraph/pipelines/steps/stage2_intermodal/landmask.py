@@ -122,9 +122,11 @@ class LandMask:
         self.bits, self.south, self.west = bits, south, west
         self.height, self.width, self.size = height, width, 1 / cells_per_degree
         self.wrap = width == 360 * cells_per_degree
-        lats = [self.get_cell_centre(row * width)[0] for row in range(height)]
+        latitudes = [
+            self.get_cell_centre(row * width)[0] for row in range(height)
+        ]
         self.north_km = haversine([0, 0], [self.size, 0])
-        steps = [(a, a) for a in lats], zip(lats, lats[1:])
+        steps = [(a, a) for a in latitudes], zip(latitudes, latitudes[1:])
         self.east_km, self.diagonal_km = (
             array("d", (haversine([a, 0], [b, self.size]) for a, b in pairs))
             for pairs in steps
@@ -200,10 +202,10 @@ class LandMask:
                         bits[(y * width + x) >> 3] &= ~(1 << (x & 7))
         return LandMask(bits, south / k, west / k, height, width, k)
 
-    def get_cell(self, lat: float, lon: float) -> int | None:
+    def get_cell(self, latitude: float, longitude: float) -> int | None:
         """The cell of a point, None outside the raster."""
-        row = math.floor((lat - self.south) / self.size)
-        column = math.floor((lon - self.west) / self.size)
+        row = math.floor((latitude - self.south) / self.size)
+        column = math.floor((longitude - self.west) / self.size)
         if 0 <= row < self.height and 0 <= column < self.width:
             return row * self.width + column
         return None
@@ -213,8 +215,8 @@ class LandMask:
         s = self.size
         return [self.south + (row + 0.5) * s, self.west + (column + 0.5) * s]
 
-    def is_on_land(self, lat: float, lon: float) -> bool:
-        cell = self.get_cell(lat, lon)
+    def is_on_land(self, latitude: float, longitude: float) -> bool:
+        cell = self.get_cell(latitude, longitude)
         return cell is None or bool(_is_land(self.bits, cell))
 
     def find_water_path(
