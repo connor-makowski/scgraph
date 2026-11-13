@@ -1,5 +1,6 @@
 import contextlib
 import hashlib
+import importlib.util
 import json
 import os
 import platform
@@ -227,17 +228,22 @@ def marnet_file_info(tmp_path, marnet_reads_the_local_lines):
     return GeoGraph.get_scgraph_info(built_file)
 
 
-def test_network_file_names_the_pipeline_that_built_it(marnet_file_info):
+def test_a_network_file_records_what_built_it_and_from_which_sources(
+    marnet_file_info, marnet_reads_the_local_lines
+):
+    source = marnet.SOURCES["sea_lanes"]
+    first_line_of_pipeline_docstring = marnet.__doc__.split("\n")[0]
+
     assert marnet_file_info["pipeline"] == {
         "name": "marnet",
         "region": None,
         "version": marnet.PIPELINE_VERSION,
     }
-
-
-def test_network_file_records_each_source_with_its_digest_and_its_licence(
-    marnet_file_info, marnet_reads_the_local_lines
-):
+    assert first_line_of_pipeline_docstring in marnet_file_info["description"]
+    assert marnet_file_info["node_order"] == "hilbert"
+    software = marnet_file_info["software"]
+    assert software["backend"] == ("cpp" if has_cpp() else "python")
+    assert software["platform"].startswith(sysconfig.get_platform())
     # The record has no version: a GeoJSON file does not date its data.
     assert marnet_file_info["sources"] == [
         {
@@ -245,20 +251,14 @@ def test_network_file_records_each_source_with_its_digest_and_its_licence(
             "url": marnet_reads_the_local_lines,
             "sha256": hashlib.sha256(_GEOJSON).hexdigest(),
             "bytes": len(_GEOJSON),
-            "credit": marnet.SOURCES["sea_lanes"]["credit"],
+            "credit": source["credit"],
             "license": "EUPL-1.2",
-            "license_url": marnet.SOURCES["sea_lanes"]["license_url"],
+            "license_url": source["license_url"],
         }
     ]
-
-
-def test_network_file_names_the_backend_and_the_platform_that_built_it(
-    marnet_file_info,
-):
-    software = marnet_file_info["software"]
-
-    assert software["backend"] == ("cpp" if has_cpp() else "python")
-    assert software["platform"].startswith(sysconfig.get_platform())
+    assert marnet_file_info["data_up_to"] is None  # no source has a version
+    # The credit line to cite
+    assert marnet_file_info["attribution"] == f"{source['credit']} (EUPL-1.2)"
 
 
 # The math functions of the C library decide the last bit of a length. Two
@@ -273,32 +273,6 @@ def test_network_file_names_the_c_library_of_the_platform(marnet_file_info):
     assert marnet_file_info["software"]["platform"].endswith(
         f" {library} {version}"
     )
-
-
-def test_network_file_describes_its_network_with_the_text_of_the_pipeline(
-    marnet_file_info,
-):
-    first_line_of_pipeline_docstring = marnet.__doc__.split("\n")[0]
-
-    assert first_line_of_pipeline_docstring in marnet_file_info["description"]
-
-
-def test_network_file_info_gives_the_credit_line_to_cite(marnet_file_info):
-    credit = marnet.SOURCES["sea_lanes"]["credit"]
-
-    assert marnet_file_info["attribution"] == f"{credit} (EUPL-1.2)"
-
-
-def test_network_file_info_has_no_data_time_when_no_source_has_a_version(
-    marnet_file_info,
-):
-    assert marnet_file_info["data_up_to"] is None
-
-
-def test_network_file_says_that_its_nodes_follow_the_hilbert_curve(
-    marnet_file_info,
-):
-    assert marnet_file_info["node_order"] == "hilbert"
 
 
 # The time of the download is the only clock time of a build. It stays out of
@@ -321,24 +295,11 @@ def test_a_built_network_is_a_folder_with_cache_json_and_the_file_it_names(
     cache_json = json.loads((folder / "cache.json").read_text())
     assert cache_json["file"] == built_file.name
     assert {p.name for p in folder.iterdir()} == {"cache.json", built_file.name}
-
-
-def test_cached_network_file_is_named_by_the_sha256_of_its_content(
-    tmp_path, marnet_reads_the_local_lines
-):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
-
-    # A network file starts with 8 bytes that mark its format and 32 bytes
-    # of digest. The digest covers the rest of the file.
+    # The file is named by the SHA-256 of its content. A network file starts
+    # with 8 bytes that mark its format and 32 bytes of digest. The digest
+    # covers the rest of the file.
     content = built_file.read_bytes()[40:]
     assert built_file.name == hashlib.sha256(content).hexdigest() + ".scgraph"
-
-
-def test_build_tags_the_networks_folder_as_a_cache_for_backup_tools(
-    tmp_path, marnet_reads_the_local_lines
-):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
-
     # Backup tools skip a folder with this file. The signature comes from
     # the Cache Directory Tagging Specification.
     tag = (tmp_path / "networks" / "CACHEDIR.TAG").read_text()
@@ -369,25 +330,22 @@ def test_list_buildable_geographs_does_not_count_a_network_without_its_file(
     assert not listing["marnet"]["cached"]
 
 
-def test_build_geograph_builds_again_a_network_whose_file_is_missing(
-    tmp_path, marnet_reads_the_local_lines
-):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
-    built_file.unlink()
-
-    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
-
-    assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"] * 2
+def _cut_short(file):
+    file.write_bytes(file.read_bytes()[:100])
 
 
 # A file cut short stands for every file that scgraph cannot read: a damaged
 # file, or a file in the format of another version of scgraph.
-def test_build_geograph_builds_again_a_network_whose_file_cannot_be_read(
-    tmp_path, marnet_reads_the_local_lines
+@pytest.mark.parametrize(
+    "damage",
+    [Path.unlink, _cut_short],
+    ids=["its file is missing", "its file cannot be read"],
+)
+def test_build_geograph_builds_again_a_network_without_a_readable_file(
+    tmp_path, marnet_reads_the_local_lines, damage
 ):
     built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
-    built_file.write_bytes(built_file.read_bytes()[:100])
+    damage(built_file)
 
     geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
 
@@ -397,25 +355,30 @@ def test_build_geograph_builds_again_a_network_whose_file_cannot_be_read(
 
 # The tests below state when `build_geograph` may download. The argument
 # `local_files_only=True` forbids it, and so does SCGRAPH_OFFLINE=1 in the
-# environment when the argument is not given.
-def test_local_files_only_refuses_a_network_that_is_not_in_the_cache(
-    tmp_path, marnet_reads_the_local_lines
+# environment when the argument is not given. Another value of the variable
+# leaves the choice to the argument.
+@pytest.mark.parametrize(
+    "scgraph_offline, local_files_only",
+    [("0", True), ("1", None)],
+    ids=["local_files_only=True", "SCGRAPH_OFFLINE=1"],
+)
+def test_a_network_that_is_not_in_the_cache_is_refused_without_a_download(
+    tmp_path,
+    marnet_reads_the_local_lines,
+    monkeypatch,
+    scgraph_offline,
+    local_files_only,
 ):
-    with pytest.raises(FileNotFoundError, match="local_files_only"):
+    monkeypatch.setenv("SCGRAPH_OFFLINE", scgraph_offline)
+
+    # The message names the two ways to forbid the download.
+    with pytest.raises(
+        FileNotFoundError,
+        match=r"local_files_only=True \(or SCGRAPH_OFFLINE=1\)",
+    ):
         GeoGraph.build_geograph(
-            "marnet", cache_dir=tmp_path, local_files_only=True
+            "marnet", cache_dir=tmp_path, local_files_only=local_files_only
         )
-
-    assert _Source.served == []
-
-
-def test_scgraph_offline_refuses_a_network_that_is_not_in_the_cache(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
-):
-    monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
-
-    with pytest.raises(FileNotFoundError, match="SCGRAPH_OFFLINE"):
-        GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
 
     assert _Source.served == []
 
@@ -685,7 +648,7 @@ def test_the_steps_that_a_pipeline_returns_are_stored_in_the_network_file(
 
 # The ArcGIS layer of the local server holds the two lines of /lines.geojson
 # and gives one line per page.
-def test_build_geograph_reads_every_page_of_an_arcgis_layer(
+def test_build_geograph_reads_every_page_of_an_arcgis_layer_and_its_version(
     tmp_path, source, monkeypatch
 ):
     monkeypatch.setitem(
@@ -695,18 +658,8 @@ def test_build_geograph_reads_every_page_of_an_arcgis_layer(
     geo = GeoGraph.build_geograph("north_america_rail", cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4  # the first line alone has 3 nodes
-
-
-def test_the_last_edit_of_an_arcgis_layer_is_the_version_of_its_data(
-    tmp_path, source, monkeypatch
-):
-    monkeypatch.setitem(
-        north_america_rail.SOURCES["rail_lines"], "url", f"{source}/layer"
-    )
-
-    geo = GeoGraph.build_geograph("north_america_rail", cache_dir=tmp_path)
-
-    # The layer gives its last edit as 1704164645000 ms after 1970.
+    # The version of the data is the last edit of the layer, which the layer
+    # gives as 1704164645000 ms after 1970.
     (layer,) = geo.metadata["sources"]
     assert layer["version"] == "2024-01-02T03:04:05Z"
 
@@ -757,31 +710,32 @@ def _build_in_a_child_process(
     return folder / json.loads((folder / "cache.json").read_text())["file"]
 
 
-# marnet returns a GeoGraph, which scgraph then writes to a network file.
-def test_marnet_built_twice_from_the_same_sources_is_the_same_file(
-    tmp_path, source
+# The two kinds of pipeline. marnet returns a GeoGraph, which scgraph then
+# writes to a network file. osm_main_roads returns the arrays of the network
+# file: its region "roads" is the file /roads.osm of the local server.
+_NETWORKS_OF_BOTH_KINDS = [
+    pytest.param("marnet", None, id="marnet"),
+    pytest.param(
+        "osm_main_roads",
+        "roads",
+        id="osm_main_roads",
+        marks=pytest.mark.skipif(
+            importlib.util.find_spec("osmium") is None,
+            reason="osmium is not installed",
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize("name, region", _NETWORKS_OF_BOTH_KINDS)
+def test_a_network_built_twice_from_the_same_sources_is_the_same_file(
+    tmp_path, source, name, region
 ):
     first = _build_in_a_child_process(
-        source, tmp_path / "first", "marnet", None, hash_seed="1"
+        source, tmp_path / "first", name, region, hash_seed="1"
     )
     second = _build_in_a_child_process(
-        source, tmp_path / "second", "marnet", None, hash_seed="2"
-    )
-
-    assert first.read_bytes() == second.read_bytes()
-
-
-# osm_main_roads returns the arrays of the network file. The region "roads"
-# is the file /roads.osm of the local server.
-def test_osm_main_roads_built_twice_from_the_same_sources_is_the_same_file(
-    tmp_path, source
-):
-    pytest.importorskip("osmium")
-    first = _build_in_a_child_process(
-        source, tmp_path / "first", "osm_main_roads", "roads", hash_seed="1"
-    )
-    second = _build_in_a_child_process(
-        source, tmp_path / "second", "osm_main_roads", "roads", hash_seed="2"
+        source, tmp_path / "second", name, region, hash_seed="2"
     )
 
     assert first.read_bytes() == second.read_bytes()
@@ -789,39 +743,18 @@ def test_osm_main_roads_built_twice_from_the_same_sources_is_the_same_file(
 
 # The pure-Python build and the C++ build give the same nodes, and the same
 # arcs with the same lengths. The order of the arcs of a node may differ.
-def test_marnet_built_in_pure_python_is_the_same_graph(tmp_path, source):
-    installed_file = _build_in_a_child_process(
-        source, tmp_path / "installed", "marnet", None, hash_seed="1"
-    )
-    pure_python_file = _build_in_a_child_process(
-        source,
-        tmp_path / "pure_python",
-        "marnet",
-        None,
-        hash_seed="2",
-        backend="pure python",
-    )
-
-    info = GeoGraph.get_scgraph_info(str(pure_python_file))
-    assert info["software"]["backend"] == "python"
-    installed = GeoGraph.load_from_scgraph(str(installed_file))
-    pure_python = GeoGraph.load_from_scgraph(str(pure_python_file))
-    assert pure_python.nodes == installed.nodes
-    assert pure_python.graph_object.graph == installed.graph_object.graph
-
-
-def test_osm_main_roads_built_in_pure_python_is_the_same_graph(
-    tmp_path, source
+@pytest.mark.parametrize("name, region", _NETWORKS_OF_BOTH_KINDS)
+def test_a_network_built_in_pure_python_is_the_same_graph(
+    tmp_path, source, name, region
 ):
-    pytest.importorskip("osmium")
     installed_file = _build_in_a_child_process(
-        source, tmp_path / "installed", "osm_main_roads", "roads", hash_seed="1"
+        source, tmp_path / "installed", name, region, hash_seed="1"
     )
     pure_python_file = _build_in_a_child_process(
         source,
         tmp_path / "pure_python",
-        "osm_main_roads",
-        "roads",
+        name,
+        region,
         hash_seed="2",
         backend="pure python",
     )
@@ -991,6 +924,7 @@ def _by_osm_ids(geograph, rows):
 
 def test_a_car_ferry_joins_the_road_nodes_nearest_its_two_ends(strait_network):
     arcs = _by_osm_ids(strait_network, strait_network.graph_object.graph)
+    shapes = _by_osm_ids(strait_network, strait_network.intermediate_nodes)
 
     # From node 1: road 1 to node 2, then ferry 3. The ferry counts for the
     # length of its own route, from node 10 to node 3. Each ferry that must be
@@ -1000,13 +934,6 @@ def test_a_car_ferry_joins_the_road_nodes_nearest_its_two_ends(strait_network):
     assert arcs[(1, 3)] == pytest.approx(
         _strait_km(1, 2) + _strait_km(10, 11, 3)
     )
-
-
-def test_the_shape_of_a_ferry_arc_follows_the_route_of_the_ferry(
-    strait_network,
-):
-    shapes = _by_osm_ids(strait_network, strait_network.intermediate_nodes)
-
     # After node 2, the drawing goes to the start of ferry 3, then along it.
     assert shapes[(1, 3)] == [list(_STRAIT_NODES[node]) for node in (2, 10, 11)]
 
@@ -1109,17 +1036,13 @@ def test_a_road_fragment_apart_from_the_main_road_is_left_out(coast_network):
 
 def test_only_a_port_near_a_road_and_near_water_becomes_a_node(coast_network):
     port_nodes = sorted(list(coast_network.nodes)[3:5])
+    ids_of_port_nodes = sorted(list(coast_network.node_ids)[3:5])
 
     # "Near" and "Anchorage". "Island" and "Far" are too far from the road,
     # and "Inland" is too far from water.
     assert port_nodes == [[0, 0.02], [0.01, 0.06]]
-
-
-def test_port_nodes_get_negative_ids(coast_network):
     # A road node keeps its OSM id, which is positive. A port is not an OSM
     # node: scgraph numbers the ports -1, -2...
-    ids_of_port_nodes = sorted(list(coast_network.node_ids)[3:5])
-
     assert ids_of_port_nodes == [-2, -1]
 
 
@@ -1154,27 +1077,16 @@ def test_a_port_is_joined_to_the_sea_by_the_length_of_its_path_on_water(
 ):
     nodes = list(coast_network.nodes)
     port, lane_end = nodes.index([0, 0.02]), nodes.index([0, 0.2])
+    shapes = coast_network.intermediate_nodes
 
     connector_km = coast_network.graph_object.graph[port][lane_end]
 
-    path_on_water = [
-        [0, 0.02],
-        *coast_network.intermediate_nodes[port][lane_end],
-        [0, 0.2],
-    ]
+    path_on_water = [[0, 0.02], *shapes[port][lane_end], [0, 0.2]]
     drawn_km = sum(
         great_circle_km(a, b) for a, b in zip(path_on_water, path_on_water[1:])
     )
     assert connector_km == pytest.approx(drawn_km, rel=1e-4)
-
-
-def test_the_way_back_from_the_sea_to_a_port_has_the_reversed_shape(
-    coast_network,
-):
-    nodes = list(coast_network.nodes)
-    port, lane_end = nodes.index([0, 0.02]), nodes.index([0, 0.2])
-    shapes = coast_network.intermediate_nodes
-
+    # The way back from the sea to the port has the reversed shape.
     assert shapes[lane_end][port] == shapes[port][lane_end][::-1]
 
 
@@ -1276,30 +1188,24 @@ def test_build_geograph_checks_its_arguments_before_downloading(
 
 # A cached network must stay the file that its cache.json names: nothing
 # else is saved under `networks/` of the cache.
-def test_save_as_scgraph_refuses_a_file_among_the_built_networks_of_the_cache(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize(
+    "save, file_name",
+    [
+        (GeoGraph.save_as_scgraph, "edited.scgraph"),
+        (GeoGraph.save_as_graphjson, "edited.graphjson"),
+    ],
+    ids=["save_as_scgraph", "save_as_graphjson"],
+)
+def test_saving_a_file_among_the_built_networks_of_the_cache_is_refused(
+    tmp_path, monkeypatch, save, file_name
 ):
     monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(tmp_path))
     geo = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
-    target = tmp_path / "networks" / "marnet" / "edited.scgraph"
+    target = tmp_path / "networks" / "marnet" / file_name
     target.parent.mkdir(parents=True)
 
     with pytest.raises(ValueError, match=re.escape(str(target))):
-        geo.save_as_scgraph(str(target))
-
-    assert not target.exists()
-
-
-def test_save_as_graphjson_refuses_a_file_among_the_built_networks_of_the_cache(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(tmp_path))
-    geo = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
-    target = tmp_path / "networks" / "marnet" / "edited.graphjson"
-    target.parent.mkdir(parents=True)
-
-    with pytest.raises(ValueError, match=re.escape(str(target))):
-        geo.save_as_graphjson(str(target))
+        save(geo, str(target))
 
     assert not target.exists()
 

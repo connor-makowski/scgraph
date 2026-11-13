@@ -193,24 +193,30 @@ def _two_joined_nodes():
     return Graph([{1: 1.0}, {0: 1.0}])
 
 
-def test_add_edge_refuses_an_origin_that_is_not_in_the_graph():
+@pytest.mark.parametrize(
+    "change",
+    [
+        pytest.param(
+            lambda graph: graph.add_edge(5, 0, 1.0),
+            id="add_edge from an origin that is not in the graph",
+        ),
+        pytest.param(
+            lambda graph: graph.add_edge(0, 5, 1.0),
+            id="add_edge to a destination that is not in the graph",
+        ),
+        pytest.param(
+            lambda graph: graph.remove_edge(5, 0),
+            id="remove_edge from an origin that is not in the graph",
+        ),
+        pytest.param(
+            lambda graph: graph.remove_edge(0, 5),
+            id="remove_edge to a destination that is not in the graph",
+        ),
+    ],
+)
+def test_a_change_of_an_edge_refuses_a_node_that_is_not_in_the_graph(change):
     with pytest.raises(IndexError):
-        _two_joined_nodes().add_edge(5, 0, 1.0)
-
-
-def test_add_edge_refuses_a_destination_that_is_not_in_the_graph():
-    with pytest.raises(IndexError):
-        _two_joined_nodes().add_edge(0, 5, 1.0)
-
-
-def test_remove_edge_refuses_an_origin_that_is_not_in_the_graph():
-    with pytest.raises(IndexError):
-        _two_joined_nodes().remove_edge(5, 0)
-
-
-def test_remove_edge_refuses_a_destination_that_is_not_in_the_graph():
-    with pytest.raises(IndexError):
-        _two_joined_nodes().remove_edge(0, 5)
+        change(_two_joined_nodes())
 
 
 def test_remove_node_refuses_a_graph_without_nodes():

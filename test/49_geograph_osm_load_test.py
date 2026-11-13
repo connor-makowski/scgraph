@@ -148,9 +148,9 @@ def test_default_select_follows_one_way_streets_in_their_legal_direction(arcs):
     }
 
 
-def test_select_gives_both_directions_to_a_way_for_which_it_returns_0(
-    osm_file,
-):
+def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
+    # For a way, `select` returns 0 for both directions, or None to leave
+    # the way out.
     def select_primary_roads_as_two_way(tags):
         return 0 if tags.get("highway") == "primary" else None
 
@@ -160,22 +160,11 @@ def test_select_gives_both_directions_to_a_way_for_which_it_returns_0(
         largest_component=False,
     )
 
-    # Way 8 joins nodes 30 and 31. It is a primary road with oneway=-1.
-    assert {arc for arc in _arcs(network) if 30 in arc} == {(30, 31), (31, 30)}
-
-
-def test_select_leaves_out_a_way_for_which_it_returns_none(osm_file):
-    def select_every_way_but_bridges(tags):
-        return None if "bridge" in tags else 0
-
-    network = GeoGraph.load_from_osm(
-        osm_file, select=select_every_way_but_bridges, largest_component=False
-    )
-
-    # Way 3, from node 5 to node 6, is the only bridge of the file.
     arcs = _arcs(network)
-    assert (1, 2) in arcs
-    assert not any(5 in arc or 6 in arc for arc in arcs)
+    # Way 8 joins nodes 30 and 31. It is a primary road with oneway=-1.
+    assert {arc for arc in arcs if 30 in arc} == {(30, 31), (31, 30)}
+    # Way 10, from node 50 to node 51, is the only motorway of the file.
+    assert not any(50 in arc or 51 in arc for arc in arcs)
 
 
 def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
@@ -200,7 +189,8 @@ def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
 
 
 # A pipeline gives several selects to `locate_ways`, one for each kind of
-# way: roads and ferries, for example.
+# way: roads and ferries, for example. `load_from_osm` takes one select, so
+# the two tests below call `locate_ways`.
 def test_a_way_goes_to_the_first_select_that_keeps_it(osm_file):
     def select_primary_roads(tags):
         return 0 if tags.get("highway") == "primary" else None
@@ -240,19 +230,14 @@ def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
     }
 
 
-def test_load_from_osm_numbers_the_nodes_along_a_hilbert_curve(whole_network):
+def test_load_from_osm_stores_its_nodes_in_hilbert_order_with_their_osm_ids(
+    whole_network,
+):
     nodes = whole_network.nodes
-
-    assert hilbert_order(nodes) == list(range(len(nodes)))
-
-
-def test_node_ids_of_load_from_osm_are_the_osm_ids_of_the_nodes(whole_network):
     places_of_node_ids = [_NODES[osm_id] for osm_id in whole_network.node_ids]
 
-    assert places_of_node_ids == [tuple(node) for node in whole_network.nodes]
-
-
-def test_load_from_osm_keeps_the_integer_coordinates_of_osm(whole_network):
+    assert hilbert_order(nodes) == list(range(len(nodes)))
+    assert places_of_node_ids == [tuple(node) for node in nodes]
     # OSM stores a coordinate as an integer, in 1e-7 degree. A network file
     # stores it the same way, as an int32.
     assert whole_network.coordinate_dtype == "int32"

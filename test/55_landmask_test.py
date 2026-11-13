@@ -8,6 +8,9 @@ from helpers import great_circle_km
 from scgraph import Graph
 from scgraph.pipelines.steps.stage2_intermodal import landmask
 
+# These tests call the land mask, a step of the builds that joins ports to
+# water. No public call runs it alone: a build needs the download of its maps.
+
 
 def _square(west, south, east, north):
     return [[west, south], [east, south], [east, north], [west, north], [west, south]]  # fmt: skip
@@ -109,68 +112,47 @@ def route_around_the_island(coast):
     return _find_shortest_route_over_water(coast, PORT, TARGET_ON_THE_ISLAND)
 
 
-def test_a_lake_is_water(coast):
-    assert not coast.is_on_land(56.04, 0.05)
+@pytest.mark.parametrize(
+    "point, is_land",
+    [
+        pytest.param([56.04, 0.05], False, id="a lake is water"),
+        # The lagoon is a hole of the mainland. It is not in the file of lakes.
+        pytest.param([56.04, 0.12], False, id="a hole in the land is water"),
+        pytest.param([56.06, 0.05], False, id="a river is water"),
+        pytest.param([56.13, 0.1], True, id="an island is land"),
+        # The lake starts at longitude 0.03. This point is the centre of the
+        # cell that touches the lake on its west side.
+        pytest.param(
+            [56.035, 0.0275],
+            True,
+            id="a cell is land when its centre is on land",
+        ),
+    ],
+)
+def test_the_map_tells_land_from_water(coast, point, is_land):
+    assert coast.is_on_land(*point) == is_land
 
 
-def test_a_hole_in_the_land_is_water(coast):
-    # The lagoon is a hole of the mainland. It is not in the file of lakes.
-    assert not coast.is_on_land(56.04, 0.12)
-
-
-def test_a_river_is_water(coast):
-    assert not coast.is_on_land(56.06, 0.05)
-
-
-def test_an_island_is_land(coast):
-    assert coast.is_on_land(56.13, 0.1)
-
-
-def test_a_cell_is_land_when_its_centre_is_on_land(coast):
-    # The lake starts at longitude 0.03. This point is the centre of the cell
-    # that touches the lake on its west side.
-    assert coast.is_on_land(56.035, 0.0275)
-
-
-def test_a_water_path_has_the_length_of_the_shortest_route_over_water(
+def test_a_water_path_is_the_shortest_route_over_water_from_the_port(
     coast, route_around_the_island
 ):
-    targets = array("q", [route_around_the_island.target_cell])
-
-    km, _ = coast.find_water_path(PORT, targets, max_km=100, start_on_land_km=6)
-
-    assert km == pytest.approx(route_around_the_island.km, rel=1e-6)
-
-
-def test_a_water_path_goes_from_the_water_cell_nearest_to_the_port_to_the_target(
-    coast, route_around_the_island
-):
-    targets = array("q", [route_around_the_island.target_cell])
-
-    _, points = coast.find_water_path(
-        PORT, targets, max_km=100, start_on_land_km=6
-    )
-
-    assert points[0] == coast.get_cell_centre(
-        route_around_the_island.first_cell
-    )
-    assert points[-1] == coast.get_cell_centre(
-        route_around_the_island.target_cell
-    )
-
-
-def test_the_points_of_a_water_path_follow_the_path(
-    coast, route_around_the_island
-):
-    # The length along the points, plus the leg from the port to the first
-    # point, is the length of the path. The centres of the cells are rounded
-    # differently in the two sums: the lengths agree to 1 in 10,000.
     targets = array("q", [route_around_the_island.target_cell])
 
     km, points = coast.find_water_path(
         PORT, targets, max_km=100, start_on_land_km=6
     )
 
+    assert km == pytest.approx(route_around_the_island.km, rel=1e-6)
+    # The points go from the water cell nearest to the port to the target
+    assert points[0] == coast.get_cell_centre(
+        route_around_the_island.first_cell
+    )
+    assert points[-1] == coast.get_cell_centre(
+        route_around_the_island.target_cell
+    )
+    # The length along the points, plus the leg from the port to the first
+    # point, is the length of the path. The centres of the cells are rounded
+    # differently in the two sums: the lengths agree to 1 in 10,000.
     km_along_the_points = sum(
         great_circle_km(a, b) for a, b in zip(points, points[1:])
     )

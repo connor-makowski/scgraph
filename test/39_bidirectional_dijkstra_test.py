@@ -157,43 +157,28 @@ def _search_every_pair(graph, algorithm):
     return {(o, d): search(o, d) for o in nodes for d in nodes}
 
 
-_SEARCHES_FROM_BOTH_ENDS = ["bidirectional_dijkstra", "bidirectional_buckets"]
-
-
-@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
-def test_search_from_both_ends_sees_an_added_node(Graph, algorithm):
+@pytest.mark.parametrize(
+    "change",
+    [
+        pytest.param(
+            lambda graph: graph.add_node({0: 1}, symmetric=True),
+            id="an added node",
+        ),
+        pytest.param(lambda graph: graph.add_edge(2, 0, 1), id="an added edge"),
+        pytest.param(lambda graph: graph.remove_node(), id="a removed node"),
+        pytest.param(
+            lambda graph: graph.remove_edge(3, 2), id="a removed edge"
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm", ["bidirectional_dijkstra", "bidirectional_buckets"]
+)
+def test_search_from_both_ends_follows_a_change_of_the_graph(
+    Graph, algorithm, change
+):
     graph = _build_graph_with_its_inverse(Graph)
-    graph.add_node({0: 1}, symmetric=True)
-    rebuilt = Graph(deepcopy(graph.graph))
-    assert _search_every_pair(graph, algorithm) == _search_every_pair(
-        rebuilt, algorithm
-    )
-
-
-@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
-def test_search_from_both_ends_sees_an_added_edge(Graph, algorithm):
-    graph = _build_graph_with_its_inverse(Graph)
-    graph.add_edge(2, 0, 1)
-    rebuilt = Graph(deepcopy(graph.graph))
-    assert _search_every_pair(graph, algorithm) == _search_every_pair(
-        rebuilt, algorithm
-    )
-
-
-@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
-def test_search_from_both_ends_forgets_a_removed_node(Graph, algorithm):
-    graph = _build_graph_with_its_inverse(Graph)
-    graph.remove_node()
-    rebuilt = Graph(deepcopy(graph.graph))
-    assert _search_every_pair(graph, algorithm) == _search_every_pair(
-        rebuilt, algorithm
-    )
-
-
-@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
-def test_search_from_both_ends_forgets_a_removed_edge(Graph, algorithm):
-    graph = _build_graph_with_its_inverse(Graph)
-    graph.remove_edge(3, 2)
+    change(graph)
     rebuilt = Graph(deepcopy(graph.graph))
     assert _search_every_pair(graph, algorithm) == _search_every_pair(
         rebuilt, algorithm

@@ -288,39 +288,29 @@ def test_reduce_stores_only_paths_of_the_original_graph(Graph, iterations):
         _assert_stored_paths_are_valid(graph, g)
 
 
-# A caller of a reduced graph still reads the original graph. Only the
-# searches read the reduced graph, through `search_graph`. The four tests
-# below state it for the links, for `get`, for the searches and for the trees.
+# A caller of a reduced graph still reads the original graph: its links, its
+# inverse links, its rows with get() and its shortest path trees.
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
-def test_reduced_graph_shows_the_links_of_the_original_graph(Graph, iterations):
+def test_reduced_graph_still_shows_the_original_graph(Graph, iterations):
     for graph in CHECKED_GRAPHS:
         inverse = [{} for _ in graph]
         for u, row in enumerate(graph):
             for v, w in row.items():
                 inverse[v][u] = w
+        reference = Graph(deepcopy(graph))
         g = Graph(deepcopy(graph))
 
         g.reduce(iterations)
 
         assert g.graph == g.unreduced_graph == graph
         assert g.inverse_graph == inverse
-
-
-@pytest.mark.parametrize("iterations", _ITERATIONS)
-@_fail_instead_of_looping(seconds=20)
-def test_get_on_a_reduced_graph_gives_a_row_of_the_original_graph(
-    Graph, iterations
-):
-    for graph in CHECKED_GRAPHS:
-        g = Graph(deepcopy(graph))
-        g.reduce(iterations)
         # A GeoGraph subclass may keep its graph as a class attribute.
         holder = type("Holder", (), {"graph": g})
-
-        rows = [holder.graph.get(u) for u in range(len(graph))]
-
-        assert rows == graph
+        assert [holder.graph.get(u) for u in range(len(graph))] == graph
+        for origin in range(len(graph)):
+            tree = g.get_shortest_path_tree(origin)
+            assert tree == reference.get_shortest_path_tree(origin)
 
 
 def test_get_on_a_reduced_graph_refuses_an_id_outside_the_graph(Graph):
@@ -331,6 +321,7 @@ def test_get_on_a_reduced_graph_refuses_an_id_outside_the_graph(Graph):
         g.get(-1)
 
 
+# Only the searches read the reduced graph, through `search_graph`.
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
 def test_searches_on_a_reduced_graph_read_the_reduced_links(Graph, iterations):
@@ -341,19 +332,6 @@ def test_searches_on_a_reduced_graph_read_the_reduced_links(Graph, iterations):
 
         assert g.search_graph == g.reduced_graph
         assert g.search_inverse_graph == g.reduced_inverse_graph
-
-
-@pytest.mark.parametrize("iterations", _ITERATIONS)
-@_fail_instead_of_looping(seconds=20)
-def test_reduced_graph_gives_the_trees_of_the_original_graph(Graph, iterations):
-    for graph in CHECKED_GRAPHS:
-        reference = Graph(deepcopy(graph))
-        g = Graph(deepcopy(graph))
-        g.reduce(iterations)
-
-        for origin in range(len(graph)):
-            tree = g.get_shortest_path_tree(origin)
-            assert tree == reference.get_shortest_path_tree(origin)
 
 
 @pytest.mark.parametrize(

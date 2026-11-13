@@ -21,6 +21,9 @@ both_backends = pytest.mark.parametrize(
     "backend", list(BACKENDS.values()), ids=list(BACKENDS)
 )
 
+# These tests call the steps that assemble a network during a build. No public
+# call runs one step alone: a build needs the download of its sources.
+
 BIG = 2**40  # an id beyond 32 bits
 
 
@@ -49,38 +52,37 @@ def _columns(arcs):
     return array("q", origins), array("q", destinations), array("d", weights)
 
 
-@both_backends
-def test_csr_from_arcs_lists_the_ids_of_the_arcs_sorted_without_self_loops(
-    backend,
-):
-    node_ids, *_ = backend.build_csr_from_arcs(
-        *_columns(ARCS_WITH_PARALLELS_AND_LOOPS)
-    )
-
-    assert list(node_ids) == [-7, 10, 20, BIG]
-
-
-@both_backends
-def test_csr_from_arcs_keeps_the_shortest_of_parallel_arcs(backend):
-    # `kept` gives the input index of each stored arc. The rows are those of
-    # -7 (no arc), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each
-    # sorted by destination. From BIG to 10, arc 2 is kept: arc 0 is longer,
-    # and arc 4 is as short but comes later. From 20 to BIG, arc 6 is kept.
-    _, offsets, heads, weights, kept = backend.build_csr_from_arcs(
-        *_columns(ARCS_WITH_PARALLELS_AND_LOOPS)
-    )
-
-    assert list(kept) == [1, 6, 5, 2, 7]
-    assert list(offsets) == [0, 0, 1, 2, 5]
-    assert list(heads) == [3, 3, 0, 1, 2]
-    assert list(weights) == [1.0, 3.0, 4.0, 1.5, 0.5]
+# The result of `build_csr_from_arcs` is (node ids, offsets, heads, weights,
+# kept). The ids are sorted: 5 is not among them. The rows are those of -7 (no
+# arc), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each sorted by
+# destination. `kept` gives the input index of each stored arc. From BIG to
+# 10, arc 2 is kept: arc 0 is longer, and arc 4 is as short but comes later.
+# From 20 to BIG, arc 6 is kept.
+CSR_OF_THE_SHORTEST_ARCS = (
+    [-7, 10, 20, BIG],
+    [0, 0, 1, 2, 5],
+    [3, 3, 0, 1, 2],
+    [1.0, 3.0, 4.0, 1.5, 0.5],
+    [1, 6, 5, 2, 7],
+)
 
 
 @both_backends
-def test_csr_from_no_arcs_is_a_graph_without_nodes(backend):
-    result = backend.build_csr_from_arcs(*_columns([]))
+@pytest.mark.parametrize(
+    "arcs, csr",
+    [
+        pytest.param(
+            ARCS_WITH_PARALLELS_AND_LOOPS,
+            CSR_OF_THE_SHORTEST_ARCS,
+            id="parallel arcs and self-loops",
+        ),
+        pytest.param([], ([], [0], [], [], []), id="no arcs"),
+    ],
+)
+def test_csr_from_arcs_stores_the_shortest_arcs_by_origin(backend, arcs, csr):
+    result = backend.build_csr_from_arcs(*_columns(arcs))
 
-    assert tuple(map(list, result)) == ([], [0], [], [], [])
+    assert tuple(map(list, result)) == csr
 
 
 def _random_arcs(seed):
@@ -187,34 +189,34 @@ OFFSETS = array("i", [0, 1, 2, 4, 5, 6, 7])
 HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
 
 
-def test_only_the_largest_component_is_kept_without_a_minimum_size():
-    nodes, _ = assembly.keep_strongly_connected_components(OFFSETS, HEADS)
-
-    assert list(nodes) == [1, 2, 3]
-
-
-def test_every_component_of_the_minimum_size_is_kept():
-    nodes, _ = assembly.keep_strongly_connected_components(
-        OFFSETS, HEADS, min_nodes=2
+@pytest.mark.parametrize(
+    "options, kept_nodes",
+    [
+        pytest.param(
+            {},
+            [1, 2, 3],
+            id="only the largest component without a minimum size",
+        ),
+        pytest.param(
+            {"min_nodes": 2},
+            [1, 2, 3, 4, 5],
+            id="every component of the minimum size",
+        ),
+        pytest.param(
+            {"min_nodes": 1},
+            [0, 1, 2, 3, 4, 5],
+            id="every node with a minimum size of one node",
+        ),
+    ],
+)
+def test_components_are_kept_by_their_size(options, kept_nodes):
+    nodes, labels = assembly.keep_strongly_connected_components(
+        OFFSETS, HEADS, **options
     )
 
-    assert list(nodes) == [1, 2, 3, 4, 5]
-
-
-def test_a_minimum_size_of_one_node_keeps_every_node():
-    nodes, _ = assembly.keep_strongly_connected_components(
-        OFFSETS, HEADS, min_nodes=1
-    )
-
-    assert list(nodes) == [0, 1, 2, 3, 4, 5]
-
-
-def test_the_nodes_of_a_component_share_a_label_that_no_other_node_has():
-    _, labels = assembly.keep_strongly_connected_components(OFFSETS, HEADS)
-
-    assert labels[1] == labels[2] == labels[3]
-    assert labels[4] == labels[5]
-    assert len({labels[0], labels[1], labels[4]}) == 3
+    assert list(nodes) == kept_nodes
+    # The label of a node is the number of its component, kept or not
+    assert list(labels) == [0, 1, 1, 1, 2, 2]
 
 
 def _scatter_nodes_around(centre):
@@ -323,22 +325,15 @@ def assembled(tmp_path_factory):
     return arrays
 
 
-def test_assemble_leaves_out_an_arc_that_joins_two_components_one_way(
+def test_assemble_keeps_closed_components_and_contracts_their_chains(
     assembled,
 ):
+    # The piece from 3 to 4 joins two components one way only: it is left
+    # out. Place 2 is between 1 and 3 only: it is contracted. The arc from 1
+    # to 3 has the length of the two pieces, 1 km + 2 km.
     arcs = _by_node_ids(assembled, lambda arc: assembled["weights"][arc])
 
-    assert (3, 4) not in arcs
-    assert arcs[4, 5] == arcs[5, 4] == 4.0
-
-
-def test_assemble_contracts_a_node_that_a_road_only_passes_through(assembled):
-    # Place 2 is between 1 and 3 only. The arc from 1 to 3 has the length of
-    # the two pieces: 1 km + 2 km.
-    arcs = _by_node_ids(assembled, lambda arc: assembled["weights"][arc])
-
-    assert sorted(arcs) == [(1, 3), (3, 1), (4, 5), (5, 4)]
-    assert arcs[1, 3] == arcs[3, 1] == 3.0
+    assert arcs == {(1, 3): 3.0, (3, 1): 3.0, (4, 5): 4.0, (5, 4): 4.0}
 
 
 def _shape_points(arrays, arc):
@@ -355,28 +350,16 @@ def test_the_shape_of_a_contracted_arc_passes_through_the_contracted_node(
     shapes = _by_node_ids(assembled, lambda arc: _shape_points(assembled, arc))
 
     # The points of piece 1-2, then place 2, then the points of piece 2-3
-    assert shapes[1, 3] == [
+    points_from_1_to_3 = [
         (30000, 30000),
         (40000, 60000),
         (0, 100000),
         (30000, 130000),
         (40000, 160000),
     ]
-
-
-def test_the_shape_of_the_reverse_arc_lists_the_points_backwards(
-    assembled,
-):
-    shapes = _by_node_ids(assembled, lambda arc: _shape_points(assembled, arc))
-
-    # The points of piece 2-3 from its end, then place 2, then those of 1-2
-    assert shapes[3, 1] == [
-        (40000, 160000),
-        (30000, 130000),
-        (0, 100000),
-        (40000, 60000),
-        (30000, 30000),
-    ]
+    assert shapes[1, 3] == points_from_1_to_3
+    # The reverse arc lists the same points from its own origin
+    assert shapes[3, 1] == points_from_1_to_3[::-1]
 
 
 def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
@@ -405,95 +388,106 @@ def _two_way(*pairs):
     return _csr(two_way=[(u, v, 1.0) for u, v in pairs])
 
 
-# The graphs below are given as (offsets, heads, km). Their arcs are 1 km
-# long. `contract_chains` gives first the nodes that it keeps.
-ROAD_WITH_A_DEAD_END = _two_way((0, 1), (1, 2), (2, 3), (1, 4))
+# Each case below is the three arguments of `contract_chains`: a graph as
+# (offsets, heads, km), the mode of each node or None, and the length at
+# which a chain is cut. The arcs are 1 km long.
 
-
-@both_backends
-def test_a_node_between_two_others_is_contracted_and_a_dead_end_stays(backend):
-    # Node 2 is between 1 and 3. Node 4 is a dead end off node 1.
-    kept, *_ = backend.contract_chains(*ROAD_WITH_A_DEAD_END, None, math.inf)
-
-    assert list(kept) == [0, 1, 3, 4]
-
-
-TWO_CHAINS_BETWEEN_THE_SAME_NODES = _two_way((0, 1), (1, 3), (0, 2), (2, 3))
-
-
-@both_backends
-def test_the_second_of_two_parallel_chains_is_cut_at_its_middle(backend):
-    # The chains 0-1-3 and 0-2-3 would give two arcs from 0 to 3. The first
-    # one contracts node 1. The second one keeps its middle node, 2.
-    kept, *_ = backend.contract_chains(
-        *TWO_CHAINS_BETWEEN_THE_SAME_NODES, None, math.inf
-    )
-
-    assert list(kept) == [0, 2, 3]
-
-
-ONE_WAY_LOOP_OFF_A_ROAD = _csr(
-    one_way=[(0, 1, 1), (1, 2, 1), (2, 3, 1), (3, 0, 1)], two_way=[(0, 4, 1)]
+# Node 2 is between 1 and 3. Node 4 is a dead end off node 1.
+ROAD_WITH_A_DEAD_END = (
+    _two_way((0, 1), (1, 2), (2, 3), (1, 4)),
+    None,
+    math.inf,
+)
+# The chains 0-1-3 and 0-2-3 would give two arcs from 0 to 3. The first one
+# contracts node 1. The second one keeps its middle node, 2.
+TWO_CHAINS_BETWEEN_THE_SAME_NODES = (
+    _two_way((0, 1), (1, 3), (0, 2), (2, 3)),
+    None,
+    math.inf,
+)
+# The loop 0 -> 1 -> 2 -> 3 -> 0 would give an arc from 0 to 0. It keeps its
+# middle node, 2.
+ONE_WAY_LOOP_OFF_A_ROAD = (
+    _csr(
+        one_way=[(0, 1, 1), (1, 2, 1), (2, 3, 1), (3, 0, 1)],
+        two_way=[(0, 4, 1)],
+    ),
+    None,
+    math.inf,
+)
+TWO_ONE_WAY_ROADS_THAT_MERGE = (
+    _csr(one_way=[(0, 2, 1), (1, 2, 1), (2, 3, 1)]),
+    None,
+    math.inf,
+)
+ONE_WAY_CYCLE = (
+    _csr(one_way=[(1, 2, 1), (2, 3, 1), (3, 0, 1), (0, 1, 1)]),
+    None,
+    math.inf,
+)
+# The mode of each node: a road (nodes 0 and 1), a port (2), the sea (3 and 4)
+ROAD_PORT_SEA = (
+    _two_way((0, 1), (1, 2), (2, 3), (3, 4)),
+    array("B", [0, 0, 1, 2, 2]),
+    math.inf,
+)
+# The road is 0-4-3-2-1-5. It is walked from its lower end, node 0, and cut
+# every 2 km: at node 3, then at node 1.
+LONG_ROAD_CUT_EVERY_2_KM = (
+    _two_way((5, 1), (1, 2), (2, 3), (3, 4), (4, 0)),
+    None,
+    2.0,
 )
 
 
+# `contract_chains` gives first the nodes that it keeps.
 @both_backends
-def test_a_chain_that_comes_back_to_its_start_is_cut_at_its_middle(backend):
-    # The loop 0 -> 1 -> 2 -> 3 -> 0 would give an arc from 0 to 0. It keeps
-    # its middle node, 2.
-    kept, *_ = backend.contract_chains(*ONE_WAY_LOOP_OFF_A_ROAD, None, math.inf)
-
-    assert list(kept) == [0, 2, 4]
-
-
-TWO_ONE_WAY_ROADS_THAT_MERGE = _csr(one_way=[(0, 2, 1), (1, 2, 1), (2, 3, 1)])
-
-
-@both_backends
-def test_a_node_where_two_one_way_roads_merge_is_kept(backend):
-    kept, *_ = backend.contract_chains(
-        *TWO_ONE_WAY_ROADS_THAT_MERGE, None, math.inf
-    )
-
-    assert list(kept) == [0, 1, 2, 3]
-
-
-ONE_WAY_CYCLE = _csr(one_way=[(1, 2, 1), (2, 3, 1), (3, 0, 1), (0, 1, 1)])
-
-
-@both_backends
-def test_a_cycle_joined_to_nothing_keeps_its_lowest_node_and_its_middle(
-    backend,
+@pytest.mark.parametrize(
+    "graph, modes, max_km, kept_nodes",
+    [
+        pytest.param(
+            *ROAD_WITH_A_DEAD_END,
+            [0, 1, 3, 4],
+            id="a node between two others is contracted and a dead end stays",
+        ),
+        pytest.param(
+            *TWO_CHAINS_BETWEEN_THE_SAME_NODES,
+            [0, 2, 3],
+            id="the second of two parallel chains is cut at its middle",
+        ),
+        pytest.param(
+            *ONE_WAY_LOOP_OFF_A_ROAD,
+            [0, 2, 4],
+            id="a chain that comes back to its start is cut at its middle",
+        ),
+        pytest.param(
+            *TWO_ONE_WAY_ROADS_THAT_MERGE,
+            [0, 1, 2, 3],
+            id="a node where two one-way roads merge is kept",
+        ),
+        pytest.param(
+            *ONE_WAY_CYCLE,
+            [0, 2],
+            id="a cycle joined to nothing keeps its lowest node and its middle",
+        ),
+        pytest.param(
+            *ROAD_PORT_SEA,
+            [0, 1, 2, 3, 4],
+            id="a node between two nodes of other modes is kept",
+        ),
+        pytest.param(
+            *LONG_ROAD_CUT_EVERY_2_KM,
+            [0, 1, 3, 5],
+            id="a long chain is cut each time it reaches max_km_between_nodes",
+        ),
+    ],
+)
+def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
+    backend, graph, modes, max_km, kept_nodes
 ):
-    kept, *_ = backend.contract_chains(*ONE_WAY_CYCLE, None, math.inf)
+    kept, *_ = backend.contract_chains(*graph, modes, max_km)
 
-    assert list(kept) == [0, 2]
-
-
-ROAD_PORT_SEA = _two_way((0, 1), (1, 2), (2, 3), (3, 4))
-# The mode of each node: a road (nodes 0 and 1), a port (2), the sea (3 and 4)
-MODES_OF_ROAD_PORT_SEA = array("B", [0, 0, 1, 2, 2])
-
-
-@both_backends
-def test_a_node_between_two_nodes_of_other_modes_is_kept(backend):
-    kept, *_ = backend.contract_chains(
-        *ROAD_PORT_SEA, MODES_OF_ROAD_PORT_SEA, math.inf
-    )
-
-    assert list(kept) == [0, 1, 2, 3, 4]
-
-
-LONG_ROAD = _two_way((5, 1), (1, 2), (2, 3), (3, 4), (4, 0))
-
-
-@both_backends
-def test_a_long_chain_is_cut_each_time_it_reaches_max_km_between_nodes(backend):
-    # The road is 0-4-3-2-1-5. It is walked from its lower end, node 0, and
-    # cut every 2 km: at node 3, then at node 1.
-    kept, *_ = backend.contract_chains(*LONG_ROAD, None, 2.0)
-
-    assert list(kept) == [0, 1, 3, 5]
+    assert list(kept) == kept_nodes
 
 
 def _random_chains(seed):
@@ -520,19 +514,19 @@ def _random_chains(seed):
     return graph, modes, rng.choice([math.inf, 0.5])
 
 
-# The tests below state what holds for any graph: they run on the seven graphs
+# The test below states what holds for any graph: it runs on the seven cases
 # above and on six random graphs. A contracted arc is given by its `members`:
 # the arcs of the graph that it replaces, in travel order.
 on_every_graph = pytest.mark.parametrize(
     "graph, modes, max_km",
     [
-        (ROAD_WITH_A_DEAD_END, None, math.inf),
-        (TWO_CHAINS_BETWEEN_THE_SAME_NODES, None, math.inf),
-        (ONE_WAY_LOOP_OFF_A_ROAD, None, math.inf),
-        (TWO_ONE_WAY_ROADS_THAT_MERGE, None, math.inf),
-        (ONE_WAY_CYCLE, None, math.inf),
-        (ROAD_PORT_SEA, MODES_OF_ROAD_PORT_SEA, math.inf),
-        (LONG_ROAD, None, 2.0),
+        ROAD_WITH_A_DEAD_END,
+        TWO_CHAINS_BETWEEN_THE_SAME_NODES,
+        ONE_WAY_LOOP_OFF_A_ROAD,
+        TWO_ONE_WAY_ROADS_THAT_MERGE,
+        ONE_WAY_CYCLE,
+        ROAD_PORT_SEA,
+        LONG_ROAD_CUT_EVERY_2_KM,
         *(_random_chains(seed) for seed in range(6)),
     ],
 )
@@ -555,90 +549,43 @@ def _members_of_each_arc(member_offsets, members):
 
 @both_backends
 @on_every_graph
-def test_every_arc_is_a_member_of_exactly_one_contracted_arc(
+def test_contracted_arcs_replace_the_chains_of_the_graph(
     backend, graph, modes, max_km
 ):
-    *_, members = backend.contract_chains(*graph, modes, max_km)
-
-    assert sorted(members) == list(range(len(graph[1])))
-
-
-@both_backends
-@on_every_graph
-def test_a_contracted_arc_follows_its_members_between_two_kept_nodes(
-    backend, graph, modes, max_km
-):
-    offsets, heads, _ = graph
+    offsets, heads, weights = graph
     origin_of = _origin_of_each_arc(offsets)
 
-    kept, origins, ends, _, member_offsets, members = backend.contract_chains(
+    kept, origins, ends, km, member_offsets, members = backend.contract_chains(
         *graph, modes, max_km
     )
 
-    contracted_arcs = zip(
-        origins, ends, _members_of_each_arc(member_offsets, members)
-    )
-    for origin, end, arcs in contracted_arcs:
+    # Every arc is a member of exactly one contracted arc
+    assert sorted(members) == list(range(len(heads)))
+    # The contracted arcs are sorted by origin then end, without twin or loop
+    pairs = list(zip(origins, ends))
+    assert pairs == sorted(set(pairs))
+    assert all(origin != end for origin, end in pairs)
+    # A contracted arc follows its members between two kept nodes
+    members_of = _members_of_each_arc(member_offsets, members)
+    for origin, end, arcs in zip(origins, ends, members_of):
         assert origin_of[arcs[0]] == kept[origin]
         assert heads[arcs[-1]] == kept[end]
         # Each member starts where the one before ends, at a contracted node
         for arc, next_arc in zip(arcs, arcs[1:]):
             assert heads[arc] == origin_of[next_arc]
             assert heads[arc] not in kept
-
-
-@both_backends
-@on_every_graph
-def test_a_contracted_arc_has_the_length_of_its_members(
-    backend, graph, modes, max_km
-):
-    weights = graph[2]
-
-    _, _, _, km, member_offsets, members = backend.contract_chains(
-        *graph, modes, max_km
-    )
-
+    # A contracted arc has the length of its members
     assert list(km) == pytest.approx(
-        [
-            sum(weights[arc] for arc in arcs)
-            for arcs in _members_of_each_arc(member_offsets, members)
-        ]
+        [sum(weights[arc] for arc in arcs) for arcs in members_of]
     )
-
-
-@both_backends
-@on_every_graph
-def test_contracted_arcs_are_sorted_by_origin_then_end_without_loop_or_twin(
-    backend, graph, modes, max_km
-):
-    _, origins, ends, *_ = backend.contract_chains(*graph, modes, max_km)
-
-    pairs = list(zip(origins, ends))
-    assert pairs == sorted(set(pairs))
-    assert all(origin != end for origin, end in pairs)
-
-
-@both_backends
-@on_every_graph
-def test_the_two_directions_of_a_chain_have_the_same_length_to_the_last_bit(
-    backend, graph, modes, max_km
-):
-    offsets, heads, _ = graph
-    origin_of = _origin_of_each_arc(offsets)
-
-    _, _, _, km, member_offsets, members = backend.contract_chains(
-        *graph, modes, max_km
-    )
-
-    # The length of each contracted arc, by the nodes that it passes
+    # The two directions of a chain have the same length to the last bit.
+    # `km_along` gives the length of each contracted arc by the nodes that it
+    # passes. A chain that has no reverse arc is compared with itself.
     km_along = {
         (origin_of[arcs[0]], *(heads[arc] for arc in arcs)): length
-        for arcs, length in zip(
-            _members_of_each_arc(member_offsets, members), km
-        )
+        for arcs, length in zip(members_of, km)
     }
     for nodes, length in km_along.items():
-        # A chain that has no reverse arc is compared with itself
         assert km_along.get(nodes[::-1], length) == length
 
 
@@ -677,86 +624,82 @@ def _simplify(backend, ends, interior, tolerance_m):
 ALONG_THE_EQUATOR = (0, 0, 0, 1000000)
 
 
-@both_backends
-def test_points_within_the_tolerance_of_the_straight_line_are_dropped(backend):
-    # 500 units of latitude are 5.6 m, and the tolerance is 10 m
-    close_to_the_line = [(500, 300000), (-500, 600000)]
-
-    kept = _simplify(backend, ALONG_THE_EQUATOR, close_to_the_line, 10)
-
-    assert kept == []
+# A line to the north at latitude 60, where a degree of longitude is half as
+# long as at the equator
+NORTH_AT_LATITUDE_60 = (600000000, 0, 601000000, 0)
+# Lines of 0.002 degree across the antimeridian
+EASTWARDS_ACROSS_THE_ANTIMERIDIAN = (0, 1799900000, 0, -1799900000)
+WESTWARDS_ACROSS_THE_ANTIMERIDIAN = (0, -1799900000, 0, 1799900000)
 
 
-@both_backends
-def test_a_point_on_the_straight_line_is_dropped_with_a_tolerance_of_zero(
-    backend,
-):
-    kept = _simplify(backend, ALONG_THE_EQUATOR, [(0, 500000)], 0)
-
-    assert kept == []
-
-
-@both_backends
-def test_a_point_past_the_end_of_the_line_is_kept(backend):
-    # The point is on the equator too, 5.6 km east of the end of the line
-    past_the_end = [(0, 1500000)]
-
-    kept = _simplify(backend, ALONG_THE_EQUATOR, past_the_end, 10)
-
-    assert kept == past_the_end
-
-
-@both_backends
-def test_a_point_is_dropped_when_it_is_near_the_line_of_the_kept_points(
-    backend,
-):
-    # The third point is 67 m off the equator: kept. The first point is 55 m
-    # off the line from the start to the third point: kept. The second point
-    # is 17 m off the line between these two points, within the 20 m: dropped.
-    interior = [(3000, 250000), (0, 500000), (-6000, 750000)]
-
-    kept = _simplify(backend, ALONG_THE_EQUATOR, interior, 20)
-
-    assert kept == [(3000, 250000), (-6000, 750000)]
-
-
-@both_backends
-def test_the_distance_to_the_line_counts_a_degree_of_longitude_at_its_latitude(
-    backend,
-):
-    # A line to the north at latitude 60, where a degree of longitude is half
-    # as long as at the equator. The point is 4000 units of longitude east of
-    # it: 22 m, within the 30 m. At the equator, it would be 44 m away.
-    north_at_latitude_60 = (600000000, 0, 601000000, 0)
-
-    kept = _simplify(backend, north_at_latitude_60, [(600500000, 4000)], 30)
-
-    assert kept == []
-
-
-# A line of 0.002 degree across the antimeridian, with two points on it. The
-# points are within 1 m of the line only if the line is taken the short way.
 @both_backends
 @pytest.mark.parametrize(
-    "ends, points_on_the_line",
+    "ends, interior, tolerance_m, kept_points",
     [
-        (
-            (0, 1799900000, 0, -1799900000),
-            [(0, 1800000000), (0, -1799950000)],
+        # 500 units of latitude are 5.6 m.
+        pytest.param(
+            ALONG_THE_EQUATOR,
+            [(500, 300000), (-500, 600000)],
+            10,
+            [],
+            id="points within the tolerance of the straight line are dropped",
         ),
-        (
-            (0, -1799900000, 0, 1799900000),
+        pytest.param(
+            ALONG_THE_EQUATOR,
+            [(0, 500000)],
+            0,
+            [],
+            id="a point on the straight line is dropped with a tolerance of 0",
+        ),
+        # The point is on the equator too, 5.6 km east of the end of the line.
+        pytest.param(
+            ALONG_THE_EQUATOR,
+            [(0, 1500000)],
+            10,
+            [(0, 1500000)],
+            id="a point past the end of the line is kept",
+        ),
+        # The third point is 67 m off the equator: kept. The first point is
+        # 55 m off the line from the start to the third point: kept. The
+        # second point is 17 m off the line between these two points: dropped.
+        pytest.param(
+            ALONG_THE_EQUATOR,
+            [(3000, 250000), (0, 500000), (-6000, 750000)],
+            20,
+            [(3000, 250000), (-6000, 750000)],
+            id="a point near the line of the kept points is dropped",
+        ),
+        # The point is 4000 units of longitude east of the line: 22 m at
+        # latitude 60. At the equator, it would be 44 m away.
+        pytest.param(
+            NORTH_AT_LATITUDE_60,
+            [(600500000, 4000)],
+            30,
+            [],
+            id="a degree of longitude is counted at the latitude of the line",
+        ),
+        # The two points are within 1 m of the line only if the line is taken
+        # the short way.
+        pytest.param(
+            EASTWARDS_ACROSS_THE_ANTIMERIDIAN,
+            [(0, 1800000000), (0, -1799950000)],
+            1,
+            [],
+            id="a line eastwards across the antimeridian goes the short way",
+        ),
+        pytest.param(
+            WESTWARDS_ACROSS_THE_ANTIMERIDIAN,
             [(0, -1800000000), (0, 1799950000)],
+            1,
+            [],
+            id="a line westwards across the antimeridian goes the short way",
         ),
     ],
-    ids=["eastwards", "westwards"],
 )
-def test_a_line_across_the_antimeridian_is_taken_the_short_way(
-    backend, ends, points_on_the_line
+def test_simplify_keeps_the_points_beyond_the_tolerance_of_the_simplified_line(
+    backend, ends, interior, tolerance_m, kept_points
 ):
-    kept = _simplify(backend, ends, points_on_the_line, 1)
-
-    assert kept == []
+    assert _simplify(backend, ends, interior, tolerance_m) == kept_points
 
 
 @both_backends

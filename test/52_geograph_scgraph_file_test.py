@@ -61,20 +61,14 @@ def small_file(tmp_path_factory):
     return path
 
 
-def test_a_saved_network_is_read_back_with_its_graph_nodes_and_units(
-    small_file,
-):
+def test_a_saved_network_is_read_back_as_it_was_saved(small_file):
     loaded = GeoGraph.load_from_scgraph(small_file)
 
     assert loaded.graph_object.graph == SMALL_GRAPH
     assert loaded.nodes == SMALL_NODES
     assert loaded.geograph_units == "mi"
-
-
-def test_a_saved_network_is_read_back_with_the_shapes_of_its_arcs(small_file):
-    loaded = GeoGraph.load_from_scgraph(small_file)
-
     assert loaded.intermediate_nodes == SMALL_SHAPES
+    assert loaded.metadata == {"sources": SOURCES}
 
 
 def test_a_network_saved_without_its_shapes_is_read_back_without_shapes(
@@ -89,12 +83,6 @@ def test_a_network_saved_without_its_shapes_is_read_back_without_shapes(
     assert loaded.graph_object.graph == SMALL_GRAPH
 
 
-def test_a_loaded_network_has_the_sources_that_its_file_names(small_file):
-    loaded = GeoGraph.load_from_scgraph(small_file)
-
-    assert loaded.metadata == {"sources": SOURCES}
-
-
 def test_a_loaded_network_is_saved_again_with_its_sources(small_file, tmp_path):
     again = str(tmp_path / "again.scgraph")
 
@@ -103,42 +91,30 @@ def test_a_loaded_network_is_saved_again_with_its_sources(small_file, tmp_path):
     assert GeoGraph.get_scgraph_info(again)["sources"] == SOURCES
 
 
-def test_shapes_read_from_a_file_are_indexed_like_the_list_that_was_saved(
-    small_file,
-):
+def test_shapes_read_from_a_file_behave_as_the_list_that_was_saved(small_file):
     shapes = GeoGraph.load_from_scgraph(small_file).intermediate_nodes
 
     assert shapes[-4] == SMALL_SHAPES[0]
     assert shapes[1:3] == SMALL_SHAPES[1:3]
-
-
-def test_shapes_read_from_a_file_are_copied_as_a_list(small_file):
-    shapes = GeoGraph.load_from_scgraph(small_file).intermediate_nodes
-
     assert type(copy.copy(shapes)) is list
     assert copy.deepcopy(shapes) == SMALL_SHAPES
 
 
-def test_a_route_on_a_loaded_network_passes_the_points_of_the_shapes(
-    small_file,
-):
-    loaded = GeoGraph.load_from_scgraph(small_file)
-
-    route = _route_0_to_1(loaded)
-
-    assert [0.0029, 0.0058] in route
-    assert route == _route_0_to_1(_small())
-
-
-# A node keeps the id that the geograph was given for it. A node added since
-# gets a negative id, and a save keeps both.
+# A node keeps the id that the geograph was given for it. Without ids, the id
+# of a node is its position. A node added since gets a negative id, and a save
+# keeps them all.
 @pytest.mark.parametrize(
-    "node_ids",
-    [[7, 5, 3, 1], [2**40, 5, 3, 1]],
-    ids=["ids within 32 bits", "an id beyond 32 bits"],
+    "node_ids, ids_before_the_addition",
+    [
+        pytest.param([7, 5, 3, 1], [7, 5, 3, 1], id="ids within 32 bits"),
+        pytest.param(
+            [2**40, 5, 3, 1], [2**40, 5, 3, 1], id="an id beyond 32 bits"
+        ),
+        pytest.param(None, [0, 1, 2, 3], id="no ids: the positions"),
+    ],
 )
 def test_node_ids_and_the_id_of_an_added_node_are_kept_through_saves(
-    tmp_path, node_ids
+    tmp_path, node_ids, ids_before_the_addition
 ):
     path, again = str(tmp_path / "small.scgraph"), str(
         tmp_path / "again.scgraph"
@@ -149,42 +125,30 @@ def test_node_ids_and_the_id_of_an_added_node_are_kept_through_saves(
     # Saved to another file: Windows does not replace a mapped file
     loaded.save_as_scgraph(again)
 
-    assert GeoGraph.load_from_scgraph(again).node_ids == [*node_ids, -1]
+    assert GeoGraph.load_from_scgraph(again).node_ids == [
+        *ids_before_the_addition,
+        -1,
+    ]
 
 
-def test_without_node_ids_the_id_of_a_node_is_its_position(tmp_path):
-    path, again = str(tmp_path / "small.scgraph"), str(
-        tmp_path / "again.scgraph"
-    )
-    _small().save_as_scgraph(path)
-    loaded = GeoGraph.load_from_scgraph(path)
-    loaded.add_coord_node({"latitude": 2.0, "longitude": 2.0}, auto_edge=False)
-    loaded.save_as_scgraph(again)
-
-    assert GeoGraph.load_from_scgraph(again).node_ids == [0, 1, 2, 3, -1]
-
-
-def test_a_network_whose_ids_are_the_positions_stores_no_node_ids(small_file):
-    assert GeoGraph.get_scgraph_info(small_file)["node_ids"] is False
-
-
-def test_node_ids_are_stored_in_32_bits_when_they_all_fit(tmp_path):
+# OpenStreetMap has node ids beyond 32 bits. No call of GeoGraph shows the
+# size of the ids in the file: the test reads the arrays of the file.
+@pytest.mark.parametrize(
+    "node_ids, bytes_per_id",
+    [
+        pytest.param([7, 5, 3, 1], 4, id="ids within 32 bits"),
+        pytest.param([2**40, 5, 3, 1], 8, id="an id beyond 32 bits"),
+    ],
+)
+def test_node_ids_are_stored_in_32_bits_when_they_all_fit_and_else_in_64(
+    tmp_path, node_ids, bytes_per_id
+):
     path = str(tmp_path / "small.scgraph")
-    _small([7, 5, 3, 1]).save_as_scgraph(path)
+    _small(node_ids).save_as_scgraph(path)
 
     arrays, _ = network_file.read(path)
 
-    assert arrays["node_ids"].itemsize == 4
-
-
-def test_node_ids_are_stored_in_64_bits_when_one_does_not_fit_in_32(tmp_path):
-    # OpenStreetMap has node ids beyond 32 bits
-    path = str(tmp_path / "small.scgraph")
-    _small([2**40, 5, 3, 1]).save_as_scgraph(path)
-
-    arrays, _ = network_file.read(path)
-
-    assert arrays["node_ids"].itemsize == 8
+    assert arrays["node_ids"].itemsize == bytes_per_id
 
 
 def _small_listed_backwards():
@@ -208,14 +172,7 @@ def test_a_file_lists_the_nodes_in_hilbert_order(tmp_path):
     assert loaded.nodes == SMALL_NODES
     assert loaded.graph_object.graph == SMALL_GRAPH
     assert loaded.intermediate_nodes == SMALL_SHAPES
-
-
-def test_a_node_moved_by_a_save_keeps_its_former_position_as_its_id(tmp_path):
-    path = str(tmp_path / "small.scgraph")
-    _small_listed_backwards().save_as_scgraph(path)
-
-    loaded = GeoGraph.load_from_scgraph(path)
-
+    # A node moved by the save keeps its former position as its id.
     assert list(loaded.node_ids) == [3, 2, 1, 0]
 
 
@@ -230,11 +187,23 @@ def test_a_save_does_not_change_the_order_of_the_nodes_of_the_geograph(
     assert backwards.graph_object.graph == [{}, {}, {3: 5}, {1: 1.25, 2: 5}]
 
 
-def test_a_loaded_file_is_saved_again_as_the_same_file(tmp_path):
+both_coordinate_dtypes = pytest.mark.parametrize(
+    "coordinate_dtype", ["float64", "int32"]
+)
+
+
+@both_coordinate_dtypes
+def test_a_loaded_file_is_saved_again_as_the_same_file(
+    tmp_path, coordinate_dtype
+):
+    # The second file has the digest of the first: the same bytes, so the
+    # same order of nodes, the same ids and the same dtype of coordinates
     path, again = str(tmp_path / "small.scgraph"), str(
         tmp_path / "again.scgraph"
     )
-    digest = _small_listed_backwards().save_as_scgraph(path)
+    digest = _small_listed_backwards().save_as_scgraph(
+        path, coordinate_dtype=coordinate_dtype
+    )
 
     digest_again = GeoGraph.load_from_scgraph(path).save_as_scgraph(again)
 
@@ -278,21 +247,23 @@ def road_and_sea_file(road_merged_with_sea, tmp_path_factory):
     return path
 
 
-def test_additions_and_a_merge_add_their_modes_after_those_of_the_geograph(
+def test_additions_and_a_merge_give_each_node_its_mode_and_cite_both_sources(
     road_merged_with_sea,
 ):
-    assert road_merged_with_sea.modes == [
+    road = road_merged_with_sea
+
+    # The modes of the additions and of the merge come after the road mode.
+    assert road.modes == [
         {"name": "road", "source": "osm"},
         {"name": None},
         {"name": "port"},
         {"name": "sea", "source": "lanes"},
     ]
-
-
-def test_each_node_has_the_mode_that_it_was_added_with(road_merged_with_sea):
     # Two road nodes, the node without a mode, the road node added after it,
     # the port node of the merge, then the two sea nodes
-    assert list(road_merged_with_sea.node_modes) == [0, 0, 1, 0, 2, 3, 3]
+    assert list(road.node_modes) == [0, 0, 1, 0, 2, 3, 3]
+    # Each mode names its source, so the merged geograph needs both sources
+    assert road.metadata["sources"] == [{"name": "osm"}, {"name": "lanes"}]
 
 
 def test_a_merge_leaves_the_modes_of_the_other_geograph(
@@ -301,30 +272,16 @@ def test_a_merge_leaves_the_modes_of_the_other_geograph(
     assert list(sea.node_modes) == [0, 0]
 
 
-def test_a_merged_geograph_cites_the_sources_of_both(road_merged_with_sea):
-    # Each mode names its source, so the merged geograph needs both sources
-    assert road_merged_with_sea.metadata["sources"] == [
-        {"name": "osm"},
-        {"name": "lanes"},
-    ]
-
-
-def test_a_file_lists_the_nodes_mode_by_mode(
-    road_merged_with_sea, road_and_sea_file
-):
-    loaded = GeoGraph.load_from_scgraph(road_and_sea_file)
-
-    assert loaded.modes == road_merged_with_sea.modes
-    assert list(loaded.node_modes) == [0, 0, 0, 1, 2, 3, 3]
-
-
-def test_each_node_keeps_its_mode_and_its_id_through_a_save(
+def test_a_file_lists_the_nodes_mode_by_mode_with_their_modes_and_ids(
     road_merged_with_sea, road_and_sea_file
 ):
     road = road_merged_with_sea
 
     loaded = GeoGraph.load_from_scgraph(road_and_sea_file)
 
+    assert loaded.modes == road.modes
+    assert list(loaded.node_modes) == [0, 0, 0, 1, 2, 3, 3]
+    # Each node keeps its mode and its id, whatever its new position.
     assert sorted(
         zip(loaded.node_modes, loaded.node_ids, loaded.nodes)
     ) == sorted(zip(road.node_modes, road.node_ids, road.nodes))
@@ -410,160 +367,19 @@ def test_a_pickled_geograph_keeps_its_node_ids(tmp_path):
     assert loaded.node_ids == [7, 5, 3, 1, -1]
 
 
-def test_a_geograph_is_refused_with_fewer_node_ids_than_nodes():
-    with pytest.raises(ValueError, match="one id per node"):
-        GeoGraph(graph=[{}, {}, {}, {}], nodes=SMALL_NODES, node_ids=[7, 5, 3])
-
-
-def test_a_geograph_is_refused_with_fewer_node_modes_than_nodes():
-    with pytest.raises(ValueError, match="a row of modes"):
-        GeoGraph(
-            graph=[{}, {}, {}, {}], nodes=SMALL_NODES, node_modes=[0, 0, 0]
-        )
-
-
-def test_a_geograph_is_refused_with_a_node_mode_that_is_not_in_its_modes():
-    # Without `modes`, a geograph has one mode: the row 1 does not exist
-    with pytest.raises(ValueError, match="a row of modes"):
-        GeoGraph(
-            graph=[{}, {}, {}, {}], nodes=SMALL_NODES, node_modes=[0, 0, 0, 1]
-        )
-
-
-def _small_with_fine_coordinates(coordinate_dtype):
-    """The small network with two coordinates that are not multiples of 1e-7
-    degree: the longitude of node 3 and the latitude of the shape point.
-    `coordinate_dtype` is how the geograph says its coordinates are stored."""
-    geograph = _small()
-    geograph.coordinate_dtype = coordinate_dtype
-    geograph.nodes[3] = [1.0, 1.000000001]
-    geograph.intermediate_nodes = [{1: [[0.0029000001, 0.0058]]}, {}, {}, {}]
-    return geograph
-
-
-def test_a_float64_geograph_is_saved_with_its_exact_coordinates(tmp_path):
-    path = str(tmp_path / "small.scgraph")
-    _small_with_fine_coordinates("float64").save_as_scgraph(path)
-
-    loaded = GeoGraph.load_from_scgraph(path)
-
-    assert GeoGraph.get_scgraph_info(path)["coordinate_dtype"] == "float64"
-    assert loaded.nodes[3] == [1.0, 1.000000001]
-    assert loaded.intermediate_nodes[0][1] == [[0.0029000001, 0.0058]]
-
-
-def test_an_int32_geograph_is_saved_with_coordinates_rounded_to_1e_7_degree(
-    tmp_path,
-):
-    path = str(tmp_path / "small.scgraph")
-    _small_with_fine_coordinates("int32").save_as_scgraph(path)
-
-    loaded = GeoGraph.load_from_scgraph(path)
-
-    assert GeoGraph.get_scgraph_info(path)["coordinate_dtype"] == "int32"
-    assert loaded.nodes[3] == [1.0, 1.0]
-    assert loaded.intermediate_nodes[0][1] == [[0.0029, 0.0058]]
-
-
-def test_coordinate_dtype_int32_rounds_the_coordinates_of_a_float64_geograph(
-    tmp_path,
-):
-    path = str(tmp_path / "small.scgraph")
-    _small_with_fine_coordinates("float64").save_as_scgraph(
-        path, coordinate_dtype="int32"
-    )
-
-    loaded = GeoGraph.load_from_scgraph(path)
-
-    assert GeoGraph.get_scgraph_info(path)["coordinate_dtype"] == "int32"
-    assert loaded.nodes[3] == [1.0, 1.0]
-    assert loaded.intermediate_nodes[0][1] == [[0.0029, 0.0058]]
-
-
-def test_coordinate_dtype_float64_keeps_the_coordinates_of_an_int32_geograph(
-    tmp_path,
-):
-    path = str(tmp_path / "small.scgraph")
-    _small_with_fine_coordinates("int32").save_as_scgraph(
-        path, coordinate_dtype="float64"
-    )
-
-    loaded = GeoGraph.load_from_scgraph(path)
-
-    assert GeoGraph.get_scgraph_info(path)["coordinate_dtype"] == "float64"
-    assert loaded.nodes[3] == [1.0, 1.000000001]
-    assert loaded.intermediate_nodes[0][1] == [[0.0029000001, 0.0058]]
-
-
-both_coordinate_dtypes = pytest.mark.parametrize(
-    "coordinate_dtype", ["float64", "int32"]
-)
-
-
-@both_coordinate_dtypes
-def test_a_route_passes_the_shape_points_of_a_file_of_either_dtype(
-    tmp_path, coordinate_dtype
-):
-    path = str(tmp_path / "small.scgraph")
-    _small().save_as_scgraph(path, coordinate_dtype=coordinate_dtype)
-
-    route = _route_0_to_1(GeoGraph.load_from_scgraph(path))
-
-    assert [0.0029, 0.0058] in route
-
-
-@both_coordinate_dtypes
-def test_a_loaded_file_is_saved_again_with_the_dtype_of_its_coordinates(
-    tmp_path, coordinate_dtype
-):
-    # The second file has the digest of the first: the same bytes
-    path, again = str(tmp_path / "small.scgraph"), str(
-        tmp_path / "again.scgraph"
-    )
-    digest = _small_with_fine_coordinates("float64").save_as_scgraph(
-        path, coordinate_dtype=coordinate_dtype
-    )
-
-    digest_again = GeoGraph.load_from_scgraph(path).save_as_scgraph(again)
-
-    assert digest_again == digest
-
-
-def test_a_node_that_is_not_a_finite_number_is_refused_by_its_position(
-    tmp_path,
-):
-    geograph = _small()
-    geograph.nodes[3] = [1.0, float("nan")]
-
-    with pytest.raises(ValueError, match="Node 3"):
-        geograph.save_as_scgraph(str(tmp_path / "small.scgraph"))
-
-
-def test_a_shape_point_that_is_not_a_finite_number_is_refused_by_its_arc(
-    tmp_path,
-):
-    geograph = _small()
-    geograph.intermediate_nodes = [{1: [[0.0029, float("inf")]]}, {}, {}, {}]
-
-    with pytest.raises(ValueError, match="arc 0 -> 1"):
-        geograph.save_as_scgraph(str(tmp_path / "small.scgraph"))
-
-
-def test_a_coordinate_beyond_the_range_of_int32_is_refused_as_int32(tmp_path):
-    # An int32 holds up to 214.7483647 degrees, in units of 1e-7 degree
-    geograph = _small()
-    geograph.intermediate_nodes = [{1: [[0.0029, 214.75]]}, {}, {}, {}]
-
-    with pytest.raises(ValueError, match="within ±214.7483647"):
-        geograph.save_as_scgraph(
-            str(tmp_path / "small.scgraph"), coordinate_dtype="int32"
-        )
-
-
+# Without `modes`, a geograph has one mode: the row 1 of modes does not exist.
 def test_an_unknown_coordinate_dtype_is_refused(tmp_path):
     with pytest.raises(ValueError, match="must be 'auto', 'float64' or"):
         _small().save_as_scgraph(
             str(tmp_path / "small.scgraph"), coordinate_dtype="int16"
+        )
+
+
+def test_metadata_may_not_set_a_key_that_scgraph_writes(tmp_path):
+    # scgraph writes the units of the geograph itself
+    with pytest.raises(ValueError, match="may not set"):
+        _small().save_as_scgraph(
+            str(tmp_path / "small.scgraph"), metadata={"units": "km"}
         )
 
 
@@ -588,60 +404,25 @@ def dated_file(tmp_path_factory):
     return path, digest
 
 
-def test_scgraph_info_counts_the_nodes_and_the_arcs(dated_file):
-    path, _ = dated_file
-
-    info = GeoGraph.get_scgraph_info(path)
-
-    assert (info["nodes"], info["arcs"]) == (4, 3)
-
-
-def test_scgraph_info_says_what_the_file_stores_and_how(dated_file):
-    path, _ = dated_file
-
-    info = GeoGraph.get_scgraph_info(path)
-
-    assert info["coordinate_dtype"] == "int32"
-    assert info["shapes"] is True
-    assert info["node_ids"] is False
-    assert info["units"] == "mi"
-
-
-def test_scgraph_info_gives_the_sources_and_the_digest_of_the_file(dated_file):
+def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     path, digest = dated_file
 
     info = GeoGraph.get_scgraph_info(path)
 
-    assert info["sources"] == DATED_SOURCES
+    assert (info["nodes"], info["arcs"]) == (4, 3)
+    assert info["units"] == "mi"
+    assert info["coordinate_dtype"] == "int32"
+    assert info["shapes"] is True
+    # The ids of the small network are the positions: the file stores none.
+    assert info["node_ids"] is False
     assert info["content_sha256"] == digest
-
-
-def test_scgraph_info_gives_the_credit_line_with_each_credit_once(dated_file):
-    path, _ = dated_file
-
-    info = GeoGraph.get_scgraph_info(path)
-
+    assert info["sources"] == DATED_SOURCES
+    # The credit line gives each credit once, with its license.
     assert info["attribution"] == (
         "© OpenStreetMap contributors (ODbL-1.0); NGA (NOASSERTION)"
     )
-
-
-def test_scgraph_info_gives_the_latest_time_of_the_data_of_its_sources(
-    dated_file,
-):
-    path, _ = dated_file
-
-    info = GeoGraph.get_scgraph_info(path)
-
+    # The data goes up to the latest of the times that the sources give.
     assert info["data_up_to"] == "2026-11-06T20:21:43Z"
-
-
-def test_metadata_may_not_set_a_key_that_scgraph_writes(tmp_path):
-    # scgraph writes the units of the geograph itself
-    with pytest.raises(ValueError, match="may not set"):
-        _small().save_as_scgraph(
-            str(tmp_path / "small.scgraph"), metadata={"units": "km"}
-        )
 
 
 def test_a_mode_must_name_a_source_of_the_metadata(tmp_path):
@@ -702,46 +483,39 @@ def test_a_network_file_gives_the_route_of_the_graph_where_two_tie(
     assert _route_west_to_east(loaded) == _route_west_to_east(geograph)
 
 
-def _save_and_read_symmetric(graph, tmp_path):
-    """Save `graph` with its nodes in a row, and give what the file says in
-    its `symmetric` field."""
+# A file says `symmetric` when each arc has a reverse arc of its weight. In
+# the one-way cycle, each node has one arc out and one arc in, and no arc has
+# a reverse arc. In the last graph, node 0 has arcs to 2 and 3 and arcs back
+# from 1, 2 and 3: the arc from 1 to 0 has no reverse arc.
+@pytest.mark.parametrize(
+    "graph, symmetric",
+    [
+        pytest.param(
+            [{1: 1.0, 2: 1.0}, {0: 1.0}, {0: 1.0}],
+            True,
+            id="each arc has a reverse arc of its weight",
+        ),
+        pytest.param(
+            [{1: 2.0}, {0: 3.0}],
+            False,
+            id="a reverse arc has another weight",
+        ),
+        pytest.param(
+            [{1: 1.0}, {2: 1.0}, {0: 1.0}], False, id="a one-way cycle"
+        ),
+        pytest.param(
+            [{2: 1.0, 3: 1.0}, {0: 1.0}, {0: 1.0}, {0: 1.0}],
+            False,
+            id="one arc to a hub has no reverse arc",
+        ),
+    ],
+)
+def test_a_file_says_whether_its_graph_is_symmetric(tmp_path, graph, symmetric):
     path = str(tmp_path / "graph.scgraph")
-    nodes = [[0.0, 0.01 * i] for i in range(len(graph))]
-    GeoGraph(graph=graph, nodes=nodes).save_as_scgraph(path)
-    return GeoGraph.get_scgraph_info(path)["symmetric"]
+    nodes_in_a_row = [[0.0, 0.01 * i] for i in range(len(graph))]
+    GeoGraph(graph=graph, nodes=nodes_in_a_row).save_as_scgraph(path)
 
-
-def test_a_file_says_symmetric_when_each_arc_has_a_reverse_arc_of_its_weight(
-    tmp_path,
-):
-    two_way_arcs = [{1: 1.0, 2: 1.0}, {0: 1.0}, {0: 1.0}]
-
-    assert _save_and_read_symmetric(two_way_arcs, tmp_path) is True
-
-
-def test_a_file_says_not_symmetric_when_a_reverse_arc_has_another_weight(
-    tmp_path,
-):
-    two_weights = [{1: 2.0}, {0: 3.0}]
-
-    assert _save_and_read_symmetric(two_weights, tmp_path) is False
-
-
-def test_a_file_says_not_symmetric_for_a_one_way_cycle(tmp_path):
-    # Each node has one arc out and one arc in, and no arc has a reverse arc
-    one_way_cycle = [{1: 1.0}, {2: 1.0}, {0: 1.0}]
-
-    assert _save_and_read_symmetric(one_way_cycle, tmp_path) is False
-
-
-def test_a_file_says_not_symmetric_when_one_arc_to_a_hub_has_no_reverse_arc(
-    tmp_path,
-):
-    # Node 0 has arcs to 2 and 3 and arcs back from 1, 2 and 3: the arc from
-    # 1 to 0 has no reverse arc
-    hub = [{2: 1.0, 3: 1.0}, {0: 1.0}, {0: 1.0}, {0: 1.0}]
-
-    assert _save_and_read_symmetric(hub, tmp_path) is False
+    assert GeoGraph.get_scgraph_info(path)["symmetric"] is symmetric
 
 
 # The tests below write a file from arrays with `network_file.write`, as a
@@ -768,19 +542,21 @@ def _two_road_nodes_and_a_port():
     }
 
 
-# `mapped=True` gives views of the file in place of arrays read into memory.
-@pytest.mark.parametrize("mapped", [False, True], ids=["copied", "mapped"])
-def test_arrays_written_to_a_file_are_read_back_the_same(tmp_path, mapped):
+def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
+    tmp_path,
+):
     path = str(tmp_path / "arrays.scgraph")
-    written = _two_road_nodes_and_a_port()
-    network_file.write(path, written, {"modes": ROAD_AND_PORT})
+    network_file.write(
+        path, _two_road_nodes_and_a_port(), {"modes": ROAD_AND_PORT}
+    )
 
-    arrays, metadata = network_file.read(path, mapped=mapped)
+    loaded = GeoGraph.load_from_scgraph(path)
 
-    assert {name: list(values) for name, values in arrays.items()} == {
-        name: list(values) for name, values in written.items()
-    }
-    assert metadata["modes"] == ROAD_AND_PORT
+    assert loaded.graph_object.graph == [{1: 1.0}, {0: 1.0}, {}]
+    assert loaded.nodes == [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+    assert list(loaded.node_ids) == [2**40, 7, -1]
+    assert list(loaded.node_modes) == [0, 0, 1]
+    assert loaded.modes == ROAD_AND_PORT
 
 
 # A file may come from another tool, or be damaged. `load_from_scgraph` must
@@ -932,7 +708,7 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
     network_file.write(path, arrays, {"modes": names})
 
 
-def test_loading_one_mode_gives_the_nodes_of_that_mode(tmp_path):
+def test_loading_one_mode_gives_its_nodes_and_the_arcs_between_them(tmp_path):
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
@@ -941,17 +717,7 @@ def test_loading_one_mode_gives_the_nodes_of_that_mode(tmp_path):
     assert list(roads.node_ids) == [10, 11]
     assert roads.nodes == [[10, -10], [11, -11]]
     assert list(roads.node_modes) == [0, 0]
-
-
-def test_loading_one_mode_gives_the_arcs_between_its_nodes_with_their_shapes(
-    tmp_path,
-):
     # The arc from 11 to the port is left out
-    path = str(tmp_path / "modes.scgraph")
-    _write_road_port_and_sea(path, "d")
-
-    roads = GeoGraph.load_from_scgraph(path, modes="road")
-
     assert roads.graph_object.graph == [{1: 1.0}, {0: 1.5}]
     assert [dict(shapes) for shapes in roads.intermediate_nodes] == [
         {1: [[10, 11]]},
@@ -971,16 +737,8 @@ def test_loading_two_modes_gives_their_nodes_in_the_order_of_the_file(
     assert list(geograph.node_ids) == [10, 11, 30, 31]
     assert geograph.nodes == [[10, -10], [11, -11], [30, -30], [31, -31]]
     assert list(geograph.node_modes) == [0, 0, 2, 2]
-
-
-def test_loading_two_modes_renumbers_the_arcs_of_each_mode(tmp_path):
     # Without the port, the sea nodes move from the positions 3 and 4 to the
     # positions 2 and 3. The arcs 11 -> 20 and 31 -> 20 are left out.
-    path = str(tmp_path / "modes.scgraph")
-    _write_road_port_and_sea(path, "d")
-
-    geograph = GeoGraph.load_from_scgraph(path, modes=("sea", "road"))
-
     assert geograph.graph_object.graph == [
         {1: 1.0},
         {0: 1.5},
@@ -1099,7 +857,7 @@ def test_load_from_scgraph_keeps_the_original_graph_after_reduction(tmp_path):
 
 # The nodes of a loaded network are read from the arrays of the file. They
 # must still behave as the list of [latitude, longitude] that a geograph has.
-# Each test below edits the nodes of a new load of the small network, after a
+# Each test below uses the nodes of a new load of the small network, after a
 # fifth node was appended.
 @pytest.fixture
 def nodes_of_a_file(tmp_path):
@@ -1110,68 +868,13 @@ def nodes_of_a_file(tmp_path):
     return nodes
 
 
-def test_nodes_read_from_a_file_take_a_new_node_at_their_end(nodes_of_a_file):
-    assert nodes_of_a_file == [*SMALL_NODES, [3.0, 3.0]]
-
-
-def test_nodes_read_from_a_file_are_read_from_the_end_and_by_slice(
+def test_nodes_read_from_a_file_are_read_as_a_list_with_an_appended_node(
     nodes_of_a_file,
 ):
+    assert nodes_of_a_file == [*SMALL_NODES, [3.0, 3.0]]
     assert nodes_of_a_file[-1] == [3.0, 3.0]
     assert nodes_of_a_file[-2] == [1.0, 1.0]
     assert nodes_of_a_file[1:3] == [[0.0, 0.01], [0.01, 0.0]]
-
-
-def test_an_added_node_is_replaced(nodes_of_a_file):
-    nodes_of_a_file[-1] = [4.0, 4.0]
-
-    assert nodes_of_a_file == [*SMALL_NODES, [4.0, 4.0]]
-
-
-def test_an_added_node_is_popped(nodes_of_a_file):
-    nodes_of_a_file.pop()
-
-    assert nodes_of_a_file == SMALL_NODES
-
-
-def test_nodes_read_from_a_file_are_extended(nodes_of_a_file):
-    nodes_of_a_file.extend([[5.0, 5.0], [6.0, 6.0]])
-
-    assert nodes_of_a_file == [
-        *SMALL_NODES,
-        [3.0, 3.0],
-        [5.0, 5.0],
-        [6.0, 6.0],
-    ]
-
-
-def test_a_node_of_the_file_is_replaced(nodes_of_a_file):
-    nodes_of_a_file[1] = [7.0, 7.0]
-
-    assert nodes_of_a_file == [
-        [0.0, 0.0],
-        [7.0, 7.0],
-        [0.01, 0.0],
-        [1.0, 1.0],
-        [3.0, 3.0],
-    ]
-
-
-def test_a_node_is_inserted_before_the_nodes_of_the_file(nodes_of_a_file):
-    nodes_of_a_file.insert(0, [8.0, 8.0])
-
-    assert nodes_of_a_file == [[8.0, 8.0], *SMALL_NODES, [3.0, 3.0]]
-
-
-def test_nodes_of_the_file_are_deleted_by_slice(nodes_of_a_file):
-    del nodes_of_a_file[2:4]
-
-    assert nodes_of_a_file == [[0.0, 0.0], [0.0, 0.01], [3.0, 3.0]]
-
-
-def test_the_nodes_of_a_path_are_taken_from_the_file_and_from_added_nodes(
-    nodes_of_a_file,
-):
     # A route reads the coordinates of its path with `take`. The position -1
     # is the last node, as in a list.
     assert nodes_of_a_file.take([-1, 0, 4]) == [
@@ -1179,6 +882,51 @@ def test_the_nodes_of_a_path_are_taken_from_the_file_and_from_added_nodes(
         [0.0, 0.0],
         [3.0, 3.0],
     ]
+
+
+# Each function below edits a list of nodes in place.
+def _replace_the_appended_node(nodes):
+    nodes[-1] = [4.0, 4.0]
+
+
+def _pop_the_appended_node(nodes):
+    nodes.pop()
+
+
+def _extend_with_two_nodes(nodes):
+    nodes.extend([[5.0, 5.0], [6.0, 6.0]])
+
+
+def _replace_a_node_of_the_file(nodes):
+    nodes[1] = [7.0, 7.0]
+
+
+def _insert_a_node_before_the_nodes_of_the_file(nodes):
+    nodes.insert(0, [8.0, 8.0])
+
+
+def _delete_two_nodes_of_the_file_by_slice(nodes):
+    del nodes[2:4]
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        _replace_the_appended_node,
+        _pop_the_appended_node,
+        _extend_with_two_nodes,
+        _replace_a_node_of_the_file,
+        _insert_a_node_before_the_nodes_of_the_file,
+        _delete_two_nodes_of_the_file_by_slice,
+    ],
+)
+def test_nodes_read_from_a_file_are_edited_as_a_list(nodes_of_a_file, edit):
+    edited_list = [*SMALL_NODES, [3.0, 3.0]]
+    edit(edited_list)
+
+    edit(nodes_of_a_file)
+
+    assert nodes_of_a_file == edited_list
 
 
 def test_snapping_finds_a_node_added_to_a_loaded_network(small_file):

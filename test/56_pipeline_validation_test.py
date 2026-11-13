@@ -26,14 +26,21 @@ def test_every_case_that_a_pipeline_lists_exists(name):
 CASES_BY_REGION = {"cases": {"europe/france": ["paris_marseille"]}}
 
 
-def test_a_regional_pipeline_gets_the_cases_of_the_region_asked():
-    cases = load_cases(CASES_BY_REGION, region="europe/france")
+@pytest.mark.parametrize(
+    "region, case_ids",
+    [
+        pytest.param(
+            "europe/france", ["paris_marseille"], id="a region that has cases"
+        ),
+        pytest.param("europe/spain", [], id="a region without cases"),
+    ],
+)
+def test_a_regional_pipeline_gets_the_cases_of_the_region_asked(
+    region, case_ids
+):
+    cases = load_cases(CASES_BY_REGION, region=region)
 
-    assert [case["id"] for case in cases] == ["paris_marseille"]
-
-
-def test_a_region_without_cases_gets_no_case():
-    assert load_cases(CASES_BY_REGION, region="europe/spain") == []
+    assert [case["id"] for case in cases] == case_ids
 
 
 def test_a_case_that_is_in_no_file_of_cases_is_refused():

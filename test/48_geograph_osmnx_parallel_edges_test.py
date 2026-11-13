@@ -49,15 +49,28 @@ DETOUR_EDGE = {
 }
 
 
+# OSMnx gives no geometry to an edge that is a straight line.
+SHORT_EDGE_WITHOUT_GEOMETRY = {"length": 1112}
+
+
 # OSMnx lists parallel edges in any order. The same edge must be kept
-# whether it is listed first or last.
+# whether it is listed first or last. A shape is a list of [latitude,
+# longitude] points.
 @pytest.mark.parametrize(
-    "parallel_edges",
-    [[STRAIGHT_EDGE, DETOUR_EDGE], [DETOUR_EDGE, STRAIGHT_EDGE]],
-    ids=["shortest listed first", "shortest listed last"],
+    "parallel_edges, shapes_kept",
+    [
+        ([STRAIGHT_EDGE, DETOUR_EDGE], {1: [[0.0, 0.005]]}),
+        ([DETOUR_EDGE, STRAIGHT_EDGE], {1: [[0.0, 0.005]]}),
+        ([DETOUR_EDGE, SHORT_EDGE_WITHOUT_GEOMETRY], {}),
+    ],
+    ids=[
+        "shortest listed first",
+        "shortest listed last",
+        "shortest has no geometry",
+    ],
 )
 def test_the_shortest_of_parallel_edges_is_kept_with_its_own_shape(
-    parallel_edges,
+    parallel_edges, shapes_kept
 ):
     osmnx_graph = _OSMnxGraph(
         PLACES, [(WEST, EAST, edge) for edge in parallel_edges]
@@ -66,22 +79,7 @@ def test_the_shortest_of_parallel_edges_is_kept_with_its_own_shape(
     geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
 
     assert geograph.graph_object.graph[0] == {1: 1.112}
-    # The shape is the [latitude, longitude] point of the straight edge.
-    assert geograph.intermediate_nodes[0] == {1: [[0.0, 0.005]]}
-
-
-def test_no_shape_is_kept_when_the_shortest_parallel_edge_has_no_geometry():
-    # OSMnx gives no geometry to an edge that is a straight line.
-    short_edge_without_geometry = {"length": 1112}
-    osmnx_graph = _OSMnxGraph(
-        PLACES,
-        [(WEST, EAST, DETOUR_EDGE), (WEST, EAST, short_edge_without_geometry)],
-    )
-
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
-
-    assert geograph.graph_object.graph[0] == {1: 1.112}
-    assert geograph.intermediate_nodes[0] == {}
+    assert geograph.intermediate_nodes[0] == shapes_kept
 
 
 def test_an_edge_drawn_from_node_to_node_without_a_point_between_has_no_shape():

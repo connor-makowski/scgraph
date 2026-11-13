@@ -95,16 +95,15 @@ def test_a_long_line_is_cut_at_the_first_point_max_km_from_its_start(arcs):
     }
 
 
-def test_an_arc_has_the_length_of_its_line_and_not_of_the_straight_line(arcs):
+def test_an_arc_has_the_length_and_the_shape_of_its_line(geograph, arcs):
+    shapes = _by_end_points(geograph, geograph.intermediate_nodes)
+
+    # The arc from the start of the long line to its cut passes the bend,
+    # which lies north of the straight line between them.
     assert arcs[(LONG_START, LONG_CUT)] == pytest.approx(
         great_circle_km(LONG_START, LONG_BEND)
         + great_circle_km(LONG_BEND, LONG_CUT)
     )
-
-
-def test_the_shape_of_an_arc_holds_the_points_between_its_two_nodes(geograph):
-    shapes = _by_end_points(geograph, geograph.intermediate_nodes)
-
     assert shapes[(LONG_START, LONG_CUT)] == [list(LONG_BEND)]
 
 

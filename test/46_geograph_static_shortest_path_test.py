@@ -463,38 +463,35 @@ def test_geograph_a_star_haversine_matches_dijkstra_in_miles():
     )
 
 
-def test_geograph_a_star_haversine_after_a_node_is_added():
-    """A* with `geo.haversine` knows the position of a node added after loading."""
-    geograph = _build_miles_geograph()
+def _add_a_node(geograph):
     geograph.add_coord_node({"latitude": 0.4, "longitude": 0.0})
-    a_star_length = _find_miles_route_length(
-        geograph, "a_star", heuristic_fn=geograph.haversine
-    )
-    assert a_star_length == pytest.approx(
-        _find_miles_route_length(geograph, "dijkstra")
-    )
 
 
-def test_geograph_a_star_haversine_after_an_added_node_is_removed():
-    """A* with `geo.haversine` finds the shortest path after `remove_coord_node`."""
-    geograph = _build_miles_geograph()
+def _add_a_node_then_remove_it(geograph):
     geograph.add_coord_node({"latitude": 0.4, "longitude": 0.0})
     geograph.remove_coord_node()
-    a_star_length = _find_miles_route_length(
-        geograph, "a_star", heuristic_fn=geograph.haversine
-    )
-    assert a_star_length == pytest.approx(
-        _find_miles_route_length(geograph, "dijkstra")
-    )
 
 
-def test_geograph_a_star_haversine_after_a_graph_node_is_removed():
-    """A* with `geo.haversine` finds the shortest path after `remove_node`.
-
-    `remove_node` removes the dead end 4 from the graph and keeps its position in `nodes`.
-    """
-    geograph = _build_miles_geograph()
+def _remove_a_node_from_the_graph_only(geograph):
+    # `remove_node` removes the dead end 4 from the graph and keeps its
+    # position in `nodes`.
     geograph.remove_node()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        _add_a_node,
+        _add_a_node_then_remove_it,
+        _remove_a_node_from_the_graph_only,
+    ],
+)
+def test_geograph_a_star_haversine_matches_dijkstra_after_a_change_of_nodes(
+    change,
+):
+    """A* with `geo.haversine` knows the positions of the nodes after a change."""
+    geograph = _build_miles_geograph()
+    change(geograph)
     a_star_length = _find_miles_route_length(
         geograph, "a_star", heuristic_fn=geograph.haversine
     )

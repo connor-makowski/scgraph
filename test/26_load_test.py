@@ -175,11 +175,12 @@ def cache_with_marnet(tmp_path):
     return tmp_path
 
 
-def test_load_geograph_numbers_the_nodes_along_the_hilbert_curve(
+def test_first_load_converts_the_published_geograph_into_a_network_file(
     cache_with_marnet,
 ):
     geo = GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
-    # Nodes 1, 2, 0 of the .graphjson become nodes 0, 1, 2. The links follow.
+    # The nodes are numbered along the Hilbert curve: nodes 1, 2, 0 of the
+    # .graphjson become nodes 0, 1, 2. The links follow.
     assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
     assert list(geo.node_ids) == [1, 2, 0]
     assert geo.graph_object.graph == [
@@ -187,15 +188,9 @@ def test_load_geograph_numbers_the_nodes_along_the_hilbert_curve(
         {0: 2.0},
         {0: 1.5, 1: 3.0},
     ]
-
-
-def test_first_load_converts_the_published_geograph_into_a_network_file(
-    cache_with_marnet,
-):
-    GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
-    info = GeoGraph.get_scgraph_info(str(cache_with_marnet / "marnet.scgraph"))
     # The file stores coordinates as int32, in 1e-7 degree. It names the
     # .graphjson as its source.
+    info = GeoGraph.get_scgraph_info(str(cache_with_marnet / "marnet.scgraph"))
     assert info["coordinate_dtype"] == "int32"
     assert info["modes"] == [{"name": None, "source": "marnet.graphjson"}]
     assert [s["name"] for s in info["sources"]] == ["marnet.graphjson"]
@@ -392,42 +387,46 @@ def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
     assert _list_files(filled_cache) == {"notes.txt"}
 
 
-def test_clear_geograph_cache_removes_the_published_and_built_files_of_a_name(
-    filled_cache,
-):
-    before = _list_files(filled_cache)
-    GeoGraph.clear_geograph_cache(str(filled_cache), name="marnet")
-    assert before - _list_files(filled_cache) == {
-        "marnet.graphjson",
-        "marnet.scgraph",
-        "networks/marnet/m.scgraph",
-        "networks/marnet/cache.json",
-    }
-
-
-def test_clear_geograph_cache_removes_every_region_of_a_name_without_region(
-    filled_cache,
-):
-    before = _list_files(filled_cache)
-    GeoGraph.clear_geograph_cache(str(filled_cache), name="osm_rail")
-    assert before - _list_files(filled_cache) == {
-        "networks/osm_rail/europe/e.scgraph",
-        "networks/osm_rail/europe/cache.json",
-        "networks/osm_rail/europe/france/f.scgraph",
-        "networks/osm_rail/europe/france/cache.json",
-    }
-
-
 # France is a sub-region of Europe, and a network of its own.
-def test_clear_geograph_cache_of_a_region_keeps_its_sub_regions(filled_cache):
+@pytest.mark.parametrize(
+    "selector, removed_files",
+    [
+        pytest.param(
+            {"name": "marnet"},
+            {
+                "marnet.graphjson",
+                "marnet.scgraph",
+                "networks/marnet/m.scgraph",
+                "networks/marnet/cache.json",
+            },
+            id="the published and the built files of a name",
+        ),
+        pytest.param(
+            {"name": "osm_rail"},
+            {
+                "networks/osm_rail/europe/e.scgraph",
+                "networks/osm_rail/europe/cache.json",
+                "networks/osm_rail/europe/france/f.scgraph",
+                "networks/osm_rail/europe/france/cache.json",
+            },
+            id="every region of a name without region",
+        ),
+        pytest.param(
+            {"name": "osm_rail", "region": "europe"},
+            {
+                "networks/osm_rail/europe/e.scgraph",
+                "networks/osm_rail/europe/cache.json",
+            },
+            id="a region without its sub-regions",
+        ),
+    ],
+)
+def test_clear_geograph_cache_removes_only_the_files_of_the_selected_network(
+    filled_cache, selector, removed_files
+):
     before = _list_files(filled_cache)
-    GeoGraph.clear_geograph_cache(
-        str(filled_cache), name="osm_rail", region="europe"
-    )
-    assert before - _list_files(filled_cache) == {
-        "networks/osm_rail/europe/e.scgraph",
-        "networks/osm_rail/europe/cache.json",
-    }
+    GeoGraph.clear_geograph_cache(str(filled_cache), **selector)
+    assert before - _list_files(filled_cache) == removed_files
 
 
 # Each selector would reach files outside the folder of one network: a name
