@@ -76,7 +76,8 @@ def test_one_way_disconnected_raises():
 
 
 # `validate` raises the same type with the C++ extension and in pure Python:
-# TypeError for a value of the wrong type, ValueError for a wrong value.
+# TypeError for a value of the wrong type, ValueError for a wrong value. With
+# the C++ extension, the TypeError comes when the graph is created.
 def test_validate_refuses_a_graph_that_is_not_a_list():
     rows_in_a_dictionary = {0: {1: 1.0}, 1: {0: 1.0}}
 
@@ -100,5 +101,5 @@ def test_validate_refuses_a_distance_that_is_not_a_number():
 
 
 def test_validate_refuses_a_negative_distance():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="non-negative"):
         Graph([{1: -1.0}, {0: -1.0}]).validate()
