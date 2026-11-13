@@ -1,7 +1,8 @@
 from scgraph import Graph
 
 # A square lattice of 12 x 12 nodes; each node is linked to its neighbors in
-# its row and in its column by arcs of length 1. Node `row * 12 + column`.
+# its row and in its column by arcs of length 1. The node at (row, column) has
+# the id `row * 12 + column`.
 SIDE = 12
 lattice = Graph(
     [
@@ -23,7 +24,7 @@ corner = 0
 center = 6 * SIDE + 6
 
 
-def count_heuristic_calls(destination_id):
+def _count_heuristic_calls(destination_id):
     """Number of calls of the heuristic by one A* search from the corner."""
     calls = []
 
@@ -39,12 +40,12 @@ def count_heuristic_calls(destination_id):
 
 def test_a_star_searches_no_wider_when_the_destination_is_off_the_graph():
     # An exit distance joins the destination node to a point off the graph
-    on_the_graph = count_heuristic_calls({center: 0.0})
-    off_the_graph = count_heuristic_calls({center: 5.0})
+    on_the_graph = _count_heuristic_calls({center: 0.0})
+    off_the_graph = _count_heuristic_calls({center: 5.0})
     assert off_the_graph == on_the_graph
 
 
-def test_a_star_does_not_call_the_heuristic_for_more_than_four_destinations():
+def test_a_star_with_more_than_four_destinations_does_not_call_the_heuristic():
     five_nodes_around_the_center = {
         center: 0.0,
         center - 1: 0.0,
@@ -52,7 +53,7 @@ def test_a_star_does_not_call_the_heuristic_for_more_than_four_destinations():
         center - SIDE: 0.0,
         center + SIDE: 0.0,
     }
-    assert count_heuristic_calls(five_nodes_around_the_center) == 0
+    assert _count_heuristic_calls(five_nodes_around_the_center) == 0
 
 
 def test_a_star_returns_the_shortest_path_when_the_heuristic_is_not_consistent():
@@ -62,9 +63,10 @@ def test_a_star_returns_the_shortest_path_when_the_heuristic_is_not_consistent()
         [{1: 1.0, 2: 1.5}, {3: 1.0}, {3: 1.5}, {4: 1.0}, {5: 1.0}, {}]
     )
 
-    # 2.9 is below the 3.0 left from node 1, so the heuristic never exceeds the
-    # distance left. It drops by 2.9 over the arc 1 -> 3 of length 1, so the
-    # search scans node 3 by the long route first.
+    # The distance left from node 1 to node 5 is 3.0: a heuristic of 2.9 never
+    # exceeds the distance left. The heuristic drops by 2.9 along the arc
+    # 1 -> 3, which is 1 long: it is not consistent, and the search first
+    # reaches node 3 by the long route.
     def high_at_node_1(node, destination):
         return 2.9 if node == 1 else 0.0
 

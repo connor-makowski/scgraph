@@ -1061,10 +1061,10 @@ GraphResult Graph::dijkstra_negative(const NodeIdVariant& origin_id, const NodeI
     return run_query_with_reducer(origin_id, destination_id, run_negative);
 }
 
-// One heuristic of A* costs one call of heuristic_fn per destination node. Above
-// this number of destination nodes, A* was slower than Dijkstra on the built-in
-// networks. The heuristic is then the smallest exit distance, and the search
-// scans the nodes in the order of Dijkstra.
+// A* computes the heuristic of a node with one call of heuristic_fn per
+// destination node. Above this number of destination nodes, A* is slower than
+// Dijkstra on the built-in networks. The heuristic is then the smallest exit
+// distance, and the search scans the nodes in the order of Dijkstra.
 constexpr size_t MAX_DESTINATION_NODES_WITH_HEURISTIC = 4;
 
 GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,

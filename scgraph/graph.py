@@ -29,10 +29,10 @@ except ImportError:
         """Raised when a graph contains a negative weight cycle."""
 
 
-# One heuristic of A* costs one call of heuristic_fn per destination node. Above
-# this number of destination nodes, A* was slower than Dijkstra on the built-in
-# networks. The heuristic is then the smallest exit distance, and the search
-# scans the nodes in the order of Dijkstra.
+# A* computes the heuristic of a node with one call of heuristic_fn per
+# destination node. Above this number of destination nodes, A* is slower than
+# Dijkstra on the built-in networks. The heuristic is then the smallest exit
+# distance, and the search scans the nodes in the order of Dijkstra.
 _MAX_DESTINATION_NODES_WITH_HEURISTIC = 4
 
 
@@ -950,10 +950,11 @@ class GraphAlgorithms:
                         if cand < best_dist:
                             best_dist = cand
                             best_dest_node = connected_id
-                    key = possible_distance + _h(connected_id)
-                    if key < best_dist:
+                    connected_key = possible_distance + _h(connected_id)
+                    if connected_key < best_dist:
                         heappush(
-                            open_leaves, (key, possible_distance, connected_id)
+                            open_leaves,
+                            (connected_key, possible_distance, connected_id),
                         )
         _last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
