@@ -1,22 +1,4 @@
 import pytest
-from scgraph.graph import Graph as PyGraph
-from scgraph.contraction_hierarchies import CHGraph as PyCHGraph
-from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
-
-try:
-    from scgraph.cpp import (
-        Graph as CppGraph,
-        CHGraph as CppCHGraph,
-        TNRGraph as CppTNRGraph,
-    )
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
-
-GRAPH_CLASSES = [PyGraph] + ([CppGraph] if HAS_CPP else [])
-CH_CLASSES = [PyCHGraph] + ([CppCHGraph] if HAS_CPP else [])
-TNR_CLASSES = [PyTNRGraph] + ([CppTNRGraph] if HAS_CPP else [])
 
 
 # Simple test graph:
@@ -35,9 +17,8 @@ def sample_graph():
     ]
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_all_algorithms_with_origin_dict(sample_graph, GraphClass):
-    g = GraphClass(sample_graph)
+def test_all_algorithms_with_origin_dict(sample_graph, graph_class):
+    g = graph_class(sample_graph)
 
     # Origin 0 with dist 10, Origin 4 with dist 5 -> path from 4: 5 + 1 + 3 + 4 = 13 (vs from 0: 10 + 2 + 3 + 4 = 19)
     origin_dict = {0: 10.0, 4: 5.0}
@@ -61,9 +42,8 @@ def test_all_algorithms_with_origin_dict(sample_graph, GraphClass):
         assert abs(res["length"] - 13.0) < 1e-6, f"{name} failed length check"
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_all_algorithms_with_destination_dict(sample_graph, GraphClass):
-    g = GraphClass(sample_graph)
+def test_all_algorithms_with_destination_dict(sample_graph, graph_class):
+    g = graph_class(sample_graph)
 
     # Destination 3 with exit cost 10, Destination 5 with exit cost 1 -> from 0: to 3 = 2+3+4+10=19, to 5 = 2+3+2+1=8
     origin_dict = {0: 0.0}
@@ -87,9 +67,8 @@ def test_all_algorithms_with_destination_dict(sample_graph, GraphClass):
         assert abs(res["length"] - 8.0) < 1e-6, f"{name} failed length check"
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_tree_algorithms_with_dicts(sample_graph, GraphClass):
-    g = GraphClass(sample_graph)
+def test_tree_algorithms_with_dicts(sample_graph, graph_class):
+    g = graph_class(sample_graph)
     tree = g.get_shortest_path_tree(origin_id={0: 10.0, 4: 5.0})
     res = g.get_tree_path(
         origin_id={0: 10.0, 4: 5.0},
@@ -100,8 +79,7 @@ def test_tree_algorithms_with_dicts(sample_graph, GraphClass):
     assert abs(res["length"] - 12.0) < 1e-6
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_graph_reducer_with_origin_destination_dicts(GraphClass):
+def test_graph_reducer_with_origin_destination_dicts(graph_class):
     # 0 -> 1 -> 2 -> 3 (chain: 1, 2)
     raw = [
         {1: 2.0},
@@ -109,7 +87,7 @@ def test_graph_reducer_with_origin_destination_dicts(GraphClass):
         {3: 4.0},
         {},
     ]
-    g = GraphClass(raw)
+    g = graph_class(raw)
     g.reduce(iterations=1)
     assert g.is_same_chain({1: 0.0}, {2: 0.0}) is True
     assert g.is_same_chain({0: 0.0}, {3: 0.0}) is False
@@ -120,9 +98,8 @@ def test_graph_reducer_with_origin_destination_dicts(GraphClass):
     assert abs(res["length"] - 14.0) < 1e-6  # 5 + 3 + 4 + 2 = 14
 
 
-@pytest.mark.parametrize("CHClass", CH_CLASSES)
-def test_contraction_hierarchies_with_dicts(sample_graph, CHClass):
-    ch = CHClass(sample_graph)
+def test_contraction_hierarchies_with_dicts(sample_graph, ch_class):
+    ch = ch_class(sample_graph)
     res = ch.search(
         origin_id={0: 10.0, 4: 5.0}, destination_id={3: 10.0, 5: 1.0}
     )
@@ -138,9 +115,8 @@ def test_contraction_hierarchies_with_dicts(sample_graph, CHClass):
     assert abs(res_len["length"] - 12.0) < 1e-6
 
 
-@pytest.mark.parametrize("TNRClass", TNR_CLASSES)
-def test_transit_node_routing_with_dicts(sample_graph, TNRClass):
-    tnr = TNRClass(sample_graph, num_transit_nodes=2)
+def test_transit_node_routing_with_dicts(sample_graph, tnr_class):
+    tnr = tnr_class(sample_graph, num_transit_nodes=2)
     res = tnr.search(
         origin_id={0: 10.0, 4: 5.0}, destination_id={3: 10.0, 5: 1.0}
     )

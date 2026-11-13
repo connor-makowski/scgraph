@@ -1,15 +1,9 @@
-import pytest
 from scgraph.graph import Graph as PyGraph
 
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
+from helpers import CppGraph, needs_the_cpp_extension
 
 
-def _build_complex_chain_graph(graph_cls):
+def _build_complex_chain_graph(graph_class):
     # Graph layout:
     # J0 (0) is a junction (degree 3) -> unreduced
     # Chain 1: 0 - 1 - 2 - 3 (1, 2 reduced)
@@ -50,11 +44,11 @@ def _build_complex_chain_graph(graph_cls):
 
     max_node = max(data.keys())
     adj_list = [data.get(i, {}) for i in range(max_node + 1)]
-    return graph_cls(adj_list)
+    return graph_class(adj_list)
 
 
-def _run_dual_sided_reduction_tests(graph_cls):
-    g = _build_complex_chain_graph(graph_cls)
+def test_dual_sided_reduction(graph_class):
+    g = _build_complex_chain_graph(graph_class)
     g.reduce()
     # The cases below start or end on reduced chain nodes
     assert all(g.is_reduced[u] for u in (1, 2, 4, 5))
@@ -138,19 +132,8 @@ def _run_dual_sided_reduction_tests(graph_cls):
         ], f"{algo} multi-origin path mismatch"
 
 
-def test_python_dual_sided_reduction():
-    _run_dual_sided_reduction_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_dual_sided_reduction():
-    _run_dual_sided_reduction_tests(CppGraph)
-
-
+@needs_the_cpp_extension
 def test_dual_sided_reduction_parity_marnet(marnet):
-    if not HAS_CPP:
-        pytest.skip("C++ extension not available")
-
     py_g = PyGraph(marnet.graph)
     cpp_g = CppGraph(marnet.graph)
 
@@ -208,7 +191,7 @@ def test_dual_sided_reduction_thread_safety(marnet):
         results = [f.result() for f in futures]
         assert len(results) == 50
 
-    if HAS_CPP:
+    if CppGraph is not None:
         cpp_g = CppGraph(marnet.graph)
         cpp_g.reduce()
 

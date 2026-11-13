@@ -4,7 +4,7 @@ from array import array
 from itertools import groupby
 
 import pytest
-from helpers import great_circle_km
+from helpers import great_circle_km, needs_the_cpp_extension
 
 from scgraph.pipelines.steps import assembly
 from scgraph.utils import has_cpp
@@ -14,9 +14,6 @@ if has_cpp():
     from scgraph import cpp
 
     BACKENDS["cpp"] = cpp
-needs_the_cpp_extension = pytest.mark.skipif(
-    not has_cpp(), reason="The C++ extension is not built"
-)
 both_backends = pytest.mark.parametrize(
     "backend", list(BACKENDS.values()), ids=list(BACKENDS)
 )

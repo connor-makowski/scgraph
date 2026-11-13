@@ -1,13 +1,4 @@
-import pytest
-from scgraph.graph import Graph
 from helpers import assert_result
-
-try:
-    from scgraph.cpp import Graph as CPPGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
 
 _GRAPH_DATA = [
     {1: 5, 2: 1},
@@ -19,7 +10,7 @@ _GRAPH_DATA = [
 ]
 
 
-def _run_ch_tests(graph_class):
+def test_ch_graph(graph_class):
     g = graph_class(_GRAPH_DATA)
     g.create_contraction_hierarchy()
     assert_result(
@@ -38,12 +29,3 @@ def _run_ch_tests(graph_class):
         g.contraction_hierarchy(origin_id=2, destination_id=2),
         {"path": [2], "length": 0},
     )
-
-
-def test_python_ch_graph():
-    _run_ch_tests(Graph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_ch_graph():
-    _run_ch_tests(CPPGraph)

@@ -1,14 +1,4 @@
 import pytest
-from scgraph.graph import Graph as PyGraph
-
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
-
-GRAPH_CLASSES = [PyGraph] + ([CppGraph] if HAS_CPP else [])
 
 ALL_ALGORITHMS = [
     "dijkstra",
@@ -40,13 +30,12 @@ def edge_case_graph():
     ]
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_exit_weights_inversion_all_algorithms(edge_case_graph, GraphClass):
+def test_exit_weights_inversion_all_algorithms(edge_case_graph, graph_class):
     """Test that a shorter internal graph destination (node 2, dist 2) is bypassed in favor
 
     of a longer internal destination (node 3, dist 5) when destination exit weights make node 3 cheaper.
     """
-    g = GraphClass(edge_case_graph)
+    g = graph_class(edge_case_graph)
     g.create_contraction_hierarchy()
     g.create_tnr_hierarchy(num_transit_nodes=3)
 
@@ -77,13 +66,12 @@ def test_exit_weights_inversion_all_algorithms(edge_case_graph, GraphClass):
         ), f"{algo} computed incorrect length for destination 2"
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_origin_weights_inversion_all_algorithms(edge_case_graph, GraphClass):
+def test_origin_weights_inversion_all_algorithms(edge_case_graph, graph_class):
     """Test that a shorter internal graph origin (node 0, dist 2) is bypassed in favor
 
     of a longer internal origin (node 4, dist 5) when origin starting weights make node 4 cheaper.
     """
-    g = GraphClass(edge_case_graph)
+    g = graph_class(edge_case_graph)
     g.create_contraction_hierarchy()
     g.create_tnr_hierarchy(num_transit_nodes=3)
 
@@ -114,12 +102,11 @@ def test_origin_weights_inversion_all_algorithms(edge_case_graph, GraphClass):
         ), f"{algo} computed incorrect length for origin 0"
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
 def test_combined_origin_and_exit_weights_all_algorithms(
-    edge_case_graph, GraphClass
+    edge_case_graph, graph_class
 ):
     """Test combining both origin start weights and destination exit weights simultaneously."""
-    g = GraphClass(edge_case_graph)
+    g = graph_class(edge_case_graph)
     g.create_contraction_hierarchy()
     g.create_tnr_hierarchy(num_transit_nodes=3)
 
@@ -142,12 +129,11 @@ def test_combined_origin_and_exit_weights_all_algorithms(
         ), f"{algo} computed incorrect length for combined weights"
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
 def test_tree_path_exit_and_start_weight_inversions(
-    edge_case_graph, GraphClass
+    edge_case_graph, graph_class
 ):
     """Test get_tree_path with tree built from node 0 and queried with start distance offset and exit weights."""
-    g = GraphClass(edge_case_graph)
+    g = graph_class(edge_case_graph)
     tree = g.get_shortest_path_tree(origin_id=0)
 
     # 1. Start offset 10.0 on origin 0; exit weights make destination 3 cheaper (10+5+1=16 vs 10+2+100=112)
@@ -179,8 +165,7 @@ def test_tree_path_exit_and_start_weight_inversions(
     assert abs(res2["length"] - 13.0) < 1e-6
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_overlap_direct_vs_path_with_weights(GraphClass):
+def test_overlap_direct_vs_path_with_weights(graph_class):
     """Test when origin and destination sets overlap, checking whether a direct same-node
 
     or a traversable multi-hop path is selected based on start/exit weights.
@@ -191,7 +176,7 @@ def test_overlap_direct_vs_path_with_weights(GraphClass):
         {2: 2.0},  # 1
         {},  # 2
     ]
-    g = GraphClass(graph)
+    g = graph_class(graph)
 
     # Overlapping node 1 has huge start & exit weights (20.0 + 20.0 = 40.0)
     # Path 0 -> 1 -> 2 has start 1.0 + graph (2+2) + exit 1.0 = 6.0
@@ -225,10 +210,9 @@ def test_overlap_direct_vs_path_with_weights(GraphClass):
         assert abs(res["length"] - 2.0) < 1e-6
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_reduced_graph_with_weight_inversions(edge_case_graph, GraphClass):
+def test_reduced_graph_with_weight_inversions(edge_case_graph, graph_class):
     """Test that graph reduction preserves start and exit weight inversions."""
-    g = GraphClass(edge_case_graph)
+    g = graph_class(edge_case_graph)
     g.reduce(iterations=1)
 
     reduced_algos = [

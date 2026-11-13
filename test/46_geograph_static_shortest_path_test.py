@@ -3,17 +3,7 @@ import random
 import pytest
 from copy import deepcopy
 from scgraph import GeoGraph
-from scgraph.graph import Graph as PyGraph
 from scgraph.utils import haversine
-
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
-
-GRAPH_CLASSES = [PyGraph] + ([CppGraph] if HAS_CPP else [])
 
 
 @pytest.fixture
@@ -28,10 +18,9 @@ def sample_graph():
     ]
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_get_tree_path_dict_inputs(sample_graph, GraphClass):
+def test_get_tree_path_dict_inputs(sample_graph, graph_class):
     """Test get_tree_path with dict origins (with start offsets) and dict destinations (with exit penalties)."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     tree = g.get_shortest_path_tree(origin_id=0)
 
     # 0 -> 1(2) -> 2(3) -> 3(4) = 9.0; with start_dist=5.0 and exit_dist=1.0 -> 15.0
@@ -72,12 +61,11 @@ def test_get_tree_path_dict_inputs(sample_graph, GraphClass):
         )
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
 def test_all_graph_algorithms_dict_origins_and_destinations(
-    sample_graph, GraphClass
+    sample_graph, graph_class
 ):
     """Test all graph algorithms with dictionary origins and destinations."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     g.create_contraction_hierarchy()
     g.create_tnr_hierarchy(num_transit_nodes=3)
 
@@ -130,12 +118,11 @@ def test_all_graph_algorithms_dict_origins_and_destinations(
         assert abs(res["length"] - 10.0) < 1e-6, f"{algo} failed length check"
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
 def test_all_graph_algorithms_dict_inputs_on_reduced_graph(
-    sample_graph, GraphClass
+    sample_graph, graph_class
 ):
     """Test graph algorithms with dictionary origins and destinations on a reduced graph."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     g.reduce(iterations=1)
 
     algorithms = [
@@ -166,10 +153,9 @@ def test_all_graph_algorithms_dict_inputs_on_reduced_graph(
         ), f"{algo} on reduced graph failed length"
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_cached_shortest_path_dict_inputs(sample_graph, GraphClass):
+def test_cached_shortest_path_dict_inputs(sample_graph, graph_class):
     """Test cached_shortest_path multi-origin fallback to Dijkstra."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     origin_dict = {0: 10.0, 4: 5.0}
     destination_dict = {3: 0.0}
 
@@ -187,10 +173,11 @@ def test_cached_shortest_path_dict_inputs(sample_graph, GraphClass):
     assert abs(res_len["length"] - 13.0) < 1e-6
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_cached_shortest_path_single_key_dict_and_set(sample_graph, GraphClass):
+def test_cached_shortest_path_single_key_dict_and_set(
+    sample_graph, graph_class
+):
     """Test cached_shortest_path with 1-key dict, 1-element set, and cache reuse."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
 
     # 1-key dict with starting distance 10.0 from node 0 to destination 3
     # 0 -> 1(2) -> 2(3) -> 3(4) = 9.0 + 10.0 = 19.0
@@ -228,37 +215,35 @@ def test_cached_shortest_path_single_key_dict_and_set(sample_graph, GraphClass):
     assert abs(res_int["length"] - 9.0) < 1e-6
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_set_cache_loads_what_get_cache_returned(sample_graph, GraphClass):
+def test_set_cache_loads_what_get_cache_returned(sample_graph, graph_class):
     """A cache taken from a graph with get_cache loads into another graph of the same size."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     g.cached_shortest_path(origin_id=4, destination_id=3)
     cache = g.get_cache()
-    fresh = GraphClass(sample_graph)
+    fresh = graph_class(sample_graph)
     fresh.set_cache(cache)
     assert fresh.get_cache() == cache
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_set_cache_refuses_a_cache_of_another_length(sample_graph, GraphClass):
+def test_set_cache_refuses_a_cache_of_another_length(sample_graph, graph_class):
     """A cache has one entry per node: a longer cache belongs to another graph."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     with pytest.raises(ValueError):
         g.set_cache(g.get_cache() + [0])
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_set_cache_refuses_a_cache_that_is_not_a_list(sample_graph, GraphClass):
-    cache_in_a_tuple = tuple(GraphClass(sample_graph).get_cache())
+def test_set_cache_refuses_a_cache_that_is_not_a_list(
+    sample_graph, graph_class
+):
+    cache_in_a_tuple = tuple(graph_class(sample_graph).get_cache())
 
     with pytest.raises(TypeError):
-        GraphClass(sample_graph).set_cache(cache_in_a_tuple)
+        graph_class(sample_graph).set_cache(cache_in_a_tuple)
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_cached_shortest_path_multiple_exit_nodes(sample_graph, GraphClass):
+def test_cached_shortest_path_multiple_exit_nodes(sample_graph, graph_class):
     """Test cached_shortest_path with multiple exit nodes (set and dict with exit distances)."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
 
     # 1. Multiple exit nodes as a set {3, 5} -> destination 5 is closer (7.0 vs 9.0)
     res_set = g.cached_shortest_path(origin_id=0, destination_id={3, 5})
@@ -290,12 +275,11 @@ def test_cached_shortest_path_multiple_exit_nodes(sample_graph, GraphClass):
     assert abs(res_both["length"] - 15.0) < 1e-6
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
 def test_cached_shortest_path_multiple_exit_nodes_all_origin_types(
-    sample_graph, GraphClass
+    sample_graph, graph_class
 ):
     """Test multiple exit destinations paired with int, 1-element set, 1-key dict, and multi-key dict origins."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     destinations = {
         3: 5.0,
         5: 1.0,
@@ -326,10 +310,9 @@ def test_cached_shortest_path_multiple_exit_nodes_all_origin_types(
     assert abs(res_mdict["length"] - 9.0) < 1e-6
 
 
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_cached_shortest_path_same_node_overlap(sample_graph, GraphClass):
+def test_cached_shortest_path_same_node_overlap(sample_graph, graph_class):
     """Test cached_shortest_path when origin and destination contain overlapping nodes."""
-    g = GraphClass(sample_graph)
+    g = graph_class(sample_graph)
     res = g.cached_shortest_path(
         origin_id={1: 5.0}, destination_id={1: 2.0, 3: 10.0}
     )
@@ -426,15 +409,14 @@ _MILES_NODES = [[1.2, 0.0], [0.7, 0.0], [0.14, 0.0], [0.0, 0.0], [0.07, 0.0]]
 
 
 @pytest.mark.parametrize("heuristic", ["haversine", "cheap_ruler"])
-@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_geograph_heuristics_follow_geograph_units(heuristic, GraphClass):
+def test_geograph_heuristics_follow_geograph_units(heuristic, graph_class):
     """A* with a GeoGraph heuristic finds the shortest path whatever the GeoGraph units."""
     geograph = GeoGraph(
         graph=deepcopy(_MILES_GRAPH),
         nodes=deepcopy(_MILES_NODES),
         geograph_units="mi",
     )
-    result = GraphClass(deepcopy(_MILES_GRAPH)).a_star(
+    result = graph_class(deepcopy(_MILES_GRAPH)).a_star(
         origin_id=0,
         destination_id=3,
         heuristic_fn=getattr(geograph, heuristic),

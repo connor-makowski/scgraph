@@ -1,15 +1,7 @@
 import pytest
 from scgraph import PathNotFoundError
-from scgraph.graph import Graph as PyGraph
-from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
 
-try:
-    from scgraph.cpp import Graph as CppGraph
-    from scgraph.cpp import TNRGraph as CppTNRGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
+from helpers import CppGraph, CppTNRGraph, needs_the_cpp_extension
 
 # Adversarial contraction graph:
 # 1 -> 2 -> 3 (weight 1.5 + 1.5 = 3.0)
@@ -37,7 +29,7 @@ _ADVERSARIAL_GRAPH = [
 ]
 
 
-def _run_settled_limit_comparison(graph_class):
+def test_settled_limit(graph_class):
     # 1. High settled limit: should find the witness path and skip adding the shortcut
     g_high = graph_class(_ADVERSARIAL_GRAPH)
     ch_high = g_high.create_contraction_hierarchy(settled_limit=10)
@@ -64,17 +56,8 @@ def _run_settled_limit_comparison(graph_class):
     assert abs(res_dijkstra["length"] - 3.0) < 1e-9
 
 
-def test_python_settled_limit():
-    _run_settled_limit_comparison(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_settled_limit():
-    _run_settled_limit_comparison(CppGraph)
-
-
 # --- Disconnected Graphs / Unreachable Target Test ---
-def _run_disconnected_graph_tests(graph_class, tnr_class):
+def test_disconnected_graph(graph_class, tnr_class):
     # Two disconnected components: (0, 1) and (2, 3)
     data = [
         {1: 1.0},  # 0
@@ -111,17 +94,8 @@ def _run_disconnected_graph_tests(graph_class, tnr_class):
         tnr.get_shortest_path(0, 2)
 
 
-def test_python_disconnected_graph():
-    _run_disconnected_graph_tests(PyGraph, PyTNRGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_disconnected_graph():
-    _run_disconnected_graph_tests(CppGraph, CppTNRGraph)
-
-
 # --- Very Small Graphs Test ---
-def _run_very_small_graph_tests(graph_class, tnr_class):
+def test_very_small_graph(graph_class, tnr_class):
     # Single node graph
     g1 = graph_class([{}])
     res_ch1 = g1.contraction_hierarchy(0, 0)
@@ -144,17 +118,8 @@ def _run_very_small_graph_tests(graph_class, tnr_class):
         tnr2.get_shortest_path(0, 1)
 
 
-def test_python_very_small_graph():
-    _run_very_small_graph_tests(PyGraph, PyTNRGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_very_small_graph():
-    _run_very_small_graph_tests(CppGraph, CppTNRGraph)
-
-
 # --- Transit Nodes Selection Edge Cases in TNR ---
-def _run_tnr_transit_count_edge_cases(tnr_class):
+def test_tnr_transit_count_edge_cases(tnr_class):
     # Graph of 4 nodes
     data = [
         {1: 1.0},
@@ -176,17 +141,8 @@ def _run_tnr_transit_count_edge_cases(tnr_class):
     assert res_zero["path"] == [0, 1, 2, 3]
 
 
-def test_python_tnr_transit_count_edge_cases():
-    _run_tnr_transit_count_edge_cases(PyTNRGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_tnr_transit_count_edge_cases():
-    _run_tnr_transit_count_edge_cases(CppTNRGraph)
-
-
 # --- Dynamic Node Addition Test ---
-def _run_dynamic_node_addition_tests(graph_class, tnr_class):
+def test_dynamic_node_addition(graph_class, tnr_class):
     # Standard graph
     data = [
         {1: 5.0, 2: 1.0},
@@ -231,17 +187,8 @@ def _run_dynamic_node_addition_tests(graph_class, tnr_class):
     assert res_tnr_to["path"] == res_dijkstra["path"]
 
 
-def test_python_dynamic_node_addition():
-    _run_dynamic_node_addition_tests(PyGraph, PyTNRGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_dynamic_node_addition():
-    _run_dynamic_node_addition_tests(CppGraph, CppTNRGraph)
-
-
 # --- Query-Time Dynamic Node Addition on C++ hierarchy classes directly ---
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
+@needs_the_cpp_extension
 def test_cpp_hierarchy_query_time_add_node():
     data = [
         {1: 5.0, 2: 1.0},
@@ -317,7 +264,7 @@ def _assert_ch_matches_dijkstra(graph_class, data, g):
             assert result["length"] == expected, (origin, destination)
 
 
-def _run_contraction_order_tests(graph_class):
+def test_contraction_order(graph_class):
     # CH lengths must match Dijkstra whatever the contraction order
     # A custom heuristic: priority = node id
     g = graph_class([dict(d) for d in _CUSTOM_HEURISTIC_GRAPH])
@@ -328,12 +275,3 @@ def _run_contraction_order_tests(graph_class):
         g = graph_class([dict(d) for d in data])
         g.reduce()
         _assert_ch_matches_dijkstra(graph_class, data, g)
-
-
-def test_python_contraction_order():
-    _run_contraction_order_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_contraction_order():
-    _run_contraction_order_tests(CppGraph)

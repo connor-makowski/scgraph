@@ -1,13 +1,7 @@
 import random
-import pytest
 from scgraph.graph import Graph as PythonGraph
 
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
+from helpers import CppGraph, needs_the_cpp_extension
 
 random.seed(42)
 
@@ -40,41 +34,23 @@ def _make_float_grid(size):
     return data
 
 
-def test_python_buckets_matches_dijkstra_int():
+def test_buckets_matches_dijkstra_int(graph_class):
     data = _make_int_grid(200)
-    g = PythonGraph(data)
+    g = graph_class(data)
     dijkstra = g.dijkstra(0, len(data) - 1)
     buckets = g.dijkstra_buckets(0, len(data) - 1)
     assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
 
 
-def test_python_buckets_matches_dijkstra_float():
+def test_buckets_matches_dijkstra_float(graph_class):
     data = _make_float_grid(200)
-    g = PythonGraph(data)
+    g = graph_class(data)
     dijkstra = g.dijkstra(0, len(data) - 1)
     buckets = g.dijkstra_buckets(0, len(data) - 1)
     assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
 
 
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_buckets_matches_dijkstra_int():
-    data = _make_int_grid(200)
-    g = CppGraph(data)
-    dijkstra = g.dijkstra(0, len(data) - 1)
-    buckets = g.dijkstra_buckets(0, len(data) - 1)
-    assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_buckets_matches_dijkstra_float():
-    data = _make_float_grid(200)
-    g = CppGraph(data)
-    dijkstra = g.dijkstra(0, len(data) - 1)
-    buckets = g.dijkstra_buckets(0, len(data) - 1)
-    assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
+@needs_the_cpp_extension
 def test_cpp_vs_python_buckets_agree_int():
     data = _make_int_grid(200)
     py = PythonGraph(data).dijkstra_buckets(0, len(data) - 1)

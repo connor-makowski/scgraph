@@ -3,13 +3,6 @@ from scgraph.graph import Graph as PyGraph
 from scgraph.graph_utils import normalize_node_input
 from heapq import heapify, heappop, heappush
 
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    GRAPH_CLASSES = [PyGraph, CppGraph]
-except ImportError:
-    GRAPH_CLASSES = [PyGraph]
-
 
 def _build_test_graph():
     # Chain A: 0 - 1 - 2 - 3 (pass-throughs: 1, 2)
@@ -78,11 +71,8 @@ def _custom_bidirectional(self, origin_id, destination_id):
 
 
 @pytest.mark.parametrize("algorithm", [_custom, _custom_bidirectional])
-@pytest.mark.parametrize(
-    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
-)
-def test_custom_algorithm_decorator(GraphClass, algorithm):
-    g = GraphClass(_build_test_graph())
+def test_custom_algorithm_decorator(graph_class, algorithm):
+    g = graph_class(_build_test_graph())
     across = {"path": [1, 2, 3, 4, 5], "length": pytest.approx(11.0)}
     assert algorithm(g, 1, 5) == across
     g.reduce()
