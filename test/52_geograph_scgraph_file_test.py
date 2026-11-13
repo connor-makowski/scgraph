@@ -782,34 +782,45 @@ def test_arrays_written_to_a_file_are_read_back_the_same(tmp_path, mapped):
     assert metadata["modes"] == ROAD_AND_PORT
 
 
-def test_a_file_with_fewer_node_ids_than_nodes_is_refused(tmp_path):
+# A file may come from another tool, or be damaged. `load_from_scgraph` must
+# refuse arrays that do not fit together, and name what is wrong. Each case
+# below replaces one array of the valid network above. The C++ build finds a
+# node mode beyond the list of modes later than pure Python, with another
+# message.
+@pytest.mark.parametrize(
+    "invalid_arrays, message",
+    [
+        pytest.param(
+            {"node_ids": array("q", [1, 2])},
+            "one node id per node",
+            id="fewer node ids than nodes",
+        ),
+        pytest.param(
+            {"node_modes": array("B", [0, 0])},
+            "one node mode per node",
+            id="fewer node modes than nodes",
+        ),
+        pytest.param(
+            {"node_modes": array("B", [0, 0, 2])},
+            "invalid node modes|each node a row of modes",
+            id="a node mode beyond the list of modes",
+        ),
+        pytest.param(
+            {"latitudes": array("i", [0, 0, 10**7])},
+            "coordinates of two dtypes",
+            id="latitudes and longitudes of two dtypes",
+        ),
+    ],
+)
+def test_a_file_whose_arrays_do_not_fit_together_is_refused(
+    tmp_path, invalid_arrays, message
+):
     path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["node_ids"] = array("q", [1, 2])
+    arrays = {**_two_road_nodes_and_a_port(), **invalid_arrays}
     network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
 
-    with pytest.raises(ValueError, match="one node id per node"):
-        network_file.read(path)
-
-
-def test_a_file_with_fewer_node_modes_than_nodes_is_refused(tmp_path):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["node_modes"] = array("B", [0, 0])
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="one node mode per node"):
-        network_file.read(path)
-
-
-def test_a_file_with_a_node_mode_beyond_its_list_of_modes_is_refused(tmp_path):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["node_modes"] = array("B", [0, 0, 2])
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="invalid node modes"):
-        network_file.read(path)
+    with pytest.raises(ValueError, match=message):
+        GeoGraph.load_from_scgraph(path)
 
 
 def test_a_file_with_node_modes_and_no_list_of_modes_is_refused(tmp_path):
@@ -817,96 +828,69 @@ def test_a_file_with_node_modes_and_no_list_of_modes_is_refused(tmp_path):
     network_file.write(path, _two_road_nodes_and_a_port(), {})
 
     with pytest.raises(ValueError, match="without a list of modes"):
-        network_file.read(path)
+        GeoGraph.load_from_scgraph(path)
 
 
-def test_a_file_with_latitudes_and_longitudes_of_two_dtypes_is_refused(
-    tmp_path,
+# `load_from_scgraph(modes=...)` loads the nodes of some modes only. It finds
+# them without reading the whole file, so the file must list its nodes mode by
+# mode. It checks the arrays that it reads on the way.
+@pytest.mark.parametrize(
+    "invalid_arrays, message",
+    [
+        pytest.param(
+            {"node_modes": array("B", [1, 0, 0])},
+            "unsorted",
+            id="node modes that are not sorted",
+        ),
+        pytest.param(
+            {"node_modes": array("B", [0, 0, 2])},
+            "unknown node",
+            id="a node mode beyond the list of modes",
+        ),
+        pytest.param(
+            {"node_ids": array("q", [1, 2, 3, 4])},
+            "per node",
+            id="more node ids than nodes",
+        ),
+        pytest.param(
+            {"offsets": array("i", [0, 2, 1, 2])},
+            "invalid offsets",
+            id="offsets that decrease",
+        ),
+        pytest.param(
+            {"heads": array("i", [-1, 0])},
+            "arc to a missing node",
+            id="an arc to a node that does not exist",
+        ),
+        pytest.param(
+            {
+                "shape_offsets": array("i", [0, 1, 0]),
+                "shape_points": array("d"),
+            },
+            "invalid shape offsets",
+            id="shape offsets that decrease",
+        ),
+    ],
+)
+def test_loading_some_modes_refuses_arrays_that_do_not_fit_together(
+    tmp_path, invalid_arrays, message
 ):
     path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["latitudes"] = array("i", [0, 0, 10**7])
+    arrays = {**_two_road_nodes_and_a_port(), **invalid_arrays}
     network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
 
-    with pytest.raises(ValueError, match="coordinates of two dtypes"):
-        network_file.read(path)
+    with pytest.raises(ValueError, match=message):
+        GeoGraph.load_from_scgraph(path, modes=["road"])
 
 
-# `read(modes=...)` reads the nodes of some modes only. It finds them without
-# reading the whole file, so the file must list its nodes mode by mode.
-def test_reading_some_modes_refuses_node_modes_that_are_not_sorted(tmp_path):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["node_modes"] = array("B", [1, 0, 0])
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="unsorted"):
-        network_file.read(path, modes=("road",))
-
-
-def test_reading_some_modes_refuses_a_node_mode_beyond_the_list_of_modes(
-    tmp_path,
-):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["node_modes"] = array("B", [0, 0, 2])
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="unknown node"):
-        network_file.read(path, modes=("road",))
-
-
-def test_reading_some_modes_refuses_more_node_ids_than_nodes(tmp_path):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["node_ids"] = array("q", [1, 2, 3, 4])
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="per node"):
-        network_file.read(path, modes=("road",))
-
-
-def test_reading_a_mode_that_the_file_does_not_have_is_refused(tmp_path):
+def test_loading_a_mode_that_the_file_does_not_have_is_refused(tmp_path):
     path = str(tmp_path / "arrays.scgraph")
     network_file.write(
         path, _two_road_nodes_and_a_port(), {"modes": ROAD_AND_PORT}
     )
 
     with pytest.raises(ValueError, match=r"unknown modes \['rail'\]"):
-        network_file.read(path, modes=("rail",))
-
-
-def test_reading_some_modes_refuses_offsets_that_decrease(tmp_path):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["offsets"] = array("i", [0, 2, 1, 2])
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="invalid offsets"):
-        network_file.read(path, modes=("road",))
-
-
-def test_reading_some_modes_refuses_an_arc_to_a_node_that_does_not_exist(
-    tmp_path,
-):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["heads"] = array("i", [-1, 0])
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="arc to a missing node"):
-        network_file.read(path, modes=("road",))
-
-
-def test_reading_some_modes_refuses_shape_offsets_that_decrease(tmp_path):
-    path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port()
-    arrays["shape_offsets"] = array("i", [0, 1, 0])
-    arrays["shape_points"] = array("d")
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
-
-    with pytest.raises(ValueError, match="invalid shape offsets"):
-        network_file.read(path, modes=("road",))
+        GeoGraph.load_from_scgraph(path, modes=["rail"])
 
 
 def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
@@ -1292,105 +1276,81 @@ def _replace_int32(data, array_name, index, value):
     return data[:position] + value.to_bytes(4, "little") + data[position + 4 :]
 
 
-def test_a_file_of_another_format_is_refused(file_to_damage):
-    file_to_damage.write_bytes(b'{"type": "GeoGraph"}')
-
-    with pytest.raises(ValueError, match="not a scgraph network file"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+# Each function below takes the bytes of a file and returns them damaged.
+def _replace_with_a_file_of_another_format(data):
+    return b'{"type": "GeoGraph"}'
 
 
-def test_a_file_of_a_later_format_version_is_refused(file_to_damage):
-    data = file_to_damage.read_bytes()
+def _set_a_later_format_version(data):
     header = _read_header(data)
     header["format_version"] = 2
-    file_to_damage.write_bytes(_replace_header(data, header))
-
-    with pytest.raises(ValueError, match="format version 2"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+    return _replace_header(data, header)
 
 
-def test_a_file_cut_before_its_end_is_refused(file_to_damage):
-    data = file_to_damage.read_bytes()
-    file_to_damage.write_bytes(data[:-8])
-
-    with pytest.raises(ValueError, match="invalid array"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+def _cut_before_the_end(data):
+    return data[:-8]
 
 
-def test_a_file_whose_header_gives_an_array_a_wrong_dtype_is_refused(
-    file_to_damage,
-):
-    data = file_to_damage.read_bytes()
+def _give_an_array_a_wrong_dtype(data):
     header = _read_header(data)
     header["arrays"]["heads"]["dtype"] = "float64"
-    file_to_damage.write_bytes(_replace_header(data, header))
-
-    with pytest.raises(ValueError, match="invalid array"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+    return _replace_header(data, header)
 
 
-def test_a_file_whose_header_is_said_longer_than_the_file_is_refused(
-    file_to_damage,
-):
-    data = file_to_damage.read_bytes()
-    length_of_the_file = len(data).to_bytes(8, "little")
-    file_to_damage.write_bytes(data[:40] + length_of_the_file + data[48:])
-
-    with pytest.raises(ValueError, match="invalid header length"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+def _say_the_header_as_long_as_the_file(data):
+    return data[:40] + len(data).to_bytes(8, "little") + data[48:]
 
 
-def test_a_file_whose_header_places_an_array_before_the_arrays_is_refused(
-    file_to_damage,
-):
-    data = file_to_damage.read_bytes()
+def _place_an_array_before_the_arrays(data):
     header = _read_header(data)
     header["arrays"]["offsets"]["offset"] = -_find_start_of_arrays(data)
-    file_to_damage.write_bytes(_replace_header(data, header))
-
-    with pytest.raises(ValueError, match="invalid array"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+    return _replace_header(data, header)
 
 
-def test_a_file_whose_header_lists_no_arrays_is_refused(file_to_damage):
-    data = file_to_damage.read_bytes()
+def _remove_the_list_of_arrays(data):
     header = _read_header(data)
     del header["arrays"]
-    file_to_damage.write_bytes(_replace_header(data, header))
-
-    with pytest.raises(ValueError, match="invalid header"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+    return _replace_header(data, header)
 
 
-def test_a_file_whose_header_is_not_a_json_object_is_refused(file_to_damage):
-    data = file_to_damage.read_bytes()
-    header_in_a_list = [_read_header(data)]
-    file_to_damage.write_bytes(_replace_header(data, header_in_a_list))
-
-    with pytest.raises(ValueError, match="invalid header"):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+def _put_the_header_in_a_json_list(data):
+    return _replace_header(data, [_read_header(data)])
 
 
-# The next two damages are in the arrays of the arcs. `network_file.read`
-# finds them in the pure-Python build. The C++ graph, which reads the file in
-# place, finds them in the C++ build: each build has its message.
-def test_a_file_with_an_arc_to_a_node_that_does_not_exist_is_refused(
-    file_to_damage,
-):
-    data = file_to_damage.read_bytes()
-    file_to_damage.write_bytes(_replace_int32(data, "heads", 0, 99))
-
-    with pytest.raises(
-        ValueError, match="arc to a missing node|is not in the graph"
-    ):
-        GeoGraph.load_from_scgraph(str(file_to_damage))
+def _point_an_arc_to_a_node_that_does_not_exist(data):
+    return _replace_int32(data, "heads", 0, 99)
 
 
-def test_a_file_whose_offsets_go_past_its_arcs_is_refused(file_to_damage):
-    data = file_to_damage.read_bytes()
-    file_to_damage.write_bytes(_replace_int32(data, "offsets", 1, 2**30))
+def _set_an_offset_past_the_arcs(data):
+    return _replace_int32(data, "offsets", 1, 2**30)
 
-    with pytest.raises(ValueError, match="invalid offsets|non-decreasing"):
+
+# A damaged file must be refused with a message that names the damage. It
+# must not be read as a wrong network. The last two damages are in the arrays
+# of the arcs: the C++ graph, which reads the file in place, finds them with
+# its own message.
+@pytest.mark.parametrize(
+    "damage, message",
+    [
+        (_replace_with_a_file_of_another_format, "not a scgraph network file"),
+        (_set_a_later_format_version, "format version 2"),
+        (_cut_before_the_end, "invalid array"),
+        (_give_an_array_a_wrong_dtype, "invalid array"),
+        (_say_the_header_as_long_as_the_file, "invalid header length"),
+        (_place_an_array_before_the_arrays, "invalid array"),
+        (_remove_the_list_of_arrays, "invalid header"),
+        (_put_the_header_in_a_json_list, "invalid header"),
+        (
+            _point_an_arc_to_a_node_that_does_not_exist,
+            "arc to a missing node|is not in the graph",
+        ),
+        (_set_an_offset_past_the_arcs, "invalid offsets|non-decreasing"),
+    ],
+)
+def test_a_damaged_file_is_refused(file_to_damage, damage, message):
+    file_to_damage.write_bytes(damage(file_to_damage.read_bytes()))
+
+    with pytest.raises(ValueError, match=message):
         GeoGraph.load_from_scgraph(str(file_to_damage))
 
 

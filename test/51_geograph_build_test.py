@@ -993,7 +993,10 @@ def test_a_car_ferry_joins_the_road_nodes_nearest_its_two_ends(strait_network):
     arcs = _by_osm_ids(strait_network, strait_network.graph_object.graph)
 
     # From node 1: road 1 to node 2, then ferry 3. The ferry counts for the
-    # length of its own route, from node 10 to node 3.
+    # length of its own route, from node 10 to node 3. Each ferry that must be
+    # left out would give another length. Ferry 4 is closed to cars, and ferry
+    # 5 starts far from any road: both are shorter than ferry 3. Ferry 6 is
+    # longer than road 1, which joins the same nodes.
     assert arcs[(1, 3)] == pytest.approx(
         _strait_km(1, 2) + _strait_km(10, 11, 3)
     )
@@ -1006,32 +1009,6 @@ def test_the_shape_of_a_ferry_arc_follows_the_route_of_the_ferry(
 
     # After node 2, the drawing goes to the start of ferry 3, then along it.
     assert shapes[(1, 3)] == [list(_STRAIT_NODES[node]) for node in (2, 10, 11)]
-
-
-# The three tests below look at the arc from node 1 to node 3: road 1, then
-# ferry 3, in 7.8 km. A ferry that must be left out would change its length.
-def test_a_ferry_closed_to_cars_is_left_out(strait_network):
-    arcs = _by_osm_ids(strait_network, strait_network.graph_object.graph)
-
-    # Ferry 4 joins the same road nodes as ferry 3, and its route is shorter.
-    assert arcs[(1, 3)] > _strait_km(1, 2) + _strait_km(20, 21)
-
-
-def test_a_ferry_that_starts_far_from_any_road_is_left_out(strait_network):
-    arcs = _by_osm_ids(strait_network, strait_network.graph_object.graph)
-
-    # Node 2 is the road node nearest the start of ferry 5, 3.6 km away.
-    # Joined to it, ferry 5 would be shorter than ferry 3.
-    assert arcs[(1, 3)] > _strait_km(1, 2) + _strait_km(30, 31)
-
-
-def test_a_ferry_longer_than_the_road_beside_it_does_not_replace_the_road(
-    strait_network,
-):
-    arcs = _by_osm_ids(strait_network, strait_network.graph_object.graph)
-
-    # Ferry 6 joins nodes 1 and 2 in 2.3 km. Road 1 joins them in 1.1 km.
-    assert arcs[(1, 3)] < _strait_km(40, 41, 42) + _strait_km(10, 11, 3)
 
 
 def test_a_ferry_that_starts_inside_a_road_cuts_the_road_at_that_node(
