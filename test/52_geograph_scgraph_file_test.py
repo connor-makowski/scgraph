@@ -7,8 +7,9 @@ from array import array
 
 import pytest
 
-from scgraph import GeoGraph, Graph, network_file
+from scgraph import GeoGraph, network_file
 from scgraph.helpers.hilbert import hilbert_order
+from scgraph.utils import has_cpp
 
 # The small network has four nodes, listed in Hilbert order. Node 0 has a
 # one-way arc to node 2 and a two-way arc with node 1, with an integer weight.
@@ -356,9 +357,7 @@ def test_nodes_appended_directly_are_saved_in_the_first_mode(tmp_path):
     }
 
 
-@pytest.mark.skipif(
-    Graph.__module__ == "scgraph.cpp", reason="a C++ graph is not picklable"
-)
+@pytest.mark.skipif(has_cpp(), reason="a C++ graph is not picklable")
 def test_a_pickled_geograph_keeps_its_node_ids(tmp_path):
     geo = pickle.loads(pickle.dumps(_small([7, 5, 3, 1])))
     geo.add_coord_node({"latitude": 2.0, "longitude": 2.0}, auto_edge=False)
@@ -368,6 +367,152 @@ def test_a_pickled_geograph_keeps_its_node_ids(tmp_path):
 
 
 # Without `modes`, a geograph has one mode: the row 1 of modes does not exist.
+@pytest.mark.parametrize(
+    "columns, message",
+    [
+        pytest.param(
+            {"node_ids": [7, 5, 3]},
+            "one id per node",
+            id="fewer node ids than nodes",
+        ),
+        pytest.param(
+            {"node_modes": [0, 0, 0]},
+            "a row of modes",
+            id="fewer node modes than nodes",
+        ),
+        pytest.param(
+            {"node_modes": [0, 0, 0, 1]},
+            "a row of modes",
+            id="a node mode that is not in the modes",
+        ),
+    ],
+)
+def test_a_geograph_whose_node_ids_or_node_modes_do_not_fit_is_refused(
+    columns, message
+):
+    with pytest.raises(ValueError, match=message):
+        GeoGraph(graph=[{}, {}, {}, {}], nodes=SMALL_NODES, **columns)
+
+
+def _small_with_fine_coordinates(coordinate_dtype):
+    """The small network with two coordinates that are not multiples of 1e-7
+    degree: the longitude of node 3 and the latitude of the shape point.
+    `coordinate_dtype` is how the geograph says its coordinates are stored."""
+    geograph = _small()
+    geograph.coordinate_dtype = coordinate_dtype
+    geograph.nodes[3] = [1.0, 1.000000001]
+    geograph.intermediate_nodes = [{1: [[0.0029000001, 0.0058]]}, {}, {}, {}]
+    return geograph
+
+
+# A file stores its coordinates as the geograph does, unless `save_as_scgraph`
+# gets a `coordinate_dtype`. The two cases of each test below give the dtype
+# in these two ways.
+@pytest.mark.parametrize(
+    "dtype_of_the_geograph, save_options",
+    [
+        pytest.param("float64", {}, id="a float64 geograph"),
+        pytest.param(
+            "int32", {"coordinate_dtype": "float64"}, id="saved as float64"
+        ),
+    ],
+)
+def test_a_file_stored_as_float64_keeps_the_exact_coordinates(
+    tmp_path, dtype_of_the_geograph, save_options
+):
+    path = str(tmp_path / "small.scgraph")
+    _small_with_fine_coordinates(dtype_of_the_geograph).save_as_scgraph(
+        path, **save_options
+    )
+
+    loaded = GeoGraph.load_from_scgraph(path)
+
+    assert GeoGraph.get_scgraph_info(path)["coordinate_dtype"] == "float64"
+    assert loaded.nodes[3] == [1.0, 1.000000001]
+    assert loaded.intermediate_nodes[0][1] == [[0.0029000001, 0.0058]]
+
+
+@pytest.mark.parametrize(
+    "dtype_of_the_geograph, save_options",
+    [
+        pytest.param("int32", {}, id="an int32 geograph"),
+        pytest.param(
+            "float64", {"coordinate_dtype": "int32"}, id="saved as int32"
+        ),
+    ],
+)
+def test_a_file_stored_as_int32_rounds_the_coordinates_to_1e_7_degree(
+    tmp_path, dtype_of_the_geograph, save_options
+):
+    path = str(tmp_path / "small.scgraph")
+    _small_with_fine_coordinates(dtype_of_the_geograph).save_as_scgraph(
+        path, **save_options
+    )
+
+    loaded = GeoGraph.load_from_scgraph(path)
+
+    assert GeoGraph.get_scgraph_info(path)["coordinate_dtype"] == "int32"
+    assert loaded.nodes[3] == [1.0, 1.0]
+    assert loaded.intermediate_nodes[0][1] == [[0.0029, 0.0058]]
+
+
+@both_coordinate_dtypes
+def test_a_route_on_a_loaded_network_passes_the_points_of_the_shapes(
+    tmp_path, coordinate_dtype
+):
+    path = str(tmp_path / "small.scgraph")
+    _small().save_as_scgraph(path, coordinate_dtype=coordinate_dtype)
+
+    route = _route_0_to_1(GeoGraph.load_from_scgraph(path))
+
+    assert [0.0029, 0.0058] in route
+    assert route == _route_0_to_1(_small())
+
+
+@pytest.mark.parametrize(
+    "coordinates, message",
+    [
+        pytest.param(
+            {"nodes": [*SMALL_NODES[:3], [1.0, float("nan")]]},
+            "Node 3",
+            id="a node",
+        ),
+        pytest.param(
+            {
+                "intermediate_nodes": [
+                    {1: [[0.0029, float("inf")]]},
+                    {},
+                    {},
+                    {},
+                ]
+            },
+            "arc 0 -> 1",
+            id="a shape point",
+        ),
+    ],
+)
+def test_a_coordinate_that_is_not_a_finite_number_is_refused_and_located(
+    tmp_path, coordinates, message
+):
+    geograph = _small()
+    for name, value in coordinates.items():
+        setattr(geograph, name, value)
+
+    with pytest.raises(ValueError, match=message):
+        geograph.save_as_scgraph(str(tmp_path / "small.scgraph"))
+
+
+def test_a_coordinate_beyond_the_range_of_int32_is_refused_as_int32(tmp_path):
+    # An int32 holds up to 214.7483647 degrees, in units of 1e-7 degree
+    geograph = _small()
+    geograph.intermediate_nodes = [{1: [[0.0029, 214.75]]}, {}, {}, {}]
+
+    with pytest.raises(ValueError, match="within ±214.7483647"):
+        geograph.save_as_scgraph(
+            str(tmp_path / "small.scgraph"), coordinate_dtype="int32"
+        )
+
+
 def test_an_unknown_coordinate_dtype_is_refused(tmp_path):
     with pytest.raises(ValueError, match="must be 'auto', 'float64' or"):
         _small().save_as_scgraph(
@@ -955,7 +1100,7 @@ def test_a_loaded_network_with_an_added_node_is_saved_as_graphjson(
 
 # The C++ graph reads its file in place. Windows does not replace a file that
 # a process reads in place; the other systems do.
-WINDOWS_WITH_CPP = os.name == "nt" and Graph.__module__ == "scgraph.cpp"
+WINDOWS_WITH_CPP = os.name == "nt" and has_cpp()
 
 
 @pytest.mark.skipif(
