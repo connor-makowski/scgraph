@@ -30,9 +30,12 @@ endif()
 # -----------------------------
 # Graph module
 # -----------------------------
+# NOMINSIZE: without it, nanobind adds -Os (/Os with MSVC) after the flags above, and the
+# compiler then optimises every file for size, not for speed
 nanobind_add_module(
     cpp
     STABLE_ABI
+    NOMINSIZE
     scgraph/cpp/bindings/graph_bindings.cpp
     scgraph/cpp/bindings/pipelines_bindings.cpp
     scgraph/cpp/src/graph.cpp
