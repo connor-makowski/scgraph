@@ -5,9 +5,10 @@ import pytest
 from helpers import great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines import osm_main_roads, osm_rail, world_main_roads
+from scgraph.pipelines import osm_main_roads, osm_rail
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.helpers.hilbert import hilbert_order
+from scgraph.utils import has_cpp
 
 osmium = pytest.importorskip("osmium")
 
@@ -89,9 +90,15 @@ def osm_file(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def arcs(osm_file):
-    # Every part of the small file, not only its largest connected part
-    return _arcs(GeoGraph.load_from_osm(osm_file, largest_component=False))
+def whole_network(osm_file):
+    """The network of every part of the small file, not only of its largest
+    connected part."""
+    return GeoGraph.load_from_osm(osm_file, largest_component=False)
+
+
+@pytest.fixture(scope="module")
+def arcs(whole_network):
+    return _arcs(whole_network)
 
 
 def test_load_from_osm_joins_ways_only_at_shared_nodes(arcs):
@@ -110,86 +117,107 @@ def test_load_from_osm_does_not_join_across_a_missing_node(arcs):
     assert not any(20 in arc or 21 in arc for arc in arcs)
 
 
-def test_load_from_osm_arc_lengths_follow_the_shape(arcs):
-    assert arcs[(1, 2)] == pytest.approx(_km(1, 2))
-    # Way 6 is cut at node 12, the first point 2 km or more from node 10
+def test_an_arc_has_the_length_of_its_drawing(arcs):
+    # The arc from node 10 to node 12 passes node 11, which lies north of
+    # the straight line between them.
     assert arcs[(10, 12)] == pytest.approx(_km(10, 11) + _km(11, 12))
-    assert arcs[(12, 13)] == pytest.approx(_km(12, 13))
 
 
-_ONE_WAY = {(4, 7), (31, 30), (40, 41), (50, 51)}
-_BRIDGE = {(5, 6), (6, 5)}  # way 3, two-way
-_FERRY = {(60, 61), (61, 60)}  # way 11, two-way
-
-
-@pytest.mark.parametrize(
-    "source, select, tag_keys, expected",
-    [
-        # one-way streets kept one way (the default)
-        (str, osm.select_main_roads, ("highway",), _ONE_WAY | _BRIDGE),
-        # every kept way both ways
-        (
-            str,
-            lambda tags: None if osm.select_main_roads(tags) is None else 0,
-            ("highway",),
-            _ONE_WAY | {(b, a) for a, b in _ONE_WAY} | _BRIDGE,
-        ),
-        # a way left out
-        (
-            str,
-            lambda tags: (
-                None if "bridge" in tags else osm.select_main_roads(tags)
-            ),
-            ("highway",),
-            _ONE_WAY,
-        ),
-        # ways with any one of the keys: main roads or ferry routes
-        (
-            str,
-            lambda tags: (
-                0
-                if tags.get("route") == "ferry"
-                else osm.select_main_roads(tags)
-            ),
-            ("highway", "route"),
-            _ONE_WAY | _BRIDGE | _FERRY,
-        ),
-    ],
-)
-def test_load_from_osm_selects_ways_and_their_direction(
-    osm_file, source, select, tag_keys, expected
-):
-    arcs = _arcs(
-        GeoGraph.load_from_osm(
-            source(osm_file),
-            select=select,
-            tag_keys=tag_keys,
-            largest_component=False,
-        )
-    )
-    nodes = {5, 7, 30, 40, 50, 60}  # the bridge, one-way streets and the ferry
-    assert {arc for arc in arcs if nodes & set(arc)} == expected
-
-
-def test_locate_ways_reads_every_kind_of_way_in_one_set_of_passes(osm_file):
-    # A way goes to the first select that keeps it (primary roads are main roads), and
-    # ways of two kinds meet at junctions (residential way 4 meets road way 1 at node 3)
-    selects = {
-        "residential": lambda tags: (
-            0 if tags.get("highway") == "residential" else None
-        ),
-        "roads": osm.select_main_roads,
-        "primary": lambda tags: 0 if tags.get("highway") == "primary" else None,
+def test_a_long_way_is_cut_at_the_first_point_2_km_from_its_start(arcs):
+    # Way 6 runs 10, 11, 12, 13. Along the way, node 11 is 1.2 km from node
+    # 10 and node 12 is 2.5 km from it: the way is cut at node 12.
+    assert {arc for arc in arcs if 12 in arc} == {
+        (10, 12),
+        (12, 10),
+        (12, 13),
+        (13, 12),
     }
-    junctions, polylines = osm.locate_ways(osm_file, selects, ("highway",))
-    nodes = {}
-    for kind, _, points in polylines:
-        nodes.setdefault(kind, set()).update(ref for ref, _ in points)
-    assert set(nodes) == {"residential", "roads"}
-    assert (
-        nodes["residential"] == {3, 7} and {1, 2, 3, 50, 51} <= nodes["roads"]
+
+
+def test_default_select_follows_one_way_streets_in_their_legal_direction(arcs):
+    # Way 5 (4-7) has oneway=yes. Way 8 (30-31) has oneway=-1: traffic runs
+    # against its drawing. Way 9 (40-41) is a piece of a roundabout and way
+    # 10 (50-51) is a motorway: both are one way without a oneway tag.
+    ends_of_one_way_streets = {4, 7, 30, 31, 40, 41, 50, 51}
+
+    assert {arc for arc in arcs if set(arc) <= ends_of_one_way_streets} == {
+        (4, 7),
+        (31, 30),
+        (40, 41),
+        (50, 51),
+    }
+
+
+def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
+    # For a way, `select` returns 0 for both directions, or None to leave
+    # the way out.
+    def select_primary_roads_as_two_way(tags):
+        return 0 if tags.get("highway") == "primary" else None
+
+    network = GeoGraph.load_from_osm(
+        osm_file,
+        select=select_primary_roads_as_two_way,
+        largest_component=False,
     )
-    assert 3 in junctions and 1 not in junctions
+
+    arcs = _arcs(network)
+    # Way 8 joins nodes 30 and 31. It is a primary road with oneway=-1.
+    assert {arc for arc in arcs if 30 in arc} == {(30, 31), (31, 30)}
+    # Way 10, from node 50 to node 51, is the only motorway of the file.
+    assert not any(50 in arc or 51 in arc for arc in arcs)
+
+
+def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
+    def select_primary_roads_and_ferries(tags):
+        is_kept = (
+            tags.get("highway") == "primary" or tags.get("route") == "ferry"
+        )
+        return 0 if is_kept else None
+
+    network = GeoGraph.load_from_osm(
+        osm_file,
+        select=select_primary_roads_and_ferries,
+        tag_keys=("highway", "route"),
+        largest_component=False,
+    )
+
+    # Way 1 (1-2-3) has the key highway only. The ferry way 11 (60-61) has
+    # the key route only: the default tag_keys would leave it out.
+    arcs = _arcs(network)
+    assert (1, 2) in arcs
+    assert (60, 61) in arcs
+
+
+# A pipeline gives several selects to `locate_ways`, one for each kind of
+# way: roads and ferries, for example. `load_from_osm` takes one select, so
+# the two tests below call `locate_ways`.
+def test_a_way_goes_to_the_first_select_that_keeps_it(osm_file):
+    def select_primary_roads(tags):
+        return 0 if tags.get("highway") == "primary" else None
+
+    # Both selects keep the primary roads, and "roads" comes first.
+    selects = {"roads": osm.select_main_roads, "primary": select_primary_roads}
+
+    _, polylines = osm.locate_ways(osm_file, selects, ("highway",))
+
+    assert {kind for kind, _, _ in polylines} == {"roads"}
+
+
+def test_ways_of_two_kinds_meet_at_a_node_that_both_have(osm_file):
+    def select_residential_streets(tags):
+        return 0 if tags.get("highway") == "residential" else None
+
+    selects = {
+        "streets": select_residential_streets,
+        "roads": osm.select_main_roads,
+    }
+
+    junctions, _ = osm.locate_ways(osm_file, selects, ("highway",))
+
+    # Node 3 is the end of the main road 1 and of the residential street 4.
+    # Node 1 is the end of the main road 1 only.
+    assert 3 in junctions
+    assert 1 not in junctions
 
 
 def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
@@ -202,38 +230,93 @@ def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
     }
 
 
-def test_load_from_osm_numbers_nodes_along_a_hilbert_curve_with_their_osm_ids(
-    osm_file,
+def test_load_from_osm_stores_its_nodes_in_hilbert_order_with_their_osm_ids(
+    whole_network,
 ):
-    geo = GeoGraph.load_from_osm(osm_file, largest_component=False)
-    assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
-    assert geo.coordinate_dtype == "int32"  # OSM's own encoding
-    assert all(
-        _NODES[ref] == tuple(node) for ref, node in zip(geo.node_ids, geo.nodes)
-    )
+    nodes = whole_network.nodes
+    places_of_node_ids = [_NODES[osm_id] for osm_id in whole_network.node_ids]
+
+    assert hilbert_order(nodes) == list(range(len(nodes)))
+    assert places_of_node_ids == [tuple(node) for node in nodes]
+    # OSM stores a coordinate as an integer, in 1e-7 degree. A network file
+    # stores it the same way, as an int32.
+    assert whole_network.coordinate_dtype == "int32"
 
 
-# A planet mirror: the files of a folder by HTTP, with byte ranges; their ETag is the text
-# of the folder's file "tag", read at each request. In a child process: osmium holds the
-# GIL while it waits for the pipe, which a server thread would need to fill
-# What a work folder keeps is reused for the same build only: a build resumed there
-# gives the same network, and another selection of ways never gets this one's pieces
-def test_a_work_folder_serves_the_build_that_filled_it_and_no_other(
+# A long build keeps files between its steps in a work folder. The next
+# build in the same folder reads these files in place of the OSM file.
+def test_a_build_resumed_in_its_work_folder_gives_the_same_network(
     osm_file, tmp_path
 ):
     work_dir = str(tmp_path / "work")
-    roads = osm_main_roads.build({"roads": osm_file})[0]
-    for _ in range(
-        2
-    ):  # the build that fills the folder, then the one that resumes
-        assert (
-            osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)[0]
-            == roads
-        )
-    with pytest.raises(ValueError, match="No way"):  # the file has no railway
+    built_without_folder = osm_main_roads.build({"roads": osm_file})[0]
+
+    first = osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)[0]
+    resumed = osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)[0]
+
+    assert first == built_without_folder
+    assert resumed == built_without_folder
+
+
+def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
+    osm_file, tmp_path
+):
+    work_dir = str(tmp_path / "work")
+    osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)
+
+    # The file has no railway. A build that took the roads kept in the
+    # folder for railways would succeed.
+    with pytest.raises(ValueError, match="No way"):
         osm_rail.build({"rail": osm_file}, work_dir=work_dir)
 
 
+# The planet file is too large to download: scgraph reads it in place, by
+# HTTP byte ranges (`osm.StreamedPbf`). It first finds where the nodes and
+# the ways start in the file. In a file above 8 MB, it finds them by bisection.
+@pytest.fixture(scope="module")
+def planet_folder(osm_file, tmp_path_factory):
+    """A folder with `planet.osm.pbf` and its md5 file, as a mirror has them.
+
+    The PBF holds the nodes and the ways of the small file. Filler nodes and
+    filler ways, each with a note of 1 kB, make it 9.7 MB: 3 MB of nodes, then
+    6.6 MB of ways. The notes are all different and the file is not compressed,
+    so that it keeps this size. A filler way has no highway tag: no road
+    pipeline keeps it.
+    """
+    folder = tmp_path_factory.mktemp("planet")
+    header = osmium.io.Header()
+    header.set("osmosis_replication_timestamp", "2026-11-02T00:00:00Z")
+    pbf = osmium.io.File(
+        str(folder / "planet.osm.pbf"), "pbf,pbf_compression=none"
+    )
+    with osmium.SimpleWriter(pbf, header=header) as writer:
+        for node in osmium.FileProcessor(osm_file, osmium.osm.NODE):
+            writer.add(node)
+        for filler in range(3000):
+            writer.add_node(
+                osmium.osm.mutable.Node(
+                    id=1000 + filler,
+                    location=(0, 0),
+                    tags={"note": f"{filler:08d}" * 125},
+                )
+            )
+        for way in osmium.FileProcessor(osm_file, osmium.osm.WAY):
+            writer.add(way)
+        for filler in range(6500):
+            writer.add_way(
+                osmium.osm.mutable.Way(
+                    id=1000 + filler,
+                    nodes=[1, 2],
+                    tags={"note": f"{filler:08d}" * 125},
+                )
+            )
+    (folder / "planet.osm.pbf.md5").write_text("9a8b  planet.osm.pbf\n")
+    return folder
+
+
+# The mirror serves the files of a folder by HTTP, with byte ranges. Every
+# answer carries an ETag: the text of the file "tag" of the folder, read at
+# each request. A test changes that file to make the PBF a new file for scgraph.
 _MIRROR = r"""
 import http.server, pathlib, sys
 folder = pathlib.Path(sys.argv[1])
@@ -259,55 +342,69 @@ server.serve_forever()
 """
 
 
-# The ways of a PBF read by byte ranges are those of the file; a file that changes on the
-# server stops the read
-def test_streamed_pbf_reads_the_ways_of_the_file(
-    osm_file, tmp_path, monkeypatch
-):
-    header, pbf = osmium.io.Header(), tmp_path / "small.osm.pbf"
-    header.set("osmosis_replication_timestamp", "2026-11-02T00:00:00Z")
-    with osmium.SimpleWriter(str(pbf), header=header) as writer:
-        for entity in osmium.FileProcessor(osm_file):
-            writer.add(entity)
-    (tmp_path / "small.osm.pbf.md5").write_text("9a8b  small.osm.pbf\n")
-    (tmp_path / "tag").write_text('"one"')
+@pytest.fixture
+def planet_url(planet_folder):
+    """The URL of `planet.osm.pbf` on a mirror that serves `planet_folder`.
+
+    The mirror runs in a child process. A thread of this process could not
+    answer: osmium keeps the interpreter locked while it waits for the bytes.
+    """
+    (planet_folder / "tag").write_text('"first upload"')
     mirror = subprocess.Popen(
-        [sys.executable, "-c", _MIRROR, str(tmp_path)], stdout=subprocess.PIPE
+        [sys.executable, "-c", _MIRROR, str(planet_folder)],
+        stdout=subprocess.PIPE,
     )
     try:
-        url = f"http://127.0.0.1:{int(mirror.stdout.readline())}/small.osm.pbf"
-        layout = str(tmp_path / "layout.json")
-        monkeypatch.setattr(osm, "_SCAN", 0)  # bisection down to single bytes
-        record = osm.StreamedPbf.download(url, layout)
-        assert record == {
-            "version": "2026-11-02T00:00:00Z",
-            "bytes": pbf.stat().st_size,
-            "md5": "9a8b",
-        }
-
-        def ways(source):
-            junctions, lines = osm.locate_ways(
-                source, {"r": osm.select_main_roads}
-            )
-            return list(junctions.ids), list(lines)
-
-        stream = osm.StreamedPbf(layout)
-        assert ways(stream) == ways(str(pbf))
-        # The world: C++ only, checked before any download; then the regional build
-        # with the world's source (a stream) and folder (the runner's)
-        with monkeypatch.context() as patch:
-            patch.setattr(osm, "has_cpp", lambda: False)
-            with pytest.raises(RuntimeError, match="C\\+\\+ backend"):
-                osm.PLANET["download"](url, layout)
-        monkeypatch.setattr(world_main_roads, "MAX_KM", osm.MAX_KM)
-        monkeypatch.setattr(world_main_roads, "MIN_NODES", None)
-        world, _ = world_main_roads.build({"roads": layout})
-        assert world == osm_main_roads.build({"roads": str(pbf)})[0]
-        world_from_local, _ = world_main_roads.build({"roads": str(pbf)})
-        assert world_from_local == world
-        (tmp_path / "tag").write_text('"two"')
-        with pytest.raises(RuntimeError, match="Reading http"):
-            ways(stream)
+        port = int(mirror.stdout.readline())
+        yield f"http://127.0.0.1:{port}/planet.osm.pbf"
     finally:
         mirror.kill()
         mirror.wait()
+
+
+def test_streamed_pbf_download_records_the_version_size_and_md5_of_the_file(
+    planet_url, planet_folder, tmp_path
+):
+    record = osm.StreamedPbf.download(planet_url, tmp_path / "layout.json")
+
+    # The version is the time in the header of the PBF. The md5 is the one
+    # that the mirror publishes beside the file.
+    assert record == {
+        "version": "2026-11-02T00:00:00Z",
+        "bytes": (planet_folder / "planet.osm.pbf").stat().st_size,
+        "md5": "9a8b",
+    }
+
+
+def test_a_pbf_read_by_byte_ranges_gives_the_network_of_its_ways(
+    planet_url, osm_file, tmp_path
+):
+    layout = str(tmp_path / "layout.json")
+    osm.StreamedPbf.download(planet_url, layout)
+
+    streamed = osm_main_roads.build({"roads": layout})[0]
+
+    # The PBF holds the ways of the small file, and filler that no select keeps.
+    assert streamed == osm_main_roads.build({"roads": osm_file})[0]
+
+
+def test_a_pbf_that_changes_on_the_server_stops_the_build(
+    planet_url, planet_folder, tmp_path
+):
+    layout = str(tmp_path / "layout.json")
+    osm.StreamedPbf.download(planet_url, layout)
+    (planet_folder / "tag").write_text('"second upload"')
+
+    with pytest.raises(RuntimeError, match="Reading http"):
+        osm_main_roads.build({"roads": layout})
+
+
+@pytest.mark.skipif(has_cpp(), reason="The C++ extension is built")
+def test_the_planet_is_not_streamed_without_the_cpp_extension(tmp_path):
+    download_planet = osm.PLANET["download"]
+
+    # The refusal comes before any request: nothing listens at this address.
+    with pytest.raises(RuntimeError, match="C\\+\\+ backend"):
+        download_planet(
+            "http://127.0.0.1:9/planet.osm.pbf", str(tmp_path / "layout.json")
+        )

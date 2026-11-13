@@ -12,21 +12,38 @@ from scgraph.pipelines.steps.stage4_validation import (
 )
 
 
-# Every case that a pipeline names exists, under one id, and a region without
-# cases gets none
-def test_every_pipeline_names_existing_validation_cases():
-    for name in pipelines.NAMES:
-        validation = getattr(
-            importlib.import_module(f"scgraph.pipelines.{name}"),
-            "VALIDATION",
-            None,
-        )
-        assert validation is None or load_cases(validation)
-    regional = {"cases": {"europe/france": ["paris_marseille"]}}
-    assert [
-        case["id"] for case in load_cases(regional, region="europe/france")
-    ] == ["paris_marseille"]
-    assert load_cases(regional, region="europe/spain") == []
+# Every pipeline lists its validation cases in `VALIDATION`. A case that a
+# pipeline lists by its id must be a row of the files of cases.
+@pytest.mark.parametrize("name", pipelines.NAMES)
+def test_every_case_that_a_pipeline_lists_exists(name):
+    pipeline = importlib.import_module(f"scgraph.pipelines.{name}")
+
+    assert load_cases(pipeline.VALIDATION)
+
+
+# A regional pipeline lists its cases by region. `paris_marseille` is a row of
+# `cases/route_lengths.csv`.
+CASES_BY_REGION = {"cases": {"europe/france": ["paris_marseille"]}}
+
+
+@pytest.mark.parametrize(
+    "region, case_ids",
+    [
+        pytest.param(
+            "europe/france", ["paris_marseille"], id="a region that has cases"
+        ),
+        pytest.param("europe/spain", [], id="a region without cases"),
+    ],
+)
+def test_a_regional_pipeline_gets_the_cases_of_the_region_asked(
+    region, case_ids
+):
+    cases = load_cases(CASES_BY_REGION, region=region)
+
+    assert [case["id"] for case in cases] == case_ids
+
+
+def test_a_case_that_is_in_no_file_of_cases_is_refused():
     with pytest.raises(ValueError, match="no_such_case"):
         load_cases({"cases": ["no_such_case"]})
 

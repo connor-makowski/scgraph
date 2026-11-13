@@ -7,13 +7,6 @@ import pytest
 from scgraph import PathNotFoundError
 from scgraph.graph import Graph as PyGraph
 
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    GRAPH_CLASSES = [PyGraph, CppGraph]
-except ImportError:
-    GRAPH_CLASSES = [PyGraph]
-
 
 def run_network_test(geograph_name, geograph):
     g_large = geograph.graph_object
@@ -280,6 +273,71 @@ CHECKED_GRAPHS = (
 )
 
 
+# One pass of reduce(), or passes until nothing changes.
+_ITERATIONS = [1, -1]
+
+
+# reduce() stores, for the searches, links that stand for paths through reduced
+# nodes. Each stored link must be a real path of the original graph.
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_reduce_stores_only_paths_of_the_original_graph(
+    graph_class, iterations
+):
+    for graph in CHECKED_GRAPHS:
+        g = graph_class(deepcopy(graph))
+        g.reduce(iterations)
+        _assert_stored_paths_are_valid(graph, g)
+
+
+# A caller of a reduced graph still reads the original graph: its links, its
+# inverse links, its rows with get() and its shortest path trees.
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_reduced_graph_still_shows_the_original_graph(graph_class, iterations):
+    for graph in CHECKED_GRAPHS:
+        inverse = [{} for _ in graph]
+        for u, row in enumerate(graph):
+            for v, w in row.items():
+                inverse[v][u] = w
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
+
+        g.reduce(iterations)
+
+        assert g.graph == g.unreduced_graph == graph
+        assert g.inverse_graph == inverse
+        # A GeoGraph subclass may keep its graph as a class attribute.
+        holder = type("Holder", (), {"graph": g})
+        assert [holder.graph.get(u) for u in range(len(graph))] == graph
+        for origin in range(len(graph)):
+            tree = g.get_shortest_path_tree(origin)
+            assert tree == reference.get_shortest_path_tree(origin)
+
+
+def test_get_on_a_reduced_graph_refuses_an_id_outside_the_graph(graph_class):
+    g = graph_class([{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}])
+    g.reduce()
+
+    with pytest.raises(IndexError):
+        g.get(-1)
+
+
+# Only the searches read the reduced graph, through `search_graph`.
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_searches_on_a_reduced_graph_read_the_reduced_links(
+    graph_class, iterations
+):
+    for graph in CHECKED_GRAPHS:
+        g = graph_class(deepcopy(graph))
+
+        g.reduce(iterations)
+
+        assert g.search_graph == g.reduced_graph
+        assert g.search_inverse_graph == g.reduced_inverse_graph
+
+
 @pytest.mark.parametrize(
     "algorithm",
     [
@@ -296,47 +354,21 @@ CHECKED_GRAPHS = (
         "tnr",
     ],
 )
-@pytest.mark.parametrize("iterations", [1, -1])
-@pytest.mark.parametrize(
-    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
-)
+@pytest.mark.parametrize("iterations", _ITERATIONS)
 # The slowest case takes about 0.7 s: 20 s leaves a margin for slow runners.
 @_fail_instead_of_looping(seconds=20)
 def test_reduced_graph_matches_unreduced_graph(
-    GraphClass, iterations, algorithm
+    graph_class, iterations, algorithm
 ):
     # Every search on a reduced graph finds, for every pair, a path of the
     # original graph with the shortest length of the unreduced graph, for plain
     # node ids, start/exit distances (as GeoGraph passes them) and several
     # destinations
     for graph in CHECKED_GRAPHS:
-        reference = GraphClass(deepcopy(graph))
-        g = GraphClass(deepcopy(graph))
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
         g.reduce(iterations)
-        if algorithm == "dijkstra":
-            # What reduce() stores does not depend on the search: checked once
-            _assert_stored_paths_are_valid(graph, g)
-            # graph, inverse_graph and the tree stay those of the original
-            # graph; the searches read the reduced one
-            inverse = [{} for _ in graph]
-            for u, row in enumerate(graph):
-                for v, w in row.items():
-                    inverse[v][u] = w
-            assert g.graph == g.unreduced_graph == graph
-            assert g.inverse_graph == inverse
-            # get(node) gives a row of the original graph, also when the graph
-            # is stored as a class attribute; an id outside the graph raises
-            holder = type("Holder", (), {"graph": g})
-            assert [holder.graph.get(u) for u in range(len(graph))] == graph
-            with pytest.raises(IndexError):
-                g.get(-1)
-            assert g.search_graph == g.reduced_graph
-            assert g.search_inverse_graph == g.reduced_inverse_graph
-            for o in range(len(graph)):
-                tree = g.get_shortest_path_tree(o)
-                assert tree == reference.get_shortest_path_tree(o)
         n = len(graph)
-        leaving_chain = set()
         for o in range(n):
             for d in range(n):
                 for origin, destination in (
@@ -350,22 +382,13 @@ def test_reduced_graph_matches_unreduced_graph(
                     except PathNotFoundError:
                         continue  # not connected in the original graph
                     if algorithm == "bmssp" and (
-                        n < 2 or (GraphClass is PyGraph and destination == 0)
+                        n < 2 or (graph_class is PyGraph and destination == 0)
                     ):
                         # Limits of bmsspy, not of reduction: it needs 2 nodes
                         # or more, and its pure-Python solver returns no path
                         # to node 0. Remove once bmsspy handles both.
                         continue
                     result = getattr(g, algorithm)(origin, destination)
-                    if isinstance(destination, int) and not g.is_same_chain(
-                        origin, destination
-                    ):
-                        leaving_chain.add(origin)
-                    if algorithm == "tnr":
-                        # length_only reads the distance table alone
-                        assert g.tnr(origin, destination, length_only=True)[
-                            "length"
-                        ] == pytest.approx(expected["length"]), case
                     path = result["path"]
                     origins = origin if isinstance(origin, dict) else {origin}
                     targets = (
@@ -390,21 +413,67 @@ def test_reduced_graph_matches_unreduced_graph(
                     assert weight + offsets == pytest.approx(
                         expected["length"]
                     ), case
-        if algorithm == "cached_shortest_path":
-            # Each origin queried beyond its own chain keeps its tree cached,
-            # reduced origins included (distance matrices reuse it): in both
-            # builds, the tree of the reduced graph, whose distances are those
-            # of the original graph on the nodes kept and inf on the others
-            cache = g.get_cache()
-            for o in leaving_chain:
-                full = reference.get_shortest_path_tree(o)["distance_matrix"]
-                expected = [
-                    d if v == o or not g.is_reduced[v] else float("inf")
-                    for v, d in enumerate(full)
-                ]
-                assert cache[o]["distance_matrix"] == pytest.approx(
-                    expected
-                ), graph
+
+
+# With length_only=True, tnr reads its table of distances and builds no path.
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_tnr_length_only_on_a_reduced_graph_gives_the_shortest_length(
+    graph_class, iterations
+):
+    for graph in CHECKED_GRAPHS:
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
+        g.reduce(iterations)
+        n = len(graph)
+        for o in range(n):
+            for d in range(n):
+                for origin, destination in (
+                    (o, d),
+                    ({o: 0.5}, {d: 0.25}),
+                    (o, {d, (d + 1) % n}),
+                ):
+                    try:
+                        expected = reference.dijkstra(origin, destination)
+                    except PathNotFoundError:
+                        continue  # not connected in the original graph
+                    result = g.tnr(origin, destination, length_only=True)
+                    assert result["length"] == pytest.approx(
+                        expected["length"]
+                    ), (graph, origin, destination)
+
+
+# cached_shortest_path keeps the tree of each origin that it searched from,
+# reduced origins included: distance matrices reuse these trees. A query inside
+# one chain needs no tree. In both builds, the cached tree is the tree of the
+# reduced graph: the distances of the original graph on the nodes kept, and inf
+# on the reduced nodes.
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_cached_shortest_path_keeps_the_tree_of_each_origin_searched(
+    graph_class, iterations
+):
+    for graph in CHECKED_GRAPHS:
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
+        g.reduce(iterations)
+        searched_origins = set()
+        for o in range(len(graph)):
+            for d in range(len(graph)):
+                try:
+                    g.cached_shortest_path(o, d)
+                except PathNotFoundError:
+                    continue  # not connected in the original graph
+                if not g.is_same_chain(o, d):
+                    searched_origins.add(o)
+        cache = g.get_cache()
+        for o in searched_origins:
+            full = reference.get_shortest_path_tree(o)["distance_matrix"]
+            expected = [
+                d if v == o or not g.is_reduced[v] else float("inf")
+                for v, d in enumerate(full)
+            ]
+            assert cache[o]["distance_matrix"] == pytest.approx(expected), graph
 
 
 if __name__ == "__main__":

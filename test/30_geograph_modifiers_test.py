@@ -1,6 +1,6 @@
 import pytest
 from copy import deepcopy
-from scgraph import GeoGraph, Graph
+from scgraph import GeoGraph
 from scgraph.utils import haversine
 from helpers import assert_result
 
@@ -139,23 +139,40 @@ def _snapped(g, point):
     )["path"][0]
 
 
-def test_snapping_follows_added_and_removed_nodes():
+# The point is next to the added node 4, in the middle of the four nodes.
+def test_snapping_finds_an_added_node():
     g = _fresh()
-    near_a = {"latitude": 0.45, "longitude": 0.55}
-    near_b = {"latitude": 0.95, "longitude": -0.95}
-    g.add_coord_node({"latitude": 0.5, "longitude": 0.5})  # node 4: A
-    assert _snapped(g, near_a) == 4
-    # Same number of nodes, node 4 is now B, far from A
+    g.add_coord_node({"latitude": 0.5, "longitude": 0.5})
+    assert _snapped(g, {"latitude": 0.45, "longitude": 0.55}) == 4
+
+
+# The first query snaps to node 4 while it exists. After the removal, node 1
+# at [0, 1] is the closest node to the same point.
+def test_snapping_forgets_a_removed_node():
+    g = _fresh()
+    near_node_4 = {"latitude": 0.45, "longitude": 0.55}
+    g.add_coord_node({"latitude": 0.5, "longitude": 0.5})
+    _snapped(g, near_node_4)
+    g.remove_coord_node()
+    assert _snapped(g, near_node_4) == 1
+
+
+# The second node 4 is far from the first one. The graph has five nodes both
+# times: the number of nodes does not tell that node 4 moved.
+def test_snapping_finds_a_node_added_in_place_of_a_removed_node():
+    g = _fresh()
+    near_first_node_4 = {"latitude": 0.45, "longitude": 0.55}
+    near_second_node_4 = {"latitude": 0.95, "longitude": -0.95}
+    g.add_coord_node({"latitude": 0.5, "longitude": 0.5})
+    _snapped(g, near_first_node_4)
     g.remove_coord_node()
     g.add_coord_node(
         {"latitude": 1, "longitude": -1},
         node_addition_type="all",
         lat_lon_bound=180,
     )
-    assert _snapped(g, near_a) == 1
-    assert _snapped(g, near_b) == 4
-    g.remove_coord_node()
-    assert _snapped(g, near_b) == 2
+    assert _snapped(g, near_second_node_4) == 4
+    assert _snapped(g, near_first_node_4) == 1
 
 
 def test_add_haversine_edge():
@@ -171,33 +188,39 @@ def test_add_haversine_edge():
     )
 
 
-# A graph of two nodes joined both ways. Its node ids are 0 and 1.
-def _two_joined_nodes():
-    return Graph([{1: 1.0}, {0: 1.0}])
+@pytest.mark.parametrize(
+    "change",
+    [
+        pytest.param(
+            lambda graph: graph.add_edge(5, 0, 1.0),
+            id="add_edge from an origin that is not in the graph",
+        ),
+        pytest.param(
+            lambda graph: graph.add_edge(0, 5, 1.0),
+            id="add_edge to a destination that is not in the graph",
+        ),
+        pytest.param(
+            lambda graph: graph.remove_edge(5, 0),
+            id="remove_edge from an origin that is not in the graph",
+        ),
+        pytest.param(
+            lambda graph: graph.remove_edge(0, 5),
+            id="remove_edge to a destination that is not in the graph",
+        ),
+    ],
+)
+def test_a_change_of_an_edge_refuses_a_node_that_is_not_in_the_graph(
+    graph_class, change
+):
+    # Two nodes joined both ways: only the ids 0 and 1 exist.
+    graph = graph_class([{1: 1.0}, {0: 1.0}])
 
-
-def test_add_edge_refuses_an_origin_that_is_not_in_the_graph():
     with pytest.raises(IndexError):
-        _two_joined_nodes().add_edge(5, 0, 1.0)
+        change(graph)
 
 
-def test_add_edge_refuses_a_destination_that_is_not_in_the_graph():
-    with pytest.raises(IndexError):
-        _two_joined_nodes().add_edge(0, 5, 1.0)
-
-
-def test_remove_edge_refuses_an_origin_that_is_not_in_the_graph():
-    with pytest.raises(IndexError):
-        _two_joined_nodes().remove_edge(5, 0)
-
-
-def test_remove_edge_refuses_a_destination_that_is_not_in_the_graph():
-    with pytest.raises(IndexError):
-        _two_joined_nodes().remove_edge(0, 5)
-
-
-def test_remove_node_refuses_a_graph_without_nodes():
-    graph = Graph([{}])
+def test_remove_node_refuses_a_graph_without_nodes(graph_class):
+    graph = graph_class([{}])
     graph.remove_node()
 
     with pytest.raises(RuntimeError):

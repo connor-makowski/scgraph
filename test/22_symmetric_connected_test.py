@@ -77,29 +77,29 @@ def test_one_way_disconnected_raises():
 
 # `validate` raises the same type with the C++ extension and in pure Python:
 # TypeError for a value of the wrong type, ValueError for a wrong value. With
-# the C++ extension, the TypeError comes when the graph is created.
-def test_validate_refuses_a_graph_that_is_not_a_list():
+# the C++ class, the TypeError comes when the graph is created.
+def test_validate_refuses_a_graph_that_is_not_a_list(graph_class):
     rows_in_a_dictionary = {0: {1: 1.0}, 1: {0: 1.0}}
 
     with pytest.raises(TypeError):
-        Graph(rows_in_a_dictionary).validate()
+        graph_class(rows_in_a_dictionary).validate()
 
 
-def test_validate_refuses_a_row_that_is_not_a_dictionary():
+def test_validate_refuses_a_row_that_is_not_a_dictionary(graph_class):
     with pytest.raises(TypeError):
-        Graph([[1], [0]]).validate()
+        graph_class([[1], [0]]).validate()
 
 
-def test_validate_refuses_a_destination_id_that_is_not_an_integer():
+def test_validate_refuses_a_destination_id_that_is_not_an_integer(graph_class):
     with pytest.raises(TypeError):
-        Graph([{"1": 1.0}, {0: 1.0}]).validate()
+        graph_class([{"1": 1.0}, {0: 1.0}]).validate()
 
 
-def test_validate_refuses_a_distance_that_is_not_a_number():
+def test_validate_refuses_a_distance_that_is_not_a_number(graph_class):
     with pytest.raises(TypeError):
-        Graph([{1: "far"}, {0: "far"}]).validate()
+        graph_class([{1: "far"}, {0: "far"}]).validate()
 
 
-def test_validate_refuses_a_negative_distance():
+def test_validate_refuses_a_negative_distance(graph_class):
     with pytest.raises(ValueError, match="non-negative"):
-        Graph([{1: -1.0}, {0: -1.0}]).validate()
+        graph_class([{1: -1.0}, {0: -1.0}]).validate()

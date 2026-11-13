@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from scgraph import GeoGraph, geograph, network_file
+from scgraph import GeoGraph, geograph
 
 
 def test_list_geographs_returns_list():
@@ -63,42 +63,84 @@ def test_clear_cache():
         assert entry["cached"] is False
 
 
-def test_cache_directory_is_cache_dir_else_the_environment_variable(
-    tmp_path, monkeypatch
-):
-    # The platform directory moves under tmp_path too: no call may reach the real cache
+def _save_as_cached_marnet(cache, nodes):
+    # Writes the file that a download of marnet leaves in a cache. The nodes
+    # have no links: the tests only count them to tell two caches apart.
+    cache.mkdir(exist_ok=True)
+    GeoGraph(graph=[{} for _ in nodes], nodes=nodes).save_as_graphjson(
+        str(cache / "marnet.graphjson")
+    )
+
+
+def _list_files(cache):
+    # The files of a cache, as paths relative to it.
+    return {
+        path.relative_to(cache).as_posix()
+        for path in cache.rglob("*")
+        if path.is_file()
+    }
+
+
+@pytest.fixture
+def environment_cache(tmp_path, monkeypatch):
+    """The folder that SCGRAPH_CACHE_DIR names. The home folder moves under
+    tmp_path too, so that no call can reach the real cache of the user."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "home"))
-    shared, mine = tmp_path / "shared", tmp_path / "mine"
-    monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(shared))
-    for folder, nodes in (
-        (shared, [[0, 0], [0, 1]]),
-        (mine, [[0, 0], [1, 0], [2, 0]]),
-    ):
-        folder.mkdir()
-        graph = [{} for _ in nodes]
-        GeoGraph(graph=graph, nodes=nodes).save_as_graphjson(
-            str(folder / "marnet.graphjson")
-        )
-    (shared / "networks" / "us_freeway").mkdir(parents=True)
-    (shared / "networks" / "us_freeway" / "cache.json").write_text(
-        '{"file": "built.scgraph"}'
+    monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(tmp_path / "environment"))
+    return tmp_path / "environment"
+
+
+def test_load_geograph_reads_the_cache_that_scgraph_cache_dir_names(
+    environment_cache,
+):
+    _save_as_cached_marnet(environment_cache, nodes=[[0, 0], [0, 1]])
+    geo = GeoGraph.load_geograph("marnet")
+    assert len(geo.nodes) == 2
+
+
+# Each cache holds a marnet of its own size. The number of nodes tells which
+# cache was read.
+def test_cache_dir_argument_wins_over_scgraph_cache_dir(
+    environment_cache, tmp_path
+):
+    _save_as_cached_marnet(environment_cache, nodes=[[0, 0], [0, 1]])
+    _save_as_cached_marnet(
+        tmp_path / "argument", nodes=[[0, 0], [1, 0], [2, 0]]
     )
-    (shared / "networks" / "us_freeway" / "built.scgraph").write_bytes(b"")
-    assert len(GeoGraph.load_geograph("marnet").nodes) == 2
-    assert len(GeoGraph.load_geograph("marnet", cache_dir=str(mine)).nodes) == 3
+    geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path / "argument"))
+    assert len(geo.nodes) == 3
+
+
+# A built network is a folder whose cache.json names a file that exists.
+def test_list_buildable_geographs_looks_in_scgraph_cache_dir(
+    environment_cache,
+):
+    built = environment_cache / "networks" / "us_freeway"
+    built.mkdir(parents=True)
+    (built / "cache.json").write_text('{"file": "built.scgraph"}')
+    (built / "built.scgraph").write_bytes(b"")
     listing = {n["name"]: n for n in GeoGraph.list_buildable_geographs()}
     assert listing["us_freeway"]["cached"]
-    (shared / "notes.txt").write_text("the user's own file")
+
+
+def test_clear_geograph_cache_clears_only_the_cache_of_scgraph_cache_dir(
+    environment_cache, tmp_path
+):
+    _save_as_cached_marnet(environment_cache, nodes=[[0, 0], [0, 1]])
+    _save_as_cached_marnet(tmp_path / "other", nodes=[[0, 0], [0, 1]])
     GeoGraph.clear_geograph_cache()
-    # Only scgraph's files go, from the cache the variable names
-    assert sorted(p.name for p in shared.iterdir()) == ["notes.txt"]
-    assert (mine / "marnet.graphjson").exists()
+    assert not (environment_cache / "marnet.graphjson").exists()
+    assert (tmp_path / "other" / "marnet.graphjson").exists()
 
 
+# During the load, the process may write 500 bytes per file and no more. The
+# write of the 1000 bytes downloaded stops midway, as it does on a full disk.
 def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
     tmp_path, monkeypatch
 ):
+    resource = pytest.importorskip("resource")  # Windows has no such limit.
+
     class Response:
         status_code, ok, content = (
             200,
@@ -107,123 +149,179 @@ def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
         )
 
     monkeypatch.setattr(geograph.requests, "get", lambda *a, **k: Response())
-    write = Path.write_bytes
-
-    def disk_full(self, data):
-        write(self, data[: len(data) // 2])
-        raise OSError("No space left on device")
-
-    monkeypatch.setattr(Path, "write_bytes", disk_full)
-    with pytest.raises(OSError):
-        GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
-    # A later load would take any file named marnet.graphjson for the network
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_FSIZE)
+    resource.setrlimit(resource.RLIMIT_FSIZE, (500, hard_limit))
+    try:
+        with pytest.raises(OSError):
+            GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+    finally:
+        resource.setrlimit(resource.RLIMIT_FSIZE, (soft_limit, hard_limit))
+    # A later load would take any file named marnet.graphjson for the network.
     assert list(tmp_path.iterdir()) == []
 
 
-# Converted at the first load, then read by later ones; a damaged conversion (here,
-# truncated) is made again; a cache that can't be written keeps reading the .graphjson
-@pytest.mark.parametrize("case", ["first", "damaged", "read_only"])
-def test_load_geograph_converts_a_published_geograph_once(
-    tmp_path, monkeypatch, case
-):
-    published, converted = (
-        tmp_path / "marnet.graphjson",
-        tmp_path / "marnet.scgraph",
-    )
-    original = GeoGraph(
+@pytest.fixture
+def cache_with_marnet(tmp_path):
+    """A cache that holds marnet.graphjson, as a download leaves it.
+
+    The Hilbert curve visits its three nodes in the order 1, 2, 0: a load must
+    renumber them. The first latitude has 9 decimals: a load must round it to
+    1e-7 degree, the precision of a network file.
+    """
+    GeoGraph(
         graph=[{1: 1.5, 2: 3.0}, {0: 1.5, 2: 2.0}, {1: 2.0}],
-        # 9 decimals, read back to 1e-7 degree as OSM stores them
         nodes=[[45.000000001, 90], [-45, -90], [45, -90]],
-    )
-    original.save_as_graphjson(str(published))
-    if case == "damaged":
-        original.save_as_scgraph(str(converted))
-        converted.write_bytes(converted.read_bytes()[:-8])
-    if case == "read_only":
+    ).save_as_graphjson(str(tmp_path / "marnet.graphjson"))
+    return tmp_path
 
-        def refused(*args, **kwargs):
-            raise PermissionError("read-only")
 
-        monkeypatch.setattr(network_file, "write", refused)
-    geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
-    # In Hilbert order (old nodes 1, 2, 0, their node ids), the arcs renumbered
+def test_first_load_converts_the_published_geograph_into_a_network_file(
+    cache_with_marnet,
+):
+    geo = GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
+    # The nodes are numbered along the Hilbert curve: nodes 1, 2, 0 of the
+    # .graphjson become nodes 0, 1, 2. The links follow.
     assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
     assert list(geo.node_ids) == [1, 2, 0]
-    assert geo.coordinate_dtype == "int32"
     assert geo.graph_object.graph == [
         {2: 1.5, 1: 2.0},
         {0: 2.0},
         {0: 1.5, 1: 3.0},
     ]
-    assert published.exists() and converted.exists() != (case == "read_only")
-    if case == "read_only":
-        return
-    # Stored as int32 in 1e-7 degree; the published file is the source of the node ids
-    assert (
-        GeoGraph.get_scgraph_info(str(converted))["coordinate_dtype"] == "int32"
-    )
-    metadata = network_file.read(str(converted))[1]
-    assert metadata["modes"] == [{"name": None, "source": "marnet.graphjson"}]
-    assert [s["name"] for s in metadata["sources"]] == ["marnet.graphjson"]
-    published.write_text("no longer read")
-    again = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
-    assert again.nodes == geo.nodes
-    assert again.graph_object.graph == geo.graph_object.graph
+    # The file stores coordinates as int32, in 1e-7 degree. It names the
+    # .graphjson as its source.
+    info = GeoGraph.get_scgraph_info(str(cache_with_marnet / "marnet.scgraph"))
+    assert info["coordinate_dtype"] == "int32"
+    assert info["modes"] == [{"name": None, "source": "marnet.graphjson"}]
+    assert [s["name"] for s in info["sources"]] == ["marnet.graphjson"]
 
 
-# local_files_only=True, or SCGRAPH_OFFLINE=1 unless the argument says otherwise
-@pytest.mark.parametrize(
-    "environment, options, offline",
-    [
-        (None, {"local_files_only": True}, True),
-        ("1", {}, True),
-        ("1", {"local_files_only": False}, False),
-    ],
-)
-def test_load_geograph_downloads_nothing_with_local_files_only(
-    tmp_path, monkeypatch, environment, options, offline
+# The .graphjson is overwritten after the first load: a second load that still
+# read it would fail.
+def test_later_loads_read_the_network_file_and_not_the_graphjson(
+    cache_with_marnet,
 ):
-    class Response:
+    first = GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
+    (cache_with_marnet / "marnet.graphjson").write_text("no longer read")
+    again = GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
+    assert again.nodes == first.nodes
+    assert again.graph_object.graph == first.graph_object.graph
+
+
+# A network file cut short stands for a conversion that was interrupted.
+def test_load_geograph_converts_again_a_damaged_network_file(
+    cache_with_marnet,
+):
+    converted = cache_with_marnet / "marnet.scgraph"
+    GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
+    converted.write_bytes(converted.read_bytes()[:-8])
+    geo = GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
+    assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
+    assert GeoGraph.load_from_scgraph(str(converted)).nodes == geo.nodes
+
+
+# The cache folder is made read-only: the network file cannot be written. The
+# load must still give the network, in the same node order.
+@pytest.mark.skipif(
+    not hasattr(os, "geteuid") or os.geteuid() == 0,
+    reason="Only POSIX has folders that their owner cannot write, except root",
+)
+def test_load_geograph_reads_the_graphjson_when_the_cache_is_read_only(
+    cache_with_marnet,
+):
+    cache_with_marnet.chmod(0o555)
+    try:
+        geo = GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
+    finally:
+        cache_with_marnet.chmod(0o755)  # The folder can be removed again.
+    assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
+    assert geo.coordinate_dtype == "int32"
+    assert not (cache_with_marnet / "marnet.scgraph").exists()
+
+
+@pytest.fixture
+def requested(monkeypatch):
+    """The URLs that scgraph requests. The fake download answers each request
+    with a geograph of one node. SCGRAPH_OFFLINE is unset."""
+
+    class OneNodeGeograph:
         status_code, ok = 200, True
         content = json.dumps(
             {"type": "GeoGraph", "graph": [{}], "nodes": [[0, 0]]}
         ).encode()
 
-    requested = []
+    urls = []
     monkeypatch.setattr(
         geograph.requests,
         "get",
-        lambda url, **kwargs: requested.append(url) or Response(),
+        lambda url, **kwargs: urls.append(url) or OneNodeGeograph(),
     )
     monkeypatch.delenv("SCGRAPH_OFFLINE", raising=False)
-    if environment:
-        monkeypatch.setenv("SCGRAPH_OFFLINE", environment)
-    if offline:
-        with pytest.raises(FileNotFoundError, match="local_files_only"):
-            GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path), **options)
-        GeoGraph(graph=[{}], nodes=[[0, 0]]).save_as_graphjson(
-            str(tmp_path / "marnet.graphjson")
+    return urls
+
+
+def test_local_files_only_refuses_a_network_that_is_not_in_the_cache(
+    tmp_path, requested
+):
+    with pytest.raises(FileNotFoundError, match="local_files_only"):
+        GeoGraph.load_geograph(
+            "marnet", cache_dir=str(tmp_path), local_files_only=True
         )
-    geo = GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path), **options)
+    assert requested == []
+
+
+# The cached marnet has two nodes, the downloaded one would have one node.
+def test_local_files_only_loads_a_cached_network_without_a_request(
+    tmp_path, requested
+):
+    _save_as_cached_marnet(tmp_path, nodes=[[0, 0], [0, 1]])
+    geo = GeoGraph.load_geograph(
+        "marnet", cache_dir=str(tmp_path), local_files_only=True
+    )
+    assert len(geo.nodes) == 2
+    assert requested == []
+
+
+def test_scgraph_offline_forbids_the_download(tmp_path, monkeypatch, requested):
+    monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
+    with pytest.raises(FileNotFoundError, match="SCGRAPH_OFFLINE"):
+        GeoGraph.load_geograph("marnet", cache_dir=str(tmp_path))
+    assert requested == []
+
+
+def test_local_files_only_false_downloads_despite_scgraph_offline(
+    tmp_path, monkeypatch, requested
+):
+    monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
+    geo = GeoGraph.load_geograph(
+        "marnet", cache_dir=str(tmp_path), local_files_only=False
+    )
     assert len(geo.nodes) == 1
-    assert len(requested) == (0 if offline else 1)
+    assert len(requested) == 1
 
 
-def test_list_geographs_reads_contents_txt_only_for_another_url(
+# The names of the published geographs are a fixed list in scgraph.
+def test_list_geographs_makes_no_request_for_the_published_geographs(
+    tmp_path, requested
+):
+    GeoGraph.list_geographs(cache_dir=str(tmp_path))
+    assert requested == []
+
+
+# Another URL is a mirror with its own geographs. Its contents.txt lists its
+# files, and only the .graphjson files are geographs.
+def test_list_geographs_reads_contents_txt_of_another_url(
     tmp_path, monkeypatch
 ):
-    class Response:
+    class ContentsTxt:
         ok, text = True, "mine.graphjson\nREADME.md\n"
 
     requested = []
     monkeypatch.setattr(
         geograph.requests,
         "get",
-        lambda url, **kwargs: requested.append(url) or Response(),
+        lambda url, **kwargs: requested.append(url) or ContentsTxt(),
     )
-    # The published geographs are a fixed list: no request
-    GeoGraph.list_geographs(cache_dir=str(tmp_path))
-    assert requested == []
     mirror = GeoGraph.list_geographs(
         cache_dir=str(tmp_path), geograph_url="https://example.org/geographs/"
     )
@@ -282,78 +380,91 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
     assert (info[3]["pipeline_version"], info[3]["scgraph"]) == (None, None)
 
 
-_RAIL = "networks/osm_rail/europe/"
+def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
+    filled_cache,
+):
+    GeoGraph.clear_geograph_cache(str(filled_cache))
+    assert _list_files(filled_cache) == {"notes.txt"}
 
 
-# None: a selector refused, with nothing removed. A locked file can't be removed (as on
-# Windows, a network still loaded): it is left, with a warning that names it
+# France is a sub-region of Europe, and a network of its own.
 @pytest.mark.parametrize(
-    "selector, locked, removed",
+    "selector, removed_files",
     [
-        (
+        pytest.param(
             {"name": "marnet"},
-            None,
             {
                 "marnet.graphjson",
                 "marnet.scgraph",
                 "networks/marnet/m.scgraph",
                 "networks/marnet/cache.json",
             },
+            id="the published and the built files of a name",
         ),
-        (
-            {"name": "marnet"},
-            "m.scgraph",
-            {
-                "marnet.graphjson",
-                "marnet.scgraph",
-                "networks/marnet/cache.json",
-            },
-        ),
-        (
+        pytest.param(
             {"name": "osm_rail"},
-            None,
             {
-                _RAIL + "e.scgraph",
-                _RAIL + "cache.json",
-                _RAIL + "france/f.scgraph",
-                _RAIL + "france/cache.json",
+                "networks/osm_rail/europe/e.scgraph",
+                "networks/osm_rail/europe/cache.json",
+                "networks/osm_rail/europe/france/f.scgraph",
+                "networks/osm_rail/europe/france/cache.json",
             },
+            id="every region of a name without region",
         ),
-        # A sub-region is an entry of its own
-        (
+        pytest.param(
             {"name": "osm_rail", "region": "europe"},
-            "e.scgraph",
-            {_RAIL + "cache.json"},
+            {
+                "networks/osm_rail/europe/e.scgraph",
+                "networks/osm_rail/europe/cache.json",
+            },
+            id="a region without its sub-regions",
         ),
-        ({"name": "../networks"}, None, None),
-        ({"name": "osm_rail", "region": "../.."}, None, None),
-        ({"region": "europe"}, None, None),
     ],
 )
-def test_clear_geograph_cache_removes_only_the_selected_network(
-    filled_cache, monkeypatch, caplog, selector, locked, removed
+def test_clear_geograph_cache_removes_only_the_files_of_the_selected_network(
+    filled_cache, selector, removed_files
 ):
-    def files():
-        return {
-            p.relative_to(filled_cache).as_posix()
-            for p in filled_cache.rglob("*")
-            if p.is_file()
-        }
+    before = _list_files(filled_cache)
+    GeoGraph.clear_geograph_cache(str(filled_cache), **selector)
+    assert before - _list_files(filled_cache) == removed_files
 
-    unlink = os.unlink
 
-    def unless_locked(path, **kwargs):
-        if locked and os.fspath(path).endswith(locked):
-            raise PermissionError(f"{path} is in use")
-        unlink(path, **kwargs)
-
-    monkeypatch.setattr(os, "unlink", unless_locked)
-    before = files()
-    if removed is None:
-        with pytest.raises(ValueError):
-            GeoGraph.clear_geograph_cache(str(filled_cache), **selector)
-    else:
+# Each selector would reach files outside the folder of one network: a name
+# or a region that climbs with "..", and a region without a name.
+@pytest.mark.parametrize(
+    "selector",
+    [
+        {"name": "../networks"},
+        {"name": "osm_rail", "region": "../.."},
+        {"region": "europe"},
+    ],
+)
+def test_clear_geograph_cache_refuses_a_selector_that_leaves_the_network(
+    filled_cache, selector
+):
+    before = _list_files(filled_cache)
+    with pytest.raises(ValueError):
         GeoGraph.clear_geograph_cache(str(filled_cache), **selector)
-    assert before - files() == (removed or set())
-    if locked:  # named in a warning
-        assert locked in caplog.text
+    assert _list_files(filled_cache) == before
+
+
+# The folder of the built marnet is made read-only: its files cannot be
+# removed. On Windows, the file of a network that is still loaded behaves so.
+@pytest.mark.skipif(
+    not hasattr(os, "geteuid") or os.geteuid() == 0,
+    reason="Only POSIX has folders that their owner cannot write, except root",
+)
+def test_clear_geograph_cache_leaves_a_file_it_cannot_remove_with_a_warning(
+    filled_cache, caplog
+):
+    before = _list_files(filled_cache)
+    (filled_cache / "networks/marnet").chmod(0o555)
+    try:
+        GeoGraph.clear_geograph_cache(str(filled_cache), name="marnet")
+    finally:
+        (filled_cache / "networks/marnet").chmod(0o755)
+    assert before - _list_files(filled_cache) == {
+        "marnet.graphjson",
+        "marnet.scgraph",
+    }
+    assert "m.scgraph" in caplog.text
