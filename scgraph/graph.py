@@ -139,7 +139,7 @@ class GraphTrees:
         if len(tree_orig_dict) == 1:
             tree_root = next(iter(tree_orig_dict.keys()))
             if tree_root not in origin_dict:
-                raise ValueError(
+                raise RuntimeError(
                     "The origin node must be the same as the spanning node for this function to work."
                 )
             start_dist = origin_dict[tree_root] - tree_orig_dict[tree_root]

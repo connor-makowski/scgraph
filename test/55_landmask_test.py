@@ -91,14 +91,16 @@ def test_water_path_is_the_shortest_over_water_from_a_port_on_land(
         cells_per_degree=c["cells_per_degree"],
         bbox=c["bbox"],
     )
-    assert {p: mask.on_land(*p) for p in c["probes"]} == c["probes"]
-    port, target = c["port"], mask.cell(*c["target"])
+    assert {p: mask.is_on_land(*p) for p in c["probes"]} == c["probes"]
+    port, target = c["port"], mask.get_cell(*c["target"])
     targets = array("q", [target])
 
     # Oracle: Dijkstra over the water cells (and the target), with great-circle steps,
     # from the water cell nearest to the port
     width, cells = mask.width, range(mask.height * mask.width)
-    water = {i for i in cells if not mask.on_land(*mask.centre(i))} | {target}
+    water = {
+        i for i in cells if not mask.is_on_land(*mask.get_cell_centre(i))
+    } | {target}
     graph = [{} for _ in cells]
     for i in water:
         row, column = divmod(i, width)
@@ -108,25 +110,31 @@ def test_water_path_is_the_shortest_over_water_from_a_port_on_land(
         ):
             near = r * width + j % width
             if near in water and (mask.wrap or 0 <= j < width):
-                km = great_circle_km(mask.centre(i), mask.centre(near))
+                km = great_circle_km(
+                    mask.get_cell_centre(i), mask.get_cell_centre(near)
+                )
                 graph[i][near] = graph[near][i] = km
-    leg, first = min((great_circle_km(port, mask.centre(i)), i) for i in water)
+    leg, first = min(
+        (great_circle_km(port, mask.get_cell_centre(i)), i) for i in water
+    )
     expected = leg + Graph(graph).dijkstra(first, target)["length"]
 
-    km, points = mask.water_path(
+    km, points = mask.find_water_path(
         port, targets, c["max_km"], c["start_on_land_km"]
     )
     assert km == pytest.approx(expected, rel=1e-6)
-    assert points[0] == mask.centre(first) and points[-1] == mask.centre(target)
+    assert points[0] == mask.get_cell_centre(first) and points[
+        -1
+    ] == mask.get_cell_centre(target)
     # Drawn along the path (around the island)
     drawn = sum(great_circle_km(a, b) for a, b in zip(points, points[1:]))
     assert leg + drawn == pytest.approx(km, rel=1e-4)
     assert (
-        mask.water_path(port, targets, km * 0.999, c["start_on_land_km"])
+        mask.find_water_path(port, targets, km * 0.999, c["start_on_land_km"])
         is None
     )
-    assert mask.water_path(port, targets, c["max_km"], leg * 0.99) is None
+    assert mask.find_water_path(port, targets, c["max_km"], leg * 0.99) is None
     # A search may not hold more cells than allowed: fewer than its path's, none
     monkeypatch.setattr(landmask, "MAX_CELLS", len(points) - 1)
     near = c["start_on_land_km"]
-    assert mask.water_path(port, targets, c["max_km"], near) is None
+    assert mask.find_water_path(port, targets, c["max_km"], near) is None

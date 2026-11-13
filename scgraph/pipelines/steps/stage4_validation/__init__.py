@@ -160,7 +160,7 @@ def _check_crossing(network, case) -> str | None:
     # road, on the other side of the water.
     for end in ("origin", "destination"):
         km, _ = _find_nearest_node(network, case[end])
-        if round(km, 2) > 5.0:
+        if km > 5.0:
             return f"the {end} is {km:.1f} km from a road"
     if _find_route_km(network, case["origin"], case["destination"]) is None:
         return f"no road route ({case['reference']})"
@@ -372,6 +372,12 @@ def _load_on_modes(network, modes: tuple) -> GeoGraph:
     file_modes = {
         m["name"] for m in GeoGraph.get_scgraph_info(network).get("modes", [])
     }
+    named_modes = file_modes - {None}
+    if modes and named_modes and not named_modes & set(modes):
+        raise ValueError(
+            f"A case needs one of the modes {sorted(modes)}, and the network "
+            f"file has the modes {sorted(named_modes)}"
+        )
     restrict = bool(modes) and not file_modes <= set(modes)
     return GeoGraph.load_from_scgraph(
         str(network), modes=sorted(modes) if restrict else None

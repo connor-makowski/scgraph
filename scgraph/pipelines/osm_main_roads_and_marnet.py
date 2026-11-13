@@ -111,7 +111,7 @@ def build(
         bbox=(south, west, north, east),
     )
     wpi = ports.read_world_port_index(files["ports"])
-    wpi = [p for p in wpi if mask.cell(*p[:2]) is not None]
+    wpi = [p for p in wpi if mask.get_cell(*p[:2]) is not None]
     graph, joined = ports.join(graph, sea, wpi, mask, work_dir=stage2_work_dir)
     steps.append({"step": "ports", "joined": joined})
     arrays, assembled = assembly.assemble(

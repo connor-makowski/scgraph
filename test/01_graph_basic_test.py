@@ -93,14 +93,12 @@ def test_dijkstra_buckets(graph):
 
 
 def test_disconnected_connection_raises(disconnected_graph):
-    # C++ raises RuntimeError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(RuntimeError, match="not fully connected"):
         disconnected_graph.validate(check_connected=True, check_symmetry=False)
 
 
 def test_disconnected_symmetry_raises(disconnected_graph):
-    # C++ raises ValueError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(ValueError, match="not symmetric"):
         disconnected_graph.validate(check_connected=False, check_symmetry=True)
 
 
