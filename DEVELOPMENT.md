@@ -80,7 +80,7 @@ publish.sh                       # PyPI publishing script — DO NOT RUN
 | `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
 | `uv run nox -s lint` | Check the code with ruff and the types with pyrefly |
 
-**Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`. Its docstring lists the sections (`load`, `reduce`, `query`, `grid`, `hierarchy`, `misc`).
+**Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`. Its docstring lists the sections (`load`, `reduce`, `query`, `grid`, `hierarchy`, `misc`, `snap`).
 
 ## Core Architecture
 

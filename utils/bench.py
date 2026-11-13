@@ -40,18 +40,23 @@ Subsets (--only) and the changes that need them:
     grid       GridGraph (grid.py, bucket algorithms)
     hierarchy  contraction hierarchies and TNR
     misc       distance matrix, cached shortest path, Visvalingam
+    snap       GeoKDTree and SnapIndex: build, and 1,000 queries by zone, on random
+               points and on world_highways (cpp/src/snap_index.*,
+               helpers/snap_index.py, helpers/hilbert.py)
 
 Every time is in ms from one perf_counter reading, or a mean over the pairs of a row
 (the cached tree hit: over 100 calls); one untimed call per algorithm warms up each row.
+A snap row is the time of 1,000 calls, from 200 queries timed after an untimed pass.
 Load times read the file from the OS cache (warm). 3.6.0 (a GeoKDTree) and later
 versions (since #157) build the snapping index while loading; "Index in Load" estimates
 that part of Load by a second build, timed alone after the first query. Memory (Linux
 only): "Peak" is the peak RSS of the process during load and first query, "Added" the
-peak during reduce() minus the RSS before it (the peak is reset through
-/proc/self/clear_refs). Rows run in sequence in one process, so a row's time and memory
-depend on the rows before it: compare runs of the same --only and --networks. Reduction
-states are explicit (Original, Reduced = 1 pass, Fully Reduced = until no change): no
-row depends on the version's reduction default.
+peak during reduce(), or during the build of a snapping index, minus the RSS before it
+(the peak is reset through /proc/self/clear_refs; before an index build, the free
+memory also goes back to the system). Rows run in sequence in one process,
+so a row's time and memory depend on the rows before it: compare runs of the same --only
+and --networks. Reduction states are explicit (Original, Reduced = 1 pass, Fully Reduced
+= until no change): no row depends on the version's reduction default.
 """
 
 import argparse
@@ -69,7 +74,7 @@ from importlib import metadata
 from pathlib import Path
 
 BENCHMARK_MD_PATH = Path(__file__).resolve().parent.parent / "benchmark.md"
-SECTIONS = ["load", "reduce", "query", "grid", "hierarchy", "misc"]
+SECTIONS = ["load", "reduce", "query", "grid", "hierarchy", "misc", "snap"]
 # Passed explicitly: 3.6.0 reads only its cache_dir argument, not the variable
 CACHE_DIR = os.environ.get("SCGRAPH_CACHE_DIR")
 NETWORKS = [
@@ -144,6 +149,17 @@ ALGORITHMS = [
     ("bmssp", "BMSSP"),
 ]
 STATES = [("Original", 0), ("Reduced", 1), ("Fully Reduced", -1)]
+# Zones of examples/hilbert_and_spatial_indexing.ipynb: south, north, west and east
+# bounds in degrees. An east bound above 180 wraps, so the last zone lies on both sides
+# of the antimeridian
+SNAP_ZONES = {
+    "Europe": (45, 52, 0, 10),
+    "Arctic": (78, 88, -180, 180),
+    "Antarctic": (-88, -78, -180, 180),
+    "Antimeridian": (-20, 20, 175, 185),
+}
+SNAP_QUERIES = 200
+SNAP_NETWORK = "world_highways"
 THRESHOLD = 1.15
 HITS = 100
 # Memory varies little between runs: report beyond x1.05 and at least 5 MiB
@@ -549,6 +565,97 @@ def bench_misc(results):
     )
 
 
+def bench_snap(results):
+    """GeoKDTree and SnapIndex side by side: build, then the queries of each zone."""
+    import ctypes
+    import random
+    from itertools import product
+
+    from geokdtree import GeoKDTree
+    from scgraph import GeoGraph
+    from scgraph.utils import haversine
+
+    classes = {"GeoKDTree": GeoKDTree}
+    if hasattr(GeoGraph, "snap_index"):  # 3.6.0 has only GeoKDTree
+        from scgraph.geograph import SnapIndex
+        from scgraph.helpers.hilbert import hilbert_order
+
+        classes["SnapIndex"] = SnapIndex
+
+    rng = random.Random(42)
+    land = []
+    while len(land) < 100_000:
+        lat, lon = rng.uniform(-55, 72), rng.uniform(-130, 145)
+        if not -35 < lon < -15:
+            land.append([lat, lon])
+    geo = GeoGraph.load_geograph(
+        SNAP_NETWORK, cache_dir=CACHE_DIR, reduce_iterations=0
+    )
+    # Plain lists, as 3.6.0 holds its nodes: every version builds from the same input
+    point_sets = {
+        "100,000 random points": land,
+        SNAP_NETWORK: [list(node) for node in geo.nodes],
+    }
+    # One generator per zone: its queries do not depend on the zones before it
+    queries = {}
+    for seed, (zone, (south, north, west, east)) in enumerate(
+        SNAP_ZONES.items()
+    ):
+        draw = random.Random(seed).uniform
+        queries[zone] = [
+            [draw(south, north), (draw(west, east) + 180) % 360 - 180]
+            for _ in range(SNAP_QUERIES)
+        ]
+    # Each call, and how to read the node ids of its answer
+    calls = [
+        ("closest_idx", lambda answer: [answer]),
+        ("closest_idx_per_quadrant", dict.values),
+    ]
+
+    for name, nodes in point_sets.items():
+        print(f"  - {name}")
+        # The points of each index. SnapIndex needs them along a Hilbert curve, as
+        # network files are
+        points = dict.fromkeys(classes, nodes)
+        if "SnapIndex" in classes and name != SNAP_NETWORK:
+            points["SnapIndex"] = [nodes[i] for i in hilbert_order(nodes)]
+        indexes = {}
+        for label, build in classes.items():
+            try:  # glibc gives the free memory back, so that the build cannot reuse it
+                ctypes.CDLL(None).malloc_trim(0)
+            except (AttributeError, OSError, TypeError):
+                pass
+            before = memory_mark()
+            ms, indexes[label] = timed(build, points[label])
+            results.cell("snap", [name, "Build"], label, ms)
+            added = memory_read() - before if before is not None else None
+            results.cell(
+                "snap", [name, "Build"], f"{label} added", added, "MiB"
+            )
+
+        for (zone, asked), (method, ids_of) in product(queries.items(), calls):
+            row, km = [name, f"1,000 {method}, {zone}"], {}
+            for label, index in indexes.items():
+                query = getattr(index, method)
+                list(map(query, asked))  # untimed: the first pass is slower
+                ms, answers = timed(list, map(query, asked))
+                # The check is the sum of the distances to the answers, not their ids:
+                # the indexes number the points differently, and two nodes at one
+                # place on both sides of the antimeridian are the same answer
+                km[label] = round_length(
+                    sum(
+                        haversine(q, points[label][i])
+                        for q, answer in zip(asked, answers)
+                        for i in ids_of(answer)
+                        if i is not None
+                    )
+                )
+                failed = int(km[label] != km["GeoKDTree"])
+                per_1000 = ms / SNAP_QUERIES * 1000
+                results.cell("snap", row, label, per_1000, failed=failed)
+            results.check("snap", "|".join(row), km["GeoKDTree"])
+
+
 def cpu_model():
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
@@ -636,6 +743,10 @@ TABLES = {
         "Specialized Features & Operations",
         ["Feature / Operation", "Input"],
     ),
+    "snap": (
+        "Snapping Index Build and Queries by Zone",
+        ["Points", "Operation"],
+    ),
 }
 
 
@@ -699,6 +810,9 @@ def run(sections, networks, json_path, commit):
     if "misc" in sections:
         print("\nSpecialized features...")
         bench_misc(results)
+    if "snap" in sections:
+        print("\nSnapping indexes...")
+        bench_snap(results)
     total = time.perf_counter() - t0
 
     tables = markdown_tables(results.cells)
@@ -870,11 +984,14 @@ def side_by_side(base, head, labels):
                     elif text != "–":
                         text = "≈"
                 measure = [] if single else [f"{column} ({unit})"]
+                # A row that one version lacks (SnapIndex in 3.6.0) reads –, not failed
+                b_text, h_text = (
+                    fmt(v, unit) if unit != "ms" or cell in times else "–"
+                    for v, times in ((b, times_b), (h, times_h))
+                )
                 lines.append(
                     "| "
-                    + " | ".join(
-                        lead + measure + [fmt(b, unit), fmt(h, unit), text]
-                    )
+                    + " | ".join(lead + measure + [b_text, h_text, text])
                     + " |"
                 )
                 lead = [""] * len(lead)
