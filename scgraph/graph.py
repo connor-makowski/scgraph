@@ -905,7 +905,8 @@ class GraphAlgorithms:
                     best_dest_node = did
 
         # The heuristic of a node estimates its distance to the destination
-        # point: to a destination node, plus the exit distance of this node.
+        # point. It is the smallest sum of the estimate to a destination node
+        # and the exit distance of that node.
         smallest_exit_distance = min(dest_dict.values())
 
         def _h(node):

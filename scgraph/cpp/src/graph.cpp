@@ -1091,7 +1091,8 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
         const std::greater<> compare;
 
         // The heuristic of a node estimates its distance to the destination
-        // point: to a destination node, plus the exit distance of this node.
+        // point. It is the smallest sum of the estimate to a destination node
+        // and the exit distance of that node.
         double smallest_exit_distance = std::numeric_limits<double>::infinity();
         for (const auto& [did, ddist] : dest_entries) {
             smallest_exit_distance = std::min(smallest_exit_distance, ddist);
