@@ -745,8 +745,9 @@ def test_a_file_says_not_symmetric_when_one_arc_to_a_hub_has_no_reverse_arc(
 
 
 # The tests below write a file from arrays with `network_file.write`, as a
-# pipeline does, and read it with `network_file.read`. The arcs are stored by
-# origin: the arcs of node u go to heads[offsets[u]:offsets[u + 1]].
+# pipeline does. This is the way to write a file that `save_as_scgraph` would
+# never write. The arcs are stored by origin: the arcs of node u go to
+# heads[offsets[u]:offsets[u + 1]].
 ROAD_AND_PORT = [
     {"name": "road", "source": "roads"},
     {"name": "port", "source": "ports"},
@@ -931,88 +932,95 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
     network_file.write(path, arrays, {"modes": names})
 
 
-def test_reading_one_mode_gives_the_nodes_of_that_mode(tmp_path):
+def test_loading_one_mode_gives_the_nodes_of_that_mode(tmp_path):
     path = str(tmp_path / "modes.scgraph")
-    _write_road_port_and_sea(path, "i")
+    _write_road_port_and_sea(path, "d")
 
-    arrays, _ = network_file.read(path, modes="road")
+    roads = GeoGraph.load_from_scgraph(path, modes="road")
 
-    assert list(arrays["node_ids"]) == [10, 11]
-    assert list(arrays["latitudes"]) == [10, 11]
-    assert list(arrays["longitudes"]) == [-10, -11]
-    assert list(arrays["node_modes"]) == [0, 0]
+    assert list(roads.node_ids) == [10, 11]
+    assert roads.nodes == [[10, -10], [11, -11]]
+    assert list(roads.node_modes) == [0, 0]
 
 
-def test_reading_one_mode_gives_the_arcs_between_its_nodes_with_their_shapes(
+def test_loading_one_mode_gives_the_arcs_between_its_nodes_with_their_shapes(
     tmp_path,
 ):
     # The arc from 11 to the port is left out
     path = str(tmp_path / "modes.scgraph")
-    _write_road_port_and_sea(path, "i")
+    _write_road_port_and_sea(path, "d")
 
-    arrays, _ = network_file.read(path, modes="road")
+    roads = GeoGraph.load_from_scgraph(path, modes="road")
 
-    assert list(arrays["offsets"]) == [0, 1, 2]
-    assert list(arrays["heads"]) == [1, 0]
-    assert list(arrays["weights"]) == [1.0, 1.5]
-    assert list(arrays["shape_offsets"]) == [0, 1, 3]
-    assert list(arrays["shape_points"]) == [10, 11, 11, 10, 11, 10]
+    assert roads.graph_object.graph == [{1: 1.0}, {0: 1.5}]
+    assert [dict(shapes) for shapes in roads.intermediate_nodes] == [
+        {1: [[10, 11]]},
+        {0: [[11, 10], [11, 10]]},
+    ]
 
 
-def test_reading_two_modes_gives_their_nodes_in_the_order_of_the_file(
+def test_loading_two_modes_gives_their_nodes_in_the_order_of_the_file(
     tmp_path,
 ):
     # The sea is asked for first, and the file lists the road first
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
-    arrays, _ = network_file.read(path, modes=("sea", "road"))
+    geograph = GeoGraph.load_from_scgraph(path, modes=("sea", "road"))
 
-    assert list(arrays["node_ids"]) == [10, 11, 30, 31]
-    assert list(arrays["latitudes"]) == [10, 11, 30, 31]
-    assert list(arrays["longitudes"]) == [-10, -11, -30, -31]
-    assert list(arrays["node_modes"]) == [0, 0, 2, 2]
+    assert list(geograph.node_ids) == [10, 11, 30, 31]
+    assert geograph.nodes == [[10, -10], [11, -11], [30, -30], [31, -31]]
+    assert list(geograph.node_modes) == [0, 0, 2, 2]
 
 
-def test_reading_two_modes_renumbers_the_arcs_of_each_mode(tmp_path):
+def test_loading_two_modes_renumbers_the_arcs_of_each_mode(tmp_path):
     # Without the port, the sea nodes move from the positions 3 and 4 to the
     # positions 2 and 3. The arcs 11 -> 20 and 31 -> 20 are left out.
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
-    arrays, _ = network_file.read(path, modes=("sea", "road"))
+    geograph = GeoGraph.load_from_scgraph(path, modes=("sea", "road"))
 
-    assert list(arrays["offsets"]) == [0, 1, 2, 3, 4]
-    assert list(arrays["heads"]) == [1, 0, 3, 2]
-    assert list(arrays["weights"]) == [1.0, 1.5, 4.0, 6.0]
-    assert list(arrays["shape_offsets"]) == [0, 1, 3, 3, 4]
-    assert list(arrays["shape_points"]) == [10, 11, 11, 10, 11, 10, 31, 30]
+    assert geograph.graph_object.graph == [
+        {1: 1.0},
+        {0: 1.5},
+        {3: 4.0},
+        {2: 6.0},
+    ]
+    assert [dict(shapes) for shapes in geograph.intermediate_nodes] == [
+        {1: [[10, 11]]},
+        {0: [[11, 10], [11, 10]]},
+        {},
+        {2: [[31, 30]]},
+    ]
 
 
-@pytest.mark.parametrize("coordinate_typecode", ["i", "d"])
-def test_reading_some_modes_keeps_the_dtype_of_the_coordinates(
-    tmp_path, coordinate_typecode
+# The typecode "i" stores a coordinate as an int32, in 1e-7 degree. The
+# typecode "d" stores it as a float64, in degrees.
+@pytest.mark.parametrize(
+    "coordinate_typecode, coordinate_dtype", [("i", "int32"), ("d", "float64")]
+)
+def test_loading_some_modes_keeps_the_dtype_of_the_coordinates(
+    tmp_path, coordinate_typecode, coordinate_dtype
 ):
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, coordinate_typecode)
 
-    arrays, _ = network_file.read(path, modes="road")
+    roads = GeoGraph.load_from_scgraph(path, modes="road")
 
-    assert arrays["latitudes"].typecode == coordinate_typecode
-    assert arrays["longitudes"].typecode == coordinate_typecode
-    assert arrays["shape_points"].typecode == coordinate_typecode
+    assert roads.coordinate_dtype == coordinate_dtype
 
 
-def test_reading_some_modes_of_a_file_without_node_ids_gives_the_positions(
+def test_loading_some_modes_of_a_file_without_node_ids_gives_the_positions(
     tmp_path,
 ):
     # The id of a node is then its position in the whole file
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d", with_node_ids=False)
 
-    arrays, _ = network_file.read(path, modes=("sea", "road"))
+    geograph = GeoGraph.load_from_scgraph(path, modes=("sea", "road"))
 
-    assert list(arrays["node_ids"]) == [0, 1, 3, 4]
+    assert list(geograph.node_ids) == [0, 1, 3, 4]
 
 
 def test_load_from_scgraph_reads_an_empty_network(tmp_path):
