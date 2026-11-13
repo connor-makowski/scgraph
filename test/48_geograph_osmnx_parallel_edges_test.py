@@ -76,7 +76,7 @@ def test_the_shortest_of_parallel_edges_is_kept_with_its_own_shape(
         PLACES, [(WEST, EAST, edge) for edge in parallel_edges]
     )
 
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert geograph.graph_object.graph[0] == {1: 1.112}
     assert geograph.intermediate_nodes[0] == shapes_kept
@@ -89,7 +89,7 @@ def test_an_edge_drawn_from_node_to_node_without_a_point_between_has_no_shape():
     }
     osmnx_graph = _OSMnxGraph(PLACES, [(WEST, EAST, edge)])
 
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert geograph.intermediate_nodes[0] == {}
 
@@ -104,7 +104,7 @@ def test_a_geometry_listed_from_destination_to_origin_is_reversed():
     }
     osmnx_graph = _OSMnxGraph(PLACES, [(WEST, EAST, edge)])
 
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert geograph.intermediate_nodes[0] == {
         1: [[0.002, 0.003], [0.001, 0.007]]
@@ -126,7 +126,7 @@ def test_geometry_points_that_round_onto_the_nodes_are_left_out():
     }
     osmnx_graph = _OSMnxGraph(PLACES, [(WEST, EAST, edge)])
 
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert geograph.intermediate_nodes[0] == {1: [[0.0, 0.005]]}
 
@@ -143,7 +143,7 @@ def test_an_edge_between_two_nodes_at_the_same_place_keeps_its_shape():
     }
     osmnx_graph = _OSMnxGraph(two_nodes_at_one_place, [(WEST, EAST, loop)])
 
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert geograph.intermediate_nodes[0] == {
         1: [[0.002, 0.003], [0.001, 0.007]]
@@ -155,7 +155,7 @@ def test_osmnx_nodes_keep_their_osm_ids_in_hilbert_order():
     east_listed_first = {EAST: PLACES[EAST], WEST: PLACES[WEST]}
     osmnx_graph = _OSMnxGraph(east_listed_first, [(WEST, EAST, STRAIGHT_EDGE)])
 
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert list(geograph.node_ids) == [WEST, EAST]
     assert geograph.nodes == [[0.0, 0.0], [0.0, 0.01]]
@@ -166,6 +166,6 @@ def test_osmnx_coordinates_rounded_to_7_decimals_or_fewer_are_integers():
     # as an int32, in 1e-7 degree.
     osmnx_graph = _OSMnxGraph(PLACES, [(WEST, EAST, STRAIGHT_EDGE)])
 
-    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, silent=True)
+    geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert geograph.coordinate_dtype == "int32"

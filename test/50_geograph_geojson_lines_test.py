@@ -36,9 +36,7 @@ def geograph(tmp_path_factory):
             }
         )
     )
-    return GeoGraph.load_from_geojson(
-        str(path), silent=True, max_km_between_nodes=2
-    )
+    return GeoGraph.load_from_geojson(str(path), max_km_between_nodes=2)
 
 
 def _by_end_points(geograph, rows):

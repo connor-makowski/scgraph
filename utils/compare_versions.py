@@ -61,6 +61,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bench import (
     NETWORKS,
+    SNAP_NETWORK,
     SECTIONS,
 )  # noqa: E402  (bench.py imports stdlib only)
 
@@ -244,7 +245,7 @@ def seed_cache(cache):
         source = Path.home() / ".cache" / "scgraph"
     cache.mkdir(parents=True, exist_ok=True)
     missing = []
-    for net in NETWORKS:
+    for net in [*NETWORKS, SNAP_NETWORK]:
         target = cache / f"{net}.graphjson"
         if target.exists():
             continue

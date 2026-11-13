@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
+#include <tuple>
 #include <limits>
 #include <iostream>
 #include "graph.hpp"
@@ -345,12 +346,23 @@ struct AStarNodeState {
     double dist;
     int pred;
     uint32_t stamp = 0;
-    uint32_t closed_stamp = 0;
+};
+
+// An entry of the A* queue. The queue gives the entry with the smallest key
+// first; equal keys are ordered by distance, then by node, as in pure Python.
+struct AStarQueueEntry {
+    double key;       // distance from the origin plus heuristic of the node
+    double distance;  // distance from the origin when the node was queued
+    int node;
+
+    bool operator>(const AStarQueueEntry& other) const {
+        return std::tie(key, distance, node) > std::tie(other.key, other.distance, other.node);
+    }
 };
 
 thread_local std::vector<AStarNodeState> tl_astar_state;
 thread_local uint32_t tl_astar_stamp = 0;
-thread_local std::vector<std::pair<double, int>> tl_astar_open;
+thread_local std::vector<AStarQueueEntry> tl_astar_open;
 
 struct BidirNodeState {
     double forward_dist;
@@ -365,6 +377,18 @@ thread_local std::vector<BidirNodeState> tl_bidir_state;
 thread_local uint32_t tl_bidir_stamp = 0;
 thread_local std::vector<std::pair<double, int>> tl_bidir_forward_open;
 thread_local std::vector<std::pair<double, int>> tl_bidir_backward_open;
+
+// The number of node scans of the last search in this thread. A search that counts its
+// node scans writes it once, at its end. reset_node_scans empties it
+thread_local std::optional<size_t> tl_node_scans;
+}
+
+void reset_node_scans() {
+    tl_node_scans.reset();
+}
+
+std::optional<size_t> get_last_node_scans() {
+    return tl_node_scans;
 }
 
 // Shortest path algorithms
@@ -418,6 +442,7 @@ GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant&
             }
         }
 
+        size_t node_scans = 0;
         while (!open_leaves.empty()) {
             std::pop_heap(open_leaves.begin(), open_leaves.end(), compare);
             auto [current_distance, current_id] = open_leaves.back();
@@ -426,6 +451,7 @@ GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant&
             if (state[current_id].stamp == stamp && current_distance > state[current_id].dist) continue;
             if (current_distance >= best_dist) break;
 
+            ++node_scans;
             for (const auto& [connected_id, connected_distance] : g[current_id]) {
                 const double possible_distance = current_distance + connected_distance;
                 if (state[connected_id].stamp != stamp || possible_distance < state[connected_id].dist) {
@@ -447,6 +473,7 @@ GraphResult Graph::dijkstra(const NodeIdVariant& origin_id, const NodeIdVariant&
             }
         }
 
+        tl_node_scans = node_scans;
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -532,6 +559,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
             }
         }
 
+        size_t node_scans = 0;
         while (!forward_open.empty() && !backward_open.empty()) {
             const double top_fwd = forward_open.front().first;
             const double top_bwd = backward_open.front().first;
@@ -545,6 +573,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
                 forward_open.pop_back();
 
                 if (state[u].forward_stamp == stamp && cur_d == state[u].forward_dist) {
+                    ++node_scans;
                     for (const auto& [v, w] : fwd_g[u]) {
                         const double new_d = cur_d + w;
                         if (state[v].forward_stamp != stamp || new_d < state[v].forward_dist) {
@@ -571,6 +600,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
                 backward_open.pop_back();
 
                 if (state[v].backward_stamp == stamp && cur_d == state[v].backward_dist) {
+                    ++node_scans;
                     for (const auto& [u, w] : inv_g[v]) {
                         const double new_d = cur_d + w;
                         if (state[u].backward_stamp != stamp || new_d < state[u].backward_dist) {
@@ -594,6 +624,7 @@ GraphResult Graph::bidirectional_dijkstra(const NodeIdVariant& origin_id, const 
             }
         }
 
+        tl_node_scans = node_scans;
         if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -687,6 +718,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
         // The current bucket is relaxed as one batch; nodes re-inserted into it wait for the
         // next batch
         std::vector<int> batch;
+        size_t node_scans = 0;
         while (nodes_in_buckets > 0) {
             int bucket_idx = current_dist % num_buckets;
             while (buckets[bucket_idx].empty()) {
@@ -706,6 +738,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
                     continue;
                 }
 
+                ++node_scans;
                 for (const auto& [connected_id, connected_distance] : g[current_id]) {
                     double possible_distance = distance_matrix[current_id] + connected_distance;
                     if (possible_distance < distance_matrix[connected_id]) {
@@ -728,6 +761,7 @@ GraphResult Graph::dijkstra_buckets(const NodeIdVariant& origin_id, const NodeId
             batch.clear();
         }
 
+        tl_node_scans = node_scans;
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -828,6 +862,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
         size_t bwd_nodes_in_buckets = dest_entries.size();
 
         std::vector<int> batch;
+        size_t node_scans = 0;
         while (fwd_nodes_in_buckets > 0 && bwd_nodes_in_buckets > 0) {
             int fwd_bucket_idx = fwd_current_dist % num_buckets;
             while (forward_buckets[fwd_bucket_idx].empty()) {
@@ -862,6 +897,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
                     }
 
                     double cur_d = state[u].forward_dist;
+                    ++node_scans;
                     for (const auto& [v, w] : fwd_g[u]) {
                         double new_d = cur_d + w;
                         if (state[v].forward_stamp != stamp || new_d < state[v].forward_dist) {
@@ -892,6 +928,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
                     }
 
                     double cur_d = state[v].backward_dist;
+                    ++node_scans;
                     for (const auto& [u, w] : inv_g[v]) {
                         double new_d = cur_d + w;
                         if (state[u].backward_stamp != stamp || new_d < state[u].backward_dist) {
@@ -916,6 +953,7 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
             batch.clear();
         }
 
+        tl_node_scans = node_scans;
         if (meeting_node == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }
@@ -1024,6 +1062,12 @@ GraphResult Graph::dijkstra_negative(const NodeIdVariant& origin_id, const NodeI
     return run_query_with_reducer(origin_id, destination_id, run_negative);
 }
 
+// A* computes the heuristic of a node with one call of heuristic_fn per
+// destination node. Above this number of destination nodes, A* is slower than
+// Dijkstra on the built-in networks. The heuristic is then the smallest exit
+// distance, and the search scans the nodes in the order of Dijkstra.
+constexpr size_t MAX_DESTINATION_NODES_WITH_HEURISTIC = 4;
+
 GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
                           std::function<double(int, int)> heuristic_fn) {
     if (!heuristic_fn) {
@@ -1058,15 +1102,23 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
         open_leaves.clear();
         const std::greater<> compare;
 
-        auto h_to_dest = [&dest_entries, &heuristic_fn](int u) -> double {
+        // The heuristic of a node estimates its distance to the destination
+        // point. It is the smallest sum of the estimate to a destination node
+        // and the exit distance of that node.
+        double smallest_exit_distance = std::numeric_limits<double>::infinity();
+        for (const auto& [did, ddist] : dest_entries) {
+            smallest_exit_distance = std::min(smallest_exit_distance, ddist);
+        }
+        const bool calls_heuristic = dest_entries.size() <= MAX_DESTINATION_NODES_WITH_HEURISTIC;
+        auto h_to_dest = [&](int u) -> double {
+            if (!calls_heuristic) {
+                return smallest_exit_distance;
+            }
             double min_h = std::numeric_limits<double>::infinity();
             for (const auto& [did, ddist] : dest_entries) {
-                double h = heuristic_fn(u, did) + ddist;
-                if (h < min_h) {
-                    min_h = h;
-                }
+                min_h = std::min(min_h, heuristic_fn(u, did) + ddist);
             }
-            return (min_h == std::numeric_limits<double>::infinity()) ? 0.0 : min_h;
+            return min_h;
         };
 
         double best_dist = std::numeric_limits<double>::infinity();
@@ -1076,7 +1128,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
             state[oid].dist = odist;
             state[oid].pred = -1;
             state[oid].stamp = stamp;
-            open_leaves.emplace_back(odist + h_to_dest(oid), oid);
+            open_leaves.push_back({odist + h_to_dest(oid), odist, oid});
             std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
 
             auto it = dest_map.find(oid);
@@ -1089,32 +1141,28 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
             }
         }
 
+        size_t node_scans = 0;
         while (!open_leaves.empty()) {
             std::pop_heap(open_leaves.begin(), open_leaves.end(), compare);
-            int current_id = open_leaves.back().second;
+            const auto [key, current_distance, current_id] = open_leaves.back();
             open_leaves.pop_back();
 
-            if (state[current_id].closed_stamp == stamp) {
-                continue;
-            }
-            state[current_id].closed_stamp = stamp;
-
-            if (state[current_id].dist >= best_dist) {
+            // No route through a node left in the queue is shorter than its key.
+            if (key >= best_dist) {
                 break;
             }
+            // A shorter distance to this node was found after this entry.
+            if (current_distance > state[current_id].dist) {
+                continue;
+            }
 
-            double current_distance = state[current_id].dist;
+            ++node_scans;
             for (const auto& [connected_id, connected_distance] : g[current_id]) {
                 double possible_distance = current_distance + connected_distance;
                 if (state[connected_id].stamp != stamp || possible_distance < state[connected_id].dist) {
                     state[connected_id].dist = possible_distance;
                     state[connected_id].pred = current_id;
                     state[connected_id].stamp = stamp;
-                    open_leaves.emplace_back(
-                        possible_distance + h_to_dest(connected_id),
-                        connected_id
-                    );
-                    std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
 
                     auto it = dest_map.find(connected_id);
                     if (it != dest_map.end()) {
@@ -1124,10 +1172,17 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
                             best_target = connected_id;
                         }
                     }
+
+                    double connected_key = possible_distance + h_to_dest(connected_id);
+                    if (connected_key < best_dist) {
+                        open_leaves.push_back({connected_key, possible_distance, connected_id});
+                        std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
+                    }
                 }
             }
         }
 
+        tl_node_scans = node_scans;
         if (best_target == -1 || best_dist == std::numeric_limits<double>::infinity()) {
             throw PathNotFoundException("The origin and destination nodes are not connected.");
         }

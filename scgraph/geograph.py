@@ -3,7 +3,8 @@ from scgraph.utils import (
     distance_converter,
     get_line_path,
     cheap_ruler,
-    print_console,
+    _warn_deprecated_parameter,
+    _log_step,
     get_lat_lon_bound_between_pts,
     resolve_cache_dir,
     earth_radius,
@@ -17,6 +18,7 @@ import hashlib
 import importlib
 import json
 import logging
+import warnings
 import os
 import re
 import requests
@@ -33,7 +35,7 @@ from importlib.metadata import PackageNotFoundError, version
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from scgraph import Graph, PathNotFoundError
 
 try:
@@ -388,7 +390,7 @@ class GeoGraphIO:
         pct_to_keep: float = 100,
         min_points: int = 3,
         load_intermediate_nodes: bool = True,
-        silent: bool = False,
+        silent: bool | None = None,
         reduce_iterations: int = 0,
         lazy: bool = False,
         max_km_between_nodes: float | None = None,
@@ -437,9 +439,7 @@ class GeoGraphIO:
             - Default: True
             - Note: Only used with `max_km_between_nodes`; otherwise every point is a node and arcs have no intermediate points.
         - `silent`
-            - Type: bool
-            - What: Whether to suppress progress output to the console when loading the geojson
-            - Default: False
+            - Deprecated and without effect. scgraph reports its messages through `logging`.
         - `reduce_iterations`
             - Type: int
             - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
@@ -454,6 +454,7 @@ class GeoGraphIO:
             - Default: None (every point is a node)
             - Note: Useful for sources with many points per line, such as rail or road networks, to keep the graph small
         """
+        _warn_deprecated_parameter("silent", silent)
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_geojson(
@@ -462,7 +463,6 @@ class GeoGraphIO:
                     pct_to_keep=pct_to_keep,
                     min_points=min_points,
                     load_intermediate_nodes=load_intermediate_nodes,
-                    silent=silent,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
                     max_km_between_nodes=max_km_between_nodes,
@@ -478,7 +478,6 @@ class GeoGraphIO:
                     precision=precision,
                     pct_to_keep=pct_to_keep,
                     min_points=min_points,
-                    silent=silent,
                 )
             ]
             uses = Counter(point for line in lines for point, _ in line)
@@ -493,7 +492,7 @@ class GeoGraphIO:
                 intermediate_nodes=shapes if load_intermediate_nodes else None,
                 coordinate_dtype="int32" if precision <= 7 else "float64",
             )
-            geograph.graph_object.reduce(reduce_iterations)
+            geograph.reduce(reduce_iterations)
             return geograph
         data = parse_geojson(
             filename_in=filename,
@@ -501,7 +500,6 @@ class GeoGraphIO:
             pct_to_keep=pct_to_keep,
             min_points=min_points,
             # load_intermediate_nodes=load_intermediate_nodes,
-            silent=silent,
         )
         # In Hilbert order: nodes close on the globe get close ids
         geograph = _order_by_hilbert(
@@ -511,7 +509,7 @@ class GeoGraphIO:
                 coordinate_dtype="int32" if precision <= 7 else "float64",
             )
         )
-        geograph.graph_object.reduce(reduce_iterations)
+        geograph.reduce(reduce_iterations)
         return geograph
 
     @staticmethod
@@ -629,7 +627,7 @@ class GeoGraphIO:
             node_ids=ids,
             coordinate_dtype="int32",  # OSM's own: 1e-7 degree
         )
-        geograph.graph_object.reduce(reduce_iterations)
+        geograph.reduce(reduce_iterations)
         return geograph
 
     @staticmethod
@@ -697,7 +695,7 @@ class GeoGraphIO:
             # Files saved by scgraph 3.0 to 3.6 repeat each arc's two nodes in its shape
             _keep_interior_points(data["intermediate_nodes"], data["nodes"])
         geograph = GeoGraph(**data)
-        geograph.graph_object.reduce(reduce_iterations)
+        geograph.reduce(reduce_iterations)
         return geograph
 
     @staticmethod
@@ -790,7 +788,14 @@ class GeoGraphIO:
             raise ValueError("Filename must end with .scgraph")
         # The C++ graph reads the arcs in place, from the mapped file, and checks them
         mapped = Graph.__module__ == "scgraph.cpp" and modes is None
-        arrays, metadata = network_file.read(filename, mapped, modes)
+        with _log_step(
+            logger,
+            "read the network file",
+            {"file": filename, "mapped": mapped},
+        ) as indicators:
+            arrays, metadata = network_file.read(filename, mapped, modes)
+            indicators["nodes"] = len(arrays["latitudes"])
+            indicators["arcs"] = len(arrays["heads"])
         try:
             graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
@@ -818,7 +823,7 @@ class GeoGraphIO:
             for key, value in metadata.items()
             if key not in network_file.RESERVED
         }
-        geograph.graph_object.reduce(reduce_iterations)
+        geograph.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
         # index is built now, not at the first query (an empty network has none)
         if len(geograph.nodes):
@@ -976,12 +981,15 @@ class GeoGraphIO:
         }
         try:
             geograph.metadata = {"sources": [source]}
-            geograph.save_as_scgraph(str(converted))
+            with _log_step(
+                logger, "convert the published network", {"name": name}
+            ):
+                geograph.save_as_scgraph(str(converted))
         except OSError:
             # A cache that can't be written: the .graphjson is read at every load, its
             # nodes ordered as the file would have them
             geograph = _order_by_hilbert(geograph)
-            geograph.graph_object.reduce(reduce_iterations)
+            geograph.reduce(reduce_iterations)
             if len(geograph.nodes):  # as load_from_scgraph
                 geograph.snap_index  # noqa: B018 (reading it builds the index)
             return geograph
@@ -1399,7 +1407,7 @@ class GeoGraphIO:
         weight_key: Literal["length", "travel_time"] = "length",
         off_graph_travel_speed: float | None = None,
         load_intermediate_nodes: bool = True,
-        silent: bool = False,
+        silent: bool | None = None,
         reduce_iterations: int = 0,
         lazy: bool = False,
     ) -> "GeoGraph":
@@ -1457,9 +1465,7 @@ class GeoGraphIO:
             - Default: True
             - Note: The shape kept for an edge is the points of its geometry between its two nodes, from origin to destination (a geometry listed from destination to origin is reversed, repeated end nodes are dropped); an edge without such points has no shape
         - `silent`
-            - Type: bool
-            - What: Whether to suppress progress output to the console when loading the graph
-            - Default: False
+            - Deprecated and without effect. scgraph reports its messages through `logging`.
         - `reduce_iterations`
             - Type: int
             - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
@@ -1470,6 +1476,7 @@ class GeoGraphIO:
             - Default: False
 
         """
+        _warn_deprecated_parameter("silent", silent)
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_osmnx_graph(
@@ -1479,7 +1486,6 @@ class GeoGraphIO:
                     weight_key=weight_key,
                     off_graph_travel_speed=off_graph_travel_speed,
                     load_intermediate_nodes=load_intermediate_nodes,
-                    silent=silent,
                     reduce_iterations=reduce_iterations,
                     lazy=False,
                 )
@@ -1537,9 +1543,9 @@ class GeoGraphIO:
         # Handle travel_time specific parameters
         if weight_key == "travel_time":
             if off_graph_travel_speed is None:
-                print_console(
+                warnings.warn(
                     "No off_graph_travel_speed provided but weight_key = 'travel_time'. Assuming instant travel off graph. Setting default_off_graph_circuity to 0 and default_node_addition_circuity to 240.",
-                    silent=silent,
+                    stacklevel=2,
                 )
                 kwargs["default_off_graph_circuity"] = 0
                 kwargs["default_node_addition_circuity"] = 240
@@ -1560,7 +1566,7 @@ class GeoGraphIO:
             coordinate_dtype="int32" if coord_precision <= 7 else "float64",
             **kwargs,
         )
-        geograph.graph_object.reduce(reduce_iterations)
+        geograph.reduce(reduce_iterations)
         return geograph
 
     # Misc IO Methods
@@ -1568,7 +1574,7 @@ class GeoGraphIO:
     def get_multi_path_geojson(
         routes: list[dict],
         filename: str | os.PathLike | None = None,
-        show_progress: bool = False,
+        show_progress: bool | None = None,
         get_intermediate_nodes: bool = True,
     ) -> dict:
         """
@@ -1597,12 +1603,8 @@ class GeoGraphIO:
             - Name of the output GeoJSON file.
             - If None, the function will not save the file
             - Default: None
-        - `show_progress`: bool
-            - Whether to show basic progress information
-            - Default: False
-        - `silent`: bool
-            - Whether to suppress console output
-            - Default: False
+        - `show_progress`
+            - Deprecated and without effect. The progress is logged at INFO, once for each tenth of the routes.
         - `get_intermediate_nodes`: bool
             - Whether to include intermediate nodes in the shortest path calculation
             - Default: False
@@ -1612,6 +1614,7 @@ class GeoGraphIO:
         - `output`: dict
             - Dictionary with the GeoJSON file content.
         """
+        _warn_deprecated_parameter("show_progress", show_progress)
         assert isinstance(routes, list), "Routes must be a list"
         assert all(
             [isinstance(i, dict) for i in routes]
@@ -1705,13 +1708,9 @@ class GeoGraphIO:
                     "geometry": shortest_line_path,
                 }
             )
-            if show_progress:
-                print(  # noqa: T201 (the progress bar that show_progress asks for)
-                    f"[{'='*(int((idx+1)/len_routes*20))}>{' '*(20-int((idx+1)/len_routes*20))}] {idx+1}/{len_routes}",
-                    end="\r",
-                )
-        if show_progress:
-            print()  # noqa: T201 (ends the progress bar)
+            # One message each time another tenth of the routes is done
+            if (idx + 1) * 10 // len_routes > idx * 10 // len_routes:
+                logger.info("Routed %d of %d routes", idx + 1, len_routes)
         if filename is not None:
             json.dump(output, open(filename, "w"))
         return output
@@ -1855,7 +1854,7 @@ class GeoGraphModifiers:
         node_addition_type: str = "quadrant",
         node_addition_math: str = "euclidean",
         lat_lon_bound: float = 5,
-        silent: bool = False,
+        silent: bool | None = None,
         temp_node: bool = False,
         mode: str | None = None,
     ) -> int:
@@ -1899,9 +1898,7 @@ class GeoGraphModifiers:
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
             - Default: 5
         - `silent`
-            - Type: bool
-            - What: If True, suppresses all output from the function
-            - Default: False
+            - Deprecated and without effect. scgraph reports its messages through `logging`.
         - `temp_node`
             - Type: bool
             - What: If True, the node is considered temporary and will not be used to increase the __original_graph_length__ value
@@ -1916,6 +1913,7 @@ class GeoGraphModifiers:
         - The id of the new node
 
         """
+        _warn_deprecated_parameter("silent", silent)
         # Validate the inputs
         assert isinstance(coord_dict, dict), "Node must be a dictionary"
         assert "latitude" in coord_dict.keys(), "Node must have a latitude"
@@ -1946,7 +1944,6 @@ class GeoGraphModifiers:
                 circuity=circuity,
                 node_addition_type=node_addition_type,
                 lat_lon_bound=lat_lon_bound,
-                silent=silent,
             )
         else:
             node_dict = {}
@@ -2325,7 +2322,6 @@ class GeoGraphUtils:
         circuity: float,
         node_addition_type: str,
         lat_lon_bound: float,
-        silent: bool = False,
     ) -> dict[int, float]:
         """
         Function:
@@ -2355,12 +2351,6 @@ class GeoGraphUtils:
             - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
 
-        Optional Arguments:
-
-        - `silent`
-            - Type: bool
-            - What: Whether to suppress output messages
-            - Default: False
         """
         if node_addition_type in ["kdclosest", "closest"]:
             closest_idx = self.snap_index.closest_idx(point=node)
@@ -2401,13 +2391,10 @@ class GeoGraphUtils:
             and node_i[1] <= top_lon
         }
         if len(nodes) == 0:
-            print_console(
-                f"When adding your origin or destination node to the graph, no nodes found within the bounding box of {lat_lon_bound} degrees around the node {node}.",
-                silent=silent,
-            )
-            print_console(
-                "Using the snapping index to find the closest node instead.",
-                silent=silent,
+            logger.debug(
+                "No node within %s degrees of %s; the closest node is used",
+                lat_lon_bound,
+                node,
             )
             closest_idx = self.snap_index.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
@@ -2893,20 +2880,12 @@ class GeoGraph(
         # keeps the index of the networks before the merge while it connects them); direct
         # edits of nodes are not detected
         if self.__snap_index__ is None:
-            nodes = self.nodes
-            try:
-                self.__snap_index__ = (
-                    SnapIndex.from_arrays(*nodes.arrays())
-                    if isinstance(nodes, network_file.NodeCoordinates)
-                    else SnapIndex(nodes)
-                )
-            except NodeOrderError:
-                # Nodes not kept together (a graph built from a list, many added nodes):
-                # index them in Hilbert order, without changing their ids
-                points = list(nodes)
-                order = array("q", hilbert_order(points))
-                self.__snap_index__ = _SortedSnapIndex(
-                    order, SnapIndex([points[i] for i in order])
+            with _log_step(
+                logger, "build the snapping index", {"nodes": len(self.nodes)}
+            ) as indicators:
+                self.__snap_index__ = self._build_snap_index()
+                indicators["sorted_for_the_index"] = isinstance(
+                    self.__snap_index__, _SortedSnapIndex
                 )
         return self.__snap_index__
 
@@ -2919,6 +2898,27 @@ class GeoGraph(
         self.__node_radians__ = None
         if snap_index is None:
             self.__geokdtree__ = None
+
+    def _build_snap_index(self) -> "SnapIndex | _SortedSnapIndex":
+        """
+        Builds the snapping index of the nodes. Nodes too scattered for the index are
+        indexed in Hilbert order, without a change of their ids.
+        """
+        nodes = self.nodes
+        try:
+            return (
+                SnapIndex.from_arrays(*nodes.arrays())
+                if isinstance(nodes, network_file.NodeCoordinates)
+                else SnapIndex(nodes)
+            )
+        except NodeOrderError:
+            # A graph built from a list, or one with many added nodes, does not keep
+            # nearby nodes together
+            points = list(nodes)
+            order = array("q", hilbert_order(points))
+            return _SortedSnapIndex(
+                order, SnapIndex([points[i] for i in order])
+            )
 
     @property
     def geokdtree(self) -> "GeoKDTree":
@@ -2972,8 +2972,15 @@ class GeoGraph(
 
         - None
         """
-        if iterations != 0:
+        if iterations == 0:
+            return
+        with _log_step(
+            logger, "reduce the graph", {"iterations": iterations}
+        ) as indicators:
             self.graph_object.reduce(iterations)
+            is_reduced = self.graph_object.is_reduced or []
+            indicators["nodes"] = len(is_reduced)
+            indicators["kept_nodes"] = len(is_reduced) - sum(is_reduced)
 
     def validate_nodes(self) -> None:
         """
@@ -3034,7 +3041,6 @@ class GeoGraph(
         circuity,
         node_addition_type,
         lat_lon_bound,
-        silent=False,
     ):
         if node_addition_type == "closest":
             idx = self.snap_index.closest_idx(point=node)
@@ -3062,7 +3068,6 @@ class GeoGraph(
                 circuity=circuity,
                 node_addition_type=node_addition_type,
                 lat_lon_bound=lat_lon_bound,
-                silent=silent,
             )
         raise ValueError(
             "node_addition_type must be one of 'closest', 'quadrant', or 'all'"
@@ -3084,7 +3089,7 @@ class GeoGraph(
         node_addition_math: str = "euclidean",
         destination_node_addition_type: str = "kdclosest",
         auto_lat_lon_bound_max: float = 2,
-        silent: bool = False,
+        silent: bool | None = None,
         length_only: bool = False,
         get_intermediate_nodes: bool | None = None,
         **kwargs,
@@ -3224,9 +3229,7 @@ class GeoGraph(
                 - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant with the snapping index (`snap_index`)
                 - 'all': Add the node to all points in the graph within the bounding box
         - `silent`
-            - Type: bool
-            - What: If True, suppresses all output from the function
-            - Default: False
+            - Deprecated and without effect. scgraph reports its messages through `logging`.
         - `length_only`
             - Type: bool
             - What: If True, only returns the length of the path
@@ -3238,6 +3241,10 @@ class GeoGraph(
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
+        _warn_deprecated_parameter("silent", silent)
+        algorithm_name = (
+            algorithm_fn if isinstance(algorithm_fn, str) else "custom"
+        )
         get_intermediate_nodes = (
             get_intermediate_nodes
             if get_intermediate_nodes is not None
@@ -3325,14 +3332,12 @@ class GeoGraph(
                 circuity=node_addition_circuity,
                 node_addition_type=node_addition_type,
                 lat_lon_bound=node_addition_lat_lon_bound,
-                silent=silent,
             )
             destination_id = self.__snap_node__(
                 node=destination,
                 circuity=node_addition_circuity,
                 node_addition_type=destination_node_addition_type,
                 lat_lon_bound=node_addition_lat_lon_bound,
-                silent=silent,
             )
 
             # Calculate the circuity ratio for the node addition
@@ -3347,6 +3352,8 @@ class GeoGraph(
                 min(origin_id.values()), min(destination_id.values())
             )
 
+            if logger.isEnabledFor(logging.DEBUG):
+                self.graph_object._reset_node_scans()
             if direct_node_addition_length <= min_entry_exit:
                 output = {
                     "path": [],
@@ -3372,6 +3379,14 @@ class GeoGraph(
                     output["length"] += (
                         origin_id[entry_node] + destination_id[exit_node]
                     ) * (circuity_ratio - 1.0)
+            if logger.isEnabledFor(logging.DEBUG):
+                self._log_query_indicators(
+                    algorithm_name,
+                    origin,
+                    destination,
+                    origin_id,
+                    destination_id,
+                )
 
             # Convert the length to the desired output units
             output["length"] = distance_converter(
@@ -3406,25 +3421,77 @@ class GeoGraph(
                 del output["path"]
             return output
 
-        except Exception as e:
-            print_console(
-                (
-                    "An error occurred while calculating the shortest path:\n"
-                    "This is likely caused by a disconnect in the graph.\n"
-                    "You can ensure a solution by setting destination_node_addition_type='all' and setting your lat_lon_bound=180.\n"
-                    "This will, however, result in a much longer runtime per shortest path query.\n"
-                    "If not in an exception block, see the stacktrace below for more details:\n"
-                ),
-                silent=silent,
+        except PathNotFoundError as error:
+            error.add_note(
+                "This is likely caused by a disconnect in the graph. Setting"
+                " destination_node_addition_type='all' and"
+                " node_addition_lat_lon_bound=180 ensures a solution, at a much"
+                " longer runtime per query."
             )
-            raise e
+            raise
+
+    def _log_query_indicators(
+        self,
+        algorithm_name: str,
+        origin: Sequence[float],
+        destination: Sequence[float],
+        origin_entries: dict[int, int | float],
+        destination_entries: dict[int, int | float],
+    ) -> None:
+        """
+        Logs at DEBUG the indicators of a shortest-path query: what the query did, which
+        its result does not show.
+
+        - `algorithm_name`: the name of the search, or "custom" for a search function
+        - `origin`, `destination`: the [latitude, longitude] of the two ends of the query
+        - `origin_entries`, `destination_entries`: the graph nodes that each end was
+          joined to, with the cost to reach each node
+        - The snapping distance of an end is the great-circle distance to its nearest
+          entry node, in the units of the geograph, without circuity
+        - `node_scans` is present only if the query ran a search that counts them
+        - A query builds this record only when DEBUG is on, and does not use `_log_step`:
+          a query must pay nothing for logging when DEBUG is off. It logs no duration,
+          which the caller can measure around its own call
+        """
+        origin_node = min(origin_entries, key=origin_entries.__getitem__)
+        destination_node = min(
+            destination_entries, key=destination_entries.__getitem__
+        )
+        step = "find the shortest path"
+        indicators = {
+            "algorithm": algorithm_name,
+            "distance_units": self.geograph_units,
+            "origin_snap_distance": round(
+                haversine(
+                    origin, self.nodes[origin_node], units=self.geograph_units
+                ),
+                3,
+            ),
+            "destination_snap_distance": round(
+                haversine(
+                    destination,
+                    self.nodes[destination_node],
+                    units=self.geograph_units,
+                ),
+                3,
+            ),
+        }
+        node_scans = self.graph_object._get_last_node_scans()
+        if node_scans is not None:
+            indicators["node_scans"] = node_scans
+        logger.debug(
+            "%s: %s",
+            step,
+            indicators,
+            extra={"scgraph": {"step": step, **indicators}},
+        )
 
     def distance_matrix(
         self,
         nodes: list[dict[str, float]],
         off_graph_circuity: float = 1,
         output_units: str = "km",
-        silent: bool = False,
+        silent: bool | None = None,
     ) -> list[list[int | float | None]]:
         """
         Function:
@@ -3452,11 +3519,14 @@ class GeoGraph(
             - What: The units of the output distance matrix
             - Default: 'km'
             - Options: 'km', 'miles', 'meters', 'feet'
+        - `silent`
+            - Deprecated and without effect. scgraph reports its messages through `logging`.
 
         Returns:
 
         - A list of lists representing the distance matrix between the nodes
         - The distance matrix is a square matrix where the entry at (i, j) is the distance between node i and node j
+        - A pair of nodes without a path has the distance None, and the call warns once with the number of such pairs
         - The distances are in the units specified by `output_units`
         - EG:
         ```
@@ -3466,6 +3536,8 @@ class GeoGraph(
             ...
         ]
         """
+        _warn_deprecated_parameter("silent", silent)
+        failed_pairs = 0
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(
             distance=1,
@@ -3508,11 +3580,13 @@ class GeoGraph(
                         + entry_length_end
                     )
                 except PathNotFoundError:
-                    print_console(
-                        f"Error calculating distance between nodes {node_idx_start} and {node_idx_end} with entry indices {entry_idx_start} and {entry_idx_end}.",
-                        silent=silent,
-                    )
-
+                    failed_pairs += 1
+        if failed_pairs:
+            warnings.warn(
+                f"{failed_pairs} pair(s) of nodes have no path between them:"
+                " their distance is None",
+                stacklevel=2,
+            )
         return output_matrix
 
 

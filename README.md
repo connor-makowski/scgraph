@@ -230,6 +230,8 @@ output = my_geograph.get_shortest_path(
 | `my_geograph.haversine` | Great-circle distance heuristic (accurate), in `geograph_units`; computed natively by `get_shortest_path` A* in the C++ build |
 | `my_geograph.cheap_ruler` | Fast approximate distance (Mapbox method), in `geograph_units` |
 
+A* returns the shortest path if the heuristic never exceeds the real distance left to the destination. When the destination is connected to more than 4 nodes of the graph (for example with `destination_node_addition_type='all'`), A* does not call the heuristic and searches as Dijkstra does.
+
 ---
 
 # GeoGraph Usage
@@ -588,7 +590,7 @@ print(output['length'])
 | `weight_key` | `'length'` | Edge attribute to use as weight (`'length'` or `'travel_time'`) |
 | `off_graph_travel_speed` | `None` | Speed (km/h) for off-graph connections; used to convert time-based weights to distances |
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
-| `silent` | `False` | Suppress progress output |
+| `silent` | `None` | Deprecated and without effect. scgraph reports its messages through `logging`. |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading until the geograph is first accessed |
 
@@ -674,7 +676,7 @@ osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.ge
 ```bash
 npm install -g mapshaper
 
-python -c "from scgraph.helpers.geojson import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3, silent=False)"
+python -c "from scgraph.helpers.geojson import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3)"
 mapshaper michigan_roads_simple.geojson -simplify 10% -filter-fields -o force michigan_roads_simple.geojson
 mapshaper michigan_roads_simple.geojson -snap -clean -o force michigan_roads_simple.geojson
 ```
@@ -973,6 +975,64 @@ dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
 ```
 
 ---
+
+# Logging
+
+The library prints nothing. It reports through Python's `logging` module, on the logger `scgraph`. The parameters `silent` and `show_progress` no longer have an effect: remove them from your calls.
+
+To follow `build_geograph`, `load_from_geojson` and `get_multi_path_geojson`, show the INFO messages:
+
+```py
+import logging
+
+logging.basicConfig()  # send log messages to the console
+logging.getLogger("scgraph").setLevel(logging.INFO)
+```
+
+To see how much work a load or a query did, show the DEBUG messages. Each step of a `GeoGraph` then logs one line:
+
+```py
+logging.getLogger("scgraph").setLevel(logging.DEBUG)
+marnet = GeoGraph.load_geograph("marnet")
+marnet.get_shortest_path(
+    {"latitude": 31.23, "longitude": 121.47},
+    {"latitude": 32.08, "longitude": -81.09},
+)
+# DEBUG:scgraph.geograph:read the network file: {'file': '.../marnet.scgraph', 'mapped': True, 'nodes': 11062, 'arcs': 34698, 'duration_ms': 0.205}
+# DEBUG:scgraph.geograph:build the snapping index: {'nodes': 11062, 'sorted_for_the_index': False, 'duration_ms': 0.749}
+# DEBUG:scgraph.geograph:find the shortest path: {'algorithm': 'bidirectional_buckets', 'distance_units': 'km', 'origin_snap_distance': 64.979, 'destination_snap_distance': 109.566, 'node_scans': 12504}
+```
+
+| Step | Values |
+|---|---|
+| `read the network file` | `file`, `mapped`, `nodes`, `arcs`, `duration_ms` |
+| `convert the published network` | `name`, `duration_ms` |
+| `build the snapping index` | `nodes`, `sorted_for_the_index`, `duration_ms` |
+| `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
+| `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
+
+- `node_scans` is the size of the search: the number of times it went over the arcs of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
+- `origin_snap_distance` and `destination_snap_distance` are the distances from each end of the query to its nearest node of the network, in `distance_units`.
+- `kept_nodes` is the number of nodes left after the reduction.
+- `mapped` is true when the file is read in place, without a copy. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
+
+A program gets the same values as a dict, in the attribute `scgraph` of each log record. The key `step` of the dict names the step. The names of the values may change between versions.
+
+```py
+class Collector(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        if hasattr(record, "scgraph"):
+            self.records.append(record.scgraph)
+
+collector = Collector()
+logging.getLogger("scgraph").addHandler(collector)
+logging.getLogger("scgraph").setLevel(logging.DEBUG)
+# After a query, collector.records[-1]["node_scans"] is its number of node scans
+```
 
 # Examples
 

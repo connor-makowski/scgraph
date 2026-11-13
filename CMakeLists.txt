@@ -30,9 +30,12 @@ endif()
 # -----------------------------
 # Graph module
 # -----------------------------
+# NOMINSIZE: without it, nanobind adds -Os (/Os with MSVC) after the flags above, and the
+# compiler then optimises every file for size, not for speed
 nanobind_add_module(
     cpp
     STABLE_ABI
+    NOMINSIZE
     scgraph/cpp/bindings/graph_bindings.cpp
     scgraph/cpp/bindings/pipelines_bindings.cpp
     scgraph/cpp/src/graph.cpp
@@ -42,8 +45,9 @@ nanobind_add_module(
     scgraph/cpp/src/transit_node_routing.cpp
     scgraph/cpp/src/snap_index.cpp
 )
-# No fused multiply-add (ARM compilers fuse by default), so that the double check of each
-# candidate rounds as the Python expression does and both SnapIndex versions give the same answers;
+# No fused multiply-add (ARM compilers fuse by default), so that the comparison of the
+# candidates in double rounds as the Python expression does and both SnapIndex versions give the
+# same answers;
 # likewise for the pipelines' kernels, which must round as their Python twins
 if(NOT MSVC)
     set_source_files_properties(scgraph/cpp/src/snap_index.cpp scgraph/cpp/bindings/pipelines_bindings.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)

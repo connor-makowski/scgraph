@@ -97,6 +97,16 @@ def _networks():
         [90.0, 0.0],
     ]
     special += [[-90.0, 45.0], [45.0, 179.999], [45.0, -179.999]]
+    # Twelve nodes one centimetre apart on a meridian: single-precision numbers
+    # cannot tell them apart
+    special += [[11.0 - i * 1e-7, 20.0] for i in range(12)]
+    # Twelve nodes about 1 km around [11.0, 21.0], at the same distance within
+    # centimetres
+    degrees_east = 0.01 / math.cos(math.radians(11.0))
+    special += [
+        [11.0 + 0.01 * math.cos(k), 21.0 + degrees_east * math.sin(k)]
+        for k in range(12)
+    ]
     mixed = spread + cluster + special
     # Along a Hilbert curve, as network files are (a query scans about 4 leaves)
     ordered = [mixed[i] for i in hilbert_order(mixed)]
@@ -104,6 +114,7 @@ def _networks():
     rng.shuffle(shuffled)  # a query would scan about 40 leaves
     return {
         "one node": [[12.0, 34.0]],
+        "two nodes": [[12.0, 34.0], [-12.0, -34.0]],
         # Any order is accepted while a query can't scan many leaves
         "one leaf plus one": sphere(33),
         "ordered": ordered,
@@ -131,6 +142,12 @@ def _queries(nodes):
         [-90.0, 0.0],
     ]
     queries += [[45.0, 180.0], [48.85, 2.35], [-1e-9, 179.9999999]]
+    # South and north of the nodes one centimetre apart, the centre of the ring, and
+    # a point due south of the first node of the ring
+    queries += [[10.5, 20.0], [11.5, 20.0], [11.0, 21.0], [11.005, 21.0]]
+    # Each point is exactly 180 degrees of longitude from one node of "two nodes":
+    # that node counts as east and as west of the point
+    queries += [[0.0, -146.0], [0.0, 146.0]]
     return queries
 
 
