@@ -174,19 +174,19 @@ def _check_answers(nodes, index):
 @pytest.mark.parametrize(
     "network", [n for n in _networks() if n not in SCATTERED]
 )
-@pytest.mark.parametrize("build", [_from_points, _from_arrays, _from_units])
-def test_snap_index_finds_the_nearest_node(implementation, network, build):
-    index, nodes, _reused = build(implementation, _networks()[network])
+@pytest.mark.parametrize("builder", [_from_points, _from_arrays, _from_units])
+def test_snap_index_finds_the_nearest_node(implementation, network, builder):
+    index, nodes, _reused = builder(implementation, _networks()[network])
     _check_answers(nodes, index)
 
 
 # The ordered network has two nodes at (10, 20).
 @both_snap_index_classes
-@pytest.mark.parametrize("build", [_from_points, _from_arrays, _from_units])
+@pytest.mark.parametrize("builder", [_from_points, _from_arrays, _from_units])
 def test_snap_index_gives_the_lowest_id_of_nodes_at_the_same_place(
-    implementation, build
+    implementation, builder
 ):
-    index, nodes, _reused = build(implementation, _networks()["ordered"])
+    index, nodes, _reused = builder(implementation, _networks()["ordered"])
     first_node_there = nodes.index([10.0, 20.0])
 
     assert index.closest_idx([10.0, 20.0]) == first_node_there
@@ -200,11 +200,11 @@ def test_snap_index_gives_the_lowest_id_of_nodes_at_the_same_place(
 # such a pair, with no arc between the two nodes. A point snaps to the node
 # whose longitude has its sign.
 @both_snap_index_classes
-@pytest.mark.parametrize("build", [_from_points, _from_arrays, _from_units])
+@pytest.mark.parametrize("builder", [_from_points, _from_arrays, _from_units])
 def test_snap_index_gives_the_node_on_the_same_side_of_the_antimeridian(
-    implementation, build
+    implementation, builder
 ):
-    index, nodes, _reused = build(implementation, _networks()["ordered"])
+    index, nodes, _reused = builder(implementation, _networks()["ordered"])
 
     assert nodes[index.closest_idx([0.0, -179.99])] == [0.0, -180.0]
     assert nodes[index.closest_idx([0.0, 179.99])] == [0.0, 180.0]
