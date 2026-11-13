@@ -200,12 +200,28 @@ def test_add_haversine_edge():
             id="add_edge to a destination that is not in the graph",
         ),
         pytest.param(
+            lambda graph: graph.add_edge(-1, 0, 1.0),
+            id="add_edge from a negative origin id",
+        ),
+        pytest.param(
+            lambda graph: graph.add_edge(0, -1, 1.0),
+            id="add_edge to a negative destination id",
+        ),
+        pytest.param(
             lambda graph: graph.remove_edge(5, 0),
             id="remove_edge from an origin that is not in the graph",
         ),
         pytest.param(
             lambda graph: graph.remove_edge(0, 5),
             id="remove_edge to a destination that is not in the graph",
+        ),
+        pytest.param(
+            lambda graph: graph.remove_edge(-1, 0),
+            id="remove_edge from a negative origin id",
+        ),
+        pytest.param(
+            lambda graph: graph.remove_edge(0, -1),
+            id="remove_edge to a negative destination id",
         ),
     ],
 )

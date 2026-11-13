@@ -339,10 +339,10 @@ int GraphUtils::add_node(const std::unordered_map<int, double>& node_dict, bool 
 }
 
 void GraphUtils::add_edge(int origin_id, int destination_id, double distance, bool symmetric) {
-    if (origin_id >= size()) {
+    if (origin_id < 0 || origin_id >= size()) {
         throw std::out_of_range("Origin node id is not in the graph");
     }
-    if (destination_id >= size()) {
+    if (destination_id < 0 || destination_id >= size()) {
         throw std::out_of_range("Destination node id is not in the graph");
     }
     if (origin_id == destination_id) {
@@ -428,10 +428,10 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
 }
 
 std::optional<double> GraphUtils::remove_edge(int origin_id, int destination_id, bool symmetric) {
-    if (origin_id >= size()) {
+    if (origin_id < 0 || origin_id >= size()) {
         throw std::out_of_range("Origin node id is not in the graph");
     }
-    if (destination_id >= size()) {
+    if (destination_id < 0 || destination_id >= size()) {
         throw std::out_of_range("Destination node id is not in the graph");
     }
     auto graph = rows_to_edit();
