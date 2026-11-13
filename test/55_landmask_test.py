@@ -1,5 +1,6 @@
 import json
 from array import array
+from types import SimpleNamespace
 
 import pytest
 from helpers import great_circle_km
@@ -7,134 +8,273 @@ from helpers import great_circle_km
 from scgraph import Graph
 from scgraph.pipelines.steps.stage2_intermodal import landmask
 
-KERNELS = [landmask.python.find_water_path_cells]
-try:
-    from scgraph.cpp import find_water_path_cells
-
-    KERNELS.append(find_water_path_cells)
-except ImportError:
-    pass
-
 
 def _square(west, south, east, north):
     return [[west, south], [east, south], [east, north], [west, north], [west, south]]  # fmt: skip
 
 
-def _geojson(path, type, coordinates):
-    geometry = {"type": type, "coordinates": coordinates}
-    features = [{"type": "Feature", "geometry": geometry}] if type else []
-    path.write_text(json.dumps({"type": "FeatureCollection", "features": features}))  # fmt: skip
+def _write_geojson(path, geometries):
+    """Write `geometries`, a list of (type, coordinates), as the features of a
+    GeoJSON file. Return the path as a string."""
+    features = [
+        {"type": "Feature", "geometry": {"type": kind, "coordinates": points}}
+        for kind, points in geometries
+    ]
+    path.write_text(
+        json.dumps({"type": "FeatureCollection", "features": features})
+    )
     return str(path)
 
 
-_LAKE = _square(0.03, 56.02, 0.07, 56.05)
-CASES = {
-    # 0.005-degree cells over (0, 56)-(0.2, 56.2) (longitude, latitude): a mainland to the
-    # south with two holes, a lagoon and a lake drawn again in the lakes (as the Great
-    # Lakes), a river from the lake to the sea, and an island between the river's mouth
-    # and the target, a cell of the island's shore. Probes: lake, lagoon, river, island,
-    # and the cell west of the lake (its centre on land)
-    "island": dict(
-        land=(
-            "MultiPolygon",
-            [
-                [
-                    _square(0, 56, 0.2, 56.08),
-                    _LAKE,
-                    _square(0.1, 56.02, 0.15, 56.05),
-                ],
-                [_square(0.06, 56.11, 0.16, 56.15)],
-            ],
-        ),
-        lakes=("Polygon", [_LAKE]),
-        rivers=("LineString", [[0.05, 56.05], [0.05, 56.09]]),
-        cells_per_degree=200,
-        bbox=(56, 0, 56.2, 0.2),
-        port=[56.011, 0.0505],
-        target=[56.148, 0.12],
-        start_on_land_km=6,
-        max_km=100,
-        probes={
-            (56.04, 0.05): False,
-            (56.04, 0.12): False,
-            (56.06, 0.05): False,
-            (56.13, 0.1): True,
-            (56.035, 0.0275): True,
-        },
-    ),
-    # 1-degree cells around the globe, land everywhere but within 10 degrees of the
-    # antimeridian: the path crosses it
-    "antimeridian": dict(
-        land=("Polygon", [_square(-170, 0, 170, 10)]),
-        lakes=(None, None),
-        rivers=(None, None),
-        cells_per_degree=1,
-        bbox=(0, -180, 10, 180),
-        port=[5.2, 172.2],
-        target=[5.5, -172.5],
-        start_on_land_km=100,
-        max_km=5000,
-        probes={(5, 0): True, (5, 179): False},
-    ),
-}
+def _find_shortest_route_over_water(mask, port, target):
+    """The oracle of the water paths: Dijkstra on a graph of the water cells
+    and of the cell of `target`. Two cells that touch, by a side or by a
+    corner, are joined by the great-circle distance between their centres. The
+    route starts at the water cell nearest to `port`.
 
-
-@pytest.mark.parametrize("kernel", KERNELS)
-@pytest.mark.parametrize("case", CASES)
-def test_water_path_is_the_shortest_over_water_from_a_port_on_land(
-    tmp_path, monkeypatch, kernel, case
-):
-    monkeypatch.setattr(landmask, "find_water_path_cells", kernel)
-    c = CASES[case]
-    mask = landmask.LandMask.from_natural_earth(
-        *(_geojson(tmp_path / f, *c[f]) for f in ("land", "lakes", "rivers")),
-        cells_per_degree=c["cells_per_degree"],
-        bbox=c["bbox"],
-    )
-    assert {p: mask.is_on_land(*p) for p in c["probes"]} == c["probes"]
-    port, target = c["port"], mask.get_cell(*c["target"])
-    targets = array("q", [target])
-
-    # Oracle: Dijkstra over the water cells (and the target), with great-circle steps,
-    # from the water cell nearest to the port
+    It gives `first_cell`, `leg_km` (from the port to the centre of that
+    cell), `target_cell` and `km` (the leg plus the route between the cells).
+    """
+    target_cell = mask.get_cell(*target)
     width, cells = mask.width, range(mask.height * mask.width)
     water = {
-        i for i in cells if not mask.is_on_land(*mask.get_cell_centre(i))
-    } | {target}
+        cell
+        for cell in cells
+        if not mask.is_on_land(*mask.get_cell_centre(cell))
+    } | {target_cell}
     graph = [{} for _ in cells]
-    for i in water:
-        row, column = divmod(i, width)
-        for r, j in (
+    for cell in water:
+        row, column = divmod(cell, width)
+        # The cell to the east and the three cells of the row to the north:
+        # the links to the other four neighbours are made from those cells.
+        for r, c in (
             (row, column + 1),
-            *((row + 1, column + d) for d in (-1, 0, 1)),
+            (row + 1, column - 1),
+            (row + 1, column),
+            (row + 1, column + 1),
         ):
-            near = r * width + j % width
-            if near in water and (mask.wrap or 0 <= j < width):
+            near = r * width + c % width
+            if near in water and (mask.wrap or 0 <= c < width):
                 km = great_circle_km(
-                    mask.get_cell_centre(i), mask.get_cell_centre(near)
+                    mask.get_cell_centre(cell), mask.get_cell_centre(near)
                 )
-                graph[i][near] = graph[near][i] = km
-    leg, first = min(
-        (great_circle_km(port, mask.get_cell_centre(i)), i) for i in water
+                graph[cell][near] = graph[near][cell] = km
+    leg_km, first_cell = min(
+        (great_circle_km(port, mask.get_cell_centre(cell)), cell)
+        for cell in water
     )
-    expected = leg + Graph(graph).dijkstra(first, target)["length"]
+    between_cells_km = Graph(graph).dijkstra(first_cell, target_cell)["length"]
+    return SimpleNamespace(
+        first_cell=first_cell,
+        leg_km=leg_km,
+        target_cell=target_cell,
+        km=leg_km + between_cells_km,
+    )
 
-    km, points = mask.find_water_path(
-        port, targets, c["max_km"], c["start_on_land_km"]
+
+# The coast map covers longitudes 0 to 0.2 and latitudes 56 to 56.2, in cells
+# of 0.005 degree. The mainland lies south of latitude 56.08 and has two
+# holes: a lake and a lagoon. The lake is drawn again in the file of lakes, as
+# the Great Lakes are in Natural Earth. A river runs north from the lake to
+# the sea. An island lies in the sea, north of the mouth of the river.
+LAKE = _square(0.03, 56.02, 0.07, 56.05)
+LAGOON = _square(0.1, 56.02, 0.15, 56.05)
+MAINLAND = _square(0, 56, 0.2, 56.08)
+ISLAND = _square(0.06, 56.11, 0.16, 56.15)
+RIVER = [[0.05, 56.05], [0.05, 56.09]]
+# The port is on the mainland, 1 km south of the lake. The target is a cell of
+# the north shore of the island: a water path goes through the lake, down the
+# river and around the island.
+PORT = [56.011, 0.0505]
+TARGET_ON_THE_ISLAND = [56.148, 0.12]
+
+
+@pytest.fixture(scope="module")
+def coast(tmp_path_factory):
+    folder = tmp_path_factory.mktemp("coast")
+    return landmask.LandMask.from_natural_earth(
+        _write_geojson(
+            folder / "land.geojson",
+            [("MultiPolygon", [[MAINLAND, LAKE, LAGOON], [ISLAND]])],
+        ),
+        _write_geojson(folder / "lakes.geojson", [("Polygon", [LAKE])]),
+        _write_geojson(folder / "rivers.geojson", [("LineString", RIVER)]),
+        cells_per_degree=200,
+        bbox=(56, 0, 56.2, 0.2),
     )
-    assert km == pytest.approx(expected, rel=1e-6)
-    assert points[0] == mask.get_cell_centre(first) and points[
-        -1
-    ] == mask.get_cell_centre(target)
-    # Drawn along the path (around the island)
-    drawn = sum(great_circle_km(a, b) for a, b in zip(points, points[1:]))
-    assert leg + drawn == pytest.approx(km, rel=1e-4)
-    assert (
-        mask.find_water_path(port, targets, km * 0.999, c["start_on_land_km"])
-        is None
+
+
+@pytest.fixture(scope="module")
+def route_around_the_island(coast):
+    return _find_shortest_route_over_water(coast, PORT, TARGET_ON_THE_ISLAND)
+
+
+def test_a_lake_is_water(coast):
+    assert not coast.is_on_land(56.04, 0.05)
+
+
+def test_a_hole_in_the_land_is_water(coast):
+    # The lagoon is a hole of the mainland. It is not in the file of lakes.
+    assert not coast.is_on_land(56.04, 0.12)
+
+
+def test_a_river_is_water(coast):
+    assert not coast.is_on_land(56.06, 0.05)
+
+
+def test_an_island_is_land(coast):
+    assert coast.is_on_land(56.13, 0.1)
+
+
+def test_a_cell_is_land_when_its_centre_is_on_land(coast):
+    # The lake starts at longitude 0.03. This point is the centre of the cell
+    # that touches the lake on its west side.
+    assert coast.is_on_land(56.035, 0.0275)
+
+
+def test_a_water_path_has_the_length_of_the_shortest_route_over_water(
+    coast, route_around_the_island
+):
+    targets = array("q", [route_around_the_island.target_cell])
+
+    km, _ = coast.find_water_path(PORT, targets, max_km=100, start_on_land_km=6)
+
+    assert km == pytest.approx(route_around_the_island.km, rel=1e-6)
+
+
+def test_a_water_path_goes_from_the_water_cell_nearest_to_the_port_to_the_target(
+    coast, route_around_the_island
+):
+    targets = array("q", [route_around_the_island.target_cell])
+
+    _, points = coast.find_water_path(
+        PORT, targets, max_km=100, start_on_land_km=6
     )
-    assert mask.find_water_path(port, targets, c["max_km"], leg * 0.99) is None
-    # A search may not hold more cells than allowed: fewer than its path's, none
-    monkeypatch.setattr(landmask, "MAX_CELLS", len(points) - 1)
-    near = c["start_on_land_km"]
-    assert mask.find_water_path(port, targets, c["max_km"], near) is None
+
+    assert points[0] == coast.get_cell_centre(
+        route_around_the_island.first_cell
+    )
+    assert points[-1] == coast.get_cell_centre(
+        route_around_the_island.target_cell
+    )
+
+
+def test_the_points_of_a_water_path_follow_the_path(
+    coast, route_around_the_island
+):
+    # The length along the points, plus the leg from the port to the first
+    # point, is the length of the path. The centres of the cells are rounded
+    # differently in the two sums: the lengths agree to 1 in 10,000.
+    targets = array("q", [route_around_the_island.target_cell])
+
+    km, points = coast.find_water_path(
+        PORT, targets, max_km=100, start_on_land_km=6
+    )
+
+    km_along_the_points = sum(
+        great_circle_km(a, b) for a, b in zip(points, points[1:])
+    )
+    assert route_around_the_island.leg_km + km_along_the_points == (
+        pytest.approx(km, rel=1e-4)
+    )
+
+
+def test_no_water_path_is_found_beyond_the_maximum_length(
+    coast, route_around_the_island
+):
+    targets = array("q", [route_around_the_island.target_cell])
+    just_too_short_km = route_around_the_island.km * 0.999
+
+    path = coast.find_water_path(
+        PORT, targets, max_km=just_too_short_km, start_on_land_km=6
+    )
+
+    assert path is None
+
+
+def test_no_water_path_is_found_when_the_port_is_too_far_from_water(
+    coast, route_around_the_island
+):
+    targets = array("q", [route_around_the_island.target_cell])
+    just_too_near_km = route_around_the_island.leg_km * 0.99
+
+    path = coast.find_water_path(
+        PORT, targets, max_km=100, start_on_land_km=just_too_near_km
+    )
+
+    assert path is None
+
+
+def test_a_search_finds_no_path_when_it_may_not_hold_the_cells_of_its_path(
+    coast, route_around_the_island
+):
+    # A search stops when it holds `max_cells` cells, the last argument of the
+    # kernel: this limit bounds its memory. The target is 25 rows of cells
+    # north of the first cell, so a search that may hold 10 cells cannot
+    # reach it.
+    targets = array("q", [route_around_the_island.target_cell])
+
+    found = landmask.find_water_path_cells(
+        coast.bits,
+        coast.width,
+        coast.height,
+        coast.wrap,
+        route_around_the_island.first_cell,
+        targets,
+        100,
+        coast.east_km,
+        coast.diagonal_km,
+        coast.north_km,
+        10,
+    )
+
+    assert found is None
+
+
+# The globe map covers every longitude, from the equator to latitude 10, in
+# cells of 1 degree. All is land but the 10 degrees on each side of the
+# antimeridian.
+LAND_AWAY_FROM_THE_ANTIMERIDIAN = _square(-170, 0, 170, 10)
+# The port is west of the antimeridian and the target is east of it.
+PORT_AT_172_EAST = [5.2, 172.2]
+TARGET_AT_172_WEST = [5.5, -172.5]
+
+
+@pytest.fixture(scope="module")
+def globe(tmp_path_factory):
+    folder = tmp_path_factory.mktemp("globe")
+    return landmask.LandMask.from_natural_earth(
+        _write_geojson(
+            folder / "land.geojson",
+            [("Polygon", [LAND_AWAY_FROM_THE_ANTIMERIDIAN])],
+        ),
+        _write_geojson(folder / "lakes.geojson", []),
+        _write_geojson(folder / "rivers.geojson", []),
+        cells_per_degree=1,
+        bbox=(0, -180, 10, 180),
+    )
+
+
+def test_a_map_of_every_longitude_has_land_and_water_where_they_are_drawn(
+    globe,
+):
+    assert globe.is_on_land(5, 0)
+    assert not globe.is_on_land(5, 179)
+
+
+def test_a_water_path_crosses_the_antimeridian(globe):
+    # The oracle joins the last column of cells to the first one, as the map
+    # covers every longitude. The route then takes 15 steps eastwards. Around the
+    # globe the other way, it would cross land.
+    route = _find_shortest_route_over_water(
+        globe, PORT_AT_172_EAST, TARGET_AT_172_WEST
+    )
+    targets = array("q", [route.target_cell])
+
+    km, points = globe.find_water_path(
+        PORT_AT_172_EAST, targets, max_km=5000, start_on_land_km=100
+    )
+
+    assert km == pytest.approx(route.km, rel=1e-6)
+    assert points[0] == globe.get_cell_centre(route.first_cell)
+    assert points[-1] == globe.get_cell_centre(route.target_cell)
