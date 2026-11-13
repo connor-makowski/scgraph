@@ -19,7 +19,7 @@ download = arcgis.download  # the layer is read page by page
 
 def build(files: dict[str, str]) -> GeoGraph:
     return GeoGraph.load_from_geojson(
-        files["freeway_lines"], precision=4, silent=True, max_km_between_nodes=2
+        files["freeway_lines"], precision=4, max_km_between_nodes=2
     )
 
 

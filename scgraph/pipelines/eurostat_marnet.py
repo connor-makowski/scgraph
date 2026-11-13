@@ -50,7 +50,7 @@ def build(files: dict[str, str]) -> GeoGraph:
     geojson = files["sea_lanes"] + ".geojson"
     with open(geojson, "w") as file:
         json.dump({"type": "GeometryCollection", "geometries": lines}, file)
-    return GeoGraph.load_from_geojson(geojson, precision=5, silent=True)
+    return GeoGraph.load_from_geojson(geojson, precision=5)
 
 
 # ---------------------------------------------------------------------------

@@ -24,7 +24,6 @@ def build(files: dict[str, str]) -> GeoGraph:
     return GeoGraph.load_from_geojson(
         files["rail_lines"],
         precision=4,
-        silent=True,
         max_km_between_nodes=2,
         load_intermediate_nodes=False,
     )

@@ -129,7 +129,7 @@ def test_load_from_geojson_brings_a_longitude_back_within_180_degrees(
         path, [[written_longitude - 0.5, 89.5], [written_longitude, 0]]
     )
 
-    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+    loaded = GeoGraph.load_from_geojson(str(path))
 
     assert [0, loaded_longitude] in loaded.nodes
 
@@ -138,7 +138,7 @@ def test_load_from_geojson_accepts_a_point_at_the_pole(tmp_path):
     path = tmp_path / "line.geojson"
     _write_geojson_line(path, [[12, 89.5], [12.5, 90]])
 
-    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+    loaded = GeoGraph.load_from_geojson(str(path))
 
     assert [90, 12.5] in loaded.nodes
 
@@ -148,7 +148,7 @@ def test_load_from_geojson_refuses_a_latitude_beyond_the_pole(tmp_path):
     _write_geojson_line(path, [[12, 89.5], [12.5, 95]])
 
     with pytest.raises(ValueError, match="Latitude"):
-        GeoGraph.load_from_geojson(str(path), silent=True)
+        GeoGraph.load_from_geojson(str(path))
 
 
 def test_load_from_geojson_weighs_a_link_by_its_great_circle_length(tmp_path):
@@ -157,7 +157,7 @@ def test_load_from_geojson_weighs_a_link_by_its_great_circle_length(tmp_path):
     path = tmp_path / "line.geojson"
     _write_geojson_line(path, [[100, 50], [101, 51]])
 
-    loaded = GeoGraph.load_from_geojson(str(path), silent=True)
+    loaded = GeoGraph.load_from_geojson(str(path))
 
     expected = great_circle_km([50, 100], [51, 101])
     assert loaded.graph_object.graph[0][1] == pytest.approx(expected, abs=0.001)

@@ -29,7 +29,6 @@ ignore = ["B905"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # imports that make the public names
-"scgraph/utils.py" = ["T201"]  # console helpers of 3.6.0
 "scgraph/pipelines/steps/stage4_validation/references/*.py" = ["T201"]  # command-line scripts
 # Tests may print; an argument that holds a class is named as a class (GraphClass)
 "test/*" = ["T201", "N803"]

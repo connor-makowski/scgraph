@@ -1,8 +1,11 @@
 import json
+import logging
 import time
 import platform
 import os
-from collections.abc import Callable, Iterable, Sequence
+import warnings
+from collections.abc import Callable, Iterable, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from math import pi, sin, cos, asin
 
@@ -15,6 +18,8 @@ earth_radius = {
 }
 radians_per_degree = pi / 180  # radians per degree
 cheap_e2 = (1 / 298.257223563) * (2 - (1 / 298.257223563))
+
+logger = logging.getLogger(__name__)
 
 
 def haversine(
@@ -230,23 +235,71 @@ def get_line_path(
     return linestring
 
 
+def _warn_deprecated(name: str, stacklevel: int = 3) -> None:
+    """
+    Warns that a function or a parameter of the former printing is deprecated. The
+    message sends the user to the README section Logging.
+
+    - `name`: the function or the parameter, as the message names it
+    - `stacklevel`: the default points the warning at the caller of the function that
+      calls this one
+    """
+    warnings.warn(
+        f"{name} is deprecated. scgraph reports its messages through the logging"
+        " module (README, section Logging)",
+        DeprecationWarning,
+        stacklevel=stacklevel,
+    )
+
+
+def _warn_deprecated_parameter(name: str, value: object) -> None:
+    """
+    Warns that the parameter `name`, which controlled printing, is deprecated, if the
+    caller gave it.
+
+    - `value`: the value of the parameter; None means that the caller did not give it
+    """
+    if value is not None:
+        _warn_deprecated(f"The parameter `{name}`", stacklevel=4)
+
+
+@contextmanager
+def _log_step(
+    step_logger: logging.Logger, step: str, indicators: dict
+) -> Iterator[dict]:
+    """
+    Logs at DEBUG how long a step took, with indicators of its work.
+
+    - `step_logger`: the logger of the calling module
+    - `step`: what the step does, in a few words, such as "reduce the graph"
+    - `indicators`: values known before the step, such as a number of nodes
+    - Yields a copy of `indicators`, which the step completes with the values it knows
+      at its end
+    - The log message shows the indicators and `duration_ms`. The log record keeps them
+      with `step` in its attribute `scgraph`, for a handler of the application
+    """
+    indicators = dict(indicators)
+    start = time.perf_counter()
+    yield indicators
+    indicators["duration_ms"] = round((time.perf_counter() - start) * 1000, 3)
+    step_logger.debug(
+        "%s: %s",
+        step,
+        indicators,
+        extra={"scgraph": {"step": step, **indicators}},
+    )
+
+
 def print_console(*args, silent: bool = False, **kwargs) -> None:
     """
-    Function:
+    Deprecated. Logs a message at INFO, unless `silent` is true.
 
-    - Print messages to the console if `silent` is False
-    - This is a utility function to standardize printing behavior across the codebase
-
-    Args:
-
-    - `*args`: Args to pass to the print function
-    - `silent`: Whether to suppress printing
-        - Default: False
-    - `**kwargs`: Additional keyword arguments to pass to the print function
-
+    - `*args`: the parts of the message, joined by spaces
+    - `**kwargs`: the other arguments of `print`, which are ignored
     """
+    _warn_deprecated("scgraph.utils.print_console")
     if not silent:
-        print(*args, **kwargs)
+        logger.info(" ".join(str(arg) for arg in args))
 
 
 def get_lat_lon_bound_between_pts(
@@ -330,6 +383,12 @@ def adjacency_list_tuples_to_dict(
 
 
 def validate(name: str, realized: object, expected: object) -> None:
+    """
+    Deprecated. Logs at INFO whether `realized` equals `expected`.
+
+    - The lengths in dictionaries are rounded to 3 decimals before the comparison
+    """
+    _warn_deprecated("scgraph.utils.validate")
     # Custom length rounding for floating point precision issues
     if isinstance(realized, dict):
         if "length" in realized:
@@ -338,11 +397,11 @@ def validate(name: str, realized: object, expected: object) -> None:
         if "length" in expected:
             expected["length"] = hard_round(3, expected["length"])
     if realized == expected:
-        print(f"{name}: PASS")
+        logger.info("%s: PASS", name)
     else:
-        print(f"{name}: FAIL")
-        print("Expected:", expected)
-        print("Realized:", realized)
+        logger.info(
+            "%s: FAIL\nExpected: %s\nRealized: %s", name, expected, realized
+        )
 
 
 def time_test(
@@ -351,13 +410,20 @@ def time_test(
     args: Iterable | None = None,
     kwargs: dict | None = None,
 ) -> None:
+    """
+    Deprecated. Logs at INFO the time that `function(*args, **kwargs)` takes, in
+    milliseconds.
+    """
+    _warn_deprecated("scgraph.utils.time_test")
     if args is None:
         args = ()
     if kwargs is None:
         kwargs = {}
-    start = time.time()
+    start = time.perf_counter()
     function(*args, **kwargs)
-    print(f"{name}: {round((time.time()-start)*1000, 4)}ms")
+    logger.info(
+        "%s: %sms", name, round((time.perf_counter() - start) * 1000, 4)
+    )
 
 
 def has_cpp() -> bool:
@@ -370,12 +436,15 @@ def has_cpp() -> bool:
 
 
 def cpp_check() -> None:
-    try:
-        from scgraph.cpp import Graph  # noqa: F401 (the import is the check)
-
-        print("Using C++ & Python implementation of SCGraph.")
-    except ImportError:
-        print("Using Pure Python implementation of SCGraph.")
+    """
+    Deprecated. Logs at INFO which build is installed. `has_cpp()` gives the same
+    answer as a boolean.
+    """
+    _warn_deprecated("scgraph.utils.cpp_check")
+    if has_cpp():
+        logger.info("Using C++ & Python implementation of SCGraph.")
+    else:
+        logger.info("Using Pure Python implementation of SCGraph.")
 
 
 def resolve_cache_dir(cache_dir: str | os.PathLike | None = None) -> Path:
