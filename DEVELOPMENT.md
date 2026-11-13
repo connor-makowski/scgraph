@@ -24,7 +24,7 @@ Winner of the 2025 MIT Prize for Open Data. Zero external runtime dependencies b
 1. Install Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 2. Get the code and switch to the `dev` branch: `git clone https://github.com/connor-makowski/scgraph.git`, `cd scgraph`, `git checkout dev`.
 3. Install the package and its dev dependencies: `uv sync --extra dev`. This also compiles the C++ extension if a compiler is present. If the root-owned `build/` directory causes a permission error, run `sudo rm -rf build/cp314-cp314-linux_x86_64`, then install again.
-4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,000 tests in 1 to 2 minutes, all passed or skipped.
+4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 850 tests in 1 to 2 minutes, all passed or skipped.
 5. Check that the C++ extension was built: `uv run python -c "from scgraph.utils import has_cpp; print(has_cpp())"` prints `True`. If it prints `False`, see *C++ Extension* below.
 6. Before each commit, run `uv run utils/prettify.py`, then `uv run nox -s lint`. On a clean checkout, the formatter changes no file. Read *Contribution Workflow* before your first PR.
 
