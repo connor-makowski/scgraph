@@ -347,16 +347,21 @@ struct AStarNodeState {
     uint32_t stamp = 0;
 };
 
+// An entry of the A* queue. The queue gives the entry with the smallest key
+// first; equal keys are ordered by distance, then by node, as in pure Python.
+struct AStarQueueEntry {
+    double key;       // distance from the origin plus heuristic of the node
+    double distance;  // distance from the origin when the node was queued
+    int node;
+
+    bool operator>(const AStarQueueEntry& other) const {
+        return std::tie(key, distance, node) > std::tie(other.key, other.distance, other.node);
+    }
+};
+
 thread_local std::vector<AStarNodeState> tl_astar_state;
 thread_local uint32_t tl_astar_stamp = 0;
-// One heuristic of A* costs one call of heuristic_fn per destination node. Above
-// this number of destination nodes, A* was slower than Dijkstra on the built-in
-// networks. The heuristic is then the smallest exit distance, and the search
-// scans the nodes in the order of Dijkstra.
-constexpr size_t MAX_DESTINATION_NODES_WITH_HEURISTIC = 4;
-// A queue entry holds the key of a node (its distance from the origin plus its
-// heuristic), this distance, and the node.
-thread_local std::vector<std::tuple<double, double, int>> tl_astar_open;
+thread_local std::vector<AStarQueueEntry> tl_astar_open;
 
 struct BidirNodeState {
     double forward_dist;
@@ -1056,6 +1061,12 @@ GraphResult Graph::dijkstra_negative(const NodeIdVariant& origin_id, const NodeI
     return run_query_with_reducer(origin_id, destination_id, run_negative);
 }
 
+// One heuristic of A* costs one call of heuristic_fn per destination node. Above
+// this number of destination nodes, A* was slower than Dijkstra on the built-in
+// networks. The heuristic is then the smallest exit distance, and the search
+// scans the nodes in the order of Dijkstra.
+constexpr size_t MAX_DESTINATION_NODES_WITH_HEURISTIC = 4;
+
 GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& destination_id,
                           std::function<double(int, int)> heuristic_fn) {
     if (!heuristic_fn) {
@@ -1116,7 +1127,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
             state[oid].dist = odist;
             state[oid].pred = -1;
             state[oid].stamp = stamp;
-            open_leaves.emplace_back(odist + h_to_dest(oid), odist, oid);
+            open_leaves.push_back({odist + h_to_dest(oid), odist, oid});
             std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
 
             auto it = dest_map.find(oid);
@@ -1163,7 +1174,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
 
                     double connected_key = possible_distance + h_to_dest(connected_id);
                     if (connected_key < best_dist) {
-                        open_leaves.emplace_back(connected_key, possible_distance, connected_id);
+                        open_leaves.push_back({connected_key, possible_distance, connected_id});
                         std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
                     }
                 }
