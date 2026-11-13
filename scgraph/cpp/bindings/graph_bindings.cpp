@@ -170,9 +170,7 @@ static std::unique_ptr<SnapIndex> snap_index_from_arrays(
     if (latitudes.shape(0) != longitudes.shape(0))
         throw std::invalid_argument("latitudes and longitudes must have the same length");
     auto owner = std::make_shared<std::pair<decltype(latitudes), decltype(longitudes)>>(latitudes, longitudes);
-    const bool units = std::is_same_v<T, int32_t>;
-    return std::make_unique<SnapIndex>(SnapIndex::Coordinates{latitudes.data(), units},
-                                       SnapIndex::Coordinates{longitudes.data(), units},
+    return std::make_unique<SnapIndex>(latitudes.data(), longitudes.data(),
                                        int(latitudes.shape(0)), owner);
 }
 
@@ -325,8 +323,7 @@ NB_MODULE(cpp, m) {
                 owned->longitudes[i] = lo;
                 ++i;
             }
-            new (self) SnapIndex({owned->latitudes.data(), false}, {owned->longitudes.data(), false},
-                                 int(count), owned);
+            new (self) SnapIndex(owned->latitudes.data(), owned->longitudes.data(), int(count), owned);
         }, nb::arg("points"), "Index the points, a sequence of [latitude, longitude] in degrees")
         // float64 first: a numpy array of another dtype is then converted to degrees
         .def_static("from_arrays", &snap_index_from_arrays<double>, nb::arg("latitudes"), nb::arg("longitudes"))

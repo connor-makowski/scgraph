@@ -54,7 +54,7 @@ scgraph/
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, bmssp (template header); pipelines/ (assembly, landmask)
+    │                            #   transit_node_routing, snap_index, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
     bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
@@ -167,6 +167,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Names**: A function name starts with a verb (`build_`, `find_`, `select_`, `read_`, `get_`). A function that returns a boolean starts with `is_`, `has_`, `can_` or `should_`. A parameter says what it holds, with its unit (`max_km_between_nodes`), and keeps that name in every function and in the C++ binding. Internal names: `_name` in Python, `name_` for C++ members.
 - **Types**: Public functions annotate their parameters and their return, with built-in types and `X | Y`. Each kind of value has one form. A number parameter is `float`. A returned length, or a weight inside a graph, is `int | float`. A `[latitude, longitude]` pair is `Sequence[float]`. A path is `str | os.PathLike`. A buffer of a C++ kernel is `array | memoryview`. A function is `Callable` (from `collections.abc`). A default of `None` adds `| None`. A value of any type is `object`. A type of an optional dependency is written as a string.
 - **Docstrings and comments**: A docstring gives a summary, the parameters and the return. It adds the unit and the constraints, not the type. A comment gives a reason, in full sentences. It does not tell the history of a change or name an issue.
+- **Algorithms**: A file with a new or rewritten algorithm explains it before the code, for a reader who has not seen the issue or the PR. The explanation says what the algorithm answers, how the data is stored, how a run goes and why the result is right. Each of these parts has an example with real values, and the names use the words of the explanation. Model: `scgraph/cpp/src/snap_index.hpp`.
 - **Sentences**: Every text (docstring, comment, commit message, issue, PR) uses plain sentences. A sentence has a concrete subject, a verb and an object. It holds one idea in about 20 words. Define a term where it first appears, and keep one word for one thing.
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
 - **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
