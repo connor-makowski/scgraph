@@ -212,11 +212,31 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 ## Logging
 
-scgraph reports through the `logging` module, on the logger `scgraph`, and adds no handler. Without setup, scgraph shows only its Python warnings (module `warnings`) and its exceptions. Its log records, of every level, appear once the application sets up `logging`. For example, `logging.basicConfig(level=logging.INFO)` shows downloads, builds and the progress of long calls. The parameters `silent` and `show_progress` are deprecated and have no effect.
+scgraph prints nothing. It reports through the `logging` module of Python, on the logger `scgraph`. The parameters `silent` and `show_progress` are deprecated and have no effect.
 
-At DEBUG, each step below logs one record, with its indicators in the attribute `scgraph` (a dict). A query logs only what its result does not show, and a query without a route logs nothing. Direct calls on a `Graph`, contraction hierarchies and TNR log no indicator. The names of the indicators may change between versions.
+To follow downloads, builds and long calls, show the INFO messages:
 
-| `step` | Indicators |
+```py
+import logging
+
+logging.basicConfig(level=logging.INFO)
+```
+
+To see how much work a load or a query did, show the DEBUG messages. Each step of a `GeoGraph` then logs one line:
+
+```py
+logging.basicConfig(level=logging.DEBUG)
+marnet = GeoGraph.load_geograph("marnet")
+marnet.get_shortest_path(
+    {"latitude": 31.23, "longitude": 121.47},
+    {"latitude": 32.08, "longitude": -81.09},
+)
+# read the network file: {'file': '.../marnet.scgraph', 'mapped': True, 'nodes': 11062, 'arcs': 34698, 'duration_ms': 0.205}
+# build the snapping index: {'nodes': 11062, 'sorted_for_the_index': False, 'duration_ms': 0.749}
+# find the shortest path: {'algorithm': 'bidirectional_buckets', 'distance_units': 'km', 'origin_snap_distance': 64.979, 'destination_snap_distance': 109.566, 'node_scans': 12504}
+```
+
+| Step | Values |
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `arcs`, `duration_ms` |
 | `convert the published network` | `name`, `duration_ms` |
@@ -224,11 +244,14 @@ At DEBUG, each step below logs one record, with its indicators in the attribute 
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
 
-The dict also holds `step`. `mapped` is true when the C++ build reads the arcs in place from the file. `sorted_for_the_index` is true when scgraph sorted a copy of scattered nodes to build the index. `kept_nodes` is the number of nodes that the reduction keeps. `distance_units` is the unit of the geograph. The two snap distances are in this unit, without circuity. A node scan is one pass over the arcs of one node. `node_scans` is the number of node scans of the search, reported by Dijkstra, bidirectional Dijkstra, A* and the bucket searches. It is absent for the other searches, and it can differ between the C++ build and the pure-Python build. A bidirectional or bucket search can scan a node more than once. The searches count their node scans even when DEBUG is off. In the benchmark, this costs about 3 % of a pure-Python search and at most 3 % of a C++ search. An application collects the indicators with its own handler:
+- `node_scans` is the size of the search: the number of times it went over the arcs of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
+- `origin_snap_distance` and `destination_snap_distance` are the distances from the two ends of the query to the network, in `distance_units`.
+- `kept_nodes` is the number of nodes left after the reduction.
+- `mapped` is true when the file is read in place, without a copy. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
+
+A program gets the same values as a dict, in the attribute `scgraph` of each log record. The names of the values may change between versions.
 
 ```py
-import logging
-
 class CollectIndicators(logging.Handler):
     def __init__(self):
         super().__init__()
@@ -238,11 +261,10 @@ class CollectIndicators(logging.Handler):
         if hasattr(record, "scgraph"):
             self.records.append(record.scgraph)
 
-# This handler keeps only the records that carry indicators
 collector = CollectIndicators()
 logging.getLogger("scgraph").addHandler(collector)
 logging.getLogger("scgraph").setLevel(logging.DEBUG)
-# ... queries ...; collector.records is then a list of dicts
+# After a query, collector.records[-1]["node_scans"] is its number of node scans
 ```
 
 ## Heuristic Functions (for A*)
