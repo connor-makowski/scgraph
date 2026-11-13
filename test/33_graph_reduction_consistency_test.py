@@ -281,9 +281,11 @@ _ITERATIONS = [1, -1]
 # nodes. Each stored link must be a real path of the original graph.
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
-def test_reduce_stores_only_paths_of_the_original_graph(Graph, iterations):
+def test_reduce_stores_only_paths_of_the_original_graph(
+    graph_class, iterations
+):
     for graph in CHECKED_GRAPHS:
-        g = Graph(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
         g.reduce(iterations)
         _assert_stored_paths_are_valid(graph, g)
 
@@ -292,14 +294,14 @@ def test_reduce_stores_only_paths_of_the_original_graph(Graph, iterations):
 # inverse links, its rows with get() and its shortest path trees.
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
-def test_reduced_graph_still_shows_the_original_graph(Graph, iterations):
+def test_reduced_graph_still_shows_the_original_graph(graph_class, iterations):
     for graph in CHECKED_GRAPHS:
         inverse = [{} for _ in graph]
         for u, row in enumerate(graph):
             for v, w in row.items():
                 inverse[v][u] = w
-        reference = Graph(deepcopy(graph))
-        g = Graph(deepcopy(graph))
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
 
         g.reduce(iterations)
 
@@ -313,8 +315,8 @@ def test_reduced_graph_still_shows_the_original_graph(Graph, iterations):
             assert tree == reference.get_shortest_path_tree(origin)
 
 
-def test_get_on_a_reduced_graph_refuses_an_id_outside_the_graph(Graph):
-    g = Graph([{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}])
+def test_get_on_a_reduced_graph_refuses_an_id_outside_the_graph(graph_class):
+    g = graph_class([{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}])
     g.reduce()
 
     with pytest.raises(IndexError):
@@ -324,9 +326,11 @@ def test_get_on_a_reduced_graph_refuses_an_id_outside_the_graph(Graph):
 # Only the searches read the reduced graph, through `search_graph`.
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
-def test_searches_on_a_reduced_graph_read_the_reduced_links(Graph, iterations):
+def test_searches_on_a_reduced_graph_read_the_reduced_links(
+    graph_class, iterations
+):
     for graph in CHECKED_GRAPHS:
-        g = Graph(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
 
         g.reduce(iterations)
 
@@ -353,14 +357,16 @@ def test_searches_on_a_reduced_graph_read_the_reduced_links(Graph, iterations):
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 # The slowest case takes about 0.7 s: 20 s leaves a margin for slow runners.
 @_fail_instead_of_looping(seconds=20)
-def test_reduced_graph_matches_unreduced_graph(Graph, iterations, algorithm):
+def test_reduced_graph_matches_unreduced_graph(
+    graph_class, iterations, algorithm
+):
     # Every search on a reduced graph finds, for every pair, a path of the
     # original graph with the shortest length of the unreduced graph, for plain
     # node ids, start/exit distances (as GeoGraph passes them) and several
     # destinations
     for graph in CHECKED_GRAPHS:
-        reference = Graph(deepcopy(graph))
-        g = Graph(deepcopy(graph))
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
         g.reduce(iterations)
         n = len(graph)
         for o in range(n):
@@ -376,7 +382,7 @@ def test_reduced_graph_matches_unreduced_graph(Graph, iterations, algorithm):
                     except PathNotFoundError:
                         continue  # not connected in the original graph
                     if algorithm == "bmssp" and (
-                        n < 2 or (Graph is PyGraph and destination == 0)
+                        n < 2 or (graph_class is PyGraph and destination == 0)
                     ):
                         # Limits of bmsspy, not of reduction: it needs 2 nodes
                         # or more, and its pure-Python solver returns no path
@@ -413,11 +419,11 @@ def test_reduced_graph_matches_unreduced_graph(Graph, iterations, algorithm):
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
 def test_tnr_length_only_on_a_reduced_graph_gives_the_shortest_length(
-    Graph, iterations
+    graph_class, iterations
 ):
     for graph in CHECKED_GRAPHS:
-        reference = Graph(deepcopy(graph))
-        g = Graph(deepcopy(graph))
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
         g.reduce(iterations)
         n = len(graph)
         for o in range(n):
@@ -445,11 +451,11 @@ def test_tnr_length_only_on_a_reduced_graph_gives_the_shortest_length(
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
 def test_cached_shortest_path_keeps_the_tree_of_each_origin_searched(
-    Graph, iterations
+    graph_class, iterations
 ):
     for graph in CHECKED_GRAPHS:
-        reference = Graph(deepcopy(graph))
-        g = Graph(deepcopy(graph))
+        reference = graph_class(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
         g.reduce(iterations)
         searched_origins = set()
         for o in range(len(graph)):

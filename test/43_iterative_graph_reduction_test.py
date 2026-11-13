@@ -132,11 +132,11 @@ def _is_pass_through(node, graph, is_reduced):
 
 # By default, reduce() repeats its passes until no pass reduces a node. The
 # 200 random graphs are small enough to print when the test fails.
-def test_reduce_by_default_leaves_no_pass_through_node(Graph):
+def test_reduce_by_default_leaves_no_pass_through_node(graph_class):
     rng = random.Random(0)
     for _ in range(200):
         graph = _build_random_graph(rng)
-        g = Graph(deepcopy(graph))
+        g = graph_class(deepcopy(graph))
         g.reduce()
         kept_nodes = [u for u in range(len(graph)) if not g.is_reduced[u]]
         assert [

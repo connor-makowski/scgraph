@@ -144,14 +144,14 @@ def test_performance_timing():
 # The pure-Python reduce() stops the garbage collector while it works.
 # Afterwards the collector must run again if it ran before. It must stay
 # stopped if the caller had stopped it.
-def test_reduce_leaves_garbage_collection_enabled(Graph):
-    graph = Graph([{1: 1}, {0: 1, 2: 1}, {1: 1}])
+def test_reduce_leaves_garbage_collection_enabled(graph_class):
+    graph = graph_class([{1: 1}, {0: 1, 2: 1}, {1: 1}])
     graph.reduce(-1)
     assert gc.isenabled()
 
 
-def test_reduce_leaves_garbage_collection_disabled(Graph):
-    graph = Graph([{1: 1}, {0: 1, 2: 1}, {1: 1}])
+def test_reduce_leaves_garbage_collection_disabled(graph_class):
+    graph = graph_class([{1: 1}, {0: 1, 2: 1}, {1: 1}])
     gc.disable()
     try:
         graph.reduce(-1)

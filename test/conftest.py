@@ -14,10 +14,10 @@ except ImportError:  # The extension is not built: the tests run in pure Python.
     pass
 
 
-@pytest.fixture(name="Graph", params=_GRAPH_CLASSES)
+@pytest.fixture(params=_GRAPH_CLASSES)
 def graph_class(request):
-    # A test that takes Graph runs once with the pure-Python class. It runs
-    # once more with the C++ class when the extension is built.
+    # A test that takes graph_class runs once with the pure-Python class. It
+    # runs once more with the C++ class when the extension is built.
     return _GRAPH_CLASSES[request.param]
 
 

@@ -142,11 +142,11 @@ def test_bidirectional_dijkstra_on_us_freeway(published):
 # A search from both ends, and reduce(), read the inverse graph. The tests below
 # change a graph after its inverse graph is built. The changed graph must then
 # answer as a graph built from scratch with the same links.
-def _build_graph_with_its_inverse(Graph):
+def _build_graph_with_its_inverse(graph_class):
     # The links are one-way: the inverse graph differs from the graph. Each
     # change made by a test below changes a shortest path and keeps every
     # node reachable.
-    graph = Graph([{1: 10, 3: 1}, {2: 10}, {0: 10}, {2: 1, 1: 20}])
+    graph = graph_class([{1: 10, 3: 1}, {2: 10}, {0: 10}, {2: 1, 1: 20}])
     graph.bidirectional_dijkstra(0, 2)  # This search builds the inverse graph.
     return graph
 
@@ -175,20 +175,20 @@ def _search_every_pair(graph, algorithm):
     "algorithm", ["bidirectional_dijkstra", "bidirectional_buckets"]
 )
 def test_search_from_both_ends_follows_a_change_of_the_graph(
-    Graph, algorithm, change
+    graph_class, algorithm, change
 ):
-    graph = _build_graph_with_its_inverse(Graph)
+    graph = _build_graph_with_its_inverse(graph_class)
     change(graph)
-    rebuilt = Graph(deepcopy(graph.graph))
+    rebuilt = graph_class(deepcopy(graph.graph))
     assert _search_every_pair(graph, algorithm) == _search_every_pair(
         rebuilt, algorithm
     )
 
 
-def test_reduce_forgets_a_removed_edge(Graph):
-    graph = _build_graph_with_its_inverse(Graph)
+def test_reduce_forgets_a_removed_edge(graph_class):
+    graph = _build_graph_with_its_inverse(graph_class)
     graph.remove_edge(3, 2)
-    rebuilt = Graph(deepcopy(graph.graph))
+    rebuilt = graph_class(deepcopy(graph.graph))
     graph.reduce()
     rebuilt.reduce()
     assert _search_every_pair(graph, "dijkstra") == _search_every_pair(
@@ -196,10 +196,10 @@ def test_reduce_forgets_a_removed_edge(Graph):
     )
 
 
-def test_contraction_hierarchy_sees_an_added_edge(Graph):
-    graph = _build_graph_with_its_inverse(Graph)
+def test_contraction_hierarchy_sees_an_added_edge(graph_class):
+    graph = _build_graph_with_its_inverse(graph_class)
     graph.add_edge(2, 0, 1)
-    rebuilt = Graph(deepcopy(graph.graph))
+    rebuilt = graph_class(deepcopy(graph.graph))
     assert _search_every_pair(
         graph, "contraction_hierarchy"
     ) == _search_every_pair(rebuilt, "contraction_hierarchy")
