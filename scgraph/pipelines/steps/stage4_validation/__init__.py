@@ -372,12 +372,6 @@ def _load_on_modes(network, modes: tuple) -> GeoGraph:
     file_modes = {
         m["name"] for m in GeoGraph.get_scgraph_info(network).get("modes", [])
     }
-    named_modes = file_modes - {None}
-    if modes and named_modes and not named_modes & set(modes):
-        raise ValueError(
-            f"A case needs one of the modes {sorted(modes)}, and the network "
-            f"file has the modes {sorted(named_modes)}"
-        )
     restrict = bool(modes) and not file_modes <= set(modes)
     return GeoGraph.load_from_scgraph(
         str(network), modes=sorted(modes) if restrict else None
