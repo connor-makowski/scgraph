@@ -12,6 +12,12 @@
 #include "contraction_hierarchies.hpp"
 #include "transit_node_routing.hpp"
 
+// Number of node scans of the last search in this thread. A node scan is one pass over the
+// arcs of one node. Dijkstra, A* and bucket searches count them. Empty if no such search
+// ran since reset_node_scans.
+void reset_node_scans();
+std::optional<size_t> last_node_scans();
+
 class Graph : public GraphReducer {
 private:
     std::shared_ptr<CHGraph> ch_graph_ = nullptr;

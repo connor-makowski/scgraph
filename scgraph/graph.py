@@ -3,6 +3,7 @@ from collections.abc import Callable
 from heapq import heappop, heappush
 from math import asin, ceil, cos, sin
 from scgraph.graph_utils import (
+    last_search_in_thread,
     GraphUtils,
     GraphModifiers,
     normalize_node_input,
@@ -225,6 +226,7 @@ class GraphAlgorithms:
                     best_dist = cand
                     best_dest_node = did
 
+        node_scans = 0
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
             if current_distance >= best_dist:
@@ -235,6 +237,7 @@ class GraphAlgorithms:
                     if cand < best_dist:
                         best_dist = cand
                         best_dest_node = current_id
+                node_scans += 1
                 for connected_id, connected_distance in graph[
                     current_id
                 ].items():
@@ -252,6 +255,7 @@ class GraphAlgorithms:
                                 open_leaves, (possible_distance, connected_id)
                             )
 
+        last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -326,6 +330,7 @@ class GraphAlgorithms:
                     best_dist = cand
                     meeting_node = did
 
+        node_scans = 0
         while forward_open and backward_open:
             top_fwd = forward_open[0][0]
             top_bwd = backward_open[0][0]
@@ -336,6 +341,7 @@ class GraphAlgorithms:
                 cur_d, u = heappop(forward_open)
                 if cur_d > forward_dist[u]:
                     continue
+                node_scans += 1
                 for v, w in graph[u].items():
                     new_d = cur_d + w
                     if new_d < forward_dist[v]:
@@ -353,6 +359,7 @@ class GraphAlgorithms:
                 cur_d, v = heappop(backward_open)
                 if cur_d > backward_dist[v]:
                     continue
+                node_scans += 1
                 for u, w in inverse_graph[v].items():
                     new_d = cur_d + w
                     if new_d < backward_dist[u]:
@@ -367,6 +374,7 @@ class GraphAlgorithms:
                         if new_d + top_fwd < best_dist:
                             heappush(backward_open, (new_d, u))
 
+        last_search_in_thread.node_scans = node_scans
         if meeting_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -468,6 +476,7 @@ class GraphAlgorithms:
                     best_dist = cand
                     best_dest_node = did
 
+        node_scans = 0
         while nodes_in_buckets > 0:
             bucket_idx = current_dist % num_buckets
             while not buckets[bucket_idx]:
@@ -499,6 +508,7 @@ class GraphAlgorithms:
                         best_dist = cand
                         best_dest_node = current_id
 
+                node_scans += 1
                 for connected_id, connected_distance in graph[
                     current_id
                 ].items():
@@ -518,6 +528,7 @@ class GraphAlgorithms:
                         ].append(connected_id)
                         nodes_in_buckets += 1
 
+        last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -619,6 +630,7 @@ class GraphAlgorithms:
         fwd_nodes_in_buckets = len(origin_dict)
         bwd_nodes_in_buckets = len(dest_dict)
 
+        node_scans = 0
         while fwd_nodes_in_buckets > 0 and bwd_nodes_in_buckets > 0:
             fwd_bucket_idx = fwd_current_dist % num_buckets
             while not forward_buckets[fwd_bucket_idx]:
@@ -657,6 +669,7 @@ class GraphAlgorithms:
                         continue
 
                     cur_d = forward_dist[u]
+                    node_scans += 1
                     for v, w in graph[u].items():
                         new_d = cur_d + w
                         if new_d < forward_dist[v]:
@@ -683,6 +696,7 @@ class GraphAlgorithms:
                         continue
 
                     cur_d = backward_dist[v]
+                    node_scans += 1
                     for u, w in inverse_graph[v].items():
                         new_d = cur_d + w
                         if new_d < backward_dist[u]:
@@ -700,6 +714,7 @@ class GraphAlgorithms:
                                 ].append(u)
                                 bwd_nodes_in_buckets += 1
 
+        last_search_in_thread.node_scans = node_scans
         if meeting_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -890,6 +905,7 @@ class GraphAlgorithms:
             distance_matrix[oid] = odist
             heappush(open_leaves, (odist + _h(oid), oid))
 
+        node_scans = 0
         while open_leaves:
             current_id = heappop(open_leaves)[1]
             if distance_matrix[current_id] >= best_dist:
@@ -903,6 +919,7 @@ class GraphAlgorithms:
                 if cand < best_dist:
                     best_dist = cand
                     best_dest_node = current_id
+            node_scans += 1
             for connected_id, connected_distance in graph[current_id].items():
                 possible_distance = current_distance + connected_distance
                 if possible_distance < distance_matrix[connected_id]:
@@ -921,6 +938,7 @@ class GraphAlgorithms:
                                 connected_id,
                             ),
                         )
+        last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -1473,6 +1491,25 @@ class Graph(
                 for start, end in zip(offsets, offsets[1:])
             ]
         )
+
+    @staticmethod
+    def _reset_node_scans() -> None:
+        """
+        Forgets the number of node scans of the last search in this thread.
+        """
+        last_search_in_thread.node_scans = None
+
+    @staticmethod
+    def _last_node_scans() -> int | None:
+        """
+        Returns the number of node scans of the last search in this thread.
+
+        - A node scan is one pass over the arcs of one node. A bidirectional or bucket
+          search can scan a node more than once
+        - Dijkstra, A* and bucket searches count their node scans. Returns None if no
+          such search ran since `_reset_node_scans`
+        """
+        return getattr(last_search_in_thread, "node_scans", None)
 
     def reset_cache(self) -> None:
         super().reset_cache()

@@ -99,7 +99,6 @@ def _find_route(
             {"latitude": origin[0], "longitude": origin[1]},
             {"latitude": destination[0], "longitude": destination[1]},
             length_only=not with_path,
-            silent=True,
             **options,
         )
     except PathNotFoundError:

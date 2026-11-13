@@ -210,6 +210,41 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | Graph with negative weights | `dijkstra_negative` |
 | Fast app startup / multi-network loading | `GeoGraph.load_geograph(..., lazy=True)` |
 
+## Logging
+
+scgraph reports through the `logging` module, on the logger `scgraph`, and adds no handler. Without setup, scgraph shows only its Python warnings and its exceptions. Its log records appear once the application sets up `logging`. For example, `logging.basicConfig(level=logging.INFO)` shows downloads, builds and the progress of long calls. The parameters `silent` and `show_progress` are deprecated and have no effect.
+
+At DEBUG, each step below logs one record, with its indicators in the attribute `scgraph` (a dict). A query logs only what its result does not show. When DEBUG is off, scgraph times no step and logs no indicator. The names of the indicators may change between versions.
+
+| `step` | Indicators |
+|---|---|
+| `read the network file` | `file`, `mapped`, `nodes`, `arcs`, `duration_ms` |
+| `convert the published network` | `name`, `duration_ms` |
+| `build the snapping index` | `nodes`, `sorted_in_hilbert_order`, `duration_ms` |
+| `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
+| `find the shortest path` | `algorithm`, `origin_snap_distance` and `destination_snap_distance` (in `distance_units`), `node_scans` |
+
+The dict also holds `step`. `mapped` is true when the C++ build reads the arcs in place from the file. `kept_nodes` is the number of nodes that the reduction keeps. A node scan is one pass over the arcs of one node. `node_scans` is the number of node scans of the search, reported by Dijkstra, bidirectional Dijkstra, A* and the bucket searches. A bidirectional or bucket search can scan a node more than once. The searches count their node scans even when DEBUG is off, at a cost within benchmark noise. An application collects the indicators with its own handler:
+
+```py
+import logging
+
+class CollectIndicators(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def emit(self, record):
+        if hasattr(record, "scgraph"):
+            self.records.append(record.scgraph)
+
+# This handler keeps only the records that carry indicators
+collector = CollectIndicators()
+logging.getLogger("scgraph").addHandler(collector)
+logging.getLogger("scgraph").setLevel(logging.DEBUG)
+# ... queries ...; collector.records is then a list of dicts
+```
+
 ## Heuristic Functions (for A*)
 
 GeoGraph provides built-in heuristics for A*:
@@ -588,7 +623,7 @@ print(output['length'])
 | `weight_key` | `'length'` | Edge attribute to use as weight (`'length'` or `'travel_time'`) |
 | `off_graph_travel_speed` | `None` | Speed (km/h) for off-graph connections; used to convert time-based weights to distances |
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
-| `silent` | `False` | Suppress progress output |
+| `silent` | `None` | Deprecated and without effect. scgraph reports its messages through `logging`. |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading until the geograph is first accessed |
 
@@ -674,7 +709,7 @@ osmium export michigan_roads.osm.pbf -f geojson --overwrite -o michigan_roads.ge
 ```bash
 npm install -g mapshaper
 
-python -c "from scgraph.helpers.geojson import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3, silent=False)"
+python -c "from scgraph.helpers.geojson import simplify_geojson; simplify_geojson('michigan_roads.geojson', 'michigan_roads_simple.geojson', precision=4, pct_to_keep=100, min_points=3)"
 mapshaper michigan_roads_simple.geojson -simplify 10% -filter-fields -o force michigan_roads_simple.geojson
 mapshaper michigan_roads_simple.geojson -snap -clean -o force michigan_roads_simple.geojson
 ```

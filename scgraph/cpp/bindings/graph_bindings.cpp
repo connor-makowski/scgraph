@@ -358,6 +358,10 @@ NB_MODULE(cpp, m) {
         .def("validate", &Graph::validate,
              nb::arg("check_symmetry") = true, nb::arg("check_connected") = true,
              "Validate that the graph is properly formatted")
+        .def_static("_reset_node_scans", &reset_node_scans,
+            "Forgets the number of node scans of the last search in this thread")
+        .def_static("_last_node_scans", &last_node_scans,
+            "Number of node scans of the last search in this thread (Dijkstra, A* and bucket searches), or None")
         .def("reset_cache", &Graph::reset_cache,
              "Reset the cached shortest path trees")
         .def("get", &Graph::get, nb::arg("idx"),

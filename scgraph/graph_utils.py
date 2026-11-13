@@ -1,6 +1,11 @@
+import threading
 from array import array
 from typing import Literal
 import math
+
+# The number of node scans of the last search in each thread (see Graph._last_node_scans).
+# None means that no search counted its node scans since the last reset.
+last_search_in_thread = threading.local()
 
 
 def normalize_node_input(

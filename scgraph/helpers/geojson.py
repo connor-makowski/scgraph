@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 
-from scgraph.utils import hard_round, print_console, haversine
+from scgraph.utils import hard_round, haversine, warn_deprecated_parameter
 from scgraph.helpers.douglas_peucker import douglas_peucker
 from scgraph.helpers.visvalingam import visvalingam
 from collections.abc import Callable, Sequence
+
+logger = logging.getLogger(__name__)
 
 
 def lessThanAbs(  # noqa: N802 (public since 3.6.0)
@@ -50,7 +53,7 @@ def simplify_geojson(
     precision: int = 4,
     pct_to_keep: float = 100,
     min_points: int = 3,
-    silent: bool = False,
+    silent: bool | None = None,
     algorithm: str | Callable = "visvalingam",
     tolerance: float = 0.0,
 ) -> list[list[list[float]]]:
@@ -75,9 +78,7 @@ def simplify_geojson(
         - Note: Used when algorithm is 'visvalingam'. See `visvalingam` function for how this is applied.
     - min_points: Minimum number of points to keep in the simplified line
         - Note: Applied across all simplification algorithms.
-    - silent: Whether to suppress console output
-        - Type: bool
-        - Default: False
+    - silent: Deprecated and without effect. scgraph reports its messages through `logging`.
     - algorithm: Simplification algorithm to use
         - Options: 'visvalingam' (default), 'douglas_peucker', or a custom callable `(coords, min_points=...)`
     - tolerance: Distance threshold for 'douglas_peucker'
@@ -89,8 +90,7 @@ def simplify_geojson(
         - If `filename_out` is provided, this will be written into a GeoJSON file.
         - Note: Always returns a GeometryCollection with a single MultiLineString containing all cleaned coordinates.
     """
-
-    print_console(f"Loading {filename_in}...", silent=silent)
+    warn_deprecated_parameter("silent", silent)
     data = json.load(open(filename_in, "r"))
     if data["type"] == "FeatureCollection":
         features = data["features"]
@@ -100,16 +100,8 @@ def simplify_geojson(
     else:
         raise ValueError(f"Unsupported GeoJSON type: {data['type']}")
 
-    print_console(
-        f"Loaded {len(geometries)} geometries from {filename_in}", silent=silent
-    )
-
     # Clean the features
     # Round all coordinates to {precision} decimal places
-    print_console(
-        "Cleaning geometries and creating a single multi line object...",
-        silent=silent,
-    )
     single_multi_line = []
     idx = 0
     for geometry in geometries:
@@ -152,15 +144,15 @@ def simplify_geojson(
                         "Choose 'visvalingam', 'douglas_peucker', or provide a callable."
                     )
                 single_multi_line.append(simplified)
-            if idx % 10000 == 0:
-                print_console(
-                    f"Simplified {idx} line geometries", end="\r", silent=silent
-                )
-    print_console(f"Simplified {idx} of {idx} line geometries", silent=silent)
-    print_console(f"Kept geometries: {len(single_multi_line)}", silent=silent)
+    logger.info(
+        "Read %d geometries from %s: kept %d of %d lines",
+        len(geometries),
+        filename_in,
+        len(single_multi_line),
+        idx,
+    )
 
     if isinstance(filename_out, str):
-        print_console(f"Writing {filename_out}...", silent=silent)
         with open(filename_out, "w") as f:
             json.dump(
                 {
@@ -174,7 +166,7 @@ def simplify_geojson(
                 },
                 f,
             )
-        print_console(f"Finished writing {filename_out}", silent=silent)
+        logger.info("Wrote %s", filename_out)
     return single_multi_line
 
 
@@ -183,7 +175,7 @@ def parse_geojson(
     precision: int = 4,
     pct_to_keep: float = 100,
     min_points: int = 3,
-    silent: bool = False,
+    silent: bool | None = None,
 ) -> dict:
     """
     Parse and simplify a GeoJSON file.
@@ -197,23 +189,23 @@ def parse_geojson(
     - precision (int): Decimal places to round coordinates.
     - pct_to_keep (int|float): Percentage of the interior line points to keep.
     - min_points (int): Minimum number of points to keep in the simplified line.
-    - silent (bool): Whether to suppress console output.
+    - silent: Deprecated and without effect. scgraph reports its messages through `logging`.
 
     Returns:
         list: List of cleaned coordinates as a single MultiLineString.
     """
+    warn_deprecated_parameter("silent", silent)
     single_multi_line = simplify_geojson(
         filename_in=filename_in,
         filename_out=None,
         precision=precision,
         pct_to_keep=pct_to_keep,
         min_points=min_points,
-        silent=silent,
     )
     total_geometries = len(single_multi_line)
 
     odd_dict = {}
-    for idx, line in enumerate(single_multi_line):
+    for line in single_multi_line:
         line = [tuple(coord) for coord in line]
         for i in range(len(line) - 1):
             start = line[i]
@@ -227,21 +219,11 @@ def parse_geojson(
                 end_item = odd_dict.get(end, [])
                 end_item.append(start)
                 odd_dict[end] = end_item
-        if idx % 10000 == 0:
-            print_console(
-                f"Processed {idx} of {total_geometries} geometries",
-                end="\r",
-                silent=silent,
-            )
-    print_console(
-        f"Processed {total_geometries} of {total_geometries} geometries",
-        silent=silent,
-    )
 
     nodes = [key for key in odd_dict.keys()]
     node_map = {key: idx for idx, key in enumerate(nodes)}
     graph = []
-    for idx, (key, value) in enumerate(odd_dict.items()):
+    for key, value in odd_dict.items():
         graph_sub = {}
         start_node = key
         for end_node in value:
@@ -254,15 +236,9 @@ def parse_geojson(
                 ),
             )
         graph.append(graph_sub)
-        if idx % 1000 == 0:
-            print_console(
-                f"Processed {idx} of {len(odd_dict)} nodes",
-                end="\r",
-                silent=silent,
-            )
     nodes = [[i[1], i[0]] for i in nodes]
-    print_console(
-        f"Processed {len(odd_dict)} of {len(odd_dict)} nodes", silent=silent
+    logger.info(
+        "Built a graph of %d nodes from %d lines", len(nodes), total_geometries
     )
 
     return {"nodes": nodes, "graph": graph}

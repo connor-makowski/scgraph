@@ -5,6 +5,8 @@ from functools import wraps
 from heapq import heappop, heappush
 from typing import TYPE_CHECKING
 
+from scgraph.graph_utils import last_search_in_thread
+
 if TYPE_CHECKING:  # annotations only
     from scgraph.contraction_hierarchies import CHGraph
 
@@ -673,6 +675,7 @@ class GraphReducer:
                     best_dist = cand
                     best_dest_node = did
 
+        node_scans = 0
         while open_leaves:
             current_distance, current_id = heappop(open_leaves)
             if current_distance >= best_dist:
@@ -683,6 +686,7 @@ class GraphReducer:
                     if cand < best_dist:
                         best_dist = cand
                         best_dest_node = current_id
+                node_scans += 1
                 for (
                     connected_id,
                     connected_distance,
@@ -700,6 +704,7 @@ class GraphReducer:
                             heappush(
                                 open_leaves, (possible_distance, connected_id)
                             )
+        last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
             from scgraph.graph import PathNotFoundError
 

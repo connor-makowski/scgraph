@@ -88,7 +88,6 @@ def test_simplify_geojson_with_visvalingam_keeps_the_asked_share_of_points(
         algorithm="visvalingam",
         pct_to_keep=50,
         min_points=3,
-        silent=True,
     )
 
     # The line has 3 points between its ends. 50 % of 3 is 1.5, rounded to 2:
@@ -103,7 +102,7 @@ def test_simplify_geojson_with_douglas_peucker_removes_points_within_tolerance(
     filename = _write_geojson_of_the_line_with_a_peak_and_two_bumps(tmp_path)
 
     lines = simplify_geojson(
-        filename, algorithm="douglas_peucker", tolerance=0.5, silent=True
+        filename, algorithm="douglas_peucker", tolerance=0.5
     )
 
     # The peak is 2 away from the line between the ends: kept. The two bumps
@@ -117,4 +116,4 @@ def test_simplify_geojson_refuses_an_unknown_algorithm(tmp_path):
     with pytest.raises(
         ValueError, match="Unsupported simplification algorithm"
     ):
-        simplify_geojson(filename, algorithm="unknown", silent=True)
+        simplify_geojson(filename, algorithm="unknown")
