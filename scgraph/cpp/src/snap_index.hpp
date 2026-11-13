@@ -12,17 +12,24 @@
 //   the north-east of the point, to the north-west, to the south-east and to the south-west.
 //   "Nearest" means the shortest great-circle distance. The answers are exact, and ties go
 //   to the lowest node id.
+//   Example: nodes 0 = (0 N, 0 E), 1 = (0 N, 10 E), 2 = (10 N, 0 E), and the point
+//   (1 N, 1 E). closest_idx gives 0. closest_idx_per_quadrant gives no node to the
+//   north-east, node 2 to the north-west, node 1 to the south-east and node 0 to the
+//   south-west.
 //
 // WHAT IT READS
 //   The index reads the coordinates of the nodes in place, in the order given: position =
-//   node id. It keeps the caller's arrays alive through `owner` and never copies them. The
-//   coordinates are float64 degrees, or int32 units of 1e-7 degree as network files may
-//   store them, decoded at each read as units / 1e7, like the Python index.
-//   That order must keep nearby nodes together, as a Hilbert curve does (network files are
-//   stored in Hilbert order). The constructor measures how many leaves a query would scan
-//   and throws node_order_error above MAX_LEAVES_PER_QUERY, with the way to sort in the
-//   message. The index does not sort, as the caller is the one that knows whether its node
-//   ids may change.
+//   node id. It keeps the caller's arrays alive through `owner` and never copies them.
+//   The coordinates are float64 degrees, or int32 units of 1e-7 degree, as network files
+//   may store them. An int32 value is decoded at each read as units / 1e7, as the Python
+//   index does. Latitudes are from -90 to 90.
+//   Example: the int32 values 488566000 and 23522000 are the node (48.8566 N, 2.3522 E).
+//   The order of the nodes must keep nearby nodes together, as a Hilbert curve does
+//   (network files are stored in Hilbert order). The constructor measures how many leaves
+//   (blocks of LEAF consecutive nodes, see below) a query would scan. Above
+//   MAX_LEAVES_PER_QUERY it throws node_order_error, and the message says how to sort.
+//   The index does not sort: a sort changes the node ids, and only the caller knows
+//   whether they may change.
 //
 // HOW DISTANCES ARE COMPARED
 //   A node at latitude a and longitude b is the point (cos a cos b, cos a sin b, sin a) of a
@@ -47,19 +54,20 @@
 //
 // HOW A SEARCH RUNS
 //   A search keeps the best node found so far, and a stack of boxes that it may still
-//   have to open. For a box, it computes the squared chord from the point to the box (0 if
-//   the point is inside). No node of the box is nearer than this "lower bound".
+//   have to open. Each box of the stack is a "visit" still to make. For a box, the search
+//   computes the squared chord from the point to the box (0 if the point is inside). No
+//   node of the box is nearer than this "lower bound".
 //   1. First descent. Start at the root. Compute the lower bound of each child of the
 //      group, go into the child with the lowest one, and put the other children on the
 //      stack. Repeat down to a leaf.
 //   2. In the leaf, compute the squared chord to each node. The lowest one is the first
 //      best distance.
-//   3. Drop from the stack the boxes whose lower bound is above the best distance, and
-//      order the others, the nearest on top.
-//   4. Open the boxes left, the nearest first. A group puts on the stack its children
-//      that are not above the best distance, in order. A leaf is scanned as in step 2,
-//      and may give a better best node. A box is dropped if a node nearer than its lower
-//      bound was found since it was stacked.
+//   3. Drop from the stack the boxes whose lower bound is above the best distance (plus
+//      the margin of WHY THE ANSWERS ARE EXACT), and order the others, the nearest on top.
+//   4. Open the boxes that remain, the nearest first. A group puts on the stack each
+//      child whose lower bound is not above the best distance, the nearest on top. A leaf
+//      is scanned as in step 2, and may give a better best node. A box is dropped if a
+//      node nearer than its lower bound was found since it was stacked.
 //   Example: a point in Paris on a network of the world. The first descent follows the
 //      boxes that contain the point, down to a leaf of nodes around Paris. That leaf gives
 //      a best distance of about 1 km. The stack then holds the boxes of America, of Asia
@@ -70,8 +78,8 @@
 //   A node is north of the point if its latitude is higher or equal, south if it is lower or
 //   equal. It is east if it lies within 180 degrees of longitude eastwards, west likewise
 //   (the rules of GeoKDTree). A node on a limit belongs to both sides.
-//   On unit vectors, with p for the node and q for the point, these rules are two sums of
-//   products:
+//   On unit vectors, with p for the node and q for the point, these rules are two tests:
+//   a comparison of z, and the sign of a difference of two products.
 //     north:  p.z >= q.z                    because z = sin(latitude) grows with latitude
 //     east:   q.x * p.y - q.y * p.x >= 0    because this is cos(latitude of q) *
 //                                           cos(latitude of p) * sin(longitude of p -
@@ -84,27 +92,33 @@
 //   known from the signs of q.x and q.y. If it is negative there, no node of the box is east
 //   of the point, and the search for the eastern quadrants skips the box.
 //   The per-quadrant search is one search with four best nodes, one per quadrant. A box is
-//   opened if it can improve at least one of them. It has no first descent: one leaf
-//   seldom holds a node of each quadrant, so it runs step 4 from the root.
+//   opened if it can improve at least one of them. This search has no first descent,
+//   because one leaf seldom holds a node of each quadrant. It runs step 4 from the root.
 //
 // WHY THE ANSWERS ARE EXACT
-//   The index computes on floats, which is fast, and floats round. So floats only select:
-//   - a node is a "candidate" if its float squared chord is within a small margin of the
-//     best one. At the end, the candidates are compared in double, with the same expression
-//     as the Python index, and the lowest id wins a tie;
-//   - the float quadrant tests accept a node that is within a small margin of a limit. A
-//     node accepted this way counts for a quadrant only if the rule on its latitude and
-//     longitude, in double, says so;
+//   The index computes on 32-bit floats, which is fast, but a float result is rounded. So
+//   a float result only selects nodes, and a computation in double decides:
+//   - a node is a "candidate" if its float chord is within a margin of the shortest one.
+//     At the end, the candidates are compared in double, with the same expression as the
+//     Python index, and the lowest id wins a tie;
+//   - the float quadrant tests accept a node that is within a margin of a limit. A node
+//     that these tests accept counts for a quadrant only if its latitude and longitude,
+//     compared in double, put it in that quadrant;
 //   - boxes are rounded outward, so a box always contains its nodes.
+//   Example: a float unit vector places a node within about 40 cm, and the margin on a
+//   chord is 1e-6, about 6 m on the ground. Of two nodes 1 cm apart, the float chords do
+//   not say which one is nearer. Both are candidates, and the comparison in double gives
+//   the nearer one.
 //
-// helpers/snap_index.py is the pure-Python version. It gives the same answers. The double
-// check here uses the same expression as the Python distance, with the platform's cos and
-// sin, and is compiled without fused multiply-add (-ffp-contract=off in CMakeLists.txt).
-// So both return the same node when two nodes tie to the last bit. Both must keep the
-// same quadrant rules and tie rule, which set the answers. They also share LEAF, FANOUT
-// and the leaves-per-query measure and limit, so that they accept and refuse the same
-// orders (the limit is a cost bound, not a contract: orders close to it may be judged
-// differently).
+// THE PURE-PYTHON VERSION
+//   helpers/snap_index.py gives the same answers. The comparison in double here uses the
+//   same expression as the Python distance, with the platform's cos and sin, and is
+//   compiled without fused multiply-add (-ffp-contract=off in CMakeLists.txt). So both
+//   return the same node when two nodes tie to the last bit. Both must keep the same
+//   quadrant rules and tie rule, which set the answers. They also share LEAF, FANOUT, and
+//   the measure and the limit of leaves per query, so that they accept and refuse the same
+//   orders. The limit bounds a cost and is not a contract: the two versions may judge
+//   differently an order that is close to it.
 
 // Thrown when the nodes are too scattered for the index to be useful (see above)
 struct node_order_error : std::invalid_argument {
@@ -113,22 +127,27 @@ struct node_order_error : std::invalid_argument {
 
 class SnapIndex {
 public:
-    // A column of coordinates, read in place: float64 degrees, or int32 units of 1e-7
-    // degree (units) decoded by the same division as the Python reader. Read only where
-    // the index builds its leaves and checks candidates, never in its loops over 4 floats
-    struct Coordinates {
-        const void* data;
-        bool units;
-        double operator[](int i) const {
-            return units ? static_cast<const int32_t*>(data)[i] / 1e7
-                         : static_cast<const double*>(data)[i];
-        }
+    // A column of coordinates in degrees, read in place. It is built from a pointer to
+    // float64 degrees or to int32 units of 1e-7 degree: the type of the pointer says which.
+    // An int32 value is decoded by the same division as the Python reader. The index reads
+    // a column only where it builds its leaves and checks candidates, never in its loops
+    // over 4 floats
+    class Coordinates {
+    public:
+        Coordinates(const double* degrees) : degrees_(degrees) {}
+        Coordinates(const int32_t* units) : units_(units) {}
+        double operator[](int i) const { return degrees_ ? degrees_[i] : units_[i] / 1e7; }
+
+    private:
+        const double* degrees_ = nullptr;  // set for float64 degrees
+        const int32_t* units_ = nullptr;   // set for int32 units of 1e-7 degree
     };
 
-    // latitudes[i], longitudes[i]: node i, for i < n. The index reads these arrays for as
-    // long as it lives and keeps `owner`, which keeps them alive.
+    // latitudes[i], longitudes[i]: node i, for i < node_count. Both columns are built from pointers
+    // of the same type. The index reads these arrays for as long as it lives and keeps
+    // `owner`, which keeps them alive.
     // Throws node_order_error if the nodes are scattered (see above)
-    SnapIndex(Coordinates latitudes, Coordinates longitudes, int n,
+    SnapIndex(Coordinates latitudes, Coordinates longitudes, int node_count,
               std::shared_ptr<const void> owner);
 
     // Id of the node nearest to the point (latitude and longitude in degrees)
@@ -143,15 +162,16 @@ private:
     // Nodes per leaf. A leaf is scanned 4 nodes at a time, and a set of its nodes is the
     // bits of one 32-bit integer
     static constexpr int LEAF = 32;
-    // Children per group
+    // Children per group: the boxes of a group are computed as two sets of 4 floats. The
+    // Python index has the same value
     static constexpr int FANOUT = 8;
     // Most leaves a query may scan on average: the sum of the leaves' box areas over the
-    // area of the box around all nodes. Over twice the most measured on nodes sorted per
-    // mode, as build_geograph sorts them (7.0: three world-spanning modes, one after the
-    // other)
+    // area of the box around all nodes. The limit is over twice the highest value measured
+    // on nodes sorted per mode, as build_geograph sorts them: 7.0, for three world-spanning
+    // modes stored one after the other
     static constexpr double MAX_LEAVES_PER_QUERY = 16.0;
     // The six bounds of a box of unit vectors, in the order of Group::bounds. Even values
-    // are lower bounds, odd values are upper bounds
+    // are minimums, odd values are maximums
     enum Bound { MIN_X, MAX_X, MIN_Y, MAX_Y, MIN_Z, MAX_Z, BOUNDS };
 
     // The unit vectors of LEAF consecutive nodes: node i of the leaf is (x[i], y[i], z[i]).
@@ -168,16 +188,15 @@ private:
     struct Nearest;
     struct Visit;
 
-    int n;
-    Coordinates lat;  // by node id, read in place
-    Coordinates lon;
-    std::shared_ptr<const void> owner;  // keeps lat and lon alive
-    std::vector<Leaf> leaves;
-    // The groups of every level, level 0 first. level_start[level] is the position of the
+    Coordinates latitudes_;  // by node id, read in place
+    Coordinates longitudes_;
+    std::shared_ptr<const void> owner_;  // keeps the two columns alive
+    std::vector<Leaf> leaves_;
+    // The groups of every level, level 0 first. level_start_[level] is the position of the
     // first group of a level. Child k of group g of a level is leaf (or, above level 0,
     // group) g * FANOUT + k of the level below
-    std::vector<Group> groups;
-    std::vector<int> level_start;
+    std::vector<Group> groups_;
+    std::vector<int> level_start_;
 
     void scan_leaf(int leaf, const Query& query, Nearest& nearest) const;
     void scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Query& query,
