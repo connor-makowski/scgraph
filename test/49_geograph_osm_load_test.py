@@ -329,9 +329,9 @@ def planet_folder(osm_file, tmp_path_factory):
     return folder
 
 
-# The mirror serves the files of a folder by HTTP, with byte ranges. The ETag
-# of every answer is the text of the file "tag" of the folder, read at each
-# request: a test changes that file to make the PBF a new file for scgraph.
+# The mirror serves the files of a folder by HTTP, with byte ranges. Every
+# answer carries an ETag: the text of the file "tag" of the folder, read at
+# each request. A test changes that file to make the PBF a new file for scgraph.
 _MIRROR = r"""
 import http.server, pathlib, sys
 folder = pathlib.Path(sys.argv[1])

@@ -420,6 +420,18 @@ def test_scgraph_offline_refuses_a_network_that_is_not_in_the_cache(
     assert _Source.served == []
 
 
+def test_scgraph_offline_loads_a_cached_network_without_a_request(
+    tmp_path, marnet_reads_the_local_lines, monkeypatch
+):
+    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
+
+    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+
+    assert len(geo.nodes) == 4
+    assert _Source.served == ["/lines.geojson"]  # the first build only
+
+
 def test_local_files_only_false_builds_despite_scgraph_offline(
     tmp_path, marnet_reads_the_local_lines, monkeypatch
 ):

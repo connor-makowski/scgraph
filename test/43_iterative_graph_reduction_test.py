@@ -117,7 +117,7 @@ def _is_pass_through(node, graph, is_reduced):
     # A pass-through node only carries traffic between its neighbours: reduce()
     # can replace it by direct links. Its neighbours are the kept nodes next to
     # it once the reduced nodes are hidden. The node is entered from some
-    # neighbour, and it leaves towards one neighbour only (a one-way chain), or
+    # neighbour. It leaves towards one neighbour only (a one-way chain), or
     # towards two neighbours that are also all its entries (a two-way chain).
     inverse = [{} for _ in graph]
     for u, row in enumerate(graph):

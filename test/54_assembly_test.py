@@ -179,10 +179,10 @@ def test_strongly_connected_components_groups_nodes_that_reach_each_other(
     assert sizes == [labels.count(label) for label in range(len(sizes))]
 
 
-# A graph of 6 nodes in three components: node 0 alone (it has one arc, to
-# node 1, and none back), nodes 1, 2 and 3 joined both ways (1-2 and 2-3), and
-# nodes 4 and 5 joined both ways. Its arcs are stored by origin: the arcs of
-# node u are HEADS[OFFSETS[u]:OFFSETS[u + 1]].
+# A graph of 6 nodes in three components. Node 0 is alone: its one arc goes
+# to node 1, and none comes back. Nodes 1, 2 and 3 are joined both ways (1-2
+# and 2-3). Nodes 4 and 5 are joined both ways. The arcs are stored by origin:
+# the arcs of node u are HEADS[OFFSETS[u]:OFFSETS[u + 1]].
 OFFSETS = array("i", [0, 1, 2, 4, 5, 6, 7])
 HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
 

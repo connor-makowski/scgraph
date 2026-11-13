@@ -241,8 +241,8 @@ def test_a_loaded_file_is_saved_again_as_the_same_file(tmp_path):
     assert digest_again == digest
 
 
-# A sea network of two nodes, and a road network of two nodes that then gets
-# a node without a mode, a road node, and the sea network. The merge joins the
+# The sea network has two nodes. The road network has two nodes, then gets a
+# node without a mode, a road node, and the sea network. The merge joins the
 # two networks through a new node, of the mode "port".
 @pytest.fixture(scope="module")
 def sea():
@@ -1394,9 +1394,9 @@ def test_a_file_whose_offsets_go_past_its_arcs_is_refused(file_to_damage):
         GeoGraph.load_from_scgraph(str(file_to_damage))
 
 
-# Shape offsets that go past the shape points are refused when the file is
-# loaded, or at the latest where a shape is read: the C++ build reads the
-# shapes in place and does not check them all when it loads the file.
+# The C++ build reads the shapes in place and does not check them all at
+# load. Shape offsets past the shape points are refused at load, or when the
+# shape is read.
 def test_a_route_refuses_shape_offsets_that_go_past_the_shape_points(
     file_to_damage,
 ):

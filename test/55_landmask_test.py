@@ -205,14 +205,17 @@ def test_no_water_path_is_found_when_the_port_is_too_far_from_water(
     assert path is None
 
 
-def test_a_search_finds_no_path_when_it_may_not_hold_the_cells_of_its_path(
+def test_a_search_finds_no_path_when_it_may_hold_one_cell_less_than_its_path(
     coast, route_around_the_island
 ):
-    # A search stops when it holds `max_cells` cells, the last argument of the
-    # kernel: this limit bounds its memory. The target is 25 rows of cells
-    # north of the first cell, so a search that may hold 10 cells cannot
-    # reach it.
+    # This test calls the kernel of `find_water_path`. A search stops when it
+    # holds `max_cells` cells, the last argument of the kernel. This limit
+    # bounds the memory of a search.
     targets = array("q", [route_around_the_island.target_cell])
+    _, points = coast.find_water_path(
+        PORT, targets, max_km=100, start_on_land_km=6
+    )
+    one_cell_less_than_the_path = len(points) - 1
 
     found = landmask.find_water_path_cells(
         coast.bits,
@@ -225,7 +228,7 @@ def test_a_search_finds_no_path_when_it_may_not_hold_the_cells_of_its_path(
         coast.east_km,
         coast.diagonal_km,
         coast.north_km,
-        10,
+        one_cell_less_than_the_path,
     )
 
     assert found is None

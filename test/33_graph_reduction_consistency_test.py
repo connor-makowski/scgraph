@@ -288,33 +288,72 @@ def test_reduce_stores_only_paths_of_the_original_graph(Graph, iterations):
         _assert_stored_paths_are_valid(graph, g)
 
 
-# A caller of a reduced graph still reads the original graph: its links, its
-# inverse links, its rows with get(), and its shortest path trees. Only the
-# searches read the reduced graph, through search_graph.
+# A caller of a reduced graph still reads the original graph. Only the
+# searches read the reduced graph, through `search_graph`. The four tests
+# below state it for the links, for `get`, for the searches and for the trees.
 @pytest.mark.parametrize("iterations", _ITERATIONS)
 @_fail_instead_of_looping(seconds=20)
-def test_reduced_graph_still_shows_the_original_graph(Graph, iterations):
+def test_reduced_graph_shows_the_links_of_the_original_graph(Graph, iterations):
     for graph in CHECKED_GRAPHS:
-        reference = Graph(deepcopy(graph))
-        g = Graph(deepcopy(graph))
-        g.reduce(iterations)
         inverse = [{} for _ in graph]
         for u, row in enumerate(graph):
             for v, w in row.items():
                 inverse[v][u] = w
+        g = Graph(deepcopy(graph))
+
+        g.reduce(iterations)
+
         assert g.graph == g.unreduced_graph == graph
         assert g.inverse_graph == inverse
-        # get(node) gives a row of the original graph, also when the graph
-        # is stored as a class attribute; an id outside the graph raises
+
+
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_get_on_a_reduced_graph_gives_a_row_of_the_original_graph(
+    Graph, iterations
+):
+    for graph in CHECKED_GRAPHS:
+        g = Graph(deepcopy(graph))
+        g.reduce(iterations)
+        # A GeoGraph subclass may keep its graph as a class attribute.
         holder = type("Holder", (), {"graph": g})
-        assert [holder.graph.get(u) for u in range(len(graph))] == graph
-        with pytest.raises(IndexError):
-            g.get(-1)
+
+        rows = [holder.graph.get(u) for u in range(len(graph))]
+
+        assert rows == graph
+
+
+def test_get_on_a_reduced_graph_refuses_an_id_outside_the_graph(Graph):
+    g = Graph([{1: 1.0}, {0: 1.0, 2: 1.0}, {1: 1.0}])
+    g.reduce()
+
+    with pytest.raises(IndexError):
+        g.get(-1)
+
+
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_searches_on_a_reduced_graph_read_the_reduced_links(Graph, iterations):
+    for graph in CHECKED_GRAPHS:
+        g = Graph(deepcopy(graph))
+
+        g.reduce(iterations)
+
         assert g.search_graph == g.reduced_graph
         assert g.search_inverse_graph == g.reduced_inverse_graph
-        for o in range(len(graph)):
-            tree = g.get_shortest_path_tree(o)
-            assert tree == reference.get_shortest_path_tree(o)
+
+
+@pytest.mark.parametrize("iterations", _ITERATIONS)
+@_fail_instead_of_looping(seconds=20)
+def test_reduced_graph_gives_the_trees_of_the_original_graph(Graph, iterations):
+    for graph in CHECKED_GRAPHS:
+        reference = Graph(deepcopy(graph))
+        g = Graph(deepcopy(graph))
+        g.reduce(iterations)
+
+        for origin in range(len(graph)):
+            tree = g.get_shortest_path_tree(origin)
+            assert tree == reference.get_shortest_path_tree(origin)
 
 
 @pytest.mark.parametrize(

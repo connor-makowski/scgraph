@@ -219,10 +219,9 @@ def test_snap_index_refuses_scattered_nodes_and_says_how_to_sort(
         implementation(_networks()[network])
 
 
-# GeoGraph keeps the ids of its nodes. Its nodes may be listed in any order,
-# and a network file lists them in Hilbert order: the two geographs below hold
-# the nodes of the shuffled network in these two orders. The answers are
-# checked against the nodes of each geograph.
+# A GeoGraph may list its nodes in any order. A network file lists them in
+# Hilbert order. The two geographs below hold the shuffled network in these
+# two orders. The answers are checked against the nodes of each geograph.
 @pytest.fixture(scope="module")
 def geograph_with_shuffled_nodes():
     nodes = _networks()["shuffled"]
