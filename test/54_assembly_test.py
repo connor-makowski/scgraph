@@ -301,8 +301,9 @@ def _by_node_ids(arrays, value_of_arc):
 
 @pytest.fixture(scope="module")
 def assembled(tmp_path_factory):
-    """The arrays of the network built from the four pieces. A component of
-    one node would be kept, and no arc is cut for its length."""
+    """The arrays of the network built from the four pieces. The arguments
+    keep every component, even of one node, and cut no arc: no chain reaches
+    100 km."""
     pieces = assembly.PieceArrays(work_dir=tmp_path_factory.mktemp("pieces"))
     shapes = {1: POINTS_FROM_1_TO_2, 2: POINTS_FROM_2_TO_3}
     for origin, destination, direction in PIECES:
@@ -604,8 +605,8 @@ def _simplify(backend, ends, interior, tolerance_m):
     """The points of `interior` that the simplification keeps. A shape goes
     from (ends[0], ends[1]) to (ends[2], ends[3]) through the points of
     `interior`, all as (latitude, longitude) in units of 1e-7 degree: about
-    1.1 cm at the equator. It is given after a shape without interior points,
-    so that its points are found through the offsets."""
+    1.1 cm at the equator. The kernel gets two shapes: an empty one, then
+    this one. It must then find the points of this shape through the offsets."""
     points = array("i", [value for point in interior for value in point])
     kept, offsets = backend.simplify_shapes(
         points,

@@ -113,7 +113,7 @@ Far,0.25,0.02,Coastal (Natural)
 }
 
 
-def _write_tangled_lines():
+def _build_tangled_lines_geojson():
     """80 lines through 60 points, drawn at random with a fixed seed, as the
     bytes of a GeoJSON file. The lines share points, so a node has several
     arcs: the order in which a build writes them shows in the file."""
@@ -126,7 +126,7 @@ def _write_tangled_lines():
     ).encode()
 
 
-_FILES["/tangled_lines.geojson"] = _write_tangled_lines()
+_FILES["/tangled_lines.geojson"] = _build_tangled_lines_geojson()
 
 
 class _Source(BaseHTTPRequestHandler):
@@ -434,7 +434,7 @@ def test_local_files_only_refuses_a_cached_network_that_cannot_be_read(
     tmp_path, marnet_reads_the_local_lines
 ):
     built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
-    built_file.write_bytes(built_file.read_bytes()[:100])
+    _cut_short(built_file)
 
     with pytest.raises(ValueError, match="can't be read"):
         GeoGraph.build_geograph(
@@ -491,12 +491,12 @@ def _lines_pipeline(source, build=marnet.build, expected_km=2.22):
 def test_build_file_caches_a_network_that_passes_its_validation(
     tmp_path, source
 ):
-    network = _lines_pipeline(source)
+    pipeline = _lines_pipeline(source)
 
-    built_file = build.build_file(network, cache_dir=tmp_path, validate=True)
+    built_file = build.build_file(pipeline, cache_dir=tmp_path, validate=True)
 
     cached = GeoGraph.build_geograph(
-        network, cache_dir=tmp_path, local_files_only=True
+        pipeline, cache_dir=tmp_path, local_files_only=True
     )
     assert len(cached.nodes) == 4
     assert built_file.startswith(str(tmp_path / "networks" / "lines"))
@@ -506,10 +506,10 @@ def test_build_file_does_not_cache_a_network_that_fails_its_validation(
     tmp_path, source
 ):
     # No route of this network is 100 km long
-    network = _lines_pipeline(source, expected_km=100)
+    pipeline = _lines_pipeline(source, expected_km=100)
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
-        build.build_file(network, cache_dir=tmp_path, validate=True)
+        build.build_file(pipeline, cache_dir=tmp_path, validate=True)
 
     assert not (tmp_path / "networks" / "lines").exists()
 
@@ -601,14 +601,16 @@ def test_local_files_only_loads_a_network_of_another_pipeline_version(
 def test_a_new_build_replaces_the_network_file_of_the_earlier_build(
     tmp_path, source, monkeypatch
 ):
-    network = _lines_pipeline(source)
-    earlier_file = Path(build.build_file(network, cache_dir=tmp_path))
+    pipeline = _lines_pipeline(source)
+    earlier_file = Path(build.build_file(pipeline, cache_dir=tmp_path))
     # The source has changed since. The new network has another content,
     # so its file has another name.
     moved_end = _GEOJSON.replace(b"0.02", b"0.03")
     monkeypatch.setitem(_FILES, "/lines.geojson", moved_end)
 
-    new_file = Path(build.build_file(network, cache_dir=tmp_path, refresh=True))
+    new_file = Path(
+        build.build_file(pipeline, cache_dir=tmp_path, refresh=True)
+    )
 
     folder = tmp_path / "networks" / "lines"
     assert new_file != earlier_file
@@ -618,9 +620,9 @@ def test_a_new_build_replaces_the_network_file_of_the_earlier_build(
 def test_a_pipeline_module_gives_the_last_part_of_its_name_to_its_network(
     tmp_path, source
 ):
-    network = _lines_pipeline(source)  # the module my_pipelines.lines
+    pipeline = _lines_pipeline(source)  # the module my_pipelines.lines
 
-    geo = GeoGraph.build_geograph(network, cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph(pipeline, cache_dir=tmp_path)
 
     assert geo.metadata["pipeline"]["name"] == "lines"
 
@@ -639,9 +641,9 @@ def test_the_steps_that_a_pipeline_returns_are_stored_in_the_network_file(
     def build_with_steps(files):
         return marnet.build(files), [{"step": "copy", "arcs": 1}]
 
-    network = _lines_pipeline(source, build=build_with_steps)
+    pipeline = _lines_pipeline(source, build=build_with_steps)
 
-    geo = GeoGraph.build_geograph(network, cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph(pipeline, cache_dir=tmp_path)
 
     assert geo.metadata["steps"] == [{"step": "copy", "arcs": 1}]
 
@@ -870,7 +872,7 @@ _STRAIT_WAYS = {
 }
 
 
-def _write_strait_osm():
+def _build_strait_osm():
     """The strait as the bytes of an OSM file, its nodes sorted by id."""
     lines = [
         f'<node id="{node}" version="1" lat="{latitude}" lon="{longitude}"/>'
@@ -882,7 +884,7 @@ def _write_strait_osm():
     return ('<osm version="0.6">' + "\n".join(lines) + "</osm>").encode()
 
 
-_FILES["/strait.osm"] = _write_strait_osm()
+_FILES["/strait.osm"] = _build_strait_osm()
 
 
 def _strait_km(*nodes):
@@ -927,10 +929,10 @@ def test_a_car_ferry_joins_the_road_nodes_nearest_its_two_ends(strait_network):
     shapes = _by_osm_ids(strait_network, strait_network.intermediate_nodes)
 
     # From node 1: road 1 to node 2, then ferry 3. The ferry counts for the
-    # length of its own route, from node 10 to node 3. Each ferry that must be
-    # left out would give another length. Ferry 4 is closed to cars, and ferry
-    # 5 starts far from any road: both are shorter than ferry 3. Ferry 6 is
-    # longer than road 1, which joins the same nodes.
+    # length of its own route, from node 10 to node 3. A build that kept
+    # ferry 4, 5 or 6 by mistake would give another length. Ferry 4 is closed
+    # to cars, and ferry 5 starts far from any road: both are shorter than
+    # ferry 3. Ferry 6 is longer than road 1, which joins the same nodes.
     assert arcs[(1, 3)] == pytest.approx(
         _strait_km(1, 2) + _strait_km(10, 11, 3)
     )

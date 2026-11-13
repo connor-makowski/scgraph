@@ -9,13 +9,19 @@ from scgraph import GeoGraph
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.helpers.snap_index import SnapIndex as PythonSnapIndex
 
-IMPLEMENTATIONS = [PythonSnapIndex]
+# The pure-Python index and, when the extension is built, the C++ index.
+SNAP_INDEX_CLASSES = {"python": PythonSnapIndex}
 try:
     from scgraph.cpp import SnapIndex as CppSnapIndex
 
-    IMPLEMENTATIONS.append(CppSnapIndex)
+    SNAP_INDEX_CLASSES["cpp"] = CppSnapIndex
 except ImportError:
     pass
+both_snap_index_classes = pytest.mark.parametrize(
+    "implementation",
+    list(SNAP_INDEX_CLASSES.values()),
+    ids=list(SNAP_INDEX_CLASSES),
+)
 
 
 def _chord2(a, b):
@@ -164,7 +170,7 @@ def _check_answers(nodes, index):
             assert _is_nearest(nodes, point, ids, found[name])
 
 
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@both_snap_index_classes
 @pytest.mark.parametrize(
     "network", [n for n in _networks() if n not in SCATTERED]
 )
@@ -175,7 +181,7 @@ def test_snap_index_finds_the_nearest_node(implementation, network, build):
 
 
 # The ordered network has two nodes at (10, 20).
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@both_snap_index_classes
 @pytest.mark.parametrize("build", [_from_points, _from_arrays, _from_units])
 def test_snap_index_gives_the_lowest_id_of_nodes_at_the_same_place(
     implementation, build
@@ -193,7 +199,7 @@ def test_snap_index_gives_the_lowest_id_of_nodes_at_the_same_place(
 # -180, on the equator: the same place under two names. A network often has
 # such a pair, with no arc between the two nodes. A point snaps to the node
 # whose longitude has its sign.
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@both_snap_index_classes
 @pytest.mark.parametrize("build", [_from_points, _from_arrays, _from_units])
 def test_snap_index_gives_the_node_on_the_same_side_of_the_antimeridian(
     implementation, build
@@ -204,13 +210,13 @@ def test_snap_index_gives_the_node_on_the_same_side_of_the_antimeridian(
     assert nodes[index.closest_idx([0.0, 179.99])] == [0.0, 180.0]
 
 
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@both_snap_index_classes
 def test_snap_index_reads_two_arrays_of_one_dtype(implementation):
     with pytest.raises(TypeError):
         implementation.from_arrays(array("i", [0]), array("d", [0.0]))
 
 
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
+@both_snap_index_classes
 @pytest.mark.parametrize("network", SCATTERED)
 def test_snap_index_refuses_scattered_nodes_and_says_how_to_sort(
     implementation, network
@@ -291,8 +297,12 @@ def test_geograph_snaps_nodes_added_to_a_network_file(tmp_path):
     _check_answers(network, geograph.snap_index)
 
 
-@pytest.mark.parametrize("implementation", IMPLEMENTATIONS)
-@pytest.mark.parametrize("bad", [[float("nan"), 0.0], [0.0, float("inf")]])
-def test_snap_index_rejects_non_finite_coordinates(implementation, bad):
+@both_snap_index_classes
+@pytest.mark.parametrize(
+    "point_that_is_not_finite", [[float("nan"), 0.0], [0.0, float("inf")]]
+)
+def test_snap_index_refuses_a_coordinate_that_is_not_finite(
+    implementation, point_that_is_not_finite
+):
     with pytest.raises(ValueError, match="finite"):
-        implementation([[0.0, 0.0], bad])
+        implementation([[0.0, 0.0], point_that_is_not_finite])
