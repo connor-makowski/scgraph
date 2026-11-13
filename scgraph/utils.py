@@ -272,14 +272,16 @@ def log_step(
     - `step`: what the step does, in a few words, such as "reduce the graph"
     - `indicators`: values known before the step, such as a number of nodes
     - Yields a dict that the step completes with the values it knows at its end
-    - The log record keeps the indicators, `step` and `duration_ms` in its attribute
-      `scgraph`, for a handler of the application
+    - The log message shows the indicators and `duration_ms`. The log record keeps them
+      with `step` in its attribute `scgraph`, for a handler of the application
     """
-    work = {"step": step, **indicators}
+    work = dict(indicators)
     start = time.perf_counter()
     yield work
     work["duration_ms"] = round((time.perf_counter() - start) * 1000, 3)
-    step_logger.debug("%s: %s", step, work, extra={"scgraph": work})
+    step_logger.debug(
+        "%s: %s", step, work, extra={"scgraph": {"step": step, **work}}
+    )
 
 
 def print_console(*args, silent: bool = False, **kwargs) -> None:

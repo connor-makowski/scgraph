@@ -3453,24 +3453,30 @@ class GeoGraph(
         destination_node = min(
             destination_entries, key=destination_entries.__getitem__
         )
+        step = "find the shortest path"
         work = {
-            "step": "find the shortest path",
             "algorithm": algorithm_name,
             "distance_units": self.geograph_units,
-            "origin_snap_distance": haversine(
-                origin, self.nodes[origin_node], units=self.geograph_units
+            "origin_snap_distance": round(
+                haversine(
+                    origin, self.nodes[origin_node], units=self.geograph_units
+                ),
+                3,
             ),
-            "destination_snap_distance": haversine(
-                destination,
-                self.nodes[destination_node],
-                units=self.geograph_units,
+            "destination_snap_distance": round(
+                haversine(
+                    destination,
+                    self.nodes[destination_node],
+                    units=self.geograph_units,
+                ),
+                3,
             ),
         }
         node_scans = self.graph_object._last_node_scans()
         if node_scans is not None:
             work["node_scans"] = node_scans
         logger.debug(
-            "find the shortest path: %s", work, extra={"scgraph": work}
+            "%s: %s", step, work, extra={"scgraph": {"step": step, **work}}
         )
 
     def distance_matrix(
