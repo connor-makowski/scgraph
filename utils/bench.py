@@ -40,15 +40,15 @@ Subsets (--only) and the changes that need them:
     grid       GridGraph (grid.py, bucket algorithms)
     hierarchy  contraction hierarchies and TNR
     misc       distance matrix, cached shortest path, Visvalingam
-    snap       GeoKDTree and SnapIndex: build, and 1,000 queries in each of four zones
-               (Europe, Arctic, Antarctic, antimeridian), on random points and on
-               world_highways (cpp/src/snap_index.*, cpp/src/float4.hpp,
-               helpers/snap_index.py, helpers/hilbert.py)
+    snap       SnapIndex against GeoKDTree on world_highways: build, memory, and
+               1,000 queries of three kinds (cpp/src/snap_index.*,
+               cpp/src/float4.hpp, helpers/snap_index.py, helpers/hilbert.py)
 
 Every time is in ms from one perf_counter reading, or a mean over the pairs of a row
 (the cached tree hit: over 100 calls); one untimed call per algorithm warms up each row.
 A query row of the snap section times 200 queries after an untimed pass over them, and
-reports that time scaled to 1,000 queries.
+reports that time scaled to 1,000 queries. GeoKDTree is another package: its column is
+a reference, given with the version of the package, and its times change only with it.
 Load times read the file from the OS cache (warm). 3.6.0 (a GeoKDTree) and later
 versions (since #157) build the snapping index while loading; "Index in Load" estimates
 that part of Load by a second build, timed alone after the first query. Memory (Linux
@@ -56,12 +56,12 @@ only): "Peak" is the peak RSS of the process during load and first query, "Added
 peak during reduce(), or during the build of a snapping index, minus the RSS before it
 (the peak is reset through /proc/self/clear_refs). Before an index build, the script
 asks glibc to give its free memory back (malloc_trim), so that the build cannot reuse
-it; Python's own free blocks stay. "Added" is then the peak of the build, not the size
-of the index: it includes what the build copies, such as the coordinates that SnapIndex
-reads from a list. Rows run in sequence in one process, so a row's time and memory
-depend on the rows before it: compare runs of the same --only and --networks. Reduction
-states are explicit (Original, Reduced = 1 pass, Fully Reduced = until no change): no
-row depends on the version's reduction default.
+it; Python's own free blocks stay. SnapIndex is built as a load builds it, from the
+coordinates of the network, and GeoKDTree from plain lists, as in 3.6.0. Rows run in
+sequence in one process, so a row's time and memory depend on the rows before it:
+compare runs of the same --only and --networks. Reduction states are explicit
+(Original, Reduced = 1 pass, Fully Reduced = until no change): no row depends on the
+version's reduction default.
 """
 
 import argparse
@@ -154,15 +154,19 @@ ALGORITHMS = [
     ("bmssp", "BMSSP"),
 ]
 STATES = [("Original", 0), ("Reduced", 1), ("Fully Reduced", -1)]
-# Zones of examples/hilbert_and_spatial_indexing.ipynb: south, north, west and east
-# bounds in degrees. An east bound above 180 wraps, so the last zone lies on both sides
-# of the antimeridian
-SNAP_ZONES = {
-    "Europe": (45, 52, 0, 10),
-    "Arctic": (78, 88, -180, 180),
-    "Antarctic": (-88, -78, -180, 180),
-    "Antimeridian": (-20, 20, 175, 185),
-}
+# The query rows of the snap section: name, call, and zone of the queries (south, north,
+# west and east bounds in degrees). Per quadrant is the default of get_shortest_path.
+# Europe is a zone with many nodes. The Antarctic zone is far from every node: its
+# southern quadrants are empty, the worst case of a search
+SNAP_QUERY_ROWS = [
+    ("per quadrant, Europe", "closest_idx_per_quadrant", (45, 52, 0, 10)),
+    (
+        "per quadrant, Antarctic",
+        "closest_idx_per_quadrant",
+        (-88, -78, -180, 180),
+    ),
+    ("nearest node, Europe", "closest_idx", (45, 52, 0, 10)),
+]
 # Queries timed in one row of the snap section; the row reports the time of 1,000
 SNAP_QUERIES_PER_ROW = 200
 SNAP_NETWORK = "world_highways"
@@ -572,98 +576,75 @@ def bench_misc(results):
 
 
 def bench_snap(results):
-    """GeoKDTree and SnapIndex side by side: build, then the queries of each zone."""
+    """SnapIndex against GeoKDTree on one network: build, memory, three kinds of query."""
     import ctypes
     import random
-    from itertools import product
 
     from geokdtree import GeoKDTree
     from scgraph import GeoGraph
     from scgraph.utils import haversine
 
-    classes = {"GeoKDTree": GeoKDTree}
-    if hasattr(GeoGraph, "snap_index"):  # 3.6.0 has only GeoKDTree
-        from scgraph.geograph import SnapIndex
-        from scgraph.helpers.hilbert import hilbert_order
-
-        classes["SnapIndex"] = SnapIndex
-
-    rng = random.Random(42)
-    # The box of the notebook: the continents, without an Atlantic strip
-    random_points = []
-    while len(random_points) < 100_000:
-        lat, lon = rng.uniform(-55, 72), rng.uniform(-130, 145)
-        if not -35 < lon < -15:
-            random_points.append([lat, lon])
     geo = GeoGraph.load_geograph(
         SNAP_NETWORK, cache_dir=CACHE_DIR, reduce_iterations=0
     )
-    # Plain lists, as 3.6.0 holds its nodes: every version builds from the same input
-    point_sets = {
-        "100,000 random points": random_points,
-        SNAP_NETWORK: [list(node) for node in geo.nodes],
+
+    # Plain lists, as 3.6.0 holds its nodes: GeoKDTree gets the same input in every
+    # version, so its column changes only with its package
+    nodes = [list(node) for node in geo.nodes]
+    builds = {"GeoKDTree": lambda: GeoKDTree(points=nodes)}
+    if hasattr(type(geo), "snap_index"):  # 3.6.0 has only GeoKDTree
+        # The index that the load built is dropped first: its memory must not serve
+        # the build that is measured. Reading the attribute builds the index again,
+        # from the coordinates of the network, as at a load
+        geo.snap_index = None
+        builds["SnapIndex"] = lambda: geo.snap_index
+
+    indexes = {}
+    for label, build in builds.items():
+        try:  # ask glibc to give its free memory back: the build cannot reuse it
+            ctypes.CDLL(None).malloc_trim(0)
+        except (AttributeError, OSError, TypeError):
+            pass
+        before = memory_mark()
+        ms, indexes[label] = timed(build)
+        results.cell("snap", ["Build"], label, ms)
+        added = memory_read() - before if before is not None else None
+        results.cell("snap", ["Memory added by the build"], label, added, "MiB")
+
+    # How to read the node ids of the answer of each call
+    ids_of = {
+        "closest_idx": lambda answer: [answer],
+        "closest_idx_per_quadrant": dict.values,
     }
-    # One generator per zone: its queries do not depend on the zones before it
-    queries = {}
-    for seed, (zone, (south, north, west, east)) in enumerate(
-        SNAP_ZONES.items()
+    for seed, (name, method, (south, north, west, east)) in enumerate(
+        SNAP_QUERY_ROWS
     ):
+        # One generator per row: its queries do not depend on the rows before it
         draw = random.Random(seed).uniform
-        queries[zone] = [
-            [draw(south, north), (draw(west, east) + 180) % 360 - 180]
+        queries = [
+            [draw(south, north), draw(west, east)]
             for _ in range(SNAP_QUERIES_PER_ROW)
         ]
-    # Each call, and how to read the node ids of its answer
-    calls = [
-        ("closest_idx", lambda answer: [answer]),
-        ("closest_idx_per_quadrant", dict.values),
-    ]
-
-    for name, nodes in point_sets.items():
-        print(f"  - {name}")
-        # The points of each index. SnapIndex needs them along a Hilbert curve, as
-        # network files are
-        points = dict.fromkeys(classes, nodes)
-        if "SnapIndex" in classes and name != SNAP_NETWORK:
-            points["SnapIndex"] = [nodes[i] for i in hilbert_order(nodes)]
-        indexes = {}
-        for label, build in classes.items():
-            try:  # ask glibc to give its free memory back: the build cannot reuse it
-                ctypes.CDLL(None).malloc_trim(0)
-            except (AttributeError, OSError, TypeError):
-                pass
-            before = memory_mark()
-            ms, indexes[label] = timed(build, points[label])
-            results.cell("snap", [name, "Build"], label, ms)
-            added = memory_read() - before if before is not None else None
-            results.cell(
-                "snap", [name, "Build"], f"{label} added", added, "MiB"
-            )
-
-        for (zone, zone_queries), (method, ids_of) in product(
-            queries.items(), calls
-        ):
-            row, km = [name, f"1,000 {method}, {zone}"], {}
-            for label, index in indexes.items():
-                query = getattr(index, method)
-                # Untimed: the first pass is slower
-                list(map(query, zone_queries))
-                ms, answers = timed(list, map(query, zone_queries))
-                # The check is the sum of the distances to the answers, not their ids:
-                # the indexes number the points differently, and two nodes at one
-                # place on both sides of the antimeridian are the same answer
-                km[label] = round_length(
-                    sum(
-                        haversine(q, points[label][i])
-                        for q, answer in zip(zone_queries, answers)
-                        for i in ids_of(answer)
-                        if i is not None
-                    )
+        row, km = [f"1,000 queries {name}"], {}
+        for label, index in indexes.items():
+            query = getattr(index, method)
+            # Untimed: the first pass is slower
+            list(map(query, queries))
+            ms, answers = timed(list, map(query, queries))
+            # The check is the sum of the distances to the answers, not their ids: two
+            # nodes at one place are the same answer
+            km[label] = round_length(
+                sum(
+                    haversine(q, nodes[i])
+                    for q, answer in zip(queries, answers)
+                    for i in ids_of[method](answer)
+                    if i is not None
                 )
-                failed = int(km[label] != km["GeoKDTree"])
-                ms_per_1000 = ms / SNAP_QUERIES_PER_ROW * 1000
-                results.cell("snap", row, label, ms_per_1000, failed=failed)
-            results.check("snap", "|".join(row), km["GeoKDTree"])
+            )
+            failed = int(km[label] != km["GeoKDTree"])
+            ms_per_1000 = ms / SNAP_QUERIES_PER_ROW * 1000
+            results.cell("snap", row, label, ms_per_1000, failed=failed)
+        results.check("snap", row[0], km["GeoKDTree"])
 
 
 def cpu_model():
@@ -754,13 +735,52 @@ TABLES = {
         ["Feature / Operation", "Input"],
     ),
     "snap": (
-        "Snapping Index Build and Queries by Zone",
-        ["Points", "Operation"],
+        f"Snapping Index against GeoKDTree on {SNAP_NETWORK}",
+        ["Measure"],
     ),
 }
 
 
-def markdown_tables(cells):
+def against(reference, value, unit):
+    """How a value of SnapIndex compares with the value of GeoKDTree, as a factor."""
+    if not reference or not value:
+        return "–"
+    better, worse = ("less", "more") if unit == "MiB" else ("faster", "slower")
+    factor, word = (
+        (reference / value, better)
+        if value <= reference
+        else (value / reference, worse)
+    )
+    return f"×{factor:.0f} {word}" if factor >= 10 else f"×{factor:.1f} {word}"
+
+
+def snap_table(rows, geokdtree_version):
+    """The snap table of one run: GeoKDTree as the reference, then SnapIndex and the
+    factor between the two. A version without SnapIndex gets the reference alone.
+    """
+    with_snap_index = any("SnapIndex" in values for values in rows.values())
+    headers = ["Measure", f"GeoKDTree {geokdtree_version}"]
+    if with_snap_index:
+        headers += ["SnapIndex", "SnapIndex against GeoKDTree"]
+    lines = ["| " + " | ".join(headers) + " |", "|" + "---|" * len(headers)]
+    for (measure,), values in rows.items():
+        reference = values["GeoKDTree"]
+        out = [f"{measure} ({reference['unit']})"]
+        for c in [reference] + (
+            [values["SnapIndex"]] if with_snap_index else []
+        ):
+            text = fmt(c["value"], c["unit"])
+            out.append(
+                text + (f" ({c['failed']} failed)" if c["failed"] else "")
+            )
+        if with_snap_index:
+            c = values["SnapIndex"]
+            out.append(against(reference["value"], c["value"], c["unit"]))
+        lines.append("| " + " | ".join(out) + " |")
+    return lines
+
+
+def markdown_tables(cells, geokdtree_version):
     lines = []
     for number, section in enumerate(SECTIONS, 1):
         rows, columns = {}, {}
@@ -771,6 +791,10 @@ def markdown_tables(cells):
         if not rows:
             continue
         title, row_headers = TABLES[section]
+        if section == "snap":
+            lines += [f"## {number}. {title}", ""]
+            lines += snap_table(rows, geokdtree_version) + [""]
+            continue
         headers = row_headers + [
             (
                 f"{col} (ms)"
@@ -825,7 +849,7 @@ def run(sections, networks, json_path, commit):
         bench_snap(results)
     total = time.perf_counter() - t0
 
-    tables = markdown_tables(results.cells)
+    tables = markdown_tables(results.cells, env["packages"]["geokdtree"])
     print("\n" + "\n".join(tables))
     print(f"Finished in {total:.2f} s")
     if json_path:
@@ -947,6 +971,20 @@ def side_by_side(base, head, labels):
         if not keys:
             continue
         title, row_headers = TABLES[section]
+        if section == "snap":
+            lines += [f"## {number}. {title}", ""]
+            lines += snap_comparison(
+                {k[1]: rows[k][0][1] for k in keys},
+                (times_b, times_h),
+                (mem_b, mem_h),
+                labels,
+                [
+                    r[0]["environment"]["packages"]["geokdtree"]
+                    for r in (base, head)
+                ],
+            )
+            lines.append("")
+            continue
         info_columns = list(info.get(keys[0], {}))
         measures = {m for k in keys for m in rows[k]}
         single = next(iter(measures)) if len(measures) == 1 else None
@@ -1014,6 +1052,60 @@ def side_by_side(base, head, labels):
         f"Whole run (median): {labels[0]} {totals[0]:.1f} s,"
         f" {labels[1]} {totals[1]:.1f} s."
     )
+    return lines
+
+
+def snap_comparison(units, times, memory, labels, geokdtree_versions):
+    """The snap table of two versions: GeoKDTree as the reference, SnapIndex in each
+    version with its change, and the factor between the second version and GeoKDTree.
+    A first version without SnapIndex, such as 3.6.0, gets no column.
+
+    - `units`: the unit of each row, by row
+    - `times`, `memory`: for each version, the run times and the median memory by cell
+    - `geokdtree_versions`: the version of the geokdtree package in each version
+    """
+
+    def best(version, row, index):
+        cell = ("snap", row, index)
+        if units[row] == "ms":
+            return min(times[version].get(cell) or [], default=None)
+        return memory[version].get(cell)
+
+    in_both = any(best(0, row, "SnapIndex") is not None for row in units)
+    headers = ["Measure", f"GeoKDTree {geokdtree_versions[1]}"]
+    if in_both:
+        headers.append(f"SnapIndex, {labels[0]}")
+    headers.append(f"SnapIndex, {labels[1]}")
+    if in_both:
+        headers.append("Change")
+    headers.append(f"{labels[1]} against GeoKDTree")
+    lines = ["| " + " | ".join(headers) + " |", "|" + "---|" * len(headers)]
+    for row, unit in units.items():
+        reference = best(1, row, "GeoKDTree") or best(0, row, "GeoKDTree")
+        b, h = best(0, row, "SnapIndex"), best(1, row, "SnapIndex")
+        change = "–"
+        if b and h and unit == "ms":
+            cell = ("snap", row, "SnapIndex")
+            factor = (
+                f"×{b / h:.2f} faster" if b >= h else f"×{h / b:.2f} slower"
+            )
+            # A factor only where the rule sees a change: noise reads ≈
+            moved = moves(times[0][cell], times[1][cell])
+            change = f"**{factor}**" if moved else "≈"
+        elif b and h:
+            change = f"**{(h - b) / b:+.0%}**" if memory_moves(b, h) else "≈"
+        text = lambda value: "–" if value is None else fmt(value, unit)
+        out = [f"{row[0]} ({unit})", text(reference)]
+        out += [text(b), text(h), change] if in_both else [text(h)]
+        lines.append(
+            "| " + " | ".join(out + [against(reference, h, unit)]) + " |"
+        )
+    if geokdtree_versions[0] != geokdtree_versions[1]:
+        lines += [
+            "",
+            f"The geokdtree package is {geokdtree_versions[0]} in {labels[0]} and"
+            f" {geokdtree_versions[1]} in {labels[1]}: the reference is the second.",
+        ]
     return lines
 
 
