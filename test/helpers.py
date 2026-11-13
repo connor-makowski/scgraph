@@ -1,6 +1,23 @@
 import math
 
+import pytest
+
 from scgraph.utils import hard_round
+
+# The classes of the C++ extension, or None when the extension is not built.
+try:
+    from scgraph.cpp import CHGraph as CppCHGraph
+    from scgraph.cpp import Graph as CppGraph
+    from scgraph.cpp import TNRGraph as CppTNRGraph
+except ImportError:
+    CppGraph = CppCHGraph = CppTNRGraph = None
+
+# The mark of a test that compares the C++ classes with the pure-Python ones,
+# or that checks a behaviour of the C++ classes alone. Any other test takes
+# the fixture graph_class, ch_class or tnr_class of conftest.py.
+needs_the_cpp_extension = pytest.mark.skipif(
+    CppGraph is None, reason="The C++ extension is not built"
+)
 
 
 def assert_result(realized, expected):

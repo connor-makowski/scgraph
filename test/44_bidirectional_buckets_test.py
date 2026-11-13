@@ -1,15 +1,7 @@
 import random
 import pytest
 from scgraph import PathNotFoundError
-from scgraph.graph import Graph as PyGraph
 from helpers import assert_result
-
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
 
 _GRAPH_DATA = [
     {1: 5, 2: 1},
@@ -65,8 +57,8 @@ def _make_float_grid(size, seed=42):
     return data
 
 
-def _run_basic_bidirectional_buckets_tests(graph_cls):
-    g = graph_cls(_GRAPH_DATA)
+def test_basic_bidirectional_buckets(graph_class):
+    g = graph_class(_GRAPH_DATA)
 
     # Basic test
     res = g.bidirectional_buckets(origin_id=0, destination_id=5)
@@ -106,7 +98,7 @@ def _run_basic_bidirectional_buckets_tests(graph_cls):
                     assert abs(res["length"] - d_res["length"] - 107.5) < 1e-6
 
     # All weights zero (median and maximum 0): the default width still works
-    z = graph_cls([{1: 0, 2: 0}, {2: 0}, {0: 0}])
+    z = graph_class([{1: 0, 2: 0}, {2: 0}, {0: 0}])
     for u in range(3):
         for v in range(3):
             for algorithm in (z.bidirectional_buckets, z.dijkstra_buckets):
@@ -118,20 +110,20 @@ def _run_basic_bidirectional_buckets_tests(graph_cls):
                 algorithm(0, 5, bucket_width=width)
 
 
-def _run_disconnected_tests(graph_cls):
-    g = graph_cls(_DISCONNECTED_DATA)
+def test_disconnected_bidirectional_buckets(graph_class):
+    g = graph_class(_DISCONNECTED_DATA)
     with pytest.raises(PathNotFoundError):
         g.bidirectional_buckets(origin_id=0, destination_id=7)
 
 
-def _run_directed_asymmetric_tests(graph_cls):
+def test_directed_asymmetric_bidirectional_buckets(graph_class):
     data = [
         {1: 1.0, 2: 10.0},
         {2: 2.0},
         {3: 3.0},
         {0: 100.0},
     ]
-    g = graph_cls(data)
+    g = graph_class(data)
 
     res = g.bidirectional_buckets(0, 3)
     assert res["length"] == 6.0
@@ -142,7 +134,7 @@ def _run_directed_asymmetric_tests(graph_cls):
     assert res_back["path"] == [3, 0, 1]
 
 
-def _run_reduced_graph_tests(graph_cls):
+def test_reduced_bidirectional_buckets(graph_class):
     # Chain graph: 0 -> 1 -> 2 -> 3 -> 4 -> 5
     data = [
         {1: 2.0},
@@ -152,7 +144,7 @@ def _run_reduced_graph_tests(graph_cls):
         {5: 2.5},
         {},
     ]
-    g = graph_cls(data)
+    g = graph_class(data)
     g.reduce()
 
     # Same-chain query
@@ -166,71 +158,17 @@ def _run_reduced_graph_tests(graph_cls):
     assert res_full["path"] == [0, 1, 2, 3, 4, 5]
 
 
-def test_python_basic_bidirectional_buckets():
-    _run_basic_bidirectional_buckets_tests(PyGraph)
-
-
-def test_python_disconnected_bidirectional_buckets():
-    _run_disconnected_tests(PyGraph)
-
-
-def test_python_directed_asymmetric_bidirectional_buckets():
-    _run_directed_asymmetric_tests(PyGraph)
-
-
-def test_python_reduced_bidirectional_buckets():
-    _run_reduced_graph_tests(PyGraph)
-
-
-def test_python_buckets_grid_int():
+def test_buckets_grid_int(graph_class):
     data = _make_int_grid(50)
-    g = PyGraph(data)
+    g = graph_class(data)
     dijkstra = g.dijkstra(0, len(data) - 1)
     buckets = g.bidirectional_buckets(0, len(data) - 1)
     assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
 
 
-def test_python_buckets_grid_float():
+def test_buckets_grid_float(graph_class):
     data = _make_float_grid(50)
-    g = PyGraph(data)
-    dijkstra = g.dijkstra(0, len(data) - 1)
-    buckets = g.bidirectional_buckets(0, len(data) - 1)
-    assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_basic_bidirectional_buckets():
-    _run_basic_bidirectional_buckets_tests(CppGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_disconnected_bidirectional_buckets():
-    _run_disconnected_tests(CppGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_directed_asymmetric_bidirectional_buckets():
-    _run_directed_asymmetric_tests(CppGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_reduced_bidirectional_buckets():
-    _run_reduced_graph_tests(CppGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_buckets_grid_int():
-    data = _make_int_grid(50)
-    g = CppGraph(data)
-    dijkstra = g.dijkstra(0, len(data) - 1)
-    buckets = g.bidirectional_buckets(0, len(data) - 1)
-    assert round(buckets["length"], 6) == round(dijkstra["length"], 6)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_buckets_grid_float():
-    data = _make_float_grid(50)
-    g = CppGraph(data)
+    g = graph_class(data)
     dijkstra = g.dijkstra(0, len(data) - 1)
     buckets = g.bidirectional_buckets(0, len(data) - 1)
     assert round(buckets["length"], 6) == round(dijkstra["length"], 6)

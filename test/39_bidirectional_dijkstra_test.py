@@ -1,15 +1,7 @@
 from copy import deepcopy
 import pytest
 from scgraph import PathNotFoundError
-from scgraph.graph import Graph as PyGraph
 from helpers import assert_result
-
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
 
 _GRAPH_DATA = [
     {1: 5, 2: 1},
@@ -35,8 +27,8 @@ _DISCONNECTED_DATA = [
 _EXPECTED = {"path": [0, 2, 1, 3, 5], "length": 10}
 
 
-def _run_basic_bidirectional_tests(graph_cls):
-    g = graph_cls(_GRAPH_DATA)
+def test_basic_bidirectional(graph_class):
+    g = graph_class(_GRAPH_DATA)
 
     # Basic test
     res = g.bidirectional_dijkstra(origin_id=0, destination_id=5)
@@ -64,13 +56,13 @@ def _run_basic_bidirectional_tests(graph_cls):
             )
 
 
-def _run_disconnected_tests(graph_cls):
-    g = graph_cls(_DISCONNECTED_DATA)
+def test_disconnected(graph_class):
+    g = graph_class(_DISCONNECTED_DATA)
     with pytest.raises(PathNotFoundError):
         g.bidirectional_dijkstra(origin_id=0, destination_id=7)
 
 
-def _run_directed_asymmetric_tests(graph_cls):
+def test_directed_asymmetric(graph_class):
     # Directed graph with asymmetric weights
     # 0 -> 1 (1) -> 2 (2) -> 3 (3)
     # 0 -> 2 (10)
@@ -81,7 +73,7 @@ def _run_directed_asymmetric_tests(graph_cls):
         {3: 3.0},
         {0: 100.0},
     ]
-    g = graph_cls(data)
+    g = graph_class(data)
 
     res = g.bidirectional_dijkstra(0, 3)
     assert res["length"] == 6.0
@@ -90,33 +82,6 @@ def _run_directed_asymmetric_tests(graph_cls):
     res_back = g.bidirectional_dijkstra(3, 1)
     assert res_back["length"] == 101.0
     assert res_back["path"] == [3, 0, 1]
-
-
-def test_python_basic_bidirectional():
-    _run_basic_bidirectional_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_basic_bidirectional():
-    _run_basic_bidirectional_tests(CppGraph)
-
-
-def test_python_disconnected():
-    _run_disconnected_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_disconnected():
-    _run_disconnected_tests(CppGraph)
-
-
-def test_python_directed_asymmetric():
-    _run_directed_asymmetric_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_directed_asymmetric():
-    _run_directed_asymmetric_tests(CppGraph)
 
 
 def test_bidirectional_dijkstra_on_marnet(marnet):

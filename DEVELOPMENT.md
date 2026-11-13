@@ -133,7 +133,8 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 
 **Shared infrastructure:**
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `published`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
-- `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
+- `test/conftest.py` also gives `graph_class`, `ch_class` and `tnr_class`: a test that takes one runs with the pure-Python class, then with the C++ class if it is built
+- `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the two builds
 - `scgraph/pipelines/steps/stage4_validation/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.build NAME --validate` (`--validate-only` for a network in the cache)
 
 **Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–56` network builds, `.scgraph` files, snapping index, assembly, land mask, validation

@@ -1,14 +1,8 @@
 import random
 from copy import deepcopy
-import pytest
 from scgraph.graph import Graph as PyGraph
 
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
+from helpers import CppGraph, needs_the_cpp_extension
 
 
 def _build_iterative_reducible_graph():
@@ -66,7 +60,7 @@ def test_reduce_iterations_python():
     assert abs(res["length"] - 6.0) < 1e-6
 
 
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
+@needs_the_cpp_extension
 def test_reduce_iterations_parity():
     py_g = PyGraph(_build_iterative_reducible_graph())
     cpp_g = CppGraph(_build_iterative_reducible_graph())

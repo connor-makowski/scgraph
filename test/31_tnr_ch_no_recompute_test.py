@@ -1,13 +1,4 @@
-import pytest
 from scgraph import GeoGraph
-from scgraph.graph import Graph as PyGraph
-
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
 
 
 def _make_dummy_geograph(rows=12, cols=12):
@@ -27,7 +18,7 @@ def _make_dummy_geograph(rows=12, cols=12):
     return GeoGraph(nodes=nodes, graph=graph)
 
 
-def _run_no_recompute_test(graph_class):
+def test_no_recompute(graph_class):
     geo = _make_dummy_geograph(rows=12, cols=12)
     # Wrap in the target graph class (Python or C++)
     geo.graph_object = graph_class(graph=geo.graph)
@@ -65,12 +56,3 @@ def _run_no_recompute_test(graph_class):
     )
     assert abs(res_ch["length"] - dijkstra["length"]) < 1e-3
     assert abs(res_tnr["length"] - dijkstra["length"]) < 1e-3
-
-
-def test_python_no_recompute():
-    _run_no_recompute_test(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_no_recompute():
-    _run_no_recompute_test(CppGraph)

@@ -1,15 +1,9 @@
-import pytest
 from scgraph.graph import Graph as PyGraph
 
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
+from helpers import CppGraph, needs_the_cpp_extension
 
 
-def _build_test_graphs(graph_cls):
+def _build_test_graphs(graph_class):
     # Graph with 2 separate chains between junctions:
     # Junction J0 (0): connects to 1, 100, 101 (degree 3 -> unreduced)
     # Chain 1: 0 - 1 - 2 - 3 (1, 2 pass-through)
@@ -52,11 +46,11 @@ def _build_test_graphs(graph_cls):
     # Convert to contiguous list
     max_node = max(data.keys())
     adj_list = [data.get(i, {}) for i in range(max_node + 1)]
-    return graph_cls(adj_list)
+    return graph_class(adj_list)
 
 
-def _run_chain_id_tests(graph_cls):
-    g = _build_test_graphs(graph_cls)
+def test_chain_ids(graph_class):
+    g = _build_test_graphs(graph_class)
 
     # Before reduce
     assert g.reduced_node_chain_ids is None
@@ -120,19 +114,8 @@ def _run_chain_id_tests(graph_cls):
     assert g.is_same_chain(1, 2) is False
 
 
-def test_python_chain_ids():
-    _run_chain_id_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_chain_ids():
-    _run_chain_id_tests(CppGraph)
-
-
+@needs_the_cpp_extension
 def test_python_cpp_chain_id_parity_marnet(marnet):
-    if not HAS_CPP:
-        pytest.skip("C++ extension not available")
-
     py_g = PyGraph(marnet.graph)
     cpp_g = CppGraph(marnet.graph)
 

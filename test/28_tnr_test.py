@@ -1,15 +1,4 @@
-import pytest
 from scgraph import GeoGraph
-from scgraph.transit_node_routing import TNRGraph as PyTNRGraph
-from scgraph.graph import Graph as PyGraph
-
-try:
-    from scgraph.cpp import TNRGraph as CppTNRGraph
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
 
 _SMALL_GRAPH = [
     {1: 5, 2: 1},
@@ -21,14 +10,14 @@ _SMALL_GRAPH = [
 ]
 
 
-def _test_basic(tnr_class):
+def test_tnr_basic(tnr_class):
     tnr = tnr_class(graph=_SMALL_GRAPH, num_transit_nodes=2)
     res = tnr.get_shortest_path(0, 5)
     assert res["length"] == 10
     assert res["path"] == [0, 2, 1, 3, 5]
 
 
-def _test_geograph(graph_class):
+def test_tnr_geograph(graph_class):
     geo = GeoGraph.load_geograph("us_freeway")
     geo.graph_object = graph_class(graph=geo.graph)
     geo.graph_object.create_tnr_hierarchy(num_transit_nodes=100)
@@ -59,31 +48,8 @@ def _test_save_load(tnr_class, tmp_path):
     assert loaded.get_shortest_path(0, 5)["length"] == 10
 
 
-def test_python_tnr_basic():
-    _test_basic(PyTNRGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_tnr_basic():
-    _test_basic(CppTNRGraph)
-
-
-def test_python_tnr_geograph():
-    _test_geograph(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_tnr_geograph():
-    _test_geograph(CppGraph)
-
-
-def test_python_tnr_save_load(tmp_path):
-    _test_save_load(PyTNRGraph, tmp_path)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_tnr_save_load(tmp_path):
-    _test_save_load(CppTNRGraph, tmp_path)
+def test_tnr_save_load(tnr_class, tmp_path):
+    _test_save_load(tnr_class, tmp_path)
 
 
 # A saved hierarchy is loaded with the class that the package exports, whatever

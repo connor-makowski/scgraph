@@ -1,14 +1,3 @@
-import pytest
-from scgraph.graph import Graph as PyGraph
-
-try:
-    from scgraph.cpp import Graph as CppGraph
-
-    HAS_CPP = True
-except ImportError:
-    HAS_CPP = False
-
-
 def _build_test_graph():
     # Graph with 9 nodes:
     # Chain 1: 0 <-> 1 <-> 2 <-> 3 (1, 2 are degree-2 pass-through)
@@ -29,9 +18,9 @@ def _build_test_graph():
     ]
 
 
-def _run_ch_tnr_reduced_tests(graph_cls):
+def test_ch_tnr_reduced_graph(graph_class):
     g_data = _build_test_graph()
-    g = graph_cls(g_data)
+    g = graph_class(g_data)
     # One pass: with convergence only node 3 is left, where TNR length_only fails
     g.reduce(1)
     # The queries below must cross reduced nodes
@@ -78,12 +67,3 @@ def _run_ch_tnr_reduced_tests(graph_cls):
             tnr_len = g.tnr(u, v, length_only=True)
             assert abs(tnr_len["length"] - dijkstra_res["length"]) < 1e-6
             assert tnr_len["path"] == []
-
-
-def test_python_ch_tnr_reduced_graph():
-    _run_ch_tnr_reduced_tests(PyGraph)
-
-
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-def test_cpp_ch_tnr_reduced_graph():
-    _run_ch_tnr_reduced_tests(CppGraph)
