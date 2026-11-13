@@ -63,8 +63,8 @@ def test_get_tree_path_dict_inputs(sample_graph, GraphClass):
     assert res_set["path"] == [0, 1, 2, 5]
     assert abs(res_set["length"] - 7.0) < 1e-6
 
-    # Origin mismatch raises: RuntimeError in C++, ValueError in pure Python
-    with pytest.raises(Exception):  # noqa: B017
+    # The tree was built from another origin
+    with pytest.raises(RuntimeError, match="spanning node"):
         g.get_tree_path(
             origin_id=1,
             destination_id=3,
@@ -239,8 +239,16 @@ def test_cache_moves_to_a_graph_of_the_same_size(sample_graph, GraphClass):
     fresh.set_cache(cache)
     # The C++ build converts the cache both ways; Python keeps the list
     assert fresh.get_cache() == cache
-    with pytest.raises((AssertionError, ValueError)):
+    with pytest.raises(ValueError):
         fresh.set_cache(cache + [0])
+
+
+@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
+def test_set_cache_refuses_a_cache_that_is_not_a_list(sample_graph, GraphClass):
+    cache_in_a_tuple = tuple(GraphClass(sample_graph).get_cache())
+
+    with pytest.raises(TypeError):
+        GraphClass(sample_graph).set_cache(cache_in_a_tuple)
 
 
 @pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)

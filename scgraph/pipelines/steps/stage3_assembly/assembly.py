@@ -505,7 +505,7 @@ class NearNodes:
         for row, nodes in self.rows.items():
             self.rows[row] = array("i", sorted(nodes, key=lons.__getitem__))
 
-    def within(
+    def find_within(
         self, point: Sequence[float], km: float
     ) -> Iterator[tuple[float, int]]:
         """`(km, node)` of each node within `km` of `point` ([latitude, longitude])."""
@@ -536,12 +536,12 @@ class NearNodes:
                     if d <= km:
                         yield d, i
 
-    def nearest(
+    def find_nearest(
         self, point: Sequence[float], km: float
     ) -> tuple[int | None, float]:
         """`(node, km)` of the node nearest to `point` within `km` (ties: the lowest
         node), or `(None, inf)`."""
-        d, i = min(self.within(point, km), default=(math.inf, None))
+        d, i = min(self.find_within(point, km), default=(math.inf, None))
         return i, d
 
 

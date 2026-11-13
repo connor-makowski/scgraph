@@ -179,8 +179,8 @@ def test_near_nodes_finds_every_node_within_a_distance(centre, km):
         for i in range(len(lats))
     )
     within = [i for d, i in expected if d <= km]
-    assert sorted(i for _, i in near.within(point, km)) == sorted(within)
-    assert near.nearest(point, km)[0] == (within[0] if within else None)
+    assert sorted(i for _, i in near.find_within(point, km)) == sorted(within)
+    assert near.find_nearest(point, km)[0] == (within[0] if within else None)
 
 
 def test_assemble_keeps_closed_components_and_contracts_their_chains(

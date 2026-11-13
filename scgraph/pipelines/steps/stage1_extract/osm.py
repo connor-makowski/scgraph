@@ -418,7 +418,7 @@ def build_way_pieces(
         rows, ends, shapes, _ = polylines_to_graph(ferries, junctions, math.inf)
         arcs = list(
             build_ferry_arcs(
-                rows, ends, shapes, lambda p: near.nearest(p, FERRY_END_KM)
+                rows, ends, shapes, lambda p: near.find_nearest(p, FERRY_END_KM)
             )
         )
         for u, v, km, shape in arcs:

@@ -93,14 +93,12 @@ def test_dijkstra_buckets(graph):
 
 
 def test_disconnected_connection_raises(disconnected_graph):
-    # C++ raises RuntimeError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(RuntimeError, match="not fully connected"):
         disconnected_graph.validate(check_connected=True, check_symmetry=False)
 
 
 def test_disconnected_symmetry_raises(disconnected_graph):
-    # C++ raises ValueError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(ValueError, match="not symmetric"):
         disconnected_graph.validate(check_connected=False, check_symmetry=True)
 
 
@@ -166,14 +164,14 @@ def test_empty_graph_validation_raises():
         Graph([]).validate(check_symmetry=True, check_connected=True)
 
 
-def test_link_to_a_missing_node_raises_at_construction_or_at_reduce():
+def test_link_to_a_missing_node_raises_at_construction_or_at_validation():
     # The only node of this graph has a link to node 5, which does not exist.
     # The C++ class raises when the graph is built. The Python class raises
-    # later, when reduce() follows the link.
+    # when the graph is validated.
     graph_with_a_link_to_a_missing_node = [{5: 1}]
 
-    with pytest.raises(IndexError):
-        Graph(graph_with_a_link_to_a_missing_node).reduce(1)
+    with pytest.raises(ValueError):
+        Graph(graph_with_a_link_to_a_missing_node).validate()
 
 
 def test_dijkstra_raises_path_not_found_between_two_parts_of_a_graph():

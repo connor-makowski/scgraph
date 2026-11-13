@@ -124,7 +124,7 @@ def join(
     others = list(sea_network.nodes)  # then the ports, in degrees
     cells = {}  # mask cell -> its first sea node
     for s, node in enumerate(sea_network.nodes):
-        cells.setdefault(land_mask.cell(*node), s)
+        cells.setdefault(land_mask.get_cell(*node), s)
     cells.pop(None, None)
     targets = array("q", sorted(cells))
     # Every arc, one way, on node indices
@@ -229,7 +229,7 @@ def find_road_connector(
     # Largest component first, then nearest
     for _, km, i in sorted(
         (-component_sizes[i], km, i)
-        for km, i in road_spatial_index.within(point, ROAD_KM)
+        for km, i in road_spatial_index.find_within(point, ROAD_KM)
     ):
         target = [
             road_spatial_index.lats[i] * road_spatial_index.scale,
@@ -250,11 +250,11 @@ def find_sea_connector(
     """`(sea node, km, path)`: the sea connector of `port_coords`, or None. `sea_cell_targets`: the mask
     cells of the sea nodes, sorted in an array('q'); `cell_to_sea_node`: {cell: sea node}.
     """
-    found = land_mask.water_path(port_coords, sea_cell_targets, SEA_KM)
+    found = land_mask.find_water_path(port_coords, sea_cell_targets, SEA_KM)
     if not found:
         return None
     km, path = found
-    s = cell_to_sea_node[land_mask.cell(*path[-1])]
+    s = cell_to_sea_node[land_mask.get_cell(*path[-1])]
     return s, km + haversine(path[-1], sea_node_coords[s]), path
 
 
@@ -262,7 +262,7 @@ def _water_km(land_mask, point_a, point_b, distance_km):
     """km of water along the straight line point_a-point_b (`distance_km` long), sampled every 0.25 km."""
     n = max(1, math.ceil(distance_km / 0.25))
     water = sum(
-        not land_mask.on_land(
+        not land_mask.is_on_land(
             *(x + (j + 0.5) / n * (y - x) for x, y in zip(point_a, point_b))
         )
         for j in range(n)

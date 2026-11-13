@@ -370,38 +370,60 @@ class GraphUtils:
             - Type: bool
             - What: Whether to check that the graph is fully connected
             - Default: True
+
+        Raises:
+
+        - `TypeError`: The graph is not a list of dictionaries, a destination id is not an integer, or a distance is not a number
+        - `ValueError`: The graph is empty, a destination id is not in the graph, a distance is negative or NaN, or the graph is not symmetric
+        - `RuntimeError`: The graph is not fully connected
         """
         graph = self.__graph__
-        assert isinstance(graph, list), "Your graph must be a list"
+        if not isinstance(graph, list):
+            raise TypeError("Your graph must be a list")
         len_graph = len(graph)
         if len_graph == 0:
             raise ValueError(
                 "The provided graph must contain at least one node"
             )
         for origin_id, origin_dict in enumerate(graph):
-            assert isinstance(
-                origin_dict, dict
-            ), f"Your graph must be a list of dictionaries but the value for origin {origin_id} is not a dictionary"
+            if not isinstance(origin_dict, dict):
+                raise TypeError(
+                    f"Your graph must be a list of dictionaries but the value for origin {origin_id} is not a dictionary"
+                )
             destinations = list(origin_dict.keys())
             lengths = list(origin_dict.values())
-            assert all(
+            # A value of the wrong type raises TypeError, as the C++
+            # extension does. A value out of range raises ValueError.
+            if not all(
                 [
                     (isinstance(i, int) and i >= 0 and i < len_graph)
                     for i in destinations
                 ]
-            ), f"Destination ids must be non-negative integers and equivalent to an existing index, but graph[{origin_id}] has an error in the destination ids"
-            assert all(
+            ):
+                if all([isinstance(i, int) for i in destinations]):
+                    raise ValueError(
+                        f"Destination ids must be existing indexes, but graph[{origin_id}] has a destination id that is not in the graph"
+                    )
+                raise TypeError(
+                    f"Destination ids must be non-negative integers and equivalent to an existing index, but graph[{origin_id}] has an error in the destination ids"
+                )
+            if not all(
                 [(isinstance(i, (int, float)) and i >= 0) for i in lengths]
-            ), f"Distances must be integers or floats, but graph[{origin_id}] contains a non-integer or non-float distance"
+            ):
+                if all([isinstance(i, (int, float)) for i in lengths]):
+                    raise ValueError(
+                        f"Distances must be non-negative, but graph[{origin_id}] contains a negative or NaN distance"
+                    )
+                raise TypeError(
+                    f"Distances must be integers or floats, but graph[{origin_id}] contains a non-integer or non-float distance"
+                )
 
         if check_symmetry:
-            assert (
-                self.__symmetric_check__()
-            ), "The provided graph is not symmetric"
+            if not self.__symmetric_check__():
+                raise ValueError("The provided graph is not symmetric")
         if check_connected:
-            assert (
-                self.__connected_check__()
-            ), "The provided graph is not fully connected"
+            if not self.__connected_check__():
+                raise RuntimeError("The provided graph is not fully connected")
 
     def reset_cache(self) -> None:
         """
@@ -439,11 +461,16 @@ class GraphUtils:
             - Type: list[dict | None]
             - What: A list of cached shortest path trees, where each tree is represented as a dictionary
                 - If a tree is not cached for a specific node, the corresponding entry in the list should be 0
+
+        Raises:
+
+        - `TypeError`: The cache is not a list
+        - `ValueError`: The cache does not have one entry per node of the graph
         """
-        assert isinstance(new_cache, list), "Cache must be a list"
-        assert len(new_cache) == len(
-            self.__graph__
-        ), "Cache must be the same length as the graph"
+        if not isinstance(new_cache, list):
+            raise TypeError("Cache must be a list")
+        if len(new_cache) != len(self.__graph__):
+            raise ValueError("Cache must be the same length as the graph")
         self.__cache__ = new_cache
 
     def get(self, idx: int) -> dict[int, int | float]:
@@ -536,13 +563,15 @@ class GraphModifiers:
             - Type: bool
             - What: Whether to add the edge symmetrically (i.e., add an edge from destination to origin as well)
             - Default: False
+
+        Raises:
+
+        - `IndexError`: The origin id or the destination id is not in the graph
         """
-        assert origin_id < len(
-            self.__graph__
-        ), "Origin node id is not in the graph"
-        assert destination_id < len(
-            self.__graph__
-        ), "Destination node id is not in the graph"
+        if origin_id >= len(self.__graph__):
+            raise IndexError("Origin node id is not in the graph")
+        if destination_id >= len(self.__graph__):
+            raise IndexError("Destination node id is not in the graph")
         if origin_id == destination_id:
             return
         self.__graph__[origin_id][destination_id] = distance
@@ -571,8 +600,13 @@ class GraphModifiers:
         Returns:
 
         - The dictionary of edges for this node that were removed from the graph
+
+        Raises:
+
+        - `RuntimeError`: The graph has no node
         """
-        assert len(self.__graph__) > 0, "Graph is empty, cannot remove node"
+        if len(self.__graph__) == 0:
+            raise RuntimeError("Graph is empty, cannot remove node")
         node_id = len(self.__graph__) - 1
         if symmetric_node:
             for dest_id in self.__graph__[node_id].keys():
@@ -610,13 +644,15 @@ class GraphModifiers:
         Returns:
 
         - The distance of the removed edge from origin to destination, or None if the edge did not exist
+
+        Raises:
+
+        - `IndexError`: The origin id or the destination id is not in the graph
         """
-        assert origin_id < len(
-            self.__graph__
-        ), "Origin node id is not in the graph"
-        assert destination_id < len(
-            self.__graph__
-        ), "Destination node id is not in the graph"
+        if origin_id >= len(self.__graph__):
+            raise IndexError("Origin node id is not in the graph")
+        if destination_id >= len(self.__graph__):
+            raise IndexError("Destination node id is not in the graph")
         if symmetric:
             self.__graph__[destination_id].pop(origin_id, None)
         res = self.__graph__[origin_id].pop(destination_id, None)

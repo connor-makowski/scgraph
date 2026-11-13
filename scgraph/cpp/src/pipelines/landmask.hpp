@@ -1,5 +1,5 @@
 #pragma once
-// The cheapest path over water on a one-bit land raster, for LandMask.water_path
+// The cheapest path over water on a one-bit land raster, for LandMask.find_water_path
 // (scgraph/pipelines/steps/stage2_intermodal/landmask.py, where `python.find_water_path_cells`
 // is the pure-Python twin: same answers, same tie rules). Only additions of the step costs given by Python: no
 // floating-point operation that a compiler could fuse or reorder differently.

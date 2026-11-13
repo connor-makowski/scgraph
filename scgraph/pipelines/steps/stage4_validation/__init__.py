@@ -160,7 +160,7 @@ def _check_crossing(network, case) -> str | None:
     # road, on the other side of the water.
     for end in ("origin", "destination"):
         km, _ = _find_nearest_node(network, case[end])
-        if round(km, 2) > 5.0:
+        if km > 5.0:
             return f"the {end} is {km:.1f} km from a road"
     if _find_route_km(network, case["origin"], case["destination"]) is None:
         return f"no road route ({case['reference']})"

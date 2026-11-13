@@ -122,7 +122,7 @@ class LandMask:
         self.bits, self.south, self.west = bits, south, west
         self.height, self.width, self.size = height, width, 1 / cells_per_degree
         self.wrap = width == 360 * cells_per_degree
-        lats = [self.centre(row * width)[0] for row in range(height)]
+        lats = [self.get_cell_centre(row * width)[0] for row in range(height)]
         self.north_km = haversine([0, 0], [self.size, 0])
         steps = [(a, a) for a in lats], zip(lats, lats[1:])
         self.east_km, self.diagonal_km = (
@@ -200,7 +200,7 @@ class LandMask:
                         bits[(y * width + x) >> 3] &= ~(1 << (x & 7))
         return LandMask(bits, south / k, west / k, height, width, k)
 
-    def cell(self, lat: float, lon: float) -> int | None:
+    def get_cell(self, lat: float, lon: float) -> int | None:
         """The cell of a point, None outside the raster."""
         row = math.floor((lat - self.south) / self.size)
         column = math.floor((lon - self.west) / self.size)
@@ -208,16 +208,16 @@ class LandMask:
             return row * self.width + column
         return None
 
-    def centre(self, cell: int) -> list[float]:
+    def get_cell_centre(self, cell: int) -> list[float]:
         row, column = divmod(cell, self.width)
         s = self.size
         return [self.south + (row + 0.5) * s, self.west + (column + 0.5) * s]
 
-    def on_land(self, lat: float, lon: float) -> bool:
-        cell = self.cell(lat, lon)
+    def is_on_land(self, lat: float, lon: float) -> bool:
+        cell = self.get_cell(lat, lon)
         return cell is None or bool(_is_land(self.bits, cell))
 
-    def water_path(
+    def find_water_path(
         self,
         start: Sequence[float],
         targets: array,
@@ -228,14 +228,14 @@ class LandMask:
         `targets` (an array('q'), sorted), or None beyond `max_km`, from the water cell
         nearest to `start` within `start_on_land_km` (`km` counts the leg to it).
         """
-        cell = self.cell(*start)
+        cell = self.get_cell(*start)
         if cell is None:
             return None
         row, column = divmod(cell, self.width)
         reach = 1 + int(start_on_land_km / self.east_km[row])  # east <= north
         first = min(
             (
-                (haversine(start, self.centre(c)), c)
+                (haversine(start, self.get_cell_centre(c)), c)
                 for r in range(row - reach, row + reach + 1)
                 for j in range(column - reach, column + reach + 1)
                 if 0 <= r < self.height and (self.wrap or 0 <= j < self.width)
@@ -252,7 +252,7 @@ class LandMask:
         )  # fmt: skip
         if found is None:
             return None
-        return first[0] + found[0], [self.centre(c) for c in found[1]]
+        return first[0] + found[0], [self.get_cell_centre(c) for c in found[1]]
 
 
 def _parts(filename):

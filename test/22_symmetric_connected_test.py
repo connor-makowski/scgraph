@@ -49,8 +49,7 @@ def test_symmetric_connected_connectivity_only():
 
 
 def test_asymmetric_symmetry_raises():
-    # C++ raises ValueError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(ValueError, match="not symmetric"):
         _ASYMMETRIC.validate(check_symmetry=True, check_connected=False)
 
 
@@ -63,16 +62,44 @@ def test_disconnected_symmetry_passes():
 
 
 def test_disconnected_connectivity_raises():
-    # C++ raises RuntimeError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(RuntimeError, match="not fully connected"):
         _SYMMETRIC_DISCONNECTED.validate(
             check_symmetry=False, check_connected=True
         )
 
 
 def test_one_way_disconnected_raises():
-    # C++ raises RuntimeError and pure Python AssertionError
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(RuntimeError, match="not fully connected"):
         _ONE_WAY_DISCONNECTED.validate(
             check_symmetry=False, check_connected=True
         )
+
+
+# `validate` raises the same type with the C++ extension and in pure Python:
+# TypeError for a value of the wrong type, ValueError for a wrong value. With
+# the C++ extension, the TypeError comes when the graph is created.
+def test_validate_refuses_a_graph_that_is_not_a_list():
+    rows_in_a_dictionary = {0: {1: 1.0}, 1: {0: 1.0}}
+
+    with pytest.raises(TypeError):
+        Graph(rows_in_a_dictionary).validate()
+
+
+def test_validate_refuses_a_row_that_is_not_a_dictionary():
+    with pytest.raises(TypeError):
+        Graph([[1], [0]]).validate()
+
+
+def test_validate_refuses_a_destination_id_that_is_not_an_integer():
+    with pytest.raises(TypeError):
+        Graph([{"1": 1.0}, {0: 1.0}]).validate()
+
+
+def test_validate_refuses_a_distance_that_is_not_a_number():
+    with pytest.raises(TypeError):
+        Graph([{1: "far"}, {0: "far"}]).validate()
+
+
+def test_validate_refuses_a_negative_distance():
+    with pytest.raises(ValueError, match="non-negative"):
+        Graph([{1: -1.0}, {0: -1.0}]).validate()
