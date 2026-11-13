@@ -41,7 +41,7 @@ scgraph/
   grid.py                        # GridGraph — 2D grid pathfinding
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
-  utils.py                       # Distance math, coordinate helpers, caching, console output
+  utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
   pipelines/                     # One module per buildable network; the contract is the docstring of __init__.py
     build.py                     # The runner: build_file (download, build, cache) and python -m scgraph.pipelines.build
     steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
@@ -136,7 +136,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing
 - `scgraph/pipelines/steps/stage4_validation/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.build NAME --validate` (`--validate-only` for a network in the cache)
 
-**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `34–39` grid performance, CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–56` network builds, `.scgraph` files, snapping index, assembly, land mask, validation
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `34–39` grid performance, CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–57` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging
 
 **Test pattern:**
 ```python
@@ -171,7 +171,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
 - **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Code that has a C++ kernel calls it when the extension is built.
-- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Library code has no `print`. Indicators of work (counts, durations) go to DEBUG in the record attribute `scgraph`, through `utils.log_step` for a step (README, *Logging*). When DEBUG is off, a step is not timed. A new counter inside a search loop needs a benchmark before it is added.
+- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Library code has no `print`, except the output of a command. A step logs its indicators of work (counts, durations) at DEBUG with `utils.log_step` (README, *Logging*). A new counter inside a search loop needs a benchmark before it is added.
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
 - **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
@@ -183,7 +183,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
 - A change to the public API edits `README.md` and the docstring of `scgraph/__init__.py` identically, in the same PR.
-- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays, defaults to `None` and warns with `utils.warn_deprecated_parameter`.
+- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`. A call that passes it warns through `utils.warn_deprecated_parameter`.
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.

@@ -25,8 +25,7 @@ def test_a_query_logs_the_work_of_its_search_at_debug(
 ):
     with caplog.at_level(logging.DEBUG, logger="scgraph"):
         route = line.get_shortest_path(
-            # 0.1 degree north of the first node
-            {"latitude": 0.1, "longitude": 0.0},
+            {"latitude": 0.0, "longitude": 0.0},
             {"latitude": 0.0, "longitude": 3.0},
             algorithm_fn=algorithm,
             algorithm_kwargs=algorithm_kwargs,
@@ -39,10 +38,28 @@ def test_a_query_logs_the_work_of_its_search_at_debug(
         == "find the shortest path"
     ]
     assert indicators["algorithm"] == algorithm
-    # 0.1 degree of latitude is 11.12 km, whatever the circuity of the query
-    assert indicators["origin_snap_distance"] == pytest.approx(11.12, abs=0.01)
     # The search scans at least the nodes of the route before the last one
     assert indicators["node_scans"] >= len(route["path"]) - 1
+
+
+def test_a_query_logs_how_far_its_ends_are_from_the_network(caplog):
+    with caplog.at_level(logging.DEBUG, logger="scgraph"):
+        line.get_shortest_path(
+            # 0.1 degree north of the first node, 0.2 degree north of the last
+            {"latitude": 0.1, "longitude": 0.0},
+            {"latitude": 0.2, "longitude": 3.0},
+        )
+    (indicators,) = [
+        record.scgraph
+        for record in caplog.records
+        if getattr(record, "scgraph", {}).get("step")
+        == "find the shortest path"
+    ]
+    # 0.1 degree of latitude is 11.12 km, whatever the circuity of the query
+    assert indicators["origin_snap_distance"] == pytest.approx(11.12, abs=0.01)
+    assert indicators["destination_snap_distance"] == pytest.approx(
+        22.24, abs=0.01
+    )
 
 
 def test_a_search_that_counts_nothing_logs_no_node_scans(caplog):

@@ -177,6 +177,7 @@ If the straight line from origin to destination is not longer than the shortest 
 The selected algorithm (default: `bidirectional_buckets`) runs from the origin candidates to the destination candidates:
 * Searches operate on `search_graph` (the reduced graph if `reduce()` was called, otherwise the original graph).
 * For `a_star`, great-circle lower bounds are computed using cached spherical radian coordinates.
+* A search that counts its node scans stores the count for its thread when it ends (`_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
 
 ### 4. Path Expansion
 If the search ran on a reduced graph, any composite edges in the solution path are expanded back into their full underlying node sequence via `run_with_reduced`.

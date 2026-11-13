@@ -10,12 +10,15 @@ origin = {"latitude": 0.0, "longitude": 0.0}
 destination = {"latitude": 50.0, "longitude": 50.0}
 
 
-def test_a_query_without_a_route_prints_nothing_and_explains_in_the_exception(
-    capsys,
-):
-    with pytest.raises(PathNotFoundError) as raised:
+def test_a_query_without_a_route_prints_nothing(capsys):
+    with pytest.raises(PathNotFoundError):
         graph_in_two_parts.get_shortest_path(origin, destination)
     assert capsys.readouterr().out == ""
+
+
+def test_a_query_without_a_route_explains_in_a_note_of_the_exception():
+    with pytest.raises(PathNotFoundError) as raised:
+        graph_in_two_parts.get_shortest_path(origin, destination)
     assert "destination_node_addition_type='all'" in str(raised.value.__notes__)
 
 

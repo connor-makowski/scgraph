@@ -213,19 +213,19 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 
 ## Logging
 
-scgraph reports through the `logging` module, on the logger `scgraph`, and adds no handler. Without setup, scgraph shows only its Python warnings and its exceptions. Its log records appear once the application sets up `logging`. For example, `logging.basicConfig(level=logging.INFO)` shows downloads, builds and the progress of long calls. The parameters `silent` and `show_progress` are deprecated and have no effect.
+scgraph reports through the `logging` module, on the logger `scgraph`, and adds no handler. Without setup, scgraph shows only its Python warnings (module `warnings`) and its exceptions. Its log records, of every level, appear once the application sets up `logging`. For example, `logging.basicConfig(level=logging.INFO)` shows downloads, builds and the progress of long calls. The parameters `silent` and `show_progress` are deprecated and have no effect.
 
-At DEBUG, each step below logs one record, with its indicators in the attribute `scgraph` (a dict). A query logs only what its result does not show. When DEBUG is off, scgraph times no step and logs no indicator. The names of the indicators may change between versions.
+At DEBUG, each step below logs one record, with its indicators in the attribute `scgraph` (a dict). A query logs only what its result does not show, and a query without a route logs nothing. Direct calls on a `Graph`, contraction hierarchies and TNR log no indicator. The names of the indicators may change between versions.
 
 | `step` | Indicators |
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `arcs`, `duration_ms` |
 | `convert the published network` | `name`, `duration_ms` |
-| `build the snapping index` | `nodes`, `sorted_in_hilbert_order`, `duration_ms` |
+| `build the snapping index` | `nodes`, `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
-| `find the shortest path` | `algorithm`, `origin_snap_distance` and `destination_snap_distance` (in `distance_units`), `node_scans` |
+| `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
 
-The dict also holds `step`. `mapped` is true when the C++ build reads the arcs in place from the file. `kept_nodes` is the number of nodes that the reduction keeps. A node scan is one pass over the arcs of one node. `node_scans` is the number of node scans of the search, reported by Dijkstra, bidirectional Dijkstra, A* and the bucket searches. A bidirectional or bucket search can scan a node more than once. The searches count their node scans even when DEBUG is off, at a cost within benchmark noise. An application collects the indicators with its own handler:
+The dict also holds `step`. `mapped` is true when the C++ build reads the arcs in place from the file. `sorted_for_the_index` is true when scgraph sorted a copy of scattered nodes to build the index. `kept_nodes` is the number of nodes that the reduction keeps. `distance_units` is the unit of the geograph. The two snap distances are in this unit, without circuity. A node scan is one pass over the arcs of one node. `node_scans` is the number of node scans of the search, reported by Dijkstra, bidirectional Dijkstra, A* and the bucket searches. It is absent for the other searches, and it can differ between the C++ build and the pure-Python build. A bidirectional or bucket search can scan a node more than once. The searches count their node scans even when DEBUG is off. In the benchmark, this costs about 3 % of a pure-Python search and at most 3 % of a C++ search. An application collects the indicators with its own handler:
 
 ```py
 import logging

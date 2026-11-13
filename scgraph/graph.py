@@ -3,7 +3,7 @@ from collections.abc import Callable
 from heapq import heappop, heappush
 from math import asin, ceil, cos, sin
 from scgraph.graph_utils import (
-    last_search_in_thread,
+    _last_search_in_thread,
     GraphUtils,
     GraphModifiers,
     normalize_node_input,
@@ -255,7 +255,7 @@ class GraphAlgorithms:
                                 open_leaves, (possible_distance, connected_id)
                             )
 
-        last_search_in_thread.node_scans = node_scans
+        _last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -374,7 +374,7 @@ class GraphAlgorithms:
                         if new_d + top_fwd < best_dist:
                             heappush(backward_open, (new_d, u))
 
-        last_search_in_thread.node_scans = node_scans
+        _last_search_in_thread.node_scans = node_scans
         if meeting_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -528,7 +528,7 @@ class GraphAlgorithms:
                         ].append(connected_id)
                         nodes_in_buckets += 1
 
-        last_search_in_thread.node_scans = node_scans
+        _last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -714,7 +714,7 @@ class GraphAlgorithms:
                                 ].append(u)
                                 bwd_nodes_in_buckets += 1
 
-        last_search_in_thread.node_scans = node_scans
+        _last_search_in_thread.node_scans = node_scans
         if meeting_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -938,7 +938,7 @@ class GraphAlgorithms:
                                 connected_id,
                             ),
                         )
-        last_search_in_thread.node_scans = node_scans
+        _last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
@@ -1497,7 +1497,7 @@ class Graph(
         """
         Forgets the number of node scans of the last search in this thread.
         """
-        last_search_in_thread.node_scans = None
+        _last_search_in_thread.node_scans = None
 
     @staticmethod
     def _last_node_scans() -> int | None:
@@ -1509,7 +1509,7 @@ class Graph(
         - Dijkstra, A* and bucket searches count their node scans. Returns None if no
           such search ran since `_reset_node_scans`
         """
-        return getattr(last_search_in_thread, "node_scans", None)
+        return getattr(_last_search_in_thread, "node_scans", None)
 
     def reset_cache(self) -> None:
         super().reset_cache()

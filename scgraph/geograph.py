@@ -794,9 +794,8 @@ class GeoGraphIO:
             {"file": filename, "mapped": mapped},
         ) as work:
             arrays, metadata = network_file.read(filename, mapped, modes)
-            if work is not None:
-                work["nodes"] = len(arrays["latitudes"])
-                work["arcs"] = len(arrays["heads"])
+            work["nodes"] = len(arrays["latitudes"])
+            work["arcs"] = len(arrays["heads"])
         try:
             graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
@@ -2885,10 +2884,9 @@ class GeoGraph(
                 logger, "build the snapping index", {"nodes": len(self.nodes)}
             ) as work:
                 self.__snap_index__ = self._build_snap_index()
-                if work is not None:
-                    work["sorted_in_hilbert_order"] = isinstance(
-                        self.__snap_index__, _SortedSnapIndex
-                    )
+                work["sorted_for_the_index"] = isinstance(
+                    self.__snap_index__, _SortedSnapIndex
+                )
         return self.__snap_index__
 
     @snap_index.setter
@@ -2980,10 +2978,9 @@ class GeoGraph(
             logger, "reduce the graph", {"iterations": iterations}
         ) as work:
             self.graph_object.reduce(iterations)
-            if work is not None:
-                is_reduced = self.graph_object.is_reduced or []
-                work["nodes"] = len(is_reduced)
-                work["kept_nodes"] = len(is_reduced) - sum(is_reduced)
+            is_reduced = self.graph_object.is_reduced or []
+            work["nodes"] = len(is_reduced)
+            work["kept_nodes"] = len(is_reduced) - sum(is_reduced)
 
     def validate_nodes(self) -> None:
         """
@@ -3509,11 +3506,14 @@ class GeoGraph(
             - What: The units of the output distance matrix
             - Default: 'km'
             - Options: 'km', 'miles', 'meters', 'feet'
+        - `silent`
+            - Deprecated and without effect. scgraph reports its messages through `logging`.
 
         Returns:
 
         - A list of lists representing the distance matrix between the nodes
         - The distance matrix is a square matrix where the entry at (i, j) is the distance between node i and node j
+        - A pair of nodes without a path has the distance None, and the call warns once with the number of such pairs
         - The distances are in the units specified by `output_units`
         - EG:
         ```
