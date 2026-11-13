@@ -232,6 +232,15 @@ def test_set_cache_refuses_a_cache_of_another_length(sample_graph, graph_class):
         g.set_cache(g.get_cache() + [0])
 
 
+def test_set_cache_refuses_a_cache_that_is_not_a_list(
+    sample_graph, graph_class
+):
+    cache_in_a_tuple = tuple(graph_class(sample_graph).get_cache())
+
+    with pytest.raises(TypeError):
+        graph_class(sample_graph).set_cache(cache_in_a_tuple)
+
+
 def test_cached_shortest_path_multiple_exit_nodes(sample_graph, graph_class):
     """Test cached_shortest_path with multiple exit nodes (set and dict with exit distances)."""
     g = graph_class(sample_graph)
@@ -703,12 +712,3 @@ def test_geograph_cached_shortest_path_repeated_queries_with_multi_exit(
         destination_node_addition_type="quadrant",
     )
     assert abs(res2["length"] - dijk2["length"]) < 1e-3
-
-
-def test_set_cache_refuses_a_cache_that_is_not_a_list(
-    sample_graph, graph_class
-):
-    cache_in_a_tuple = tuple(graph_class(sample_graph).get_cache())
-
-    with pytest.raises(TypeError):
-        graph_class(sample_graph).set_cache(cache_in_a_tuple)

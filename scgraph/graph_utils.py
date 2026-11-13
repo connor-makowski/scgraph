@@ -370,6 +370,12 @@ class GraphUtils:
             - Type: bool
             - What: Whether to check that the graph is fully connected
             - Default: True
+
+        Raises:
+
+        - `TypeError`: The graph is not a list of dictionaries, a destination id is not an integer, or a distance is not a number
+        - `ValueError`: The graph is empty, a destination id is not in the graph, a distance is negative, or the graph is not symmetric
+        - `RuntimeError`: The graph is not fully connected
         """
         graph = self.__graph__
         if not isinstance(graph, list):
@@ -394,17 +400,21 @@ class GraphUtils:
                     for i in destinations
                 ]
             ):
-                are_integers = all([isinstance(i, int) for i in destinations])
-                raise (ValueError if are_integers else TypeError)(
+                if all([isinstance(i, int) for i in destinations]):
+                    raise ValueError(
+                        f"Destination ids must be existing indexes, but graph[{origin_id}] has a destination id that is not in the graph"
+                    )
+                raise TypeError(
                     f"Destination ids must be non-negative integers and equivalent to an existing index, but graph[{origin_id}] has an error in the destination ids"
                 )
             if not all(
                 [(isinstance(i, (int, float)) and i >= 0) for i in lengths]
             ):
-                are_numbers = all(
-                    [isinstance(i, (int, float)) for i in lengths]
-                )
-                raise (ValueError if are_numbers else TypeError)(
+                if all([isinstance(i, (int, float)) for i in lengths]):
+                    raise ValueError(
+                        f"Distances must be non-negative, but graph[{origin_id}] contains a negative or NaN distance"
+                    )
+                raise TypeError(
                     f"Distances must be integers or floats, but graph[{origin_id}] contains a non-integer or non-float distance"
                 )
 
