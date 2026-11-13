@@ -2,7 +2,23 @@ import os
 
 import pytest
 from scgraph import GeoGraph
+from scgraph.graph import Graph as PythonGraph
 from scgraph.utils import resolve_cache_dir
+
+_GRAPH_CLASSES = {"python": PythonGraph}
+try:
+    from scgraph.cpp import Graph as CppGraph
+
+    _GRAPH_CLASSES["cpp"] = CppGraph
+except ImportError:  # The extension is not built: the tests run in pure Python.
+    pass
+
+
+@pytest.fixture(name="Graph", params=_GRAPH_CLASSES)
+def graph_class(request):
+    # A test that takes Graph runs once with the pure-Python class. It runs
+    # once more with the C++ class when the extension is built.
+    return _GRAPH_CLASSES[request.param]
 
 
 @pytest.fixture(scope="session", autouse=True)

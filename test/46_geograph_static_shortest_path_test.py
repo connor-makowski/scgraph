@@ -229,18 +229,22 @@ def test_cached_shortest_path_single_key_dict_and_set(sample_graph, GraphClass):
 
 
 @pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
-def test_cache_moves_to_a_graph_of_the_same_size(sample_graph, GraphClass):
-    """get_cache output loads into a graph of the same size with set_cache,
-    which refuses a cache of another length."""
+def test_set_cache_loads_what_get_cache_returned(sample_graph, GraphClass):
+    """A cache taken from a graph with get_cache loads into another graph of the same size."""
     g = GraphClass(sample_graph)
     g.cached_shortest_path(origin_id=4, destination_id=3)
     cache = g.get_cache()
     fresh = GraphClass(sample_graph)
     fresh.set_cache(cache)
-    # The C++ build converts the cache both ways; Python keeps the list
     assert fresh.get_cache() == cache
+
+
+@pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
+def test_set_cache_refuses_a_cache_of_another_length(sample_graph, GraphClass):
+    """A cache has one entry per node: a longer cache belongs to another graph."""
+    g = GraphClass(sample_graph)
     with pytest.raises(ValueError):
-        fresh.set_cache(cache + [0])
+        g.set_cache(g.get_cache() + [0])
 
 
 @pytest.mark.parametrize("GraphClass", GRAPH_CLASSES)
@@ -430,48 +434,94 @@ def test_geograph_heuristics_follow_geograph_units(heuristic, GraphClass):
     assert result == {"path": [0, 1, 3], "length": 100}
 
 
-def test_geograph_a_star_haversine_after_node_changes():
-    """A* with `geo.haversine` finds the shortest path, also after nodes are added or removed."""
+def _build_miles_geograph():
+    return GeoGraph(
+        graph=deepcopy(_MILES_GRAPH),
+        nodes=deepcopy(_MILES_NODES),
+        geograph_units="mi",
+    )
 
-    class OwnHaversine(GeoGraph):
+
+def _find_miles_route_length(geograph, algorithm_fn, **algorithm_kwargs):
+    # The length of the route between the points of nodes 0 and 3.
+    return geograph.get_shortest_path(
+        origin_node={"latitude": 1.2, "longitude": 0.0},
+        destination_node={"latitude": 0.0, "longitude": 0.0},
+        algorithm_fn=algorithm_fn,
+        algorithm_kwargs=algorithm_kwargs,
+    )["length"]
+
+
+def test_geograph_a_star_haversine_matches_dijkstra_in_miles():
+    """A* with `geo.haversine` finds the shortest path of a GeoGraph in miles."""
+    geograph = _build_miles_geograph()
+    a_star_length = _find_miles_route_length(
+        geograph, "a_star", heuristic_fn=geograph.haversine
+    )
+    assert a_star_length == pytest.approx(
+        _find_miles_route_length(geograph, "dijkstra")
+    )
+
+
+def test_geograph_a_star_haversine_after_a_node_is_added():
+    """A* with `geo.haversine` knows the position of a node added after loading."""
+    geograph = _build_miles_geograph()
+    geograph.add_coord_node({"latitude": 0.4, "longitude": 0.0})
+    a_star_length = _find_miles_route_length(
+        geograph, "a_star", heuristic_fn=geograph.haversine
+    )
+    assert a_star_length == pytest.approx(
+        _find_miles_route_length(geograph, "dijkstra")
+    )
+
+
+def test_geograph_a_star_haversine_after_an_added_node_is_removed():
+    """A* with `geo.haversine` finds the shortest path after `remove_coord_node`."""
+    geograph = _build_miles_geograph()
+    geograph.add_coord_node({"latitude": 0.4, "longitude": 0.0})
+    geograph.remove_coord_node()
+    a_star_length = _find_miles_route_length(
+        geograph, "a_star", heuristic_fn=geograph.haversine
+    )
+    assert a_star_length == pytest.approx(
+        _find_miles_route_length(geograph, "dijkstra")
+    )
+
+
+def test_geograph_a_star_haversine_after_a_graph_node_is_removed():
+    """A* with `geo.haversine` finds the shortest path after `remove_node`.
+
+    `remove_node` removes the dead end 4 from the graph and keeps its position in `nodes`.
+    """
+    geograph = _build_miles_geograph()
+    geograph.remove_node()
+    a_star_length = _find_miles_route_length(
+        geograph, "a_star", heuristic_fn=geograph.haversine
+    )
+    assert a_star_length == pytest.approx(
+        _find_miles_route_length(geograph, "dijkstra")
+    )
+
+
+def test_geograph_subclass_keeps_its_own_haversine():
+    """A* calls the `haversine` method that a subclass of GeoGraph defines."""
+
+    class CountingGeoGraph(GeoGraph):
         calls = 0
 
         def haversine(self, origin_id, destination_id):
-            OwnHaversine.calls += 1
+            CountingGeoGraph.calls += 1
             return super().haversine(origin_id, destination_id)
 
-    query = dict(
-        origin_node={"latitude": 1.2, "longitude": 0.0},
-        destination_node={"latitude": 0.0, "longitude": 0.0},
+    geograph = CountingGeoGraph(
+        graph=deepcopy(_MILES_GRAPH),
+        nodes=deepcopy(_MILES_NODES),
+        geograph_units="mi",
     )
-    for geograph_class in (GeoGraph, OwnHaversine):
-        geograph = geograph_class(
-            graph=deepcopy(_MILES_GRAPH),
-            nodes=deepcopy(_MILES_NODES),
-            geograph_units="mi",
-        )
-        for change in (
-            None,
-            lambda geograph=geograph: geograph.add_coord_node(
-                {"latitude": 0.4, "longitude": 0.0}
-            ),
-            geograph.remove_coord_node,
-            # Removes the dead end 4 from the graph, not from `nodes`
-            geograph.remove_node,
-        ):
-            if change is not None:
-                change()
-            a_star = geograph.get_shortest_path(
-                **query,
-                algorithm_fn="a_star",
-                algorithm_kwargs={"heuristic_fn": geograph.haversine},
-            )
-            dijkstra = geograph.get_shortest_path(
-                **query, algorithm_fn="dijkstra"
-            )
-            assert a_star["length"] == pytest.approx(dijkstra["length"])
-    # A GeoGraph subclass keeps its own heuristic
-    assert OwnHaversine.calls > 0
+    _find_miles_route_length(
+        geograph, "a_star", heuristic_fn=geograph.haversine
+    )
+    assert CountingGeoGraph.calls > 0
 
 
 def test_geograph_a_star_haversine_matches_dijkstra(marnet):

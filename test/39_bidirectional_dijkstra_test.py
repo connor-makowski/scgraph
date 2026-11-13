@@ -92,41 +92,6 @@ def _run_directed_asymmetric_tests(graph_cls):
     assert res_back["path"] == [3, 0, 1]
 
 
-# Each modification changes a shortest path; every pair stays reachable
-_MODIFICATIONS = {
-    "add_node": lambda g: g.add_node({0: 1}, symmetric=True),
-    "add_edge": lambda g: g.add_edge(2, 0, 1),
-    "remove_node": lambda g: g.remove_node(),
-    "remove_edge": lambda g: g.remove_edge(3, 2),
-}
-# (modification, query) cases that read a stale inverse graph without the fix
-# ("reduce": reduce() then dijkstra); the C++ contraction hierarchy does not
-# read it
-_CASES = [
-    (m, q)
-    for m in _MODIFICATIONS
-    for q in ("bidirectional_dijkstra", "bidirectional_buckets")
-] + [("remove_edge", "reduce")]
-_PYTHON_CASES = _CASES + [("add_edge", "contraction_hierarchy")]
-
-
-def _run_after_modification_tests(GraphClass, modification, query):
-    # Queries after a modification must match a graph built from scratch
-    g = GraphClass([{1: 10, 3: 1}, {2: 10}, {0: 10}, {2: 1, 1: 20}])
-    g.bidirectional_dijkstra(0, 2)  # builds the inverse graph
-    _MODIFICATIONS[modification](g)
-    fresh = GraphClass(deepcopy(g.graph))
-    if query == "reduce":
-        g.reduce()
-        fresh.reduce()
-        query = "dijkstra"
-    for origin in range(len(fresh.graph)):
-        for destination in range(len(fresh.graph)):
-            if origin != destination:
-                expected = getattr(fresh, query)(origin, destination)
-                assert getattr(g, query)(origin, destination) == expected
-
-
 def test_python_basic_bidirectional():
     _run_basic_bidirectional_tests(PyGraph)
 
@@ -174,12 +139,82 @@ def test_bidirectional_dijkstra_on_us_freeway(published):
         assert abs(g.get_path_weight(bi_res["path"]) - d_res["length"]) < 1e-5
 
 
-@pytest.mark.parametrize("modification, query", _PYTHON_CASES)
-def test_python_after_modification(modification, query):
-    _run_after_modification_tests(PyGraph, modification, query)
+# A search from both ends, and reduce(), read the inverse graph. The tests below
+# change a graph after its inverse graph is built. The changed graph must then
+# answer as a graph built from scratch with the same links.
+def _build_graph_with_its_inverse(Graph):
+    # The links are one-way: the inverse graph differs from the graph. Each
+    # change made by a test below changes a shortest path and keeps every
+    # node reachable.
+    graph = Graph([{1: 10, 3: 1}, {2: 10}, {0: 10}, {2: 1, 1: 20}])
+    graph.bidirectional_dijkstra(0, 2)  # This search builds the inverse graph.
+    return graph
 
 
-@pytest.mark.skipif(not HAS_CPP, reason="C++ extension not available")
-@pytest.mark.parametrize("modification, query", _CASES)
-def test_cpp_after_modification(modification, query):
-    _run_after_modification_tests(CppGraph, modification, query)
+def _search_every_pair(graph, algorithm):
+    nodes = range(len(graph.graph))
+    search = getattr(graph, algorithm)
+    return {(o, d): search(o, d) for o in nodes for d in nodes}
+
+
+_SEARCHES_FROM_BOTH_ENDS = ["bidirectional_dijkstra", "bidirectional_buckets"]
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
+def test_search_from_both_ends_sees_an_added_node(Graph, algorithm):
+    graph = _build_graph_with_its_inverse(Graph)
+    graph.add_node({0: 1}, symmetric=True)
+    rebuilt = Graph(deepcopy(graph.graph))
+    assert _search_every_pair(graph, algorithm) == _search_every_pair(
+        rebuilt, algorithm
+    )
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
+def test_search_from_both_ends_sees_an_added_edge(Graph, algorithm):
+    graph = _build_graph_with_its_inverse(Graph)
+    graph.add_edge(2, 0, 1)
+    rebuilt = Graph(deepcopy(graph.graph))
+    assert _search_every_pair(graph, algorithm) == _search_every_pair(
+        rebuilt, algorithm
+    )
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
+def test_search_from_both_ends_forgets_a_removed_node(Graph, algorithm):
+    graph = _build_graph_with_its_inverse(Graph)
+    graph.remove_node()
+    rebuilt = Graph(deepcopy(graph.graph))
+    assert _search_every_pair(graph, algorithm) == _search_every_pair(
+        rebuilt, algorithm
+    )
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES_FROM_BOTH_ENDS)
+def test_search_from_both_ends_forgets_a_removed_edge(Graph, algorithm):
+    graph = _build_graph_with_its_inverse(Graph)
+    graph.remove_edge(3, 2)
+    rebuilt = Graph(deepcopy(graph.graph))
+    assert _search_every_pair(graph, algorithm) == _search_every_pair(
+        rebuilt, algorithm
+    )
+
+
+def test_reduce_forgets_a_removed_edge(Graph):
+    graph = _build_graph_with_its_inverse(Graph)
+    graph.remove_edge(3, 2)
+    rebuilt = Graph(deepcopy(graph.graph))
+    graph.reduce()
+    rebuilt.reduce()
+    assert _search_every_pair(graph, "dijkstra") == _search_every_pair(
+        rebuilt, "dijkstra"
+    )
+
+
+def test_contraction_hierarchy_sees_an_added_edge(Graph):
+    graph = _build_graph_with_its_inverse(Graph)
+    graph.add_edge(2, 0, 1)
+    rebuilt = Graph(deepcopy(graph.graph))
+    assert _search_every_pair(
+        graph, "contraction_hierarchy"
+    ) == _search_every_pair(rebuilt, "contraction_hierarchy")

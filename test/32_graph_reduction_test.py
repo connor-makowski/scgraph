@@ -1,3 +1,4 @@
+import gc
 import time
 from scgraph import Graph, GeoGraph
 
@@ -140,17 +141,23 @@ def test_performance_timing():
         )
 
 
-def test_reduce_leaves_garbage_collection_as_found():
-    import gc
-
+# The pure-Python reduce() stops the garbage collector while it works.
+# Afterwards the collector must run again if it ran before. It must stay
+# stopped if the caller had stopped it.
+def test_reduce_leaves_garbage_collection_enabled(Graph):
     graph = Graph([{1: 1}, {0: 1, 2: 1}, {1: 1}])
-    for enabled in (True, False):
-        (gc.enable if enabled else gc.disable)()
-        try:
-            graph.reduce(-1)
-            assert gc.isenabled() == enabled
-        finally:
-            gc.enable()
+    graph.reduce(-1)
+    assert gc.isenabled()
+
+
+def test_reduce_leaves_garbage_collection_disabled(Graph):
+    graph = Graph([{1: 1}, {0: 1, 2: 1}, {1: 1}])
+    gc.disable()
+    try:
+        graph.reduce(-1)
+        assert not gc.isenabled()
+    finally:
+        gc.enable()
 
 
 if __name__ == "__main__":
@@ -159,4 +166,3 @@ if __name__ == "__main__":
     test_split_rejoin_path()
     test_reduction_cache_clearing()
     test_performance_timing()
-    test_reduce_leaves_garbage_collection_as_found()

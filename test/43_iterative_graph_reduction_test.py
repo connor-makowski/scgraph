@@ -10,8 +10,6 @@ try:
 except ImportError:
     HAS_CPP = False
 
-GRAPH_CLASSES = [PyGraph] + ([CppGraph] if HAS_CPP else [])
-
 
 def _build_iterative_reducible_graph():
     graph = [
@@ -88,8 +86,8 @@ def test_reduce_iterations_parity():
             assert py_res == cpp_res
 
 
-def _random_graph(rng):
-    # One-way and two-way edges, self-loops, separate parts
+def _build_random_graph(rng):
+    # One-way and two-way links, self-loops and separate parts.
     n = rng.randint(2, 30)
     graph = [{} for _ in range(n)]
     for _ in range(rng.randint(n - 1, 2 * n)):
@@ -100,42 +98,47 @@ def _random_graph(rng):
     return graph
 
 
-def _flows(u, adjacency, reduced):
-    # Non-reduced nodes reached from u through reduced nodes
-    found, stack, seen = set(), [u], {u}
+def _find_kept_nodes_reached(node, adjacency, is_reduced):
+    # The kept nodes that a walk from `node` reaches through reduced nodes
+    # only. A kept node is a node that reduce() did not reduce.
+    found, stack, seen = set(), [node], {node}
     while stack:
         for v in adjacency[stack.pop()]:
             if v not in seen:
                 seen.add(v)
-                if reduced[v]:
+                if is_reduced[v]:
                     stack.append(v)
                 else:
                     found.add(v)
     return found
 
 
-@pytest.mark.parametrize(
-    "GraphClass", GRAPH_CLASSES, ids=lambda cls: cls.__module__.split(".")[-1]
-)
-def test_reduce_until_no_pass_through_node_is_left(GraphClass):
-    # By default (iterations=-1), no node left unreduced is a pass-through node: it
-    # does not reach, through reduced nodes, a single node, or two nodes among
-    # which are all the nodes reaching it
+def _is_pass_through(node, graph, is_reduced):
+    # A pass-through node only carries traffic between its neighbours: reduce()
+    # can replace it by direct links. Its neighbours are the kept nodes next to
+    # it once the reduced nodes are hidden. The node is entered from some
+    # neighbour, and it leaves towards one neighbour only (a one-way chain), or
+    # towards two neighbours that are also all its entries (a two-way chain).
+    inverse = [{} for _ in graph]
+    for u, row in enumerate(graph):
+        for v in row:
+            inverse[v][u] = 1
+    exits = _find_kept_nodes_reached(node, graph, is_reduced)
+    entries = _find_kept_nodes_reached(node, inverse, is_reduced)
+    is_one_way_chain = len(exits) == 1
+    is_two_way_chain = len(exits) == 2 and entries <= exits
+    return bool(entries) and (is_one_way_chain or is_two_way_chain)
+
+
+# By default, reduce() repeats its passes until no pass reduces a node. The
+# 200 random graphs are small enough to print when the test fails.
+def test_reduce_by_default_leaves_no_pass_through_node(Graph):
     rng = random.Random(0)
     for _ in range(200):
-        graph = _random_graph(rng)
-        g = GraphClass(deepcopy(graph))
+        graph = _build_random_graph(rng)
+        g = Graph(deepcopy(graph))
         g.reduce()
-        reduced = list(g.is_reduced)
-        inverse = [{} for _ in graph]
-        for u, row in enumerate(graph):
-            for v in row:
-                inverse[v][u] = 1
-        for u in range(len(graph)):
-            if reduced[u]:
-                continue
-            outs = _flows(u, graph, reduced)
-            ins = _flows(u, inverse, reduced)
-            assert not ins or not (
-                len(outs) == 1 or (len(outs) == 2 and ins <= outs)
-            ), (graph, u)
+        kept_nodes = [u for u in range(len(graph)) if not g.is_reduced[u]]
+        assert [
+            u for u in kept_nodes if _is_pass_through(u, graph, g.is_reduced)
+        ] == [], graph
