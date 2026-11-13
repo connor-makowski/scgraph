@@ -40,23 +40,28 @@ Subsets (--only) and the changes that need them:
     grid       GridGraph (grid.py, bucket algorithms)
     hierarchy  contraction hierarchies and TNR
     misc       distance matrix, cached shortest path, Visvalingam
-    snap       GeoKDTree and SnapIndex: build, and 1,000 queries by zone, on random
-               points and on world_highways (cpp/src/snap_index.*,
+    snap       GeoKDTree and SnapIndex: build, and 1,000 queries in each of four zones
+               (Europe, Arctic, Antarctic, antimeridian), on random points and on
+               world_highways (cpp/src/snap_index.*, cpp/src/float4.hpp,
                helpers/snap_index.py, helpers/hilbert.py)
 
 Every time is in ms from one perf_counter reading, or a mean over the pairs of a row
 (the cached tree hit: over 100 calls); one untimed call per algorithm warms up each row.
-A snap row is the time of 1,000 calls, from 200 queries timed after an untimed pass.
+A query row of the snap section times 200 queries after an untimed pass over them, and
+reports that time scaled to 1,000 queries.
 Load times read the file from the OS cache (warm). 3.6.0 (a GeoKDTree) and later
 versions (since #157) build the snapping index while loading; "Index in Load" estimates
 that part of Load by a second build, timed alone after the first query. Memory (Linux
 only): "Peak" is the peak RSS of the process during load and first query, "Added" the
 peak during reduce(), or during the build of a snapping index, minus the RSS before it
-(the peak is reset through /proc/self/clear_refs; before an index build, the free
-memory also goes back to the system). Rows run in sequence in one process,
-so a row's time and memory depend on the rows before it: compare runs of the same --only
-and --networks. Reduction states are explicit (Original, Reduced = 1 pass, Fully Reduced
-= until no change): no row depends on the version's reduction default.
+(the peak is reset through /proc/self/clear_refs). Before an index build, the script
+asks glibc to give its free memory back (malloc_trim), so that the build cannot reuse
+it; Python's own free blocks stay. "Added" is then the peak of the build, not the size
+of the index: it includes what the build copies, such as the coordinates that SnapIndex
+reads from a list. Rows run in sequence in one process, so a row's time and memory
+depend on the rows before it: compare runs of the same --only and --networks. Reduction
+states are explicit (Original, Reduced = 1 pass, Fully Reduced = until no change): no
+row depends on the version's reduction default.
 """
 
 import argparse
@@ -158,7 +163,8 @@ SNAP_ZONES = {
     "Antarctic": (-88, -78, -180, 180),
     "Antimeridian": (-20, 20, 175, 185),
 }
-SNAP_QUERIES = 200
+# Queries timed in one row of the snap section; the row reports the time of 1,000
+SNAP_QUERIES_PER_ROW = 200
 SNAP_NETWORK = "world_highways"
 THRESHOLD = 1.15
 HITS = 100
@@ -583,17 +589,18 @@ def bench_snap(results):
         classes["SnapIndex"] = SnapIndex
 
     rng = random.Random(42)
-    land = []
-    while len(land) < 100_000:
+    # The box of the notebook: the continents, without an Atlantic strip
+    random_points = []
+    while len(random_points) < 100_000:
         lat, lon = rng.uniform(-55, 72), rng.uniform(-130, 145)
         if not -35 < lon < -15:
-            land.append([lat, lon])
+            random_points.append([lat, lon])
     geo = GeoGraph.load_geograph(
         SNAP_NETWORK, cache_dir=CACHE_DIR, reduce_iterations=0
     )
     # Plain lists, as 3.6.0 holds its nodes: every version builds from the same input
     point_sets = {
-        "100,000 random points": land,
+        "100,000 random points": random_points,
         SNAP_NETWORK: [list(node) for node in geo.nodes],
     }
     # One generator per zone: its queries do not depend on the zones before it
@@ -604,7 +611,7 @@ def bench_snap(results):
         draw = random.Random(seed).uniform
         queries[zone] = [
             [draw(south, north), (draw(west, east) + 180) % 360 - 180]
-            for _ in range(SNAP_QUERIES)
+            for _ in range(SNAP_QUERIES_PER_ROW)
         ]
     # Each call, and how to read the node ids of its answer
     calls = [
@@ -621,7 +628,7 @@ def bench_snap(results):
             points["SnapIndex"] = [nodes[i] for i in hilbert_order(nodes)]
         indexes = {}
         for label, build in classes.items():
-            try:  # glibc gives the free memory back, so that the build cannot reuse it
+            try:  # ask glibc to give its free memory back: the build cannot reuse it
                 ctypes.CDLL(None).malloc_trim(0)
             except (AttributeError, OSError, TypeError):
                 pass
@@ -633,26 +640,29 @@ def bench_snap(results):
                 "snap", [name, "Build"], f"{label} added", added, "MiB"
             )
 
-        for (zone, asked), (method, ids_of) in product(queries.items(), calls):
+        for (zone, zone_queries), (method, ids_of) in product(
+            queries.items(), calls
+        ):
             row, km = [name, f"1,000 {method}, {zone}"], {}
             for label, index in indexes.items():
                 query = getattr(index, method)
-                list(map(query, asked))  # untimed: the first pass is slower
-                ms, answers = timed(list, map(query, asked))
+                # Untimed: the first pass is slower
+                list(map(query, zone_queries))
+                ms, answers = timed(list, map(query, zone_queries))
                 # The check is the sum of the distances to the answers, not their ids:
                 # the indexes number the points differently, and two nodes at one
                 # place on both sides of the antimeridian are the same answer
                 km[label] = round_length(
                     sum(
                         haversine(q, points[label][i])
-                        for q, answer in zip(asked, answers)
+                        for q, answer in zip(zone_queries, answers)
                         for i in ids_of(answer)
                         if i is not None
                     )
                 )
                 failed = int(km[label] != km["GeoKDTree"])
-                per_1000 = ms / SNAP_QUERIES * 1000
-                results.cell("snap", row, label, per_1000, failed=failed)
+                ms_per_1000 = ms / SNAP_QUERIES_PER_ROW * 1000
+                results.cell("snap", row, label, ms_per_1000, failed=failed)
             results.check("snap", "|".join(row), km["GeoKDTree"])
 
 
@@ -845,7 +855,8 @@ def run(sections, networks, json_path, commit):
             f"- **Total Suite Execution Time**: {total:.2f}s",
             "- **Protocol**: one run; each value is one reading, or the mean over the"
             f" pairs of the row (the cached tree hit: over {HITS} calls), after one"
-            " untimed call. Compare only with runs on the same machine.",
+            f" untimed call; a query row of snap times {SNAP_QUERIES_PER_ROW} queries and"
+            " reports the time of 1,000. Compare only with runs on the same machine.",
             "",
         ] + tables
         BENCHMARK_MD_PATH.write_text("\n".join(lines))
