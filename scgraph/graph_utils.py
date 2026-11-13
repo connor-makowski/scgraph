@@ -374,7 +374,7 @@ class GraphUtils:
         Raises:
 
         - `TypeError`: The graph is not a list of dictionaries, a destination id is not an integer, or a distance is not a number
-        - `ValueError`: The graph is empty, a destination id is not in the graph, a distance is negative, or the graph is not symmetric
+        - `ValueError`: The graph is empty, a destination id is not in the graph, a distance is negative or NaN, or the graph is not symmetric
         - `RuntimeError`: The graph is not fully connected
         """
         graph = self.__graph__
@@ -461,6 +461,11 @@ class GraphUtils:
             - Type: list[dict | None]
             - What: A list of cached shortest path trees, where each tree is represented as a dictionary
                 - If a tree is not cached for a specific node, the corresponding entry in the list should be 0
+
+        Raises:
+
+        - `TypeError`: The cache is not a list
+        - `ValueError`: The cache does not have one entry per node of the graph
         """
         if not isinstance(new_cache, list):
             raise TypeError("Cache must be a list")
@@ -558,6 +563,10 @@ class GraphModifiers:
             - Type: bool
             - What: Whether to add the edge symmetrically (i.e., add an edge from destination to origin as well)
             - Default: False
+
+        Raises:
+
+        - `IndexError`: The origin id or the destination id is not in the graph
         """
         if origin_id >= len(self.__graph__):
             raise IndexError("Origin node id is not in the graph")
@@ -591,6 +600,10 @@ class GraphModifiers:
         Returns:
 
         - The dictionary of edges for this node that were removed from the graph
+
+        Raises:
+
+        - `RuntimeError`: The graph has no node
         """
         if len(self.__graph__) == 0:
             raise RuntimeError("Graph is empty, cannot remove node")
@@ -631,6 +644,10 @@ class GraphModifiers:
         Returns:
 
         - The distance of the removed edge from origin to destination, or None if the edge did not exist
+
+        Raises:
+
+        - `IndexError`: The origin id or the destination id is not in the graph
         """
         if origin_id >= len(self.__graph__):
             raise IndexError("Origin node id is not in the graph")
