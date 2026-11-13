@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
+#include <tuple>
 #include <limits>
 #include <iostream>
 #include "graph.hpp"
@@ -344,12 +345,18 @@ struct AStarNodeState {
     double dist;
     int pred;
     uint32_t stamp = 0;
-    uint32_t closed_stamp = 0;
 };
 
 thread_local std::vector<AStarNodeState> tl_astar_state;
 thread_local uint32_t tl_astar_stamp = 0;
-thread_local std::vector<std::pair<double, int>> tl_astar_open;
+// One heuristic of A* costs one call of heuristic_fn per destination node. Above
+// this number of destination nodes, A* was slower than Dijkstra on the built-in
+// networks. The heuristic is then the smallest exit distance, and the search
+// scans the nodes in the order of Dijkstra.
+constexpr size_t MAX_DESTINATION_NODES_WITH_HEURISTIC = 4;
+// A queue entry holds the key of a node (its distance from the origin plus its
+// heuristic), this distance, and the node.
+thread_local std::vector<std::tuple<double, double, int>> tl_astar_open;
 
 struct BidirNodeState {
     double forward_dist;
@@ -1083,15 +1090,22 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
         open_leaves.clear();
         const std::greater<> compare;
 
-        auto h_to_dest = [&dest_entries, &heuristic_fn](int u) -> double {
+        // The heuristic of a node estimates its distance to the destination
+        // point: to a destination node, plus the exit distance of this node.
+        double smallest_exit_distance = std::numeric_limits<double>::infinity();
+        for (const auto& [did, ddist] : dest_entries) {
+            smallest_exit_distance = std::min(smallest_exit_distance, ddist);
+        }
+        const bool calls_heuristic = dest_entries.size() <= MAX_DESTINATION_NODES_WITH_HEURISTIC;
+        auto h_to_dest = [&](int u) -> double {
+            if (!calls_heuristic) {
+                return smallest_exit_distance;
+            }
             double min_h = std::numeric_limits<double>::infinity();
             for (const auto& [did, ddist] : dest_entries) {
-                double h = heuristic_fn(u, did) + ddist;
-                if (h < min_h) {
-                    min_h = h;
-                }
+                min_h = std::min(min_h, heuristic_fn(u, did) + ddist);
             }
-            return (min_h == std::numeric_limits<double>::infinity()) ? 0.0 : min_h;
+            return min_h;
         };
 
         double best_dist = std::numeric_limits<double>::infinity();
@@ -1101,7 +1115,7 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
             state[oid].dist = odist;
             state[oid].pred = -1;
             state[oid].stamp = stamp;
-            open_leaves.emplace_back(odist + h_to_dest(oid), oid);
+            open_leaves.emplace_back(odist + h_to_dest(oid), odist, oid);
             std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
 
             auto it = dest_map.find(oid);
@@ -1117,19 +1131,18 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
         size_t node_scans = 0;
         while (!open_leaves.empty()) {
             std::pop_heap(open_leaves.begin(), open_leaves.end(), compare);
-            int current_id = open_leaves.back().second;
+            const auto [key, current_distance, current_id] = open_leaves.back();
             open_leaves.pop_back();
 
-            if (state[current_id].closed_stamp == stamp) {
-                continue;
-            }
-            state[current_id].closed_stamp = stamp;
-
-            if (state[current_id].dist >= best_dist) {
+            // No route through a node left in the queue is shorter than its key.
+            if (key >= best_dist) {
                 break;
             }
+            // A shorter distance to this node was found after this entry.
+            if (current_distance > state[current_id].dist) {
+                continue;
+            }
 
-            double current_distance = state[current_id].dist;
             ++node_scans;
             for (const auto& [connected_id, connected_distance] : g[current_id]) {
                 double possible_distance = current_distance + connected_distance;
@@ -1137,11 +1150,6 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
                     state[connected_id].dist = possible_distance;
                     state[connected_id].pred = current_id;
                     state[connected_id].stamp = stamp;
-                    open_leaves.emplace_back(
-                        possible_distance + h_to_dest(connected_id),
-                        connected_id
-                    );
-                    std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
 
                     auto it = dest_map.find(connected_id);
                     if (it != dest_map.end()) {
@@ -1150,6 +1158,12 @@ GraphResult Graph::a_star(const NodeIdVariant& origin_id, const NodeIdVariant& d
                             best_dist = tot;
                             best_target = connected_id;
                         }
+                    }
+
+                    double connected_key = possible_distance + h_to_dest(connected_id);
+                    if (connected_key < best_dist) {
+                        open_leaves.emplace_back(connected_key, possible_distance, connected_id);
+                        std::push_heap(open_leaves.begin(), open_leaves.end(), compare);
                     }
                 }
             }
