@@ -2,7 +2,7 @@ import json
 import logging
 import os
 
-from scgraph.utils import hard_round, haversine, warn_deprecated_parameter
+from scgraph.utils import _warn_deprecated_parameter, hard_round, haversine
 from scgraph.helpers.douglas_peucker import douglas_peucker
 from scgraph.helpers.visvalingam import visvalingam
 from collections.abc import Callable, Sequence
@@ -90,7 +90,7 @@ def simplify_geojson(
         - If `filename_out` is provided, this will be written into a GeoJSON file.
         - Note: Always returns a GeometryCollection with a single MultiLineString containing all cleaned coordinates.
     """
-    warn_deprecated_parameter("silent", silent)
+    _warn_deprecated_parameter("silent", silent)
     data = json.load(open(filename_in, "r"))
     if data["type"] == "FeatureCollection":
         features = data["features"]
@@ -194,7 +194,7 @@ def parse_geojson(
     Returns:
         list: List of cleaned coordinates as a single MultiLineString.
     """
-    warn_deprecated_parameter("silent", silent)
+    _warn_deprecated_parameter("silent", silent)
     single_multi_line = simplify_geojson(
         filename_in=filename_in,
         filename_out=None,

@@ -3,8 +3,8 @@ from scgraph.utils import (
     distance_converter,
     get_line_path,
     cheap_ruler,
-    warn_deprecated_parameter,
-    log_step,
+    _warn_deprecated_parameter,
+    _log_step,
     get_lat_lon_bound_between_pts,
     resolve_cache_dir,
     earth_radius,
@@ -454,7 +454,7 @@ class GeoGraphIO:
             - Default: None (every point is a node)
             - Note: Useful for sources with many points per line, such as rail or road networks, to keep the graph small
         """
-        warn_deprecated_parameter("silent", silent)
+        _warn_deprecated_parameter("silent", silent)
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_geojson(
@@ -788,14 +788,14 @@ class GeoGraphIO:
             raise ValueError("Filename must end with .scgraph")
         # The C++ graph reads the arcs in place, from the mapped file, and checks them
         mapped = Graph.__module__ == "scgraph.cpp" and modes is None
-        with log_step(
+        with _log_step(
             logger,
             "read the network file",
             {"file": filename, "mapped": mapped},
-        ) as work:
+        ) as indicators:
             arrays, metadata = network_file.read(filename, mapped, modes)
-            work["nodes"] = len(arrays["latitudes"])
-            work["arcs"] = len(arrays["heads"])
+            indicators["nodes"] = len(arrays["latitudes"])
+            indicators["arcs"] = len(arrays["heads"])
         try:
             graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
@@ -981,7 +981,7 @@ class GeoGraphIO:
         }
         try:
             geograph.metadata = {"sources": [source]}
-            with log_step(
+            with _log_step(
                 logger, "convert the published network", {"name": name}
             ):
                 geograph.save_as_scgraph(str(converted))
@@ -1476,7 +1476,7 @@ class GeoGraphIO:
             - Default: False
 
         """
-        warn_deprecated_parameter("silent", silent)
+        _warn_deprecated_parameter("silent", silent)
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_osmnx_graph(
@@ -1614,7 +1614,7 @@ class GeoGraphIO:
         - `output`: dict
             - Dictionary with the GeoJSON file content.
         """
-        warn_deprecated_parameter("show_progress", show_progress)
+        _warn_deprecated_parameter("show_progress", show_progress)
         assert isinstance(routes, list), "Routes must be a list"
         assert all(
             [isinstance(i, dict) for i in routes]
@@ -1913,7 +1913,7 @@ class GeoGraphModifiers:
         - The id of the new node
 
         """
-        warn_deprecated_parameter("silent", silent)
+        _warn_deprecated_parameter("silent", silent)
         # Validate the inputs
         assert isinstance(coord_dict, dict), "Node must be a dictionary"
         assert "latitude" in coord_dict.keys(), "Node must have a latitude"
@@ -2880,11 +2880,11 @@ class GeoGraph(
         # keeps the index of the networks before the merge while it connects them); direct
         # edits of nodes are not detected
         if self.__snap_index__ is None:
-            with log_step(
+            with _log_step(
                 logger, "build the snapping index", {"nodes": len(self.nodes)}
-            ) as work:
+            ) as indicators:
                 self.__snap_index__ = self._build_snap_index()
-                work["sorted_for_the_index"] = isinstance(
+                indicators["sorted_for_the_index"] = isinstance(
                     self.__snap_index__, _SortedSnapIndex
                 )
         return self.__snap_index__
@@ -2974,13 +2974,13 @@ class GeoGraph(
         """
         if iterations == 0:
             return
-        with log_step(
+        with _log_step(
             logger, "reduce the graph", {"iterations": iterations}
-        ) as work:
+        ) as indicators:
             self.graph_object.reduce(iterations)
             is_reduced = self.graph_object.is_reduced or []
-            work["nodes"] = len(is_reduced)
-            work["kept_nodes"] = len(is_reduced) - sum(is_reduced)
+            indicators["nodes"] = len(is_reduced)
+            indicators["kept_nodes"] = len(is_reduced) - sum(is_reduced)
 
     def validate_nodes(self) -> None:
         """
@@ -3241,7 +3241,7 @@ class GeoGraph(
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
-        warn_deprecated_parameter("silent", silent)
+        _warn_deprecated_parameter("silent", silent)
         algorithm_name = (
             algorithm_fn if isinstance(algorithm_fn, str) else "custom"
         )
@@ -3380,7 +3380,7 @@ class GeoGraph(
                         origin_id[entry_node] + destination_id[exit_node]
                     ) * (circuity_ratio - 1.0)
             if logger.isEnabledFor(logging.DEBUG):
-                self._log_query_work(
+                self._log_query_indicators(
                     algorithm_name,
                     origin,
                     destination,
@@ -3430,7 +3430,7 @@ class GeoGraph(
             )
             raise
 
-    def _log_query_work(
+    def _log_query_indicators(
         self,
         algorithm_name: str,
         origin: Sequence[float],
@@ -3439,7 +3439,8 @@ class GeoGraph(
         destination_entries: dict[int, int | float],
     ) -> None:
         """
-        Logs at DEBUG the work of a shortest-path query that its result does not show.
+        Logs at DEBUG the indicators of a shortest-path query: what the query did, which
+        its result does not show.
 
         - `algorithm_name`: the name of the search, or "custom" for a search function
         - `origin`, `destination`: the [latitude, longitude] of the two ends of the query
@@ -3448,13 +3449,16 @@ class GeoGraph(
         - The snapping distance of an end is the great-circle distance to its nearest
           entry node, in the units of the geograph, without circuity
         - `node_scans` is present only if the query ran a search that counts them
+        - A query builds this record only when DEBUG is on, and does not use `_log_step`:
+          a query must pay nothing for logging when DEBUG is off. It logs no duration,
+          which the caller can measure around its own call
         """
         origin_node = min(origin_entries, key=origin_entries.__getitem__)
         destination_node = min(
             destination_entries, key=destination_entries.__getitem__
         )
         step = "find the shortest path"
-        work = {
+        indicators = {
             "algorithm": algorithm_name,
             "distance_units": self.geograph_units,
             "origin_snap_distance": round(
@@ -3472,11 +3476,14 @@ class GeoGraph(
                 3,
             ),
         }
-        node_scans = self.graph_object._last_node_scans()
+        node_scans = self.graph_object._get_last_node_scans()
         if node_scans is not None:
-            work["node_scans"] = node_scans
+            indicators["node_scans"] = node_scans
         logger.debug(
-            "%s: %s", step, work, extra={"scgraph": {"step": step, **work}}
+            "%s: %s",
+            step,
+            indicators,
+            extra={"scgraph": {"step": step, **indicators}},
         )
 
     def distance_matrix(
@@ -3529,7 +3536,7 @@ class GeoGraph(
             ...
         ]
         """
-        warn_deprecated_parameter("silent", silent)
+        _warn_deprecated_parameter("silent", silent)
         failed_pairs = 0
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(

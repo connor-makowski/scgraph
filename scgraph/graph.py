@@ -1500,7 +1500,7 @@ class Graph(
         _last_search_in_thread.node_scans = None
 
     @staticmethod
-    def _last_node_scans() -> int | None:
+    def _get_last_node_scans() -> int | None:
         """
         Returns the number of node scans of the last search in this thread.
 
