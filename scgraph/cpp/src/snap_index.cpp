@@ -302,7 +302,7 @@ int SnapIndex::closest_idx(double latitude, double longitude) const {
     float lower_bound[FANOUT];
 
     // 1. First descent: from the root down to one leaf, by the nearest child at each
-    // level. The other children go on the stack. The leaf gives a first best distance
+    // level. The other children go on the stack
     int position = 0;
     for (int level = int(level_start.size()) - 1; level > LEAF_LEVEL; --level) {
         const Group& group = groups[size_t(level_start[level]) + position];
@@ -316,9 +316,10 @@ int SnapIndex::closest_idx(double latitude, double longitude) const {
                 stack[stack_size++] = {lower_bound[k], level - 1, position * FANOUT + k, 0};
         position = position * FANOUT + nearest_child;
     }
+    // 2. The leaf gives a first best distance
     scan_leaf(position, query, nearest);
 
-    // 2. Drop the stacked boxes that this distance puts out of reach, and order the
+    // 3. Drop the stacked boxes that this distance puts out of reach, and order the
     // others, the nearest on top. Few boxes stay when the point is near the network
     int kept = 0;
     for (int i = 0; i < stack_size; ++i) {
@@ -331,7 +332,7 @@ int SnapIndex::closest_idx(double latitude, double longitude) const {
     }
     stack_size = kept;
 
-    // 3. Open the boxes within reach, the nearest first
+    // 4. Open the boxes within reach, the nearest first
     while (stack_size > 0) {
         const Visit visit = stack[--stack_size];
         // A node nearer than this box may have been found since the box was stacked
