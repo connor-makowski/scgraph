@@ -402,7 +402,9 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 
 ### Stored Binary Arrays
 
-A **point** is a place, given as one `[latitude, longitude]` pair. Its **coordinates** are its latitude and its longitude. A coordinate is one of these two numbers. A **node** is a vertex of the graph, numbered from `0` to `n - 1`. Its position is a point. The points of an arc between its two nodes are its **shape points**. They are not nodes: the search never visits them. The attribute `intermediate_nodes` of release 3.6.0 holds the shape points of each arc. The name is kept for compatibility. `node_points` and `shape_points` are arrays of points: the latitude of a point, then its longitude.
+A **point** is a place, given as one `[latitude, longitude]` pair. Its **coordinates** are its latitude and its longitude. A coordinate is one of these two numbers. A **node** is a vertex of the graph, numbered from `0` to `n - 1`. Its position is a point. The points of an arc between its two nodes are its **shape points**. They are not nodes: the search never visits them. The attribute `GeoGraph.intermediate_nodes` holds the shape points of each arc. `node_points` and `shape_points` are arrays of points: the latitude of a point, then its longitude.
+
+The latitude comes first, as in the axis order of `EPSG:4326`. GeoJSON uses the opposite order: `save_as_geojson` writes the longitude first. A latitude is from -90 to 90 degrees, and a longitude from -180 to 180 degrees (`GeoGraph.validate_nodes` checks both).
 
 All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 bytes:
 
@@ -411,7 +413,7 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `offsets` | `int32` | $N + 1$ | CSR row index. Arcs originating from node $u$ span index `offsets[u]` to `offsets[u+1] - 1`. |
 | `heads` | `int32` | $M$ | Destination node ID of each arc. |
 | `weights` | `float64` | $M$ | Cost / length of each arc. |
-| `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, values are scaled by $10^7$ (~1 cm precision). |
+| `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed arc polylines. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior arc point, in the dtype of `node_points`. |
 | `node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). |
