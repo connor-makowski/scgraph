@@ -373,10 +373,6 @@ The header contains top-level structural fields and a nested `metadata` dictiona
         "credit": "© OpenStreetMap contributors",
         "version": "2026-11-07T21:21:36Z"
       }
-    ],
-    "steps": [
-      {"step": "read", "pieces": 1200},
-      {"step": "contract", "nodes": 10000, "arcs": 25000}
     ]
   }
 }
@@ -397,7 +393,6 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | `metadata.pipeline` | `dict` | Pipeline provenance: network generator name, target region, and pipeline version. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
 | `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, URLs, file digests, and data timestamps. |
-| `metadata.steps` | `list[dict]` | Assembly execution trace recording intermediate counts across stages (extract, components, contraction). |
 
 ---
 

@@ -324,11 +324,6 @@ def build_file(
                 {source: str(path) for source, path in files.items()},
                 **build_kwargs,
             )
-            network_built, steps = (
-                network_built
-                if isinstance(network_built, tuple)
-                else (network_built, None)
-            )
             # Everything that describes the network, except clock times, so that
             # the same rules, sources and software give the same file
             metadata = pipelines.build_metadata(
@@ -337,7 +332,6 @@ def build_file(
                 network.PIPELINE_VERSION,
                 sources,
                 network.__doc__,
-                steps,
             )
             if isinstance(network_built, GeoGraph):
                 # Written in Hilbert order within each mode: nodes close on the

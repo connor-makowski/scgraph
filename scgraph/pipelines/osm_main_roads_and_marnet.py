@@ -25,6 +25,7 @@
 - Not for: navigation or travel times; inland navigation between two river points.
 """
 
+import logging
 import os
 from collections.abc import Callable
 
@@ -33,6 +34,9 @@ from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage2_intermodal import ports
 from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
 from scgraph.pipelines.steps.stage3_assembly import assembly
+from scgraph.utils import _log_step
+
+logger = logging.getLogger(__name__)
 
 PIPELINE_VERSION = 1
 
@@ -83,13 +87,13 @@ def build(
     max_km_between_nodes: float = osm.MAX_KM,
     min_nodes_per_strongly_connected_component: int | None = None,
     work_dir: str | os.PathLike | None = None,
-) -> tuple[tuple[dict, list[dict]], list[dict]]:
+) -> tuple[dict, list[dict]]:
     """The keywords give another scale (`world_main_roads_and_marnet`);
     `min_nodes_per_strongly_connected_component=None` keeps the largest component only.
     """
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     stage2_work_dir = os.path.join(work_dir, "stage2") if work_dir else None
-    pieces, steps = osm.build_way_pieces(
+    pieces = osm.build_way_pieces(
         source(files["roads"]),
         SELECTS,
         ("highway", "route"),
@@ -97,9 +101,10 @@ def build(
         stage1_work_dir,
     )
     graph = assembly.build_graph_from_pieces(pieces)
-    sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
-    sea_arcs = sum(map(len, sea.graph_object.graph))
-    steps.append({"step": "sea", "nodes": len(sea.nodes), "arcs": sea_arcs})
+    with _log_step(logger, "read the sea lanes", {}) as counts:
+        sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
+        counts["nodes"] = len(sea.nodes)
+        counts["arcs"] = sum(map(len, sea.graph_object.graph))
     lats, lons = graph["latitudes"], graph["longitudes"]  # 1e-7 degree
     south = max(-90, min(lats) * 1e-7 - MARGIN)
     west = max(-180, min(lons) * 1e-7 - MARGIN)
@@ -112,14 +117,17 @@ def build(
     )
     wpi = ports.read_world_port_index(files["ports"])
     wpi = [p for p in wpi if mask.get_cell(*p[:2]) is not None]
-    graph, joined = ports.join(graph, sea, wpi, mask, work_dir=stage2_work_dir)
-    steps.append({"step": "ports", "joined": joined})
-    arrays, assembled = assembly.assemble(
+    with _log_step(logger, "join the ports", {"ports": len(wpi)}) as counts:
+        graph, joined = ports.join(
+            graph, sea, wpi, mask, work_dir=stage2_work_dir
+        )
+        counts["joined"] = joined
+    arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,
         min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
     )
-    return (arrays, MODES), steps + assembled
+    return arrays, MODES
 
 
 # ---------------------------------------------------------------------------

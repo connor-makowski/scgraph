@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import importlib.util
 import json
+import logging
 import os
 import platform
 import random
@@ -635,19 +636,6 @@ def test_a_pipeline_module_named_like_a_built_in_network_is_refused(tmp_path):
         GeoGraph.build_geograph(namesake, cache_dir=tmp_path)
 
 
-def test_the_steps_that_a_pipeline_returns_are_stored_in_the_network_file(
-    tmp_path, source
-):
-    def build_with_steps(files):
-        return marnet.build(files), [{"step": "copy", "arcs": 1}]
-
-    pipeline = _lines_pipeline(source, build=build_with_steps)
-
-    geo = GeoGraph.build_geograph(pipeline, cache_dir=tmp_path)
-
-    assert geo.metadata["steps"] == [{"step": "copy", "arcs": 1}]
-
-
 # The ArcGIS layer of the local server holds the two lines of /lines.geojson
 # and gives one line per page.
 def test_build_geograph_reads_every_page_of_an_arcgis_layer_and_its_version(
@@ -951,17 +939,6 @@ def test_a_ferry_that_starts_inside_a_road_cuts_the_road_at_that_node(
     assert arcs[(3, 5)] == pytest.approx(_strait_km(3, 5))
 
 
-def test_the_network_file_tells_how_many_ferry_arcs_the_build_added(
-    strait_network,
-):
-    # Road 1 is one piece, and road 2 is cut at node 5 into two pieces.
-    # Ferries 3, 6 and 7 each give one arc in each direction.
-    assert strait_network.metadata["steps"][:2] == [
-        {"step": "read", "pieces": 3},
-        {"step": "ferries", "arcs": 6},
-    ]
-
-
 # With a work folder, the build keeps the pieces of the ways in files and
 # not in memory.
 def test_osm_main_roads_builds_the_same_network_with_a_work_folder(tmp_path):
@@ -977,8 +954,7 @@ def test_osm_main_roads_builds_the_same_network_with_a_work_folder(tmp_path):
     assert built_in_files == built_in_memory
 
 
-@pytest.fixture(scope="module")
-def coast_network(tmp_path_factory):
+def _build_coast_network(tmp_path):
     """The network that `osm_main_roads_and_marnet` builds from the coast that
     the comment above `_FILES` describes: a road, a sea lane and five ports.
 
@@ -987,7 +963,6 @@ def coast_network(tmp_path_factory):
     region "roads" is the file /roads.osm.pbf.
     """
     osmium = pytest.importorskip("osmium")
-    tmp_path = tmp_path_factory.mktemp("coast")
     xml, pbf = tmp_path / "roads.osm", tmp_path / "roads.osm.pbf"
     xml.write_bytes(_FILES["/roads.osm"])
     header = osmium.io.Header()
@@ -1017,6 +992,11 @@ def coast_network(tmp_path_factory):
         return GeoGraph.build_geograph(
             "osm_main_roads_and_marnet", region="roads", cache_dir=tmp_path
         )
+
+
+@pytest.fixture(scope="module")
+def coast_network(tmp_path_factory):
+    return _build_coast_network(tmp_path_factory.mktemp("coast"))
 
 
 def test_nodes_are_stored_by_mode_and_each_mode_names_its_source(coast_network):
@@ -1092,18 +1072,40 @@ def test_a_port_is_joined_to_the_sea_by_the_length_of_its_path_on_water(
     assert shapes[lane_end][port] == shapes[port][lane_end][::-1]
 
 
-def test_the_network_file_lists_what_each_step_of_the_build_did(coast_network):
-    assert coast_network.metadata["steps"] == [
+def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
+    with caplog.at_level(logging.DEBUG, logger="scgraph.pipelines"):
+        _build_coast_network(tmp_path)
+
+    counts = {
+        record.scgraph["step"]: {
+            key: value
+            for key, value in record.scgraph.items()
+            if key not in ("step", "duration_ms")
+        }
+        for record in caplog.records
+        if hasattr(record, "scgraph")
+    }
+    assert counts == {
         # The main road in 2 pieces and the fragment
-        {"step": "read", "pieces": 3},
-        {"step": "ferries", "arcs": 0},
+        "read and cut the ways": {"pieces": 3},
+        "attach the ferries": {"arcs": 0},
         # The 2 ends of the sea lane, joined in both directions
-        {"step": "sea", "nodes": 2, "arcs": 2},
-        {"step": "ports", "joined": 2},
-        # Without the fragment: 3 road nodes, 2 ports and 2 sea nodes
-        {"step": "components", "nodes": 7, "arcs": 14},
-        {"step": "contract", "nodes": 7, "arcs": 14},
-    ]
+        "read the sea lanes": {"nodes": 2, "arcs": 2},
+        # 2 of the 5 ports have a road and a sea connector
+        "join the ports": {"ports": 5, "joined": 2},
+        # The fragment (2 nodes, 2 arcs) is left out: 3 road nodes, 2 ports
+        # and 2 sea nodes remain
+        "keep the strongly connected components": {
+            "nodes": 9,
+            "arcs": 16,
+            "kept": {"nodes": 7, "arcs": 14},
+        },
+        "contract the chains": {
+            "nodes": 7,
+            "arcs": 14,
+            "kept": {"nodes": 7, "arcs": 14},
+        },
+    }
 
 
 def test_each_source_is_recorded_with_the_version_of_its_data(coast_network):

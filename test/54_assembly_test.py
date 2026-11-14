@@ -315,7 +315,7 @@ def assembled(tmp_path_factory):
             [PLACES[origin], PLACES[destination]],
             shapes.get(origin, []),
         )
-    arrays, _steps = assembly.assemble(
+    arrays = assembly.assemble(
         assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
         min_nodes_per_strongly_connected_component=1,

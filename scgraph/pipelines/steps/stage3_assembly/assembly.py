@@ -8,6 +8,7 @@ kernels in Python; `build_csr_from_adjacency_list` and `keep_largest_strongly_co
 for `load_from_osm`.
 """
 
+import logging
 import math
 import mmap
 import os
@@ -39,7 +40,9 @@ from scgraph.helpers.douglas_peucker import (
 )
 from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
 from scgraph.network_file import extract_coordinates
-from scgraph.utils import haversine
+from scgraph.utils import _log_step, haversine
+
+logger = logging.getLogger(__name__)
 
 
 def build_csr_from_arcs_python(
@@ -702,48 +705,60 @@ def assemble(
     *,
     max_km_between_nodes: float,
     min_nodes_per_strongly_connected_component: int | None,
-) -> tuple[dict[str, array], list[dict[str, str | int]]]:
+) -> dict[str, array]:
     """The network file's arrays of `graph` (`build_graph_from_pieces`'s layout, with
     `node_modes` if it has several modes): keep the components
     (`keep_strongly_connected_components` with `min_nodes_per_strongly_connected_component`,
     each one closed), contract the chains (`contract_chains` at `max_km_between_nodes`,
     which never merges two modes), join their shapes (`build_chain_shapes`), and number the
     nodes by mode, then along the Hilbert curve, as `GeoGraph.save_as_scgraph` does. Empties `graph`.
-    Returns `(arrays, steps)`, `steps` the counts of the components and the contraction.
+    The component filter and the contraction log their counts at DEBUG.
     """
-    order = keep_strongly_connected_components(
-        graph["offsets"],
-        graph["heads"],
-        min_nodes_per_strongly_connected_component,
-    )
-    given, graph = graph, _renumbered(graph, *order)
-    given.clear()  # freed now, not when the caller lets it go: one copy at a time
-    steps = [_counts("components", graph)]
-    modes = graph.get("node_modes")
-    kept, origins, heads, weights, member_offsets, members = contract_chains(
-        graph["offsets"],
-        graph["heads"],
-        graph["weights"],
-        node_modes=modes,
-        max_km_between_nodes=max_km_between_nodes,
-    )
-    points, shape_offsets = build_chain_shapes(graph, member_offsets, members)
-    offsets = array("i", bytes(4 * (len(kept) + 1)))
-    for u in origins:  # rows by origin, as contract_chains sorts them
-        offsets[u + 1] += 1
-    graph = {  # the graph before contraction is freed
-        "offsets": array("i", accumulate(offsets)),
-        "heads": heads,
-        "weights": weights,
-        "shape_offsets": shape_offsets,
-        "shape_points": points,
-        **{
-            key: array(_TYPES[key], (graph[key][u] for u in kept))
-            for key in _TYPES
-            if key in graph
-        },
-    }
-    steps.append(_counts("contract", graph))
+    with _log_step(
+        logger,
+        "keep the strongly connected components",
+        _count_nodes_and_arcs(graph),
+    ) as counts:
+        order = keep_strongly_connected_components(
+            graph["offsets"],
+            graph["heads"],
+            min_nodes_per_strongly_connected_component,
+        )
+        given, graph = graph, _renumbered(graph, *order)
+        given.clear()  # freed now, not when the caller lets it go: one copy at a time
+        counts["kept"] = _count_nodes_and_arcs(graph)
+    with _log_step(
+        logger, "contract the chains", _count_nodes_and_arcs(graph)
+    ) as counts:
+        modes = graph.get("node_modes")
+        kept, origins, heads, weights, member_offsets, members = (
+            contract_chains(
+                graph["offsets"],
+                graph["heads"],
+                graph["weights"],
+                node_modes=modes,
+                max_km_between_nodes=max_km_between_nodes,
+            )
+        )
+        points, shape_offsets = build_chain_shapes(
+            graph, member_offsets, members
+        )
+        offsets = array("i", bytes(4 * (len(kept) + 1)))
+        for u in origins:  # rows by origin, as contract_chains sorts them
+            offsets[u + 1] += 1
+        graph = {  # the graph before contraction is freed
+            "offsets": array("i", accumulate(offsets)),
+            "heads": heads,
+            "weights": weights,
+            "shape_offsets": shape_offsets,
+            "shape_points": points,
+            **{
+                key: array(_TYPES[key], (graph[key][u] for u in kept))
+                for key in _TYPES
+                if key in graph
+            },
+        }
+        counts["kept"] = _count_nodes_and_arcs(graph)
     lats, lons = graph["latitudes"], graph["longitudes"]
     modes = graph.get("node_modes") or bytes(len(kept))
 
@@ -754,7 +769,7 @@ def assemble(
     # One int per node, not a list; the sorted ints are freed before _renumbered
     keys = sorted(map(key, range(len(kept))))
     order, keys = array("i", (k & 0xFFFFFFFF for k in keys)), None
-    return _renumbered(graph, order), steps
+    return _renumbered(graph, order)
 
 
 def build_chain_shapes(
@@ -822,9 +837,9 @@ def _renumbered(graph, order, labels=None):
     return out
 
 
-def _counts(step, graph):  # a step of build metadata
-    nodes, arcs = len(graph["offsets"]) - 1, len(graph["heads"])
-    return {"step": step, "nodes": nodes, "arcs": arcs}
+def _count_nodes_and_arcs(graph):
+    """The number of nodes and the number of arcs of `graph`, for a log."""
+    return {"nodes": len(graph["offsets"]) - 1, "arcs": len(graph["heads"])}
 
 
 python = SimpleNamespace(
