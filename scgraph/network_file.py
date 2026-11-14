@@ -38,9 +38,9 @@ SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-n
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # array name -> the dtypes it may have; shape_* hold the arc shapes, if any; node_ids and
 # node_modes (optional): each node's id in its source and its row of metadata["modes"].
-# The coordinates share one dtype: float64 degrees or int32 units of 1e-7 degree (see
-# `extract_coordinates`). They share one layout too: node_points and shape_points are
-# arrays of "points", the latitude of a point followed by its longitude
+# node_points and shape_points are arrays of points: the latitude of a point, then its
+# longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
+# degree (see `extract_coordinates`).
 ARRAYS = {
     "offsets": ("int32",),
     "heads": ("int32",),
@@ -597,9 +597,10 @@ class NodeCoordinates(MutableSequence):
     """
 
     def __init__(self, node_points):
-        # The C++ kernels read the points. The Python loops read two views of them, one value
-        # in two: indexing a view is as fast as indexing an array, and faster than
-        # computing 2 * i and 2 * i + 1 for each node
+        # The C++ kernels read the points directly. The Python loops read two views of
+        # the points: one holds the latitudes, the other the longitudes. Reading a value
+        # from a view is as fast as reading it from an array. It is faster than computing
+        # 2 * i and 2 * i + 1 for each node.
         self._points = memoryview(node_points)
         self._latitudes = self._points[0::2]
         self._longitudes = self._points[1::2]

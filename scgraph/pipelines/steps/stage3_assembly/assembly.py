@@ -682,7 +682,8 @@ def build_graph_from_pieces(
         for a in range(offsets[u], offsets[u + 1]):
             i, b = piece[kept[a]], back[kept[a]]
             e = pieces.ends[4 * i : 4 * i + 4]
-            # e holds the points of the piece's two ends, in its direction
+            # e holds the points of the two ends of the piece, in the order of the
+            # piece. For an arc that goes against the piece, the ends swap.
             origin, destination = (e[2:], e[:2]) if b else (e[:2], e[2:])
             v = heads[a]
             node_points[2 * u], node_points[2 * u + 1] = origin
@@ -784,10 +785,15 @@ def build_chain_shapes(
 
 
 def _select_nodes(graph, nodes):
-    """The arrays of `graph` that describe nodes (`node_points`, and `node_ids` and
-    `node_modes` if `graph` has them) for `nodes` only: node `nodes[i]` becomes node `i`.
-    The arrays come in this order, so that every run writes the same file."""
-    # Two views of the points, one value in two, read as fast as two arrays
+    """Copy the arrays of `graph` that describe the nodes, for the nodes listed in
+    `nodes` only. Node `nodes[i]` becomes node `i`.
+
+    The arrays are `node_points`, then `node_ids` and `node_modes` if `graph` has
+    them. The network file writes the arrays in the order of the returned dict. This
+    order is fixed, so every run writes the same file.
+    """
+    # One view holds the latitudes and another the longitudes, without a copy.
+    # Reading a value from a view is as fast as reading it from an array.
     node_points = memoryview(graph["node_points"])
     latitudes, longitudes = node_points[0::2], node_points[1::2]
     points = array("i", bytes(8 * len(nodes)))

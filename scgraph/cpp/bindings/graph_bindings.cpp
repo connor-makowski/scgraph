@@ -65,8 +65,9 @@ using CoordinateArray = nb::ndarray<const T, nb::ndim<1>, nb::c_contig, nb::devi
 static inline double degrees(int32_t units) { return units / 1e7; }
 static inline double degrees(double value) { return value; }
 
-// [[latitude, longitude] of node i for i in ids] in degrees, in one C loop
-// (NodeCoordinates.take). node_points holds the latitude and the longitude of each node
+// Returns the points of the nodes in `ids`, as a list of [latitude, longitude] in
+// degrees. One C loop builds the list, for NodeCoordinates.take. `node_points` holds the
+// latitude, then the longitude, of each node.
 template <typename T>
 static nb::object coordinate_lists(CoordinateArray<T> node_points, nb::list ids) {
     const T* point = node_points.data();
@@ -161,8 +162,9 @@ static nb::object shape_path(Int32Array offsets, Int32Array heads, Int32Array sh
     return result;
 }
 
-// A SnapIndex reading the points of the nodes in place (float64 degrees, or int32 units of
-// 1e-7 degree), which it keeps alive
+// Builds a SnapIndex on the points of the nodes, without a copy. The points are float64
+// degrees or int32 units of 1e-7 degree. The index keeps a reference to the array, so
+// the array lives as long as the index.
 template <typename T>
 static std::unique_ptr<SnapIndex> snap_index_from_array(CoordinateArray<T> node_points) {
     if (node_points.shape(0) % 2)

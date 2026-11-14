@@ -129,11 +129,11 @@ struct node_order_error : std::invalid_argument {
 
 class SnapIndex {
 public:
-    // The points of the nodes, read in place, in degrees. They are built from a pointer to
-    // float64 degrees or to int32 units of 1e-7 degree: the type of the pointer says which.
-    // An int32 value is decoded by the same division as the Python reader. The index reads
-    // the points only where it builds its leaves and checks candidates, never in its loops
-    // over 4 floats
+    // A view of the points of the nodes, read in place. It is built from a pointer to
+    // float64 degrees or to int32 units of 1e-7 degree. The type of the pointer tells
+    // which. A read returns degrees. An int32 value is divided by 1e7, as the Python
+    // reader does. The index reads the points in two places only: when it builds its
+    // leaves, and when it checks a candidate node. Its loops over 4 floats never read them.
     class Points {
     public:
         Points(const double* degrees) : degrees_(degrees) {}

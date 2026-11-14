@@ -106,7 +106,7 @@ def build(
     west = max(-180, min(longitudes) * 1e-7 - MARGIN)
     north = min(90, max(latitudes) * 1e-7 + MARGIN)
     east = min(180, max(longitudes) * 1e-7 + MARGIN)
-    # join frees the road graph: no reference is left here
+    # join() frees the road graph. Delete the views, so that nothing here keeps it
     del node_points, latitudes, longitudes
 
     mask = LandMask.from_natural_earth(

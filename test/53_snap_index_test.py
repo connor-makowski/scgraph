@@ -151,16 +151,19 @@ def _queries(nodes):
     return queries
 
 
-# Each builder returns the index, the nodes as indexed, and arrays that reuse the memory of
-# arrays it dropped
+# Each builder returns three values: the index, the nodes that the index holds, and
+# arrays of zeros. A test keeps these arrays until it ends. They may sit in the memory
+# of an array that the builder deleted.
 def _from_points(implementation, nodes):
     return implementation(nodes), nodes, None
 
 
 def _from_array(implementation, nodes, typecode="d"):
-    # As a network file is indexed: from one array of points, which the caller then drops.
-    # Same-size arrays allocated next are likely to take its memory, so an index that read
-    # the dropped array in place without keeping it would read zeros
+    # This builder indexes the nodes as scgraph indexes a network file: from one array
+    # of points. Then it deletes its own reference to the array and creates two arrays
+    # of zeros of the same size. These new arrays are likely to take the memory of the
+    # deleted array. If the index read the array in place without keeping a reference
+    # to it, the index would read zeros, and the test would fail.
     node_points = array(typecode, [value for p in nodes for value in p])
     index = implementation.from_array(node_points)
     del node_points
@@ -172,8 +175,9 @@ def _from_array(implementation, nodes, typecode="d"):
 
 
 def _from_units(implementation, nodes):
-    # As a network file stores coordinates in int32 units of 1e-7 degree: the index finds
-    # the nearest of the nodes those units stand for
+    # A network file can store coordinates as int32 integers, in units of 1e-7 degree.
+    # This builder indexes such integers. The expected answers use the same rounded
+    # coordinates, in degrees.
     units = [[round(v * 1e7) for v in p] for p in nodes]
     index, _, reused = _from_array(implementation, units, "i")
     return index, [[v / 1e7 for v in p] for p in units], reused

@@ -109,7 +109,7 @@ class SnapIndex:
             raise ValueError(
                 "node_points must hold a latitude and a longitude per node"
             )
-        # Two views of the points, one value in two: the build reads them as columns
+        # One view holds the latitudes and another the longitudes, without a copy
         latitudes, longitudes = node_points[0::2], node_points[1::2]
         if node_points.format == "i":
             # units / 1e7, the network file's division, in a loop that runs in C
