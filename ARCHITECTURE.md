@@ -116,9 +116,9 @@ Weights:     [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total arcs)
 
 * **`nodes`**: Node coordinates stored as `[latitude, longitude]` in degrees.
 * **`node_ids`**: Stable identifiers from the source dataset (e.g. OpenStreetMap 64-bit node IDs). Nodes added dynamically receive negative IDs.
-* **`node_modes`**: Optional byte array assigning each node to a transport mode (road, rail, sea, port connector).
+* **`node_modes`**: Optional byte array that gives the transport mode of each node, such as road, sea or port. Each node has one mode. The value is the position of that mode in `modes`, counted from 0.
 * **`intermediate_nodes`**: Detailed polyline shapes for edges between network nodes: `intermediate_nodes[u][v] = [[lat, lon], ...]`.
-* **Hilbert Curve Node Ordering**: Node arrays in `.scgraph` files are sorted along a 2D Hilbert curve. Nodes that are geographically close share nearby indices, maximizing CPU cache locality and bounding-box search performance.
+* **Hilbert Curve Node Ordering**: Node arrays in `.scgraph` files are sorted along a 2D Hilbert curve. A network with several modes groups its nodes by mode first, in the order of `modes`, then sorts each group along the curve. Nodes that are geographically close share nearby indices, maximizing CPU cache locality and bounding-box search performance.
 
 ### Algorithm Query Interfaces
 
@@ -392,8 +392,8 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
 | `metadata.units` | `str` | Distance units of edge weights (`km`, `m`, `mi`, `ft`). |
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. |
-| `metadata.node_order` | `str` | Spatial node sorting scheme (`"hilbert"` for 2D Hilbert space-filling curve order). |
-| `metadata.modes` | `list[dict]` | Optional transport mode definitions (`road`, `rail`, `sea`, `port`). |
+| `metadata.node_order` | `str` | How the nodes are numbered. `"hilbert"`: along a 2D Hilbert space-filling curve. With several modes, the nodes are grouped by mode first, in the order of `metadata.modes`, then numbered along the curve within each mode. A read of one mode (`load_from_scgraph(modes=...)`) relies on this order. |
+| `metadata.modes` | `list[dict]` | The transport modes of a network that has several. Each mode is a dict. The pipeline chooses its `name`. When a source gave the node ids of the mode, `source` holds the name of that source in `sources`. A network with one mode has no `modes` and no `node_modes`. |
 | `metadata.pipeline` | `dict` | Pipeline provenance: network generator name, target region, and pipeline version. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
 | `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, URLs, file digests, and data timestamps. |
@@ -415,7 +415,19 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed arc polylines. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | Interleaved latitude and longitude coordinates of interior arc points. |
 | `node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). |
-| `node_modes` *(opt)* | `uint8` | $N$ | Mode index corresponding to `metadata.modes`. |
+| `node_modes` *(opt)* | `uint8` | $N$ | The mode of each node: the position of its mode in `metadata.modes`, counted from 0. Each node has one mode, so the value is an index, not a set of bits. A file has at most 256 modes. |
+
+For example, `world_main_roads_and_marnet` has three modes:
+
+```json
+"modes": [
+  {"name": "road", "source": "roads"},
+  {"name": "port"},
+  {"name": "sea", "source": "sea"}
+]
+```
+
+Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nodes `2`. The road nodes come first, then the ports, then the sea nodes. The ports have no `source`: scgraph creates them and gives them negative ids.
 
 ### Coordinate Encoding (`int32` vs `float64`)
 
