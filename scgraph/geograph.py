@@ -257,7 +257,7 @@ class GeoGraphIO:
         Function:
 
         - Save the current geograph as a binary network file, much faster to load than graphjson
-        - The format is described in ARCHITECTURE.md, section "Network file", and in the header of each file
+        - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
         - Only the graph, the nodes, their ids and modes, their intermediate nodes and the GeoGraph defaults are saved
         - The nodes are written in Hilbert order within each mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `node_ids`
         - Coordinates that are not finite numbers raise a ValueError
@@ -280,7 +280,7 @@ class GeoGraphIO:
             - Default: True
         - `metadata`
             - Type: dict | 'auto' | None
-            - What: What the file header says about how the network was built, so that it travels with the file: the build metadata, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network file") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
+            - What: What the file header says about how the network was built, so that it travels with the file: the build metadata, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network File Format") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
             - Default: 'auto'
             - Note: Changes made to a geograph after loading are not recorded in it (its `content_sha256` changes); a merge adds the other geograph's `sources`
             - Note: A key scgraph writes itself (`crs`, `units`, `modes`, `node_order`, ...), or a mode whose `source` names no entry of `sources` (also with None), raises a ValueError

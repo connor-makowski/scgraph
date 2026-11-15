@@ -14,7 +14,7 @@ For user-facing guides and examples, see the [README](README.md) and [API Docume
 4. [Graph Reduction](#4-graph-reduction)
 5. [Adding an Algorithm](#5-adding-an-algorithm)
 6. [Caches and Invalidation](#6-caches-and-invalidation)
-7. [Network File](#7-network-file)
+7. [Network File Format](#7-network-file-format)
 
 ---
 
@@ -116,9 +116,9 @@ Weights:     [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total arcs)
 
 * **`nodes`**: Node coordinates stored as `[latitude, longitude]` in degrees.
 * **`node_ids`**: Stable identifiers from the source dataset (e.g. OpenStreetMap 64-bit node IDs). Nodes added dynamically receive negative IDs.
-* **`node_modes`**: Optional byte array assigning each node to a transport mode (road, rail, sea, port connector).
+* **`node_modes`**: Byte array that gives the transport mode of each node, such as road, sea or port. Each node has one mode. The value is the row of that mode in `modes`, counted from 0.
 * **`intermediate_nodes`**: Detailed polyline shapes for edges between network nodes: `intermediate_nodes[u][v] = [[lat, lon], ...]`.
-* **Hilbert Curve Node Ordering**: Node arrays in `.scgraph` files are sorted along a 2D Hilbert curve. Nodes that are geographically close share nearby indices, maximizing CPU cache locality and bounding-box search performance.
+* **Hilbert Curve Node Ordering**: Node arrays in `.scgraph` files are sorted along a 2D Hilbert curve. A network with several modes groups its nodes by mode first, in the order of `modes`, then sorts each group along the curve. Nodes that are geographically close share nearby indices, maximizing CPU cache locality and bounding-box search performance.
 
 ### Algorithm Query Interfaces
 
@@ -306,9 +306,11 @@ Networks built or downloaded by `scgraph` are cached on disk (default: `~/.cache
 
 ---
 
-## 7. Network File
+## 7. Network File Format
 
 The `.scgraph` binary format stores network topologies, spatial coordinates, and metadata in a single self-contained file with zero external dependencies.
+
+This section specifies `format_version` 1. A file built by `build_geograph` also records the version of scgraph that built it, in `metadata.software.scgraph`. For a released version, this section at the tag of that release is the specification that applies to the file.
 
 ### Design Principles
 
@@ -340,7 +342,6 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 ```json
 {
   "format_version": 1,
-  "spec": "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file",
   "arrays": {
     "offsets": {"dtype": "int32", "shape": [10001], "offset": 0},
     "heads": {"dtype": "int32", "shape": [25000], "offset": 40064},
@@ -386,14 +387,13 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `format_version` | `int` | Format specification version (currently `1`). |
-| `spec` | `str` | URL pointing to this specification anchor. |
+| `format_version` | `int` | Format specification version (currently `1`). See *Compatibility Between Versions* for when it changes. |
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
 | `metadata.units` | `str` | Distance units of edge weights (`km`, `m`, `mi`, `ft`). |
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. |
-| `metadata.node_order` | `str` | Spatial node sorting scheme (`"hilbert"` for 2D Hilbert space-filling curve order). |
-| `metadata.modes` | `list[dict]` | Optional transport mode definitions (`road`, `rail`, `sea`, `port`). |
+| `metadata.node_order` | `str` | How the nodes are numbered. `"hilbert"`: along a 2D Hilbert space-filling curve. With several modes, the nodes are grouped by mode first, in the order of `metadata.modes`, then numbered along the curve within each mode. A read of one mode (`load_from_scgraph(modes=...)`) relies on this order. |
+| `metadata.modes` | `list[dict]` | The transport modes of the network. Each mode is a dict. `name` gives the name of the mode. When a source gave the node ids of the mode, `source` holds the name of that source in `sources`. A network with one mode has no `node_modes`: all its nodes are in that mode. If that mode has no name, the file has no `modes`. |
 | `metadata.pipeline` | `dict` | Pipeline provenance: network generator name, target region, and pipeline version. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
 | `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, URLs, file digests, and data timestamps. |
@@ -415,10 +415,62 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed arc polylines. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | Interleaved latitude and longitude coordinates of interior arc points. |
 | `node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). |
-| `node_modes` *(opt)* | `uint8` | $N$ | Mode index corresponding to `metadata.modes`. |
+| `node_modes` *(opt)* | `uint8` | $N$ | The mode of each node: the row of its mode in `metadata.modes`, counted from 0. Each node has one mode, so the value is an index, not a set of bits. A file has at most 256 modes. |
+
+For example, `world_main_roads_and_marnet` has three modes:
+
+```json
+"modes": [
+  {"name": "road", "source": "roads"},
+  {"name": "port"},
+  {"name": "sea", "source": "sea"}
+]
+```
+
+Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nodes `2`. The road nodes come first, then the ports, then the sea nodes. The mode `port` has no `source`, because scgraph creates the port nodes and gives them negative ids.
 
 ### Coordinate Encoding (`int32` vs `float64`)
 
 `scgraph` supports two coordinate encodings:
 * **`float64`**: Full 64-bit IEEE 754 precision (exact).
 * **`int32` ($10^{-7}$ degrees)**: OpenStreetMap's fixed-point encoding (about 1.1 cm at the equator). A coordinate takes 4 bytes instead of 8.
+
+### How scgraph Reads a File
+
+The function `network_file.read` reads a network file. It makes these checks, in this order. If a check fails, it raises a `ValueError`.
+
+1. The first 8 bytes are `SCGRAPH1`.
+2. The header is inside the file. The header is valid JSON.
+3. `format_version` is `1`. scgraph reads only this version. For another version, the error message gives the version of the file.
+4. For each array that scgraph knows:
+   - the dtype is one of the dtypes that the table above allows;
+   - the offset is zero or more;
+   - the start of the array is a multiple of 64 bytes;
+   - the end of the array is inside the file.
+5. The file has all the arrays that the table does not mark *(opt)*. The file has both `shape_offsets` and `shape_points`, or neither. The arrays have the correct lengths:
+   - `offsets` has $N + 1$ values. The first value is `0`, and the last value is $M$.
+   - `weights` has $M$ values.
+   - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
+   - Each node has one point. If the file has `node_ids` or `node_modes`, each node also has one id or one mode.
+
+   The node coordinates and `shape_points` have the same dtype. If the file has `node_modes`, `metadata.modes` is a list.
+6. If `read` copies the arrays into memory, it also checks each value:
+   - the values of `offsets` do not decrease;
+   - each head is a node;
+   - the values of `shape_offsets` do not decrease;
+   - each value of `node_modes` is a row of `metadata.modes`.
+
+   `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer, without `modes`. In the C++ build, `load_from_scgraph` maps the file when it gets no `modes`. A mapped read does not check the values. The C++ graph checks the offsets and the heads when it is built.
+
+If `read` gets `modes`, it reads only the nodes of these modes. Between steps 4 and 5, it checks that each name is in `metadata.modes`, and that the values of `node_modes` do not decrease.
+
+`read` does not check the digest in bytes 8 to 39 (`content_sha256`). scgraph uses the digest as the name of a cached file, not to find a file that changed after it was written.
+
+### Compatibility Between Versions
+
+A later version of scgraph can add an optional array or a metadata key, and keep `format_version` at `1`. An earlier version that reads `format_version` 1 still reads such a file, for two reasons:
+
+- `read` ignores an array whose name it does not know.
+- `read` keeps all the keys of `metadata`, including the keys that it does not know. `GeoGraph.get_scgraph_info` returns all these keys.
+
+`format_version` changes when an earlier version of scgraph would refuse a file or read it incorrectly. Examples: a new array that the graph needs, or a new meaning for the values of an existing array.

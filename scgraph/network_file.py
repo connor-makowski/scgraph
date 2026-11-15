@@ -1,6 +1,6 @@
 """
 Read and write `.scgraph` network files (format described in ARCHITECTURE.md, "Network
-file").
+File Format").
 
 A file is an 8-byte magic `SCGRAPH1`, the SHA-256 of every byte from byte 40 on (32 bytes),
 the length of a JSON header as a little-endian uint64, the header, zeros up to a multiple of 64
@@ -33,7 +33,6 @@ except ImportError:
 
 MAGIC = b"SCGRAPH1"
 VERSION = 1
-SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file"
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # array name -> the dtypes it may have; shape_* hold the arc shapes, if any; node_ids and
@@ -173,7 +172,6 @@ def write(
 
     header = {
         "format_version": VERSION,
-        "spec": SPEC,
         "arrays": {},
         "metadata": {**metadata, "symmetric": symmetric},
     }
