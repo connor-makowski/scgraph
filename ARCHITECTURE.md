@@ -386,7 +386,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `format_version` | `int` | Format specification version (currently `1`). |
+| `format_version` | `int` | Format specification version (currently `1`). See *Rules for Readers* for when it changes. |
 | `spec` | `str` | URL pointing to this specification anchor. |
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
@@ -434,3 +434,18 @@ Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nod
 `scgraph` supports two coordinate encodings:
 * **`float64`**: Full 64-bit IEEE 754 precision (exact).
 * **`int32` ($10^{-7}$ degrees)**: OpenStreetMap's fixed-point encoding (about 1.1 cm at the equator). A coordinate takes 4 bytes instead of 8.
+
+### Rules for Readers
+
+`network_file.read` checks a file in this order. A failed check raises a `ValueError`.
+
+1. The first 8 bytes are `SCGRAPH1`.
+2. The header fits in the file, and it is valid JSON.
+3. `format_version` is `1`. scgraph reads only the version it writes: a file of another version raises a `ValueError` that names the version found.
+4. Each array that the reader knows has one of its allowed dtypes. Its offset is not negative, its start is aligned to 64 bytes, and it ends inside the file.
+5. The arrays without *(opt)* in the table above are present. `shape_offsets` and `shape_points` are present together. The counts agree: `offsets` has $N + 1$ values, from `0` to $M$, `weights` has $M$ values, and each node has one point, and one id and one mode when these arrays exist. The node coordinates and `shape_points` have the same dtype. A file with `node_modes` has a list `metadata.modes`.
+6. When the reader copies the arrays into memory, it checks each value: `offsets` never decreases, each head is a node, and each value of `node_modes` is a position in `metadata.modes`. When the C++ build maps the file instead (on a little-endian machine, without a mode filter), opening it does not read the arrays value by value. The C++ graph then checks the arcs as it reads them in place.
+
+The reader does not check `content_sha256`. The digest identifies a file: it tells two files apart, and the cache names each file by it. It does not protect a file whose bytes changed after it was written.
+
+A reader skips an array whose name it does not know, and keeps every key of `metadata`, known or not (`GeoGraph.get_scgraph_info` returns them). A later version can therefore add an optional array or a metadata key without changing `format_version`. `format_version` changes only when a reader of the previous version would misread the file.
