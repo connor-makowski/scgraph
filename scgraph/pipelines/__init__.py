@@ -57,7 +57,7 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
     at `MAX_KM`, never across two modes -> `build_chain_shapes` -> Hilbert order).
 
 `build_geograph` writes into the network file's header what built it (`build_metadata`),
-read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
+read back by `GeoGraph.get_scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
 (`name`, `url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the
 data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the `platform`
 with its C library or macOS version) and `description` (the module docstring, so `python

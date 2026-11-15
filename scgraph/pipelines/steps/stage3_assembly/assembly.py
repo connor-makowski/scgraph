@@ -726,7 +726,7 @@ def assemble(
         )
         given, graph = graph, _renumbered(graph, *order)
         given.clear()  # freed now, not when the caller lets it go: one copy at a time
-        counts["kept"] = _count_nodes_and_arcs(graph)
+        counts.update(_count_nodes_and_arcs(graph, "kept_"))
     with _log_step(
         logger, "contract the chains", _count_nodes_and_arcs(graph)
     ) as counts:
@@ -758,7 +758,7 @@ def assemble(
                 if key in graph
             },
         }
-        counts["kept"] = _count_nodes_and_arcs(graph)
+        counts.update(_count_nodes_and_arcs(graph, "kept_"))
     lats, lons = graph["latitudes"], graph["longitudes"]
     modes = graph.get("node_modes") or bytes(len(kept))
 
@@ -837,9 +837,13 @@ def _renumbered(graph, order, labels=None):
     return out
 
 
-def _count_nodes_and_arcs(graph):
-    """The number of nodes and the number of arcs of `graph`, for a log."""
-    return {"nodes": len(graph["offsets"]) - 1, "arcs": len(graph["heads"])}
+def _count_nodes_and_arcs(graph, prefix=""):
+    """The number of nodes and the number of arcs of `graph`, as the values of a log:
+    `nodes` and `arcs`, each with `prefix` before it."""
+    return {
+        f"{prefix}nodes": len(graph["offsets"]) - 1,
+        f"{prefix}arcs": len(graph["heads"]),
+    }
 
 
 python = SimpleNamespace(

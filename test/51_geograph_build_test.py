@@ -1073,6 +1073,7 @@ def test_a_port_is_joined_to_the_sea_by_the_length_of_its_path_on_water(
 
 
 def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
+    # The logger scgraph.pipelines leaves out the load that follows the build
     with caplog.at_level(logging.DEBUG, logger="scgraph.pipelines"):
         _build_coast_network(tmp_path)
 
@@ -1091,19 +1092,21 @@ def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
         "attach the ferries": {"arcs": 0},
         # The 2 ends of the sea lane, joined in both directions
         "read the sea lanes": {"nodes": 2, "arcs": 2},
-        # 2 of the 5 ports have a road and a sea connector
+        # 2 of the 5 ports are joined to the road and to the sea
         "join the ports": {"ports": 5, "joined": 2},
-        # The fragment (2 nodes, 2 arcs) is left out: 3 road nodes, 2 ports
-        # and 2 sea nodes remain
+        # The fragment of 2 nodes and 2 arcs is left out. 3 road nodes, 2 ports
+        # and 2 sea nodes remain.
         "keep the strongly connected components": {
             "nodes": 9,
             "arcs": 16,
-            "kept": {"nodes": 7, "arcs": 14},
+            "kept_nodes": 7,
+            "kept_arcs": 14,
         },
         "contract the chains": {
             "nodes": 7,
             "arcs": 14,
-            "kept": {"nodes": 7, "arcs": 14},
+            "kept_nodes": 7,
+            "kept_arcs": 14,
         },
     }
 
