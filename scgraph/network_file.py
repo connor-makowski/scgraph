@@ -33,7 +33,6 @@ except ImportError:
 
 MAGIC = b"SCGRAPH1"
 VERSION = 1
-SPEC = "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format"
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # array name -> the dtypes it may have; shape_* hold the arc shapes, if any; node_ids and
@@ -173,7 +172,6 @@ def write(
 
     header = {
         "format_version": VERSION,
-        "spec": SPEC,
         "arrays": {},
         "metadata": {**metadata, "symmetric": symmetric},
     }

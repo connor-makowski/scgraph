@@ -310,6 +310,8 @@ Networks built or downloaded by `scgraph` are cached on disk (default: `~/.cache
 
 The `.scgraph` binary format stores network topologies, spatial coordinates, and metadata in a single self-contained file with zero external dependencies.
 
+This section specifies `format_version` 1. A file records the version of scgraph that wrote it, in `metadata.software.scgraph`. For a released version, this section at the tag of that release is the specification that applies to the file.
+
 ### Design Principles
 
 1. **Zero-Copy Memory Mapping**: In the C++ backend, `.scgraph` files are mapped directly into process memory (`mmap`). Graph algorithms read CSR arcs directly from disk pages without deserialization or copying.
@@ -340,7 +342,6 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 ```json
 {
   "format_version": 1,
-  "spec": "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format",
   "arrays": {
     "offsets": {"dtype": "int32", "shape": [10001], "offset": 0},
     "heads": {"dtype": "int32", "shape": [25000], "offset": 40064},
@@ -387,7 +388,6 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `format_version` | `int` | Format specification version (currently `1`). See *Rules for Readers* for when it changes. |
-| `spec` | `str` | URL pointing to this specification anchor. |
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
 | `metadata.units` | `str` | Distance units of edge weights (`km`, `m`, `mi`, `ft`). |
