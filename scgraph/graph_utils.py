@@ -573,9 +573,9 @@ class GraphModifiers:
 
         - `IndexError`: The origin id or the destination id is not in the graph
         """
-        if origin_id >= len(self.__graph__):
+        if origin_id < 0 or origin_id >= len(self.__graph__):
             raise IndexError("Origin node id is not in the graph")
-        if destination_id >= len(self.__graph__):
+        if destination_id < 0 or destination_id >= len(self.__graph__):
             raise IndexError("Destination node id is not in the graph")
         if origin_id == destination_id:
             return
@@ -654,9 +654,9 @@ class GraphModifiers:
 
         - `IndexError`: The origin id or the destination id is not in the graph
         """
-        if origin_id >= len(self.__graph__):
+        if origin_id < 0 or origin_id >= len(self.__graph__):
             raise IndexError("Origin node id is not in the graph")
-        if destination_id >= len(self.__graph__):
+        if destination_id < 0 or destination_id >= len(self.__graph__):
             raise IndexError("Destination node id is not in the graph")
         if symmetric:
             self.__graph__[destination_id].pop(origin_id, None)
