@@ -24,8 +24,9 @@ What it does, printing each step:
      each backend the warnings, the results line (route lengths, node counts,
      failures) and the tables of benchmark.md with both versions side by side, the
      change in bold where best and median times both move by more than 15 %, ≈
-     elsewhere. Beside the C++ tables, the pure-Python tables are folded, as most
-     users run the C++ build. The raw JSON of every run stays beside it.
+     elsewhere. When the report also has the C++ tables, the pure-Python tables are
+     folded, because most users run the C++ build. The raw JSON of every run stays
+     beside it.
 
 Run the same command again to resume after Ctrl-C or a failure: finished environments
 and runs are kept. Each comparison takes about 0.15 GB: delete bench-results/ to free
@@ -333,7 +334,7 @@ def campaign(base, head, backend, folder, subset, runs):
 def report(base, head, outputs, args, folder, bench):
     """The layout of the tracking issue: header, then per backend the warnings, the
     results line and the tables of benchmark.md with both versions side by side.
-    Beside the C++ tables, the pure-Python tables are folded.
+    When the report also has the C++ tables, the pure-Python tables are folded.
     """
     first = sorted(folder.glob(f"*-{head.sha[:12]}-0.json"))[0]
     machine = json.loads(first.read_text())["environment"]
@@ -363,11 +364,11 @@ def report(base, head, outputs, args, folder, bench):
             r"^## ", "#### ", text[text.index("\n## ") :].strip(), flags=re.M
         )
         name = BACKENDS[backend][2]
-        # Most users run the C++ build: a reader must not take the pure-Python tables
-        # for the main result. Their warnings and their results line stay in view
+        # Most users run the C++ build, so a reader must not take the pure-Python tables
+        # for the main result. Their warnings and their results line stay in view.
         if backend == "python" and "cpp" in outputs:
             tables = (
-                "<details>\n<summary>Tables, folded</summary>\n\n"
+                "<details>\n<summary>Pure-Python tables</summary>\n\n"
                 f"{tables}\n\n</details>"
             )
         lines += [f"**{name}**", "", *found, "", tables, ""]
