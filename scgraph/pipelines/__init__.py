@@ -16,10 +16,9 @@ A pipeline is a module with these names:
   graph; a refactoring that leaves the graph unchanged does not raise it; it is never lowered
   once released. A cached network built with another `PIPELINE_VERSION` is built again
 - `build(files)`, or `build(files, *, work_dir=None)` to keep files between the steps of a
-  long build in the runner's work folder: given name -> downloaded file, returns a GeoGraph, `(GeoGraph,
-  steps)` or `((arrays, modes), steps)`, `steps` listing what each step did,
-  `{"step": name, <count>: int, ...}` (a network that reuses others concatenates their
-  steps). The GeoJSON and ArcGIS pipelines return a GeoGraph; the OSM pipelines the
+  long build in the runner's work folder: given name -> downloaded file, returns a GeoGraph
+  or `(arrays, modes)`. Each step logs its counts and its duration at DEBUG with
+  `utils._log_step`. The GeoJSON and ArcGIS pipelines return a GeoGraph; the OSM pipelines the
   network file's arrays as `network_file.write` takes them, nodes already in scgraph's
   order (`helpers.hilbert`, within each mode), and the `modes` table, `[{"name": None}]`
   for one mode (`assembly.assemble`), written with units km. `build_geograph` writes either and returns the GeoGraph it reads back from
@@ -58,11 +57,11 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
     at `MAX_KM`, never across two modes -> `build_chain_shapes` -> Hilbert order).
 
 `build_geograph` writes into the network file's header what built it (`build_metadata`),
-read back by `GeoGraph.scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
+read back by `GeoGraph.get_scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
 (`name`, `url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the
 data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the `platform`
-with its C library or macOS version), `description` (the module docstring, so `python
--OO`, which drops docstrings, gives another file) and `steps`. It holds no clock time (the
+with its C library or macOS version) and `description` (the module docstring, so `python
+-OO`, which drops docstrings, gives another file). It holds no clock time (the
 download time stays in the cache's `cache.json`). A cached network is built again only for
 another `PIPELINE_VERSION` or file format.
 
@@ -137,13 +136,11 @@ def build_metadata(
     version: int,
     sources: list[dict],
     description: str | None = None,
-    steps: list[dict] | None = None,
 ) -> dict:
     """The build metadata that `build_geograph` writes into a network file's header (its
     fields: this module's docstring), from plain values, without a GeoGraph: `name`,
     `region` and `version` are the pipeline's, `sources` the records of the downloaded
-    sources, `description` the pipeline's docstring and `steps` what `build` returned;
-    `software` is added.
+    sources and `description` the pipeline's docstring; `software` is added.
     """
     from scgraph.geograph import GeoGraph
 
@@ -163,7 +160,6 @@ def build_metadata(
             if description
             else {}
         ),
-        **({"steps": steps} if steps else {}),
     }
 
 

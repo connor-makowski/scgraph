@@ -29,7 +29,7 @@ def build(
     *,
     source: Callable = osm.open_osm_source,
     work_dir: str | os.PathLike | None = None,
-) -> tuple[tuple[dict, list[dict]], list[dict]]:
+) -> tuple[dict, list[dict]]:
     """Build the Europe freeway and main roads network.
 
     Args:
@@ -38,7 +38,7 @@ def build(
         work_dir: Working directory for intermediate checkpoints.
 
     Returns:
-        Tuple of ((arrays, modes), steps) describing the built network.
+        The network file's arrays and the modes table, `(arrays, modes)`, of the built network.
     """
     return osm_main_roads.build(
         files,

@@ -29,7 +29,7 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
     NearNodes,
     PieceArrays,
 )
-from scgraph.utils import has_cpp
+from scgraph.utils import _log_step, has_cpp
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
@@ -348,13 +348,13 @@ def build_way_pieces(
     required_tag_keys: tuple[str, ...],
     max_km_between_nodes: float,
     work_dir: str | os.PathLike | None = None,
-) -> tuple[PieceArrays, list[dict[str, str | int]]]:
+) -> PieceArrays:
     """The pieces (`assembly.PieceArrays`) of the ways of `source` that `way_selectors` keep
     (`locate_ways`, one read for every kind), cut at their junctions and where a piece
     reaches `max_km_between_nodes` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
     joins the road nodes nearest its two ends if both lie within FERRY_END_KM
-    (`build_ferry_arcs`). Returns `(pieces, steps)`; no way kept raises a ValueError. With a
-    `work_dir`, the node locations and the pieces are kept in files there.
+    (`build_ferry_arcs`). No way kept raises a ValueError. With a `work_dir`, the node
+    locations and the pieces are kept in files there. Each step logs its counts at DEBUG.
     """
     if work_dir:
         os.makedirs(work_dir, exist_ok=True)
@@ -385,59 +385,60 @@ def build_way_pieces(
                 Path(work_dir, marker).unlink(missing_ok=True)
             with open(inputs_file, "w") as f:
                 json.dump(inputs, f)
-        try:
-            with open(done_marker) as f:
-                steps = json.load(f)
-            return PieceArrays(work_dir=work_dir, truncate=False), steps
-        except (OSError, ValueError):
-            pass
-    junctions, ways = locate_ways(
-        source, way_selectors, required_tag_keys, work_dir=work_dir
-    )
-    pieces, ferries = PieceArrays(work_dir=work_dir), []
-    for kind, direction, vertices in ways:
-        if kind == "ferries":
-            ferries.append((direction, vertices))
-            continue
-        vertex_points = dict(vertices)
-        for origin_id, destination_id, km, way, shape in cut_polylines(
-            [(direction, vertices)], junctions, max_km_between_nodes
-        ):
-            ends = vertex_points[origin_id], vertex_points[destination_id]
-            pieces.append(origin_id, destination_id, km, way, ends, shape)
-    pieces.flush()
+        if os.path.isfile(done_marker):
+            return PieceArrays(work_dir=work_dir, truncate=False)
+    with _log_step(logger, "read and cut the ways", {}) as counts:
+        junctions, ways = locate_ways(
+            source, way_selectors, required_tag_keys, work_dir=work_dir
+        )
+        pieces, ferries = PieceArrays(work_dir=work_dir), []
+        for kind, direction, vertices in ways:
+            if kind == "ferries":
+                ferries.append((direction, vertices))
+                continue
+            vertex_points = dict(vertices)
+            for origin_id, destination_id, km, way, shape in cut_polylines(
+                [(direction, vertices)], junctions, max_km_between_nodes
+            ):
+                ends = vertex_points[origin_id], vertex_points[destination_id]
+                pieces.append(origin_id, destination_id, km, way, ends, shape)
+        pieces.flush()
+        counts["pieces"] = len(pieces.km)
     if not len(pieces.km):
         raise ValueError(
             f"No way of {source} is kept by {', '.join(way_selectors)}"
         )
-    steps = [{"step": "read", "pieces": len(pieces.km)}]
     if "ferries" in way_selectors:
-        # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
-        # piece u // 2's origin or destination (ties in nearest: the first end)
-        latitudes, longitudes = pieces.ends[0::2], pieces.ends[1::2]
-        ids = (pieces.origins, pieces.destinations)
-        near = NearNodes(latitudes, longitudes, scale=1e-7)
-        rows, ends, shapes, _ = build_graph_from_polylines(
-            ferries, junctions, math.inf
-        )
-        arcs = list(
-            build_ferry_arcs(
-                rows, ends, shapes, lambda p: near.find_nearest(p, FERRY_END_KM)
+        with _log_step(logger, "attach the ferries", {}) as counts:
+            # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
+            # piece u // 2's origin or destination (ties in nearest: the first end)
+            latitudes, longitudes = pieces.ends[0::2], pieces.ends[1::2]
+            ids = (pieces.origins, pieces.destinations)
+            near = NearNodes(latitudes, longitudes, scale=1e-7)
+            rows, ends, shapes, _ = build_graph_from_polylines(
+                ferries, junctions, math.inf
             )
-        )
-        for u, v, km, shape in arcs:
-            road = [[latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)]
-            pieces.append(
-                ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
+            arcs = list(
+                build_ferry_arcs(
+                    rows,
+                    ends,
+                    shapes,
+                    lambda p: near.find_nearest(p, FERRY_END_KM),
+                )
             )
-        steps.append({"step": "ferries", "arcs": len(arcs)})
+            for u, v, km, shape in arcs:
+                road = [
+                    [latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)
+                ]
+                pieces.append(
+                    ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
+                )
+            counts["arcs"] = len(arcs)
     if work_dir:
-        # The marker appears last and whole: it says that every piece is on disk
+        # Written after the last piece, the marker says that every piece is on disk
         pieces.flush()
-        with open(done_marker + ".part", "w") as f:
-            json.dump(steps, f)
-        os.replace(done_marker + ".part", done_marker)
-    return pieces, steps
+        Path(done_marker).write_text("done\n")
+    return pieces
 
 
 def _located_pieces(way_nodes):

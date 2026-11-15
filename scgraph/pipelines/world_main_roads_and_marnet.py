@@ -45,7 +45,7 @@ def build(
     *,
     source: Callable = osm.open_osm_source,
     work_dir: str | os.PathLike | None = None,
-) -> tuple[tuple[dict, list[dict]], list[dict]]:
+) -> tuple[dict, list[dict]]:
     """Build the world main roads and marnet intermodal network.
 
     Args:
@@ -54,7 +54,7 @@ def build(
         work_dir: Working directory for intermediate checkpoints.
 
     Returns:
-        Tuple of ((arrays, modes), steps) describing the built multimodal network.
+        The network file's arrays and the modes table, `(arrays, modes)`, of the built multimodal network.
     """
     return regional.build(
         files,

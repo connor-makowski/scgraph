@@ -1016,6 +1016,8 @@ marnet.get_shortest_path(
 - `kept_nodes` is the number of nodes left after the reduction.
 - `mapped` is true when the file is read in place, without a copy. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
 
+`build_geograph` also logs one line for each step of the OSM pipelines, with its counts and `duration_ms`. A step that removes nodes logs the counts that it received and the counts that it kept (`kept_nodes`, `kept_arcs`).
+
 A program gets the same values as a dict, in the attribute `scgraph` of each log record. The key `step` of the dict names the step. The names of the values may change between versions.
 
 ```py
