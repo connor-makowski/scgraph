@@ -705,9 +705,9 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
 
 # A file may come from another tool, or be damaged. `load_from_scgraph` must
 # refuse arrays that do not fit together, and name what is wrong. Each case
-# below replaces one array of the valid network above. The C++ build finds a
-# node mode beyond the list of modes later than pure Python, with another
-# message.
+# below replaces or adds arrays of the valid network above. The C++ build
+# finds a node mode beyond the list of modes later than pure Python, with
+# another message.
 @pytest.mark.parametrize(
     "invalid_arrays, message",
     [

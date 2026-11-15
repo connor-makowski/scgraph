@@ -66,7 +66,7 @@ static inline double degrees(int32_t units) { return units / 1e7; }
 static inline double degrees(double value) { return value; }
 
 // Returns the points of the nodes in `ids`, as a list of [latitude, longitude] in
-// degrees. One C loop builds the list, for NodeCoordinates.take. `node_points` holds the
+// degrees. One C loop builds the list, for NodePoints.take. `node_points` holds the
 // latitude, then the longitude, of each node.
 template <typename T>
 static nb::object coordinate_lists(CoordinateArray<T> node_points, nb::list ids) {
@@ -292,7 +292,7 @@ NB_MODULE(cpp, m) {
     m.def("coordinate_lists", &coordinate_lists<int32_t>, nb::arg("node_points"), nb::arg("ids"),
        "[[latitude, longitude] of node i for i in ids] in one C loop, from the points of the nodes "
        "(latitude then longitude of each node, int32 in 1e-7 degree or float64 degrees) and a list of "
-       "ids (negative ids count from the end); a route's coordinates for NodeCoordinates.take");
+       "ids (negative ids count from the end); a route's coordinates for NodePoints.take");
 
     m.def("shape_path", &shape_path<double>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));

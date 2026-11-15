@@ -38,12 +38,13 @@ HOW A POLYLINE IS CUT
     The nodes are the vertices 1, 2, 4, 5 and 6. Vertex 3 is a shape point.
 
 HOW THE PIECES BECOME A GRAPH
-    1. A piece of a two-way polyline gives an arc in each direction. A piece of a one-way
+    1. A piece that starts and ends at the same node is dropped. Such an arc is never
+       part of a shortest path.
+    2. A piece of a two-way polyline gives an arc in each direction. A piece of a one-way
        polyline gives one arc. The reverse arc has the shape points in reverse order.
-    2. The graph keeps one arc from a node to another node: the shortest one. Among arcs
-       of equal length, it keeps the first one. A piece that starts and ends at the same
-       node is dropped. Such an arc is never part of a shortest path.
-    3. Each node gets an "index": its position in the lists that describe the graph,
+    3. The graph keeps one arc from a node to another node: the shortest one. Among arcs
+       of equal length, it keeps the first one.
+    4. Each node gets an "index": its position in the lists that describe the graph,
        from 0. The indexes follow a Hilbert curve (`scgraph.helpers.hilbert`). Nodes
        that are close on the globe then get close indexes. `SnapIndex`, which finds the
        node nearest to a point, needs this order. Two nodes at the same position on the
@@ -131,12 +132,12 @@ def build_graph_from_polylines(
         for origin_id, destination_id, km, direction, shape in cut_polylines(
             [polyline], junctions, max_km_between_nodes
         ):
-            # 2. Drop a loop
+            # 1. Drop a loop
             if origin_id == destination_id:
                 continue
             points[origin_id] = vertex_points[origin_id]
             points[destination_id] = vertex_points[destination_id]
-            # 1. One arc for each direction of travel. 2. Keep the shortest.
+            # 2. One arc for each direction of travel. 3. Keep the shortest.
             if direction >= 0:
                 _keep_shortest(arcs, (origin_id, destination_id), km, shape)
             if direction <= 0:
@@ -144,7 +145,7 @@ def build_graph_from_polylines(
                     arcs, (destination_id, origin_id), km, shape[::-1]
                 )
 
-    # 3. Give each node its index, along the Hilbert curve
+    # 4. Give each node its index, along the Hilbert curve
     node_ids = sorted(
         points,
         key=lambda node_id: (

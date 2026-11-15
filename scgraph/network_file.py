@@ -377,7 +377,7 @@ def _select(filename, file, entries, metadata, modes):
     for name in ("node_ids", "node_modes"):
         if name in entries and entries[name][2] != n:
             raise ValueError(f"{filename}: one {name} value per node expected")
-    if entries["node_points"][2] != 2 * n:
+    if "node_points" not in entries or entries["node_points"][2] != 2 * n:
         raise ValueError(f"{filename}: one point per node expected")
     # Without node_modes, every node is in the first mode
     column = bytes(max(n, 0))
@@ -587,7 +587,7 @@ class NodeIds(Sequence):
             return result
 
 
-class NodeCoordinates(MutableSequence):
+class NodePoints(MutableSequence):
     """
     The `nodes` of a GeoGraph read from a network file: a list of [latitude, longitude],
     read from the file's points instead of one Python list per node, then the nodes
@@ -662,7 +662,7 @@ class NodeCoordinates(MutableSequence):
         yield from self._added
 
     def __eq__(self, other):
-        if not isinstance(other, (list, NodeCoordinates)):
+        if not isinstance(other, (list, NodePoints)):
             return NotImplemented
         return len(self) == len(other) and all(map(eq, self, other))
 

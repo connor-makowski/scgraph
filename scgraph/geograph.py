@@ -93,10 +93,10 @@ class GeoGraphIO:
         destination = self.nodes[destination_idx]
         if sequence == "lon_lat":
             coordinates = [[origin[1], origin[0]]]
-            final_point = [destination[1], destination[0]]
+            final_pair = [destination[1], destination[0]]
         else:
             coordinates = [origin]
-            final_point = destination
+            final_pair = destination
 
         if self.intermediate_nodes is not None and save_intermediate_nodes:
             coordinates.extend(
@@ -106,7 +106,7 @@ class GeoGraphIO:
                     sequence=sequence,
                 )
             )
-        coordinates.append(final_point)
+        coordinates.append(final_pair)
         return coordinates
 
     # Save Methods
@@ -468,10 +468,10 @@ class GeoGraphIO:
                 )
             )
         if max_km_between_nodes is not None:
-            # Each vertex: its id, the (longitude, latitude) tuple of the file, and its
-            # point
+            # A vertex is (id, point). Its id is its (longitude, latitude) tuple in the
+            # file, so that the vertices at one place are one vertex.
             lines = [
-                [(tuple(point), [point[1], point[0]]) for point in line]
+                [(tuple(lon_lat), [lon_lat[1], lon_lat[0]]) for lon_lat in line]
                 for line in simplify_geojson(
                     filename_in=filename,
                     precision=precision,
@@ -479,9 +479,11 @@ class GeoGraphIO:
                     min_points=min_points,
                 )
             ]
-            uses = Counter(point for line in lines for point, _ in line)
-            junctions = {point for point, count in uses.items() if count > 1}
-            # The id of a vertex is its position in the file
+            uses = Counter(vertex_id for line in lines for vertex_id, _ in line)
+            junctions = {
+                vertex_id for vertex_id, count in uses.items() if count > 1
+            }
+            # A GeoGraph numbers its nodes by index, so the node ids are dropped
             graph, nodes, shapes, _ = build_graph_from_polylines(
                 ((0, line) for line in lines), junctions, max_km_between_nodes
             )
@@ -803,7 +805,7 @@ class GeoGraphIO:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
             graph=graph,
-            nodes=network_file.NodeCoordinates(arrays["node_points"]),
+            nodes=network_file.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
                 network_file.ArcShapes(arrays)
                 if "shape_offsets" in arrays
@@ -1519,10 +1521,10 @@ class GeoGraphIO:
             if load_intermediate_nodes and "geometry" in data:
                 intermediate_nodes[i][j] = [
                     [
-                        round(point[1], coord_precision),
-                        round(point[0], coord_precision),
+                        round(lon_lat[1], coord_precision),
+                        round(lon_lat[0], coord_precision),
                     ]
-                    for point in data["geometry"].coords
+                    for lon_lat in data["geometry"].coords
                 ]
             elif load_intermediate_nodes:
                 intermediate_nodes[i].pop(j, None)
@@ -2507,7 +2509,7 @@ class GeoGraphUtils:
         nodes = self.nodes
         coordinates = (
             nodes.take(path)
-            if isinstance(nodes, network_file.NodeCoordinates)
+            if isinstance(nodes, network_file.NodePoints)
             else [nodes[node_id] for node_id in path]
         )
         if (
@@ -2905,7 +2907,7 @@ class GeoGraph(
         try:
             return (
                 SnapIndex.from_array(nodes.points())
-                if isinstance(nodes, network_file.NodeCoordinates)
+                if isinstance(nodes, network_file.NodePoints)
                 else SnapIndex(nodes)
             )
         except NodeOrderError:
@@ -2997,7 +2999,7 @@ class GeoGraph(
         - None
         """
         assert isinstance(
-            self.nodes, (list, network_file.NodeCoordinates)
+            self.nodes, (list, network_file.NodePoints)
         ), "Your nodes must be a list"
         assert all(
             [isinstance(i, list) for i in self.nodes]

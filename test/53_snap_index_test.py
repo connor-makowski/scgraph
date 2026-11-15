@@ -236,7 +236,7 @@ def test_snap_index_gives_the_node_on_the_same_side_of_the_antimeridian(
 
 
 @both_snap_index_classes
-def test_snap_index_reads_a_latitude_and_a_longitude_per_node(implementation):
+def test_snap_index_refuses_an_odd_number_of_coordinates(implementation):
     with pytest.raises(ValueError):
         implementation.from_array(array("d", [0.0, 0.0, 1.0]))
 
