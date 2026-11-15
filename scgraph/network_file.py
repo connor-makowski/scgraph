@@ -1,6 +1,6 @@
 """
 Read and write `.scgraph` network files (format described in ARCHITECTURE.md, "Network
-file").
+File Format").
 
 A file is an 8-byte magic `SCGRAPH1`, the SHA-256 of every byte from byte 40 on (32 bytes),
 the length of a JSON header as a little-endian uint64, the header, zeros up to a multiple of 64
