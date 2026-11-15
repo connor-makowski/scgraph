@@ -11,7 +11,7 @@ from scgraph.utils import (
     radians_per_degree,
 )
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
-from scgraph.helpers.polylines import polylines_to_graph
+from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph import network_file
 import hashlib
@@ -93,10 +93,10 @@ class GeoGraphIO:
         destination = self.nodes[destination_idx]
         if sequence == "lon_lat":
             coordinates = [[origin[1], origin[0]]]
-            final_coordinate = [destination[1], destination[0]]
+            final_pair = [destination[1], destination[0]]
         else:
             coordinates = [origin]
-            final_coordinate = destination
+            final_pair = destination
 
         if self.intermediate_nodes is not None and save_intermediate_nodes:
             coordinates.extend(
@@ -106,7 +106,7 @@ class GeoGraphIO:
                     sequence=sequence,
                 )
             )
-        coordinates.append(final_coordinate)
+        coordinates.append(final_pair)
         return coordinates
 
     # Save Methods
@@ -257,7 +257,7 @@ class GeoGraphIO:
         Function:
 
         - Save the current geograph as a binary network file, much faster to load than graphjson
-        - The format is described in ARCHITECTURE.md, section "Network file", and in the header of each file
+        - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
         - Only the graph, the nodes, their ids and modes, their intermediate nodes and the GeoGraph defaults are saved
         - The nodes are written in Hilbert order within each mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `node_ids`
         - Coordinates that are not finite numbers raise a ValueError
@@ -280,7 +280,7 @@ class GeoGraphIO:
             - Default: True
         - `metadata`
             - Type: dict | 'auto' | None
-            - What: What the file header says about how the network was built, so that it travels with the file: the build metadata, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network file") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
+            - What: What the file header says about how the network was built, so that it travels with the file: the build metadata, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network File Format") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
             - Default: 'auto'
             - Note: Changes made to a geograph after loading are not recorded in it (its `content_sha256` changes); a merge adds the other geograph's `sources`
             - Note: A key scgraph writes itself (`crs`, `units`, `modes`, `node_order`, ...), or a mode whose `source` names no entry of `sources` (also with None), raises a ValueError
@@ -343,8 +343,7 @@ class GeoGraphIO:
             "heads": heads,
             "weights": weights,
         }
-        latitudes = array("d", (nodes[i][0] for i in old))
-        longitudes = array("d", (nodes[i][1] for i in old))
+        node_points = array("d", (value for i in old for value in nodes[i][:2]))
         # None: each node's id is its position
         node_ids = self.node_ids.array(order)
         if node_ids is not None:
@@ -369,15 +368,15 @@ class GeoGraphIO:
                         points.append(longitude)
                     starts.append(len(points) // 2)
             arrays["shape_offsets"] = starts
-        columns = [latitudes, longitudes] + (
-            [points] if shapes is not None else []
-        )
+        point_arrays = [node_points] + ([points] if shapes is not None else [])
         if coordinate_dtype == "auto":
             coordinate_dtype = self.coordinate_dtype
         arrays.update(
             zip(
-                network_file.COORDINATES,
-                network_file.extract_coordinates(columns, coordinate_dtype),
+                network_file.POINT_ARRAYS,
+                network_file.extract_coordinates(
+                    point_arrays, coordinate_dtype
+                ),
             )
         )
         return network_file.write(filename, arrays, metadata=metadata)
@@ -469,10 +468,10 @@ class GeoGraphIO:
                 )
             )
         if max_km_between_nodes is not None:
-            # Each point: its id, the (longitude, latitude) tuple of the file, and its
-            # [latitude, longitude] location
+            # A vertex is (id, point). Its id is its (longitude, latitude) tuple in the
+            # file, so that the vertices at one place are one vertex.
             lines = [
-                [(tuple(point), [point[1], point[0]]) for point in line]
+                [(tuple(lon_lat), [lon_lat[1], lon_lat[0]]) for lon_lat in line]
                 for line in simplify_geojson(
                     filename_in=filename,
                     precision=precision,
@@ -480,10 +479,12 @@ class GeoGraphIO:
                     min_points=min_points,
                 )
             ]
-            uses = Counter(point for line in lines for point, _ in line)
-            junctions = {point for point, count in uses.items() if count > 1}
-            # Points are identified by their coordinates: the nodes keep positions as ids
-            graph, nodes, shapes, _ = polylines_to_graph(
+            uses = Counter(vertex_id for line in lines for vertex_id, _ in line)
+            junctions = {
+                vertex_id for vertex_id, count in uses.items() if count > 1
+            }
+            # A GeoGraph numbers its nodes by index, so the node ids are dropped
+            graph, nodes, shapes, _ = build_graph_from_polylines(
                 ((0, line) for line in lines), junctions, max_km_between_nodes
             )
             geograph = GeoGraph(
@@ -794,7 +795,7 @@ class GeoGraphIO:
             {"file": filename, "mapped": mapped},
         ) as indicators:
             arrays, metadata = network_file.read(filename, mapped, modes)
-            indicators["nodes"] = len(arrays["latitudes"])
+            indicators["nodes"] = len(arrays["node_points"]) // 2
             indicators["arcs"] = len(arrays["heads"])
         try:
             graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
@@ -804,9 +805,7 @@ class GeoGraphIO:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
             graph=graph,
-            nodes=network_file.NodeCoordinates(
-                arrays["latitudes"], arrays["longitudes"]
-            ),
+            nodes=network_file.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
                 network_file.ArcShapes(arrays)
                 if "shape_offsets" in arrays
@@ -1522,10 +1521,10 @@ class GeoGraphIO:
             if load_intermediate_nodes and "geometry" in data:
                 intermediate_nodes[i][j] = [
                     [
-                        round(coord[1], coord_precision),
-                        round(coord[0], coord_precision),
+                        round(lon_lat[1], coord_precision),
+                        round(lon_lat[0], coord_precision),
                     ]
-                    for coord in data["geometry"].coords
+                    for lon_lat in data["geometry"].coords
                 ]
             elif load_intermediate_nodes:
                 intermediate_nodes[i].pop(j, None)
@@ -2445,7 +2444,7 @@ class GeoGraphUtils:
             ], f"Invalid sequence provided ({sequence}), valid options are: ['lat_lon', 'lon_lat']"
             out = self.intermediate_nodes[origin_idx].get(destination_idx, [])
             if sequence == "lon_lat":
-                out = [[coord[1], coord[0]] for coord in out]
+                out = [[point[1], point[0]] for point in out]
             return out
         else:
             return []
@@ -2462,7 +2461,7 @@ class GeoGraphUtils:
 
         - `coordinate_path`
             - Type: list of lists
-            - What: A list of lists where each sublist is a coordinate [latitude, longitude]
+            - What: A list of lists where each sublist is a point [latitude, longitude]
         - `output_format`
             - Type: str
             - What: The format to return the coordinates in
@@ -2510,7 +2509,7 @@ class GeoGraphUtils:
         nodes = self.nodes
         coordinates = (
             nodes.take(path)
-            if isinstance(nodes, network_file.NodeCoordinates)
+            if isinstance(nodes, network_file.NodePoints)
             else [nodes[node_id] for node_id in path]
         )
         if (
@@ -2907,8 +2906,8 @@ class GeoGraph(
         nodes = self.nodes
         try:
             return (
-                SnapIndex.from_arrays(*nodes.arrays())
-                if isinstance(nodes, network_file.NodeCoordinates)
+                SnapIndex.from_array(nodes.points())
+                if isinstance(nodes, network_file.NodePoints)
                 else SnapIndex(nodes)
             )
         except NodeOrderError:
@@ -3000,7 +2999,7 @@ class GeoGraph(
         - None
         """
         assert isinstance(
-            self.nodes, (list, network_file.NodeCoordinates)
+            self.nodes, (list, network_file.NodePoints)
         ), "Your nodes must be a list"
         assert all(
             [isinstance(i, list) for i in self.nodes]
@@ -3148,7 +3147,7 @@ class GeoGraph(
                 - 'cached_shortest_path' -> GraphAlgorithms.cached_shortest_path
                     - Computes and caches the full shortest path tree from the origin on the first call;
                       subsequent calls from the same origin node are near-instant
-                    - Only the origin graph node is cached (not the off-graph origin coordinate)
+                    - Only the origin graph node is cached (not the off-graph origin point)
                     - Note: Requires that both node_addition_type and destination_node_addition_type are 'kdclosest'
                 - 'contraction_hierarchy' -> GraphAlgorithms.contraction_hierarchy
                     - Bidirectional Dijkstra on a preprocessed Contraction Hierarchy graph

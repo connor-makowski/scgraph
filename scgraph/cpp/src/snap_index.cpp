@@ -208,9 +208,8 @@ struct SnapIndex::Visit {
     }
 };
 
-SnapIndex::SnapIndex(Coordinates latitudes, Coordinates longitudes, int node_count,
-                     std::shared_ptr<const void> owner)
-    : latitudes_(latitudes), longitudes_(longitudes), owner_(std::move(owner)) {
+SnapIndex::SnapIndex(Points points, int node_count, std::shared_ptr<const void> owner)
+    : points_(points), owner_(std::move(owner)) {
     static_assert(LEAF % 4 == 0 && LEAF <= 32 && FANOUT % 4 == 0,
                   "a leaf is read 4 slots at a time, and a set of its slots is 32 bits");
     if (node_count < 1) throw std::invalid_argument("a snapping index needs at least one node");
@@ -240,7 +239,7 @@ SnapIndex::SnapIndex(Coordinates latitudes, Coordinates longitudes, int node_cou
                 leaves_[leaf].x[slot] = leaves_[leaf].y[slot] = leaves_[leaf].z[slot] = UNUSED;
                 continue;
             }
-            const double latitude = latitudes_[node], longitude = longitudes_[node];
+            const double latitude = points_.latitude(node), longitude = points_.longitude(node);
             if (!std::isfinite(latitude) || !std::isfinite(longitude))
                 throw std::invalid_argument("node coordinates must be finite numbers");
             const UnitVector u = to_unit_vector(latitude, longitude);
@@ -411,7 +410,7 @@ void SnapIndex::scan_leaf(int leaf, const Query& query, Nearest& nearest) const 
 int SnapIndex::confirm_nearest(const Query& query, const Nearest& nearest) const {
     auto exact = [&](int node) {
         return squared_chord(query.unit_vector,
-                             to_unit_vector(latitudes_[node], longitudes_[node]));
+                             to_unit_vector(points_.latitude(node), points_.longitude(node)));
     };
     // With one candidate, the usual case, no distance is computed in double
     int only_candidate = -1, found = -1;
@@ -546,8 +545,8 @@ void SnapIndex::scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Que
         auto consider = [&](int slot) {
             const int node = leaf * LEAF + slot;
             const int quadrants =
-                quadrants_of_node(latitudes_[node], longitudes_[node], query.latitude,
-                                  query.longitude);
+                quadrants_of_node(points_.latitude(node), points_.longitude(node),
+                                  query.latitude, query.longitude);
             if (!(quadrants >> t & 1)) return;
             if (squared_chords[slot] < quadrant_nearest.best)
                 quadrant_nearest.improve(squared_chords[slot]);

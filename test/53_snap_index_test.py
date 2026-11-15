@@ -151,27 +151,35 @@ def _queries(nodes):
     return queries
 
 
-# Each builder returns the index, the nodes as indexed, and arrays that reuse the memory of
-# arrays it dropped
+# Each builder returns three values: the index, the nodes that the index holds, and
+# arrays of zeros. A test keeps these arrays until it ends. They may sit in the memory
+# of an array that the builder deleted.
 def _from_points(implementation, nodes):
     return implementation(nodes), nodes, None
 
 
-def _from_arrays(implementation, nodes, typecode="d"):
-    # As a network file is indexed: from two arrays, which the caller then drops. Same-size
-    # arrays allocated next are likely to take their memory, so an index that read the
-    # dropped arrays in place without keeping them would read zeros
-    columns = [array(typecode, [p[c] for p in nodes]) for c in (0, 1)]
-    index = implementation.from_arrays(*columns)
-    del columns
-    return index, nodes, [array(typecode, [0]) * len(nodes) for _ in range(4)]
+def _from_array(implementation, nodes, typecode="d"):
+    # This builder indexes the nodes as scgraph indexes a network file: from one array
+    # of points. Then it deletes its own reference to the array and creates two arrays
+    # of zeros of the same size. These new arrays are likely to take the memory of the
+    # deleted array. If the index read the array in place without keeping a reference
+    # to it, the index would read zeros, and the test would fail.
+    node_points = array(typecode, [value for p in nodes for value in p])
+    index = implementation.from_array(node_points)
+    del node_points
+    return (
+        index,
+        nodes,
+        [array(typecode, [0]) * (2 * len(nodes)) for _ in range(2)],
+    )
 
 
 def _from_units(implementation, nodes):
-    # As a network file stores coordinates in int32 units of 1e-7 degree: the index finds
-    # the nearest of the nodes those units stand for
+    # A network file can store coordinates as int32 integers, in units of 1e-7 degree.
+    # This builder indexes such integers. The expected answers use the same rounded
+    # coordinates, in degrees.
     units = [[round(v * 1e7) for v in p] for p in nodes]
-    index, _, reused = _from_arrays(implementation, units, "i")
+    index, _, reused = _from_array(implementation, units, "i")
     return index, [[v / 1e7 for v in p] for p in units], reused
 
 
@@ -191,7 +199,7 @@ def _check_answers(nodes, index):
 @pytest.mark.parametrize(
     "network", [n for n in _networks() if n not in SCATTERED]
 )
-@pytest.mark.parametrize("builder", [_from_points, _from_arrays, _from_units])
+@pytest.mark.parametrize("builder", [_from_points, _from_array, _from_units])
 def test_snap_index_finds_the_nearest_node(implementation, network, builder):
     index, nodes, _reused = builder(implementation, _networks()[network])
     _check_answers(nodes, index)
@@ -199,7 +207,7 @@ def test_snap_index_finds_the_nearest_node(implementation, network, builder):
 
 # The ordered network has two nodes at (10, 20).
 @both_snap_index_classes
-@pytest.mark.parametrize("builder", [_from_points, _from_arrays, _from_units])
+@pytest.mark.parametrize("builder", [_from_points, _from_array, _from_units])
 def test_snap_index_gives_the_lowest_id_of_nodes_at_the_same_place(
     implementation, builder
 ):
@@ -217,7 +225,7 @@ def test_snap_index_gives_the_lowest_id_of_nodes_at_the_same_place(
 # such a pair, with no arc between the two nodes. A point snaps to the node
 # whose longitude has its sign.
 @both_snap_index_classes
-@pytest.mark.parametrize("builder", [_from_points, _from_arrays, _from_units])
+@pytest.mark.parametrize("builder", [_from_points, _from_array, _from_units])
 def test_snap_index_gives_the_node_on_the_same_side_of_the_antimeridian(
     implementation, builder
 ):
@@ -228,9 +236,9 @@ def test_snap_index_gives_the_node_on_the_same_side_of_the_antimeridian(
 
 
 @both_snap_index_classes
-def test_snap_index_reads_two_arrays_of_one_dtype(implementation):
-    with pytest.raises(TypeError):
-        implementation.from_arrays(array("i", [0]), array("d", [0.0]))
+def test_snap_index_refuses_an_odd_number_of_coordinates(implementation):
+    with pytest.raises(ValueError):
+        implementation.from_array(array("d", [0.0, 0.0, 1.0]))
 
 
 @both_snap_index_classes

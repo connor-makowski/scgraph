@@ -494,19 +494,22 @@ def simplify_shapes(
 
 class NearNodes:
     """
-    The nodes near a point, from their coordinates (`lats`, `lons`: sequences of degrees
+    The nodes near a point, from their coordinates (`latitudes`, `longitudes`: sequences of degrees
     once multiplied by `scale`, such as int32 at 1e-7 degree at the scale of the planet),
     without a Python object per node: node indices by rows of 0.2 degree of latitude,
     each sorted by longitude and searched by bisection.
     """
 
-    def __init__(self, lats, lons, scale=1):
-        self.lats, self.lons, self.rows, self.scale = lats, lons, {}, scale
-        for i, lat in enumerate(lats):
+    def __init__(self, latitudes, longitudes, scale=1):
+        self.latitudes, self.longitudes = latitudes, longitudes
+        self.rows, self.scale = {}, scale
+        for i, lat in enumerate(latitudes):
             row = math.floor(lat * scale / 0.2)
             self.rows.setdefault(row, array("i")).append(i)
         for row, nodes in self.rows.items():
-            self.rows[row] = array("i", sorted(nodes, key=lons.__getitem__))
+            self.rows[row] = array(
+                "i", sorted(nodes, key=longitudes.__getitem__)
+            )
 
     def find_within(
         self, point: Sequence[float], km: float
@@ -521,10 +524,11 @@ class NearNodes:
             spans = [(lon - dlon, lon + dlon)]
             spans += [(w + 360, e + 360) for w, e in spans if w < -180]
             spans += [(w - 360, e - 360) for w, e in spans[:1] if e > 180]
-        lats, lons, scale = self.lats, self.lons, self.scale
+        latitudes, longitudes = self.latitudes, self.longitudes
+        scale = self.scale
 
         def key(i):
-            return lons[i] * scale  # degrees (x * 1 == x)
+            return longitudes[i] * scale  # degrees (x * 1 == x)
 
         for row in range(
             math.floor((lat - dlat) / 0.2), math.floor((lat + dlat) / 0.2) + 1
@@ -535,7 +539,9 @@ class NearNodes:
                     nodes, east, key=key
                 )
                 for i in nodes[lo:hi]:
-                    d = haversine(point, [lats[i] * scale, lons[i] * scale])
+                    d = haversine(
+                        point, [latitudes[i] * scale, longitudes[i] * scale]
+                    )
                     if d <= km:
                         yield d, i
 
@@ -657,7 +663,7 @@ def build_graph_from_pieces(
 
     Returns:
         dict[str, array]: CSR network representation containing offsets, heads,
-            weights, latitudes, longitudes, shape_offsets, shape_points, node_ids.
+            weights, node_points, shape_offsets, shape_points, node_ids.
     """
     pieces.flush()
     piece, back = array("i"), array("b")
@@ -673,15 +679,18 @@ def build_graph_from_pieces(
     )
     if not len(node_ids):
         raise ValueError("The pieces join no two points: every one is a loop")
-    lats, lons = (array("i", bytes(4 * len(node_ids))) for _ in "xy")
+    node_points = array("i", bytes(8 * len(node_ids)))
     points, shape_offsets = array("i"), array("i", [0])
     for u in range(len(node_ids)):
         for a in range(offsets[u], offsets[u + 1]):
             i, b = piece[kept[a]], back[kept[a]]
             e = pieces.ends[4 * i : 4 * i + 4]
-            lats[u], lons[u], lats[heads[a]], lons[heads[a]] = (
-                (e[2], e[3], e[0], e[1]) if b else e
-            )
+            # e holds the points of the two ends of the piece, in the order of the
+            # piece. For an arc that goes against the piece, the ends swap.
+            origin, destination = (e[2:], e[:2]) if b else (e[:2], e[2:])
+            v = heads[a]
+            node_points[2 * u], node_points[2 * u + 1] = origin
+            node_points[2 * v], node_points[2 * v + 1] = destination
             first, last = pieces.offsets[i], pieces.offsets[i + 1]
             line = array("i", pieces.points[2 * first : 2 * last])
             if b:  # its points from the destination
@@ -692,8 +701,7 @@ def build_graph_from_pieces(
         "offsets": offsets,
         "heads": heads,
         "weights": weights,
-        "latitudes": lats,
-        "longitudes": lons,
+        "node_points": node_points,
         "shape_offsets": shape_offsets,
         "shape_points": points,
         "node_ids": node_ids,
@@ -752,18 +760,15 @@ def assemble(
             "weights": weights,
             "shape_offsets": shape_offsets,
             "shape_points": points,
-            **{
-                key: array(_TYPES[key], (graph[key][u] for u in kept))
-                for key in _TYPES
-                if key in graph
-            },
+            **_select_nodes(graph, kept),
         }
         counts.update(_count_nodes_and_arcs(graph, "kept_"))
-    lats, lons = graph["latitudes"], graph["longitudes"]
+    node_points = memoryview(graph["node_points"])
+    latitudes, longitudes = node_points[0::2], node_points[1::2]
     modes = graph.get("node_modes") or bytes(len(kept))
 
     def key(u):  # mode, Hilbert key (below 4^CURVE_ORDER), index: one int
-        curve = hilbert_key(lats[u] * 1e-7, lons[u] * 1e-7)
+        curve = hilbert_key(latitudes[u] * 1e-7, longitudes[u] * 1e-7)
         return (modes[u] << 2 * CURVE_ORDER | curve) << 32 | u
 
     # One int per node, not a list; the sorted ints are freed before _renumbered
@@ -780,7 +785,7 @@ def build_chain_shapes(
     """The shapes of the arcs that `contract_chains` gives for `graph`, as `(points,
     offsets)` in its layout: the shapes of each arc's members in travel order, each
     followed by the node it ends at, except the last."""
-    heads, lats, lons = graph["heads"], graph["latitudes"], graph["longitudes"]
+    heads, node_points = graph["heads"], graph["node_points"]
     starts, line = graph["shape_offsets"], graph["shape_points"]
     points, offsets = array("i"), array("i", [0])
     for i in range(len(member_offsets) - 1):
@@ -788,19 +793,32 @@ def build_chain_shapes(
         for k, a in enumerate(chain):
             if k:
                 node = heads[chain[k - 1]]
-                points.extend((lats[node], lons[node]))
+                points.extend(node_points[2 * node : 2 * node + 2])
             points.extend(line[2 * starts[a] : 2 * starts[a + 1]])
         offsets.append(len(points) // 2)
     return points, offsets
 
 
-# Node columns and their types
-_TYPES = {
-    "latitudes": "i",
-    "longitudes": "i",
-    "node_ids": "q",
-    "node_modes": "B",
-}
+def _select_nodes(graph, nodes):
+    """Copy the arrays of `graph` that describe the nodes, for the nodes listed in
+    `nodes` only. Node `nodes[i]` becomes node `i`.
+
+    The arrays are `node_points`, then `node_ids` and `node_modes` if `graph` has
+    them. The network file writes the arrays in the order of the returned dict. This
+    order is fixed, so every run writes the same file.
+    """
+    # One view holds the latitudes and another the longitudes, without a copy.
+    # Reading a value from a view is as fast as reading it from an array.
+    node_points = memoryview(graph["node_points"])
+    latitudes, longitudes = node_points[0::2], node_points[1::2]
+    points = array("i", bytes(8 * len(nodes)))
+    points[0::2] = array("i", (latitudes[u] for u in nodes))
+    points[1::2] = array("i", (longitudes[u] for u in nodes))
+    selected = {"node_points": points}
+    for key, typecode in (("node_ids", "q"), ("node_modes", "B")):
+        if key in graph:
+            selected[key] = array(typecode, (graph[key][u] for u in nodes))
+    return selected
 
 
 def _renumbered(graph, order, labels=None):
@@ -831,10 +849,7 @@ def _renumbered(graph, order, labels=None):
                 )
                 out["shape_offsets"].append(len(out["shape_points"]) // 2)
         out["offsets"].append(len(out["heads"]))
-    for key in _TYPES:  # in this order: the same file at every run
-        if key in graph:
-            out[key] = array(_TYPES[key], (graph[key][u] for u in order))
-    return out
+    return {**out, **_select_nodes(graph, order)}
 
 
 def _count_nodes_and_arcs(graph, prefix=""):

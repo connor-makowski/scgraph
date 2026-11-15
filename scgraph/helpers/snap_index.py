@@ -87,10 +87,10 @@ class SnapIndex:
     Nearest node of a point on the sphere (exact, ties to the lowest id).
 
     - `SnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
-    - `SnapIndex.from_arrays(latitudes, longitudes)`: the same, from two arrays of the same
-      dtype, float64 degrees, which the index keeps (leave them unchanged), or int32 units
-      of 1e-7 degree as network files may store them, decoded here into a float64 copy
-      (the C++ index reads them in place)
+    - `SnapIndex.from_array(node_points)`: the same, from one array that holds the latitude
+      then the longitude of each node, as network files store them: float64 degrees, which
+      the index keeps (leave them unchanged), or int32 units of 1e-7 degree, decoded here
+      into a float64 copy (the C++ index reads them in place)
     - The nodes must keep nearby nodes together, as a Hilbert curve does: a scattered order
       raises NodeOrderError, whose message says how to sort and map the answers back
     - `closest_idx(point)`: id of the point nearest to `point`
@@ -101,48 +101,45 @@ class SnapIndex:
     """
 
     @classmethod
-    def from_arrays(
-        cls, latitudes: array | memoryview, longitudes: array | memoryview
-    ) -> "SnapIndex":
-        dtypes = {
-            memoryview(values).format for values in (latitudes, longitudes)
-        }
-        if dtypes not in ({"d"}, {"i"}):
-            raise TypeError(
-                "latitudes and longitudes must both be float64 or both int32"
+    def from_array(cls, node_points: array | memoryview) -> "SnapIndex":
+        node_points = memoryview(node_points)
+        if node_points.format not in ("d", "i"):
+            raise TypeError("node_points must hold float64 or int32 values")
+        if len(node_points) % 2:
+            raise ValueError(
+                "node_points must hold a latitude and a longitude per node"
             )
-        if dtypes == {"i"}:
+        # One view holds the latitudes and another the longitudes, without a copy
+        latitudes, longitudes = node_points[0::2], node_points[1::2]
+        if node_points.format == "i":
             # units / 1e7, the network file's division, in a loop that runs in C
             latitudes, longitudes = (
                 array("d", map((1e7).__rtruediv__, values))
                 for values in (latitudes, longitudes)
-            )
-        if len(latitudes) != len(longitudes):
-            raise ValueError(
-                "latitudes and longitudes must have the same length"
             )
         index = cls.__new__(cls)
         index._build(latitudes, longitudes)
         return index
 
     def __init__(self, points):
-        lat = array("d", [p[0] for p in points])
-        self._build(lat, array("d", [p[1] for p in points]))
+        latitudes = array("d", [p[0] for p in points])
+        self._build(latitudes, array("d", [p[1] for p in points]))
 
-    def _build(self, lat, lon):
+    def _build(self, latitudes, longitudes):
         # Columns of float64 arrays, not lists of floats: 8 bytes per value instead of 32,
         # and built by loops that run in C
-        n = len(lat)
+        n = len(latitudes)
         if n == 0:
             raise ValueError("a snapping index needs at least one node")
         # A NaN would leave its leaf out of every search (min and max skip it or return it);
         # one NaN or infinity makes the sum non-finite
-        if not isfinite(sum(lat) + sum(lon)):
+        if not isfinite(sum(latitudes) + sum(longitudes)):
             raise ValueError("node coordinates must be finite numbers")
         self.n = n
-        self.lat, self.lon = lat, lon
+        self.latitudes, self.longitudes = latitudes, longitudes
         # The unit vectors, as _unit computes them
-        a, b = array("d", map(radians, lat)), array("d", map(radians, lon))
+        a = array("d", map(radians, latitudes))
+        b = array("d", map(radians, longitudes))
         c = array("d", map(cos, a))
         self.x = array("d", map(mul, c, map(cos, b)))
         self.y = array("d", map(mul, c, map(sin, b)))
@@ -150,7 +147,7 @@ class SnapIndex:
         # Level 0: the boxes of the leaves (min x, max x, min y, max y, min z, max z,
         # min lat, max lat, min lon, max lon); each level above groups FANOUT boxes
         nleaves = (n + LEAF - 1) // LEAF
-        columns = (self.x, self.y, self.z, self.lat, self.lon)
+        columns = (self.x, self.y, self.z, self.latitudes, self.longitudes)
         box = [[0.0] * nleaves for _ in range(10)]
         for j in range(nleaves):
             s, e = j * LEAF, min(n, j * LEAF + LEAF)
@@ -239,7 +236,7 @@ class SnapIndex:
         qlat, qlon = float(point[0]), float(point[1])
         qx, qy, qz = _unit(qlat, qlon)
         xs, ys, zs, n = self.x, self.y, self.z, self.n
-        lats, lons = self.lat, self.lon
+        latitudes, longitudes = self.latitudes, self.longitudes
         levels, bound = self.levels, self._bound
         best = [inf, inf, inf, inf]
         best_p = [-1, -1, -1, -1]
@@ -261,8 +258,8 @@ class SnapIndex:
                     d = dx * dx + dy * dy + dz * dz
                     if d > reach(mask):
                         continue
-                    la = lats[p]
-                    dl = _wrap180(lons[p] - qlon)
+                    la = latitudes[p]
+                    dl = _wrap180(longitudes[p] - qlon)
                     north, south = la >= qlat, la <= qlat
                     east = dl >= 0.0 or dl == -180.0
                     west = dl <= 0.0 or dl == 180.0

@@ -221,11 +221,11 @@ def _scatter_nodes_around(centre):
     most of them within a few hundred kilometres. A longitude beyond 180
     degrees comes back on the other side of the antimeridian."""
     rng = random.Random(0)
-    lats, lons = array("d"), array("d")
+    latitudes, longitudes = array("d"), array("d")
     for _ in range(2000):
-        lats.append(max(-90, min(90, centre[0] + rng.gauss(0, 2))))
-        lons.append((centre[1] + rng.gauss(0, 4) + 180) % 360 - 180)
-    return lats, lons
+        latitudes.append(max(-90, min(90, centre[0] + rng.gauss(0, 2))))
+        longitudes.append((centre[1] + rng.gauss(0, 4) + 180) % 360 - 180)
+    return latitudes, longitudes
 
 
 # NearNodes sorts the nodes in rows of 0.2 degree of latitude. The centres are
@@ -239,27 +239,31 @@ around_special_places = pytest.mark.parametrize(
 @around_special_places
 @pytest.mark.parametrize("km", [2, 20, 500])
 def test_near_nodes_finds_every_node_within_a_distance(centre, km):
-    lats, lons = _scatter_nodes_around(centre)
+    latitudes, longitudes = _scatter_nodes_around(centre)
     nodes_within_km = [
         i
-        for i in range(len(lats))
-        if great_circle_km(centre, [lats[i], lons[i]]) <= km
+        for i in range(len(latitudes))
+        if great_circle_km(centre, [latitudes[i], longitudes[i]]) <= km
     ]
 
-    found = assembly.NearNodes(lats, lons).find_within(list(centre), km)
+    found = assembly.NearNodes(latitudes, longitudes).find_within(
+        list(centre), km
+    )
 
     assert sorted(i for _, i in found) == nodes_within_km
 
 
 @around_special_places
 def test_near_nodes_finds_the_nearest_node(centre):
-    lats, lons = _scatter_nodes_around(centre)
+    latitudes, longitudes = _scatter_nodes_around(centre)
     nearest_km, nearest_node = min(
-        (great_circle_km(centre, [lats[i], lons[i]]), i)
-        for i in range(len(lats))
+        (great_circle_km(centre, [latitudes[i], longitudes[i]]), i)
+        for i in range(len(latitudes))
     )
 
-    node, km = assembly.NearNodes(lats, lons).find_nearest(list(centre), 500)
+    node, km = assembly.NearNodes(latitudes, longitudes).find_nearest(
+        list(centre), 500
+    )
 
     assert node == nearest_node
     assert km == pytest.approx(nearest_km)
