@@ -155,7 +155,8 @@ ALGORITHMS = [
 ]
 STATES = [("Original", 0), ("Reduced", 1), ("Fully Reduced", -1)]
 # The query rows of the snap section: name, call, and zone of the queries (south, north,
-# west and east bounds in degrees). Per quadrant is the default of get_shortest_path.
+# west and east bounds in degrees). Nearest node is the default of get_shortest_path.
+# Per quadrant is the default of add_coord_node, and an option of get_shortest_path.
 # Europe is a zone with many nodes. The Antarctic zone is far from every node: its
 # southern quadrants are empty, the worst case of a search
 SNAP_QUERY_ROWS = [
