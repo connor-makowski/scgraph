@@ -387,7 +387,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `format_version` | `int` | Format specification version (currently `1`). See *Rules for Readers* for when it changes. |
+| `format_version` | `int` | Format specification version (currently `1`). See *Compatibility Between Versions* for when it changes. |
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
 | `metadata.units` | `str` | Distance units of edge weights (`km`, `m`, `mi`, `ft`). |
@@ -435,14 +435,14 @@ Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nod
 * **`float64`**: Full 64-bit IEEE 754 precision (exact).
 * **`int32` ($10^{-7}$ degrees)**: OpenStreetMap's fixed-point encoding (about 1.1 cm at the equator). A coordinate takes 4 bytes instead of 8.
 
-### Rules for Readers
+### How scgraph Reads a File
 
-`network_file.read` does these checks in this order. If a check fails, it raises a `ValueError`.
+The function `network_file.read` reads a network file. It makes these checks, in this order. If a check fails, it raises a `ValueError`.
 
 1. The first 8 bytes are `SCGRAPH1`.
 2. The header is inside the file. The header is valid JSON.
-3. `format_version` is `1`. scgraph reads only this version. For a different version, the error message gives the version of the file.
-4. For each array that the reader knows:
+3. `format_version` is `1`. scgraph reads only this version. For another version, the error message gives the version of the file.
+4. For each array that scgraph knows:
    - the dtype is one of the dtypes that the table above allows;
    - the offset is zero or more;
    - the start of the array is a multiple of 64 bytes;
@@ -453,13 +453,20 @@ Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nod
    - Each node has one point. If the file has `node_ids` or `node_modes`, each node also has one id or one mode.
 
    The node coordinates and `shape_points` have the same dtype. If the file has `node_modes`, `metadata.modes` is a list.
-6. If the reader copies the arrays into memory, it also checks each value:
+6. If `read` copies the arrays into memory, it also checks each value:
    - the values of `offsets` do not decrease;
    - each head is a node;
    - each value of `node_modes` is a position in `metadata.modes`.
 
-   The C++ build can map the file into memory instead of copying it. It does this on a little-endian computer, when the read has no mode filter. Then the reader does not do these checks. The C++ graph checks the arcs when it reads them.
+   The C++ build can map the file into memory instead of copying it. It does this on a little-endian computer, when `load_from_scgraph` gets no `modes`. Then `read` does not check the values. The C++ graph checks the arcs when it reads them.
 
-The reader does not check `content_sha256`. The digest identifies a file: two different files have different digests, and the cache uses the digest as the file name. The digest does not show that a file changed after it was written.
+`read` does not check `content_sha256`. The digest identifies a file: two different files have different digests, and the cache uses the digest as the file name. The digest does not show that a file changed after it was written.
 
-The reader ignores an array with a name that it does not know. The reader keeps all the keys of `metadata`, also the keys that it does not know. `GeoGraph.get_scgraph_info` returns all these keys. Thus a new version of scgraph can add an optional array or a metadata key and keep `format_version` at `1`. A new `format_version` is necessary only if a reader of the previous version would read the file incorrectly.
+### Compatibility Between Versions
+
+A later version of scgraph can add an optional array or a metadata key, and keep `format_version` at `1`. An earlier version that reads `format_version` 1 still reads such a file, for two reasons:
+
+- `read` ignores an array whose name it does not know.
+- `read` keeps all the keys of `metadata`, also the keys that it does not know. `GeoGraph.get_scgraph_info` returns all these keys.
+
+`format_version` changes when an earlier version of scgraph would refuse a file or read it incorrectly. Examples: a new array that the graph needs, or a new meaning for the values of an existing array.
