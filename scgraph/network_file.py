@@ -37,52 +37,54 @@ VERSION = 1
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # array name -> the dtypes it may have; shape_* hold the arc shapes, if any; node_ids and
 # node_modes (optional): each node's id in its source and its row of metadata["modes"].
-# The coordinates share one dtype: float64 degrees or int32 units of 1e-7 degree (see
-# `coordinates`)
+# node_points and shape_points are arrays of points: the latitude of a point, then its
+# longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
+# degree (see `extract_coordinates`).
 ARRAYS = {
     "offsets": ("int32",),
     "heads": ("int32",),
     "weights": ("float64",),
-    "latitudes": ("int32", "float64"),
-    "longitudes": ("int32", "float64"),
+    "node_points": ("int32", "float64"),
     "shape_offsets": ("int32",),
     "shape_points": ("int32", "float64"),
     "node_ids": ("int32", "int64"),
     "node_modes": ("uint8",),
 }
-COORDINATES = ("latitudes", "longitudes", "shape_points")
+POINT_ARRAYS = ("node_points", "shape_points")
 _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
 
 
 def extract_coordinates(
-    columns: Sequence[Sequence[float]], dtype: str
+    point_arrays: Sequence[Sequence[float]], dtype: str
 ) -> list[Sequence[float]]:
-    """The columns of coordinates (float64 arrays of degrees) as a file stores them, in
+    """`point_arrays` (arrays of points, float64 degrees) as a file stores them, in
     `dtype`: "float64" as they are, or "int32" in units of 1e-7 degree, rounded to it
     (OSM's encoding, about 1 cm). A value that is not a finite number, or beyond
     ±214.7483647 degrees for int32, raises a ValueError."""
-    if dtype not in ARRAYS["latitudes"]:
+    if dtype not in ARRAYS["node_points"]:
         raise ValueError(
             f"coordinate_dtype must be 'float64' or 'int32', not {dtype!r}"
         )
     if dtype == "int32":
         try:
-            return [array("i", (round(x * 1e7) for x in v)) for v in columns]
+            return [
+                array("i", (round(x * 1e7) for x in v)) for v in point_arrays
+            ]
         # Not finite, or beyond the int32 range
         except (OverflowError, ValueError):
             raise ValueError(
                 "Coordinates stored as int32 must be finite numbers within"
                 " ±214.7483647 degrees"
             ) from None
-    if not all(all(map(math.isfinite, values)) for values in columns):
+    if not all(all(map(math.isfinite, values)) for values in point_arrays):
         raise ValueError("Coordinates must be finite numbers")
-    return list(columns)
+    return list(point_arrays)
 
 
 def coordinate_dtype(arrays: dict[str, array | memoryview]) -> str:
     """The dtype of the coordinates of `read`'s arrays: "int32" or "float64"."""
-    return "int32" if _scale(arrays["latitudes"]) != 1 else "float64"
+    return "int32" if _scale(arrays["node_points"]) != 1 else "float64"
 
 
 def _scale(values):
@@ -153,7 +155,7 @@ def write(
     Parameters:
         filename (str): Target destination path for the `.scgraph` file.
         arrays (dict[str, array]): Dictionary mapping array names to binary arrays
-            (e.g., `offsets`, `heads`, `weights`, `latitudes`, `longitudes`, etc.).
+            (e.g., `offsets`, `heads`, `weights`, `node_points`, etc.).
             See `ARRAYS` for valid keys and dtypes.
         metadata (dict): JSON-serializable dictionary of network metadata (modes,
             sources, attributions, etc.).
@@ -186,9 +188,7 @@ def write(
             raise TypeError(
                 f"Array '{name}' must hold {' or '.join(ARRAYS[name])} values"
             )
-        shape = (
-            [len(values) // 2, 2] if name == "shape_points" else [len(values)]
-        )
+        shape = [len(values) // 2, 2] if name in POINT_ARRAYS else [len(values)]
         header["arrays"][name] = {
             "dtype": dtype,
             "shape": shape,
@@ -295,7 +295,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
     return {
         **metadata,
         "format_version": VERSION,
-        "nodes": len(arrays["latitudes"]),
+        "nodes": len(arrays["node_points"]) // 2,
         "arcs": len(arrays["heads"]),
         "coordinate_dtype": coordinate_dtype(arrays),
         "shapes": "shape_points" in arrays,
@@ -372,9 +372,11 @@ def _select(filename, file, entries, metadata, modes):
     if unknown:
         raise ValueError(f"{filename}: unknown modes {unknown}")
     n = entries["offsets"][2] - 1
-    for name in ("latitudes", "longitudes", "node_ids", "node_modes"):
+    for name in ("node_ids", "node_modes"):
         if name in entries and entries[name][2] != n:
             raise ValueError(f"{filename}: one {name} value per node expected")
+    if "node_points" not in entries or entries["node_points"][2] != 2 * n:
+        raise ValueError(f"{filename}: one point per node expected")
     # Without node_modes, every node is in the first mode
     column = bytes(max(n, 0))
     if "node_modes" in entries:
@@ -393,10 +395,10 @@ def _select(filename, file, entries, metadata, modes):
         result["shape_offsets"].append(0)
     for row in shift:
         first, last = starts[row], starts[row + 1]
-        for name in ("latitudes", "longitudes", "node_ids"):
-            if name in entries:
-                result[name] += piece(name, first, last)
-        if "node_ids" not in entries:  # a node's id is its position in the file
+        result["node_points"] += piece("node_points", 2 * first, 2 * last)
+        if "node_ids" in entries:
+            result["node_ids"] += piece("node_ids", first, last)
+        else:  # a node's id is its position in the file
             result.setdefault("node_ids", array("q")).extend(range(first, last))
         if "node_modes" in entries:
             result["node_modes"] += column[first:last]
@@ -583,22 +585,25 @@ class NodeIds(Sequence):
             return result
 
 
-class NodeCoordinates(MutableSequence):
+class NodePoints(MutableSequence):
     """
     The `nodes` of a GeoGraph read from a network file: a list of [latitude, longitude],
-    read from the file's two arrays instead of one Python list per node, then the nodes
+    read from the file's points instead of one Python list per node, then the nodes
     added since. `nodes[i]` gives a new list each time: replace a node with
     `nodes[i] = [latitude, longitude]` (changing the list it gives changes nothing).
     An edit before the last node first turns every node into a list.
     """
 
-    def __init__(self, latitudes, longitudes):
-        self._latitudes, self._longitudes, self._added = (
-            latitudes,
-            longitudes,
-            [],
-        )
-        self._scale = _scale(latitudes)
+    def __init__(self, node_points):
+        # The C++ kernels read the points directly. The Python loops read two views of
+        # the points: one holds the latitudes, the other the longitudes. Reading a value
+        # from a view is as fast as reading it from an array. It is faster than computing
+        # 2 * i and 2 * i + 1 for each node.
+        self._points = memoryview(node_points)
+        self._latitudes = self._points[0::2]
+        self._longitudes = self._points[1::2]
+        self._added = []
+        self._scale = _scale(node_points)
 
     def __len__(self):
         return len(self._latitudes) + len(self._added)
@@ -633,11 +638,11 @@ class NodeCoordinates(MutableSequence):
     def take(self, ids: Iterable[int]) -> list[list[float]]:
         """`[nodes[i] for i in ids]` (a route's path), without a method call per node: in one
         C loop in the C++ build when no node was added"""
-        latitudes, longitudes = self._latitudes, self._longitudes
         if _coordinate_lists is not None and not self._added:
             return _coordinate_lists(
-                latitudes, longitudes, ids if type(ids) is list else list(ids)
+                self._points, ids if type(ids) is list else list(ids)
             )
+        latitudes, longitudes = self._latitudes, self._longitudes
         count, scale = len(latitudes), self._scale
         return [
             (
@@ -655,7 +660,7 @@ class NodeCoordinates(MutableSequence):
         yield from self._added
 
     def __eq__(self, other):
-        if not isinstance(other, (list, NodeCoordinates)):
+        if not isinstance(other, (list, NodePoints)):
             return NotImplemented
         return len(self) == len(other) and all(map(eq, self, other))
 
@@ -666,18 +671,16 @@ class NodeCoordinates(MutableSequence):
         # Copied and pickled as a list (the file's mapping can't be)
         return list, (list(self),)
 
-    def arrays(self) -> tuple[array | memoryview, array | memoryview]:
-        """The latitudes and the longitudes as two arrays, as the file stores them (int32
-        in 1e-7 degree or float64 degrees) if no node was added, else as float64.
-        """
+    def points(self) -> array | memoryview:
+        """The latitude then the longitude of each node, in one array: the file's array
+        (int32 in 1e-7 degree or float64 degrees) if no node was added, else a float64
+        array."""
         if not self._added:
-            return self._latitudes, self._longitudes
-        result, scale = [], self._scale
-        for column, values in enumerate((self._latitudes, self._longitudes)):
-            joined = array("d", (value / scale for value in values))
-            joined.extend(node[column] for node in self._added)
-            result.append(joined)
-        return tuple(result)
+            return self._points
+        scale = self._scale
+        result = array("d", (value / scale for value in self._points))
+        result.extend(value for node in self._added for value in node[:2])
+        return result
 
     def _in_added(self, i, edit=True):
         # The position of node i (or of slice i) in `added`. To edit a node of the file,
@@ -703,7 +706,8 @@ class NodeCoordinates(MutableSequence):
                     self._latitudes, self._longitudes
                 )
             )
-            self._latitudes, self._longitudes = array("d"), array("d")
+            self._points = memoryview(array("d"))
+            self._latitudes = self._longitudes = self._points
             self._scale = 1.0
 
 
@@ -712,7 +716,7 @@ def _check(filename, arrays, metadata, arcs=True):
         if not condition:
             raise ValueError(f"{filename}: {what}")
 
-    required = {"offsets", "heads", "weights", "latitudes", "longitudes"}
+    required = {"offsets", "heads", "weights", "node_points"}
     require(required <= set(arrays), "missing arrays")
     require(
         ("shape_offsets" in arrays) == ("shape_points" in arrays),
@@ -729,15 +733,12 @@ def _check(filename, arrays, metadata, arcs=True):
             not m or (min(heads) >= 0 and max(heads) < n),
             "arc to a missing node",
         )
-    require(
-        len(arrays["latitudes"]) == len(arrays["longitudes"]) == n,
-        "one latitude and longitude per node expected",
-    )
+    require(len(arrays["node_points"]) == 2 * n, "one point per node expected")
     require(
         len(
             {
                 memoryview(arrays[name]).format
-                for name in COORDINATES
+                for name in POINT_ARRAYS
                 if name in arrays
             }
         )

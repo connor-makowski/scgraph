@@ -332,7 +332,7 @@ For large matrices, throughput can approach 500 nanoseconds per distance query.
 
 ## Graph Reduction
 
-Sparse networks (highways, rail lines, shipping corridors) often contain long chains of intermediate nodes with only two connections (degree 2). Graph reduction compresses these chains into single composite edges while preserving exact distances and full path reconstruction:
+Sparse networks (highways, rail lines, shipping corridors) often contain long chains of pass-through nodes with only two connections (degree 2). Graph reduction compresses these chains into single composite edges while preserving exact distances and full path reconstruction:
 
 ```py
 from scgraph import GeoGraph

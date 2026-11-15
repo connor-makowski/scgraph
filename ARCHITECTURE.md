@@ -346,8 +346,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     "offsets": {"dtype": "int32", "shape": [10001], "offset": 0},
     "heads": {"dtype": "int32", "shape": [25000], "offset": 40064},
     "weights": {"dtype": "float64", "shape": [25000], "offset": 140096},
-    "latitudes": {"dtype": "int32", "shape": [10000], "offset": 340096},
-    "longitudes": {"dtype": "int32", "shape": [10000], "offset": 380096}
+    "node_points": {"dtype": "int32", "shape": [10000, 2], "offset": 340096}
   },
   "metadata": {
     "crs": "EPSG:4326",
@@ -403,17 +402,20 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 
 ### Stored Binary Arrays
 
+A **point** is a place, given as one `[latitude, longitude]` pair. Its **coordinates** are its latitude and its longitude. A coordinate is one of these two numbers. A **node** is a vertex of the graph, numbered from `0` to $N - 1$. Its position is a point. The points of an arc between its two nodes are its **shape points**. They are not nodes: the search never visits them. The attribute `GeoGraph.intermediate_nodes` holds the shape points of each arc. `node_points` and `shape_points` are arrays of points: the latitude of a point, then its longitude. A file has $N$ nodes, $M$ arcs and $K$ shape points.
+
+The latitude comes first, as in the axis order of `EPSG:4326`. GeoJSON uses the opposite order: `save_as_geojson` writes the longitude first. A latitude is from -90 to 90 degrees, and a longitude from -180 to 180 degrees (`GeoGraph.validate_nodes` checks both).
+
 All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 bytes:
 
 | Array Name | Data Type | Dimensions | Description |
 | :--- | :--- | :--- | :--- |
 | `offsets` | `int32` | $N + 1$ | CSR row index. Arcs originating from node $u$ span index `offsets[u]` to `offsets[u+1] - 1`. |
-| `heads` | `int32` | $M$ | Destination node ID of each arc. |
+| `heads` | `int32` | $M$ | The destination node of each arc, from `0` to $N - 1$. |
 | `weights` | `float64` | $M$ | Cost / length of each arc. |
-| `latitudes` | `int32` or `float64` | $N$ | Node latitudes. If `int32`, values are scaled by $10^7$ (~1 cm precision). |
-| `longitudes` | `int32` or `float64` | $N$ | Node longitudes. If `int32`, values are scaled by $10^7$. |
+| `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed arc polylines. |
-| `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | Interleaved latitude and longitude coordinates of interior arc points. |
+| `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior arc point, in the dtype of `node_points`. |
 | `node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). |
 | `node_modes` *(opt)* | `uint8` | $N$ | The mode of each node: the row of its mode in `metadata.modes`, counted from 0. Each node has one mode, so the value is an index, not a set of bits. A file has at most 256 modes. |
 
@@ -453,7 +455,7 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
    - Each node has one point. If the file has `node_ids` or `node_modes`, each node also has one id or one mode.
 
-   The node coordinates and `shape_points` have the same dtype. If the file has `node_modes`, `metadata.modes` is a list.
+   `node_points` and `shape_points` have the same dtype. If the file has `node_modes`, `metadata.modes` is a list.
 6. If `read` copies the arrays into memory, it also checks each value:
    - the values of `offsets` do not decrease;
    - each head is a node;

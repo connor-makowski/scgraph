@@ -100,12 +100,15 @@ def build(
     sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
     sea_arcs = sum(map(len, sea.graph_object.graph))
     steps.append({"step": "sea", "nodes": len(sea.nodes), "arcs": sea_arcs})
-    lats, lons = graph["latitudes"], graph["longitudes"]  # 1e-7 degree
-    south = max(-90, min(lats) * 1e-7 - MARGIN)
-    west = max(-180, min(lons) * 1e-7 - MARGIN)
-    north = min(90, max(lats) * 1e-7 + MARGIN)
-    east = min(180, max(lons) * 1e-7 + MARGIN)
-    del lats, lons  # join frees the road graph: no reference left here
+    node_points = memoryview(graph["node_points"])  # 1e-7 degree
+    latitudes, longitudes = node_points[0::2], node_points[1::2]
+    south = max(-90, min(latitudes) * 1e-7 - MARGIN)
+    west = max(-180, min(longitudes) * 1e-7 - MARGIN)
+    north = min(90, max(latitudes) * 1e-7 + MARGIN)
+    east = min(180, max(longitudes) * 1e-7 + MARGIN)
+    # join() frees the road graph. Delete the views, so that nothing here keeps it
+    del node_points, latitudes, longitudes
+
     mask = LandMask.from_natural_earth(
         *(files[name] for name in ("land", "lakes", "rivers")),
         bbox=(south, west, north, east),

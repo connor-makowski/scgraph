@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 import requests
 
-from scgraph.helpers.polylines import cut_polylines, polylines_to_graph
+from scgraph.helpers.polylines import cut_polylines, build_graph_from_polylines
 from scgraph.pipelines import download_file
 from scgraph.pipelines.steps.stage3_assembly.assembly import (
     NearNodes,
@@ -203,8 +203,8 @@ def locate_ways(
 
     Returns `(junctions, polylines)`: the OSM ids of the nodes where kept ways meet or a way
     crosses itself, whatever their kind (`in junctions` tests one), and a generator of
-    `(kind, direction, points)`, `points` being `[(id, [latitude, longitude]), ...]` and
-    `(direction, points)` a polyline as `cut_polylines` takes it, a way being split where
+    `(kind, direction, vertices)`, `vertices` being `[(id, [latitude, longitude]), ...]` and
+    `(direction, vertices)` a polyline as `cut_polylines` takes it, a way being split where
     one of its nodes is missing from the file.
     """
     osmium = require_osmium()
@@ -325,8 +325,8 @@ def read_osm(
 ]:
     """
     Build the graph of the ways of `source` that `way_filter` keeps (`locate_ways`, then
-    `polylines_to_graph`), a way being also cut where a piece reaches `max_km_between_nodes`
-    (`cut_polylines`).
+    `build_graph_from_polylines`), a way being also cut where a piece reaches
+    `max_km_between_nodes` (`cut_polylines`).
 
     Returns `(graph, nodes, shapes, node_ids)` in the GeoGraph layout, `node_ids` being
     the OSM ids of the nodes.
@@ -335,9 +335,11 @@ def read_osm(
         source, {"ways": way_filter}, required_tag_keys
     )
     polylines = (
-        (way_direction, points) for _, way_direction, points in polylines
+        (way_direction, vertices) for _, way_direction, vertices in polylines
     )
-    return polylines_to_graph(polylines, junctions, max_km_between_nodes)
+    return build_graph_from_polylines(
+        polylines, junctions, max_km_between_nodes
+    )
 
 
 def build_way_pieces(
@@ -393,16 +395,16 @@ def build_way_pieces(
         source, way_selectors, required_tag_keys, work_dir=work_dir
     )
     pieces, ferries = PieceArrays(work_dir=work_dir), []
-    for kind, direction, points in ways:
+    for kind, direction, vertices in ways:
         if kind == "ferries":
-            ferries.append((direction, points))
+            ferries.append((direction, vertices))
             continue
-        where = dict(points)
-        for origin, destination, km, way, shape in cut_polylines(
-            [(direction, points)], junctions, max_km_between_nodes
+        vertex_points = dict(vertices)
+        for origin_id, destination_id, km, way, shape in cut_polylines(
+            [(direction, vertices)], junctions, max_km_between_nodes
         ):
-            ends = where[origin], where[destination]
-            pieces.append(origin, destination, km, way, ends, shape)
+            ends = vertex_points[origin_id], vertex_points[destination_id]
+            pieces.append(origin_id, destination_id, km, way, ends, shape)
     pieces.flush()
     if not len(pieces.km):
         raise ValueError(
@@ -412,17 +414,19 @@ def build_way_pieces(
     if "ferries" in way_selectors:
         # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
         # piece u // 2's origin or destination (ties in nearest: the first end)
-        lats, lons = pieces.ends[0::2], pieces.ends[1::2]
+        latitudes, longitudes = pieces.ends[0::2], pieces.ends[1::2]
         ids = (pieces.origins, pieces.destinations)
-        near = NearNodes(lats, lons, scale=1e-7)
-        rows, ends, shapes, _ = polylines_to_graph(ferries, junctions, math.inf)
+        near = NearNodes(latitudes, longitudes, scale=1e-7)
+        rows, ends, shapes, _ = build_graph_from_polylines(
+            ferries, junctions, math.inf
+        )
         arcs = list(
             build_ferry_arcs(
                 rows, ends, shapes, lambda p: near.find_nearest(p, FERRY_END_KM)
             )
         )
         for u, v, km, shape in arcs:
-            road = [[lats[w] * 1e-7, lons[w] * 1e-7] for w in (u, v)]
+            road = [[latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)]
             pieces.append(
                 ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
             )
@@ -467,9 +471,9 @@ def build_ferry_arcs(
     shapes: list[dict[int, list[list[float]]]],
     nearest: Callable,
 ) -> Iterator[tuple[int, int, float, list[list[float]]]]:
-    """`(u, v, km, shape)` of each ferry arc (`polylines_to_graph`'s layout) whose ends
-    lie within FERRY_END_KM of road nodes u and v (`nearest(point)` gives `(node, km)`);
-    the shape keeps the ferry's ends unless they are u and v."""
+    """`(u, v, km, shape)` of each ferry arc (`build_graph_from_polylines`'s layout)
+    whose ends lie within FERRY_END_KM of road nodes u and v (`nearest(point)` gives
+    `(node, km)`); the shape keeps the ferry's ends unless they are u and v."""
     road = [nearest(end) for end in ends]
     for a, row in enumerate(ferries):
         for b, km in row.items():

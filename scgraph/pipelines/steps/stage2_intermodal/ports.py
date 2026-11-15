@@ -119,8 +119,9 @@ def join(
     components = array("i", (sizes[label] for label in labels))
     roads, seas = len(offsets) - 1, len(sea_network.nodes)
     # The road nodes' coordinates at 1e-7 degree, read in place
-    lats, lons = road_graph["latitudes"], road_graph["longitudes"]
-    near = NearNodes(lats, lons, scale=1e-7)
+    node_points = memoryview(road_graph["node_points"])
+    latitudes, longitudes = node_points[0::2], node_points[1::2]
+    near = NearNodes(latitudes, longitudes, scale=1e-7)
     others = list(sea_network.nodes)  # then the ports, in degrees
     cells = {}  # mask cell -> its first sea node
     for s, node in enumerate(sea_network.nodes):
@@ -134,7 +135,7 @@ def join(
     # functions that read them; both are called for the last time before it
     def at(u):  # [latitude, longitude] of node u
         if u < roads:
-            return [lats[u] * 1e-7, lons[u] * 1e-7]  # noqa: F821
+            return [latitudes[u] * 1e-7, longitudes[u] * 1e-7]  # noqa: F821
         return others[u - roads]
 
     def road(port):
@@ -172,7 +173,7 @@ def join(
     ids = array("q", road_graph["node_ids"]) + array("q", sea_network.node_ids)
     road_graph.clear()  # freed before the joined graph is built, and the raster
     land_mask.bits = None
-    del lats, lons, near, labels, sizes, components
+    del node_points, latitudes, longitudes, near, labels, sizes, components
     del offsets, heads, weights, starts, line
     joined = build_graph_from_pieces(pieces)
     ids += array("q", range(-1, -1 - ports, -1))  # scgraph's, for the ports
@@ -232,8 +233,8 @@ def find_road_connector(
         for km, i in road_spatial_index.find_within(point, ROAD_KM)
     ):
         target = [
-            road_spatial_index.lats[i] * road_spatial_index.scale,
-            road_spatial_index.lons[i] * road_spatial_index.scale,
+            road_spatial_index.latitudes[i] * road_spatial_index.scale,
+            road_spatial_index.longitudes[i] * road_spatial_index.scale,
         ]
         if _water_km(land_mask, point, target, km) < water_km:
             return i, km
