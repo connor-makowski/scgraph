@@ -14,7 +14,7 @@ For user-facing guides and examples, see the [README](README.md) and [API Docume
 4. [Graph Reduction](#4-graph-reduction)
 5. [Adding an Algorithm](#5-adding-an-algorithm)
 6. [Caches and Invalidation](#6-caches-and-invalidation)
-7. [Network File](#7-network-file)
+7. [Network File Format](#7-network-file-format)
 
 ---
 
@@ -306,7 +306,7 @@ Networks built or downloaded by `scgraph` are cached on disk (default: `~/.cache
 
 ---
 
-## 7. Network File
+## 7. Network File Format
 
 The `.scgraph` binary format stores network topologies, spatial coordinates, and metadata in a single self-contained file with zero external dependencies.
 
@@ -340,7 +340,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 ```json
 {
   "format_version": 1,
-  "spec": "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file",
+  "spec": "https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format",
   "arrays": {
     "offsets": {"dtype": "int32", "shape": [10001], "offset": 0},
     "heads": {"dtype": "int32", "shape": [25000], "offset": 40064},
