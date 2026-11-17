@@ -12,9 +12,10 @@ terminals, for example `region="europe/denmark"`.
   10 km to a railway, a water path up to 2,500 km to a sea lane.
 - Two airports with regular flights are joined both ways, with the great-circle distance
   between them: large or medium airports with at least 104 flights in 2021 between them
-  (about one a week each way) in the OpenSky flight list. This list misses many routes flown later (lab E69:
-  29 % of the regular routes of 2022), and it has no flight at the airports of mainland
-  China.
+  (about one a week each way). Three sources count the flights: the OpenSky flight list,
+  BTS T-100 for the flights that touch the United States, and Eurostat for those that
+  touch Europe. The flights inside mainland China, and between China and the rest of
+  Asia, are missing: no open source counts them.
 - Each node has its mode (`node_modes`, rows of `modes`): `road`, `rail`, `sea`, `port`,
   `airport` or `rail_terminal`. Each mode cites the source of its node ids: OpenStreetMap
   for roads and railways, the World Port Index number for a port, the OurAirports id for

@@ -514,7 +514,7 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `europe_freeway` | `osm_main_roads` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `europe_rail` | `osm_rail` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `eurostat_marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index, Natural Earth |
-| `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, OpenSky flight list 2021, Wikidata) |
+| `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
 | `world_main_roads` | `osm_main_roads` for the world (needs the C++ backend) | OpenStreetMap planet, read by byte ranges, never stored |
 | `world_main_roads_and_marnet` | `osm_main_roads_and_marnet` for the world (needs the C++ backend) | the same, with the OpenStreetMap planet |
 | `world_multimodal` | `osm_multimodal` for the world (needs the C++ backend) | the same, with the OpenStreetMap planet, read twice |

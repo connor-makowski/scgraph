@@ -97,10 +97,11 @@ TABLES = {
     "flights": _table(
         "flights",
         "The OpenSky Network, flight list (Strohmeier et al., Earth Syst. Sci. "
-        "Data 13, 357-366, 2021)",
+        "Data 13, 357-366, 2021); US Bureau of Transportation Statistics, "
+        "T-100 Segment; Eurostat, air transport routes (avia_par, avia_gor)",
         "CC-BY-4.0",
         "https://zenodo.org/records/5815448",
-        "flight list v21.12, flights of 2021",
+        "flights of 2021: OpenSky v21.12; T-100 and Eurostat read on 2026-11-17",
     ),
     "rail_terminals": _table(
         "rail_terminals",

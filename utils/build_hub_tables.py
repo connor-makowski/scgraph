@@ -7,7 +7,9 @@ sources. Its output is a new snapshot, to be reviewed like any change of code:
 - `ports.csv`: the ports of the World Port Index, with their number, position, harbour
   type and whether a railway serves them;
 - `airports.csv` and `flights.csv`: the large and medium airports of OurAirports that
-  have regular flights in the OpenSky flight list of 2021, and these flights;
+  have regular flights in 2021, and these flights. Three sources count the flights: the
+  OpenSky flight list (all regions, but few receivers in China), BTS T-100 (every flight
+  that touches the United States) and Eurostat (every flight that touches Europe);
 - `rail_terminals.csv`: the freight terminals of Wikidata that are still open.
 
 `data/README.md` gives the sources, their licences and the counts of the last run.
@@ -26,6 +28,8 @@ import gzip
 import hashlib
 import io
 import json
+import re
+import zipfile
 from collections import Counter
 from pathlib import Path
 
@@ -44,10 +48,29 @@ OURAIRPORTS_URL = (
     f"{OURAIRPORTS_COMMIT}/airports.csv"
 )
 OPENSKY_RECORD = "https://zenodo.org/api/records/5815448"
-OPENSKY_YEAR = "2021"
+T100_URL = (
+    "https://www.transtats.bts.gov/DL_SelectFields.aspx"
+    "?gnoyr_VQ=FMG&QO_fu146_anzr=Nv4%20Pn44vr45"
+)  # T-100 Segment (All Carriers)
+EUROSTAT_URL = (
+    "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/"
+)
+# The countries whose airports report their routes to Eurostat; a country without a
+# table for the year is skipped
+EUROSTAT_COUNTRIES = (
+    "at be bg ch cy cz de dk ee el es fi fr hr hu ie is it lt lu lv me mk mt nl no "
+    "pl pt ro rs se si sk tr uk"
+).split()
+YEAR = "2021"
 # Flights in the year, both directions together: about one a week each way
 REGULAR_FLIGHTS = 104
 AIRPORT_TYPES = {"large_airport", "medium_airport"}
+# The OurAirports columns that match the airport codes of each source of flights
+AIRPORT_CODES = {
+    "opensky": ("ident", "icao_code", "gps_code"),
+    "t100": ("iata_code",),
+    "eurostat": ("ident", "icao_code", "gps_code"),
+}
 WIKIDATA_URL = "https://query.wikidata.org/sparql"
 # Classes of freight terminals; an item counts if it is an instance of one of them,
 # has a position, and has no date of closure or demolition
@@ -88,13 +111,13 @@ def build_ports(wpi: bytes) -> list[dict]:
 
 
 def fetch_flight_files(folder: Path) -> list[Path]:
-    """The monthly OpenSky files of OPENSKY_YEAR in `folder`, downloaded when missing,
+    """The monthly OpenSky files of YEAR in `folder`, downloaded when missing,
     each checked against the md5 that Zenodo gives."""
     folder.mkdir(parents=True, exist_ok=True)
     record = json.loads(download(OPENSKY_RECORD))
     paths = []
     for file in record["files"]:
-        if not file["key"].startswith(f"flightlist_{OPENSKY_YEAR}"):
+        if not file["key"].startswith(f"flightlist_{YEAR}"):
             continue
         path = folder / file["key"]
         if not path.exists():
@@ -106,9 +129,9 @@ def fetch_flight_files(folder: Path) -> list[Path]:
     return sorted(paths)
 
 
-def count_flights(paths: list[Path]) -> Counter:
-    """Flights per (origin, destination) of airport codes; a flight without both ends,
-    or with the same airport at both ends, is not counted."""
+def count_opensky(paths: list[Path]) -> Counter:
+    """Flights per (origin, destination) of ICAO codes in the OpenSky files; a flight
+    without both ends, or with the same airport at both ends, is not counted."""
     flights = Counter()
     for path in paths:
         with gzip.open(path, "rt", newline="", encoding="utf-8") as file:
@@ -119,27 +142,122 @@ def count_flights(paths: list[Path]) -> Counter:
     return flights
 
 
-def build_air(ourairports: bytes, flights: Counter) -> tuple[list, list]:
-    """The airports and flights tables: the pairs of large or medium airports with
-    regular flights (both directions together), and these airports, keyed by the
-    OurAirports id."""
-    by_code = {}
-    for row in csv.DictReader(io.StringIO(ourairports.decode("utf-8"))):
-        if row["type"] in AIRPORT_TYPES:
-            for key in ("ident", "icao_code", "gps_code"):
+def count_t100() -> Counter:
+    """Departures performed in YEAR per (origin, destination) of IATA codes, by every
+    carrier, on the flights that touch the United States (BTS T-100 Segment). The table
+    is served by a form: the script reads the form, then asks for three columns.
+    """
+    session = requests.Session()
+    session.headers.update(AGENT)
+    page = session.get(T100_URL, timeout=300).text
+    form = dict(
+        re.findall(
+            r'<input[^>]*type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"',
+            page,
+        )
+    )
+    form |= {
+        "cboGeography": "All",
+        "cboYear": YEAR,
+        "cboPeriod": "All",
+        "btnDownload": "Download",
+        "ORIGIN": "on",
+        "DEST": "on",
+        "DEPARTURES_PERFORMED": "on",
+    }
+    response = session.post(T100_URL, data=form, timeout=600)
+    response.raise_for_status()
+    archive = zipfile.ZipFile(io.BytesIO(response.content))
+    flights = Counter()
+    with archive.open(archive.namelist()[0]) as file:
+        for row in csv.DictReader(io.TextIOWrapper(file, "utf-8-sig")):
+            if row["ORIGIN"] != row["DEST"]:
+                flights[row["ORIGIN"], row["DEST"]] += round(
+                    float(row["DEPARTURES_PERFORMED"])
+                )
+    return flights
+
+
+def count_eurostat() -> Counter:
+    """Passenger and all-cargo flights in YEAR per pair of ICAO codes, both directions
+    together, as the European airports report them (Eurostat tables `avia_par_xx` and
+    `avia_gor_xx`). Two reporting countries count the same flights between them, so a
+    pair keeps the larger of their counts."""
+    flights = Counter()
+    for country in EUROSTAT_COUNTRIES:
+        reported = Counter()
+        for table, measure in (
+            ("avia_par", "CAF_PAS"),
+            ("avia_gor", "CAF_FRM"),
+        ):
+            response = requests.get(
+                f"{EUROSTAT_URL}{table}_{country}",
+                params={
+                    "freq": "A",
+                    "unit": "FLIGHT",
+                    "tra_meas": measure,
+                    "time": YEAR,
+                },
+                headers=AGENT,
+                timeout=300,
+            )
+            if response.status_code == 404:
+                continue  # no such table for this country
+            response.raise_for_status()
+            data = response.json()
+            # Every dimension but the pair has one category, so a value's index is the
+            # position of its pair, for example "BE_EBLG_CN_ZGGG"
+            pairs = {
+                position: pair
+                for pair, position in data["dimension"]["airp_pr"]["category"][
+                    "index"
+                ].items()
+            }
+            for position, n in data["value"].items():
+                _, a, _, b = pairs[int(position)].split("_")
+                if a != b:
+                    reported[tuple(sorted((a, b)))] += n
+        for pair, n in reported.items():
+            flights[pair] = max(flights[pair], n)
+    return flights
+
+
+def build_air(
+    ourairports: bytes, flights: dict[str, Counter]
+) -> tuple[list, list]:
+    """The airports and flights tables, keyed by the OurAirports id.
+
+    `flights` holds, for each source of AIRPORT_CODES, the flights per pair of its
+    codes. A pair of large or medium airports counts the flights of both directions
+    together, and keeps the largest count among the sources. A pair has regular
+    flights from REGULAR_FLIGHTS on; an airport is kept when it has regular flights.
+    """
+    rows = [
+        row
+        for row in csv.DictReader(io.StringIO(ourairports.decode("utf-8")))
+        if row["type"] in AIRPORT_TYPES
+    ]
+    best = {}  # (id, id) -> (flights, source)
+    for source, counts in flights.items():
+        by_code = {}
+        for row in rows:
+            for key in AIRPORT_CODES[source]:
                 by_code.setdefault(row[key], row)
-    by_code.pop("", None)
-    pairs, airport = Counter(), {}
-    for (origin, destination), n in flights.items():
-        a, b = by_code.get(origin), by_code.get(destination)
-        if a and b and a is not b:
-            airport[a["id"]], airport[b["id"]] = a, b
-            pairs[tuple(sorted((int(a["id"]), int(b["id"]))))] += n
-    rows, used = [], {}
-    for (a, b), n in sorted(pairs.items()):
-        if n >= REGULAR_FLIGHTS:
-            rows.append({"airport_a": a, "airport_b": b, "flights": n})
-            used[a], used[b] = airport[str(a)], airport[str(b)]
+        by_code.pop("", None)
+        pairs = Counter()
+        for (origin, destination), n in counts.items():
+            a, b = by_code.get(origin), by_code.get(destination)
+            if a and b and a is not b:
+                pairs[tuple(sorted((int(a["id"]), int(b["id"]))))] += n
+        for pair, n in pairs.items():
+            if n > best.get(pair, (0, None))[0]:
+                best[pair] = (n, source)
+    regular = [
+        {"airport_a": a, "airport_b": b, "flights": n, "source": source}
+        for (a, b), (n, source) in sorted(best.items())
+        if n >= REGULAR_FLIGHTS
+    ]
+    used = {a for row in regular for a in (row["airport_a"], row["airport_b"])}
     airports = [
         {
             "id": int(row["id"]),
@@ -150,9 +268,10 @@ def build_air(ourairports: bytes, flights: Counter) -> tuple[list, list]:
             "longitude": round(float(row["longitude_deg"]), 6),
             "country": row["iso_country"],
         }
-        for _, row in sorted(used.items())
+        for row in sorted(rows, key=lambda row: int(row["id"]))
+        if int(row["id"]) in used
     ]
-    return airports, rows
+    return airports, regular
 
 
 def query_terminals() -> list[dict]:
@@ -215,7 +334,11 @@ def main() -> None:
         wpi = download(WPI_URL)
     print(f"World Port Index: sha256 {hashlib.sha256(wpi).hexdigest()}")
     write("ports.csv", build_ports(wpi))
-    flights = count_flights(fetch_flight_files(arguments.opensky_dir))
+    flights = {
+        "opensky": count_opensky(fetch_flight_files(arguments.opensky_dir)),
+        "t100": count_t100(),
+        "eurostat": count_eurostat(),
+    }
     airports, rows = build_air(download(OURAIRPORTS_URL), flights)
     write("airports.csv", airports)
     write("flights.csv", rows)
