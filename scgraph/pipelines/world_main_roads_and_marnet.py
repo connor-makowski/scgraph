@@ -18,8 +18,7 @@ the scale of the planet.
   lengths are measured before. Each node has its mode, `road`, `port` or `sea`.
 - Accuracy of roads and sea lanes, coverage, ports joined, size: not measured yet.
 - Sources: the planet of the date in its URL, read by HTTP byte ranges and never stored
-  (its published md5 is recorded); the others as `osm_main_roads_and_marnet`, the World
-  Port Index unpinned. The build needs scgraph's C++ backend.
+  (its published md5 is recorded); the others as `osm_main_roads_and_marnet`. The build needs scgraph's C++ backend.
 - Not for: navigation or travel times; inland navigation between two river points.
 """
 
@@ -29,7 +28,7 @@ from collections.abc import Callable
 from scgraph.pipelines import osm_main_roads_and_marnet as regional
 from scgraph.pipelines.steps.stage1_extract import osm
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 # The planet first: its download hook checks the C++ backend before any other download
 SOURCES = {"roads": osm.PLANET, **regional.SOURCES}

@@ -510,12 +510,14 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `north_america_rail` | Class I railroads of North America | FRA and BTS, ArcGIS layer |
 | `us_freeway` | Freeways of the United States | Esri, ArcGIS layer |
 | `osm_main_roads` | Motorway, trunk and primary roads and their links of a region, with vehicle ferries | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
-| `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
+| `osm_rail` | Railway lines of a region, without sidings, spurs and yard tracks | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `europe_freeway` | `osm_main_roads` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `europe_rail` | `osm_rail` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `eurostat_marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index, Natural Earth |
+| `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, OpenSky flight list 2021, Wikidata) |
 | `world_main_roads` | `osm_main_roads` for the world (needs the C++ backend) | OpenStreetMap planet, read by byte ranges, never stored |
 | `world_main_roads_and_marnet` | `osm_main_roads_and_marnet` for the world (needs the C++ backend) | the same, with the OpenStreetMap planet |
+| `world_multimodal` | `osm_multimodal` for the world (needs the C++ backend) | the same, with the OpenStreetMap planet, read twice |
 
 **Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for the `osm_*` networks. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
 

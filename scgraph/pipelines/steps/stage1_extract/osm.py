@@ -457,8 +457,10 @@ def _located_pieces(way_nodes):
 
 
 def select_vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
-    """Both ways (0) for a ferry not closed to motor vehicles, None for any other way."""
-    if tags.get("route") == "ferry" and "no" not in (
+    """Both ways (0) for a ferry, or a shuttle train that carries cars and lorries (the
+    Channel Tunnel shuttle), not closed to motor vehicles; None for any other way.
+    """
+    if tags.get("route") in ("ferry", "shuttle_train") and "no" not in (
         tags.get("motor_vehicle"),
         tags.get("motorcar"),
     ):

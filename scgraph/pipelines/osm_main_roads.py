@@ -1,7 +1,8 @@
 """Main roads (motorway, trunk, primary and their links) and vehicle ferries of an OpenStreetMap
 extract from Geofabrik, for example `region="europe/luxembourg"`.
 
-A vehicle ferry (`route=ferry`, unless `motor_vehicle=no` or `motorcar=no`) joins, both ways
+A vehicle ferry, or a shuttle train that carries cars and lorries such as the Channel Tunnel's
+(`route=ferry` or `route=shuttle_train`, unless `motor_vehicle=no` or `motorcar=no`), joins, both ways
 and with the length of its route, the road nodes nearest its two ends if both lie
 within 2 km; otherwise it is left out, as is each piece of a ferry drawn as several ways
 that meet at sea. Roads and ferries are read together: a road is also cut where a ferry
@@ -17,7 +18,7 @@ from collections.abc import Callable
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.pipelines.steps.stage3_assembly import assembly
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {"roads": osm.GEOFABRIK}
 SELECTS = {

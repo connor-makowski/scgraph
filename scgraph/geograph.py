@@ -1228,10 +1228,12 @@ class GeoGraphIO:
                 "oak_ridge_maritime",
                 "osm_main_roads",
                 "osm_main_roads_and_marnet",
+                "osm_multimodal",
                 "osm_rail",
                 "us_freeway",
                 "world_main_roads",
                 "world_main_roads_and_marnet",
+                "world_multimodal",
             ]
             | types.ModuleType
         ),

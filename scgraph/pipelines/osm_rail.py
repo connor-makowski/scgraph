@@ -1,4 +1,4 @@
-"""Railway lines (`railway=rail`, sidings and yards included) of an OpenStreetMap extract
+"""Railway lines (`railway=rail`, without sidings, spurs and yard tracks) of an OpenStreetMap extract
 from Geofabrik, for example `region="europe/luxembourg"`.
 
 Drawings: each piece's shape is simplified at 50 m when the way is cut; lengths are
@@ -15,7 +15,7 @@ from scgraph.pipelines.steps.stage3_assembly import assembly
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {"rail": osm.GEOFABRIK}
 
@@ -50,10 +50,11 @@ def build(
 
 
 def select_rail(tags: "osmium.osm.TagList") -> int | None:
-    """The direction of a railway line (`railway=rail`), None for any other way."""
-    return (
-        osm.get_way_direction(tags) if tags.get("railway") == "rail" else None
-    )
+    """The direction of a railway line (`railway=rail`) that is not a siding, a spur or
+    a yard track (`service=*`), None for any other way."""
+    if tags.get("railway") != "rail" or "service" in tags:
+        return None
+    return osm.get_way_direction(tags)
 
 
 # ---------------------------------------------------------------------------

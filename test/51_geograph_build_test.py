@@ -31,6 +31,7 @@ from scgraph.pipelines import (
     north_america_rail,
     osm_main_roads,
     osm_main_roads_and_marnet,
+    osm_multimodal,
 )
 from scgraph.pipelines import build
 from scgraph.utils import has_cpp
@@ -71,6 +72,10 @@ def _polygons(*rings):
     ).encode()  # fmt: skip
 
 
+# Railways (read by the multimodal pipeline only): a line along longitude 0.012, a branch
+# that crosses the road at its node at (0, 0), and a siding, left out. Hubs of the
+# multimodal pipeline: the port "Near", served by rail; two airfields near the road, with
+# a flight each way; a rail terminal between the road and the railway.
 # Roads: from (-0.01, 0) to (0.01, 0) through (-0.004, 0.001), its nodes not read in
 # Hilbert order, and a 2-node fragment at (0.005, 0.024) (lat, lon). Land west of
 # longitude 0.03, an island at longitude 0.08 to 0.12, a sea lane from (0, 0.2) to
@@ -90,6 +95,13 @@ _FILES = {
 <way id="1" version="1"><nd ref="1"/><nd ref="3"/><nd ref="2"/><tag k="highway" v="primary"/></way>
 <way id="2" version="1"><nd ref="1"/><nd ref="4"/><tag k="highway" v="primary"/></way>
 <way id="3" version="1"><nd ref="5"/><nd ref="6"/><tag k="highway" v="primary"/></way>
+<node id="11" version="1" lat="-0.008" lon="0.012"/>
+<node id="12" version="1" lat="0" lon="0.012"/>
+<node id="13" version="1" lat="0.008" lon="0.012"/>
+<node id="14" version="1" lat="0.01" lon="0.015"/>
+<way id="11" version="1"><nd ref="11"/><nd ref="12"/><nd ref="13"/><tag k="railway" v="rail"/></way>
+<way id="12" version="1"><nd ref="1"/><nd ref="12"/><tag k="railway" v="rail"/></way>
+<way id="13" version="1"><nd ref="13"/><nd ref="14"/><tag k="railway" v="rail"/><tag k="service" v="siding"/></way>
 </osm>""",
     "/sea.gpkg": _sea_gpkg([([0.2, 0, 0.3, 0], None)]),
     "/land.geojson": _polygons(
@@ -104,12 +116,25 @@ _FILES = {
     ),
     "/lakes.geojson": _polygons(),
     "/rivers.geojson": _polygons(),
-    "/ports.csv": b"""Main Port Name,Latitude,Longitude,Harbor Type
-Near,0,0.02,Coastal (Natural)
-Anchorage,0.01,0.06,Open Roadstead
-Island,0,0.1,Coastal (Natural)
-Inland,0,-0.1,River (Natural)
-Far,0.25,0.02,Coastal (Natural)
+    "/ports.csv": b"""id,name,latitude,longitude,harbor_type,rail
+1,Near,0,0.02,Coastal (Natural),0
+2,Anchorage,0.01,0.06,Open Roadstead,0
+3,Island,0,0.1,Coastal (Natural),0
+4,Inland,0,-0.1,River (Natural),0
+5,Far,0.25,0.02,Coastal (Natural),0
+""",
+    "/rail_ports.csv": b"""id,name,latitude,longitude,harbor_type,rail
+1,Near,0,0.02,Coastal (Natural),1
+""",
+    "/airports.csv": b"""id,code,name,type,latitude,longitude,country
+100,XXNF,North field,medium_airport,0.012,-0.004,XX
+101,XXSF,South field,medium_airport,-0.012,0.004,XX
+""",
+    "/flights.csv": b"""airport_a,airport_b,flights
+100,101,120
+""",
+    "/rail_terminals.csv": b"""id,name,kind,latitude,longitude
+200,Yard,freight terminal,0.008,0.006
 """,
 }
 
@@ -956,11 +981,26 @@ def test_osm_main_roads_builds_the_same_network_with_a_work_folder(tmp_path):
 
 def _build_coast_network(tmp_path):
     """The network that `osm_main_roads_and_marnet` builds from the coast that
-    the comment above `_FILES` describes: a road, a sea lane and five ports.
+    the comment above `_FILES` describes: a road, a sea lane and five ports."""
+    return _build_from_local_sources(
+        tmp_path,
+        osm_main_roads_and_marnet,
+        {
+            "roads": "/{region}.osm.pbf",
+            "land": "/land.geojson",
+            "lakes": "/lakes.geojson",
+            "rivers": "/rivers.geojson",
+            "sea": "/sea.gpkg",
+            "ports": "/ports.csv",
+        },
+    )
 
-    The local server stands for every source. The roads are served as a
-    Geofabrik extract: a PBF whose header gives the time of its data. The
-    region "roads" is the file /roads.osm.pbf.
+
+def _build_from_local_sources(tmp_path, pipeline, paths):
+    """The network that `pipeline` builds from the sources at `paths` (source ->
+    path) of the local server, which stands for every source. The OSM file is
+    served as a Geofabrik extract: a PBF whose header gives the time of its
+    data. The region "roads" is the file /roads.osm.pbf.
     """
     osmium = pytest.importorskip("osmium")
     xml, pbf = tmp_path / "roads.osm", tmp_path / "roads.osm.pbf"
@@ -970,27 +1010,18 @@ def _build_coast_network(tmp_path):
     with osmium.SimpleWriter(str(pbf), header=header) as writer:
         for entity in osmium.FileProcessor(str(xml)):
             writer.add(entity)
-    paths = {
-        "roads": "/{region}.osm.pbf",
-        "land": "/land.geojson",
-        "lakes": "/lakes.geojson",
-        "rivers": "/rivers.geojson",
-        "sea": "/sea.gpkg",
-        "ports": "/ports.csv",
-    }
     with _local_server() as server, pytest.MonkeyPatch.context() as patch:
         patch.setitem(_FILES, "/roads.osm.pbf", pbf.read_bytes())
         for name, path in paths.items():
             patch.setitem(
-                osm_main_roads_and_marnet.SOURCES,
+                pipeline.SOURCES,
                 name,
-                {
-                    **osm_main_roads_and_marnet.SOURCES[name],
-                    "url": server + path,
-                },
+                {**pipeline.SOURCES[name], "url": server + path},
             )
         return GeoGraph.build_geograph(
-            "osm_main_roads_and_marnet", region="roads", cache_dir=tmp_path
+            pipeline.__name__.rsplit(".", 1)[-1],
+            region="roads",
+            cache_dir=tmp_path,
         )
 
 
@@ -1002,7 +1033,7 @@ def coast_network(tmp_path_factory):
 def test_nodes_are_stored_by_mode_and_each_mode_names_its_source(coast_network):
     assert coast_network.modes == [
         {"name": "road", "source": "roads"},
-        {"name": "port"},
+        {"name": "port", "source": "ports"},
         {"name": "sea", "source": "sea"},
     ]
     # 3 road nodes, then 2 ports, then the 2 ends of the sea lane
@@ -1023,9 +1054,8 @@ def test_only_a_port_near_a_road_and_near_water_becomes_a_node(coast_network):
     # "Near" and "Anchorage". "Island" and "Far" are too far from the road,
     # and "Inland" is too far from water.
     assert port_nodes == [[0, 0.02], [0.01, 0.06]]
-    # A road node keeps its OSM id, which is positive. A port is not an OSM
-    # node: scgraph numbers the ports -1, -2...
-    assert ids_of_port_nodes == [-2, -1]
+    # A port keeps its number in the ports table, the World Port Index number
+    assert ids_of_port_nodes == [1, 2]
 
 
 def test_a_route_from_the_road_to_the_sea_lane_passes_through_a_port(
@@ -1123,7 +1153,74 @@ def test_each_source_is_recorded_with_the_version_of_its_data(coast_network):
         "lakes": "5.1.2",
         "rivers": "5.1.2",
         "sea": None,
-        "ports": None,
+        "ports": "UpdatedPub150.csv, SHA-256 315644f1e7796629",  # the table's
+    }
+
+
+@pytest.fixture(scope="module")
+def multimodal_network(tmp_path_factory):
+    """The network that `osm_multimodal` builds from the coast of `_FILES`: the
+    road, the railways, the sea lane, and the hubs of the comment above `_FILES`.
+    """
+    return _build_from_local_sources(
+        tmp_path_factory.mktemp("multimodal"),
+        osm_multimodal,
+        {
+            "osm": "/{region}.osm.pbf",
+            "land": "/land.geojson",
+            "lakes": "/lakes.geojson",
+            "rivers": "/rivers.geojson",
+            "sea": "/sea.gpkg",
+            "ports": "/rail_ports.csv",
+            "airports": "/airports.csv",
+            "flights": "/flights.csv",
+            "rail_terminals": "/rail_terminals.csv",
+        },
+    )
+
+
+def _mode_names(network):
+    names = [mode["name"] for mode in network.modes]
+    return [names[row] for row in network.node_modes]
+
+
+# The railway crosses the road at a level crossing, a node of both ways in the
+# OSM file. The two networks must stay apart there: a route changes mode only at
+# a hub.
+def test_roads_and_railways_stay_apart_at_a_level_crossing(multimodal_network):
+    modes = _mode_names(multimodal_network)
+    points = {"road": [], "rail": []}
+    for point, mode in zip(multimodal_network.nodes, modes):
+        if mode in points:
+            points[mode].append(list(point))
+
+    assert sorted(points["road"]) == [[-0.01, 0], [0, 0], [0.01, 0]]
+    # The siding to (0.01, 0.015) is left out
+    assert sorted(points["rail"]) == [
+        [-0.008, 0.012],
+        [0, 0],
+        [0, 0.012],
+        [0.008, 0.012],
+    ]
+
+
+def test_each_hub_joins_the_modes_it_serves(multimodal_network):
+    modes = _mode_names(multimodal_network)
+    ids = list(multimodal_network.node_ids)
+
+    reached = {
+        (modes[u], ids[u]): sorted({modes[v] for v in arcs})
+        for u, arcs in enumerate(multimodal_network.graph_object.graph)
+        if modes[u] in ("port", "airport", "rail_terminal")
+    }
+
+    # Each hub keeps the id of its table; an airport reaches the other by its
+    # flight
+    assert reached == {
+        ("port", 1): ["rail", "road", "sea"],
+        ("airport", 100): ["airport", "road"],
+        ("airport", 101): ["airport", "road"],
+        ("rail_terminal", 200): ["rail", "road"],
     }
 
 

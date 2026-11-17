@@ -1,0 +1,899 @@
+id,name,kind,latitude,longitude
+53413,Poznań Franowo,goods station,52.374444,16.989167
+76079,Alnabru godsterminal,freight terminal,59.9315,10.8375
+188837,Daejeonjochajang Station,goods station,36.371111,127.4225
+255957,Kitakyūshū Freight Terminal,goods station,33.896397,130.923069
+454654,JadeWeserPort,container terminal,53.591893,8.139153
+477549,Busanjin Station,goods station,35.129181,129.0505
+582178,,goods station,50.067242,22.5289
+685513,Kraków Towarowy train station,goods station,50.0814,19.9322
+800726,Leipzig-Engelsdorf goods station,goods station,51.3433,12.4643
+801143,Lüderitz Railway Station,goods station,-26.647383,15.153992
+801413,Schnaittenbach,goods station,49.545307,11.996074
+899669,Mizusawa Station,goods station,39.1392,141.1462
+935311,Radom Krychnowice,goods station,51.35,21.1
+938214,Damasławek train station,goods station,52.8433,17.4969
+947573,,goods station,51.395556,19.681944
+1128461,Container Terminal Salzburg,goods station,47.8208,13.001
+1128462,Container-Terminal Bremerhaven,container terminal,53.58741,8.533287
+1128489,Container Terminal Tollerort,container terminal,53.533,9.948
+1128491,Container Terminal Altenwerder,container terminal,53.503889,9.934167
+1534445,,goods station,49.136547,9.19595
+1562161,Hamburg-Altona goods station,goods station,53.56,9.936667
+1562163,Güterbahnhof Wiesbaden West,goods station,50.0738,8.21595
+1571427,Halle,goods station,51.4834,11.9901
+1589489,Hauptgüterbahnhof Hannover,goods station,52.3842,9.7319
+1595672,Obong Station,goods station,37.336255,126.961136
+1597101,Yangsanhwamul Station,goods station,35.301944,129.011389
+1597150,Jangyu Station,goods station,35.210833,128.820833
+1597764,,goods station,35.955814,128.450986
+1598363,Sinseondae Station,goods station,35.108333,129.083333
+1598378,Uam Station,goods station,35.124722,129.073056
+1811532,Łódź Olechów,goods station,51.7297,19.5956
+1821267,Gare de Montierchaume,goods station,46.85029,1.793837
+1838642,Europees Massagoed Overslagbedrijf,freight terminal,51.9404,4.0491
+1841721,Kostrzyn Towarowy,goods station,52.606222,14.644306
+1885626,,goods station,50.594694,22.996194
+1886258,Czerwieńsk Towarowy,goods station,52.0314,15.3781
+1887475,Genk-Zuid-Linkeroever railway station,goods station,50.929532,5.493894
+1919800,Częstochowa Towarowa,goods station,50.7925,19.1453
+1930456,Gare de Ferrière-la-Grande,goods station,50.25561,3.999452
+1961399,Rotterdam Noord goods station,goods station,51.945,4.50556
+1964067,Dęblin Towarowy,goods station,51.5714,21.8436
+1980430,Wieliczka Towarowa train station,goods station,49.983611,20.061111
+1993152,Gare de Pont-Audemer,goods station,49.351389,0.515833
+2048686,Stężyca,goods station,51.5867,21.7822
+2048739,,goods station,50.3633,17.8633
+2123967,,goods station,49.7458,21.5178
+2132121,Gare de Tournon-Saint-Martin,goods station,46.736939,0.958304
+2159291,Amsterdam Westhaven,goods station,52.40504,4.83862
+2191350,Gare de Bobigny,goods station,48.91048,2.430285
+2216143,Tanjung Priok railway station,goods station,-6.11111,106.881
+2217591,Europe Container Terminals,container terminal,51.953889,4.054167
+2222943,Santa Fe Freight Depot,railway freight depot,34.045,-118.232778
+2277468,,goods station,50.7925,23.923889
+2285357,Brugge-Dijk railway station,goods station,51.23806,3.20639
+2516613,Verladestation Dannenberg,goods station,53.1059,11.1342
+2530793,Klari railway station,goods station,-6.35,107.345
+2563844,Weserbahnhof,goods station,53.082733,8.784287
+2649707,,goods station,50.825898,3.252662
+2670153,,goods station,52.703318,18.976355
+2717728,Dębica Wąskotorowa,goods station,50.049637,21.38992
+2737371,Port Newark–Elizabeth Marine Terminal,container terminal,40.68155,-74.1505
+2751385,Kortrijk-Vorming railway station,goods station,50.817091,3.245687
+2776306,Poznań Piątkowo,goods station,52.46489,16.8785
+3024078,Gare de Blanc-Misseron,goods station,50.405,3.6625
+3095702,Gare d'Auxy - Juranville,goods station,48.0871,2.48427
+3095841,Gare d'Outreau,goods station,50.6885,1.61076
+3095982,Gare de Beuzeville,goods station,49.340889,0.351723
+3096113,Gare de Cambrai-Annexe,goods station,50.1768,3.25511
+3096155,Gare de Celon,goods station,46.51732,1.503362
+3096274,Gare de Conchil-le-Temple,goods station,50.3621,1.66111
+3096570,,goods station,48.5748,2.95115
+3096574,Gare de Gray,goods station,47.4518,5.57846
+3096930,Gare de Lyon-Guillotière,goods station,45.7431,4.84462
+3096932,,goods station,48.5803,3.38378
+3097274,Gare de Pithiviers,goods station,48.173577,2.241767
+3097391,,goods station,43.938023,4.568299
+3097740,Sidi Ichou train station,goods station,34.3027,-6.4315
+3097806,Lausanne-Sébeillon railway station,goods station,46.524686,6.610647
+3097996,,goods station,47.934223,1.834932
+3098118,Himeji Kamotsu Station,goods station,34.8046,134.753
+3456454,Zamość Bortatycze LHS train station,goods station,50.7397,23.1928
+3518419,Athus Container Terminal,rail terminal,49.554793,5.82638
+3518424,Kōbe Freight Terminal,goods station,34.6513,135.135
+3531754,Kwai Tsing Container Terminals,container terminal,22.341389,114.124722
+3555972,Vernier-Meyrin Cargo station,goods station,46.2225,6.08179
+3727393,Kanazawa Freight Terminal,goods station,36.5908,136.667
+3969610,Fiorentina di Piombino,goods station,42.9707,10.5421
+3969893,La Spezia Marittima,goods station,44.1083,9.83216
+3969968,Livorno Calambrone railway station,goods station,43.5846,10.3266
+3970388,Padova Interporto railway station,goods station,45.395,11.9209
+3971138,Torino San Paolo railway station,goods station,45.0556,7.6362
+4081753,,goods station,54.0927,54.1262
+4083628,Belyov railway station,goods station,53.817056,36.121389
+4210356,,goods station,40.86255,44.05442
+4215474,,goods station,40.135556,44.463889
+4355548,Gieniusze,goods station,53.3792,23.4159
+4385729,Pyaozero railway station,goods station,65.766667,31.083333
+4398555,Rostokino,goods station,55.842639,37.656222
+4429842,Sotk,goods station,40.214361,45.943556
+4465366,,goods station,40.941111,44.630833
+4484950,,goods station,40.71194,44.707083
+4506035,Tsovagyugh,goods station,40.6284,44.9728
+4730438,Allamuchy Freight House,goods station,40.932057,-74.820204
+4859731,Barbours Cut Terminal,container terminal,29.6819,-94.9983
+5001422,Industry City,freight terminal,40.655833,-74.008056
+5196147,Curzon Street railway station,goods station,52.4816,-1.88637
+5230295,Daventry International Rail Freight Terminal,railway freight depot,52.3497,-1.16778
+5250270,Deep River Freight Station,railway freight depot,41.393889,-72.426944
+5355681,Kita-Asahikawa Freight Terminal,goods station,43.800556,142.410278
+5355904,Tokyo Freight Terminal,goods station,35.5958,139.758
+5356409,Morioka Freight Terminal,goods station,39.644,141.145167
+5357915,Kōriyama Freight Terminal,goods station,37.371583,140.376667
+5358081,Hiroshima Freight Terminal,goods station,34.392417,132.489167
+5359561,Nishi-Hamamatsu Station,goods station,34.6936,137.715
+5359580,Gifu Freight Terminal,goods station,35.4022,136.715
+5359645,Minami-Fukui Freight Terminal,goods station,36.045278,136.2175
+5360069,Shizuoka Kamotsu Station,goods station,34.9885,138.422
+5360071,Okayama Freight Terminal,goods station,34.6569,133.898
+5360668,Hama-Kokura Freight Terminal,goods station,33.896744,130.858556
+5399731,Essex Freight Station,railway freight depot,41.350278,-72.405833
+5404666,Somincor goods station,goods station,38.264786,-8.526806
+5637068,Hachinohe Freight Terminal,goods station,40.520548,141.444625
+5647226,Handafutō Station,goods station,34.881278,136.953167
+5674400,Hartford & New Haven Railroad-Freight Depot,railway freight depot,41.8519,-72.6421
+5701321,Hekinanshi Station,goods station,34.884556,136.981722
+5846661,Abroñigal train station,goods station,40.38854,-3.67741
+5847618,Estación de las Peñuelas,goods station,40.4003,-3.70427
+5998368,Port of İzmir,container terminal,38.442222,27.1525
+6358548,Kamisu Freight Terminal,goods station,35.910972,140.657139
+6361344,Kandava,goods station,57.082972,22.819456
+6397944,Kewdale Freight Terminal,rail terminal,-31.983994,115.966016
+6417850,Kitano-Masuzuka Station,goods station,34.9964,137.139
+6417863,Kitanuma Station,goods station,40.555389,141.483806
+6473363,Lahore Dry Port,dry port,31.556722,74.373056
+6528780,Pärnu goods station,goods station,58.395153,24.586953
+6862951,Minami-Nagaoka Freight Terminal,goods station,37.431944,138.8475
+7082758,Okunoyahama Freight Terminal,goods station,35.901611,140.700556
+7126806,Palatine Bridge Freight House,railway freight depot,42.91,-74.566389
+7145040,Patio Parada,goods station,-32.932511,-60.678156
+7182606,"Philadelphia, Wilmington and Baltimore Railroad Freight Shed",goods station,39.9392,-75.1678
+7231282,Port of Thessaloniki,container terminal,40.636,22.922
+7284064,Railroad Museum of Oklahoma,railway freight depot,36.4039,-97.8819
+7417035,Sandweid,goods station,46.61384,7.90298
+7440182,Seaboard Coast Line Railroad station,goods station,27.7669,-82.6628
+7498194,Shir Khan Bandar,dry port,37.19,68.615
+7570279,Southern Pacific Freight Depot,railway freight depot,32.720278,-114.6175
+7594014,St Leonards (Edinburgh) railway station,goods station,55.9431,-3.17768
+7677238,Takaoka Freight Terminal,goods station,36.777667,137.050972
+7697211,Telford International Railfreight Park,railway freight depot,52.716,-2.455
+7920356,Ventspils II,goods station,57.384147,21.669797
+7920360,Ventspils,goods station,57.393605,21.597455
+7961051,Wakefield Europort,railway freight depot,53.7147,-1.4083
+7989300,Westmoreland Street railway station,goods station,51.3781,-2.3672
+8030514,Wolverhampton Steel Terminal,railway freight depot,52.5817,-2.11
+8075605,Zvāre,goods station,57.019086,23.0006
+9192668,,goods station,52.0467,15.6006
+9302470,,goods station,47.736094,8.969157
+9311870,Rogów Towarowy Wąskotorowy,goods station,51.8125,19.88
+9336541,Siemianówka train station,goods station,52.9008,23.8186
+9337111,Sindelfingen station,goods station,48.704,8.99928
+9341383,,goods station,50.604444,22.013889
+10276287,Paranapiacaba Station,goods station,-23.777019,-46.303173
+10351841,,dry port,-29.772611,-57.045889
+10351845,Porto Seco Cuiabá,dry port,-15.662472,-55.982306
+10351848,Dry port of Taubaté,dry port,-23.059111,-45.6355
+10854957,Kagoshima Freight Terminal,goods station,31.601497,130.563114
+10855493,Kudara Freight Terminal,goods station,34.6371,135.541
+10913509,Guzhai Railway Station,goods station,24.743517,109.103154
+10917748,Nagoya Minato Station,goods station,35.096417,136.879361
+10946256,Utsunomiya Freight Terminal,goods station,36.446925,139.869433
+10947137,Anfusi Railway Station,goods station,30.513451,111.581814
+10958727,Xiaozhai Railway Station,goods station,33.12489,106.5291
+11074887,Hualien Port Station,goods station,23.9942,121.636
+11093492,Sapporo Freight Terminal,goods station,43.0438,141.444
+11107479,Zhijiang Railway Station,goods station,30.4583,111.572
+11174942,Yantian International Container Terminals,container terminal,22.575,114.270833
+11235032,Tosu  Freight Terminal,goods station,33.382,130.525
+11248021,Sagami Freight Terminal,goods station,35.323333,139.330833
+11260182,Iwaki Kamotsu Station,goods station,37.04415,140.86281
+11261287,Obihiro Freight Terminal,goods station,42.927678,143.146828
+11261326,Osaka Freight Terminal,goods station,34.772389,135.564194
+11262877,Yokohama-Hazawa Station,goods station,35.482583,139.590222
+11354058,Mikajiri Station,goods station,36.157706,139.3156
+11369893,Otomezaka Station,goods station,35.3983,136.581
+11374728,Keiyō-Kubota Station,goods station,35.461417,139.996528
+11374731,Keiyō Ichihara Station,goods station,35.545833,140.101278
+11375696,Kyoto Freight Terminal,goods station,34.9853,135.741
+11377786,Sendai Kitakō Station,goods station,38.28425,141.026833
+11377809,Sendai Futō Station,goods station,38.273111,141.017306
+11378029,Sendaikō Station,goods station,38.276694,141.014167
+11378063,Sendai Nishikō Station,goods station,38.272806,140.992389
+11378066,Sendai Freight Terminal,goods station,38.256194,140.907111
+11386777,Kurashiki Freight Terminal,goods station,34.522111,133.723861
+11397210,Maekawa Station,goods station,35.497972,140.046833
+11403991,Kitasode Station,goods station,35.466417,140.008667
+11404525,Kita-Tatebayashi Freight Station,goods station,36.265667,139.549222
+11406763,Chiba Kamotsu Station,goods station,35.558694,140.124194
+11406912,Chidorichō Station,goods station,35.519295,139.751345
+11414886,Nagoya-Minami Freight Station,goods station,35.018222,136.877639
+11415257,Nagoya Freight Terminal,goods station,35.125722,136.862028
+11415823,Meiden Chikkō Station,goods station,35.091444,136.902056
+11459338,Onahama Station,goods station,36.94802,140.89704
+11478582,Kawasaki Freight Station,goods station,35.529167,139.745833
+11485586,Hirosegawara Freight Terminal,goods station,36.145881,139.344536
+11501906,Shinkoiwa Shingōjō Station,goods station,35.720361,139.863111
+11502254,Niiza Freight Terminal,goods station,35.8034,139.553
+11503593,Niigata Freight Terminal,goods station,37.910111,139.107944
+11514124,Shōwamachi Station,goods station,35.077611,136.899806
+11519705,Suehirochō Station,goods station,35.530833,139.76975
+11520547,Honmoku Futō Station,goods station,35.433333,139.674694
+11527077,Higashi Niigatakō Station,goods station,37.943889,139.073889
+11527115,Higashikata Station,goods station,35.072408,136.681833
+11527561,Higashi-Mizushima Station,goods station,34.509028,133.754747
+11528000,Tōkō Station,goods station,35.081361,136.903694
+11528771,Higashi Takasima Station,goods station,35.471389,139.636167
+11538793,Kajigaya Freight Terminal,goods station,35.580139,139.60875
+11540851,Shiizu Station,goods station,35.473333,140.028556
+11543197,Yokohama Hommoku Station,goods station,35.420472,139.671333
+11545962,Bushū-Haraya Station,goods station,36.027997,139.096431
+11550526,Shiomichō Station,goods station,35.07025,136.878222
+11557542,Hama-Goi Station,goods station,35.532389,140.086111
+11558525,Ukishimachō Station,goods station,35.522944,139.782944
+11567647,Yakejima Station,goods station,37.9275,139.083472
+11568841,Kumagaya  Freight Terminal,goods station,36.165217,139.345608
+11572410,Tamasaki Station,goods station,35.5305,140.069944
+11577727,Kinoene Station,goods station,35.517889,140.059472
+11584561,Chita Station,goods station,34.991667,136.858306
+11586485,Ishinomakikō Station,goods station,38.420397,141.286642
+11592946,Fukuoka Freight Terminal,goods station,33.633583,130.419361
+11595750,Akita Freight Terminal,goods station,39.740917,140.106722
+11614324,Funamichō Station,goods station,35.075833,136.899083
+11616837,Tomakomai Kamotsu Station,goods station,42.650164,141.629378
+11629044,Nisihama Station,goods station,34.752778,134.369667
+11629117,Seishō Freight Terminal,goods station,35.277778,139.191667
+11635564,Akasaki Station,goods station,39.074167,141.726944
+11636389,Etchujima Freight Terminal,goods station,35.662167,139.816389
+11636627,Koshigaya Freight Terminal,goods station,35.876256,139.799833
+11644358,Sakatakō Freight Terminal,goods station,38.921667,139.825
+11651678,Chōanji Station,goods station,39.106944,141.687222
+11658181,Jinyamachi Station,goods station,42.367875,140.949989
+11658858,Sumidagawa Station,goods station,35.733056,139.800833
+11670502,Takamatsu Freight Terminal,goods station,34.3358,134.002
+11726074,,goods station,52.096692,21.114728
+11739099,Kietrz train station,goods station,50.0767,18.0064
+11762960,Lubasz koło Czarnkowa train station,goods station,52.8453,16.5308
+11817036,,goods station,50.995,15.6653
+11826141,Poznań Główny Towarowy,goods station,52.391944,16.910556
+11857361,Elijärvi railway station,goods station,65.7769,24.6983
+11888421,Pohjankuru railway station,goods station,60.098056,23.552222
+11960472,Bekkelaget goods terminal,goods station,59.8872,10.7633
+11968375,Narvik goods terminal Fagernes,goods station,68.414554,17.425888
+11971532,Ganddal goods terminal,goods station,58.8128,5.70278
+11972563,Grenland Terminal,goods station,59.066111,9.698333
+11974709,,goods station,63.3419,10.3546
+11989695,,goods station,66.3193,14.1403
+12030088,Container terminal in Praha-Uhříněves,container terminal,50.0394,14.5789
+12041533,Praha-Modřany,goods station,49.9976,14.4047
+12239406,,goods station,35.1984,35.9713
+12295461,,goods station,42.704985,23.335036
+12366536,Karula railway station,goods station,57.799164,26.309525
+12367432,Kopli freight station,goods station,59.443585,24.720361
+12504183,Port of Trisakti,container terminal,-3.3312,114.558
+12598823,Busansinhang Station,goods station,35.11429,128.8463
+12653266,Draugystė train station,freight terminal,55.647,21.202
+12781945,Bratislava východ railway station,goods station,48.197318,17.17225
+13021625,Ladkrabang Inland Container Depot,goods station,13.7374,100.765
+14538517,Container Terminal Burchardkai,container terminal,53.53388,9.919109
+14654617,Kramasan railway station,goods station,-3.047349,104.738184
+14906353,Bahnhof Berlin-Moabit,goods station,52.5345,13.3358
+15112015,,container terminal,48.19164,12.820058
+15219420,Naujene,goods station,55.934778,26.753083
+15227315,Buk-cheolsong Station,goods station,35.0827,128.8258
+15227318,Nam-cheolsong Station,goods station,35.061889,128.806806
+15278928,Les Verrières,goods station,46.905327,6.479393
+15279077,Feignies railway station,goods station,50.30617,3.92254
+15303026,Alvaneu railway station,goods station,46.671249,9.650732
+15682274,Paneriai train station,goods station,54.63,25.177
+15682490,Vaidotai train station,goods station,54.594,25.216
+15794497,,dry port,-26.225779,28.098117
+15886804,,goods station,51.4783,19.1994
+15886827,,goods station,51.5679,21.5906
+15917036,Yingtannan Railway Station,goods station,28.222975,117.032881
+15920947,Zhengzhou Railway Container Terminal,goods station,34.732281,113.794094
+15930333,Caoya Rail Yard,goods station,22.57279,120.33499
+16303872,Gare d'Arques,goods station,50.7281,2.3021
+16307567,,goods station,12.690852,101.128335
+16351201,Rēzekne I railway station,goods station,56.501657,27.315375
+16456494,"Klaipėdos Smeltė, AB",container terminal,55.675,21.145833
+16494594,,goods station,50.740858,23.193628
+16507981,Gare de La Chapelle-la-Reine,goods station,48.3219,2.56716
+16508009,Lausanne-Triage classification yard,goods station,46.5271,6.5394
+16508061,Gare de Strasbourg-Cronenbourg,goods station,48.5925,7.73178
+16510273,Plate-forme multimodale Delta 3,goods station,50.4484,2.98347
+16542404,,goods station,50.3172,19.3464
+16549066,,goods station,54.3553,18.6714
+16549637,,goods station,50.3181,18.6481
+16550016,,goods station,50.6092,20.655
+16564477,Imperial train station,goods station,40.405197,-3.717994
+16569373,,goods station,50.0278,20.0093
+16569379,,goods station,50.0555,20.007
+16570466,,goods station,50.3544,18.1767
+16638580,,goods station,49.1284,6.16097
+16964674,,goods station,49.4895,0.562068
+17212325,Mizune Station,goods station,35.793639,139.049028
+17300205,Rotterdam World Gateway,container terminal,51.9545,3.9888
+17355272,Gare de Héming,goods station,48.6919,6.97102
+17355275,Strasbourg-Neudorf station,goods station,48.5654,7.75063
+17355276,Gare de Strasbourg-Port-du-Rhin,goods station,48.574,7.79404
+17424009,APM Terminals Maasvlakte II,container terminal,51.952,4.0055
+17563544,,goods station,43.571969,-5.926536
+17602769,Morrot train station,goods station,41.3665,2.17311
+17628864,Gare de Chalandray,goods station,46.6646,-0.002761
+17628873,Geneva-La Praille station,goods station,46.182222,6.126111
+17628898,Schiltigheim,goods station,48.6074,7.74031
+18160301,Gree Goods station,goods station,55.7254,-4.56738
+18160588,Liverpool2,container terminal,53.453,-3.023
+18161067,Lissens Goods station,goods station,55.6881,-4.66128
+18180263,Ełk Towarowy,goods station,53.8108,22.3706
+18180284,Jevíčko,goods station,49.63081,16.730906
+18380201,,goods station,49.9097,2.26444
+18405077,Moskva-Tovarnaya,goods station,55.803333,37.624444
+18416366,Empalme Norte rail yard,goods station,-34.593972,-58.370306
+18464479,,goods station,-24.992,-53.326
+18542396,Cuenca del Plata Terminal,container terminal,-34.906167,-56.218222
+18543562,La Coruña-San Diego train station,goods station,43.3576,-8.39808
+18578101,Gare du Havre-Maritime,goods station,49.492778,0.125278
+18613203,,goods station,43.3232,5.37218
+18626943,Ülemiste freight station,goods station,59.423333,24.806667
+18630045,Rangierbahnhof Basel-Muttenz,goods station,47.5362,7.64659
+18662276,Tampere old freight station,goods station,61.50004,23.774929
+18691647,Vilnius Intermodal Terminal,dry port,54.5811,25.2256
+18745504,,goods station,48.7415,6.16283
+19014357,Musan Kwangsan Station,goods station,42.22603,129.26346
+19327574,Sørli Terminal,goods station,60.680833,11.214167
+19327608,,goods station,59.748333,10.246389
+19327874,,goods station,60.228333,10.224722
+19327923,,goods station,60.856111,11.553889
+19327940,Langemyr terminal,goods station,58.178333,7.938889
+19399111,,goods station,62.562004,7.679336
+19406983,Gare de Coulombiers,goods station,46.4801,0.185239
+19741139,Nambo railway station,goods station,-6.4662,106.9062
+19745979,Karangtalun railway station,goods station,-7.684647,109.023131
+19748476,Kertapati railway station,goods station,-3.016533,104.751602
+19748483,Prabumulih railway station,goods station,-3.433,104.24086
+19752855,Jakarta Gudang railway station,goods station,-6.133376,106.819312
+19855787,Kuunbong Station,goods station,41.38025,126.519871
+19929949,Marzaglia railway station,goods station,44.653389,10.841231
+20023084,Umeda Station,goods station,34.703717,135.493231
+20042891,,container terminal,35.609722,139.7825
+20044791,,container terminal,35.625278,139.758889
+20127533,Gare de Giromagny,goods station,47.7369,6.83026
+21125346,Lugano Vedeggio railway station,goods station,46.023072,8.918903
+21281063,Soltau (Han) Süd railway station,goods station,52.979729,9.845211
+21680490,Wrocław Brochów Towarowy,goods station,51.056389,17.094722
+24061409,El Paso freight station,goods station,40.738056,-89.015556
+24282896,,container terminal,49.7415,18.2873
+24282905,Mělník Intermodal Terminal,container terminal,50.362825,14.461006
+24940692,PSA Genova Pra' Terminal,container terminal,44.420517,8.785146
+24941086,,goods station,50.282236,18.741692
+24948302,Warszawa Główna Towarowa,goods station,52.214139,20.904056
+25100839,Nampohang Station,goods station,38.727831,125.407691
+25388448,Wolf Yard,goods station,47.54194,7.60417
+25396333,Iļģuciems freight station,goods station,56.9725,24.070278
+25463011,Bukit Putus railway station,goods station,-0.986444,100.384333
+25463403,Indarung railway station,goods station,-0.95,100.467373
+26849010,Cherkizovo,goods station,55.803889,37.746111
+27478850,Bahnhof Weißensee,goods station,51.186982,11.061748
+27819318,Messageries de la gare Saint-Lazare,goods station,48.880644,2.322748
+27996573,,goods station,49.498212,8.447534
+28040012,,goods station,49.880192,1.134751
+28124710,P.C.C. & St. L. Railroad Freight Depot,goods station,39.760306,-86.156028
+28126154,Freight House,goods station,43.815556,-91.253056
+28174092,Tihi railway station,goods station,22.619,75.7342
+28220493,Moorebank Intermodal Terminal,dry port,-33.951306,150.923
+28445234,Markkleeberg West railway station,goods station,51.285556,12.364056
+28450335,Dubuque Freight House,goods station,42.496583,-90.660778
+28532741,Nagad railway station,goods station,11.523333,43.1275
+28667644,Staroproletarskaya,goods station,55.7251,37.7362
+28685566,Minato-kashii,container terminal,33.664028,130.405472
+28704056,,goods station,48.401389,34.991389
+28706791,Berehova,goods station,46.632276,31.044189
+29387932,Landskrona freight yard,goods station,55.8674,12.83144
+29932530,"Train station with a station building, freight shed, wall fountain, and a residential house with a barn (the former Hotel Witzig)",goods station,47.667145,8.613885
+30089185,Schweizerhalle Station,goods station,47.531503,7.662306
+30594331,Riyadh Dry Port,dry port,24.644806,46.745528
+30674730,Khorgos Gateway,container terminal,44.165833,80.303056
+30688756,Cikarang Dry Port,dry port,-6.26739,107.164976
+31174020,Pasoso railway station,goods station,-6.1092,106.883331
+32791998,Port of Derince,container terminal,40.750608,29.834814
+32793164,Port of İskenderun,container terminal,36.593095,36.180666
+33301644,,goods station,53.578472,15.305486
+33301657,,goods station,53.578583,15.305222
+33463415,Muntelier station,goods station,46.941214,7.138041
+33508832,Bannwald station,goods station,46.583626,7.933769
+33508869,Strättli station,goods station,46.591079,7.987834
+33508884,Rotenegg station,goods station,46.655848,7.880317
+33508894,Witimatte station,goods station,46.59433,7.912792
+33508910,Rohrfluh station,goods station,46.603095,7.91437
+33511660,Surava railway station,goods station,46.666865,9.620944
+33511740,Carolina station,goods station,46.670372,10.059874
+33512166,Genève Montbrillant station,goods station,46.215127,6.142724
+38251406,Garrochburn Goods Depot,goods station,55.543,-4.411
+39052757,Riverina Intermodal Freight and Logistics Hub,dry port,-35.053468,147.424923
+40165866,,goods station,51.908447,4.504244
+40201685,Bahnhof Walsum,goods station,51.5346,6.7186
+42716357,Gare ferroviaire Treichville,goods station,5.30093,-4.01449
+43267904,Narvskaya railway station,goods station,59.871111,30.280833
+44550990,Birgunj Inland Dry Port,dry port,27.019462,84.849561
+47093290,Ludwigshafen (Rhein) Gbf,goods station,49.52381,8.42555
+47254726,Zvolen nákladná stanica,goods station,48.572826,19.144446
+48792106,Des Moines Western Railway Freight House,goods station,41.587639,-93.607833
+48799034,Mennock Lye Goods Depot,goods station,55.351514,-3.878986
+50806935,Bayerisches Moor- und Torfmuseum,goods station,47.813333,12.427778
+55743750,Soroksári út Yard,goods station,47.451597,19.0869
+55964538,Gare de Chassal,goods station,46.360896,5.786045
+55978701,Archi railway station,goods station,42.105235,14.370975
+56291021,Norton Junction,goods station,52.66862,-1.967449
+56402628,Banyuls dels Aspres station,goods station,42.557342,2.868753
+58328668,Venezia Marghera Scalo railway station,goods station,45.467056,12.241742
+59155711,Masaka Inland Container Depot,dry port,-2.013611,30.2025
+59594689,Fischversandbahnhof Bremerhaven,goods station,53.521556,8.585917
+60584408,Kőbánya-teher railway station,goods station,47.491472,19.121033
+60847577,,goods station,49.500864,6.098848
+61117060,Bilohorivka,goods station,48.864444,38.273611
+61117075,,goods station,48.867778,37.7525
+61362846,Sungai Lagoa railway station,goods station,-6.111782,106.876744
+61390455,,freight terminal,43.050139,-7.555778
+61769949,,goods station,52.607197,13.35608
+61961235,Coslada Dry Port,dry port,40.432156,-3.5698
+62075166,Güterbahnhof Offenbach,goods station,50.107527,8.79814
+62427366,Queensgate Yard,goods station,39.132417,-84.541833
+63434071,Eurogate Container Terminal Hamburg,container terminal,53.527,9.912
+65192766,Vrútky nákladná stanica railway station,goods station,49.10906,18.94663
+65240574,,container terminal,38.790111,-94.959889
+73411529,Bahnhof Berlin Johannesstift,goods station,52.56696,13.1898
+76283622,Gare frigorifique de Paris-Ivry,goods station,48.831122,2.378998
+79594987,Gare de Bricon,goods station,48.087207,4.978922
+80332931,Coburg Gbf,goods station,50.247003,10.961486
+81045040,Petrozavodsk-Tovarny,goods station,61.797525,34.320603
+82540977,Gare du Boulou - Perthus,goods station,42.5247,2.82769
+82550484,Sant Joan de Pladecorts station,goods station,42.513333,2.783333
+83354115,Güterbahnhof Unter Retzbach,goods station,48.757712,16.00311
+83537487,Komsomolsk-Murmansky,goods station,69.020429,33.09736
+83802948,Shekou Container Terminals,container terminal,22.454167,113.8875
+83802963,Chiwan Container Terminal,container terminal,22.4625,113.879167
+83803549,Da Chan Bay Terminal,container terminal,22.544167,113.856389
+83803846,Mawan Container Terminal,container terminal,22.479167,113.870833
+83977527,Barcelona Europe South Terminal,container terminal,41.308333,2.145833
+84607916,Petrogranit (railway station),goods station,63.02639,32.37194
+85172663,Kermanshah Freight Station,goods station,34.334661,47.288134
+85762581,Gallows Close goods yard,goods station,54.2785,-0.4117
+86004406,Ilzēni,goods station,56.633333,27.412222
+86004415,Mežvidi,goods station,56.695556,27.526389
+86069939,Schweinfurt-Sennfeld,goods station,50.038526,10.240045
+86674997,Ilūkste train station,goods station,55.942222,26.230278
+87142625,Wernfeld,goods station,50.030545,9.730574
+87490348,,goods station,49.47894,5.96112
+87490594,,goods station,49.52834,5.89166
+88479450,Oberheutal train station,goods station,48.378653,9.514975
+88870142,Kombiterminal Stockholm Nord,container terminal,59.561111,17.891667
+89419658,,container terminal,60.693889,17.226111
+89936350,Berlin Hamburger und Lehrter Bahnhof,goods station,52.532641,13.363494
+91392474,Visakha Container Terminal,container terminal,17.693927,83.298505
+91643347,Barcelona-El Port station,goods station,41.358833,2.165056
+92421031,Maardu freight station,goods station,59.449444,24.947833
+92422495,Muuga freight station,goods station,59.490639,24.993167
+93861199,Monforte de Lemos dry port,dry port,42.542583,-7.494917
+95226050,Kunda railway station,goods station,59.493352,26.524784
+95983855,Súria station,goods station,41.821861,1.761833
+96183798,Motorail Terminal,goods station,54.96847,-1.61918
+96251439,,goods station,48.1905,11.557
+96310789,Praha-Strašnice,goods station,50.065533,14.490478
+96483495,,goods station,48.726622,2.420646
+96762393,Sillamäe freight station,goods station,59.402083,27.735833
+96998737,,goods station,47.550173,33.660736
+97381074,Kerch-Port,goods station,45.363611,36.479167
+97769124,Wolfurt Freight Centre,goods station,47.457642,9.736194
+98393422,Containerbahnhof Saarbrücken,goods station,49.2511,7.0042
+99709927,,goods station,48.750556,2.360278
+101041303,Bua Yai,goods station,14.428522,101.005899
+104581371,,goods station,50.247773,19.188246
+104768567,Cargo handling Hanfertal,goods station,48.098386,9.239183
+104776000,,goods station,49.611171,18.148921
+104843282,Stourton Freightliner Terminal,railway freight depot,53.768,-1.51
+104865356,Friden Goods Yard,goods station,53.1436,-1.7441
+104872149,Ranippet railway station,goods station,16.5852,82.0167
+105078887,MegaHub Lehrte,goods station,52.379,9.9378
+105384286,,goods station,45.728119,4.848069
+105422211,,goods station,45.695833,4.910833
+105435159,Karviná-Doly,goods station,49.838587,18.513195
+105540959,Gare de Marseille-Arenc,goods station,43.326522,5.359169
+105633034,Koziegłowy,goods station,52.43899,17.00933
+105668998,Bad Ischl goods station,goods station,47.70597,13.61501
+106225380,Suita Freight Terminal,goods station,34.772167,135.534194
+106362898,Pleine-Fougères railway station,goods station,48.529758,-1.566057
+106775605,Visstation IJmuiden,goods station,52.461347,4.589942
+107000687,Gare de Paris-Batignolles,goods station,48.891111,2.308889
+107039964,Carolina and Northwestern Railway Freight Station,goods station,35.908056,-81.547778
+107208772,Gare de Sainte-Colombe-sur-Seine,goods station,47.873611,4.548056
+107472266,Gare ferroviaire de Vouziers,goods station,49.389481,4.705853
+107545613,,goods station,52.020181,23.714227
+107564367,Willesden Logistics Hub,goods station,51.533253,-0.251808
+107646786,Gare de Mignères - Gondreville,goods station,48.0425,2.632222
+107647976,Gare de Lorcy-Corbeilles,goods station,48.066111,2.551389
+107649264,Gare d'Engenville,goods station,48.236389,2.237778
+107653431,,goods station,43.454861,-3.823765
+108112580,,goods station,48.425833,1.515
+108112779,,goods station,48.322334,1.668701
+108130605,Gare de Saint-Sauveur-Châteauneuf,goods station,48.601944,1.275278
+108360646,Billbrook goods station,goods station,53.533281,10.097251
+108419362,Deggendorf Hafen,goods station,48.823394,12.966658
+108483825,"Gare de Mézin, Lot-et-Garonne",goods station,44.059278,0.248972
+108532640,Shanzhou railway station,goods station,34.660588,111.053613
+108551119,Anglinė train station,goods station,55.721,21.111
+108730260,Gare de Maubourguet,goods station,43.461442,0.033247
+108740428,Sorcy-gare,goods station,48.71756,5.669522
+108759765,Gare de Gensac-la-Pallue,goods station,45.659231,-0.250551
+108844609,Minden (Westf) Gbf railway station,goods station,52.297719,8.952012
+109265302,Containerterminal Osnabrück,container terminal,52.30017,8.02505
+109323842,Ravenstruther Rail Terminal,railway freight depot,55.688156,-3.707635
+109534566,Chobhar Dry Port,dry port,27.655903,85.290984
+109555186,Regensburg-Wutzlhofen,goods station,49.058758,12.134426
+109559191,Gare de Lézignan-la-Cèbe,goods station,43.494153,3.435022
+109567678,Nittenau,goods station,49.222499,12.291776
+109581289,Gare de Bacouel-sur-Selle,goods station,49.831642,2.193483
+109581650,Gare de Saleux,goods station,49.862628,2.226836
+110071877,Järnforsen station,goods station,57.407574,15.620129
+110251945,Zhubao railway station,goods station,35.124447,118.178864
+110259518,,goods station,59.524444,34.176389
+110568981,Rail Logistics Center Arnstadt,goods station,50.84264,10.94817
+110770026,Ogaryovo railway station,goods station,59.093088,35.206413
+110802444,East Midlands Gateway,dry port,52.833889,-1.300806
+110972534,Long Beach Container Terminal Pier E,container terminal,33.766138,-118.210297
+111272410,Euroterminal Sławków,goods station,50.28,19.31
+111703373,Spratzern station,goods station,48.15705,15.61509
+111738574,,goods station,-12.927778,-38.465
+111792369,Odesa-Lisky,goods station,46.545999,30.586162
+111792835,,goods station,47.042364,5.415496
+111801616,Karpėnai train station,goods station,56.303,22.897
+111945435,Brunswick Wharf,goods station,53.167321,-2.20218
+112031673,Kashii-hama Futō,container terminal,33.652306,130.415583
+112065914,Mostar Teretna railway station,goods station,43.357458,17.813687
+112065943,Zenica Teretna railway station,goods station,44.220551,17.911867
+112065952,Rajlovac Teretna railway station,goods station,43.858698,18.317583
+112065954,Sarajevo Teretna railway station,goods station,43.857878,18.386607
+112072291,Zenica Željezara railway station,goods station,44.222221,17.905719
+112096888,Rizgonys train station,goods station,55.113,24.525
+112669595,,goods station,43.282278,24.078806
+112825772,Soto de Ribera train station,goods station,43.308611,-5.875278
+112960507,,goods station,43.257161,-5.784294
+113173047,Medvedkovo railway station,goods station,55.880095,37.612182
+113320163,Chwalowice freight train station,goods station,50.068475,18.551359
+113394123,Miskolc rail yard,goods station,48.093012,20.800609
+113649031,Gare de Marguerittes,goods station,43.856333,4.446422
+114016132,München-Freimann station,goods station,48.18965,11.60233
+114246190,Antwerp Gateway,container terminal,51.289105,4.264841
+114707444,,goods station,47.8785,35.0639
+114836112,,goods station,49.302379,1.607791
+114836178,,goods station,48.905562,1.269858
+114836193,,goods station,48.831508,0.920511
+115119062,Elbeuf-Ville goods station,goods station,49.284128,1.00428
+115119079,,goods station,49.411984,1.03704
+115119133,,goods station,49.382214,1.023478
+115119193,,goods station,49.268169,1.036414
+115299627,October Dry port,dry port,29.826194,30.672083
+115599772,,goods station,49.842944,18.274661
+115628414,Důl Staříč,goods station,49.700929,18.272891
+115830199,Gare de Châtillon-sur-Loire,goods station,47.609167,2.7775
+115840988,,goods station,38.093,-8.4212
+116939567,,goods station,52.287493,20.898364
+116978612,,goods station,48.354706,22.167988
+117166795,,goods station,35.494152,8.32017
+117311407,Tournes station,goods station,49.793233,4.627944
+117336302,Nürnberg-Großmarkt,goods station,49.446858,11.018566
+117352893,Norrköping goods station,goods station,58.6053,16.1879
+117456327,Muizen-Goederen railway station,goods station,51.013495,4.505939
+117476852,gare de Châtillon-sur-Indre,goods station,46.992174,1.169877
+117806177,Luitpoldhütte,goods station,49.469465,11.835911
+117812804,MSC PSA European Terminal,container terminal,51.323806,4.334471
+117819954,Isfahan Dry Port,dry port,32.690833,52.124167
+117842177,Fürth (Bay) Gbf,goods station,49.46699,11.002539
+118051555,Aschaffenburg Hafen,goods station,49.97109,9.122549
+118121204,Arnstein (Unterfr),goods station,49.973285,9.967787
+118131200,Burglengenfeld,goods station,49.211419,12.036045
+118397572,Regensburg Ost,goods station,49.003848,12.133988
+118601393,Girching,goods station,48.661316,13.08312
+118602113,Grafenwöhr Lager,goods station,49.715938,11.915497
+118732493,Vilseck Lager,goods station,49.637526,11.803198
+118834844,Nürnberg Hafen,goods station,49.394634,11.044139
+119854023,Passau Gbf,goods station,48.572417,13.427869
+120451072,,goods station,50.542404,13.759945
+120575542,Sonneberg (Thür) Ost Gbf,goods station,50.352539,11.198843
+120597893,Ingolstadt Nord Werkbf Terreno,goods station,48.789096,11.500713
+120597957,Ingolstadt Esso Werkbf,goods station,48.783915,11.469845
+120716494,Bamberg Hafen,goods station,49.909034,10.873978
+120756792,,goods station,48.703335,1.345943
+120756806,Fains-la-Folie station,goods station,48.22375,1.647694
+120756842,,goods station,48.489403,1.582539
+120756847,,goods station,48.675192,1.315219
+120756849,,goods station,48.206342,1.874619
+120756850,railway station Orgères,goods station,48.145744,1.679214
+120756855,,goods station,49.455453,6.129089
+120756856,,goods station,49.0489,7.476103
+120756860,,goods station,49.330372,6.113758
+120756895,,goods station,49.152333,6.855139
+120756899,,goods station,46.884869,1.418411
+120756900,,goods station,46.945203,1.238725
+120756903,railway station Fléré-la-Rivière,goods station,47.021414,1.108828
+120756908,Selommes railway station,goods station,47.750886,1.193306
+120756912,railway station Fossé-Marolles,goods station,47.638047,1.292697
+120756921,railway station Mondoubleau,goods station,47.984261,0.892339
+120756938,railway station Colayrac,goods station,44.227753,0.558789
+120756946,railway station Lasserre,goods station,44.065553,0.367189
+120756954,railway station Coussey,goods station,48.401328,5.687581
+120757032,railway station Châtenois - Dolaincourt,goods station,48.301617,5.838897
+120757037,railway station Gironcourt - Houécourt,goods station,48.310453,5.921478
+120757041,railway station Avignon-Fontcouverte,goods station,43.937719,4.833014
+120757148,,goods station,43.825389,5.046658
+120757155,,goods station,43.942939,2.203339
+120757159,,goods station,49.163572,5.788967
+120757166,,goods station,48.499072,3.855469
+120757167,,goods station,48.158314,4.802133
+120757168,,goods station,48.073094,4.384353
+120757170,Arcis-sur-Aube,goods station,48.532728,4.128678
+120757172,,goods station,48.508317,4.586064
+120757174,,goods station,48.195347,4.058283
+120757175,,goods station,48.117158,4.381864
+120757176,,goods station,48.515183,3.640208
+120757178,,goods station,48.438553,3.925603
+120757180,,goods station,48.674881,4.178831
+120757181,,goods station,48.284561,4.583272
+120757183,,goods station,48.403206,4.173756
+120757185,,goods station,48.231728,4.132617
+120757187,,goods station,48.274286,3.802414
+120757190,,goods station,48.347711,4.545022
+120757191,,goods station,43.757881,0.618406
+120757193,,goods station,43.852372,0.656386
+120757195,,goods station,47.873306,-0.619239
+120757196,,goods station,47.837156,5.900472
+120757199,,goods station,47.541297,5.700661
+120757201,Autrey-lès-Gray railway station,goods station,47.475008,5.483289
+120757203,,goods station,49.135519,5.308422
+120757205,,goods station,49.493806,5.170814
+120757243,,goods station,49.676839,5.164128
+120757246,,goods station,45.382442,3.271428
+120757247,,goods station,46.907939,-0.315247
+120757250,,goods station,48.263858,5.332839
+120757252,,goods station,47.948683,5.283078
+120757254,,goods station,47.657497,5.293664
+120757257,,goods station,48.274189,5.364703
+120757259,,goods station,45.851497,1.300269
+120757260,,goods station,46.126597,1.377069
+120757284,,goods station,47.119053,2.416481
+120757366,,goods station,49.823964,0.844719
+120757373,,goods station,47.493114,2.436897
+120757374,,goods station,47.7598,2.369458
+120757375,,goods station,48.049414,1.699939
+120757376,,goods station,48.070753,2.058897
+120757377,,goods station,47.994753,1.777928
+120757378,,goods station,48.142983,-1.247911
+120757379,,goods station,48.527194,-2.722294
+120757380,,goods station,48.998339,1.210733
+120757381,,goods station,44.947844,4.850547
+120757382,,goods station,44.6559,4.765581
+120757383,,goods station,48.089567,1.700331
+120757384,,goods station,43.807686,4.623847
+120757388,,goods station,49.166339,5.971847
+120757389,,goods station,43.082303,0.361661
+120757390,,goods station,49.110667,5.385511
+120757391,,goods station,48.616222,5.011228
+120757392,,goods station,48.686086,5.320683
+120757393,,goods station,48.651697,5.700664
+120757394,,goods station,49.172108,5.711114
+120757395,,goods station,49.051256,-1.039981
+120757396,,goods station,48.816181,-0.096206
+120757397,,goods station,45.604897,0.101372
+120757398,,goods station,45.498614,0.162308
+120757399,,goods station,44.879536,4.874247
+120757400,,goods station,45.002139,4.988406
+120757402,,goods station,45.312311,4.986411
+120757403,,goods station,48.978172,-0.088572
+120757404,,goods station,43.497483,-1.483772
+120757406,,goods station,43.324186,-0.436133
+120757408,,goods station,43.411889,-0.627147
+120757409,,goods station,43.510308,-0.845911
+120757410,,goods station,43.707239,-0.256344
+120757411,,goods station,44.039325,-0.325047
+120757412,,goods station,43.659242,-0.583486
+120757413,,goods station,43.832672,-0.535264
+120757414,,goods station,49.427178,1.055422
+120757415,Rouxmesnil railway station,goods station,49.894894,1.113822
+120757417,,goods station,49.747881,0.453481
+120757419,,goods station,43.777303,-0.424886
+120757422,,goods station,49.640769,1.010814
+120757424,,goods station,47.331328,-0.063381
+120757425,,goods station,47.525403,-0.617519
+120757426,,goods station,47.386894,-0.113931
+120757428,,goods station,47.082528,2.517275
+120757429,,goods station,47.740608,0.581928
+120757431,,goods station,43.262392,2.946156
+120757432,,goods station,43.388703,3.434522
+120757433,,goods station,50.007933,3.133336
+120757987,,goods station,43.205547,2.434689
+120758034,,goods station,45.435003,4.442503
+120758050,,goods station,45.529472,4.625028
+120758072,,goods station,45.444056,4.420028
+120758081,,goods station,45.914906,5.823703
+120758086,,goods station,46.230953,5.979944
+120758092,,goods station,45.936472,5.285128
+120758105,,goods station,45.731197,5.695333
+120758112,,goods station,49.838697,3.485767
+120758119,,goods station,49.697886,4.016381
+120758126,,goods station,49.662228,3.940303
+120758138,,goods station,49.370328,3.467289
+120758150,,goods station,49.637478,3.841928
+120758155,,goods station,49.577692,3.680611
+120758176,,goods station,49.333056,3.539797
+120758185,,goods station,48.926597,3.542344
+120758196,,goods station,46.361686,2.591964
+120758208,,goods station,46.368297,2.420206
+120758222,,goods station,46.390186,3.354439
+120758244,,goods station,49.027603,4.039244
+120758258,,goods station,45.022633,-0.579997
+120758290,,goods station,44.884722,-0.531111
+120758301,,goods station,48.769958,1.992061
+120758311,,goods station,44.096286,4.699522
+120758317,,goods station,45.564036,4.804847
+120758321,,goods station,45.527364,4.864694
+120758323,,goods station,43.894961,4.686497
+120758330,,goods station,44.049489,4.774039
+120758333,,goods station,43.956739,4.792481
+120758344,,goods station,47.295278,-1.485833
+120758352,,goods station,47.743547,7.317322
+120758487,,goods station,48.837531,2.316172
+120758491,,goods station,48.895206,2.370958
+120765154,Joniškis train station,goods station,56.231,23.599
+120769257,,goods station,47.308422,5.031072
+120769287,,goods station,50.275139,3.930639
+120769291,,goods station,50.640583,3.006861
+120769303,,goods station,51.032444,2.276917
+120769307,,goods station,43.569528,1.427972
+120769315,,goods station,46.159889,-1.221611
+120769320,,goods station,43.398917,4.804361
+120769323,Marseille-Prado goods station,goods station,43.278731,5.399603
+121028827,Alkiškiai train station,goods station,56.253,22.835
+121063912,Erlangen Hafen,goods station,49.578597,10.970556
+121064415,Fürth Hafen,goods station,49.49875,10.950379
+121287988,Ebersdorf-Friesau,goods station,50.496942,11.658125
+121288715,Vohburg Werkbahnhof Bayernoil,goods station,48.761511,11.593237
+121298452,Frontenhausen-Marklkofen,goods station,48.553465,12.555616
+121301038,Ochsenfurt Hafen,goods station,49.667826,10.054004
+121337418,,goods station,46.125146,3.432079
+121339329,Port of Çandarlı,container terminal,38.915,26.998611
+121434485,Gera Güterbf,goods station,50.889335,12.077915
+121609833,Treasure Valley Reload Center,goods station,43.915278,-116.990278
+121745826,Fulda Gbf,goods station,50.541568,9.689388
+121779784,Anglberg,goods station,48.45376,11.799844
+122040779,Karangtalun railway station (1977–2006),goods station,-7.68134,109.020374
+122060922,Hanau Hafen station,goods station,50.112951,8.930068
+122169053,Regensburg Bayernhafen,goods station,49.016339,12.148017
+122210664,Pauostis train station,goods station,55.738,21.103
+122214291,Stockton & Darlington Railway: lower section of the southern Etherley Incline,goods station,54.639529,-1.722399
+122459863,,rail terminal,50.97207,5.817003
+122459867,Greenport rail terminal,rail terminal,51.384848,6.143632
+122459868,Gelderland rail terminal,rail terminal,51.89575,5.808167
+122459874,Cabooter rail terminal,rail terminal,51.38475,6.143584
+122459875,Railport Brabant,rail terminal,51.573805,5.120573
+122459880,Hutchison Ports Venlo,rail terminal,51.391409,6.132315
+122459886,Euroterminal Coevorden,rail terminal,52.642925,6.736164
+122459888,Eindhoven rail terminal,rail terminal,51.47202,5.427868
+122459890,Barge- en railterminal Born,rail terminal,51.042948,5.805341
+122459899,MCT Moerdijk,rail terminal,51.682731,4.592071
+122459900,Hutchison Ports ECT Delta,rail terminal,51.952962,4.051466
+122459902,Hutchison Ports ECT Euromax,rail terminal,51.97713,4.034386
+122459917,Thessaloniki Intermodal rail terminal,rail terminal,40.677048,22.794507
+122459918,Intermodal Terminal Bettembourg,rail terminal,49.50865,6.098335
+122459939,Arifiye Hub-REYSAŞ,rail terminal,40.712837,30.350826
+122459947,Trimodal Terminal Brussel,rail terminal,50.885251,4.385777
+122459955,Charleroi Dry Port,rail terminal,50.397769,4.491635
+122460661,Riga rail terminal,rail terminal,56.924103,24.204372
+122460665,Belgrade rail terminal,rail terminal,44.80654,20.245914
+122460667,Nis rail terminal,container terminal,43.33151,21.841446
+122460668,Pančevo Dry Port Terminal,rail terminal,44.849285,20.642989
+122460671,Indija rail terminal,rail terminal,45.046067,20.095013
+122898538,Arnhem goods station,goods station,51.9745,5.924
+122900914,Haarlem goods station,goods station,52.3759,4.6162
+122901160,Leiden goods station,goods station,52.1567,4.4798
+122947242,Amsterdam Doklaan,goods station,52.36712,4.91663
+123046617,Hutchison ECT Delta Terminal,container terminal,51.9532,4.0534
+123046649,Hutchison ECT Euromax Terminal,container terminal,51.9773,4.0328
+123046851,Rotterdam Container Terminal,container terminal,51.9477,4.0313
+123046853,Delta Container Services,container terminal,51.9446,4.0381
+123046897,Rail Terminal West II,container terminal,51.94807,4.02047
+123147655,Tilburg goods yard,goods station,51.561737,5.068903
+123172021,Maastricht Boschpoort goods station,goods station,50.8555,5.684
+123411753,Sosnowiec Zagórze station,goods station,50.313,19.2214
+123746431,Abilene Union Pacific Railroad Freight Depot,goods station,38.916111,-97.216944
+124139885,,goods station,47.383991,15.053362
+124153753,Göttingen Gbf,goods station,51.549685,9.925872
+124359427,,goods station,50.993024,11.317441
+124538299,,goods station,-38.95548,-68.16082
+124985902,Grangemouth Docks,container terminal,56.0257,-3.701
+125258641,Monceau Usines,goods station,50.411752,4.388062
+125477223,Mechelen goods station,goods station,51.02593,4.49223
+125522995,,container terminal,49.161716,16.608967
+125634861,,goods station,37.580649,126.895303
+125748703,Crawford Street Terminal,container terminal,-37.768,175.241
+126486686,Kaloshino,goods station,55.814268,37.757521
+126688466,,container terminal,49.682439,18.103491
+126718377,,goods station,-20.557159,-40.812766
+126719528,,goods station,-7.115026,-34.890788
+126719531,,goods station,-10.906273,-37.065806
+126719533,,goods station,-8.282865,-35.969844
+126719534,,goods station,-22.577833,-44.95717
+126719535,,goods station,-29.215808,-51.283041
+126719536,,goods station,-8.110956,-35.014087
+126719539,,goods station,-18.354753,-43.737925
+126719541,,goods station,-21.127318,-44.241693
+126719542,,goods station,-18.247059,-43.600948
+126719543,,goods station,-6.685538,-35.418373
+126719544,,goods station,-23.523642,-51.680416
+126719546,,goods station,-21.132649,-44.256176
+127868823,Express Cargo Yard Zürich-Altstetten,goods station,47.39288,8.48228
+127947553,Ehemaliger Güterbahnhof,goods station,48.51578,9.067283
+130191412,Port Otago,container terminal,-45.814549,170.622448
+130237890,,goods station,54.837823,9.350626
+130269877,,goods station,-19.011186,-57.646478
+130295636,Prievidza cargo station,goods station,48.767062,18.608427
+130360732,,goods station,52.6737,4.8039
+130365860,Noord Scharwoude Dorp,goods station,52.7067,4.813
+130546766,Mainz-Weisenau goods station,goods station,49.97392,8.313799
+131139758,CityDepot,container terminal,-43.5665,172.6847
+131322095,Terminalas train station,goods station,55.689,21.14
+131535003,Valkenswaard goods station,goods station,51.3485,5.473
+131560917,Goirle goods station,goods station,51.516,5.061
+131827007,Karlsruhe Gbf,goods station,48.9959,8.4221
+131829976,,goods station,49.511628,8.489751
+131830040,,goods station,49.511466,8.458432
+131830091,,goods station,49.510221,8.461476
+131830098,,goods station,49.511636,8.454553
+132566615,,goods station,46.950873,7.417793
+132730419,Polustrovo railway station,goods station,59.965181,30.44567
+133163431,Osterwald goods station,goods station,52.5533,7.0068
+133591017,Malmö freight yard,goods station,55.615833,13.042222
+133849560,West Chelmsford Freight Depot,railway freight depot,42.617805,-71.401847
+134440246,Southern Railway Freight Depot,railway freight depot,32.47137,-84.98455
+134465632,West Point Freight Depot,railway freight depot,32.87418,-85.18435
+134686028,Frisco Freight Depot,railway freight depot,37.41092,-94.70252
+134777312,Leavenworth Terminal Railway & Bridge Company Freight Depot,railway freight depot,39.31617,-94.91835
+135002995,,goods station,50.4711,4.16
+135036560,Scottsville Freight Depot,railway freight depot,36.75281,-86.1815
+135189795,,goods station,46.521694,6.626806
+135275383,Monon Freight Depot,railway freight depot,38.25819,-85.77336
+135434951,Morehead Chesapeake and Ohio Railway Freight Depot,railway freight depot,38.18135,-83.43344
+135512071,Baimaxi Railway Station,goods station,29.346836,110.889948
+135512086,,goods station,29.346836,110.889948
+135651583,Dashatiancun Railway Station,goods station,27.161924,109.784106
+136090680,,goods station,49.511306,72.823333
+136090928,,goods station,57.796278,28.357917
+136090953,,goods station,59.46,32.064583
+136090960,,goods station,49.683972,72.813194
+136090961,,goods station,49.898028,73.108639
+136214400,,goods station,37.96679,139.23001
+136268979,,goods station,50.040306,73.029056
+136290545,Winona and St. Peter Freight Depot,railway freight depot,44.2986,-94.72152
+136647581,,goods station,51.548484,14.254664
+136664727,Güterbahnhof Hildesheim Nord,goods station,52.162325,9.958715
+137205792,New York Central Black Rock Freight House,railway freight depot,42.93206,-78.89735
+137385057,Pisa Campaldo freight yard,goods station,43.73,10.382
+137588359,Fergusson Wharf,freight terminal,-36.842824,174.785792
+137594079,Shigatse West railway station,goods station,29.215999,88.875374
+137823022,Bhitthamore Land Port,dry port,26.6294,85.7697
+137920760,"Derby Station, Tasmania",goods station,41.128339,147.787331
+138143330,,goods station,47.46139,19.09557
+138472858,Old Amherst Freight Depot,railway freight depot,41.39512,-82.21898
+138507882,New York Central Freight House,railway freight depot,41.36968,-82.09641
+138660471,,goods station,47.435278,19.059444
+139576105,,goods station,48.147083,11.473222
+139672444,,goods station,52.47125,13.3774
+139990206,Southern Railroad Freight Depot,railway freight depot,35.75882,-83.96475
+140026619,,goods station,49.535208,8.409714
+140039026,Southern Railway Freight Depot,railway freight depot,35.04187,-85.30803
+140047984,Louisville and Nashville Freight Depot,railway freight depot,35.96403,-83.9253
+141136513,Koblenz Mosel Gbf,goods station,50.355619,7.572866
+141202736,,container terminal,44.26879,8.44646
+141202847,Salerno Container Terminal,container terminal,40.672778,14.743056
+141451439,Medcenter Container Terminal,container terminal,38.46095,15.91202
+141451440,La Spezia Container Terminal,container terminal,44.10616,9.8451
+141451441,Trieste Marine Terminal,container terminal,45.63207,13.76145
+141451740,Terminal Darsena Toscana,container terminal,43.57344,10.30305
+141451741,PSA Venice - Vecon,container terminal,45.4567,12.24356
+141451742,PSA SECH,container terminal,44.40643,8.91141
+141451743,Terminal Lorenzini,container terminal,43.57644,10.31245
+141451744,Terminal Container Ravenna,container terminal,44.45067,12.25123
+141451757,Terminal Flavio Gioia,container terminal,40.84025,14.28202
+141451758,Genoa Port Terminal,container terminal,44.40441,8.89987
+141594408,Estação Varnhagen,goods station,-23.426256,-47.592099
+141897708,South End Container Terminal,container terminal,44.6289,-63.56526

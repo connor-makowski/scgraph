@@ -3,8 +3,9 @@ from the OpenStreetMap planet: `osm_main_roads` at the scale of the planet.
 
 - A distance is in km along the main roads and car ferries. One-way roads are followed
   in their legal direction. There are no times.
-- A car ferry joins, both ways and with the length of its route, the road nodes nearest
-  its two ends if both lie within 2 km; otherwise it is left out.
+- A car ferry, or a car shuttle train such as the Channel Tunnel's, joins, both ways and
+  with the length of its route, the road nodes nearest its two ends if both lie within
+  2 km; otherwise it is left out.
 - The network keeps each strongly connected component of at least 1,000 nodes, so an
   island with roads of its own is a separate network. Nodes: junctions, and along a road
   nodes at most about 20 km apart (cut, then contracted, at 10 km). Drawings are
@@ -22,7 +23,7 @@ from collections.abc import Callable
 from scgraph.pipelines import osm_main_roads
 from scgraph.pipelines.steps.stage1_extract import osm
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {"roads": osm.PLANET}
 MAX_KM = 10  # the cut and the contraction (first build)

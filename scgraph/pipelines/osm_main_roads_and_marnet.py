@@ -1,5 +1,6 @@
 """Main roads of an OpenStreetMap extract from Geofabrik joined to the sea lanes of
-`eurostat_marnet` at the ports of the World Port Index, for example `region="europe/denmark"`.
+`eurostat_marnet` at the ports of the World Port Index (`hubs.join`), for example
+`region="europe/denmark"`.
 
 - A distance is in km along the network: main roads and car ferries (directed, as
   `osm_main_roads`), sea lanes (undirected, as `eurostat_marnet`) and the two connectors
@@ -18,10 +19,11 @@
   like the roads), and along a road nodes at most about 4 km apart (cut, then
   contracted, at 2 km); no arc spans two modes. Road and ferry drawings are simplified
   at 50 m when the ways are cut; lengths are measured before. Each node has its mode,
-  `road`, `port` or `sea` (`node_modes`, rows of `modes`); `road` and `sea` cite the
-  source of their node ids, ports have scgraph's (negative).
-- Sources: the World Port Index and Geofabrik URLs are not pinned, and
-  `PIPELINE_VERSION` does not follow changes of a source: a rebuild may differ.
+  `road`, `port` or `sea` (`node_modes`, rows of `modes`); each mode cites the source of
+  its node ids (a port's id is its World Port Index number).
+- Sources: the ports come from a table kept with scgraph (`hubs.TABLES`), made from one
+  copy of the World Port Index; the Geofabrik URL is not pinned, and `PIPELINE_VERSION`
+  does not follow changes of a source: a rebuild may differ.
 - Not for: navigation or travel times; inland navigation between two river points.
 """
 
@@ -31,14 +33,14 @@ from collections.abc import Callable
 
 from scgraph.pipelines import eurostat_marnet
 from scgraph.pipelines.steps.stage1_extract import osm
-from scgraph.pipelines.steps.stage2_intermodal import ports
+from scgraph.pipelines.steps.stage2_intermodal import hubs
 from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
 from scgraph.pipelines.steps.stage3_assembly import assembly
 from scgraph.utils import _log_step
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 
 def _natural_earth(layer):
@@ -54,13 +56,7 @@ def _natural_earth(layer):
 # Small sources first: a failure then costs no new download of the extract
 SOURCES = {
     "sea": eurostat_marnet.SOURCES["sea_lanes"],
-    "ports": {
-        "url": "https://msi.nga.mil/api/publications/download?type=view&key=16920959/SFH00000/UpdatedPub150.csv",
-        "download": ports.download,
-        "credit": "National Geospatial-Intelligence Agency, World Port Index (Pub. 150)",
-        "license": "NOASSERTION",
-        "license_url": "https://msi.nga.mil/Publications/WPI",
-    },
+    "ports": hubs.TABLES["ports"],
     "land": _natural_earth("land"),
     "lakes": _natural_earth("lakes"),
     "rivers": _natural_earth("rivers_lake_centerlines"),
@@ -73,7 +69,7 @@ SELECTS = {
 }
 MODES = [
     {"name": "road", "source": "roads"},
-    {"name": "port"},
+    {"name": "port", "source": "ports"},
     {"name": "sea", "source": "sea"},
 ]
 
@@ -118,13 +114,17 @@ def build(
         *(files[name] for name in ("land", "lakes", "rivers")),
         bbox=(south, west, north, east),
     )
-    wpi = ports.read_world_port_index(files["ports"])
-    wpi = [p for p in wpi if mask.get_cell(*p[:2]) is not None]
-    with _log_step(logger, "join the ports", {"ports": len(wpi)}) as counts:
-        graph, joined = ports.join(
-            graph, sea, wpi, mask, work_dir=stage2_work_dir
+    ports = hubs.read_ports(files["ports"])
+    ports = [port for port in ports if mask.get_cell(*port.point) is not None]
+    with _log_step(logger, "join the ports", {"ports": len(ports)}) as counts:
+        graph, joined = hubs.join(
+            {"road": graph, "sea": sea},
+            ports,
+            mask,
+            [mode["name"] for mode in MODES],
+            work_dir=stage2_work_dir,
         )
-        counts["joined"] = joined
+        counts["joined"] = joined.get("port", 0)
     arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,

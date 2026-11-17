@@ -11,7 +11,7 @@ from collections.abc import Callable
 from scgraph.pipelines import osm_main_roads
 from scgraph.pipelines.steps.stage1_extract import osm
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {
     "roads": {

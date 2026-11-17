@@ -1,4 +1,4 @@
-"""Railway lines (`railway=rail`, sidings and yards included) of Europe,
+"""Railway lines (`railway=rail`, without sidings, spurs and yard tracks) of Europe,
 from the OpenStreetMap Europe extract.
 
 Drawings: each piece's shape is simplified at 50 m when the way is cut; lengths are
@@ -11,7 +11,7 @@ from collections.abc import Callable
 from scgraph.pipelines import osm_rail
 from scgraph.pipelines.steps.stage1_extract import osm
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {
     "rail": {

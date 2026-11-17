@@ -49,8 +49,9 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
     via `osm.build_ferry_arcs`; drawings simplified at 50 m via `simplify_shapes`).
   - ArcGIS (`arcgis`): downloads feature layers and extracts polylines.
 - Stage 2 - Intermodal Connectors (`stage2_intermodal`):
-  - Joining modes (`ports.join`): `landmask.LandMask`, `ports.find_road_connector`,
-    `ports.find_sea_connector`; sea and port nodes on indices, with their modes.
+  - Joining modes at hubs (`hubs.join`): ports, airports and rail terminals from small
+    tables kept with scgraph (`hubs.TABLES`), one connector per mode reached, checked
+    against water on a `landmask.LandMask`; nodes on indices, with their modes.
 - Stage 3 - Graph Assembly & Contraction (`stage3_assembly`):
   - Assembly (`assembly`): `assembly.build_graph_from_pieces` ->
     `assembly.assemble` (`keep_strongly_connected_components` -> `contract_chains`
@@ -120,10 +121,12 @@ NAMES = (
     "oak_ridge_maritime",
     "osm_main_roads",
     "osm_main_roads_and_marnet",
+    "osm_multimodal",
     "osm_rail",
     "us_freeway",
     "world_main_roads",
     "world_main_roads_and_marnet",
+    "world_multimodal",
 )
 LARGE_DOWNLOAD = (
     100e6  # bytes; announced with a warning, visible without logging set up
