@@ -72,7 +72,8 @@ def _polygons(*rings):
     ).encode()  # fmt: skip
 
 
-# Railways (read by the multimodal pipeline only): a line along longitude 0.012, a branch
+# Railways (read by the multimodal pipeline only): a line along longitude 0.012, tagged
+# one way but read both ways, a branch
 # that crosses the road at its node at (0, 0), and a siding, left out. Hubs of the
 # multimodal pipeline: the port "Near", served by rail; two airfields near the road, with
 # a flight each way; a rail terminal between the road and the railway.
@@ -99,7 +100,7 @@ _FILES = {
 <node id="12" version="1" lat="0" lon="0.012"/>
 <node id="13" version="1" lat="0.008" lon="0.012"/>
 <node id="14" version="1" lat="0.01" lon="0.015"/>
-<way id="11" version="1"><nd ref="11"/><nd ref="12"/><nd ref="13"/><tag k="railway" v="rail"/></way>
+<way id="11" version="1"><nd ref="11"/><nd ref="12"/><nd ref="13"/><tag k="railway" v="rail"/><tag k="oneway" v="yes"/></way>
 <way id="12" version="1"><nd ref="1"/><nd ref="12"/><tag k="railway" v="rail"/></way>
 <way id="13" version="1"><nd ref="13"/><nd ref="14"/><tag k="railway" v="rail"/><tag k="service" v="siding"/></way>
 </osm>""",
@@ -1195,7 +1196,8 @@ def test_roads_and_railways_stay_apart_at_a_level_crossing(multimodal_network):
             points[mode].append(list(point))
 
     assert sorted(points["road"]) == [[-0.01, 0], [0, 0], [0.01, 0]]
-    # The siding to (0.01, 0.015) is left out
+    # The siding to (0.01, 0.015) is left out. The line tagged one way keeps
+    # both ends: a train runs both ways on a track.
     assert sorted(points["rail"]) == [
         [-0.008, 0.012],
         [0, 0],

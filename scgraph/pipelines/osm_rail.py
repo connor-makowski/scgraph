@@ -1,5 +1,5 @@
 """Railway lines (`railway=rail`, without sidings, spurs and yard tracks) of an OpenStreetMap extract
-from Geofabrik, for example `region="europe/luxembourg"`.
+from Geofabrik, for example `region="europe/luxembourg"`. Every line runs both ways.
 
 Drawings: each piece's shape is simplified at 50 m when the way is cut; lengths are
 measured before.
@@ -50,11 +50,15 @@ def build(
 
 
 def select_rail(tags: "osmium.osm.TagList") -> int | None:
-    """The direction of a railway line (`railway=rail`) that is not a siding, a spur or
+    """0 (both ways) for a railway line (`railway=rail`) that is not a siding, a spur or
     a yard track (`service=*`), None for any other way."""
+    # A train can run both ways on a track. Some double tracks have a `oneway` tag, and
+    # their return runs through a siding. Without the sidings, such a line would run one
+    # way only, and its end would fall out of the strongly connected network. The
+    # Trans-Siberian at Vladivostok is one example.
     if tags.get("railway") != "rail" or "service" in tags:
         return None
-    return osm.get_way_direction(tags)
+    return 0
 
 
 # ---------------------------------------------------------------------------
