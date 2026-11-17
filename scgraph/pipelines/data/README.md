@@ -3,14 +3,15 @@
 Small tables that the multimodal pipelines read (`hubs.TABLES`). They are snapshots kept
 with the code, so that a build reads the same hubs on every machine.
 `utils/build_hub_tables.py` makes them again from their sources; a new snapshot is reviewed
-like any change of code. It also raises the `PIPELINE_VERSION` of the pipelines that read
-the table, so that a cached network is built again.
+like any change of code. The change that brings a new snapshot also updates the `version`
+of the table in `hubs.TABLES` and the counts below. It raises the `PIPELINE_VERSION` of
+the pipelines that read the table, so that a cached network is built again.
 
 | Table | Rows | Columns | Source | Licence |
 |---|---|---|---|---|
 | `ports.csv` | 3,807 | World Port Index number, name, position, harbour type, `rail` (1 when the `Railway` field gives a size) | NGA World Port Index (Pub. 150), file `UpdatedPub150.csv`, SHA-256 `315644f1e7796629…` | not stated (`NOASSERTION`); a work of the US government |
 | `airports.csv` | 1,746 | OurAirports id, ICAO code, name, type, position, country | OurAirports `airports.csv` at commit `1cdbf9cb` of `davidmegginson/ourairports-data` | public domain |
-| `flights.csv` | 14,484 | the two airport ids of a pair, flights between them in 2021 (both directions), the source of that count | OpenSky Network flight list, Zenodo record 5815448 (v21.12), the 12 months of 2021; US Bureau of Transportation Statistics, T-100 Segment (All Carriers), 2021; Eurostat tables `avia_par_*` and `avia_gor_*`, 2021; the last two read on 2026-11-17 | OpenSky: CC BY 4.0, cite Strohmeier et al., *Earth Syst. Sci. Data* 13, 357–366 (2021); T-100: a work of the US government; Eurostat: CC BY 4.0 |
+| `flights.csv` | 14,483 | the two airport ids of a pair, flights between them in 2021 (both directions), the source of that count | OpenSky Network flight list, Zenodo record 5815448 (v21.12), the 12 months of 2021; US Bureau of Transportation Statistics, T-100 Segment (All Carriers), 2021; Eurostat tables `avia_par_*` and `avia_gor_*`, 2021; the last two read on 2026-11-17 | OpenSky: CC BY 4.0, cite Strohmeier et al., *Earth Syst. Sci. Data* 13, 357–366 (2021); T-100: a work of the US government; Eurostat: CC BY 4.0 |
 | `rail_terminals.csv` | 898 | Wikidata number, English label, kind, position | Wikidata, items of seven classes of freight terminals, without a date of closure, query of 2026-11-16 | CC0 |
 
 How each table is made:
@@ -21,8 +22,8 @@ How each table is made:
   - BTS T-100, the flights that touch the United States: the departures performed, by
     every carrier;
   - Eurostat, the flights that touch Europe: the passenger and all-cargo flights that the
-    European airports report. Two countries report the flights between them; the larger
-    report counts.
+    European airports report. Each airport of a pair reports the flights between them;
+    the larger report counts.
 
   Only the large and medium airports of OurAirports count, matched by their ICAO code
   (IATA code for T-100). A pair keeps the largest count among the sources. A pair with at

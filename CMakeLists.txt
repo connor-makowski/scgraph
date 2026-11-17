@@ -58,5 +58,5 @@ install(TARGETS cpp DESTINATION scgraph)
 # Install Python package files
 # -----------------------------
 # The data files that the code reads at run time go with it: the validation
-# cases and the seed list of ports
+# cases and the hub tables
 install(DIRECTORY scgraph DESTINATION . FILES_MATCHING PATTERN "*.py" PATTERN "*.csv")

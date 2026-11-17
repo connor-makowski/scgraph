@@ -25,7 +25,9 @@ SOURCES["osm"] = osm.PLANET
 MAX_KM = 10  # the cut and the contraction
 MIN_NODES = 1000  # nodes of the smallest component kept
 
-download = regional.download  # for the other sources: checks osmium first
+download = (
+    regional.download
+)  # for the sources without their own download: checks osmium first
 
 
 def build(

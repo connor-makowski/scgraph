@@ -49,7 +49,7 @@ The `pipelines/` package builds reference networks from online sources. Each net
 * **Stage 1 - Ingestion & Extraction (`steps.stage1_extract`)**:
   Streamed raw ingestion (`osm`, `pbf_range_streamer`, `arcgis`), polyline extraction, way filtering, and early geometry simplification at 50 m.
 * **Stage 2 - Intermodal Connectors (`steps.stage2_intermodal`)**:
-  Multi-modal integration (`ports`, `landmask`), finding water-constrained paths (`find_water_path_cells`) across Natural Earth raster masks to join sea lanes and road networks at ports.
+  Multi-modal integration (`hubs`, `landmask`): ports, airports and rail terminals join the networks of the modes they serve; a sea connector follows a water path (`find_water_path_cells`) on a Natural Earth raster.
 * **Stage 3 - Topology & Assembly (`steps.stage3_assembly`)**:
   CSR graph construction (`build_csr_from_arcs`), strongly connected components (`strongly_connected_components`), pass-through chain contraction (`contract_chains`), Douglas-Peucker simplification of arc shapes (`simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`), and node ordering along a Hilbert curve (`assemble`). The runner then writes the arrays to a `.scgraph` file.
 * **Stage 4 - Validation (`steps.stage4_validation`)**:

@@ -74,8 +74,10 @@ def _polygons(*rings):
 
 # Railways (read by the multimodal pipeline only): a line along longitude 0.012, tagged
 # `oneway=yes`; a branch that crosses the road at its node at (0, 0); a siding, left out.
-# Hubs of the multimodal pipeline: the port "Near", served by rail; two airfields near the
-# road, with a flight each way; a rail terminal between the road and the railway.
+# Hubs of the multimodal pipeline: the ports below, "Near" served by rail; two airfields
+# near the road, with a flight each way; "Far field", 28 km from the road, with a flight to
+# "North field"; "Lone field", near the road, without a flight; a rail terminal between
+# the road and the railway.
 # Roads: from (-0.01, 0) to (0.01, 0) through (-0.004, 0.001), its nodes not read in
 # Hilbert order, and a 2-node fragment at (0.005, 0.024) (lat, lon). Land west of
 # longitude 0.03, an island at longitude 0.08 to 0.12, a sea lane from (0, 0.2) to
@@ -117,21 +119,21 @@ _FILES = {
     "/lakes.geojson": _polygons(),
     "/rivers.geojson": _polygons(),
     "/ports.csv": b"""id,name,latitude,longitude,harbor_type,rail
-1,Near,0,0.02,Coastal (Natural),0
+1,Near,0,0.02,Coastal (Natural),1
 2,Anchorage,0.01,0.06,Open Roadstead,0
 3,Island,0,0.1,Coastal (Natural),0
 4,Inland,0,-0.1,River (Natural),0
 5,Far,0.25,0.02,Coastal (Natural),0
 """,
-    "/rail_ports.csv": b"""id,name,latitude,longitude,harbor_type,rail
-1,Near,0,0.02,Coastal (Natural),1
-""",
     "/airports.csv": b"""id,code,name,type,latitude,longitude,country
 100,XXNF,North field,medium_airport,0.012,-0.004,XX
 101,XXSF,South field,medium_airport,-0.012,0.004,XX
+102,XXFF,Far field,medium_airport,0.25,-0.004,XX
+103,XXLF,Lone field,medium_airport,0.012,0.004,XX
 """,
     "/flights.csv": b"""airport_a,airport_b,flights
 100,101,120
+100,102,150
 """,
     "/rail_terminals.csv": b"""id,name,kind,latitude,longitude
 200,Yard,freight terminal,0.008,0.006
@@ -865,8 +867,9 @@ def test_list_buildable_geographs_matches_the_names_build_geograph_takes(
 #   nearest road node. Its route is 4.2 km long.
 # - Ferry 6 runs from 0.1 km off node 1 to 0.1 km off node 2 in 2.3 km. Road 1
 #   joins the same nodes in 1.1 km.
-# - Ferry 7 runs from node 5, in the middle of road 2, to node 50. Node 50 is
-#   0.6 km from node 1.
+# - Ferry 7 is a shuttle train for cars (`route=shuttle_train`, as in the
+#   Channel Tunnel), read as a ferry. It runs from node 5, in the middle of
+#   road 2, to node 50. Node 50 is 0.6 km from node 1.
 _STRAIT_NODES = {
     1: (0, 0), 2: (0, 0.01), 3: (0, 0.06), 4: (0, 0.07), 5: (0, 0.065),
     10: (0, 0.015), 11: (0.02, 0.035), 50: (0.005, 0),
@@ -881,7 +884,7 @@ _STRAIT_WAYS = {
     4: ([20, 21], 'k="route" v="ferry"/><tag k="motor_vehicle" v="no"'),
     5: ([30, 31], 'k="route" v="ferry"'),
     6: ([40, 41, 42], 'k="route" v="ferry"'),
-    7: ([5, 50], 'k="route" v="ferry"'),
+    7: ([5, 50], 'k="route" v="shuttle_train"'),
 }
 
 
@@ -1171,7 +1174,7 @@ def multimodal_network(tmp_path_factory):
             "lakes": "/lakes.geojson",
             "rivers": "/rivers.geojson",
             "sea": "/sea.gpkg",
-            "ports": "/rail_ports.csv",
+            "ports": "/ports.csv",
             "airports": "/airports.csv",
             "flights": "/flights.csv",
             "rail_terminals": "/rail_terminals.csv",
@@ -1184,20 +1187,27 @@ def _mode_names(network):
     return [names[row] for row in network.node_modes]
 
 
-# The railway crosses the road at a level crossing, a node of both ways in the
-# OSM file. The two networks must stay apart there: a route changes mode only at
-# a hub.
-def test_roads_and_railways_stay_apart_at_a_level_crossing(multimodal_network):
-    modes = _mode_names(multimodal_network)
-    points = {"road": [], "rail": []}
-    for point, mode in zip(multimodal_network.nodes, modes):
-        if mode in points:
-            points[mode].append(list(point))
+def _points_of(network, mode):
+    return sorted(
+        list(point)
+        for point, name in zip(network.nodes, _mode_names(network))
+        if name == mode
+    )
 
-    assert sorted(points["road"]) == [[-0.01, 0], [0, 0], [0.01, 0]]
-    # The siding to (0.01, 0.015) is left out. The line tagged `oneway=yes`
-    # keeps both ends: a railway line is read both ways.
-    assert sorted(points["rail"]) == [
+
+# (0, 0) is a node of the road and of the railway branch in the OSM file. The two
+# networks must stay apart there: a route changes mode only at a hub.
+def test_roads_and_railways_stay_apart_at_a_level_crossing(multimodal_network):
+    assert [0, 0] in _points_of(multimodal_network, "road")
+    assert [0, 0] in _points_of(multimodal_network, "rail")
+
+
+def test_a_railway_is_read_both_ways_and_without_its_sidings(
+    multimodal_network,
+):
+    # Read one way, the line tagged `oneway=yes` would lose its two ends. The
+    # siding would add (0.01, 0.015).
+    assert _points_of(multimodal_network, "rail") == [
         [-0.008, 0.012],
         [0, 0],
         [0, 0.012],
@@ -1216,9 +1226,12 @@ def test_each_hub_joins_the_modes_it_serves(multimodal_network):
     }
 
     # Each hub keeps the id of its table; an airport reaches the other by its
-    # flight
+    # flight. The port Anchorage has no rail flag, so no rail connector. Far
+    # field has no road, so its flight is dropped. Lone field has no flight, so
+    # it reaches one mode only. Both stay out.
     assert reached == {
         ("port", 1): ["rail", "road", "sea"],
+        ("port", 2): ["road", "sea"],
         ("airport", 100): ["airport", "road"],
         ("airport", 101): ["airport", "road"],
         ("rail_terminal", 200): ["rail", "road"],

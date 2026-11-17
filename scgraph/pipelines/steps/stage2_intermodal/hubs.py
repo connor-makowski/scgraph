@@ -4,22 +4,26 @@ A hub is a place where goods change mode: a port, an airport or a rail terminal.
 becomes one node. It joins the network of each mode it serves by one connector, an arc
 in each direction:
 
-- road or rail: a straight line to a node of that network within CONNECTOR_KM, in the
-  largest component that has such a node, nearest first; the line may cross at most
-  WATER_KM of water (ROADSTEAD_WATER_KM for an open roadstead), and the arc weighs
-  CIRCUITY times its length;
+- road or rail: a straight line to a node of that network, at most CONNECTOR_KM away.
+  The line crosses less than WATER_KM of water (ROADSTEAD_WATER_KM for an open
+  roadstead). Among these nodes, the hub takes the nearest one of the largest
+  component, so that it does not join a road cut off from the network. The arc weighs
+  CIRCUITY times the line, since a real road bends.
 - sea: the shortest path over water to a sea node, at most CONNECTOR_KM["sea"] long, on
-  the cells of a `LandMask`; the arc weighs the length of that path.
+  the cells of a `LandMask`. The arc weighs the length of that path.
 
-An airport also has its flights: two airports with regular flights between them are
-joined by an arc in each direction, with the great-circle length.
+A port serves road and sea, and rail when its table says so. An airport serves road,
+and its flights count as its second mode: two airports with regular flights between
+them are joined by an arc in each direction, with the great-circle length. A rail
+terminal serves road and rail.
 
 A hub that reaches fewer than two modes stays out: a port without a road would join the
 sea to nothing. Two modes never share a node, so a route changes mode only at a hub.
 
-Example: the port of Dunkirk lies 3 km from a road node and 4 km from a rail node, and
-the water path to the nearest sea node is 12 km long. Its node gets three connectors,
-of 3.6, 4.8 and 12 km, each in both directions.
+Example: the port of Arhus (World Port Index 30260, served by rail) lies 0.8 km from a
+rail node and 4.1 km from a road node, and the water path to the nearest sea node is
+1.0 km long. Its node gets three connectors, of 0.9, 4.9 and 1.0 km, each in both
+directions.
 
 The hubs come from small tables kept with scgraph (`TABLES`, in `scgraph/pipelines/data/`),
 each made by `utils/build_hub_tables.py` from its source. A pipeline may name its own
@@ -150,6 +154,7 @@ def read_ports(filename: str | os.PathLike) -> list[Hub]:
 
 
 def read_airports(filename: str | os.PathLike) -> list[Hub]:
+    """The airports of an airports table; an airport joins the road network."""
     return [
         Hub("airport", int(row["id"]), _point(row), ("road",))
         for row in _rows(filename)
@@ -157,6 +162,8 @@ def read_airports(filename: str | os.PathLike) -> list[Hub]:
 
 
 def read_rail_terminals(filename: str | os.PathLike) -> list[Hub]:
+    """The terminals of a rail terminals table; a terminal joins the road and rail
+    networks."""
     return [
         Hub("rail_terminal", int(row["id"]), _point(row), ("road", "rail"))
         for row in _rows(filename)
@@ -241,14 +248,25 @@ def join(
     flights: Iterable[tuple[int, int]] = (),
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, dict[str, int]]:
-    """The networks of `layers` (mode -> the network file's arrays, or a GeoGraph)
-    joined at the `hubs` that reach at least two modes, with the `flights` between
-    joined airports, as the network file's arrays on node indices. `node_modes` gives
-    each node's row in `modes`, which names every layer and every kind of hub joined;
-    `node_ids` keeps each layer's ids and gives each hub its id in its source.
-    Returns `(graph, hubs joined of each kind)`. Empties the arrays of `layers` and
-    releases the raster of `land_mask`, spent. With a `work_dir`, the arcs are kept in
-    files there (`PieceArrays`).
+    """Join the networks of several modes at their hubs.
+
+    A hub becomes a node when it reaches at least two modes. A flight is kept when
+    both its airports have a connector.
+
+    Args:
+        layers: The network of each mode: the network file's arrays, or a GeoGraph.
+            The arrays are emptied.
+        hubs: The hubs to join.
+        land_mask: Land and water around the hubs. Its raster is released.
+        modes: The names of the rows of the modes table: every layer and every kind
+            of hub.
+        flights: The two airport ids of each pair with regular flights.
+        work_dir: A folder that keeps the arcs in files. None keeps them in memory.
+
+    Returns:
+        The joined network as the network file's arrays, and the number of hubs
+        joined of each kind. `node_modes` gives the row of each node in `modes`.
+        `node_ids` keeps each layer's ids and gives each hub its id in its table.
     """
     layers = {mode: _Layer(network) for mode, network in layers.items()}
     first, n = {}, 0  # the index of each layer's first node
@@ -278,23 +296,26 @@ def join(
     }
     if "sea" in layers:
         connect["sea"] = _sea_connector(layers["sea"], land_mask)
-    joined_by = []  # each hub, with its connectors: mode -> (node, km, shape)
+    connectors = (
+        []
+    )  # each hub, with the connectors it finds: mode -> (node, km, shape)
     for hub in hubs:
-        found = {
+        arcs = {
             mode: connect[mode](hub) for mode in hub.modes if mode in connect
         }
-        joined_by.append(
-            (hub, {mode: arc for mode, arc in found.items() if arc})
+        connectors.append(
+            (hub, {mode: arc for mode, arc in arcs.items() if arc})
         )
     # A flight counts when both its airports have a connector
     reached = {
-        hub.id for hub, found in joined_by if hub.kind == "airport" and found
+        hub.id for hub, arcs in connectors if hub.kind == "airport" and arcs
     }
     flights = [flight for flight in flights if set(flight) <= reached]
     flying = {a for flight in flights for a in flight}
     kinds, ids, airport = [], array("q"), {}
-    for hub, found in joined_by:
-        if len(found) + (hub.kind == "airport" and hub.id in flying) < 2:
+    for hub, arcs in connectors:
+        flies = hub.kind == "airport" and hub.id in flying
+        if len(arcs) + flies < 2:  # the flights are a mode of an airport
             continue
         h = n + len(points)
         points.append(hub.point)
@@ -302,7 +323,7 @@ def join(
         ids.append(hub.id)
         if hub.kind == "airport":
             airport[hub.id] = h
-        for mode, (u, km, shape) in found.items():
+        for mode, (u, km, shape) in arcs.items():
             u += first[mode]
             add(h, u, km, shape)
             add(u, h, km, shape[::-1])
@@ -329,7 +350,9 @@ def join(
     for row, size in zip(layer_modes, sizes):
         node_modes += bytes([row]) * size
     node_modes += bytes(modes.index(kind) for kind in kinds)
-    old = joined["node_ids"]  # each node's index above
+    # build_graph_from_pieces renumbers the nodes; its node_ids are the numbers the
+    # nodes had here
+    old = joined["node_ids"]
     joined["node_modes"] = array("B", (node_modes[u] for u in old))
     joined["node_ids"] = array("q", (all_ids[u] for u in old))
     return joined, {kind: kinds.count(kind) for kind in dict.fromkeys(kinds)}

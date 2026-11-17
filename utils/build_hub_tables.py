@@ -181,8 +181,8 @@ def count_t100() -> Counter:
 def count_eurostat() -> Counter:
     """Passenger and all-cargo flights in YEAR per pair of ICAO codes, both directions
     together, as the European airports report them (Eurostat tables `avia_par_xx` and
-    `avia_gor_xx`). Two reporting countries count the same flights between them, so a
-    pair keeps the larger of their counts."""
+    `avia_gor_xx`). Each airport of a pair reports the same flights, in the table of its
+    country, so a pair keeps the larger of the two reports."""
     flights = Counter()
     for country in EUROSTAT_COUNTRIES:
         reported = Counter()
@@ -213,10 +213,14 @@ def count_eurostat() -> Counter:
                     "index"
                 ].items()
             }
+            # A domestic pair has two reports in the same table, one per airport
+            reports = Counter()
             for position, n in data["value"].items():
                 _, a, _, b = pairs[int(position)].split("_")
                 if a != b:
-                    reported[tuple(sorted((a, b)))] += n
+                    pair = tuple(sorted((a, b)))
+                    reports[pair] = max(reports[pair], n)
+            reported.update(reports)  # passenger and cargo flights add up
         for pair, n in reported.items():
             flights[pair] = max(flights[pair], n)
     return flights

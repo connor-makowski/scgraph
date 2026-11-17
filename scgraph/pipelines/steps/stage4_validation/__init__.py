@@ -31,9 +31,10 @@ is measured on roads only, so a sea route cannot replace it.
                                  to the sea is at most 1.8 times the straight line.
     route_lengths     all        The route is within the tolerance of the case.
     hubs              all        A hub of the case's kind is within 5 km. For each
-                                 mode of the case, the route from the hub to that
-                                 mode leaves the hub by its connector to that mode
-                                 (for `air`, by a flight to the airport of the case).
+                                 mode in `reference` (such as `road rail sea`), the
+                                 route from the hub to that mode leaves the hub by
+                                 its connector to that mode. For `air`, the route is
+                                 a direct flight to the airport of the case.
 
 A pipeline lists the cases for its network in `VALIDATION = {"cases": [...]}`. An
 entry of this list is one of:
@@ -287,9 +288,13 @@ def _check_hub(network, case) -> str | None:
         return f"the nearest {case['hub_kind']} is {km:.1f} km away"
     names = [mode["name"] for mode in network.modes]
     for mode in case["reference"].split():
-        if mode == "air":  # a flight to the airport of the case
+        if mode == "air":
             first_mode = "airport"
-            _, end = _find_nearest_node(network, case["destination"], "airport")
+            km, end = _find_nearest_node(
+                network, case["destination"], "airport"
+            )
+            if km > 5.0:
+                return f"the airport of the flight is {km:.1f} km away"
         else:
             first_mode = mode
             _, end = _find_nearest_node(network, hub, mode)
@@ -303,6 +308,10 @@ def _check_hub(network, case) -> str | None:
             return f"no route to the {mode} network"
         if len(path) < 2 or names[network.node_modes[path[1]]] != first_mode:
             return f"no connector to the {mode} network"
+        # A direct flight is the shortest route between two airports: a stop
+        # or a road between them is longer
+        if mode == "air" and len(path) != 2:
+            return "no direct flight to the airport of the case"
 
 
 # For each kind: the modes that its routes may use, and its rule. An empty tuple

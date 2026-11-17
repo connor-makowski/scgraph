@@ -29,6 +29,8 @@ terminals, for example `region="europe/denmark"`.
 - A shortest route in km takes any mode: between two distant places it flies, since a
   flight is the straight line. To compare modes, derive a cost per mode (time, CO2) from
   the km, or load only some modes (`load_from_scgraph(modes=...)`).
+- The region needs at least one railway line. A region without one, such as
+  `europe/malta`, raises a ValueError.
 - Not for: navigation, timetables, or the capacity of a terminal.
 """
 
@@ -70,7 +72,9 @@ MODES = [
 ]
 MARGIN = osm_main_roads_and_marnet.MARGIN  # degrees of raster around the roads
 
-download = osm.download  # for every source: checks osmium first
+download = (
+    osm.download
+)  # for the sources without their own download: checks osmium first
 
 
 def build(
@@ -81,8 +85,19 @@ def build(
     min_nodes_per_strongly_connected_component: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """The keywords give another scale (`world_multimodal`);
-    `min_nodes_per_strongly_connected_component=None` keeps the largest component only.
+    """Build the multimodal network of a region. The keywords give another scale
+    (`world_multimodal`).
+
+    Args:
+        files: The local file of each source of SOURCES.
+        source: Opens the OSM extract for one read.
+        max_km_between_nodes: The longest piece of a way, in km.
+        min_nodes_per_strongly_connected_component: The nodes of the smallest
+            component kept. None keeps the largest component only.
+        work_dir: A folder for the files of each step, so that a build can resume.
+
+    Returns:
+        The network file's arrays and the modes table, `(arrays, MODES)`.
     """
 
     def folder(step):
@@ -94,7 +109,7 @@ def build(
     rails = assembly.build_graph_from_pieces(
         osm.build_way_pieces(
             source(files["osm"]),
-            {"rails": osm_rail.select_rail},
+            {"rail": osm_rail.select_rail},
             ("railway",),
             max_km_between_nodes,
             folder("rails"),
@@ -114,30 +129,34 @@ def build(
         sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
         counts["nodes"] = len(sea.nodes)
     # 3. The land and the water around the roads, where connectors are checked
-    points = memoryview(roads["node_points"])  # 1e-7 degree
-    latitudes, longitudes = points[0::2], points[1::2]
+    node_points = memoryview(roads["node_points"])  # 1e-7 degree
+    latitudes, longitudes = node_points[0::2], node_points[1::2]
+    south = max(-90, min(latitudes) * 1e-7 - MARGIN)
+    west = max(-180, min(longitudes) * 1e-7 - MARGIN)
+    north = min(90, max(latitudes) * 1e-7 + MARGIN)
+    east = min(180, max(longitudes) * 1e-7 + MARGIN)
+    # join() frees the roads. Delete the views, so that nothing here keeps them
+    del node_points, latitudes, longitudes
     mask = LandMask.from_natural_earth(
         *(files[name] for name in ("land", "lakes", "rivers")),
-        bbox=(
-            max(-90, min(latitudes) * 1e-7 - MARGIN),
-            max(-180, min(longitudes) * 1e-7 - MARGIN),
-            min(90, max(latitudes) * 1e-7 + MARGIN),
-            min(180, max(longitudes) * 1e-7 + MARGIN),
-        ),
+        bbox=(south, west, north, east),
     )
-    del points, latitudes, longitudes  # join() frees the roads
-    # 4. The hubs inside the raster, and the flights
-    places = (
+    # 4. The hubs inside the raster
+    region_hubs = (
         hubs.read_ports(files["ports"])
         + hubs.read_airports(files["airports"])
         + hubs.read_rail_terminals(files["rail_terminals"])
     )
-    places = [hub for hub in places if mask.get_cell(*hub.point) is not None]
-    # 5. Join the networks at the hubs
-    with _log_step(logger, "join at the hubs", {"hubs": len(places)}) as counts:
+    region_hubs = [
+        hub for hub in region_hubs if mask.get_cell(*hub.point) is not None
+    ]
+    # 5. Join the networks at the hubs, and the airports by their flights
+    with _log_step(
+        logger, "join at the hubs", {"hubs": len(region_hubs)}
+    ) as counts:
         graph, joined = hubs.join(
             {"road": roads, "rail": rails, "sea": sea},
-            places,
+            region_hubs,
             mask,
             [mode["name"] for mode in MODES],
             flights=hubs.read_flights(files["flights"]),
