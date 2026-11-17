@@ -1,8 +1,8 @@
 """Railway lines (`railway=rail`, without sidings, spurs and yard tracks) of Europe,
 from the OpenStreetMap Europe extract.
 
-Drawings: each piece's shape is simplified at 50 m when the way is cut; lengths are
-measured before.
+Every line is read both ways, whatever its `oneway` tag. Drawings: each piece's shape
+is simplified at 50 m when the way is cut; lengths are measured before.
 """
 
 import os

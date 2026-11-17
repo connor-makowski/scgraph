@@ -510,7 +510,7 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `north_america_rail` | Class I railroads of North America | FRA and BTS, ArcGIS layer |
 | `us_freeway` | Freeways of the United States | Esri, ArcGIS layer |
 | `osm_main_roads` | Motorway, trunk and primary roads and their links of a region, with vehicle ferries | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
-| `osm_rail` | Railway lines of a region, without sidings, spurs and yard tracks | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
+| `osm_rail` | Railway lines of a region, without sidings, spurs and yard tracks, read both ways | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `europe_freeway` | `osm_main_roads` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `europe_rail` | `osm_rail` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `eurostat_marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index, Natural Earth |
