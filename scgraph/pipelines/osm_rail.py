@@ -50,14 +50,18 @@ def build(
 
 
 def select_rail(tags: "osmium.osm.TagList") -> int | None:
-    """0 (both ways) for a railway line (`railway=rail`) that is not a service track
-    (`service=*`: siding, spur, yard track, crossover), None for any other way.
+    """0 (both ways) for a railway line (`railway=rail`) that is not a siding, a spur
+    or a yard track, None for any other way.
     """
-    if tags.get("railway") != "rail" or "service" in tags:
+    if tags.get("railway") != "rail":
+        return None
+    # Of the service tracks, only a crossover is kept: it joins the two tracks of a
+    # double line drawn track by track. Without it, one track is an island.
+    if tags.get("service") not in (None, "crossover"):
         return None
     # A track carries trains both ways, and the two tracks of a double line have the
-    # same km. A `oneway` tag is not followed: the crossovers that join such tracks
-    # (`service=crossover`) are left out, so the end of a one-way line would have no
+    # same km. A `oneway` tag is not followed: where no crossover lies beyond the end
+    # of a one-way track (a terminus, the edge of an extract), that end would have no
     # return and would fall out of the strongly connected network.
     return 0
 

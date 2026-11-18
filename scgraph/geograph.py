@@ -549,7 +549,7 @@ class GeoGraphIO:
             - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
             - Default: None: `scgraph.pipelines.steps.osm.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns 1 or -1)
-            - Example: `lambda tags: 0 if tags.get("railway") == "rail" and "service" not in tags else None` for railway lines without yards, sidings and spurs, both ways
+            - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
             - Type: tuple[str, ...]

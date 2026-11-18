@@ -612,11 +612,15 @@ michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
 
 # Other ways: select(tags) gives the direction of a way (1 or -1: one way, 0: both
 # ways) or None to leave it out; only ways with one of the tag keys reach select.
-# Here railway lines without yards, sidings and spurs, both ways
+# Here railway lines without yards, sidings and spurs, both ways. The crossovers
+# stay: they join the two tracks of a double line drawn track by track
 michigan_rail = GeoGraph.load_from_osm(
     "michigan-latest.osm.pbf",
     select=lambda tags: (
-        0 if tags.get("railway") == "rail" and "service" not in tags else None
+        0
+        if tags.get("railway") == "rail"
+        and tags.get("service") in (None, "crossover")
+        else None
     ),
     tag_keys=("railway",),
 )
