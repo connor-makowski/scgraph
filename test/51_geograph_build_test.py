@@ -683,7 +683,8 @@ def test_local_files_only_loads_a_network_of_another_pipeline_version(
             next_version, cache_dir=tmp_path, local_files_only=True
         )
 
-    assert caught[0].filename == __file__
+    (warning,) = [w for w in caught if "pipeline version" in str(w.message)]
+    assert warning.filename == __file__
     assert len(geo.nodes) == 4
     assert _Source.served == ["/lines.geojson"]  # the first build only
 
