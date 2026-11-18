@@ -29,7 +29,7 @@ void bind_pipelines(nb::module_& m) {
         const int64_t m = (int64_t)origins.shape(0);
         if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m)
             throw std::invalid_argument("one destination and one weight per origin expected");
-        auto t = assembly::csr_from_arcs(origins.data(), destinations.data(), weights.data(), m);
+        auto t = assembly::build_csr_from_arcs(origins.data(), destinations.data(), weights.data(), m);
         return nb::make_tuple(owned_view(std::move(t.node_ids)), owned_view(std::move(t.offsets)),
                               owned_view(std::move(t.heads)), owned_view(std::move(t.weights)),
                               owned_view(std::move(t.kept)));
@@ -65,23 +65,23 @@ void bind_pipelines(nb::module_& m) {
     // Water paths on a land raster (contract in scgraph/pipelines/steps/stage2_intermodal/landmask.py)
     auto bind_water = [](Uint8Array bits,
                          int64_t width, int64_t height, bool wrap, int64_t start, Int64Array targets,
-                         double max_km, DoubleArray east, DoubleArray diagonal, double north,
+                         double max_km, DoubleArray east_km, DoubleArray diagonal_km, double north_km,
                          size_t max_cells) -> nb::object {
         if (width <= 0 || height <= 0 || (int64_t)bits.shape(0) * 8 < width * height
-            || (int64_t)east.shape(0) < height || (int64_t)diagonal.shape(0) + 1 < height
+            || (int64_t)east_km.shape(0) < height || (int64_t)diagonal_km.shape(0) + 1 < height
             || start < 0 || start >= width * height)
             throw std::invalid_argument("find_water_path_cells: arrays do not match the raster");
         std::optional<WaterPath> path;
         {
             nb::gil_scoped_release release;
-            path = water_path_cells(bits.data(), width, height, wrap, start, targets.data(),
-                               targets.shape(0), max_km, east.data(), diagonal.data(), north, max_cells);
+            path = find_water_path_cells(bits.data(), width, height, wrap, start, targets.data(),
+                               targets.shape(0), max_km, east_km.data(), diagonal_km.data(), north_km, max_cells);
         }
         if (!path) return nb::none();
         return nb::make_tuple(path->km, nb::cast(path->cells));
     };
     m.def("find_water_path_cells", bind_water, nb::arg("bits"), nb::arg("width"), nb::arg("height"), nb::arg("wrap"), nb::arg("start"),
-       nb::arg("targets"), nb::arg("max_km"), nb::arg("east"), nb::arg("diagonal"), nb::arg("north"),
+       nb::arg("targets"), nb::arg("max_km"), nb::arg("east_km"), nb::arg("diagonal_km"), nb::arg("north_km"),
        nb::arg("max_cells"),
        "Cheapest path over water cells to a target cell: (km, cells) or None; see "
        "scgraph.pipelines.steps.stage2_intermodal.landmask.python.find_water_path_cells");

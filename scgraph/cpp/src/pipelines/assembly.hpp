@@ -89,7 +89,7 @@ struct ArcTable {
     std::vector<double> weights;
 };
 
-inline ArcTable csr_from_arcs(const int64_t* origins, const int64_t* destinations,
+inline ArcTable build_csr_from_arcs(const int64_t* origins, const int64_t* destinations,
                               const double* weights, int64_t arc_count) {
     if (arc_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 arcs");
     // The origins, then the destinations that are not origins (few: most nodes are both)

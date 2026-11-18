@@ -1,5 +1,5 @@
 """Land and water as a one-bit raster, and the cheapest path over water. Its kernel,
-`water_path_cells`, is the C++ one (`scgraph/cpp/src/pipelines/landmask.hpp`) when built;
+`find_water_path_cells`, is the C++ one (`scgraph/cpp/src/pipelines/landmask.hpp`) when built;
 the pure-Python twin, with the same answers, stays in `python`."""
 
 import json
@@ -48,16 +48,16 @@ def find_water_path_cells(
     start: int,
     targets: array | list[int],
     max_km: float,
-    east: array,
-    diagonal: array,
-    north: float,
+    east_km: array,
+    diagonal_km: array,
+    north_km: float,
     max_cells: int,
 ) -> tuple[float, list[int]] | None:
     """Find the shortest path over water cells from a start cell to target cells.
 
     Uses Dijkstra search on the 8-connected grid to find the least-cost path
     navigating exclusively over water cells (bit 0) and target cells. Steps cost
-    `east[row]`, `north`, or `diagonal[row]` (to row + 1).
+    `east_km[row]`, `north_km`, or `diagonal_km[row]` (to row + 1).
 
     Parameters:
         bits (bytes | bytearray): 1-bit raster bitmask (bit 1 = land, bit 0 = water).
@@ -67,9 +67,9 @@ def find_water_path_cells(
         start (int): Start cell index (`row * width + column`).
         targets (array[int64] | list[int]): Sorted cell indices of candidate target nodes (e.g. sea nodes).
         max_km (float): Maximum allowed path distance in kilometres.
-        east (array[float64]): Eastward cell transition distance per row in kilometres.
-        diagonal (array[float64]): Diagonal cell transition distance per row in kilometres.
-        north (float): Northward cell transition distance in kilometres.
+        east_km (array[float64]): Eastward cell transition distance per row in kilometres.
+        diagonal_km (array[float64]): Diagonal cell transition distance per row in kilometres.
+        north_km (float): Northward cell transition distance in kilometres.
         max_cells (int): Maximum cells to expand before aborting search.
 
     Returns:
@@ -94,7 +94,9 @@ def find_water_path_cells(
                 continue
             near = r * width + c % width
             low = min(row, r)
-            step = diagonal[low] if dr and dc else east[row] if dc else north
+            step = (
+                diagonal_km[low] if dr and dc else east_km[row] if dc else north_km
+            )
             if d + step > max_km or d + step >= km.get(near, math.inf):
                 continue
             if _is_land(bits, near) and not _contains_cell(targets, near):

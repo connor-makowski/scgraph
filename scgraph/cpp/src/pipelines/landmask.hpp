@@ -20,14 +20,15 @@ struct WaterPath {
 
 // Cell `start` to the first target settled, over the 8 neighbours of each cell that is
 // water (bit 0) or a target (`targets` sorted), columns wrapping if `wrap`. A step costs
-// east[row] along a row, north between rows, diagonal[min row] between two rows. The
+// east_km[row] along a row, north_km between rows, diagonal_km[min row] between two
+// rows. The
 // lowest (km, cell) is settled first; a cell keeps the first predecessor at that km. No
 // path if the search would hold more than max_cells cells.
-inline std::optional<WaterPath> water_path_cells(const uint8_t* bits, int64_t width,
+inline std::optional<WaterPath> find_water_path_cells(const uint8_t* bits, int64_t width,
                                                  int64_t height, bool wrap, int64_t start,
                                                  const int64_t* targets, size_t target_count,
-                                                 double max_km, const double* east,
-                                                 const double* diagonal, double north,
+                                                 double max_km, const double* east_km,
+                                                 const double* diagonal_km, double north_km,
                                                  size_t max_cells) {
     static const int steps[8][2] = {{-1, -1}, {-1, 0}, {-1, 1}, {0, -1},
                                     {0, 1},   {1, -1}, {1, 0},  {1, 1}};
@@ -58,7 +59,7 @@ inline std::optional<WaterPath> water_path_cells(const uint8_t* bits, int64_t wi
             int64_t r = row + s[0], c = column + s[1];
             if (r < 0 || r >= height || (!wrap && (c < 0 || c >= width))) continue;
             c = (c + width) % width;
-            double step = s[1] == 0 ? north : s[0] == 0 ? east[row] : diagonal[std::min(row, r)];
+            double step = s[1] == 0 ? north_km : s[0] == 0 ? east_km[row] : diagonal_km[std::min(row, r)];
             int64_t next = r * width + c;
             double next_km = d + step;
             if (next_km > max_km) continue;
