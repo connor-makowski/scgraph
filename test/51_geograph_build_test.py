@@ -1201,10 +1201,18 @@ def _points_of(network, mode):
 
 
 # (0, 0) is a node of the road and of the railway branch in the OSM file. The two
-# networks must stay apart there: a route changes mode only at a hub.
+# networks must stay apart there: a route changes mode only at a hub. So each
+# network has its own node at (0, 0), and no arc joins a road node to a rail node.
 def test_roads_and_railways_stay_apart_at_a_level_crossing(multimodal_network):
+    modes = _mode_names(multimodal_network)
+
     assert [0, 0] in _points_of(multimodal_network, "road")
     assert [0, 0] in _points_of(multimodal_network, "rail")
+    assert not any(
+        {modes[u], modes[v]} == {"road", "rail"}
+        for u, arcs in enumerate(multimodal_network.graph_object.graph)
+        for v in arcs
+    )
 
 
 def test_a_railway_is_read_both_ways_and_without_its_sidings(
