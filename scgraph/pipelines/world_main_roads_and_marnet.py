@@ -44,12 +44,8 @@ from scgraph.pipelines.steps.stage1_extract import osm
 
 PIPELINE_VERSION = 2
 
-# The runner downloads the sources in the order of this dict. The planet is first,
-# because its download function fails at once without the C++ extension.
-# `**regional.SOURCES` keeps this place, but replaces the planet by the Geofabrik
-# extract. The second line puts the planet back.
-SOURCES = {"roads": osm.PLANET, **regional.SOURCES}
-SOURCES["roads"] = osm.PLANET
+# The sources of the regional pipeline, with the planet in place of the extract
+SOURCES = {**regional.SOURCES, "roads": osm.PLANET}
 # The length in km at which a way is cut, and at which a chain is cut. A larger
 # value gives fewer nodes: with 10, the world network has about 3 million nodes.
 MAX_KM_BETWEEN_NODES = 10
