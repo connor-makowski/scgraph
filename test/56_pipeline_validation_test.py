@@ -1,4 +1,4 @@
-"""Tests for Stage 4 pipeline acceptance validation."""
+"""Tests of stage 4: the validation of a built network against its cases."""
 
 import importlib
 

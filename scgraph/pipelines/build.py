@@ -1,8 +1,9 @@
-"""The runner of the pipelines: download the sources of a network, build it and keep it in
-the cache (`GeoGraph.build_geograph`).
+"""The runner of the pipelines. `build_file` downloads the sources of a network, builds
+the network and keeps it in the cache. `GeoGraph.build_geograph` calls it.
 
-`python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D]` builds a network
-without loading it and prints the path of its file.
+`python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D] [--validate]`
+builds a network without loading it, and prints the path of its file. `--help` lists
+the other options.
 """
 
 import argparse
@@ -37,6 +38,8 @@ _CACHEDIR_TAG = (
 
 
 def _clean_work(work: Path, cache: Path) -> None:
+    """Remove the work folder, and each folder above it that is then empty, up to the
+    cache directory."""
     shutil.rmtree(work, ignore_errors=True)
     parent = work.parent
     while parent != cache and parent.exists() and not any(parent.iterdir()):
@@ -48,6 +51,9 @@ def _clean_work(work: Path, cache: Path) -> None:
 
 
 def _validate_pipeline(pipeline, name, region, filename):
+    """Check the network file against the cases that the pipeline lists for the
+    region. Raise a RuntimeError when a case fails. A pipeline without cases passes.
+    """
     validation = getattr(pipeline, "VALIDATION", None)
     if not validation:
         return
@@ -132,10 +138,15 @@ def _should_build(
     refresh: bool,
     local_files_only: bool,
 ) -> bool:
-    """Return True when the network must be built: the cache does not hold it, another
-    version of its pipeline built the cached file, scgraph cannot read that file, or
-    the caller asks for a refresh. With `local_files_only`, nothing is built: the
-    function returns False, or raises when the cache holds no network to load.
+    """Return True when the network must be built.
+
+    There are four cases: the cache does not hold the network; another version of the
+    pipeline built the cached file; scgraph cannot read the cached file; the caller asks
+    for a refresh.
+
+    With `local_files_only`, the function never returns True. It raises when `refresh`
+    is true, when the cache does not hold the network, or when scgraph cannot read the
+    cached file. It warns when another version of the pipeline built the file.
     """
     cached, built_by = cached_file is not None, None
     if cached:
@@ -178,10 +189,14 @@ def _should_build(
 def _download_sources(
     pipeline: types.ModuleType, region: str | None, sources_dir: Path
 ) -> tuple[dict[str, str], list[dict]]:
-    """Download the sources of the pipeline into `sources_dir`. Return the path of the
-    file of each source, by the name of the source, and the record of each source for
-    the header of the network file. A source that an earlier build left there with its
-    record is not downloaded again."""
+    """Download the sources of the pipeline into `sources_dir`. A source that an earlier
+    build left there with its record is not downloaded again.
+
+    Returns:
+        `(files, records)`. `files` maps the name of each source to the path of its
+        file. `records` lists the record of each source, which goes into the header of
+        the network file.
+    """
     sources_dir.mkdir(parents=True, exist_ok=True)
     files, records = {}, []
     for source, about in pipeline.SOURCES.items():
@@ -207,8 +222,9 @@ def _download_sources(
                     f"No extract '{region}' on Geofabrik; the region is {_REGION_HELP}"
                 ) from error
             raise
-        # The dict that the own download of a source returns identifies the
-        # source. Otherwise the file is identified by its digest and its size.
+        # A source may have a download function of its own. When that function
+        # returns a dict, the dict identifies the source. Otherwise the runner
+        # identifies the file by its digest and its size.
         measured = {}
         if own_download is None or not isinstance(learnt, dict):
             with open(source_path, "rb") as file:
@@ -261,7 +277,8 @@ def _move_into_cache(
     earlier_file: Path | None,
 ) -> Path:
     """Move the network file `building` into `folder` of the cache, under the name of
-    its digest, and remove the file of the earlier build. Return its new path.
+    its digest. Write the `cache.json` that names it, and remove the file of the
+    earlier build. Return the new path of the file.
     """
     built_file = folder.joinpath(f"{digest}.scgraph")
     folder.mkdir(parents=True, exist_ok=True)
@@ -300,24 +317,44 @@ def build_file(
     local_files_only: bool | None = None,
     validate: bool = False,
 ) -> str:
-    """Build the network into the local cache and return its file path.
+    """Build a network into the local cache and return the path of its file.
+
+    When the cache holds the network, built by the same `PIPELINE_VERSION`, the
+    function builds nothing and returns the cached file.
 
     Args:
-        name: Name of a buildable pipeline or imported pipeline module.
-        region: Geographic sub-region identifier (e.g. 'europe/denmark').
-        cache_dir: Optional custom cache directory.
-        work_dir: The work folder: the build keeps there the downloaded sources and the files of its steps. None takes a folder in the cache directory, removed after a build that succeeds. A folder that the caller gives is not removed. A build that fails keeps its work folder, and the next call resumes from it.
-        refresh: Download the sources and build again, even if the cache holds a current network or a work folder exists. It empties the work folder first, also a `work_dir` that the caller gave.
-        local_files_only: Forbid downloading missing network sources.
-        validate: Check the network against its validation cases. A failure raises RuntimeError. A network that is built is checked before it enters the cache. If it fails, it is not cached and the cache stays unchanged. A network that the cache already holds is checked as it is: with `local_files_only=True`, the call checks the cached network and downloads nothing.
+        name: The name of a pipeline of scgraph, or a pipeline module.
+        region: For a pipeline with regions, the path of a Geofabrik extract, for
+            example 'europe/denmark'.
+        cache_dir: The cache directory. None takes `SCGRAPH_CACHE_DIR`, then the
+            cache directory of the platform.
+        work_dir: The work folder, where the build keeps the downloaded sources and
+            the files of its steps. None takes a folder in the cache directory, which
+            the function removes after a build that succeeds. The function does not
+            remove a folder that the caller gives. A build that fails keeps its work
+            folder, and the next call resumes from it.
+        refresh: Download the sources and build again, even if the cache holds a
+            current network. The function empties the work folder first, also a
+            `work_dir` that the caller gives.
+        local_files_only: Use the cache only, and download nothing. None takes True
+            when the environment variable `SCGRAPH_OFFLINE` is `1`.
+        validate: Check the network against its validation cases. A network that is
+            built is checked before it enters the cache. If it fails, the cache stays
+            unchanged. A network that the cache already holds is checked as it is.
+            With `local_files_only=True`, the call checks the cached network and
+            downloads nothing.
 
     Returns:
-        Absolute path to the built .scgraph network file.
+        The path of the network file in the cache.
 
     Raises:
-        ValueError: On unknown pipeline names or invalid region parameters.
-        FileNotFoundError: If the network is uncached in offline mode.
-        RuntimeError: If Stage 4 validation fails.
+        ValueError: The name is unknown, or the module has the name of a pipeline of
+            scgraph. The region is missing, not valid, or not on Geofabrik. With
+            `local_files_only`: `refresh` is true, or scgraph cannot read the cached
+            file.
+        FileNotFoundError: The network is not in the cache, with `local_files_only`.
+        RuntimeError: The network fails its validation.
+        requests.HTTPError: A source cannot be downloaded.
     """
     if local_files_only is None:
         local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
@@ -461,14 +498,14 @@ def main(argv: list[str] | None = None) -> None:
     except KeyboardInterrupt:
         parser.exit(
             130,
-            "\nBuild interrupted. Its work folder is kept, and the next build "
-            "resumes from it.\n",
+            "\nInterrupted. A work folder that holds files is kept, and the next "
+            "build resumes from it.\n",
         )
     except (
         ValueError,
         FileNotFoundError,
         RuntimeError,
-    ) as error:  # the message is the answer
+    ) as error:  # the message says what to change: no traceback
         parser.exit(2, f"{error}\n")
 
 

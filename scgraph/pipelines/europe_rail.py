@@ -1,8 +1,15 @@
 """Railway lines (`railway=rail`, without sidings, spurs and yard tracks) of Europe,
-from the OpenStreetMap Europe extract.
+from the OpenStreetMap extract of Europe.
 
-Every line is read both ways, whatever its `oneway` tag. Drawings: each piece's shape
-is simplified at 50 m when the way is cut; lengths are measured before.
+- This network is `osm_rail` for Europe, with fewer nodes. A line is cut every 5 km,
+  and a contracted arc ends at the first node where it reaches 5 km. Two nodes along a
+  line are then at most about 10 km apart.
+- The network keeps each strongly connected component of at least 50 nodes.
+- Every line is read both ways, whatever its `oneway` tag.
+- The shape of each arc is simplified to within 50 m. Its length is measured on the
+  full shape.
+- Source: the Europe extract of Geofabrik, read by HTTP byte ranges and never stored.
+  The build needs the C++ extension of scgraph.
 """
 
 import os
@@ -19,8 +26,12 @@ SOURCES = {
         "download": osm.download_streamed,
     }
 }
-MAX_KM_BETWEEN_NODES = 5  # intermediate continental resolution
-MIN_COMPONENT_NODES = 50  # retain regional rail networks
+# The length in km at which a line is cut. It is between the 2 km of a region and
+# the 10 km of the world: fewer nodes than `osm_rail`, more detail than the world.
+MAX_KM_BETWEEN_NODES = 5
+# The network keeps each component of at least 50 nodes. A rail network without a
+# link to the main one, such as the network of an island, then stays in the file.
+MIN_COMPONENT_NODES = 50
 
 
 def build(
@@ -28,14 +39,8 @@ def build(
     *,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Build the Europe railway network.
-
-    Args:
-        files: Mapping of source identifiers to local file paths.
-        work_dir: Working directory for intermediate checkpoints.
-
-    Returns:
-        The network file's arrays and the modes table, `(arrays, modes)`, of the built network.
+    """Build the railway network of Europe: `osm_rail.build`, with the cut length and the
+    component size of this module.
     """
     return osm_rail.build(
         files,
@@ -45,9 +50,6 @@ def build(
     )
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": [
         "rotterdam_duisburg",

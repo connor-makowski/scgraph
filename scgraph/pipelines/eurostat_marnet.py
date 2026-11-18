@@ -53,9 +53,6 @@ def build(files: dict[str, str]) -> GeoGraph:
     return GeoGraph.load_from_geojson(geojson, precision=5)
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 # The kind `sea_distances` measures between ports. This network has no port
 # node, so that kind is checked on `world_main_roads_and_marnet`.
 VALIDATION = {

@@ -23,9 +23,6 @@ def build(files: dict[str, str]) -> GeoGraph:
     )
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": ["new_york_to_chicago", "los_angeles_to_san_francisco"],
 }

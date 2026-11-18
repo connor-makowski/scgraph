@@ -44,20 +44,22 @@ When `scgraph` is imported, it uses the C++ classes if the extension is compiled
 
 ### Pipeline Subsystem (`scgraph.pipelines`)
 
-The `pipelines/` package builds reference networks from online sources. Each network has one pipeline module, which names its sources. A build runs in stages:
+The package `scgraph.pipelines` builds networks from their online sources. A pipeline is one module of this package. It names the sources of one network and has a `build` function. The docstring of `scgraph.pipelines` gives the contract of a pipeline.
 
-* **Stage 1 - Ingestion & Extraction (`steps.stage1_extract`)**:
-  Streamed raw ingestion (`osm`, `pbf_range_streamer`, `arcgis`), polyline extraction, way filtering, and early geometry simplification at 50 m.
-* **Stage 2 - Intermodal Connectors (`steps.stage2_intermodal`)**:
-  Multi-modal integration (`hubs`, `landmask`): ports, airports and rail terminals join the networks of the modes they serve; a sea connector follows a water path (`find_water_path_cells`) on a Natural Earth raster.
-* **Stage 3 - Topology & Assembly (`steps.stage3_assembly`)**:
-  CSR graph construction (`build_csr_from_arcs`), strongly connected components (`strongly_connected_components`), pass-through chain contraction (`contract_chains`), Douglas-Peucker simplification of arc shapes (`simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`), and node ordering along a Hilbert curve (`assemble`). The runner then writes the arrays to a `.scgraph` file.
-* **Stage 4 - Validation (`steps.stage4_validation`)**:
-  `validate_network` checks a built network against cases. A case describes a known route of the real world: a driving distance, a published sea distance, a rail corridor, a passage such as Suez, the road access of a large city. Each kind of case has its own rule and its own CSV file in `cases/`. The docstring of `steps/stage4_validation` lists the kinds and their rules. When `build_file` gets `validate=True`, the runner calls `validate_network` on the built file. A network that fails does not enter the cache.
-* **Runner & Orchestrator (`build.py`)**:
-  `build_file` downloads the sources, builds the network in a work folder, and moves the finished file into the cache. It writes the metadata of the build (pipeline, sources, software) into the header of the `.scgraph` file.
-* **C++ Acceleration (`scgraph/cpp/src/pipelines/`)**:
-  The costly kernels of stages 2 and 3 (`assembly.hpp`, `landmask.hpp`) have a C++ version. Each one also has a pure-Python version.
+The runner, `build.py`, runs a pipeline. `build_file` downloads the sources and calls `build` in a work folder. It writes the network to a `.scgraph` file, with the metadata of the build (pipeline, sources, software) in the header. Then it moves the file into the cache.
+
+A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
+
+* **Stage 1, read the sources (`steps.stage1_extract`)**:
+  `osm` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`pbf_range_streamer`). `arcgis` downloads an ArcGIS layer. `osm.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
+* **Stage 2, join the modes (`steps.stage2_intermodal`)**:
+  `hubs.join` joins the networks of several modes at hubs: ports, airports and rail terminals. `landmask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
+* **Stage 3, assemble the graph (`steps.stage3_assembly`)**:
+  `assembly.build_graph_from_pieces` stores the arcs as CSR arrays (`build_csr_from_arcs`). `assembly.assemble` keeps the strongly connected components (`strongly_connected_components`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
+* **Stage 4, validate the network (`steps.stage4_validation`)**:
+  `validate_network` checks a built network against cases. A case describes a known route of the real world, such as a driving distance or a published sea distance. The docstring of `steps/stage4_validation` lists the kinds of cases and their rules. With `validate=True`, `build_file` validates the built file, and a network that fails does not enter the cache.
+
+The costly functions of stages 2 and 3 have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`) and a pure-Python version that gives the same results.
 
 ---
 
@@ -389,7 +391,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. |
 | `metadata.node_order` | `str` | How the nodes are numbered. `"hilbert"`: along a 2D Hilbert space-filling curve. With several modes, the nodes are grouped by mode first, in the order of `metadata.modes`, then numbered along the curve within each mode. A read of one mode (`load_from_scgraph(modes=...)`) relies on this order. |
 | `metadata.modes` | `list[dict]` | The transport modes of the network. Each mode is a dict. `name` gives the name of the mode. When a source gave the node ids of the mode, `source` holds the name of that source in `sources`. A network with one mode has no `node_modes`: all its nodes are in that mode. If that mode has no name, the file has no `modes`. |
-| `metadata.pipeline` | `dict` | Pipeline provenance: network generator name, target region, and pipeline version. |
+| `metadata.pipeline` | `dict` | The pipeline that built the file: its name, the region, and its `PIPELINE_VERSION`. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
 | `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, URLs, file digests, and data timestamps. |
 

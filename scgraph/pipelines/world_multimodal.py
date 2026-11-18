@@ -1,14 +1,21 @@
-"""Roads, railways, sea lanes and flights of the world, joined at ports, airports and rail
-terminals: `osm_multimodal` at the scale of the planet.
+"""Roads, railways, sea lanes and flights of the world, joined at ports, airports and
+rail terminals: `osm_multimodal` for the planet.
 
-- Distances, modes, hubs and their connectors as in `osm_multimodal`.
+- Distances, modes, hubs and their connectors are those of `osm_multimodal`.
+- A shortest route in km takes any mode. Between two distant places it takes a
+  flight, because a flight is a straight line. To compare modes, derive a cost per
+  mode from the km, or load only some modes (`load_from_scgraph(modes=...)`).
+- The flights inside mainland China, and between China and the rest of Asia, are
+  missing: no open source counts them.
 - The network keeps each strongly connected component of at least 1,000 nodes, so an
-  island with roads of its own is a separate network. Along a road or a railway, nodes lie
-  at most about 20 km apart (cut, then contracted, at 10 km).
-- Sources: the planet of the date in its URL, read by HTTP byte ranges and never stored,
-  twice (the railways, then the roads); the others as `osm_multimodal`. The build needs
-  scgraph's C++ backend.
-- Not for: navigation, timetables, or the capacity of a terminal.
+  island with roads of its own is a separate network. A road or a railway is cut every
+  10 km, and a contracted arc ends at the first node where it reaches 10 km. Two nodes
+  along a road or a railway are then at most about 20 km apart.
+- Sources: the OpenStreetMap planet of the date in its URL, and the other sources of
+  `osm_multimodal`. The planet is read by HTTP byte ranges and never stored. It is
+  read twice: for the railways, then for the roads. The build needs the C++ extension
+  of scgraph.
+- Not for navigation, timetables, or the capacity of a terminal.
 """
 
 import os
@@ -18,15 +25,21 @@ from scgraph.pipelines.steps.stage1_extract import osm
 
 PIPELINE_VERSION = 1
 
-# The planet first: its download hook checks the C++ backend before any other download
+# The runner downloads the sources in the order of this dict. The planet is first,
+# because its download function fails at once without the C++ extension.
+# `**regional.SOURCES` keeps this place, but replaces the planet by the Geofabrik
+# extract. The second line puts the planet back.
 SOURCES = {"osm": osm.PLANET, **regional.SOURCES}
 SOURCES["osm"] = osm.PLANET
-MAX_KM_BETWEEN_NODES = 10  # the cut and the contraction
-MIN_COMPONENT_NODES = 1000  # nodes of the smallest component kept
+# The length in km at which a way is cut, and at which a chain is cut. A larger
+# value gives fewer nodes: with 10, the world network has about 3.3 million nodes.
+MAX_KM_BETWEEN_NODES = 10
+# The network keeps each component of at least 1,000 nodes. The roads of an island
+# then stay in the file, and a small fragment does not.
+MIN_COMPONENT_NODES = 1000
 
-download = (
-    regional.download
-)  # for the sources without their own download: checks osmium first
+# For the sources without a download function of their own: it checks osmium first
+download = regional.download
 
 
 def build(
@@ -34,7 +47,9 @@ def build(
     *,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """`osm_multimodal.build` at the scale of the planet."""
+    """Build the multimodal network of the world: `osm_multimodal.build`, with the cut
+    length and the component size of this module.
+    """
     return regional.build(
         files,
         max_km_between_nodes=MAX_KM_BETWEEN_NODES,
@@ -43,9 +58,6 @@ def build(
     )
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": [
         "road_distances",

@@ -1,82 +1,139 @@
 """
-Pipelines: how `GeoGraph.build_geograph` builds a network from its online sources, one
-module per network, each a starting point to copy and adapt.
+A pipeline builds one network from its online sources.
 
-A pipeline is a module with these names:
+A pipeline is a module. `GeoGraph.build_geograph` runs it: the runner
+(`scgraph.pipelines.build`) downloads the sources, calls `build`, writes the network
+file and keeps it in the cache. Each pipeline of this package is also an example to
+copy and adapt.
 
-- `SOURCES`: name -> each source to download: its `url` (`{region}` in it is replaced by
-  the `region` argument of `build_geograph`), the `credit` to cite with results, and its
-  `license` (SPDX identifier, `LicenseRef-…` when SPDX has none, `NOASSERTION` when it could
-  not be established) with the `license_url` where it is stated, for a pinned source its
-  `version` (a tag or a date), and optionally its own `download(url, filename)`, used for
-  that source only: it writes to `filename` what `build` reads (the file, or how to read
-  it in place, never stored), and the record it returns says what identifies the source
-  in place of the file's `sha256` and `bytes`
-- `PIPELINE_VERSION`: an integer, raised when the same sources would give a different
-  graph; a refactoring that leaves the graph unchanged does not raise it; it is never lowered
-  once released. A cached network built with another `PIPELINE_VERSION` is built again
-- `build(files)`, or `build(files, *, work_dir=None)` to keep files between the steps of a
-  long build in the runner's work folder: given name -> downloaded file, returns a GeoGraph
-  or `(arrays, modes)`. Each step logs its counts and its duration at DEBUG with
-  `utils._log_step`. The GeoJSON and ArcGIS pipelines return a GeoGraph; the OSM pipelines the
-  network file's arrays as `network_file.write` takes them, nodes already in scgraph's
-  order (`helpers.hilbert`, within each mode), and the `modes` table, `[{"name": None}]`
-  for one mode (`assembly.assemble`), written with units km. `build_geograph` writes either and returns the GeoGraph it reads back from
-  the file: to look at a pipeline's network, build it with
-  `GeoGraph.build_geograph(module, region=...)`
-- `VALIDATION`, optional: `{"cases": [...]}`. It lists the cases that a built network
-  must pass when `build_file` is called with `validate=True`. A case describes a known
-  route of the real world. The docstring of `steps/stage4_validation` describes the
-  kinds of cases, their rules and the entries of this list. A regional pipeline gives
-  `{"cases": {region: [...]}}`, one list for each region
-- `download(url, filename)`, optional: how to download the sources without their own
-  (default: `download_file`);
-  it may return a dict added to the source's record, such as the `version` of its data
-  (`osm.download`: the time an OSM extract is up to; `arcgis.download`: a layer's last edit)
+WHAT A PIPELINE MODULE HOLDS
 
-The first paragraph of the module docstring describes the network (shown by
-`GeoGraph.list_buildable_geographs`). Functions that `build` passes on, such as a `select`
-of ways or the road connector of a port, are conventions inside `build`, not part of the
-contract. From `assembly.build_graph_from_pieces` on, the OSM steps pass a graph as the network
-file's arrays; `read_osm` and `keep_largest_strongly_connected_component` keep the GeoGraph layout for
-`load_from_osm`.
+- Its docstring. The first paragraph describes the network, and
+  `GeoGraph.list_buildable_geographs` shows it. The network file stores the whole
+  docstring.
+- `SOURCES`: a dict that gives a name to each source. A source is a dict:
+    - `url`: where the source is. The runner replaces `{region}` in it by the `region`
+      argument of `build_geograph`. A pipeline needs a region when one of its URLs
+      holds `{region}`.
+    - `credit`: the credit line that a user cites with results.
+    - `license`: an SPDX identifier. Write `LicenseRef-…` when SPDX has no identifier,
+      and `NOASSERTION` when the license could not be established.
+    - `license_url`: the page that states the license.
+    - `version`, optional: a tag or a date, for a source that does not change.
+    - `download`, optional: a download function for this source only (see below).
+- `PIPELINE_VERSION`: an integer. Raise it when the same sources would give another
+  graph. Do not raise it for a change that leaves the graph the same. Never lower it
+  after a release. The runner builds a cached network again when its
+  `PIPELINE_VERSION` differs.
+- `build(files)`: the function that builds the network. `files` gives the path of the
+  downloaded file of each source, by the name of the source. `build` returns one of:
+    - a GeoGraph. The GeoJSON and ArcGIS pipelines do this, and so does the example
+      below.
+    - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
+      `network_file.write` takes them. The nodes are already in the order of the
+      file: by mode, then along a Hilbert curve (`assembly.assemble` gives this
+      order). The weights are in km. `modes` is the modes table (see below). The
+      other OpenStreetMap pipelines of this package do this.
+  `build` may take a keyword `work_dir`. The runner then passes its work folder. A
+  long build keeps files there between its steps, and a later build resumes from
+  them.
+- `VALIDATION`, optional: `{"cases": [...]}`, the cases that the built network must
+  pass. A case describes a known route of the real world. The docstring of
+  `steps/stage4_validation` describes the kinds of cases, their rules and the entries
+  of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
+- `download`, optional: a download function for the sources that have none of their
+  own. The default is `download_file`.
 
-The steps (`scgraph.pipelines.steps`), organized in sequential stages:
+The runner reads no other name. Names such as `SELECTS`, `MODES` or
+`MAX_KM_BETWEEN_NODES` are choices of one pipeline.
 
-- Stage 1 - Ingestion & Extraction (`stage1_extract`):
-  - OpenStreetMap (`osm`): `osm.build_way_pieces` (`locate_ways`, one read for
-    every kind of way; `cut_polylines` at `MAX_KM_BETWEEN_NODES`; ferries attached to road nodes
-    via `osm.build_ferry_arcs`; drawings simplified at 50 m via `simplify_shapes`).
-  - ArcGIS (`arcgis`): downloads feature layers and extracts polylines.
-- Stage 2 - Intermodal Connectors (`stage2_intermodal`):
-  - Joining modes at hubs (`hubs.join`): ports, airports and rail terminals from small
-    tables kept with scgraph (`hubs.TABLES`), one connector per mode reached, checked
-    against water on a `landmask.LandMask`; nodes on indices, with their modes.
-- Stage 3 - Graph Assembly & Contraction (`stage3_assembly`):
-  - Assembly (`assembly`): `assembly.build_graph_from_pieces` ->
-    `assembly.assemble` (`keep_strongly_connected_components` -> `contract_chains`
-    at `MAX_KM_BETWEEN_NODES`, never across two modes -> `build_chain_shapes` -> Hilbert order).
+THE DOWNLOAD FUNCTIONS
 
-`build_geograph` writes into the network file's header what built it (`build_metadata`),
-read back by `GeoGraph.get_scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`
-(`name`, `url`, `sha256`, `bytes`, `credit`, `license`, `license_url` and `version` if the
-data has one), `software` (`scgraph`, its `backend`, `cpp` or `python`, and the `platform`
-with its C library or macOS version) and `description` (the module docstring, so `python
--OO`, which drops docstrings, gives another file). It holds no clock time (the
-download time stays in the cache's `cache.json`). A cached network is built again only for
-another `PIPELINE_VERSION` or file format.
+A download function is `download(url, filename)`. It writes to `filename` what `build`
+reads. This is the source itself, or a small file that says how to read the source in
+place (`osm.download_streamed` does this for the planet, which is never stored).
 
-Same pipeline, same sources, same scgraph version, same backend and same platform and C
-library or macOS version: byte-identical file (tested). The C++ and Python builds give the
-same graph, the same nodes, arcs and lengths (tested with the `marnet` pipeline on a small
-synthetic input); only the order of arcs within a node and ties between equal-length
-routes may differ. Across platforms, a few lengths or shape points may differ in the last
-bit (the platform's math library).
+The function may return a dict. The runner adds it to the record of the source: the
+entry of the source in the header of the network file. For example, `osm.download`
+returns the `version` of an OpenStreetMap extract, the time that its data is up to.
 
-The core never imports `scgraph.pipelines` at load time: `load_from_osm` and
-`build_geograph` import it when they are called.
+The runner also puts the `sha256` and the `bytes` of the downloaded file in the
+record. There is one exception. A source can have its own `download` in `SOURCES`.
+When that function returns a dict, the dict must identify the source, and the runner
+does not compute `sha256` and `bytes`. `osm.download_streamed` gives the `bytes` and
+the `md5` that the server publishes.
 
-A pipeline of your own, here the cycleways of an OpenStreetMap extract, both ways:
+THE MODES TABLE
+
+The mode of a node says what the node is: a node of a network (`road`, `rail`, `sea`)
+or a hub (`port`, `airport`, `rail_terminal`). The modes table is a list with one
+dict per mode: its `name`, and the `source` that gives the ids of its nodes. A network
+with one mode gives `[{"name": None}]`.
+
+HOW TO RUN A PIPELINE
+
+    GeoGraph.build_geograph("osm_rail", region="europe/luxembourg")
+    python -m scgraph.pipelines.build osm_rail --region europe/luxembourg --validate
+
+The first line builds the network, or loads it from the cache. The command builds the
+network without loading it, and prints the path of its file. With `--validate`, the
+network enters the cache only if it passes its cases.
+
+THE STEPS OF A BUILD
+
+A build runs steps, such as "read and cut the ways" or "contract the chains". Each
+step logs one line at DEBUG, with its counts and its duration (`utils._log_step`).
+The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
+
+1. Read the sources (`stage1_extract`). `osm.build_way_pieces` reads the ways of an
+   OpenStreetMap file that the select functions keep. It cuts each way at its
+   junctions, and where a piece reaches `max_km_between_nodes`. It simplifies the
+   shape of each piece to within 50 m. It attaches the ferries to road nodes
+   (`osm.build_ferry_arcs`). `arcgis.download` downloads an ArcGIS layer.
+2. Join the modes (`stage2_intermodal`). `hubs.join` joins the networks of several
+   modes at hubs: ports, airports and rail terminals. `landmask.LandMask` tells land
+   from water for the connectors of a hub.
+3. Assemble the graph (`stage3_assembly`). `assembly.build_graph_from_pieces` stores
+   the pieces as a graph. `assembly.assemble` keeps the strongly connected
+   components, contracts the chains of nodes and puts the nodes in the order of the
+   file.
+4. Validate the network (`stage4_validation`). `validate_network` checks the built
+   file against the cases of `VALIDATION`.
+
+A graph has two layouts in the steps. From `assembly.build_graph_from_pieces` on, a
+graph is a dict of the arrays of the network file. `osm.read_osm` and
+`assembly.keep_largest_strongly_connected_component` use the layout of a GeoGraph,
+because `load_from_osm` calls them.
+
+WHAT THE NETWORK FILE RECORDS
+
+The runner writes the metadata of the build into the header of the network file
+(`build_metadata`). `GeoGraph.get_scgraph_info` reads it back:
+
+- `pipeline`: its `name`, its `region` and its `version`;
+- `sources`: the record of each source, with `name`, `url`, `credit`, `license`,
+  `license_url`, `sha256` and `bytes` (or what the own `download` of the source
+  returns), and `version` if the data has one;
+- `software`: the version of `scgraph`, its `backend` (`cpp` or `python`) and the
+  `platform`, with its C library or its macOS version;
+- `description`: the docstring of the pipeline. `python -OO` drops docstrings, so it
+  gives another file.
+
+The header holds no clock time. The time of the download is in `cache.json`, in the
+cache.
+
+Two builds give the same file, byte for byte, when they have the same pipeline, the
+same sources, the same version of scgraph, the same backend, and the same platform
+with the same C library or macOS version. A test checks this. The C++ build and the
+pure-Python build give the same nodes, the same arcs and the same lengths. Two
+things may differ: the order of the arcs of a node, and the choice between two
+routes of the same length. A test checks this with the `marnet` and `osm_main_roads`
+pipelines on small inputs. Between two platforms, a few lengths or shape points may differ in the last
+bit, because the math libraries differ.
+
+A PIPELINE OF YOUR OWN
+
+This pipeline builds the cycleways of an OpenStreetMap extract, both ways:
 
 ```py
 from scgraph import GeoGraph
@@ -93,11 +150,26 @@ def build(files):
     return GeoGraph.load_from_osm(files["ways"], select=select)
 ```
 
-Saved as `cycleways.py`, it is built and cached like a named network, under the last part
-of the module's name: `import cycleways`, then `GeoGraph.build_geograph(cycleways,
-region="europe/luxembourg")` writes `networks/cycleways/europe/luxembourg/` of the cache.
-Give an adapted copy a name of its own: a module named like a built-in pipeline is refused,
-and two modules with the same last name share one cache entry.
+Save it as `cycleways.py`. Then `import cycleways` and
+`GeoGraph.build_geograph(cycleways, region="europe/luxembourg")` build the network.
+The cache keeps it under the last part of the name of the module, in
+`networks/cycleways/europe/luxembourg/`. To adapt a pipeline of scgraph, copy its
+module under another name: scgraph refuses a module that has the name of one of its
+pipelines. Two modules with the same last name share one cache entry.
+
+HOW TO ADD A NETWORK TO SCGRAPH
+
+1. Add the module to this package, with the names above.
+2. Add its name to `NAMES` below and to the `Literal` of `GeoGraph.build_geograph`,
+   in alphabetical order. A test checks that the two lists are the same.
+3. Add its row to the table of *Building Networks from Their Sources*, in `README.md`
+   and in the docstring of `scgraph/__init__.py`.
+4. Add its cases to `steps/stage4_validation/cases/` and list them in `VALIDATION`.
+5. Build and validate the network with the command above.
+
+scgraph does not import this package when it is imported. The functions that need it
+import it when they are called: `load_from_osm`, `build_geograph`,
+`list_buildable_geographs` and `clear_geograph_cache`.
 """
 
 import inspect
@@ -128,9 +200,9 @@ NAMES = (
     "world_main_roads_and_marnet",
     "world_multimodal",
 )
-LARGE_DOWNLOAD = (
-    100e6  # bytes; announced with a warning, visible without logging set up
-)
+# In bytes. A larger download is logged at WARNING, which shows without a logging
+# setup.
+LARGE_DOWNLOAD = 100e6
 
 
 def build_metadata(
@@ -140,10 +212,19 @@ def build_metadata(
     sources: list[dict],
     description: str | None = None,
 ) -> dict:
-    """The build metadata that `build_geograph` writes into a network file's header (its
-    fields: this module's docstring), from plain values, without a GeoGraph: `name`,
-    `region` and `version` are the pipeline's, `sources` the records of the downloaded
-    sources and `description` the pipeline's docstring; `software` is added.
+    """Return the metadata of a build, which the runner writes into the header of the
+    network file. The docstring of this module lists its fields.
+
+    Args:
+        name: The name of the pipeline.
+        region: The region of the build, or None for a pipeline without regions.
+        version: The `PIPELINE_VERSION` of the pipeline.
+        sources: The record of each downloaded source.
+        description: The docstring of the pipeline.
+
+    Returns:
+        A dict with `pipeline`, `sources` and `software`, and with `description` when
+        one is given.
     """
     from scgraph.geograph import GeoGraph
 
@@ -167,6 +248,12 @@ def build_metadata(
 
 
 def download_file(url: str, filename: str | os.PathLike) -> None:
+    """Download `url` to `filename`. The function first logs the size of the file: at
+    WARNING above `LARGE_DOWNLOAD`, at INFO below.
+
+    Raises:
+        requests.HTTPError: The server refuses the request.
+    """
     with requests.get(url, stream=True, timeout=60) as response:
         response.raise_for_status()
         size = int(response.headers.get("Content-Length", 0))

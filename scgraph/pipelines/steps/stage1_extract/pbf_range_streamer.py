@@ -1,7 +1,7 @@
-"""HTTP byte-range streamer child process for StreamedPbf.
+"""The child process of `StreamedPbf`.
 
-Streams requested byte ranges of a remote OSM PBF file into stdout,
-resuming automatically after transient network errors.
+It downloads byte ranges of an OSM PBF file and writes them to its standard output.
+After a network error, it asks again from the first byte that it did not write.
 """
 
 import json
@@ -14,26 +14,21 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
-_MAX_RETRIES = 10  # consecutive failures accepted per range
+_MAX_RETRIES = 10  # the failures in a row that one range may have
 
 
 class PbfRangeStreamer:
-    """Streams byte ranges from a remote URL to stdout."""
+    """Writes byte ranges of the file at `url` to the standard output. `tag` is the ETag
+    or the Last-Modified date that the file must keep. `size` is its size in bytes.
+    """
 
     def __init__(self, url: str, tag: str, size: int) -> None:
-        """Initialize the range streamer.
-
-        Args:
-            url: Remote resource URL.
-            tag: Target ETag or Last-Modified identifier.
-            size: Total file size in bytes.
-        """
         self.url = url
         self.tag = tag
         self.size = size
 
     def _create_session(self) -> requests.Session:
-        """Create a requests session with connection pooling and retries."""
+        """Return a session that tries a failed request again."""
         session = requests.Session()
         retries = Retry(
             total=_MAX_RETRIES,
@@ -50,14 +45,15 @@ class PbfRangeStreamer:
         return session
 
     def stream_ranges(self, ranges: list[list[int]]) -> None:
-        """Stream byte ranges into stdout.
+        """Write the byte ranges to the standard output, in order.
 
         Args:
-            ranges: List of [start, end] byte offset pairs.
+            ranges: Pairs `[start, end]` of byte offsets. `end` is not included.
 
         Raises:
-            SystemExit: If the remote file tag or size changes during streaming.
-            requests.RequestException: If transient network retries are exhausted.
+            SystemExit: The tag or the size of the file changed on the server.
+            requests.RequestException: A range failed more than `_MAX_RETRIES` times in a
+                row.
         """
         wanted = sum(end - start for start, end in ranges)
         done, shown, began = 0, 0, time.time()

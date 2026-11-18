@@ -1,15 +1,16 @@
 """Roads, railways, sea lanes and flights of a region, joined at ports, airports and rail
 terminals, for example `region="europe/denmark"`.
 
-- A distance is in km along the network. It holds main roads and car ferries (as
-  `osm_main_roads`), railway lines without sidings, spurs and yard tracks (as `osm_rail`),
-  the sea lanes of `eurostat_marnet`, the regular flights between airports, and the
-  connectors of the hubs. There are no times and no costs: a user derives them from the
-  km and the mode of each arc.
-- Two modes never share a node. A route changes mode only at a hub: a port (road, sea,
-  and rail where the port has a railway), an airport (road, and its flights) or a rail
-  terminal (road and rail). The connectors follow `hubs.join`: up to 20 km to a road,
-  10 km to a railway, a water path up to 2,500 km to a sea lane.
+- A distance is in km along the network. The network holds main roads and vehicle
+  ferries (as in `osm_main_roads`), railway lines without sidings, spurs and yard
+  tracks (as in `osm_rail`), the sea lanes of `eurostat_marnet`, the regular flights
+  between airports, and the connectors of the hubs. There are no times and no costs:
+  a user derives them from the km and the mode of each arc.
+- The networks of two modes never share a node. A route goes from one network to
+  another only through a hub: a port (road, sea, and rail where the port has a
+  railway), an airport (road, and its flights) or a rail terminal (road and rail). The
+  connectors follow `hubs.join`: up to 20 km to a road, 10 km to a railway, and a
+  water path of up to 2,500 km to a sea lane.
 - Two airports with regular flights are joined both ways, with the great-circle distance
   between them: large or medium airports with at least 104 flights in 2021 between them
   (about one a week each way). Three sources count the flights: the OpenSky flight list,
@@ -20,18 +21,18 @@ terminals, for example `region="europe/denmark"`.
   `airport` or `rail_terminal`. Each mode cites the source of its node ids: OpenStreetMap
   for roads and railways, the World Port Index number for a port, the OurAirports id for
   an airport, the Wikidata number for a rail terminal.
-- The network keeps its largest strongly connected component (regional scale) or each
-  component of at least 1,000 nodes (`world_multimodal`). Chains of nodes are contracted
-  as in `osm_main_roads_and_marnet`, never across two modes.
+- The network of a region keeps its largest strongly connected component. Chains of
+  nodes are contracted as in `osm_main_roads_and_marnet`, never across two modes.
 - Sources: the OpenStreetMap extract (read twice: the railways, then the roads), the sea
   lanes and Natural Earth as `osm_main_roads_and_marnet`; the hubs and flights from small
   tables kept with scgraph (`hubs.TABLES`, made by `utils/build_hub_tables.py`).
-- A shortest route in km takes any mode: between two distant places it flies, since a
-  flight is the straight line. To compare modes, derive a cost per mode (time, CO2) from
-  the km, or load only some modes (`load_from_scgraph(modes=...)`).
+- A shortest route in km takes any mode. Between two distant places it takes a
+  flight, because a flight is a straight line. To compare modes, derive a cost per
+  mode (time, CO2) from the km, or load only some modes
+  (`load_from_scgraph(modes=...)`).
 - The region needs at least one railway line. A region without one, such as
   `europe/malta`, raises a ValueError.
-- Not for: navigation, timetables, or the capacity of a terminal.
+- Not for navigation, timetables, or the capacity of a terminal.
 """
 
 import logging
@@ -52,7 +53,8 @@ logger = logging.getLogger(__name__)
 
 PIPELINE_VERSION = 1
 
-# Small sources first: a failure then costs no new download of the extract
+# The small sources come first. When one of them fails, the extract is not yet
+# downloaded.
 SOURCES = {
     **{
         name: osm_main_roads_and_marnet.SOURCES[name]
@@ -83,19 +85,20 @@ def build(
     min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Build the multimodal network of a region. The keywords give another scale
-    (`world_multimodal`).
+    """Build the multimodal network of a region. `world_multimodal` calls this function
+    with other values of the keywords.
 
     Args:
-        files: The local file of each source of SOURCES.
+        files: The path of the downloaded file of each source of `SOURCES`.
         max_km_between_nodes: The length in km at which a way is cut, and at which a
             chain is cut. Two nodes along a way are at most about twice this far apart.
-        min_component_nodes: The nodes of the smallest
-            component kept. None keeps the largest component only.
-        work_dir: A folder for the files of each step, so that a build can resume.
+        min_component_nodes: The smallest number of nodes of a kept component. None keeps
+            only the largest component.
+        work_dir: A folder where the build keeps files between its steps, so that a later
+            build resumes from them. None keeps nothing.
 
     Returns:
-        The network file's arrays and the modes table, `(arrays, MODES)`.
+        `(arrays, modes)`: the arrays of the network file, and the modes table.
     """
 
     def folder(step):
@@ -170,9 +173,6 @@ def build(
     return arrays, MODES
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": {
         "europe/denmark": [

@@ -10,15 +10,17 @@ in each direction:
   component, so that it does not join a road cut off from the network. The arc weighs
   CIRCUITY times the line, since a real road bends.
 - sea: the shortest path over water to a sea node, at most CONNECTOR_KM["sea"] long, on
-  the cells of a `LandMask`. The arc weighs the length of that path.
+  the cells of a `LandMask`. The arc weighs the length of that path, plus the short
+  line from its last cell to the sea node.
 
-A port serves road and sea, and rail when its table says so. An airport serves road,
-and its flights count as its second mode: two airports with regular flights between
-them are joined by an arc in each direction, with the great-circle length. A rail
-terminal serves road and rail.
+A port serves road and sea, and rail when its table says so. An airport serves road.
+Its flights count as a second network: two airports with regular flights between them
+are joined by an arc in each direction, with the great-circle length. A rail terminal
+serves road and rail.
 
-A hub that reaches fewer than two modes stays out: a port without a road would join the
-sea to nothing. Two modes never share a node, so a route changes mode only at a hub.
+A hub that reaches fewer than two networks stays out: a port without a road would join
+the sea to nothing. The networks of two modes never share a node, so a route goes from
+one network to another only through a hub.
 
 Example: the port of Arhus (World Port Index 30260, served by rail) lies 0.76 km from a
 rail node and 4.08 km from a road node, and the water path to the nearest sea node is
@@ -51,10 +53,14 @@ if TYPE_CHECKING:
     from scgraph.geograph import GeoGraph
     from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
 
-CONNECTOR_KM = {"road": 20, "rail": 10, "sea": 2500}  # longest connector
-# Water a land connector may cross: 3 km, 10 km for an open roadstead
+# The longest connector to each mode, in km: the straight line to a road or rail node,
+# and the water path to a sea node
+CONNECTOR_KM = {"road": 20, "rail": 10, "sea": 2500}
+# The most water that the line of a land connector may cross, in km. An open
+# roadstead has no shelter and its ships anchor off the coast, so its limit is higher.
 WATER_KM, ROADSTEAD_WATER_KM = 3, 10
-CIRCUITY = 1.2  # of a straight land connector
+# A land connector weighs this many times its straight line, because a real road bends
+CIRCUITY = 1.2
 DATA = Path(__file__).parents[2] / "data"
 
 
@@ -118,9 +124,10 @@ TABLES = {
 
 
 class Hub(NamedTuple):
-    """A hub: its `kind` (port, airport or rail_terminal), its `id` in its source, its
-    `point` [latitude, longitude], the `modes` it serves and whether it is an open
-    roadstead (a port without shelter, whose road may be farther across water).
+    """A hub. `kind` is `port`, `airport` or `rail_terminal`. `id` is its id in its
+    source. `point` is `[latitude, longitude]`. `modes` lists the networks that it serves.
+    `open_roadstead` is true for a port without shelter, where ships anchor off the coast.
+    The road connector of such a port may cross up to ROADSTEAD_WATER_KM of water.
     """
 
     kind: str
@@ -209,8 +216,9 @@ class _Layer:
         return len(self.ids)
 
     def release(self) -> None:
-        """Drop the arrays of the network, but its node ids; empty the arrays of a
-        network given as arrays."""
+        """Free the arrays of the network, and keep only its node ids. When the caller
+        gave the network as a dict of arrays, the function empties that dict.
+        """
         self.latitudes = self.longitudes = self.offsets = self.heads = None
         if isinstance(self.network, dict):
             self.network.clear()
@@ -306,7 +314,7 @@ def join(
         connectors.append(
             (hub, {mode: arc for mode, arc in arcs.items() if arc})
         )
-    # A flight counts when both its airports have a connector
+    # A flight is kept when both its airports have a road connector
     reached = {
         hub.id for hub, arcs in connectors if hub.kind == "airport" and arcs
     }
@@ -315,7 +323,9 @@ def join(
     kinds, ids, airport = [], array("q"), {}
     for hub, arcs in connectors:
         flies = hub.kind == "airport" and hub.id in flying
-        if len(arcs) + flies < 2:  # the flights are a mode of an airport
+        if (
+            len(arcs) + flies < 2
+        ):  # the flights count as a network of an airport
             continue
         h = n + len(points)
         points.append(hub.point)

@@ -1,15 +1,25 @@
-"""Main roads (motorway, trunk, primary and their links) and vehicle ferries of an OpenStreetMap
-extract from Geofabrik, for example `region="europe/luxembourg"`.
+"""Main roads (motorway, trunk, primary and their links) and vehicle ferries of an
+OpenStreetMap extract from Geofabrik, for example `region="europe/luxembourg"`.
 
-A vehicle ferry, or a shuttle train that carries cars and lorries such as the Channel Tunnel's
-(`route=ferry` or `route=shuttle_train`, unless `motor_vehicle=no` or `motorcar=no`), joins, both ways
-and with the length of its route, the road nodes nearest its two ends if both lie
-within 2 km; otherwise it is left out, as is each piece of a ferry drawn as several ways
-that meet at sea. Roads and ferries are read together: a road is also cut where a ferry
-way shares one of its nodes. Drawings: each piece's shape is simplified at 50 m when the
-way is cut; lengths are measured before. Not the graph `GeoGraph.load_from_osm` gives from
-the same file: that loader neither attaches ferries, nor contracts chains, nor simplifies
-shapes.
+- A distance is in km along the roads and the ferries. One-way roads are followed in
+  their legal direction. There are no times.
+- A vehicle ferry joins two road nodes, both ways, with the length of its route. The
+  pipeline reads as a ferry each way tagged `route=ferry` or `route=shuttle_train` (a
+  train that carries cars and lorries, as in the Channel Tunnel). It leaves out a
+  ferry closed to motor vehicles (`motor_vehicle=no` or `motorcar=no`).
+- Each end of a ferry joins the nearest road node, if that node is within 2 km. A
+  ferry with an end farther than 2 km from every road node is left out. A ferry drawn
+  as several ways that meet at sea is left out too, because each of its parts has an
+  end at sea.
+- Roads and ferries are read together. So a road is also cut at a node that it shares
+  with a ferry.
+- The network keeps its largest strongly connected component. A road is cut every
+  2 km, and a contracted arc ends at the first node where it reaches 2 km. Two nodes
+  along a road are then at most about 4 km apart.
+- The shape of each arc is simplified to within 50 m. Its length is measured on the
+  full shape.
+- `GeoGraph.load_from_osm` gives another graph from the same file. That loader does
+  not attach ferries, does not contract chains and does not simplify shapes.
 """
 
 import os
@@ -35,8 +45,21 @@ def build(
     min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """The keywords give another scale (`world_main_roads`); `min_component_nodes=None` keeps
-    the largest component only."""
+    """Build the main roads of a region. `world_main_roads` calls this function with
+    other values of the keywords.
+
+    Args:
+        files: The path of the downloaded file of each source of `SOURCES`.
+        max_km_between_nodes: The length in km at which a way is cut, and at which a
+            chain is cut. Two nodes along a way are at most about twice this far apart.
+        min_component_nodes: The smallest number of nodes of a kept component. None keeps
+            only the largest component.
+        work_dir: A folder where the build keeps files between its steps, so that a later
+            build resumes from them. None keeps nothing.
+
+    Returns:
+        `(arrays, modes)`: the arrays of the network file, and the modes table.
+    """
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     pieces = osm.build_way_pieces(
         files["roads"],
@@ -54,12 +77,10 @@ def build(
     return arrays, [{"name": None}]
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
-# `europe/denmark` has no case. The two Danish crossings do not fit this
-# extract: Malmo is outside it, and the centre of Odense is 5.1 km from the
-# nearest main road, above the 5 km limit of the crossing rule.
+# `europe/denmark` has no case. The three crossings with an end in Denmark do not
+# fit this extract. Malmo is outside it. No vehicle ferry of the extract joins Ronne
+# to the other roads. The centre of Odense is 5.1 km from the nearest road node of
+# this network, above the 5 km limit of the crossing rule.
 VALIDATION = {
     "cases": {
         "europe/france": [

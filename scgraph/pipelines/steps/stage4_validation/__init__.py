@@ -29,12 +29,20 @@ is measured on roads only, so a sea route cannot replace it.
                                  avoids it (the Arctic), as the case says.
     river_ports       port, sea  The port has a node within 5 km. Its water route
                                  to the sea is at most 1.8 times the straight line.
-    route_lengths     all        The route is within the tolerance of the case.
+    route_lengths     all        The route is within the tolerance of the case
+                                 (5 % when the case gives none).
     hubs              all        A hub of the case's kind is within 5 km. For each
                                  mode in `reference` (such as `road rail sea`), the
                                  route from the hub to that mode leaves the hub by
                                  its connector to that mode. For `air`, the route is
                                  a direct flight to the airport of the case.
+
+Every file has the columns `id`, `origin_lat`, `origin_lon`, `destination_lat`,
+`destination_lon`, `reference`, `source`, `tolerance` and `tolerance_reason`. `source`
+says where the reference comes from. A kind adds the columns that its rule reads:
+`reference_back` (road_distances), `landmass` (coverage), `passage` and the four
+`box_` columns (passages), `hub_kind` (hubs). The other columns of a file describe the
+case for a reader. A row is disabled when its id starts with `#`.
 
 A pipeline lists the cases for its network in `VALIDATION = {"cases": [...]}`. An
 entry of this list is one of:
@@ -81,6 +89,7 @@ class ValidationResult:
         return self.failed == 0 and self.total > 0
 
     def summary(self) -> str:
+        """Return one line for the log: PASSED or FAILED, with the counts."""
         status = "PASSED" if self.is_success else "FAILED"
         return f"{status}: {self.passed}/{self.total} cases OK (failed: {self.failed})"
 

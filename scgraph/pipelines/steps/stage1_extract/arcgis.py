@@ -11,8 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 def download(url: str, filename: str | os.PathLike) -> dict:
-    """Write the layer as GeoJSON; return its `version`, the time of the last edit of its
-    data (ISO 8601 in UTC, with a Z, as OSM's), if the layer gives it."""
+    """Write the layer at `url` to `filename` as one GeoJSON file.
+
+    Returns:
+        `{"version": time}` when the layer gives the time of the last edit of its data,
+        and `{}` otherwise. The time is in ISO 8601, in UTC, with a final Z, as
+        `osm.download` returns it.
+
+    Raises:
+        ConnectionError: The server gives fewer features than the layer holds.
+    """
     layer = _get(url, f="json")
     count = _get(f"{url}/query", where="1=1", returnCountOnly="true", f="json")[
         "count"

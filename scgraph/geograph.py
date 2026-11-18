@@ -1126,9 +1126,7 @@ class GeoGraphIO:
                     remove(cache_path.joinpath(published + suffix))
         if name is None:
             remove(root)
-            remove(
-                cache_path.joinpath(".work")
-            )  # failed, interrupted or kept builds
+            remove(cache_path.joinpath(".work"))  # failed or interrupted builds
         elif region is None:
             remove(root.joinpath(name))
         else:

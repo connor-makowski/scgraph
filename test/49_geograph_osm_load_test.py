@@ -404,7 +404,7 @@ def test_the_planet_is_not_streamed_without_the_cpp_extension(tmp_path):
     download_planet = osm.PLANET["download"]
 
     # The refusal comes before any request: nothing listens at this address.
-    with pytest.raises(RuntimeError, match="C\\+\\+ backend"):
+    with pytest.raises(RuntimeError, match="C\\+\\+ extension"):
         download_planet(
             "http://127.0.0.1:9/planet.osm.pbf", str(tmp_path / "layout.json")
         )
