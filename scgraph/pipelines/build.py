@@ -36,16 +36,6 @@ _CACHEDIR_TAG = (
 )
 
 
-# What `from_stage` removes from the work folder, by the step of the OSM
-# extraction to run again: all of it, the node locations (pass 2), or the cut
-# of the ways (pass 3). The later stages keep no file.
-STAGE_INVALIDATIONS = {
-    "stage1": ["*.done", "*_junctions.bin", "*_ways.bin", "nodes"],
-    "pass2": ["pass2.done", "stage1.done", "nodes"],
-    "pass3": ["stage1.done"],
-}
-
-
 def _clean_work(work: Path, cache: Path) -> None:
     shutil.rmtree(work, ignore_errors=True)
     parent = work.parent
@@ -85,16 +75,10 @@ def build_file(
     region: str | None = None,
     cache_dir: str | os.PathLike | None = None,
     *,
-    resume: bool = True,
-    clean: bool = False,
-    from_stage: str | None = None,
-    keep_work: bool = False,
     work_dir: str | os.PathLike | None = None,
     refresh: bool = False,
     local_files_only: bool | None = None,
     validate: bool = False,
-    validate_only: bool = False,
-    stream: bool = False,
 ) -> str:
     """Build the network into the local cache and return its file path.
 
@@ -102,16 +86,10 @@ def build_file(
         name: Name of a buildable pipeline or imported pipeline module.
         region: Geographic sub-region identifier (e.g. 'europe/denmark').
         cache_dir: Optional custom cache directory.
-        resume: Resume build using existing intermediate checkpoints (default: True).
-        clean: Purge working directory and intermediate artifacts before building.
-        from_stage: Run the OSM extraction again from a step ('stage1', 'pass2', 'pass3'), in a kept work folder.
-        keep_work: Keep the work folder after a build that succeeds. A build that fails always keeps its work folder, and the next call resumes from it.
-        work_dir: Custom directory for intermediate build artifacts and checkpoints.
+        work_dir: The work folder: the build keeps there the downloaded sources and the files of its steps. None takes a folder in the cache directory, removed after a build that succeeds. A folder that the caller gives is not removed. A build that fails keeps its work folder, and the next call resumes from it.
         refresh: Download the sources and build again, even if the cache holds a current network or a work folder exists. It empties the work folder first, also a `work_dir` that the caller gave.
         local_files_only: Forbid downloading missing network sources.
-        validate: Check the network against its validation cases. A failure raises RuntimeError. A network that is built is checked before it enters the cache. If it fails, it is not cached and the cache stays unchanged.
-        validate_only: Validate cached network without rebuilding or downloading.
-        stream: Stream OSM extracts via HTTP byte ranges instead of downloading.
+        validate: Check the network against its validation cases. A failure raises RuntimeError. A network that is built is checked before it enters the cache. If it fails, it is not cached and the cache stays unchanged. A network that the cache already holds is checked as it is: with `local_files_only=True`, the call checks the cached network and downloads nothing.
 
     Returns:
         Absolute path to the built .scgraph network file.
@@ -164,13 +142,6 @@ def build_file(
     cached_file = _cached_file(pointer)
     cached = cached_file is not None
 
-    if validate_only:
-        if not cached or not cached_file or not Path(cached_file).is_file():
-            raise FileNotFoundError(
-                f"{name} is not in the cache ({folder}): build it first before validating"
-            )
-        _validate_pipeline(network, name, region, cached_file)
-        return str(cached_file)
     # Built again for another pipeline version, or a file this scgraph can't read
     if cached:
         try:
@@ -225,20 +196,8 @@ def build_file(
             else cache.joinpath(".work", name, region or "")
         )
 
-        if clean or refresh or not resume:
-            if work.exists():
-                shutil.rmtree(work, ignore_errors=True)
-
-        if from_stage:
-            patterns = STAGE_INVALIDATIONS.get(from_stage)
-            if not patterns:
-                raise ValueError(
-                    f"Unknown stage '{from_stage}'. Valid: {', '.join(STAGE_INVALIDATIONS)}"
-                )
-            for pattern in patterns:
-                for p in work.rglob(pattern):
-                    p.unlink(missing_ok=True)
-
+        if refresh:
+            shutil.rmtree(work, ignore_errors=True)
         work.mkdir(parents=True, exist_ok=True)
         building = work.joinpath(f"{name}.scgraph")
         try:
@@ -253,21 +212,11 @@ def build_file(
                 meta_path = sources_dir.joinpath(f"{source}.meta.json")
                 files[source] = source_path
                 hook = about.get("download")
-                if stream and about.get("url", "").endswith(".osm.pbf"):
-                    from scgraph.pipelines.steps.stage1_extract import osm
-
-                    download = osm.download_streamed
-                else:
-                    download = hook or getattr(
-                        network, "download", pipelines.download_file
-                    )
-
-                if (
-                    resume
-                    and not clean
-                    and source_path.is_file()
-                    and meta_path.is_file()
-                ):
+                download = hook or getattr(
+                    network, "download", pipelines.download_file
+                )
+                # A source of an earlier build that failed is not downloaded again
+                if source_path.is_file() and meta_path.is_file():
                     try:
                         sources.append(json.loads(meta_path.read_text()))
                         continue
@@ -402,9 +351,9 @@ def build_file(
                 )
             raise
         else:
-            if not keep_work and not custom_work:
+            if not custom_work:
                 _clean_work(work, cache)
-    elif validate:  # not built: the cached file is checked, as by validate_only
+    elif validate:  # not built: the cached file is checked
         _validate_pipeline(network, name, region, cached_file)
     return str(cached_file)
 
@@ -421,46 +370,27 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--region", help="the path of a Geofabrik extract")
     parser.add_argument("--cache-dir", help="the cache directory")
     parser.add_argument(
-        "--resume",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="resume build from existing checkpoints (default: True, use --no-resume to disable)",
-    )
-    parser.add_argument(
-        "--clean",
-        action="store_true",
-        help="clean working directory and intermediate artifacts before building",
-    )
-    parser.add_argument(
-        "--from",
-        dest="from_stage",
-        choices=list(STAGE_INVALIDATIONS),
-        help="resume build starting from a specific stage, invalidating later stages",
-    )
-    parser.add_argument(
-        "--keep-work",
-        action="store_true",
-        help="keep intermediate working directory even after successful build",
-    )
-    parser.add_argument(
         "--work-dir",
-        help="custom directory for intermediate build artifacts and checkpoints",
+        help="the work folder, kept after the build (default: a folder in the "
+        "cache directory, removed after a build that succeeds)",
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="download the sources and build again; the work folder is emptied "
+        "first, also a --work-dir",
+    )
+    parser.add_argument(
+        "--local-files-only",
+        action="store_true",
+        help="use the cache only and download nothing; with --validate, check "
+        "the cached network",
     )
     parser.add_argument(
         "--validate",
         action="store_true",
         help="check the built network against its validation cases; the "
         "network enters the cache only if it passes",
-    )
-    parser.add_argument(
-        "--validate-only",
-        action="store_true",
-        help="validate an already cached network without re-building it",
-    )
-    parser.add_argument(
-        "--stream",
-        action="store_true",
-        help="stream OSM extracts via HTTP byte ranges instead of downloading",
     )
     args = parser.parse_args(argv)
     logging.basicConfig(
@@ -472,20 +402,18 @@ def main(argv: list[str] | None = None) -> None:
                 args.name,
                 args.region,
                 args.cache_dir,
-                resume=args.resume,
-                clean=args.clean,
-                from_stage=args.from_stage,
-                keep_work=args.keep_work,
                 work_dir=args.work_dir,
+                refresh=args.refresh,
+                # None lets SCGRAPH_OFFLINE decide
+                local_files_only=args.local_files_only or None,
                 validate=args.validate,
-                validate_only=args.validate_only,
-                stream=args.stream,
             )
         )
     except KeyboardInterrupt:
         parser.exit(
             130,
-            "\nBuild interrupted by user. Intermediate checkpoints preserved.\n",
+            "\nBuild interrupted. Its work folder is kept, and the next build "
+            "resumes from it.\n",
         )
     except (
         ValueError,

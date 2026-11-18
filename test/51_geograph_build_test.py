@@ -569,6 +569,21 @@ def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
     assert Path(cached_file).read_bytes() == earlier_bytes
 
 
+def test_validate_checks_a_cached_network_without_building_it_again(
+    tmp_path, source
+):
+    build.build_file(_lines_pipeline(source), cache_dir=tmp_path)
+    # The same pipeline, with a case that its network fails
+    failing = _lines_pipeline(source, expected_km=100)
+
+    with pytest.raises(RuntimeError, match="validation failed for lines"):
+        build.build_file(
+            failing, cache_dir=tmp_path, validate=True, local_files_only=True
+        )
+
+    assert _Source.served == ["/lines.geojson"]  # the first build only
+
+
 def _fail_to_build(files):
     raise RuntimeError("build failed")
 
@@ -596,6 +611,22 @@ def test_refresh_downloads_the_sources_again_after_a_failed_build(
     GeoGraph.build_geograph(repaired, cache_dir=tmp_path, refresh=True)
 
     assert _Source.served == ["/lines.geojson"] * 2
+
+
+def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
+    tmp_path, source
+):
+    def build_with_a_step_file(files, *, work_dir=None):
+        Path(work_dir, "step_file").touch()
+        return marnet.build(files)
+
+    pipeline = _lines_pipeline(source, build=build_with_a_step_file)
+    work_dir = tmp_path / "work"
+
+    build.build_file(pipeline, cache_dir=tmp_path / "cache", work_dir=work_dir)
+
+    # The runner removes its own work folder after a build, not the caller's
+    assert (work_dir / "step_file").is_file()
 
 
 # A cached network is built again when its pipeline has another
