@@ -546,7 +546,7 @@ Each node has a mode, for example `road`, `sea` or `port`. `geo.node_modes[i]` g
 
 In `osm_multimodal`, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
 
-**A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
+**A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [How a pipeline builds a network](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
 The networks that `build_geograph` builds are not the built-in files. They are built from the current version of their sources, so their node numbers differ and results can differ slightly from those of `load_geograph`.
 

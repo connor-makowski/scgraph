@@ -42,7 +42,7 @@ scgraph/
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
-  pipelines/                     # One module per buildable network; the contract is the docstring of __init__.py
+  pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
     build.py                     # The runner: build_file (download, build, cache) and python -m scgraph.pipelines.build
     steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
   helpers/

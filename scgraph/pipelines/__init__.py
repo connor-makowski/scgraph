@@ -4,7 +4,8 @@ A pipeline builds one network from its online sources.
 A pipeline is a module. `GeoGraph.build_geograph` runs it: the runner
 (`scgraph.pipelines.build`) downloads the sources, calls `build`, writes the network
 file and keeps it in the cache. Each pipeline of this package is also an example to
-copy and adapt.
+copy and adapt. The guide `README.md` of this package follows one build step by step,
+with its numbers.
 
 WHAT A PIPELINE MODULE HOLDS
 

@@ -44,7 +44,7 @@ When `scgraph` is imported, it uses the C++ classes if the extension is compiled
 
 ### Pipeline Subsystem (`scgraph.pipelines`)
 
-The package `scgraph.pipelines` builds networks from their online sources. A pipeline is one module of this package. It names the sources of one network and has a `build` function. The docstring of `scgraph.pipelines` gives the contract of a pipeline.
+The package `scgraph.pipelines` builds networks from their online sources. A pipeline is one module of this package. It names the sources of one network and has a `build` function. The docstring of `scgraph.pipelines` gives the contract of a pipeline. The guide [scgraph/pipelines/README.md](scgraph/pipelines/README.md) follows one build step by step, with its numbers.
 
 The runner, `build.py`, runs a pipeline. `build_file` downloads the sources and calls `build` in a work folder. It writes the network to a `.scgraph` file, with the metadata of the build (pipeline, sources, software) in the header. Then it moves the file into the cache.
 
