@@ -1,0 +1,137 @@
+name: Build the reference networks
+
+# A data release publishes built network files as assets of a GitHub release.
+#
+# To make one, push a tag `networks-YYYY.MM.DD` on a commit of `dev`. A development
+# release adds `-dev.N` and is published as a pre-release. Each job below builds and
+# validates one network on a standard runner. The last job creates the release as a
+# draft. A maintainer reads the draft, then publishes it. The files of a published
+# release never change: a correction is a new tag.
+#
+# A network whose pipeline and sources did not change keeps the file of the previous
+# published data release. That release may be a development release.
+on:
+  push:
+    tags:
+      - "networks-*"
+
+permissions:
+  contents: read
+
+# Two runs for one tag would both create its draft
+concurrency:
+  group: ${{ github.ref }}
+
+jobs:
+  check:
+    name: Check the tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Stop if the tag is misspelled or its release is published
+        run: |
+          if ! [[ "$TAG" =~ ^networks-[0-9]{4}\.[0-9]{2}\.[0-9]{2}(-dev\.[0-9]+)?$ ]]; then
+            echo "$TAG is not networks-YYYY.MM.DD or networks-YYYY.MM.DD-dev.N"; exit 1
+          fi
+          is_draft=$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null || true)
+          if [ "$is_draft" = "false" ]; then echo "$TAG is published"; exit 1; fi
+
+  build:
+    name: ${{ matrix.network }}
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355 # a job is stopped at 6 hours
+    strategy:
+      fail-fast: false
+      matrix:
+        # The networks of a release. Only this list leaves a network out. Three
+        # are left out because the license of one of their sources does not clearly
+        # allow a shared copy: us_freeway, oak_ridge_maritime and
+        # world_main_roads_and_marnet. The pipelines that need a region are left
+        # out too: a user builds such a network in a few minutes.
+        network:
+          - marnet
+          - eurostat_marnet
+          - north_america_rail
+          - europe_freeway
+          - europe_rail
+          - world_main_roads
+    env:
+      SCGRAPH_REQUIRE_CPP: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      # The same planet file on another mirror. A runner reads it several times
+      # faster than the mirror of the code, which keeps a world build far from the
+      # 6 hours of a job. The built file records the mirror that was read.
+      - name: Read the planet from the us-west-2 mirror
+        run: |
+          sed -i 's/osm-planet-eu-central-1\.s3\.dualstack\.eu-central-1/osm-planet-us-west-2.s3.dualstack.us-west-2/' \
+            scgraph/pipelines/steps/stage1_extract/osm.py
+          grep -n 'osm-planet-us-west-2' scgraph/pipelines/steps/stage1_extract/osm.py
+      - name: Install scgraph with the C++ extension and osmium
+        run: uv sync --extra osm
+      - name: Build and validate
+        run: |
+          uv run python -m scgraph.pipelines.build ${{ matrix.network }} \
+            --cache-dir cache --validate
+          mkdir built
+          cp cache/networks/${{ matrix.network }}/*.scgraph built/${{ matrix.network }}.scgraph
+      - uses: actions/upload-artifact@v4
+        with:
+          name: network-${{ matrix.network }}
+          path: built/*.scgraph
+          retention-days: 14
+
+  assemble:
+    name: Create the draft release
+    needs: build # no draft while a network fails
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+      SCGRAPH_NO_BUILD: "1" # reading a file header needs no C++ extension
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      # A run that is started again replaces its own draft
+      - name: Delete the draft of an earlier run
+        run: |
+          is_draft=$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null || true)
+          if [ "$is_draft" = "true" ]; then gh release delete "$TAG" --yes; fi
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: network-*
+          path: built
+          merge-multiple: true
+      - name: Download the previous data release
+        run: |
+          previous=$(gh release list --limit 100 --json tagName,isDraft,publishedAt \
+            -q '[.[] | select(.tagName | startswith("networks-")) | select(.isDraft | not)]
+                | sort_by(.publishedAt) | last | .tagName // ""')
+          echo "previous data release: ${previous:-none}"
+          mkdir previous
+          if [ -n "$previous" ]; then gh release download "$previous" --dir previous; fi
+      - name: Assemble the release
+        run: |
+          uv sync
+          uv run python utils/assemble_networks.py built previous release "$TAG" "$GITHUB_SHA"
+          cat release/notes.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Create the draft
+        run: |
+          case "$TAG" in *-dev.*) kind=--prerelease ;; *) kind= ;; esac
+          gh release create "$TAG" --verify-tag --draft --latest=false $kind \
+            --title "$TAG" --notes-file release/notes.md \
+            release/*.scgraph release/networks.json
