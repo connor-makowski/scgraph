@@ -29,7 +29,6 @@
 
 import logging
 import os
-from collections.abc import Callable
 
 from scgraph.pipelines import eurostat_marnet
 from scgraph.pipelines.steps.stage1_extract import osm
@@ -79,7 +78,6 @@ download = osm.download  # for every source: checks osmium first
 def build(
     files: dict[str, str],
     *,
-    source: Callable = osm.open_osm_source,
     max_km_between_nodes: float = osm.MAX_KM,
     min_nodes_per_strongly_connected_component: int | None = None,
     work_dir: str | os.PathLike | None = None,
@@ -90,7 +88,7 @@ def build(
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     stage2_work_dir = os.path.join(work_dir, "stage2") if work_dir else None
     pieces = osm.build_way_pieces(
-        source(files["roads"]),
+        files["roads"],
         SELECTS,
         ("highway", "route"),
         max_km_between_nodes,

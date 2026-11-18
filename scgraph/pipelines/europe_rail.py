@@ -6,7 +6,6 @@ is simplified at 50 m when the way is cut; lengths are measured before.
 """
 
 import os
-from collections.abc import Callable
 
 from scgraph.pipelines import osm_rail
 from scgraph.pipelines.steps.stage1_extract import osm
@@ -27,14 +26,12 @@ MIN_NODES = 50  # retain regional rail networks
 def build(
     files: dict[str, str],
     *,
-    source: Callable = osm.open_osm_source,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
     """Build the Europe railway network.
 
     Args:
         files: Mapping of source identifiers to local file paths.
-        source: Factory resolving the OSM source reader (defaults to open_osm_source).
         work_dir: Working directory for intermediate checkpoints.
 
     Returns:
@@ -42,7 +39,6 @@ def build(
     """
     return osm_rail.build(
         files,
-        source=source,
         max_km_between_nodes=MAX_KM,
         min_nodes_per_strongly_connected_component=MIN_NODES,
         work_dir=work_dir,

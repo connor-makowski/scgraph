@@ -36,7 +36,6 @@ terminals, for example `region="europe/denmark"`.
 
 import logging
 import os
-from collections.abc import Callable
 
 from scgraph.pipelines import (
     eurostat_marnet,
@@ -80,7 +79,6 @@ download = (
 def build(
     files: dict[str, str],
     *,
-    source: Callable = osm.open_osm_source,
     max_km_between_nodes: float = osm.MAX_KM,
     min_nodes_per_strongly_connected_component: int | None = None,
     work_dir: str | os.PathLike | None = None,
@@ -90,7 +88,6 @@ def build(
 
     Args:
         files: The local file of each source of SOURCES.
-        source: Opens the OSM extract for one read.
         max_km_between_nodes: The length in km at which a way is cut, and at which a
             chain is cut. Two nodes along a way are at most about twice this far apart.
         min_nodes_per_strongly_connected_component: The nodes of the smallest
@@ -109,7 +106,7 @@ def build(
     # network is read first: it waits in memory while the roads are read.
     rails = assembly.build_graph_from_pieces(
         osm.build_way_pieces(
-            source(files["osm"]),
+            files["osm"],
             {"rail": osm_rail.select_rail},
             ("railway",),
             max_km_between_nodes,
@@ -118,7 +115,7 @@ def build(
     )
     roads = assembly.build_graph_from_pieces(
         osm.build_way_pieces(
-            source(files["osm"]),
+            files["osm"],
             osm_main_roads_and_marnet.SELECTS,
             ("highway", "route"),
             max_km_between_nodes,

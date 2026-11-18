@@ -359,6 +359,13 @@ def build_way_pieces(
     (`build_ferry_arcs`). No way kept raises a ValueError. With a `work_dir`, the node
     locations and the pieces are kept in files there. Each step logs its counts at DEBUG.
     """
+    # `StreamedPbf.download` writes a layout file in place of an OSM file that is
+    # read by byte ranges. A layout file is JSON, so it starts with "{". An OSM
+    # file starts with "<" (XML) or with a zero byte (PBF).
+    if isinstance(source, (str, os.PathLike)):
+        with open(source, "rb") as file:
+            if file.read(1) == b"{":
+                source = StreamedPbf(source)
     if work_dir:
         os.makedirs(work_dir, exist_ok=True)
         done_marker = os.path.join(work_dir, "stage1.done")
@@ -645,26 +652,6 @@ class StreamedPbf:
             raise RuntimeError(
                 f"Reading {self.about['url']} failed (see above)"
             )
-
-
-def open_osm_source(
-    source: "str | os.PathLike | StreamedPbf",
-) -> "str | os.PathLike | StreamedPbf":
-    """Return a `StreamedPbf` when `source` is a layout file that
-    `StreamedPbf.download` wrote. Otherwise return `source` unchanged: `source` is
-    then the path of an OSM file, or a source object of the caller.
-    """
-    if isinstance(source, (str, os.PathLike)):
-        path = Path(source)
-        if path.is_file() and path.stat().st_size < 100_000:
-            try:
-                with open(path, "rb") as f:
-                    first = f.read(16)
-                if first.startswith(b'{"url":'):
-                    return StreamedPbf(str(path))
-            except OSError:
-                pass
-    return source
 
 
 def download_streamed(
