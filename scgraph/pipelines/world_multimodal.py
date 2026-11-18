@@ -21,8 +21,8 @@ PIPELINE_VERSION = 1
 # The planet first: its download hook checks the C++ backend before any other download
 SOURCES = {"osm": osm.PLANET, **regional.SOURCES}
 SOURCES["osm"] = osm.PLANET
-MAX_KM = 10  # the cut and the contraction
-MIN_NODES = 1000  # nodes of the smallest component kept
+MAX_KM_BETWEEN_NODES = 10  # the cut and the contraction
+MIN_COMPONENT_NODES = 1000  # nodes of the smallest component kept
 
 download = (
     regional.download
@@ -37,8 +37,8 @@ def build(
     """`osm_multimodal.build` at the scale of the planet."""
     return regional.build(
         files,
-        max_km_between_nodes=MAX_KM,
-        min_nodes_per_strongly_connected_component=MIN_NODES,
+        max_km_between_nodes=MAX_KM_BETWEEN_NODES,
+        min_component_nodes=MIN_COMPONENT_NODES,
         work_dir=work_dir,
     )
 

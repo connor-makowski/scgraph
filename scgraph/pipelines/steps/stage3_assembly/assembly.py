@@ -216,7 +216,7 @@ def build_csr_from_adjacency_list(
 def keep_strongly_connected_components(
     offsets: array | memoryview,
     heads: array | memoryview,
-    min_nodes: int | None = None,
+    min_component_nodes: int | None = None,
 ) -> tuple[array, array | memoryview]:
     """Filter a CSR graph to retain only viable strongly connected components (SCCs).
 
@@ -226,16 +226,16 @@ def keep_strongly_connected_components(
     extract borders.
 
     Selection strategy:
-    - If `min_nodes` is None: keeps only the single largest SCC (e.g. mainland road
+    - If `min_component_nodes` is None: keeps only the single largest SCC (e.g. mainland road
       network of a regional extract).
-    - If `min_nodes` is an integer: retains every SCC having at least that many nodes,
+    - If `min_component_nodes` is an integer: retains every SCC having at least that many nodes,
       preserving separate viable landmasses and islands (e.g. Eurasia, Americas,
       Australia, Great Britain at the world scale).
 
     Parameters:
         offsets (array[int32]): CSR row offsets of size `num_nodes + 1`.
         heads (array[int32]): CSR target node indices of size `num_arcs`.
-        min_nodes (int | None): Minimum node count threshold for retained SCCs.
+        min_component_nodes (int | None): Minimum node count threshold for retained SCCs.
             Defaults to None (retaining only the largest SCC).
 
     Returns:
@@ -244,11 +244,11 @@ def keep_strongly_connected_components(
             - `labels`: Component index assigned to each original node.
     """
     labels, sizes = strongly_connected_components(offsets, heads)
-    if min_nodes is None:
+    if min_component_nodes is None:
         largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
         wanted = [c == largest for c in range(len(sizes))]
     else:
-        wanted = [size >= min_nodes for size in sizes]
+        wanted = [size >= min_component_nodes for size in sizes]
     return array("i", (u for u, c in enumerate(labels) if wanted[c])), labels
 
 
@@ -713,11 +713,11 @@ def assemble(
     graph: dict[str, array | memoryview],
     *,
     max_km_between_nodes: float,
-    min_nodes_per_strongly_connected_component: int | None,
+    min_component_nodes: int | None,
 ) -> dict[str, array]:
     """The network file's arrays of `graph` (`build_graph_from_pieces`'s layout, with
     `node_modes` if it has several modes): keep the components
-    (`keep_strongly_connected_components` with `min_nodes_per_strongly_connected_component`,
+    (`keep_strongly_connected_components` with `min_component_nodes`,
     each one closed), contract the chains (`contract_chains` at `max_km_between_nodes`,
     which never merges two modes), join their shapes (`build_chain_shapes`), and number the
     nodes by mode, then along the Hilbert curve, as `GeoGraph.save_as_scgraph` does. Empties `graph`.
@@ -731,7 +731,7 @@ def assemble(
         order = keep_strongly_connected_components(
             graph["offsets"],
             graph["heads"],
-            min_nodes_per_strongly_connected_component,
+            min_component_nodes,
         )
         given, graph = graph, _renumbered(graph, *order)
         given.clear()  # freed now, not when the caller lets it go: one copy at a time

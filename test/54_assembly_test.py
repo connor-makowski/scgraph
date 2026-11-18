@@ -195,12 +195,12 @@ HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
             id="only the largest component without a minimum size",
         ),
         pytest.param(
-            {"min_nodes": 2},
+            {"min_component_nodes": 2},
             [1, 2, 3, 4, 5],
             id="every component of the minimum size",
         ),
         pytest.param(
-            {"min_nodes": 1},
+            {"min_component_nodes": 1},
             [0, 1, 2, 3, 4, 5],
             id="every node with a minimum size of one node",
         ),
@@ -322,7 +322,7 @@ def assembled(tmp_path_factory):
     arrays = assembly.assemble(
         assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
-        min_nodes_per_strongly_connected_component=1,
+        min_component_nodes=1,
     )
     return arrays
 

@@ -559,7 +559,7 @@ class GeoGraphIO:
         - `max_km_between_nodes`
             - Type: float | int | None
             - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
-            - Default: None: `scgraph.pipelines.steps.osm.MAX_KM` (2)
+            - Default: None: `scgraph.pipelines.steps.osm.MAX_KM_BETWEEN_NODES` (2)
         - `largest_component`
             - Type: bool
             - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
@@ -600,7 +600,7 @@ class GeoGraphIO:
             keep_largest_strongly_connected_component,
         )
         from scgraph.pipelines.steps.stage1_extract.osm import (
-            MAX_KM,
+            MAX_KM_BETWEEN_NODES,
             select_main_roads,
             read_osm,
         )
@@ -609,7 +609,11 @@ class GeoGraphIO:
             filename,
             select or select_main_roads,
             tag_keys,
-            MAX_KM if max_km_between_nodes is None else max_km_between_nodes,
+            (
+                MAX_KM_BETWEEN_NODES
+                if max_km_between_nodes is None
+                else max_km_between_nodes
+            ),
         )
         if not nodes:
             raise ValueError(

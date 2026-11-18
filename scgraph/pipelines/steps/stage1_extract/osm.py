@@ -54,7 +54,7 @@ MAIN_ROADS = {
 }
 # Length in kilometers at which a way is cut into a new arc (at the next point), so that
 # origins and destinations attach close to where they are
-MAX_KM = 2
+MAX_KM_BETWEEN_NODES = 2
 FERRY_END_KM = 2  # farthest a ferry end may lie from the road node it joins
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 
@@ -171,20 +171,20 @@ class _Junctions:
 
 def locate_ways(
     source: "str | os.PathLike | StreamedPbf",
-    way_selectors: dict[str, Callable],
-    required_tag_keys: tuple[str, ...] = (),
+    selects: dict[str, Callable],
+    tag_keys: tuple[str, ...] = (),
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[
     _Junctions, Iterator[tuple[str, int, list[tuple[int, list[float]]]]]
 ]:
     """
-    Locate the ways of `source` that `way_selectors` keep, in one set of passes for every kind
+    Locate the ways of `source` that `selects` keep, in one set of passes for every kind
     of way (roads and ferries, for example).
 
-    `way_selectors` maps a kind of way to its `select(tags)`, which gives the direction of a way:
+    `selects` maps a kind of way to its `select(tags)`, which gives the direction of a way:
     1 (one way along its drawing), -1 (against it), 0 (both ways), or None to leave it to
     the next select; a way goes to the first select that keeps it, in the mapping's order.
-    If `required_tag_keys` is given, the ways that have none of these keys are dropped first, in
+    If `tag_keys` is given, the ways that have none of these keys are dropped first, in
     osmium.
 
     `source` is the path of an OSM file, or an object whose `file(entities)` returns what
@@ -249,9 +249,7 @@ def locate_ways(
         tracker, kept = osmium.IdTracker(), osmium.IdTracker()
         seen, repeats = tracker.node_ids(), array("q")
         kept_ways = array("q") if work_dir else None
-        for _, _, way in _selected_ways(
-            osmium, source, way_selectors, required_tag_keys
-        ):
+        for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
             kept.add_way(way.id)
             if kept_ways is not None:
                 kept_ways.append(way.id)
@@ -304,8 +302,8 @@ def locate_ways(
         for kind, way_direction, way in _selected_ways(
             osmium,
             source,
-            way_selectors,
-            required_tag_keys,
+            selects,
+            tag_keys,
             kept.id_filter(),
             locations,
         ):
@@ -317,9 +315,9 @@ def locate_ways(
 
 def read_osm(
     source: "str | os.PathLike | StreamedPbf",
-    way_filter: Callable,
-    required_tag_keys: tuple[str, ...] = (),
-    max_km_between_nodes: float = MAX_KM,
+    select: Callable,
+    tag_keys: tuple[str, ...] = (),
+    max_km_between_nodes: float = MAX_KM_BETWEEN_NODES,
 ) -> tuple[
     list[dict[int, float]],
     list[list[float]],
@@ -327,16 +325,14 @@ def read_osm(
     list[int],
 ]:
     """
-    Build the graph of the ways of `source` that `way_filter` keeps (`locate_ways`, then
+    Build the graph of the ways of `source` that `select` keeps (`locate_ways`, then
     `build_graph_from_polylines`), a way being also cut where a piece reaches
     `max_km_between_nodes` (`cut_polylines`).
 
     Returns `(graph, nodes, shapes, node_ids)` in the GeoGraph layout, `node_ids` being
     the OSM ids of the nodes.
     """
-    junctions, polylines = locate_ways(
-        source, {"ways": way_filter}, required_tag_keys
-    )
+    junctions, polylines = locate_ways(source, {"ways": select}, tag_keys)
     polylines = (
         (way_direction, vertices) for _, way_direction, vertices in polylines
     )
@@ -347,12 +343,12 @@ def read_osm(
 
 def build_way_pieces(
     source: "str | os.PathLike | StreamedPbf",
-    way_selectors: dict[str, Callable],
-    required_tag_keys: tuple[str, ...],
+    selects: dict[str, Callable],
+    tag_keys: tuple[str, ...],
     max_km_between_nodes: float,
     work_dir: str | os.PathLike | None = None,
 ) -> PieceArrays:
-    """The pieces (`assembly.PieceArrays`) of the ways of `source` that `way_selectors` keep
+    """The pieces (`assembly.PieceArrays`) of the ways of `source` that `selects` keep
     (`locate_ways`, one read for every kind), cut at their junctions and where a piece
     reaches `max_km_between_nodes` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
     joins the road nodes nearest its two ends if both lie within FERRY_END_KM
@@ -377,11 +373,11 @@ def build_way_pieces(
                 if isinstance(source, (str, os.PathLike))
                 else source.about
             ),
-            "way_selectors": {
+            "selects": {
                 kind: getattr(select, "__qualname__", type(select).__name__)
-                for kind, select in way_selectors.items()
+                for kind, select in selects.items()
             },
-            "required_tag_keys": list(required_tag_keys),
+            "tag_keys": list(tag_keys),
             "max_km_between_nodes": max_km_between_nodes,
         }
         inputs_file = os.path.join(work_dir, "stage1.inputs.json")
@@ -399,7 +395,7 @@ def build_way_pieces(
             return PieceArrays(work_dir=work_dir, truncate=False)
     with _log_step(logger, "read and cut the ways", {}) as counts:
         junctions, ways = locate_ways(
-            source, way_selectors, required_tag_keys, work_dir=work_dir
+            source, selects, tag_keys, work_dir=work_dir
         )
         pieces, ferries = PieceArrays(work_dir=work_dir), []
         for kind, direction, vertices in ways:
@@ -415,10 +411,8 @@ def build_way_pieces(
         pieces.flush()
         counts["pieces"] = len(pieces.km)
     if not len(pieces.km):
-        raise ValueError(
-            f"No way of {source} is kept by {', '.join(way_selectors)}"
-        )
-    if "ferries" in way_selectors:
+        raise ValueError(f"No way of {source} is kept by {', '.join(selects)}")
+    if "ferries" in selects:
         with _log_step(logger, "attach the ferries", {}) as counts:
             # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
             # piece u // 2's origin or destination (ties in nearest: the first end)

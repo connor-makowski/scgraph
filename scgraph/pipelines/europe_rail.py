@@ -19,8 +19,8 @@ SOURCES = {
         "download": osm.download_streamed,
     }
 }
-MAX_KM = 5  # intermediate continental resolution
-MIN_NODES = 50  # retain regional rail networks
+MAX_KM_BETWEEN_NODES = 5  # intermediate continental resolution
+MIN_COMPONENT_NODES = 50  # retain regional rail networks
 
 
 def build(
@@ -39,8 +39,8 @@ def build(
     """
     return osm_rail.build(
         files,
-        max_km_between_nodes=MAX_KM,
-        min_nodes_per_strongly_connected_component=MIN_NODES,
+        max_km_between_nodes=MAX_KM_BETWEEN_NODES,
+        min_component_nodes=MIN_COMPONENT_NODES,
         work_dir=work_dir,
     )
 

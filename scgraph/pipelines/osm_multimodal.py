@@ -79,8 +79,8 @@ download = (
 def build(
     files: dict[str, str],
     *,
-    max_km_between_nodes: float = osm.MAX_KM,
-    min_nodes_per_strongly_connected_component: int | None = None,
+    max_km_between_nodes: float = osm.MAX_KM_BETWEEN_NODES,
+    min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
     """Build the multimodal network of a region. The keywords give another scale
@@ -90,7 +90,7 @@ def build(
         files: The local file of each source of SOURCES.
         max_km_between_nodes: The length in km at which a way is cut, and at which a
             chain is cut. Two nodes along a way are at most about twice this far apart.
-        min_nodes_per_strongly_connected_component: The nodes of the smallest
+        min_component_nodes: The nodes of the smallest
             component kept. None keeps the largest component only.
         work_dir: A folder for the files of each step, so that a build can resume.
 
@@ -165,7 +165,7 @@ def build(
     arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,
-        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
+        min_component_nodes=min_component_nodes,
     )
     return arrays, MODES
 

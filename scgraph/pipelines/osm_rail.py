@@ -24,11 +24,11 @@ download = osm.download  # checks osmium before downloading a large extract
 def build(
     files: dict[str, str],
     *,
-    max_km_between_nodes: float = osm.MAX_KM,
-    min_nodes_per_strongly_connected_component: int | None = None,
+    max_km_between_nodes: float = osm.MAX_KM_BETWEEN_NODES,
+    min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """The keywords give another scale (`europe_rail`); `min_nodes_per_strongly_connected_component=None` keeps
+    """The keywords give another scale (`europe_rail`); `min_component_nodes=None` keeps
     the largest component only."""
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     pieces = osm.build_way_pieces(
@@ -42,7 +42,7 @@ def build(
     arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,
-        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
+        min_component_nodes=min_component_nodes,
     )
     return arrays, [{"name": None}]
 

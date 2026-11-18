@@ -45,7 +45,7 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 
 - Stage 1 - Ingestion & Extraction (`stage1_extract`):
   - OpenStreetMap (`osm`): `osm.build_way_pieces` (`locate_ways`, one read for
-    every kind of way; `cut_polylines` at `MAX_KM`; ferries attached to road nodes
+    every kind of way; `cut_polylines` at `MAX_KM_BETWEEN_NODES`; ferries attached to road nodes
     via `osm.build_ferry_arcs`; drawings simplified at 50 m via `simplify_shapes`).
   - ArcGIS (`arcgis`): downloads feature layers and extracts polylines.
 - Stage 2 - Intermodal Connectors (`stage2_intermodal`):
@@ -55,7 +55,7 @@ The steps (`scgraph.pipelines.steps`), organized in sequential stages:
 - Stage 3 - Graph Assembly & Contraction (`stage3_assembly`):
   - Assembly (`assembly`): `assembly.build_graph_from_pieces` ->
     `assembly.assemble` (`keep_strongly_connected_components` -> `contract_chains`
-    at `MAX_KM`, never across two modes -> `build_chain_shapes` -> Hilbert order).
+    at `MAX_KM_BETWEEN_NODES`, never across two modes -> `build_chain_shapes` -> Hilbert order).
 
 `build_geograph` writes into the network file's header what built it (`build_metadata`),
 read back by `GeoGraph.get_scgraph_info`: `pipeline` (`name`, `region`, `version`), `sources`

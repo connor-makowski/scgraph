@@ -30,8 +30,8 @@ from scgraph.pipelines.steps.stage1_extract import osm
 PIPELINE_VERSION = 2
 
 SOURCES = {"roads": osm.PLANET}
-MAX_KM = 10  # the cut and the contraction (first build)
-MIN_NODES = 1000  # nodes of the smallest component kept
+MAX_KM_BETWEEN_NODES = 10  # the cut and the contraction (first build)
+MIN_COMPONENT_NODES = 1000  # nodes of the smallest component kept
 
 
 def build(
@@ -50,8 +50,8 @@ def build(
     """
     return osm_main_roads.build(
         files,
-        max_km_between_nodes=MAX_KM,
-        min_nodes_per_strongly_connected_component=MIN_NODES,
+        max_km_between_nodes=MAX_KM_BETWEEN_NODES,
+        min_component_nodes=MIN_COMPONENT_NODES,
         work_dir=work_dir,
     )
 

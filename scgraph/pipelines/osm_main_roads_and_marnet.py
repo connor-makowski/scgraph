@@ -78,12 +78,12 @@ download = osm.download  # for every source: checks osmium first
 def build(
     files: dict[str, str],
     *,
-    max_km_between_nodes: float = osm.MAX_KM,
-    min_nodes_per_strongly_connected_component: int | None = None,
+    max_km_between_nodes: float = osm.MAX_KM_BETWEEN_NODES,
+    min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
     """The keywords give another scale (`world_main_roads_and_marnet`);
-    `min_nodes_per_strongly_connected_component=None` keeps the largest component only.
+    `min_component_nodes=None` keeps the largest component only.
     """
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     stage2_work_dir = os.path.join(work_dir, "stage2") if work_dir else None
@@ -126,7 +126,7 @@ def build(
     arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,
-        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
+        min_component_nodes=min_component_nodes,
     )
     return arrays, MODES
 

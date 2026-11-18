@@ -37,8 +37,8 @@ PIPELINE_VERSION = 2
 # The planet first: its download hook checks the C++ backend before any other download
 SOURCES = {"roads": osm.PLANET, **regional.SOURCES}
 SOURCES["roads"] = osm.PLANET
-MAX_KM = 10  # the cut and the contraction (first build)
-MIN_NODES = 1000  # nodes of the smallest component kept
+MAX_KM_BETWEEN_NODES = 10  # the cut and the contraction (first build)
+MIN_COMPONENT_NODES = 1000  # nodes of the smallest component kept
 
 download = regional.download  # for the other sources: checks osmium first
 
@@ -59,8 +59,8 @@ def build(
     """
     return regional.build(
         files,
-        max_km_between_nodes=MAX_KM,
-        min_nodes_per_strongly_connected_component=MIN_NODES,
+        max_km_between_nodes=MAX_KM_BETWEEN_NODES,
+        min_component_nodes=MIN_COMPONENT_NODES,
         work_dir=work_dir,
     )
 
