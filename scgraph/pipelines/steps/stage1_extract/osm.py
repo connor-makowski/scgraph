@@ -542,7 +542,7 @@ def build_ferry_arcs(
     """Yield `(u, v, km, shape)` for each ferry arc that joins two road nodes.
 
     `ferries`, `ends` and `shapes` are the graph of the ferries, as
-    `build_graph_from_polylines` returns it. `nearest(point)` returns `(road node, km)`
+    `build_graph_from_polylines` returns it. `nearest(point)` returns `(km, road node)`
     for an end of a ferry. An arc is kept when both its ends are within FERRY_END_KM of a
     road node, and these two road nodes differ. `u` and `v` are these road nodes. `km` is
     the length of the ferry route. `shape` starts and ends with the ends of the ferry,
@@ -551,7 +551,7 @@ def build_ferry_arcs(
     road = [nearest(end) for end in ends]
     for a, row in enumerate(ferries):
         for b, km in row.items():
-            (u, to_u), (v, to_v) = road[a], road[b]
+            (to_u, u), (to_v, v) = road[a], road[b]
             if u != v and max(to_u, to_v) <= FERRY_END_KM:
                 shape = [ends[a]] * (to_u > 0) + shapes[a].get(b, [])
                 yield u, v, km, shape + [ends[b]] * (to_v > 0)

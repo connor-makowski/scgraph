@@ -261,7 +261,7 @@ def test_near_nodes_finds_the_nearest_node(centre):
         for i in range(len(latitudes))
     )
 
-    node, km = assembly.NearNodes(latitudes, longitudes).find_nearest(
+    km, node = assembly.NearNodes(latitudes, longitudes).find_nearest(
         list(centre), 500
     )
 
@@ -273,7 +273,7 @@ def test_near_nodes_finds_no_nearest_node_beyond_the_distance():
     # One node, one degree of latitude north of the point: 111 km away
     near_nodes = assembly.NearNodes(array("d", [1.0]), array("d", [0.0]))
 
-    assert near_nodes.find_nearest([0.0, 0.0], 100) == (None, math.inf)
+    assert near_nodes.find_nearest([0.0, 0.0], 100) == (math.inf, None)
 
 
 # Four pieces of ways between five places, given by their source ids. A piece

@@ -610,13 +610,12 @@ class NearNodes:
 
     def find_nearest(
         self, point: Sequence[float], km: float
-    ) -> tuple[int | None, float]:
-        """Return `(node, km)` for the node nearest to `point` within `km`, or
-        `(None, inf)` when there is none. When two nodes are as near, the lower one is
+    ) -> tuple[float, int | None]:
+        """Return `(km, node)` for the node nearest to `point` within `km`, or
+        `(inf, None)` when there is none. When two nodes are as near, the lower one is
         returned.
         """
-        d, i = min(self.find_within(point, km), default=(math.inf, None))
-        return i, d
+        return min(self.find_within(point, km), default=(math.inf, None))
 
 
 class PieceArrays:
