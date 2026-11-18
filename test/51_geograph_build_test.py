@@ -652,12 +652,15 @@ def test_local_files_only_loads_a_network_of_another_pipeline_version(
     next_version = _lines_pipeline(source)
     next_version.PIPELINE_VERSION = 2
 
-    # The warning names the two versions.
-    with pytest.warns(UserWarning, match="pipeline version 1, now 2;"):
+    # The warning names the two versions, and points at the line of the caller.
+    with pytest.warns(
+        UserWarning, match="pipeline version 1, now 2;"
+    ) as caught:
         geo = GeoGraph.build_geograph(
             next_version, cache_dir=tmp_path, local_files_only=True
         )
 
+    assert caught[0].filename == __file__
     assert len(geo.nodes) == 4
     assert _Source.served == ["/lines.geojson"]  # the first build only
 
