@@ -302,7 +302,7 @@ The `inverse_graph` is preserved across edits and updated incrementally.
 
 Networks built or downloaded by `scgraph` are cached on disk (default: `~/.cache/scgraph`):
 * **Hierarchy**: `networks/<name>/<region>/<content_sha256>.scgraph` next to a `cache.json` that names the file and gives the download time.
-* **Atomic Writes**: A build writes into the work folder `.work/<name>/<region>` of the cache directory. It then moves the finished `.scgraph` file into place, and `cache.json` after it, each with an atomic rename. `cache.json` therefore always names a whole file. A build that succeeds removes its work folder. A build that fails keeps its work folder, with the downloaded sources. The next build resumes from it. `refresh=True` empties it first.
+* **Atomic Writes**: A build writes into its work folder: `.work/<name>/<region>` of the cache directory, or the `work_dir` of the caller. It then moves the finished `.scgraph` file into the cache. The file arrives beside its final place and takes its name in one step. `cache.json` is written the same way, after the file. `cache.json` therefore always names a whole file. A build that succeeds removes its work folder. A build that fails keeps its work folder, with the downloaded sources. The next build resumes from it. `refresh=True` empties it first.
 * **Offline Operation**: Setting `SCGRAPH_OFFLINE=1` or `local_files_only=True` prevents all network requests, loading only existing cached builds.
 * **Cache Management**: `GeoGraph.clear_geograph_cache()` safely removes cached networks without altering user files.
 

@@ -282,15 +282,19 @@ def _move_into_cache(
     """
     built_file = folder.joinpath(f"{digest}.scgraph")
     folder.mkdir(parents=True, exist_ok=True)
+    # The file arrives beside its final place, then takes its name in one step. A
+    # work folder may be on another disk than the cache. A move between two disks
+    # is a copy, and an interruption would leave a cut file under the final name.
+    arriving = built_file.with_name(built_file.name + ".part")
+    shutil.move(building, arriving)
     try:
-        # A work folder may be on another disk than the cache
-        shutil.move(building, built_file)
-    # On Windows, the move fails when a process holds a file of that name open.
+        arriving.replace(built_file)
+    # On Windows, the rename fails when a process holds a file of that name open.
     # That file is whole and has the same content: its name is its digest.
     except PermissionError:
-        pass
-    # cache.json appears last and in one step, so that it always names a whole
-    # file. It is written beside its final place: a rename works on one disk only.
+        arriving.unlink()
+    # cache.json appears last, and the same way, so that it always names a whole
+    # file.
     pointer = folder.joinpath("cache.json")
     written = pointer.with_name("cache.json.part")
     written.write_text(
