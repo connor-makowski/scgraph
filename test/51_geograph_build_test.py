@@ -12,6 +12,7 @@ import struct
 import subprocess
 import sys
 import sysconfig
+import tempfile
 import threading
 import types
 import typing
@@ -627,6 +628,28 @@ def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
 
     # The runner removes its own work folder after a build, not the caller's
     assert (work_dir / "step_file").is_file()
+
+
+# /dev/shm is a disk in memory on Linux. A file cannot be renamed from one disk
+# to another: it must be copied.
+@pytest.mark.skipif(
+    not Path("/dev/shm").is_dir()
+    or Path("/dev/shm").stat().st_dev
+    == Path(tempfile.gettempdir()).stat().st_dev,
+    reason="needs a second disk at /dev/shm",
+)
+def test_a_build_works_in_a_folder_on_another_disk_than_the_cache(
+    tmp_path, source
+):
+    with tempfile.TemporaryDirectory(dir="/dev/shm") as work_dir:
+        build.build_file(
+            _lines_pipeline(source), cache_dir=tmp_path, work_dir=work_dir
+        )
+
+    cached = GeoGraph.build_geograph(
+        _lines_pipeline(source), cache_dir=tmp_path, local_files_only=True
+    )
+    assert len(cached.nodes) == 4
 
 
 # A cached network is built again when its pipeline has another

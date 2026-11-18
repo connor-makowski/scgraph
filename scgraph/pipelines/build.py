@@ -264,12 +264,6 @@ def _move_into_cache(
     its digest, and remove the file of the earlier build. Return its new path.
     """
     built_file = folder.joinpath(f"{digest}.scgraph")
-    pointer = building.with_name("cache.json")
-    pointer.write_text(
-        json.dumps(
-            {"file": built_file.name, "downloaded": downloaded}, indent=2
-        )
-    )
     folder.mkdir(parents=True, exist_ok=True)
     try:
         # A work folder may be on another disk than the cache
@@ -278,8 +272,16 @@ def _move_into_cache(
     # That file is whole and has the same content: its name is its digest.
     except PermissionError:
         pass
-    # cache.json appears last, so that it always names a whole file
-    pointer.replace(folder.joinpath("cache.json"))
+    # cache.json appears last and in one step, so that it always names a whole
+    # file. It is written beside its final place: a rename works on one disk only.
+    pointer = folder.joinpath("cache.json")
+    written = pointer.with_name("cache.json.part")
+    written.write_text(
+        json.dumps(
+            {"file": built_file.name, "downloaded": downloaded}, indent=2
+        )
+    )
+    written.replace(pointer)
     if earlier_file is not None and earlier_file != built_file:
         try:
             earlier_file.unlink(missing_ok=True)
