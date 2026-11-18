@@ -91,7 +91,8 @@ def build(
     Args:
         files: The local file of each source of SOURCES.
         source: Opens the OSM extract for one read.
-        max_km_between_nodes: The longest piece of a way, in km.
+        max_km_between_nodes: The length in km at which a way is cut, and at which a
+            chain is cut. Two nodes along a way are at most about twice this far apart.
         min_nodes_per_strongly_connected_component: The nodes of the smallest
             component kept. None keeps the largest component only.
         work_dir: A folder for the files of each step, so that a build can resume.

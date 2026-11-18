@@ -1,9 +1,10 @@
-"""References of test_road_distances: OSRM road distances for 20 city pairs, both ways.
+"""Write the cases of the kind `road_distances`: OSRM road distances for 20 pairs of
+cities, in both directions.
 
     python -I road_distances_osrm.py fetch NE_POPULATED_PLACES.geojson
     python -I road_distances_osrm.py cases NE_POPULATED_PLACES.geojson
 
-`fetch` is run ONCE (the user approved these one-off queries, coordinates only): each
+Run `fetch` once only. It sends the coordinates of two cities, and nothing else. Each
 direction is queried once on the public OSRM demo server (driving profile, overview=false),
 >= 1.5 s apart, with a generic User-Agent; the raw answers go to
 road_distances_osrm_raw.jsonl, which it refuses to overwrite. Queried 2026-11-06.

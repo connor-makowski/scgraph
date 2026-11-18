@@ -16,7 +16,12 @@ the scale of the planet.
   along a road nodes at most about 20 km apart (cut, then contracted, at 10 km); no arc
   spans two modes. Road and ferry drawings are simplified at 50 m when the ways are cut;
   lengths are measured before. Each node has its mode, `road`, `port` or `sea`.
-- Accuracy of roads and sea lanes, coverage, ports joined, size: not measured yet.
+- Checked by the cases of `VALIDATION`. The roads pass the cases of `world_main_roads`.
+  20 sea distances between ports are within 10 % of a published distance. 13 routes
+  take or avoid a passage such as Suez or Panama, as ships do. 20 river ports reach
+  the sea by water.
+- Size, with the planet of 2026-11-02: 3,160 of the 3,795 ports are joined. The network
+  has 2.9 million nodes and 5.2 million arcs, and its file takes 272 MB.
 - Sources: the planet of the date in its URL, read by HTTP byte ranges and never stored
   (its published md5 is recorded); the others as `osm_main_roads_and_marnet`. The build needs scgraph's C++ backend.
 - Not for: navigation or travel times; inland navigation between two river points.

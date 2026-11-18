@@ -112,7 +112,8 @@ def select_main_roads(tags: "osmium.osm.TagList") -> int | None:
 
 @contextmanager
 def _opened(source, entities):
-    # A path, or what the source gives for one pass, closed after it (see located_ways)
+    # `source` is a path, or a source object. A source object gives a new input for
+    # each pass, and the pass closes it at its end (see `locate_ways`).
     if isinstance(source, (str, os.PathLike)):
         yield source
         return
@@ -196,8 +197,10 @@ def locate_ways(
     The function keeps the locations of the nodes of kept ways in an osmium index
     (`osmium.index.create_map`). Without `work_dir`, the index is in memory
     (`flex_mem`). With `work_dir`, the index is the file `nodes` of that folder
-    (`sparse_file_array`), which a planet file needs. The function empties this file
-    first. The caller deletes it.
+    (`sparse_file_array`), which a planet file needs. The folder also keeps the junctions
+    and the ids of the kept ways. When its marker `pass2.done` is there, the function
+    reuses these files and skips passes 1 and 2. Otherwise it empties `nodes` first.
+    The caller deletes the folder.
     The node ids of kept ways take about 1.5 GB in any case (one bit per possible id),
     and the ids of kept ways about 0.2 GB (one bit per possible way id).
 
@@ -491,8 +494,10 @@ class StreamedPbf:
     An OSM PBF file read by HTTP byte ranges, never stored (the planet, for example), on
     Linux and macOS: `download` is a source's download hook, and `StreamedPbf(filename)`
     a source of `locate_ways`, each pass reading the header and the section it needs
-    from a pipe that a child process fills. A dated file only: a response with another
-    size or tag (ETag or Last-Modified) stops the build.
+    from a pipe that a child process fills. The file must not change during a build: a
+    response with another size or tag (ETag or Last-Modified) stops the build. A dated
+    file never changes. A `latest` file changes when its server publishes new data, and
+    a build that runs at that time stops.
     """
 
     def __init__(self, filename):

@@ -1,12 +1,13 @@
-"""References of test_coverage and test_crossings, from Natural Earth 1:10m v5.1.2.
+"""Write the cases of the kinds `coverage` and `crossings`, from Natural Earth 1:10m
+v5.1.2.
 
 City cases: every Natural Earth populated place with POP_MAX >= 500,000 (POP_MAX: the
 largest population figure Natural Earth gives for the place, metropolitan where known).
 Each city gets a landmass: the Natural Earth land polygon that contains it (else the nearest
 one; its distance is recorded), with the Americas split at the Darien Gap (no road there):
 cities of South American countries form their own landmass. The landmass's main city is its
-most populous city (POP_MAX) in this list; the check tests that every city's nearest road
-node lies in the strongly connected road component of the main city's nearest road node.
+most populous city (POP_MAX) in this list. The coverage rule of `stage4_validation` checks
+that each city is within 5 km of a road, and that a road route joins it to the main city.
 
 Island and strait cases (crossings): 12 fixed pairs whose road route needs a bridge,
 tunnel or ferry. Coordinates from Natural Earth (NE_ID) except Ronne and Kadikoy (not in

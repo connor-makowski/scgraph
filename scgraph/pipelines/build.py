@@ -463,7 +463,9 @@ def main(argv: list[str] | None = None) -> None:
         help="stream OSM extracts via HTTP byte ranges instead of downloading",
     )
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO)  # each step, and the credit to cite
+    logging.basicConfig(
+        level=logging.INFO
+    )  # each download, and the credit to cite
     try:
         print(  # noqa: T201 (the output of the command)
             build_file(

@@ -419,12 +419,12 @@ For example, `world_main_roads_and_marnet` has three modes:
 ```json
 "modes": [
   {"name": "road", "source": "roads"},
-  {"name": "port"},
+  {"name": "port", "source": "ports"},
   {"name": "sea", "source": "sea"}
 ]
 ```
 
-Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nodes `2`. The road nodes come first, then the ports, then the sea nodes. The mode `port` has no `source`, because scgraph creates the port nodes and gives them negative ids.
+Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nodes `2`. The road nodes come first, then the ports, then the sea nodes. Each mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
 
 ### Coordinate Encoding (`int32` vs `float64`)
 

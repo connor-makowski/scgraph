@@ -440,8 +440,9 @@ def contract_chains(
         weights (array[float64]): Arc lengths in kilometres.
         node_modes (array[uint8] | None): Optional per-node travel mode. If provided,
             chains are never contracted across different modes.
-        max_km_between_nodes (float): Maximum length of a contracted composite segment in km.
-            Defaults to infinity (unlimited segment length).
+        max_km_between_nodes (float): The length in km at which a chain is cut. An arc
+            ends at the first node where it is this long or longer, so it can be
+            longer than this value. Defaults to infinity (no cut).
 
     Returns:
         ContractedGraph: A namedtuple with fields:

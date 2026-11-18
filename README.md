@@ -481,7 +481,7 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 import logging
 from scgraph import GeoGraph
 
-logging.basicConfig(level=logging.INFO)  # optional: show each step
+logging.basicConfig(level=logging.INFO)  # optional: show the downloads and the credit
 
 # Main roads of Luxembourg from OpenStreetMap (needs: pip install scgraph[osm])
 luxembourg = GeoGraph.build_geograph("osm_main_roads", region="europe/luxembourg")
@@ -500,7 +500,7 @@ GeoGraph.list_buildable_geographs()
 #  ...]
 ```
 
-The region of the `osm_*` networks is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region Geofabrik does not have raises a `ValueError` before anything is downloaded.
+The region of the `osm_*` networks is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region that Geofabrik does not have raises a `ValueError`, before any large download.
 
 | Name | Network | Source |
 |---|---|---|

@@ -36,7 +36,8 @@ WPI_SOURCE = (
 )
 CERDI_SOURCE = (
     "CERDI-seadistance V1.1 (Bertoli, Goujon & Santoni 2016; Zenodo 240493; "
-    "CC-BY-4.0), via S10 cerdi_pairs.json"
+    "CC-BY-4.0), read from the extract that "
+    "references/sea_distances_build_cases.py describes"
 )
 PUB151_SOURCE = (
     "NGA Pub. 151 Distances Between Ports, 11th ed. 2001 (US Gov., no copyright), "

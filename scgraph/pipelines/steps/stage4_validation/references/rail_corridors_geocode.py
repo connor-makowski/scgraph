@@ -1,5 +1,5 @@
-"""Endpoint coordinates of the rail corridors (test_rail_corridors), from OSM Nominatim.
-Run by hand.
+"""Find the coordinates of the two ends of each case of the kind `rail_corridors`, with
+OSM Nominatim. Run by hand.
 
     python -I rail_corridors_geocode.py > rail_corridors_nominatim.jsonl
 

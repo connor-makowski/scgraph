@@ -20,10 +20,10 @@ terminal serves road and rail.
 A hub that reaches fewer than two modes stays out: a port without a road would join the
 sea to nothing. Two modes never share a node, so a route changes mode only at a hub.
 
-Example: the port of Arhus (World Port Index 30260, served by rail) lies 0.8 km from a
-rail node and 4.1 km from a road node, and the water path to the nearest sea node is
-1.0 km long. Its node gets three connectors, of 0.9, 4.9 and 1.0 km, each in both
-directions.
+Example: the port of Arhus (World Port Index 30260, served by rail) lies 0.76 km from a
+rail node and 4.08 km from a road node, and the water path to the nearest sea node is
+0.99 km long. Its node gets three connectors, each in both directions: 0.91 km to the
+railway (1.2 times 0.76), 4.90 km to the road (1.2 times 4.08) and 0.99 km to the sea.
 
 The hubs come from small tables kept with scgraph (`TABLES`, in `scgraph/pipelines/data/`),
 each made by `utils/build_hub_tables.py` from its source. A pipeline may name its own
