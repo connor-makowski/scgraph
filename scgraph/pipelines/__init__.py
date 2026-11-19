@@ -123,6 +123,12 @@ The runner writes the metadata of the build into the header of the network file
 The header holds no clock time. The time of the download is in `cache.json`, in the
 cache.
 
+`scgraph.pipelines.derive` derives a network file from another network file, with no
+download. The derived file holds some modes of its parent file, and its land networks
+inside a bbox. Its header has no `description`. It also records `derivation`: the
+`parent_content_sha256`, and the `modes`, the `bbox` and the `min_component_nodes` of
+the derivation.
+
 Two builds give the same file, byte for byte, when they have the same pipeline, the
 same sources, the same version of scgraph, the same backend, and the same platform
 with the same C library or macOS version. A test checks this. The C++ build and the

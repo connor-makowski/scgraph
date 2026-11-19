@@ -189,6 +189,44 @@ file = build_file("osm_multimodal", region="europe/denmark")  # the file of the 
 roads = GeoGraph.load_from_scgraph(file, modes=["road"])
 ```
 
+## A network derived from a network file
+
+`derive_file` of `derive.py` writes a derived file from a network file, the parent file, with
+no download. The derived file holds some modes of the parent file, and its land networks
+inside a bbox. A bbox is `(south, west, north, east)`, in degrees. A view is a named choice of
+modes and of bbox. `VIEWS` of the same module lists the views of `world_multimodal`, for
+example `world_sea` and `oceania`.
+
+```
+python -m scgraph.pipelines.derive world_multimodal.scgraph oceania derived --validate
+```
+
+The command writes `derived/oceania.scgraph` and prints its path. With `--no-shapes`, it
+writes `derived/oceania.no_shapes.scgraph`: the same network without the shapes of its arcs.
+
+The numbers below come from one derivation of `oceania` on 2026-11-19, on Linux, with the C++
+extension. The parent file is the `world_multimodal` of the data release
+`networks-2026.11.19-dev.1` (325.6 MB).
+
+| Step | Nodes | Arcs |
+|---|---|---|
+| the parent file | 3,281,281 | 6,174,775 |
+| select the nodes and cut the graph | 124,937 | 337,401 |
+| keep the components of at least 10 nodes | 124,889 | 337,365 |
+
+- **Select the nodes.** The bbox of `oceania` cuts the roads, the railways and the rail
+  terminals. The sea lanes, the ports and the airports of the world stay: a route may leave
+  the bbox by sea or by air.
+- **Keep the connected components.** The cut leaves 48 nodes apart from the rest, in groups
+  of fewer than 10 nodes. The step removes them. A junction that lost a road stays as a node.
+
+The derived file is 19.3 MB. Its header records the `content_sha256` of the parent file, the
+modes and the bbox. With `--validate`, the command selects the cases of `world_multimodal`
+whose two ends are inside the bbox: 16 cases here. The derived file passes when it fails no
+case that the parent file passes. Here it fails none.
+
+Where to read more: the header of `derive.py`.
+
 ## A network of your own
 
 Copy the pipeline that is nearest to your need, and change its sources, its select functions or
