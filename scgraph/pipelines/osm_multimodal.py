@@ -23,9 +23,9 @@ terminals, for example `region="europe/denmark"`.
   an airport, the Wikidata number for a rail terminal.
 - The network of a region keeps its largest strongly connected component. Chains of
   nodes are contracted as in `osm_main_roads_and_marnet`, never across two modes.
-- Sources: the OpenStreetMap extract (read twice: the railways, then the roads), the sea
-  lanes and Natural Earth as `osm_main_roads_and_marnet`; the hubs and flights from small
-  tables kept with scgraph (`hubs.TABLES`, made by `utils/build_hub_tables.py`).
+- Sources: the OpenStreetMap extract, the sea lanes and Natural Earth as
+  `osm_main_roads_and_marnet`; the hubs and flights from small tables kept with
+  scgraph (`hubs.TABLES`, made by `utils/build_hub_tables.py`).
 - A shortest route in km takes any mode. Between two distant places it takes a
   flight, because a flight is a straight line. To compare modes, derive a cost per
   mode (time, CO2) from the km, or load only some modes
@@ -104,27 +104,22 @@ def build(
     def folder(step):
         return os.path.join(work_dir, step) if work_dir else None
 
-    # 1. The railways, then the roads: two reads of the same extract keep the two
-    # networks apart, so that a level crossing is not a change of mode. The smaller
-    # network is read first: it waits in memory while the roads are read.
-    rails = assembly.build_graph_from_pieces(
-        osm.build_way_pieces(
-            files["osm"],
-            {"rail": osm_rail.select_rail},
-            ("railway",),
-            max_km_between_nodes,
-            folder("rails"),
-        )
+    # 1. The railways and the roads, in one read of the extract. Each mode has its
+    # own junctions and its own pieces, so that a level crossing is not a change of
+    # mode.
+    pieces = osm.build_way_pieces(
+        files["osm"],
+        {
+            "rail": {"ways": osm_rail.select_rail},
+            **osm_main_roads_and_marnet.SELECTS,
+        },
+        ("railway", "highway", "route"),
+        max_km_between_nodes,
+        folder("stage1"),
     )
-    roads = assembly.build_graph_from_pieces(
-        osm.build_way_pieces(
-            files["osm"],
-            osm_main_roads_and_marnet.SELECTS,
-            ("highway", "route"),
-            max_km_between_nodes,
-            folder("roads"),
-        )
-    )
+    rails = assembly.build_graph_from_pieces(pieces["rail"])
+    roads = assembly.build_graph_from_pieces(pieces["road"])
+    del pieces  # the two graphs hold their own arrays
     # 2. The sea lanes
     with _log_step(logger, "read the sea lanes", {}) as counts:
         sea = eurostat_marnet.build({"sea_lanes": files["sea"]})

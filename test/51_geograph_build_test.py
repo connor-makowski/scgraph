@@ -75,7 +75,8 @@ def _polygons(*rings):
 
 # Railways (read by the multimodal pipeline only): a line along longitude 0.012, tagged
 # `oneway=yes`; a branch that crosses the road at its node at (0, 0); a siding, left out;
-# a second track along longitude 0.011, joined to the line by a crossover only.
+# a second track along longitude 0.011, joined to the line by a crossover only. The two
+# nodes of the second track have ids of the size of the planet's, 32,768 apart.
 # Hubs of the multimodal pipeline: the ports below, "Near" served by rail; two airfields
 # near the road, with a flight each way; "Far field", 28 km from the road, with a flight to
 # "North field"; "Lone field", near the road, without a flight; a rail terminal between
@@ -106,10 +107,10 @@ _FILES = {
 <way id="11" version="1"><nd ref="11"/><nd ref="12"/><nd ref="13"/><tag k="railway" v="rail"/><tag k="oneway" v="yes"/></way>
 <way id="12" version="1"><nd ref="1"/><nd ref="12"/><tag k="railway" v="rail"/></way>
 <way id="13" version="1"><nd ref="13"/><nd ref="14"/><tag k="railway" v="rail"/><tag k="service" v="siding"/></way>
-<node id="15" version="1" lat="-0.008" lon="0.011"/>
-<node id="16" version="1" lat="-0.004" lon="0.011"/>
-<way id="14" version="1"><nd ref="15"/><nd ref="16"/><tag k="railway" v="rail"/></way>
-<way id="15" version="1"><nd ref="11"/><nd ref="15"/><tag k="railway" v="rail"/><tag k="service" v="crossover"/></way>
+<node id="12000000000" version="1" lat="-0.008" lon="0.011"/>
+<node id="12000032768" version="1" lat="-0.004" lon="0.011"/>
+<way id="14" version="1"><nd ref="12000000000"/><nd ref="12000032768"/><tag k="railway" v="rail"/></way>
+<way id="15" version="1"><nd ref="11"/><nd ref="12000000000"/><tag k="railway" v="rail"/><tag k="service" v="crossover"/></way>
 </osm>""",
     "/sea.gpkg": _sea_gpkg([([0.2, 0, 0.3, 0], None)]),
     "/land.geojson": _polygons(

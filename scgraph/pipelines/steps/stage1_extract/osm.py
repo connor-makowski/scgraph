@@ -12,21 +12,44 @@ pipeline. A select function chooses the ways. It takes the tags of a way. It ret
 the direction of the way: 1 (one way, in the order of its nodes), -1 (one way, against
 that order) or 0 (both ways). It returns None to leave the way out.
 
+A pipeline gives its select functions as `{mode: {kind: select}}`. A mode is a group
+of ways that are cut and joined together. A multimodal pipeline names it as in its
+modes table. A mode has one select function for each kind of way. The kinds are `ways`
+and `ferries`. The kind `ferries` is special: `build_way_pieces` does not cut a ferry
+by length, and attaches it to the nodes of its mode.
+
 HOW A FILE IS READ
 
 An OpenStreetMap file lists the nodes, then the ways. A way lists the ids of its
 nodes, not their positions. So `locate_ways` reads the file in three passes:
 
-1. It reads the ways. It notes the ids of the nodes of the kept ways. A node that it
-   meets a second time is a junction.
+1. It reads the ways. It notes the ids of the nodes of the kept ways. In each mode, a
+   node met a second time is a junction of that mode.
 2. It reads the nodes, and stores the position of each noted node.
 3. It reads the ways again, and gives each kept way with the positions of its nodes.
 
-`cut_polylines` then cuts each way into pieces: at each junction, and at the first
-point where a piece reaches `max_km_between_nodes`.
+These three passes are one read of the file.
+
+`cut_polylines` then cuts each way into pieces: at each junction of its mode, and at
+the first point where a piece reaches `max_km_between_nodes`.
 
 Example: two roads share node 7, and no other node. Pass 1 meets node 7 twice, so node
 7 is a junction, and each road is cut there.
+
+HOW TWO MODES STAY APART
+
+One read serves every mode. Each mode has its own junctions and its own pieces. So a
+piece of a road never joins a piece of a railway.
+
+Example: a road and a railway share node 9, at a level crossing. Pass 1 meets node 9
+once in the ways of `road` and once in the ways of `rail`. Node 9 is a junction of
+neither mode, and neither way is cut there.
+
+Example: a way with the tags `railway=rail` and `route=shuttle_train` is a railway and
+a vehicle ferry, so both modes keep it. Each mode meets each of its nodes once. No node
+of the way is a junction for that reason. With one set of met nodes for the two modes,
+pass 1 would meet the way twice: each of its nodes would be a junction, and the way
+would be cut at every node.
 
 WHERE THE FILE IS
 
@@ -45,8 +68,10 @@ import sys
 import time
 from array import array
 from bisect import bisect_left
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING
@@ -168,10 +193,10 @@ def _opened(source, entities):
 
 
 def _selected_ways(osmium, source, selects, tag_keys, *filters):
-    """Yield `(kind, direction, way)` for each way that one of `selects` keeps. A way goes
-    to the first select function that keeps it, in the order of the dict. osmium drops
-    the ways that have none of `tag_keys`, and the ways that `filters` refuse, before
-    Python sees them.
+    """Yield `(mode, kind, direction, way)` for each way, once for each mode that keeps
+    it. In a mode, a way goes to the first select function that keeps it, in the order
+    of the dict. osmium drops the ways that have none of `tag_keys`, and the ways that
+    `filters` refuse, before Python sees them.
     """
     with _opened(source, osmium.osm.WAY) as file:
         ways = osmium.FileProcessor(file, osmium.osm.WAY)
@@ -180,18 +205,17 @@ def _selected_ways(osmium, source, selects, tag_keys, *filters):
         for osmium_filter in filters:
             ways = ways.with_filter(osmium_filter)
         for way in ways:
-            # kind is read after the loop, by the yield
-            for kind, select in selects.items():  # noqa: B007
-                way_direction = select(way.tags)
-                if way_direction is not None:
+            for mode, kinds in selects.items():
+                for kind, select in kinds.items():
+                    direction = select(way.tags)
+                    if direction is None:
+                        continue
+                    if type(direction) is not int or not -1 <= direction <= 1:
+                        raise ValueError(
+                            f"select returned {direction!r}: 1, -1, 0 or None"
+                        )
+                    yield mode, kind, direction, way
                     break
-            else:
-                continue
-            if type(way_direction) is not int or not -1 <= way_direction <= 1:
-                raise ValueError(
-                    f"select returned {way_direction!r}: 1, -1, 0 or None"
-                )
-            yield kind, way_direction, way
 
 
 class _Junctions:
@@ -199,9 +223,8 @@ class _Junctions:
     `id in junctions` looks an id up by bisection.
 
     Memory while the object is built: the list of the repeated node ids takes about 40
-    bytes per repeat. A node used k times appears k - 1 times in this list. For the
-    planet, about 10.8 million repeats take about 0.43 GB. The file of the node positions
-    takes about 1.46 GB more. Both figures are estimates, not measured together.
+    bytes per repeat. A node that the ways of a mode use k times appears k - 1 times in
+    this list.
     """
 
     def __init__(self, ids):
@@ -215,19 +238,50 @@ class _Junctions:
         return i < len(self.ids) and self.ids[i] == ref
 
 
+class _PagedIdSet:
+    """A set of node ids, as one bit for each id. The bits are in pages of 4 kB. A page
+    covers 32,768 ids, and exists only when one of them is set. `get` and `set` are
+    those of an osmium `IdSet`.
+
+    An osmium `IdSet` takes too much memory for one set per mode. It allocates 4 MB for
+    each range of 33.5 million ids that holds a node: 1.5 GB for the 41,009 rail node
+    ids of Denmark. This set takes about 15 MB for them (3,609 pages), and about 61 MB
+    for the 107,968 node ids of the main roads and ferries of Denmark (14,782 pages).
+    On the planet, a set takes at most about 1.9 GB, when every page exists: 14.4
+    billion ids / 32,768 ids per page * 4,096 bytes, and the Python object of each
+    page. A Python `set` is not used, because it takes about 70 bytes per id. For the
+    main roads of the planet, estimated at 57 million node ids, that is about 4 GB.
+
+    Example: id 70,000 is bit 4,464 of page 2, because 70,000 = 2 * 32,768 + 4,464.
+    """
+
+    def __init__(self):
+        self.pages = defaultdict(lambda: bytearray(4096))
+
+    def get(self, ref):
+        page = self.pages.get(ref >> 15)
+        if page is None:
+            return False
+        return bool(page[(ref >> 3) & 4095] & (1 << (ref & 7)))
+
+    def set(self, ref):
+        self.pages[ref >> 15][(ref >> 3) & 4095] |= 1 << (ref & 7)
+
+
 def locate_ways(
     source: "str | os.PathLike | StreamedPbf",
-    selects: dict[str, Callable],
+    selects: dict[str, dict[str, Callable]],
     tag_keys: tuple[str, ...] = (),
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[
-    _Junctions, Iterator[tuple[str, int, list[tuple[int, list[float]]]]]
+    dict[str, _Junctions],
+    Iterator[tuple[str, str, int, list[tuple[int, list[float]]]]],
 ]:
     """Locate the ways of `source` that the select functions keep.
 
     The function reads the file in three passes (ways, nodes, ways again), as the module
-    docstring explains. One call serves all the kinds of way, for example roads and
-    ferries.
+    docstring explains. One call serves every mode. Example: the modes `road` and
+    `rail`, and the kinds `ways` and `ferries` of the mode `road`.
 
     Args:
         source: The path of an OSM file, or a source object such as `StreamedPbf`. A
@@ -235,8 +289,9 @@ def locate_ways(
             `osmium.FileProcessor` at each call: one per pass, for the entities that the
             pass reads (`osmium.osm.WAY` or `NODE`). The function calls `close(stop)` at
             the end of each pass. `stop` is true when the pass ended on an exception.
-        selects: The select function of each kind of way. A way goes to the first
-            function that keeps it, in the order of the dict.
+        selects: The select functions, as `{mode: {kind: select}}`. In a mode, a way
+            goes to the first function that keeps it, in the order of the dict. A way
+            that two modes keep goes to each of them.
         tag_keys: If given, osmium drops the ways that have none of these tag keys,
             before a select function sees them.
         work_dir: A folder for the files of the function. Without it, the positions of
@@ -248,22 +303,30 @@ def locate_ways(
             folder.
 
     Returns:
-        `(junctions, polylines)`. `junctions` holds the OSM ids of the nodes where kept
-        ways meet, or where a way crosses itself. `id in junctions` tests one id.
-        `polylines` is a generator of `(kind, direction, vertices)`. `vertices` is a list
-        of `(id, [latitude, longitude])`. The pair `(direction, vertices)` is a
-        polyline, in the form that `cut_polylines` takes. A way is split where one of its nodes is missing from
-        the file.
+        `(junctions, polylines)`. `junctions[mode]` holds the OSM ids of the nodes
+        where kept ways of the mode meet, or where one of them crosses itself.
+        `id in junctions[mode]` tests one id. `polylines` is a generator of
+        `(mode, kind, direction, vertices)`. `vertices` is a list of
+        `(id, [latitude, longitude])`. The pair `(direction, vertices)` is a
+        polyline, in the form that `cut_polylines` takes. A way is split where one
+        of its nodes is missing from the file.
 
     Memory: the ids of the nodes of the kept ways take about 1.5 GB, whatever the file
-    (one bit for each possible id). The ids of the kept ways take about 0.2 GB.
+    (one bit for each possible id). With several modes, pass 1 also holds the ids of
+    the nodes of each mode (`_PagedIdSet`): at most about 1.9 GB for each mode on the
+    planet. The ids of the kept ways take about 0.2 GB.
     """
     osmium = require_osmium()
     if work_dir:
         os.makedirs(work_dir, exist_ok=True)
     pass2_done = os.path.join(work_dir, "pass2.done") if work_dir else None
-    junc_file = (
-        os.path.join(work_dir, "pass1_junctions.bin") if work_dir else None
+    junction_files = (
+        {
+            mode: os.path.join(work_dir, f"pass1_junctions_{mode}.bin")
+            for mode in selects
+        }
+        if work_dir
+        else {}
     )
     ways_file = os.path.join(work_dir, "pass1_ways.bin") if work_dir else None
     nodes_file = os.path.join(work_dir, "nodes") if work_dir else None
@@ -274,16 +337,19 @@ def locate_ways(
         work_dir
         and pass2_done
         and os.path.isfile(pass2_done)
-        and os.path.isfile(junc_file)
+        and all(map(os.path.isfile, junction_files.values()))
         and os.path.isfile(ways_file)
         and nodes_file
         and os.path.isfile(nodes_file)
         and os.path.getsize(nodes_file) > 0
     ):
-        junctions = _Junctions.__new__(_Junctions)
-        junctions.ids = array("q")
-        with open(junc_file, "rb") as f:
-            junctions.ids.fromfile(f, os.path.getsize(junc_file) // 8)
+        junctions = {}
+        for mode, junction_file in junction_files.items():
+            ids = array("q")
+            with open(junction_file, "rb") as f:
+                ids.fromfile(f, os.path.getsize(junction_file) // 8)
+            junctions[mode] = _Junctions.__new__(_Junctions)
+            junctions[mode].ids = ids
         kept = osmium.IdTracker()
         with open(ways_file, "rb") as f:
             kept_ways = array("q")
@@ -293,27 +359,45 @@ def locate_ways(
         del kept_ways
         store = osmium.index.create_map(node_store)
     else:
-        # First pass: the nodes of kept ways; a node seen again is a junction
+        # First pass: the nodes of kept ways. In each mode, a node met a second time
+        # is a junction of that mode.
         tracker, kept = osmium.IdTracker(), osmium.IdTracker()
-        seen, repeats = tracker.node_ids(), array("q")
+        # `noted_ids` holds the nodes of every mode, for the second pass.
+        # `seen_ids[mode]` holds the nodes of one mode. With one mode, the two sets
+        # hold the same ids, so `seen_ids[mode]` is `noted_ids`.
+        noted_ids = tracker.node_ids()
+        seen_ids = {
+            mode: noted_ids if len(selects) == 1 else _PagedIdSet()
+            for mode in selects
+        }
+        repeats = {mode: array("q") for mode in selects}
         kept_ways = array("q") if work_dir else None
-        for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
+        # The set and the repeats of the mode of the way that is read
+        mode_seen_ids = mode_repeats = None
+        for mode, _, _, way in _selected_ways(
+            osmium, source, selects, tag_keys
+        ):
             kept.add_way(way.id)
             if kept_ways is not None:
                 kept_ways.append(way.id)
+            mode_seen_ids, mode_repeats = seen_ids[mode], repeats[mode]
             for node in way.nodes:
-                if seen.get(node.ref):
-                    repeats.append(node.ref)
+                if mode_seen_ids.get(node.ref):
+                    mode_repeats.append(node.ref)
                 else:
-                    seen.set(node.ref)
+                    mode_seen_ids.set(node.ref)
+                    noted_ids.set(node.ref)
 
-        junctions = _Junctions(repeats)
-        del repeats
+        # The sets of the modes are freed before the junctions are built
+        del seen_ids, mode_seen_ids
+        junctions = {mode: _Junctions(ids) for mode, ids in repeats.items()}
+        del repeats, mode_repeats
         gc.collect()
 
-        if work_dir and junc_file and ways_file:
-            with open(junc_file, "wb") as f:
-                junctions.ids.tofile(f)
+        if work_dir and ways_file:
+            for mode, junction_file in junction_files.items():
+                with open(junction_file, "wb") as f:
+                    junctions[mode].ids.tofile(f)
             with open(ways_file, "wb") as f:
                 kept_ways.tofile(f)
             del kept_ways
@@ -329,7 +413,7 @@ def locate_ways(
             osmium.apply(
                 nodes, tracker.id_filter(), osmium.NodeLocationsForWays(store)
             )
-        del tracker, seen
+        del tracker, noted_ids
         gc.collect()
 
         # Drop OS page cache to avoid memory pressure on large extracts
@@ -347,7 +431,7 @@ def locate_ways(
     # Third pass, as the polylines are read: the located pieces of the kept ways
     def polylines(locations):
         locations.ignore_errors()
-        for kind, way_direction, way in _selected_ways(
+        for mode, kind, direction, way in _selected_ways(
             osmium,
             source,
             selects,
@@ -356,7 +440,7 @@ def locate_ways(
             locations,
         ):
             for piece in _located_pieces(way.nodes):
-                yield kind, way_direction, piece
+                yield mode, kind, direction, piece
 
     return junctions, polylines(osmium.NodeLocationsForWays(store))
 
@@ -380,36 +464,42 @@ def read_osm(
         `(graph, nodes, shapes, node_ids)` in the layout of a GeoGraph. `node_ids` holds
         the OSM ids of the nodes.
     """
-    junctions, polylines = locate_ways(source, {"ways": select}, tag_keys)
+    selects = {"all": {"ways": select}}
+    junctions, polylines = locate_ways(source, selects, tag_keys)
     polylines = (
-        (way_direction, vertices) for _, way_direction, vertices in polylines
+        (direction, vertices) for _, _, direction, vertices in polylines
     )
     return build_graph_from_polylines(
-        polylines, junctions, max_km_between_nodes
+        polylines, junctions["all"], max_km_between_nodes
     )
 
 
 def build_way_pieces(
     source: "str | os.PathLike | StreamedPbf",
-    selects: dict[str, Callable],
+    selects: dict[str, dict[str, Callable]],
     tag_keys: tuple[str, ...],
     max_km_between_nodes: float,
     work_dir: str | os.PathLike | None = None,
-) -> PieceArrays:
+) -> dict[str, PieceArrays]:
     """Read the ways of `source` that the select functions keep, and cut them into pieces.
 
-    A way is cut at its junctions, and at the first point where a piece reaches
-    `max_km_between_nodes` (`cut_polylines`). A way of the kind "ferries" is cut at its
-    junctions only, not by length. Each piece of a ferry joins the road nodes nearest
-    its two ends, if both are within FERRY_END_KM (`build_ferry_arcs`). With `work_dir`, the positions of the nodes and the pieces are
-    kept in files of that folder, and a later call with the same inputs reuses them. Each
-    step logs its counts at DEBUG.
+    `selects` gives the select functions as `{mode: {kind: select}}`, as
+    `locate_ways` takes them. One call reads the file once for all the modes. A
+    way is cut at the junctions of its mode, and at the first point where a piece
+    reaches `max_km_between_nodes` (`cut_polylines`). A way of the kind "ferries"
+    is cut at its junctions only, not by length. Each piece of a ferry joins the
+    nodes nearest its two ends, if both are within FERRY_END_KM
+    (`build_ferry_arcs`). A ferry joins nodes of its own mode: the ends of the
+    pieces of that mode. With `work_dir`, the positions of the nodes and the
+    pieces are kept in files of that folder, and a later call with the same
+    inputs reuses them. Each step logs its counts at DEBUG.
 
     Returns:
-        The pieces (`assembly.PieceArrays`).
+        The pieces of each mode (`assembly.PieceArrays`), by the name of the mode.
 
     Raises:
-        ValueError: The select functions keep no way.
+        ValueError: The select functions of a mode keep no way. The message names the
+            mode.
     """
     # `StreamedPbf.download` writes a layout file in place of an OSM file that is
     # read by byte ranges. A layout file is JSON, so it starts with "{". An OSM
@@ -418,6 +508,11 @@ def build_way_pieces(
         with open(source, "rb") as file:
             if file.read(1) == b"{":
                 source = StreamedPbf(source)
+    # `PieceArrays` names its files by column, so two modes cannot share a folder.
+    pieces_dirs = {
+        mode: os.path.join(work_dir, f"pieces_{mode}") if work_dir else None
+        for mode in selects
+    }
     if work_dir:
         os.makedirs(work_dir, exist_ok=True)
         done_marker = os.path.join(work_dir, "stage1.done")
@@ -430,8 +525,11 @@ def build_way_pieces(
                 else source.about
             ),
             "selects": {
-                kind: getattr(select, "__qualname__", type(select).__name__)
-                for kind, select in selects.items()
+                mode: {
+                    kind: getattr(select, "__qualname__", type(select).__name__)
+                    for kind, select in kinds.items()
+                }
+                for mode, kinds in selects.items()
             },
             "tag_keys": list(tag_keys),
             "max_km_between_nodes": max_km_between_nodes,
@@ -448,58 +546,73 @@ def build_way_pieces(
             with open(inputs_file, "w") as f:
                 json.dump(inputs, f)
         if os.path.isfile(done_marker):
-            return PieceArrays(work_dir=work_dir, truncate=False)
+            return {
+                mode: PieceArrays(work_dir=pieces_dirs[mode], truncate=False)
+                for mode in selects
+            }
     with _log_step(logger, "read and cut the ways", {}) as counts:
         junctions, ways = locate_ways(
             source, selects, tag_keys, work_dir=work_dir
         )
-        pieces, ferries = PieceArrays(work_dir=work_dir), []
-        for kind, direction, vertices in ways:
+        pieces = {
+            mode: PieceArrays(work_dir=pieces_dirs[mode]) for mode in selects
+        }
+        ferries = {mode: [] for mode in selects}
+        for mode, kind, direction, vertices in ways:
             if kind == "ferries":
-                ferries.append((direction, vertices))
+                ferries[mode].append((direction, vertices))
                 continue
             vertex_points = dict(vertices)
             for origin_id, destination_id, km, way, shape in cut_polylines(
-                [(direction, vertices)], junctions, max_km_between_nodes
+                [(direction, vertices)], junctions[mode], max_km_between_nodes
             ):
                 ends = vertex_points[origin_id], vertex_points[destination_id]
-                pieces.append(origin_id, destination_id, km, way, ends, shape)
-        pieces.flush()
-        counts["pieces"] = len(pieces.km)
-    if not len(pieces.km):
-        raise ValueError(f"No way of {source} is kept by {', '.join(selects)}")
-    if "ferries" in selects:
+                pieces[mode].append(
+                    origin_id, destination_id, km, way, ends, shape
+                )
+        for mode_pieces in pieces.values():
+            mode_pieces.flush()
+        counts["pieces"] = sum(
+            len(mode_pieces.km) for mode_pieces in pieces.values()
+        )
+    for mode, mode_pieces in pieces.items():
+        if not len(mode_pieces.km):
+            raise ValueError(f"No way of {source} is kept for the mode {mode}")
+    for mode, mode_pieces in pieces.items():
+        if "ferries" not in selects[mode]:
+            continue
         with _log_step(logger, "attach the ferries", {}) as counts:
             # The road nodes are the ends of the pieces, in units of 1e-7 degree. They
             # are read in place. Each piece has two ends, and the ends are numbered in
             # a row: end `2 * i` is the origin of piece `i`, and end `2 * i + 1` is
             # its destination. When two ends are as near, the first one is taken.
-            latitudes, longitudes = pieces.ends[0::2], pieces.ends[1::2]
-            ids = (pieces.origins, pieces.destinations)
+            latitudes = mode_pieces.ends[0::2]
+            longitudes = mode_pieces.ends[1::2]
+            ids = (mode_pieces.origins, mode_pieces.destinations)
             near = NearNodes(latitudes, longitudes, scale=1e-7)
             rows, ends, shapes, _ = build_graph_from_polylines(
-                ferries, junctions, math.inf
+                ferries[mode], junctions[mode], math.inf
             )
             arcs = list(
                 build_ferry_arcs(
                     rows,
                     ends,
                     shapes,
-                    lambda p: near.find_nearest(p, FERRY_END_KM),
+                    partial(near.find_nearest, km=FERRY_END_KM),
                 )
             )
             for u, v, km, shape in arcs:
                 road = [
                     [latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)
                 ]
-                pieces.append(
+                mode_pieces.append(
                     ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
                 )
+            mode_pieces.flush()
             counts["arcs"] = len(arcs)
     if work_dir:
-        # The marker is written after the last piece: it says that every piece is on
+        # The marker is written after the last flush: it says that every piece is on
         # disk
-        pieces.flush()
         Path(done_marker).write_text("done\n")
     return pieces
 

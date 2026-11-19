@@ -31,8 +31,10 @@ PIPELINE_VERSION = 2
 
 SOURCES = {"roads": osm.GEOFABRIK}
 SELECTS = {
-    "roads": osm.select_main_roads,
-    "ferries": osm.select_vehicle_ferries,
+    "road": {
+        "ways": osm.select_main_roads,
+        "ferries": osm.select_vehicle_ferries,
+    }
 }
 
 download = osm.download  # checks osmium before downloading a large extract
@@ -68,7 +70,7 @@ def build(
         max_km_between_nodes=max_km_between_nodes,
         work_dir=stage1_work_dir,
     )
-    graph = assembly.build_graph_from_pieces(pieces)
+    graph = assembly.build_graph_from_pieces(pieces["road"])
     arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,

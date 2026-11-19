@@ -63,15 +63,16 @@ each way at its junctions. It also cuts a way where a piece would be longer than
 `max_km_between_nodes` (2 km), so that a point near a long road is near a node. It simplifies
 the shape of each piece to within 50 m.
 
-The pipeline reads the extract twice.
+The pipeline reads the extract once, for its two modes. The log line of this step gives the
+sum of the two counts: 26,463 pieces.
 
-| Read | Ways kept | Pieces |
+| Mode | Ways kept | Pieces |
 |---|---|---|
-| first | railway lines | 5,681 |
-| second | main roads | 20,782 |
+| `rail` | railway lines | 5,681 |
+| `road` | main roads | 20,782 |
 
-Two reads keep the two networks apart. With one read, a road and a railway would share a node
-at each level crossing, and a route could change mode there.
+Each mode has its own junctions and its own pieces, so the two networks stay apart. A road and
+a railway share a node of OpenStreetMap at a level crossing, and no route changes mode there.
 
 Then `osm.build_ferry_arcs` attaches the vehicle ferries to the roads: 12 arcs in this build.
 A ferry is kept when both its ends are near a road node.

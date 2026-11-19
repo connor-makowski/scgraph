@@ -79,8 +79,10 @@ SOURCES = {
 # degrees. A sea connector runs inside the mask.
 MARGIN = 2
 SELECTS = {
-    "roads": osm.select_main_roads,
-    "ferries": osm.select_vehicle_ferries,
+    "road": {
+        "ways": osm.select_main_roads,
+        "ferries": osm.select_vehicle_ferries,
+    }
 }
 MODES = [
     {"name": "road", "source": "roads"},
@@ -124,7 +126,7 @@ def build(
         max_km_between_nodes,
         stage1_work_dir,
     )
-    graph = assembly.build_graph_from_pieces(pieces)
+    graph = assembly.build_graph_from_pieces(pieces["road"])
     with _log_step(logger, "read the sea lanes", {}) as counts:
         sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
         counts["nodes"] = len(sea.nodes)

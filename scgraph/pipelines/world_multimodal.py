@@ -12,9 +12,8 @@ rail terminals: `osm_multimodal` for the planet.
   10 km, and a contracted arc ends at the first node where it reaches 10 km. Two nodes
   along a road or a railway are then at most about 20 km apart.
 - Sources: the OpenStreetMap planet of the date in its URL, and the other sources of
-  `osm_multimodal`. The planet is read by HTTP byte ranges and never stored. It is
-  read twice: for the railways, then for the roads. The build needs the C++ extension
-  of scgraph.
+  `osm_multimodal`. The planet is read by HTTP byte ranges and never stored. The
+  build needs the C++ extension of scgraph.
 - Not for navigation, timetables, or the capacity of a terminal.
 """
 
