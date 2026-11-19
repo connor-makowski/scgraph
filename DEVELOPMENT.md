@@ -65,7 +65,6 @@ utils/
 noxfile.py                       # nox sessions: pytest across Python 3.11–3.14, and lint (ruff, pyrefly)
 pyproject.toml                   # Package metadata, scikit-build-core config, black + ruff + pytest config
 CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
-publish.sh                       # PyPI publishing script — DO NOT RUN
 ```
 
 ## Development Commands
@@ -189,6 +188,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.
+- **Data releases**: A data release publishes built networks as the assets of a GitHub release. A maintainer pushes a tag `networks-YYYY.MM.DD` on a commit of `dev` (`-dev.N` for a development release). `build_networks.yml` builds the networks and drafts the release with `utils/assemble_networks.py`. When the download of a source fails, the maintainer runs the failed job again. The maintainer reads the draft, then publishes it. A published data release is never changed.
 
 ## Release Checklist (owner only — do not execute)
 
@@ -196,5 +196,5 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 2. Run `uv run utils/prettify.py`
 3. Run `uv run nox` — all sessions must pass
 4. Run `uv run python utils/docs.py` to regenerate docs
-5. Build and publish via `publish.sh`
+5. Merge `dev` into `main`: `build_wheels.yml` drafts the release, and publishing the draft sends the packages to PyPI
 6. Right after the release, set the next development version on `dev` with a `.dev0` suffix (PEP 440), e.g. `4.1.0.dev0`
