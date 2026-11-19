@@ -1,17 +1,23 @@
-"""Railway lines (`railway=rail`, sidings and yards included) of Europe,
-from the OpenStreetMap Europe extract.
+"""Railway lines (`railway=rail`, without sidings, spurs and yard tracks) of Europe,
+from the OpenStreetMap extract of Europe.
 
-Drawings: each piece's shape is simplified at 50 m when the way is cut; lengths are
-measured before.
+- This network is `osm_rail` for Europe, with fewer nodes. A line is cut every 5 km,
+  and a contracted arc ends at the first node where it reaches 5 km. Two nodes along a
+  line are then at most about 10 km apart.
+- The network keeps each strongly connected component of at least 50 nodes.
+- Every line is read both ways, whatever its `oneway` tag.
+- The shape of each arc is simplified to within 50 m. Its length is measured on the
+  full shape.
+- Source: the Europe extract of Geofabrik, read by HTTP byte ranges and never stored.
+  The build needs the C++ extension of scgraph.
 """
 
 import os
-from collections.abc import Callable
 
 from scgraph.pipelines import osm_rail
 from scgraph.pipelines.steps.stage1_extract import osm
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {
     "rail": {
@@ -20,38 +26,30 @@ SOURCES = {
         "download": osm.download_streamed,
     }
 }
-MAX_KM = 5  # intermediate continental resolution
-MIN_NODES = 50  # retain regional rail networks
+# The length in km at which a line is cut. It is between the 2 km of a region and
+# the 10 km of the world: fewer nodes than `osm_rail`, more detail than the world.
+MAX_KM_BETWEEN_NODES = 5
+# The network keeps each component of at least 50 nodes. A rail network without a
+# link to the main one, such as the network of an island, then stays in the file.
+MIN_COMPONENT_NODES = 50
 
 
 def build(
     files: dict[str, str],
     *,
-    source: Callable = osm.open_osm_source,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Build the Europe railway network.
-
-    Args:
-        files: Mapping of source identifiers to local file paths.
-        source: Factory resolving the OSM source reader (defaults to open_osm_source).
-        work_dir: Working directory for intermediate checkpoints.
-
-    Returns:
-        The network file's arrays and the modes table, `(arrays, modes)`, of the built network.
+    """Build the railway network of Europe: `osm_rail.build`, with the cut length and the
+    component size of this module.
     """
     return osm_rail.build(
         files,
-        source=source,
-        max_km_between_nodes=MAX_KM,
-        min_nodes_per_strongly_connected_component=MIN_NODES,
+        max_km_between_nodes=MAX_KM_BETWEEN_NODES,
+        min_component_nodes=MIN_COMPONENT_NODES,
         work_dir=work_dir,
     )
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": [
         "rotterdam_duisburg",

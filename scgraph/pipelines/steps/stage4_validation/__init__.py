@@ -29,7 +29,20 @@ is measured on roads only, so a sea route cannot replace it.
                                  avoids it (the Arctic), as the case says.
     river_ports       port, sea  The port has a node within 5 km. Its water route
                                  to the sea is at most 1.8 times the straight line.
-    route_lengths     all        The route is within the tolerance of the case.
+    route_lengths     all        The route is within the tolerance of the case
+                                 (5 % when the case gives none).
+    hubs              all        A hub of the case's kind is within 5 km. For each
+                                 mode in `reference` (such as `road rail sea`), the
+                                 route from the hub to that mode leaves the hub by
+                                 its connector to that mode. For `air`, the route is
+                                 a direct flight to the airport of the case.
+
+Every file has the columns `id`, `origin_lat`, `origin_lon`, `destination_lat`,
+`destination_lon`, `reference`, `source`, `tolerance` and `tolerance_reason`. `source`
+says where the reference comes from. A kind adds the columns that its rule reads:
+`reference_back` (road_distances), `landmass` (coverage), `passage` and the four
+`box_` columns (passages), `hub_kind` (hubs). The other columns of a file describe the
+case for a reader. A row is disabled when its id starts with `#`.
 
 A pipeline lists the cases for its network in `VALIDATION = {"cases": [...]}`. An
 entry of this list is one of:
@@ -76,6 +89,7 @@ class ValidationResult:
         return self.failed == 0 and self.total > 0
 
     def summary(self) -> str:
+        """Return one line for the log: PASSED or FAILED, with the counts."""
         status = "PASSED" if self.is_success else "FAILED"
         return f"{status}: {self.passed}/{self.total} cases OK (failed: {self.failed})"
 
@@ -273,6 +287,42 @@ def _check_route_length(network, case) -> str | None:
         return f"{km:.1f} km against {case['reference']} km"
 
 
+def _check_hub(network, case) -> str | None:
+    # A hub that the pipeline left out, or a connector that it could not find, shows
+    # as a route that leaves the hub by another mode: modes meet only at hubs, so the
+    # first arc of the route from a hub to the nearest node of a mode is the hub's
+    # connector to that mode, when it has one.
+    km, hub = _find_nearest_node(network, case["origin"], case["hub_kind"])
+    if km > 5.0:
+        return f"the nearest {case['hub_kind']} is {km:.1f} km away"
+    names = [mode["name"] for mode in network.modes]
+    for mode in case["reference"].split():
+        if mode == "air":
+            first_mode = "airport"
+            km, end = _find_nearest_node(
+                network, case["destination"], "airport"
+            )
+            if km > 5.0:
+                return f"the airport of the flight is {km:.1f} km away"
+        else:
+            first_mode = mode
+            _, end = _find_nearest_node(network, hub, mode)
+        try:
+            path = network.get_shortest_path(
+                {"latitude": hub[0], "longitude": hub[1]},
+                {"latitude": end[0], "longitude": end[1]},
+                output_path=True,
+            )["path"]
+        except PathNotFoundError:
+            return f"no route to the {mode} network"
+        if len(path) < 2 or names[network.node_modes[path[1]]] != first_mode:
+            return f"no connector to the {mode} network"
+        # A direct flight is the shortest route between two airports: a stop
+        # or a road between them is longer
+        if mode == "air" and len(path) != 2:
+            return "no direct flight to the airport of the case"
+
+
 # For each kind: the modes that its routes may use, and its rule. An empty tuple
 # of modes means all the modes of the network.
 RULES = {
@@ -284,6 +334,7 @@ RULES = {
     "passages": (("sea",), _check_passage),
     "river_ports": (("port", "sea"), _check_river_port),
     "route_lengths": ((), _check_route_length),
+    "hubs": ((), _check_hub),
 }
 # The source of the coverage cases places a few cities in the sea, and a few
 # cities are on islands without a road link. Coverage passes when at most this

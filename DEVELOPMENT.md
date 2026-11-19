@@ -42,7 +42,7 @@ scgraph/
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
-  pipelines/                     # One module per buildable network; the contract is the docstring of __init__.py
+  pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
     build.py                     # The runner: build_file (download, build, cache) and python -m scgraph.pipelines.build
     steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
   helpers/
@@ -134,7 +134,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `published`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
 - `test/conftest.py` also gives the fixtures `graph_class`, `ch_class` and `tnr_class`. A test of `Graph`, `CHGraph` or `TNRGraph` takes the fixture: it runs with the pure-Python class, then with the C++ class if the extension is built
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
-- `scgraph/pipelines/steps/stage4_validation/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.build NAME --validate` (`--validate-only` for a network in the cache)
+- `scgraph/pipelines/steps/stage4_validation/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.build NAME --validate` (add `--local-files-only` to check a network in the cache without a download)
 
 **Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–58` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search
 

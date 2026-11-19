@@ -48,11 +48,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The networks of a release. Only this list leaves a network out. Three
-        # are left out because the license of one of their sources does not clearly
-        # allow a shared copy: us_freeway, oak_ridge_maritime and
-        # world_main_roads_and_marnet. The pipelines that need a region are left
-        # out too: a user builds such a network in a few minutes.
+        # The networks of a release. Only this list leaves a network out. Two are
+        # left out because the license of their source does not clearly allow a
+        # shared copy: us_freeway and oak_ridge_maritime. The pipelines that need
+        # a region are left out too: a user builds such a network in a few minutes.
         network:
           - marnet
           - eurostat_marnet
@@ -60,6 +59,8 @@ jobs:
           - europe_freeway
           - europe_rail
           - world_main_roads
+          - world_main_roads_and_marnet
+          - world_multimodal
     env:
       SCGRAPH_REQUIRE_CPP: "1"
     steps:

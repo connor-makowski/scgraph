@@ -476,13 +476,15 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 
 ## Building Networks from Their Sources
 
-`build_geograph` downloads the online sources of a reference network once, builds the network from them on your machine and keeps it in the local cache; later calls load it from the cache without network access. Sources can be large (an OpenStreetMap extract of a country can take several GB): a download above 100 MB is announced with a logging warning before it starts. `python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D]` builds a network without loading it and prints the path of its file.
+`build_geograph` builds a network on your machine from its online sources. It downloads the sources once and keeps the built network in the local cache. Later calls load the network from the cache, without network access. A source can be large: the OpenStreetMap extract of a country can take several GB. scgraph logs a warning before a download above 100 MB.
+
+Each network is built by a pipeline. A pipeline is a module of `scgraph.pipelines`, and its docstring describes the network: what it holds, its rules and its limits. From the command line, `python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D]` builds a network without loading it, and prints the path of its file.
 
 ```py
 import logging
 from scgraph import GeoGraph
 
-logging.basicConfig(level=logging.INFO)  # optional: show each step
+logging.basicConfig(level=logging.INFO)  # optional: show the downloads and the credit
 
 # Main roads of Luxembourg from OpenStreetMap (needs: pip install scgraph[osm])
 luxembourg = GeoGraph.build_geograph("osm_main_roads", region="europe/luxembourg")
@@ -501,7 +503,7 @@ GeoGraph.list_buildable_geographs()
 #  ...]
 ```
 
-The region of the `osm_*` networks is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region Geofabrik does not have raises a `ValueError` before anything is downloaded.
+The region of the `osm_*` networks is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region that Geofabrik does not have raises a `ValueError`, before any large download.
 
 | Name | Network | Source |
 |---|---|---|
@@ -511,12 +513,14 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `north_america_rail` | Class I railroads of North America | FRA and BTS, ArcGIS layer |
 | `us_freeway` | Freeways of the United States | Esri, ArcGIS layer |
 | `osm_main_roads` | Motorway, trunk and primary roads and their links of a region, with vehicle ferries | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
-| `osm_rail` | Railway lines of a region, sidings and yards included | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
-| `europe_freeway` | `osm_main_roads` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
-| `europe_rail` | `osm_rail` for Europe (needs the C++ backend) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
+| `osm_rail` | Railway lines of a region, without sidings, spurs and yard tracks, read both ways | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
+| `europe_freeway` | `osm_main_roads` for Europe (needs the C++ extension) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
+| `europe_rail` | `osm_rail` for Europe (needs the C++ extension) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `eurostat_marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index, Natural Earth |
-| `world_main_roads` | `osm_main_roads` for the world (needs the C++ backend) | OpenStreetMap planet, read by byte ranges, never stored |
-| `world_main_roads_and_marnet` | `osm_main_roads_and_marnet` for the world (needs the C++ backend) | the same, with the OpenStreetMap planet |
+| `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
+| `world_main_roads` | `osm_main_roads` for the world (needs the C++ extension) | OpenStreetMap planet, read by byte ranges, never stored |
+| `world_main_roads_and_marnet` | `osm_main_roads_and_marnet` for the world (needs the C++ extension) | the same, with the OpenStreetMap planet |
+| `world_multimodal` | `osm_multimodal` for the world (needs the C++ extension) | the same, with the OpenStreetMap planet, read twice |
 
 **Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for the `osm_*` networks. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
 
@@ -536,13 +540,17 @@ A rebuild removes the old network file. On Windows, an old file that another pro
 
 **Saving.** `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory. Save an edited network elsewhere.
 
-In `osm_main_roads_and_marnet`, a port joins the roads and the sea lanes through connectors. Each connector is checked against land and water. The data card in the docstring of `scgraph.pipelines.osm_main_roads_and_marnet` gives the rules. Each node has a mode: `road`, `port` or `sea`. `geo.node_modes[i]` points to a row of `geo.modes`. That row names the mode and the source of the node ids (OSM for roads). The file stores the nodes of each mode together. Routes use kilometers for every mode.
+**Networks of several modes.** Some networks join several modes of transport. In `osm_main_roads_and_marnet`, ports join the roads and the sea lanes. In `osm_multimodal`, ports, airports and rail terminals join roads, railways, sea lanes and regular flights. Such a place is a hub, and a hub is one node. A connector is the pair of arcs that joins a hub to the network of one mode. The docstring of each pipeline gives the rules of its connectors.
 
-Each network is built by a pipeline. A pipeline is a module of `scgraph.pipelines`. The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a built-in pipeline under another name. Its network is cached under `networks/<last part of the module name>/`. A module named like a built-in pipeline is refused, and `list_buildable_geographs` does not list your module.
+Each node has a mode, for example `road`, `sea` or `port`. `geo.node_modes[i]` gives the row of node `i` in `geo.modes`. That row names the mode and the source of the node ids (OpenStreetMap for roads). The file stores the nodes of each mode together. Routes use kilometers for every mode.
+
+In `osm_multimodal`, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
+
+**A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [How a pipeline builds a network](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
 The networks that `build_geograph` builds are not the built-in files. They are built from the current version of their sources, so their node numbers differ and results can differ slightly from those of `load_geograph`.
 
-The `osm_*`, `us_freeway` and `north_america_rail` networks also have more nodes: one at every junction and one about every 2 km along a line. In the `osm_*` networks, a chain of nodes is contracted into arcs of about 2 km, so two nodes are at most about 4 km apart. Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
+These networks also have more nodes. The `us_freeway` and `north_america_rail` networks have a node at every junction and about every 2 km along a line. The `osm_*` networks have a node at every junction, and two nodes along a road are at most about 4 km apart. Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
 
 In the `osm_*` networks, the shape of each arc is simplified to within 50 m (Douglas–Peucker). Lengths are measured on the full shape.
 
@@ -611,11 +619,15 @@ michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
 
 # Other ways: select(tags) gives the direction of a way (1 or -1: one way, 0: both
 # ways) or None to leave it out; only ways with one of the tag keys reach select.
-# Here railway lines without yards, sidings and spurs, both ways
+# Here railway lines without yards, sidings and spurs, both ways. The crossovers
+# stay: they join the two tracks of a double line drawn track by track
 michigan_rail = GeoGraph.load_from_osm(
     "michigan-latest.osm.pbf",
     select=lambda tags: (
-        0 if tags.get("railway") == "rail" and "service" not in tags else None
+        0
+        if tags.get("railway") == "rail"
+        and tags.get("service") in (None, "crossover")
+        else None
     ),
     tag_keys=("railway",),
 )

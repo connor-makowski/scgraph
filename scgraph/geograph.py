@@ -549,7 +549,7 @@ class GeoGraphIO:
             - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
             - Default: None: `scgraph.pipelines.steps.osm.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns 1 or -1)
-            - Example: `lambda tags: 0 if tags.get("railway") == "rail" and "service" not in tags else None` for railway lines without yards, sidings and spurs, both ways
+            - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
             - Type: tuple[str, ...]
@@ -559,7 +559,7 @@ class GeoGraphIO:
         - `max_km_between_nodes`
             - Type: float | int | None
             - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
-            - Default: None: `scgraph.pipelines.steps.osm.MAX_KM` (2)
+            - Default: None: `scgraph.pipelines.steps.osm.MAX_KM_BETWEEN_NODES` (2)
         - `largest_component`
             - Type: bool
             - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
@@ -600,7 +600,7 @@ class GeoGraphIO:
             keep_largest_strongly_connected_component,
         )
         from scgraph.pipelines.steps.stage1_extract.osm import (
-            MAX_KM,
+            MAX_KM_BETWEEN_NODES,
             select_main_roads,
             read_osm,
         )
@@ -609,7 +609,11 @@ class GeoGraphIO:
             filename,
             select or select_main_roads,
             tag_keys,
-            MAX_KM if max_km_between_nodes is None else max_km_between_nodes,
+            (
+                MAX_KM_BETWEEN_NODES
+                if max_km_between_nodes is None
+                else max_km_between_nodes
+            ),
         )
         if not nodes:
             raise ValueError(
@@ -1122,9 +1126,7 @@ class GeoGraphIO:
                     remove(cache_path.joinpath(published + suffix))
         if name is None:
             remove(root)
-            remove(
-                cache_path.joinpath(".work")
-            )  # failed, interrupted or kept builds
+            remove(cache_path.joinpath(".work"))  # failed or interrupted builds
         elif region is None:
             remove(root.joinpath(name))
         else:
@@ -1228,10 +1230,12 @@ class GeoGraphIO:
                 "oak_ridge_maritime",
                 "osm_main_roads",
                 "osm_main_roads_and_marnet",
+                "osm_multimodal",
                 "osm_rail",
                 "us_freeway",
                 "world_main_roads",
                 "world_main_roads_and_marnet",
+                "world_multimodal",
             ]
             | types.ModuleType
         ),
@@ -1248,7 +1252,7 @@ class GeoGraphIO:
 
         - Download the online sources of a reference network once, build the network on this machine and keep it in the local cache; later calls load it from the cache, without any network request, until an upgrade of scgraph changes how that network is built
         - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its pipeline is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
-        - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows every step
+        - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows each download and the credit to cite, and the DEBUG level shows each step of the build with its counts
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
         - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
         - The network file's header says what built it (pipeline, sources and the time their data is up to, software): `GeoGraph.get_scgraph_info(file)` reads it

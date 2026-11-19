@@ -1,4 +1,4 @@
-"""Tests for Stage 4 pipeline acceptance validation."""
+"""Tests of stage 4: the validation of a built network against its cases."""
 
 import importlib
 
@@ -243,3 +243,95 @@ def test_a_river_port_fails_when_no_node_is_near_the_port(two_towns):
     result = validate_network(two_towns, [a_case("river_ports", origin=port)])
 
     assert result.failures[0]["error"] == "the nearest port node is 6.7 km away"
+
+
+# The tests of the hub rule use a network of eight nodes:
+#
+# - A port, with a connector to a road node, to a rail node and to a sea node.
+# - A rail terminal, with a connector to the same road node and to the same rail
+#   node. A port without its rail connector then still has a route to the
+#   railway: by the road, then the terminal.
+# - Three airports. The flight from the west airport to the east airport is
+#   219 km long. The two flights through the middle airport add up to 312 km.
+#
+# A link is an arc in each direction, as long as the great circle between its
+# two nodes.
+HUB_NODES = {
+    "port": ("port", (0, 0)),
+    "road node": ("road", (0, 0.01)),
+    "rail node": ("rail", (0.01, 0)),
+    "sea node": ("sea", (0, -0.01)),
+    "rail terminal": ("rail_terminal", (0.01, 0.01)),
+    "west airport": ("airport", (10, 0)),
+    "middle airport": ("airport", (11, 1)),
+    "east airport": ("airport", (10, 2)),
+}
+HUB_LINKS = [
+    ("port", "road node"),
+    ("port", "rail node"),
+    ("port", "sea node"),
+    ("rail terminal", "road node"),
+    ("rail terminal", "rail node"),
+    ("west airport", "middle airport"),
+    ("middle airport", "east airport"),
+    ("west airport", "east airport"),
+]
+PORT = a_case(
+    "hubs",
+    id="port",
+    origin=HUB_NODES["port"][1],
+    hub_kind="port",
+    reference="road rail sea",
+)
+FLIGHT = a_case(
+    "hubs",
+    id="flight",
+    origin=HUB_NODES["west airport"][1],
+    destination=HUB_NODES["east airport"][1],
+    hub_kind="airport",
+    reference="air",
+)
+
+
+def hub_network(without=None):
+    """The network of the hubs above, without the link `without`."""
+    links = [link for link in HUB_LINKS if link != without]
+    names = list(HUB_NODES)
+    mode_names = sorted({mode for mode, _ in HUB_NODES.values()})
+    graph = [{} for _ in names]
+    for origin, destination in links:
+        u, v = names.index(origin), names.index(destination)
+        graph[u][v] = graph[v][u] = great_circle_km(
+            HUB_NODES[origin][1], HUB_NODES[destination][1]
+        )
+    return GeoGraph(
+        graph=graph,
+        nodes=[list(point) for _, point in HUB_NODES.values()],
+        node_modes=[mode_names.index(mode) for mode, _ in HUB_NODES.values()],
+        modes=[{"name": name} for name in mode_names],
+    )
+
+
+def test_a_hub_with_a_connector_to_each_of_its_modes_passes():
+    result = validate_network(hub_network(), [PORT, FLIGHT])
+
+    assert result.is_success, result.failures
+
+
+def test_a_port_fails_when_its_route_to_the_railway_leaves_by_road():
+    network = hub_network(without=("port", "rail node"))
+
+    result = validate_network(network, [PORT])
+
+    assert result.failures[0]["error"] == "no connector to the rail network"
+
+
+def test_an_airport_fails_when_its_flight_makes_a_stop():
+    network = hub_network(without=("west airport", "east airport"))
+
+    result = validate_network(network, [FLIGHT])
+
+    assert (
+        result.failures[0]["error"]
+        == "no direct flight to the airport of the case"
+    )

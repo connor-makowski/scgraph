@@ -1,8 +1,9 @@
-"""The runner of the pipelines: download the sources of a network, build it and keep it in
-the cache (`GeoGraph.build_geograph`).
+"""The runner of the pipelines. `build_file` downloads the sources of a network, builds
+the network and keeps it in the cache. `GeoGraph.build_geograph` calls it.
 
-`python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D]` builds a network
-without loading it and prints the path of its file.
+`python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D] [--validate]`
+builds a network without loading it, and prints the path of its file. `--help` lists
+the other options.
 """
 
 import argparse
@@ -22,7 +23,7 @@ from pathlib import Path
 
 import requests
 
-from scgraph import network_file
+from scgraph import network_file, pipelines
 from scgraph.geograph import GeoGraph, _cached_file, _joined
 from scgraph.utils import resolve_cache_dir
 
@@ -36,17 +37,9 @@ _CACHEDIR_TAG = (
 )
 
 
-# What `from_stage` removes from the work folder, by the step of the OSM
-# extraction to run again: all of it, the node locations (pass 2), or the cut
-# of the ways (pass 3). The later stages keep no file.
-STAGE_INVALIDATIONS = {
-    "stage1": ["*.done", "*_junctions.bin", "*_ways.bin", "nodes"],
-    "pass2": ["pass2.done", "stage1.done", "nodes"],
-    "pass3": ["stage1.done"],
-}
-
-
 def _clean_work(work: Path, cache: Path) -> None:
+    """Remove the work folder, and each folder above it that is then empty, up to the
+    cache directory."""
     shutil.rmtree(work, ignore_errors=True)
     parent = work.parent
     while parent != cache and parent.exists() and not any(parent.iterdir()):
@@ -58,6 +51,9 @@ def _clean_work(work: Path, cache: Path) -> None:
 
 
 def _validate_pipeline(pipeline, name, region, filename):
+    """Check the network file against the cases that the pipeline lists for the
+    region. Raise a RuntimeError when a case fails. A pipeline without cases passes.
+    """
     validation = getattr(pipeline, "VALIDATION", None)
     if not validation:
         return
@@ -80,333 +76,376 @@ def _validate_pipeline(pipeline, name, region, filename):
     logger.info("Validation %s", result.summary())
 
 
-def build_file(
+_REGION_HELP = (
+    "the path of a Geofabrik extract, for example 'europe/luxembourg' "
+    "(see https://download.geofabrik.de)"
+)
+_OFFLINE = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
+
+
+def _resolve_pipeline(
     name: str | types.ModuleType,
-    region: str | None = None,
-    cache_dir: str | os.PathLike | None = None,
-    *,
-    resume: bool = True,
-    clean: bool = False,
-    from_stage: str | None = None,
-    keep_work: bool = False,
-    work_dir: str | os.PathLike | None = None,
-    refresh: bool = False,
-    local_files_only: bool | None = None,
-    validate: bool = False,
-    validate_only: bool = False,
-    stream: bool = False,
-) -> str:
-    """Build the network into the local cache and return its file path.
-
-    Args:
-        name: Name of a buildable pipeline or imported pipeline module.
-        region: Geographic sub-region identifier (e.g. 'europe/denmark').
-        cache_dir: Optional custom cache directory.
-        resume: Resume build using existing intermediate checkpoints (default: True).
-        clean: Purge working directory and intermediate artifacts before building.
-        from_stage: Run the OSM extraction again from a step ('stage1', 'pass2', 'pass3'), in a kept work folder.
-        keep_work: Keep the work folder after a build that succeeds. A build that fails always keeps its work folder, and the next call resumes from it.
-        work_dir: Custom directory for intermediate build artifacts and checkpoints.
-        refresh: Download the sources and build again, even if the cache holds a current network or a work folder exists. It empties the work folder first, also a `work_dir` that the caller gave.
-        local_files_only: Forbid downloading missing network sources.
-        validate: Check the network against its validation cases. A failure raises RuntimeError. A network that is built is checked before it enters the cache. If it fails, it is not cached and the cache stays unchanged.
-        validate_only: Validate cached network without rebuilding or downloading.
-        stream: Stream OSM extracts via HTTP byte ranges instead of downloading.
-
-    Returns:
-        Absolute path to the built .scgraph network file.
-
-    Raises:
-        ValueError: On unknown pipeline names or invalid region parameters.
-        FileNotFoundError: If the network is uncached in offline mode.
-        RuntimeError: If Stage 4 validation fails.
-    """
-    if local_files_only is None:
-        local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
-    from scgraph import pipelines
-
+) -> tuple[types.ModuleType, str]:
+    """Return the pipeline module and its name. `name` is the name of a pipeline of
+    scgraph, or a pipeline module of the caller."""
     if isinstance(name, types.ModuleType):
-        network, name = name, name.__name__.rpartition(".")[2]
-        # Its cache entry would be a built-in's (each would load the other), or a
-        # path outside the cache
+        pipeline, name = name, name.__name__.rpartition(".")[2]
+        # A module named like a pipeline of scgraph would share its cache entry,
+        # and each would load the network of the other. A name with other
+        # characters could give a path outside the cache.
         if not re.fullmatch(r"\w+", name) or (
             name in pipelines.NAMES
-            and network.__name__ != f"scgraph.pipelines.{name}"
+            and pipeline.__name__ != f"scgraph.pipelines.{name}"
         ):
             raise ValueError(
-                f"Invalid pipeline module name '{network.__name__}'"
+                f"Invalid pipeline module name '{pipeline.__name__}'"
             )
-    elif name not in pipelines.NAMES:
+        return pipeline, name
+    if name not in pipelines.NAMES:
         close = difflib.get_close_matches(name, pipelines.NAMES, n=3)
         hint = f" Did you mean {', '.join(map(repr, close))}?" if close else ""
         raise ValueError(
             f"Unknown network '{name}'.{hint} Available: {', '.join(pipelines.NAMES)}"
         )
-    else:
-        network = importlib.import_module(f"scgraph.pipelines.{name}")
+    return importlib.import_module(f"scgraph.pipelines.{name}"), name
+
+
+def _check_region(
+    pipeline: types.ModuleType, name: str, region: str | None
+) -> None:
+    """Raise a ValueError when `region` does not fit the pipeline: a pipeline needs a
+    region when one of its source URLs holds `{region}`."""
     regional = any(
-        "{region}" in source["url"] for source in network.SOURCES.values()
+        "{region}" in source["url"] for source in pipeline.SOURCES.values()
     )
-    where = "the path of a Geofabrik extract, for example 'europe/luxembourg' (see https://download.geofabrik.de)"
     if regional and region is None:
-        raise ValueError(f"'{name}' needs a region: {where}")
+        raise ValueError(f"'{name}' needs a region: {_REGION_HELP}")
     if not regional and region is not None:
         raise ValueError(f"'{name}' has no region")
-    # Region names are Geofabrik paths; nothing else may reach the cache path
+    # A region is the path of a Geofabrik extract. Nothing else may reach the
+    # path of the cache.
     if region is not None and not re.fullmatch(
         r"[a-z0-9-]+(/[a-z0-9-]+)*", region
     ):
-        raise ValueError(f"Invalid region '{region}': {where}")
-    cache = resolve_cache_dir(cache_dir)
-    folder = cache.joinpath("networks", name, region or "")
-    pointer = folder.joinpath("cache.json")
-    # cache.json names the network file, which is named by its content
-    cached_file = _cached_file(pointer)
-    cached = cached_file is not None
+        raise ValueError(f"Invalid region '{region}': {_REGION_HELP}")
 
-    if validate_only:
-        if not cached or not cached_file or not Path(cached_file).is_file():
-            raise FileNotFoundError(
-                f"{name} is not in the cache ({folder}): build it first before validating"
-            )
-        _validate_pipeline(network, name, region, cached_file)
-        return str(cached_file)
-    # Built again for another pipeline version, or a file this scgraph can't read
+
+def _should_build(
+    pipeline: types.ModuleType,
+    name: str,
+    folder: Path,
+    cached_file: Path | None,
+    refresh: bool,
+    local_files_only: bool,
+) -> bool:
+    """Return True when the network must be built.
+
+    There are four cases: the cache does not hold the network; another version of the
+    pipeline built the cached file; scgraph cannot read the cached file; the caller asks
+    for a refresh.
+
+    With `local_files_only`, the function never returns True. It raises when `refresh`
+    is true, when the cache does not hold the network, or when scgraph cannot read the
+    cached file. It warns when another version of the pipeline built the file.
+    """
+    cached, built_by = cached_file is not None, None
     if cached:
         try:
             built_by = network_file.get_scgraph_info(cached_file)["pipeline"][
                 "version"
             ]
-        except (
-            ValueError,
-            KeyError,
-            TypeError,
-        ):  # damaged, or another format
-            built_by = None
-    stale = cached and built_by != network.PIPELINE_VERSION
-    offline = "local_files_only=True (or SCGRAPH_OFFLINE=1)"
+        except (ValueError, KeyError, TypeError):
+            pass  # the file is damaged, or it has another format
+    stale = cached and built_by != pipeline.PIPELINE_VERSION
     if local_files_only:
         if refresh:
-            raise ValueError(f"refresh=True downloads: not with {offline}")
+            raise ValueError(f"refresh=True downloads: not with {_OFFLINE}")
         if not cached:
             raise FileNotFoundError(
-                f"{name} is not in the cache ({folder}) and {offline} "
+                f"{name} is not in the cache ({folder}) and {_OFFLINE} "
                 "forbids building it"
             )
         if built_by is None:
             raise ValueError(
                 f"The cached {name} can't be read (damaged, or a file format other "
-                f"than {network_file.VERSION}): build it again without {offline}"
+                f"than {network_file.VERSION}): build it again without {_OFFLINE}"
             )
         if stale:
             warnings.warn(
                 f"The cached {name} was built with pipeline version "
-                f"{built_by}, now {network.PIPELINE_VERSION}; loading it as {offline}",
-                stacklevel=3,  # the line that called GeoGraph.build_geograph
+                f"{built_by}, now {pipeline.PIPELINE_VERSION}; loading it as {_OFFLINE}",
+                stacklevel=4,  # the line that called GeoGraph.build_geograph
             )
-    elif stale:
+        return False
+    if stale:
         logger.warning(
             "The cached %s was built by another version of its pipeline or "
             "of the file format; building it again",
             name,
         )
-    if not local_files_only and (refresh or not cached or stale):
-        # The tag goes in networks/, scgraph's own folder: a cache_dir given by the user
-        # may hold other files, which backups must not skip
-        cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
-        cache.joinpath("networks", "CACHEDIR.TAG").write_text(_CACHEDIR_TAG)
-        # The only clock time: in cache.json, not in the file
-        downloaded = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        files, sources = {}, []
-        custom_work = work_dir is not None
-        work = (
-            Path(work_dir)
-            if work_dir
-            else cache.joinpath(".work", name, region or "")
-        )
+    return refresh or not cached or stale
 
-        if clean or refresh or not resume:
-            if work.exists():
-                shutil.rmtree(work, ignore_errors=True)
 
-        if from_stage:
-            patterns = STAGE_INVALIDATIONS.get(from_stage)
-            if not patterns:
-                raise ValueError(
-                    f"Unknown stage '{from_stage}'. Valid: {', '.join(STAGE_INVALIDATIONS)}"
-                )
-            for pattern in patterns:
-                for p in work.rglob(pattern):
-                    p.unlink(missing_ok=True)
+def _download_sources(
+    pipeline: types.ModuleType, region: str | None, sources_dir: Path
+) -> tuple[dict[str, str], list[dict]]:
+    """Download the sources of the pipeline into `sources_dir`. A source that an earlier
+    build left there with its record is not downloaded again.
 
-        work.mkdir(parents=True, exist_ok=True)
-        building = work.joinpath(f"{name}.scgraph")
-        try:
-            sources_dir = work.joinpath("sources")
-            sources_dir.mkdir(parents=True, exist_ok=True)
-            for source, about in network.SOURCES.items():
-                template = about["url"]
-                url = template.format(region=region)
-                source_path = sources_dir.joinpath(
-                    source + "".join(Path(url).suffixes)
-                )
-                meta_path = sources_dir.joinpath(f"{source}.meta.json")
-                files[source] = source_path
-                hook = about.get("download")
-                if stream and about.get("url", "").endswith(".osm.pbf"):
-                    from scgraph.pipelines.steps.stage1_extract import osm
-
-                    download = osm.download_streamed
-                else:
-                    download = hook or getattr(
-                        network, "download", pipelines.download_file
-                    )
-
-                if (
-                    resume
-                    and not clean
-                    and source_path.is_file()
-                    and meta_path.is_file()
-                ):
-                    try:
-                        sources.append(json.loads(meta_path.read_text()))
-                        continue
-                    except (json.JSONDecodeError, OSError):
-                        pass
-
-                try:
-                    learnt = download(url, str(source_path))
-                except requests.HTTPError as error:
-                    if (
-                        "{region}" in template
-                        and error.response.status_code == 404
-                    ):
-                        raise ValueError(
-                            f"No extract '{region}' on Geofabrik; the region is {where}"
-                        ) from error
-                    raise
-
-                measured = {}
-                if hook is None or not isinstance(learnt, dict):
-                    with open(source_path, "rb") as file:
-                        measured = {
-                            "sha256": hashlib.file_digest(
-                                file, "sha256"
-                            ).hexdigest(),
-                            "bytes": source_path.stat().st_size,
-                        }
-                source_record = {
-                    "name": source,
-                    "url": url,
-                    **measured,
-                    "credit": about["credit"],
-                    "license": about["license"],
-                    "license_url": about["license_url"],
-                    **(
-                        {"version": about["version"]}
-                        if "version" in about
-                        else {}
-                    ),
-                    **(learnt if isinstance(learnt, dict) else {}),
-                }
-                sources.append(source_record)
-                try:
-                    meta_path.write_text(json.dumps(source_record))
-                except OSError:
-                    pass
-
-            logger.info("Building %s", name)
-            sig = inspect.signature(network.build)
-            build_kwargs = {}
-            if "work_dir" in sig.parameters:
-                build_kwargs["work_dir"] = str(work)
-            network_built = network.build(
-                {source: str(path) for source, path in files.items()},
-                **build_kwargs,
-            )
-            # Everything that describes the network, except clock times, so that
-            # the same rules, sources and software give the same file
-            metadata = pipelines.build_metadata(
-                name,
-                region,
-                network.PIPELINE_VERSION,
-                sources,
-                network.__doc__,
-            )
-            if isinstance(network_built, GeoGraph):
-                # Written in Hilbert order within each mode: nodes close on the
-                # globe get close ids
-                digest = network_built.save_as_scgraph(
-                    str(building), metadata=metadata
-                )
-            else:  # the network file's arrays, already in that order
-                arrays, modes = network_built
-                header_meta = network_file.header_metadata(
-                    metadata,
-                    units="km",
-                    modes=modes,
-                )
-                digest = network_file.write(str(building), arrays, header_meta)
-            if validate:
-                _validate_pipeline(network, name, region, building)
-            built_file = folder.joinpath(f"{digest}.scgraph")
-            work.joinpath("cache.json").write_text(
-                json.dumps(
-                    {"file": built_file.name, "downloaded": downloaded},
-                    indent=2,
-                )
-            )
-            # cache.json appears last, so that it always names a whole file
-            folder.mkdir(parents=True, exist_ok=True)
+    Returns:
+        `(files, records)`. `files` maps the name of each source to the path of its
+        file. `records` lists the record of each source, which goes into the header of
+        the network file.
+    """
+    sources_dir.mkdir(parents=True, exist_ok=True)
+    files, records = {}, []
+    for source, about in pipeline.SOURCES.items():
+        url = about["url"].format(region=region)
+        source_path = sources_dir.joinpath(source + "".join(Path(url).suffixes))
+        record_path = sources_dir.joinpath(f"{source}.meta.json")
+        files[source] = str(source_path)
+        if source_path.is_file() and record_path.is_file():
             try:
-                # A work folder may be on another disk than the cache
-                shutil.move(building, built_file)
-            # Open (Windows), so whole: a file of that name has the same content
-            except PermissionError:
+                records.append(json.loads(record_path.read_text()))
+                continue
+            except (json.JSONDecodeError, OSError):
                 pass
-            work.joinpath("cache.json").replace(pointer)
-            if cached_file is not None and cached_file != built_file:
-                try:
-                    cached_file.unlink(missing_ok=True)
-                except OSError:  # still open (Windows): left as an orphan
-                    pass
-            cached_file = built_file
-            logger.info(
-                "Built %s. Credit: %s (%s)",
-                name,
-                _joined(network, "credit"),
-                _joined(network, "license"),
-            )
-        except (Exception, KeyboardInterrupt) as error:
-            if not custom_work and not any(
-                path.is_file() for path in work.rglob("*")
-            ):
-                # The build stopped before it wrote a file, for example on an
-                # unknown region. There is nothing to resume from.
-                _clean_work(work, cache)
-            else:
-                # The work folder is kept. It holds the downloaded sources and
-                # the files that the steps saved.
-                logger.warning(
-                    "The build of %s did not finish. Its work folder %s is kept, "
-                    "and the next build resumes from it. "
-                    "GeoGraph.clear_geograph_cache() removes a work folder that "
-                    "is in the cache",
-                    name,
-                    work,
-                )
-            if cached and isinstance(error, OSError):
-                error.add_note(
-                    f"The cache still holds {name}: build_geograph(..., "
-                    "local_files_only=True) loads it"
-                )
+        own_download = about.get("download")
+        download = own_download or getattr(
+            pipeline, "download", pipelines.download_file
+        )
+        try:
+            learnt = download(url, str(source_path))
+        except requests.HTTPError as error:
+            if "{region}" in about["url"] and error.response.status_code == 404:
+                raise ValueError(
+                    f"No extract '{region}' on Geofabrik; the region is {_REGION_HELP}"
+                ) from error
             raise
+        # A source may have a download function of its own. When that function
+        # returns a dict, the dict identifies the source. Otherwise the runner
+        # identifies the file by its digest and its size.
+        measured = {}
+        if own_download is None or not isinstance(learnt, dict):
+            with open(source_path, "rb") as file:
+                measured = {
+                    "sha256": hashlib.file_digest(file, "sha256").hexdigest(),
+                    "bytes": source_path.stat().st_size,
+                }
+        record = {
+            "name": source,
+            "url": url,
+            **measured,
+            "credit": about["credit"],
+            "license": about["license"],
+            "license_url": about["license_url"],
+            **({"version": about["version"]} if "version" in about else {}),
+            **(learnt if isinstance(learnt, dict) else {}),
+        }
+        records.append(record)
+        try:
+            record_path.write_text(json.dumps(record))
+        except OSError:
+            pass
+    return files, records
+
+
+def _write_network(
+    network: GeoGraph | tuple[dict, list[dict]],
+    filename: Path,
+    metadata: dict,
+) -> str:
+    """Write the network that a `build` returned to `filename`, with the metadata of
+    the build in its header. Return the digest of the file."""
+    if isinstance(network, GeoGraph):
+        # The file has the nodes of each mode in Hilbert order, so that nodes
+        # close on the globe get close ids
+        return network.save_as_scgraph(str(filename), metadata=metadata)
+    arrays, modes = network  # the arrays of the file, already in that order
+    return network_file.write(
+        str(filename),
+        arrays,
+        network_file.header_metadata(metadata, units="km", modes=modes),
+    )
+
+
+def _move_into_cache(
+    building: Path,
+    digest: str,
+    folder: Path,
+    downloaded: str,
+    earlier_file: Path | None,
+) -> Path:
+    """Move the network file `building` into `folder` of the cache, under the name of
+    its digest. Write the `cache.json` that names it, and remove the file of the
+    earlier build. Return the new path of the file.
+    """
+    built_file = folder.joinpath(f"{digest}.scgraph")
+    folder.mkdir(parents=True, exist_ok=True)
+    # The file arrives beside its final place, then takes its name in one step. A
+    # work folder may be on another disk than the cache. A move between two disks
+    # is a copy, and an interruption would leave a cut file under the final name.
+    arriving = built_file.with_name(built_file.name + ".part")
+    shutil.move(building, arriving)
+    try:
+        arriving.replace(built_file)
+    # On Windows, the rename fails when a process holds a file of that name open.
+    # That file is whole and has the same content: its name is its digest.
+    except PermissionError:
+        arriving.unlink()
+    # cache.json appears last, and the same way, so that it always names a whole
+    # file.
+    pointer = folder.joinpath("cache.json")
+    written = pointer.with_name("cache.json.part")
+    written.write_text(
+        json.dumps(
+            {"file": built_file.name, "downloaded": downloaded}, indent=2
+        )
+    )
+    written.replace(pointer)
+    if earlier_file is not None and earlier_file != built_file:
+        try:
+            earlier_file.unlink(missing_ok=True)
+        except OSError:  # still open (Windows): left as an orphan
+            pass
+    return built_file
+
+
+def build_file(
+    name: str | types.ModuleType,
+    region: str | None = None,
+    cache_dir: str | os.PathLike | None = None,
+    *,
+    work_dir: str | os.PathLike | None = None,
+    refresh: bool = False,
+    local_files_only: bool | None = None,
+    validate: bool = False,
+) -> str:
+    """Build a network into the local cache and return the path of its file.
+
+    When the cache holds the network, built by the same `PIPELINE_VERSION`, the
+    function builds nothing and returns the cached file.
+
+    Args:
+        name: The name of a pipeline of scgraph, or a pipeline module.
+        region: For a pipeline with regions, the path of a Geofabrik extract, for
+            example 'europe/denmark'.
+        cache_dir: The cache directory. None takes `SCGRAPH_CACHE_DIR`, then the
+            cache directory of the platform.
+        work_dir: The work folder, where the build keeps the downloaded sources and
+            the files of its steps. None takes a folder in the cache directory, which
+            the function removes after a build that succeeds. The function does not
+            remove a folder that the caller gives. A build that fails keeps its work
+            folder, and the next call resumes from it.
+        refresh: Download the sources and build again, even if the cache holds a
+            current network. The function empties the work folder first, also a
+            `work_dir` that the caller gives.
+        local_files_only: Use the cache only, and download nothing. None takes True
+            when the environment variable `SCGRAPH_OFFLINE` is `1`.
+        validate: Check the network against its validation cases. A network that is
+            built is checked before it enters the cache. If it fails, the cache stays
+            unchanged. A network that the cache already holds is checked as it is.
+            With `local_files_only=True`, the call checks the cached network and
+            downloads nothing.
+
+    Returns:
+        The path of the network file in the cache.
+
+    Raises:
+        ValueError: The name is unknown, or the module has the name of a pipeline of
+            scgraph. The region is missing, not valid, or not on Geofabrik. With
+            `local_files_only`: `refresh` is true, or scgraph cannot read the cached
+            file.
+        FileNotFoundError: The network is not in the cache, with `local_files_only`.
+        RuntimeError: The network fails its validation.
+        requests.HTTPError: A source cannot be downloaded.
+    """
+    if local_files_only is None:
+        local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
+    pipeline, name = _resolve_pipeline(name)
+    _check_region(pipeline, name, region)
+    cache = resolve_cache_dir(cache_dir)
+    folder = cache.joinpath("networks", name, region or "")
+    # cache.json names the network file, which is named by its content
+    cached_file = _cached_file(folder.joinpath("cache.json"))
+    if not _should_build(
+        pipeline, name, folder, cached_file, refresh, local_files_only
+    ):
+        if validate:
+            _validate_pipeline(pipeline, name, region, cached_file)
+        return str(cached_file)
+
+    # The tag goes in networks/, scgraph's own folder: a cache_dir given by the user
+    # may hold other files, which backups must not skip
+    cache.joinpath("networks").mkdir(parents=True, exist_ok=True)
+    cache.joinpath("networks", "CACHEDIR.TAG").write_text(_CACHEDIR_TAG)
+    # The time of the download is the only clock time of a build. It goes into
+    # cache.json, not into the network file.
+    downloaded = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    work = (
+        Path(work_dir)
+        if work_dir
+        else cache.joinpath(".work", name, region or "")
+    )
+    if refresh:
+        shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    building = work.joinpath(f"{name}.scgraph")
+    try:
+        files, sources = _download_sources(
+            pipeline, region, work.joinpath("sources")
+        )
+        logger.info("Building %s", name)
+        takes_work_dir = (
+            "work_dir" in inspect.signature(pipeline.build).parameters
+        )
+        network = pipeline.build(
+            files, **({"work_dir": str(work)} if takes_work_dir else {})
+        )
+        # Everything that describes the network, except clock times, so that
+        # the same rules, sources and software give the same file
+        metadata = pipelines.build_metadata(
+            name, region, pipeline.PIPELINE_VERSION, sources, pipeline.__doc__
+        )
+        digest = _write_network(network, building, metadata)
+        if validate:
+            _validate_pipeline(pipeline, name, region, building)
+        built_file = _move_into_cache(
+            building, digest, folder, downloaded, cached_file
+        )
+        logger.info(
+            "Built %s. Credit: %s (%s)",
+            name,
+            _joined(pipeline, "credit"),
+            _joined(pipeline, "license"),
+        )
+    except (Exception, KeyboardInterrupt) as error:
+        if work_dir is None and not any(
+            path.is_file() for path in work.rglob("*")
+        ):
+            # The build stopped before it wrote a file, for example on an
+            # unknown region. There is nothing to resume from.
+            _clean_work(work, cache)
         else:
-            if not keep_work and not custom_work:
-                _clean_work(work, cache)
-    elif validate:  # not built: the cached file is checked, as by validate_only
-        _validate_pipeline(network, name, region, cached_file)
-    return str(cached_file)
+            # The work folder is kept. It holds the downloaded sources and
+            # the files that the steps saved.
+            logger.warning(
+                "The build of %s did not finish. Its work folder %s is kept, "
+                "and the next build resumes from it. "
+                "GeoGraph.clear_geograph_cache() removes a work folder that "
+                "is in the cache",
+                name,
+                work,
+            )
+        if cached_file is not None and isinstance(error, OSError):
+            error.add_note(
+                f"The cache still holds {name}: build_geograph(..., "
+                "local_files_only=True) loads it"
+            )
+        raise
+    if work_dir is None:
+        _clean_work(work, cache)
+    return str(built_file)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -421,30 +460,21 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--region", help="the path of a Geofabrik extract")
     parser.add_argument("--cache-dir", help="the cache directory")
     parser.add_argument(
-        "--resume",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="resume build from existing checkpoints (default: True, use --no-resume to disable)",
-    )
-    parser.add_argument(
-        "--clean",
-        action="store_true",
-        help="clean working directory and intermediate artifacts before building",
-    )
-    parser.add_argument(
-        "--from",
-        dest="from_stage",
-        choices=list(STAGE_INVALIDATIONS),
-        help="resume build starting from a specific stage, invalidating later stages",
-    )
-    parser.add_argument(
-        "--keep-work",
-        action="store_true",
-        help="keep intermediate working directory even after successful build",
-    )
-    parser.add_argument(
         "--work-dir",
-        help="custom directory for intermediate build artifacts and checkpoints",
+        help="the work folder, kept after the build (default: a folder in the "
+        "cache directory, removed after a build that succeeds)",
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="download the sources and build again; the work folder is emptied "
+        "first, also a --work-dir",
+    )
+    parser.add_argument(
+        "--local-files-only",
+        action="store_true",
+        help="use the cache only and download nothing; with --validate, check "
+        "the cached network",
     )
     parser.add_argument(
         "--validate",
@@ -452,44 +482,34 @@ def main(argv: list[str] | None = None) -> None:
         help="check the built network against its validation cases; the "
         "network enters the cache only if it passes",
     )
-    parser.add_argument(
-        "--validate-only",
-        action="store_true",
-        help="validate an already cached network without re-building it",
-    )
-    parser.add_argument(
-        "--stream",
-        action="store_true",
-        help="stream OSM extracts via HTTP byte ranges instead of downloading",
-    )
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO)  # each step, and the credit to cite
+    logging.basicConfig(
+        level=logging.INFO
+    )  # each download, and the credit to cite
     try:
         print(  # noqa: T201 (the output of the command)
             build_file(
                 args.name,
                 args.region,
                 args.cache_dir,
-                resume=args.resume,
-                clean=args.clean,
-                from_stage=args.from_stage,
-                keep_work=args.keep_work,
                 work_dir=args.work_dir,
+                refresh=args.refresh,
+                # None lets SCGRAPH_OFFLINE decide
+                local_files_only=args.local_files_only or None,
                 validate=args.validate,
-                validate_only=args.validate_only,
-                stream=args.stream,
             )
         )
     except KeyboardInterrupt:
         parser.exit(
             130,
-            "\nBuild interrupted by user. Intermediate checkpoints preserved.\n",
+            "\nInterrupted. A work folder that holds files is kept, and the next "
+            "build resumes from it.\n",
         )
     except (
         ValueError,
         FileNotFoundError,
         RuntimeError,
-    ) as error:  # the message is the answer
+    ) as error:  # the message says what to change: no traceback
         parser.exit(2, f"{error}\n")
 
 

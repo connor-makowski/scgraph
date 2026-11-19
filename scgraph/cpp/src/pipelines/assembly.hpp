@@ -7,10 +7,11 @@
 #include <utility>
 #include <vector>
 
-// Kernels that assemble a network file from raw arcs, for networks too large for Python
-// (the planet's roads). Each has a pure-Python twin in
-// scgraph/pipelines/steps/stage3_assembly/assembly.py that gives the same results; the
-// contracts are written there.
+// Functions that assemble a network file from raw arcs, for a network too large for
+// Python (the roads of the planet). Read the header of
+// scgraph/pipelines/steps/stage3_assembly/assembly.py first: it explains the algorithms,
+// and the docstrings of the Python functions give the inputs and the results. Each
+// function here gives the same results as its pure-Python version.
 namespace assembly {
 
 // Arcs and ids are read at random positions: the memory of the one AHEAD is fetched while
@@ -89,7 +90,7 @@ struct ArcTable {
     std::vector<double> weights;
 };
 
-inline ArcTable csr_from_arcs(const int64_t* origins, const int64_t* destinations,
+inline ArcTable build_csr_from_arcs(const int64_t* origins, const int64_t* destinations,
                               const double* weights, int64_t arc_count) {
     if (arc_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 arcs");
     // The origins, then the destinations that are not origins (few: most nodes are both)
@@ -261,7 +262,8 @@ struct Contracted {
     std::vector<double> weights;
 };
 
-// Same rules and order of operations as the Python twin (contract_chains)
+// The same rules, in the same order of operations, as contract_chains_python in
+// assembly.py: the two versions give the same arcs and the same sums.
 inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
                                   const uint8_t* node_modes, int64_t node_count, int64_t arc_count,
                                   double max_km_between_nodes) {

@@ -1,7 +1,37 @@
-"""Read OpenStreetMap files into a GeoGraph.
+"""Read the ways of an OpenStreetMap file, for `GeoGraph.load_from_osm` and for the
+OpenStreetMap pipelines.
 
-Needs the optional dependency `osmium` (`pip install scgraph[osm]`), imported only when a file
-is read.
+The module needs the optional dependency `osmium` (`pip install scgraph[osm]`). It
+imports `osmium` only when it reads a file.
+
+WHAT IT ANSWERS
+
+`read_osm` gives a graph in the layout of a GeoGraph, for `load_from_osm`.
+`build_way_pieces` gives the pieces of the kept ways (`assembly.PieceArrays`), for a
+pipeline. A select function chooses the ways. It takes the tags of a way. It returns
+the direction of the way: 1 (one way, in the order of its nodes), -1 (one way, against
+that order) or 0 (both ways). It returns None to leave the way out.
+
+HOW A FILE IS READ
+
+An OpenStreetMap file lists the nodes, then the ways. A way lists the ids of its
+nodes, not their positions. So `locate_ways` reads the file in three passes:
+
+1. It reads the ways. It notes the ids of the nodes of the kept ways. A node that it
+   meets a second time is a junction.
+2. It reads the nodes, and stores the position of each noted node.
+3. It reads the ways again, and gives each kept way with the positions of its nodes.
+
+`cut_polylines` then cuts each way into pieces: at each junction, and at the first
+point where a piece reaches `max_km_between_nodes`.
+
+Example: two roads share node 7, and no other node. Pass 1 meets node 7 twice, so node
+7 is a junction, and each road is cut there.
+
+WHERE THE FILE IS
+
+The file is on disk, or on a server. `StreamedPbf` reads a file on a server by HTTP
+byte ranges and never stores it. The planet is read this way.
 """
 
 import gc
@@ -52,14 +82,17 @@ MAIN_ROADS = {
     "primary",
     "primary_link",
 }
-# Length in kilometers at which a way is cut into a new arc (at the next point), so that
-# origins and destinations attach close to where they are
-MAX_KM = 2
-FERRY_END_KM = 2  # farthest a ferry end may lie from the road node it joins
+# The length in km at which a way is cut, at the next point. With nodes this close,
+# the origin and the destination of a route join the network near where they are.
+MAX_KM_BETWEEN_NODES = 2
+# The farthest that an end of a ferry may be from the road node that it joins, in km
+FERRY_END_KM = 2
 _ONE_WAY = {"yes": 1, "true": 1, "1": 1, "-1": -1, "reverse": -1}
 
 
 def require_osmium() -> ModuleType:
+    """Return the module `osmium`. Raise an ImportError that says how to install it
+    when it is missing."""
     try:
         import osmium
     except ImportError as error:
@@ -70,10 +103,15 @@ def require_osmium() -> ModuleType:
 
 
 def download(url: str, filename: str | os.PathLike) -> dict[str, str]:
-    """Download an OSM file; return its `version`, the time its data is up to (the
-    `osmosis_replication_timestamp` of its header, as Geofabrik writes it), if it has one.
+    """Download an OSM file to `filename`.
+
+    Returns:
+        `{"version": time}` when the header of the file gives the time that its data is
+        up to (`osmosis_replication_timestamp`, as Geofabrik writes it), and `{}`
+        otherwise.
     """
-    # Checked before downloading a large extract it could not read
+    # osmium is checked first: without it, a large extract would be downloaded and
+    # then not read
     osmium = require_osmium()
     download_file(url, filename)
     try:
@@ -88,9 +126,12 @@ def download(url: str, filename: str | os.PathLike) -> dict[str, str]:
 
 
 def get_way_direction(tags: "osmium.osm.TagList") -> int:
-    """The direction of a way from its tags: 1 (one way, along its drawing) for
-    `oneway=yes`, `true` or `1`, and for motorways and roundabouts without `oneway`; -1
-    (one way, against it) for `oneway=-1` or `reverse`; 0 (both ways) otherwise.
+    """Return the direction of a way from its tags.
+
+    - 1 (one way, in the order of its nodes) for `oneway=yes`, `true` or `1`, and for a
+      motorway or a roundabout without a `oneway` tag;
+    - -1 (one way, against that order) for `oneway=-1` or `reverse`;
+    - 0 (both ways) otherwise.
     """
     if tags.get("oneway") in _ONE_WAY:
         return _ONE_WAY[tags["oneway"]]
@@ -104,7 +145,7 @@ def get_way_direction(tags: "osmium.osm.TagList") -> int:
 
 
 def select_main_roads(tags: "osmium.osm.TagList") -> int | None:
-    """The direction of a main road (`MAIN_ROADS`), None for any other way."""
+    """Return the direction of a main road (`MAIN_ROADS`), and None for any other way."""
     return (
         get_way_direction(tags) if tags.get("highway") in MAIN_ROADS else None
     )
@@ -112,7 +153,8 @@ def select_main_roads(tags: "osmium.osm.TagList") -> int | None:
 
 @contextmanager
 def _opened(source, entities):
-    # A path, or what the source gives for one pass, closed after it (see located_ways)
+    # `source` is a path, or a source object. A source object gives a new input for
+    # each pass, and the pass closes it at its end (see `locate_ways`).
     if isinstance(source, (str, os.PathLike)):
         yield source
         return
@@ -126,9 +168,11 @@ def _opened(source, entities):
 
 
 def _selected_ways(osmium, source, selects, tag_keys, *filters):
-    """`(kind, direction, way)` for the ways one of `selects` keeps (the first, in their
-    order); ways with none of `tag_keys` are skipped in osmium, before Python sees them,
-    and so are `filters`."""
+    """Yield `(kind, direction, way)` for each way that one of `selects` keeps. A way goes
+    to the first select function that keeps it, in the order of the dict. osmium drops
+    the ways that have none of `tag_keys`, and the ways that `filters` refuse, before
+    Python sees them.
+    """
     with _opened(source, osmium.osm.WAY) as file:
         ways = osmium.FileProcessor(file, osmium.osm.WAY)
         if tag_keys:
@@ -151,11 +195,14 @@ def _selected_ways(osmium, source, selects, tag_keys, *filters):
 
 
 class _Junctions:
-    """Node ids, sorted, looked up by bisection: 8 bytes per junction once built. While
-    it is built (after the id tracker is freed), the sorted list of repeated uses takes
-    about 40 B per repeat (a node used k times appears k - 1 times), with no set; with
-    the location store still alive, a planet's ~10.8 M repeats would take about 0.43 GB
-    next to a ~1.46 GB file store (an estimate, not measured together)."""
+    """The ids of the junctions, sorted, in one array: 8 bytes per junction.
+    `id in junctions` looks an id up by bisection.
+
+    Memory while the object is built: the list of the repeated node ids takes about 40
+    bytes per repeat. A node used k times appears k - 1 times in this list. For the
+    planet, about 10.8 million repeats take about 0.43 GB. The file of the node positions
+    takes about 1.46 GB more. Both figures are estimates, not measured together.
+    """
 
     def __init__(self, ids):
         self.ids = array("q")
@@ -170,42 +217,46 @@ class _Junctions:
 
 def locate_ways(
     source: "str | os.PathLike | StreamedPbf",
-    way_selectors: dict[str, Callable],
-    required_tag_keys: tuple[str, ...] = (),
+    selects: dict[str, Callable],
+    tag_keys: tuple[str, ...] = (),
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[
     _Junctions, Iterator[tuple[str, int, list[tuple[int, list[float]]]]]
 ]:
-    """
-    Locate the ways of `source` that `way_selectors` keep, in one set of passes for every kind
-    of way (roads and ferries, for example).
+    """Locate the ways of `source` that the select functions keep.
 
-    `way_selectors` maps a kind of way to its `select(tags)`, which gives the direction of a way:
-    1 (one way along its drawing), -1 (against it), 0 (both ways), or None to leave it to
-    the next select; a way goes to the first select that keeps it, in the mapping's order.
-    If `required_tag_keys` is given, the ways that have none of these keys are dropped first, in
-    osmium.
+    The function reads the file in three passes (ways, nodes, ways again), as the module
+    docstring explains. One call serves all the kinds of way, for example roads and
+    ferries.
 
-    `source` is the path of an OSM file, or an object whose `file(entities)` returns what
-    `osmium.FileProcessor` reads (an `osmium.io.File` or `FileBuffer`), fresh at each call:
-    the file is read in three passes (ways, their nodes, ways again), so a source that is
-    not on disk, such as `StreamedPbf`, supplies one input per pass, for the entities
-    (`osmium.osm.WAY` or `NODE`) the pass reads; its `close(stop)` is called at the end
-    of each pass (`stop` true when the pass ended on an exception).
+    Args:
+        source: The path of an OSM file, or a source object such as `StreamedPbf`. A
+            source object has a method `file(entities)`. It returns a new input for
+            `osmium.FileProcessor` at each call: one per pass, for the entities that the
+            pass reads (`osmium.osm.WAY` or `NODE`). The function calls `close(stop)` at
+            the end of each pass. `stop` is true when the pass ended on an exception.
+        selects: The select function of each kind of way. A way goes to the first
+            function that keeps it, in the order of the dict.
+        tag_keys: If given, osmium drops the ways that have none of these tag keys,
+            before a select function sees them.
+        work_dir: A folder for the files of the function. Without it, the positions of
+            the nodes are in memory (osmium index `flex_mem`). With it, they are in the
+            file `nodes` of the folder (`sparse_file_array`), which a planet file needs.
+            The folder also keeps the junctions and the ids of the kept ways. When its
+            marker `pass2.done` is there, the function reuses these files and skips
+            passes 1 and 2. Otherwise it empties `nodes` first. The caller deletes the
+            folder.
 
-    The function keeps the locations of the nodes of kept ways in an osmium index
-    (`osmium.index.create_map`). Without `work_dir`, the index is in memory
-    (`flex_mem`). With `work_dir`, the index is the file `nodes` of that folder
-    (`sparse_file_array`), which a planet file needs. The function empties this file
-    first. The caller deletes it.
-    The node ids of kept ways take about 1.5 GB in any case (one bit per possible id),
-    and the ids of kept ways about 0.2 GB (one bit per possible way id).
+    Returns:
+        `(junctions, polylines)`. `junctions` holds the OSM ids of the nodes where kept
+        ways meet, or where a way crosses itself. `id in junctions` tests one id.
+        `polylines` is a generator of `(kind, direction, vertices)`. `vertices` is a list
+        of `(id, [latitude, longitude])`. The pair `(direction, vertices)` is a
+        polyline, in the form that `cut_polylines` takes. A way is split where one of its nodes is missing from
+        the file.
 
-    Returns `(junctions, polylines)`: the OSM ids of the nodes where kept ways meet or a way
-    crosses itself, whatever their kind (`in junctions` tests one), and a generator of
-    `(kind, direction, vertices)`, `vertices` being `[(id, [latitude, longitude]), ...]` and
-    `(direction, vertices)` a polyline as `cut_polylines` takes it, a way being split where
-    one of its nodes is missing from the file.
+    Memory: the ids of the nodes of the kept ways take about 1.5 GB, whatever the file
+    (one bit for each possible id). The ids of the kept ways take about 0.2 GB.
     """
     osmium = require_osmium()
     if work_dir:
@@ -246,9 +297,7 @@ def locate_ways(
         tracker, kept = osmium.IdTracker(), osmium.IdTracker()
         seen, repeats = tracker.node_ids(), array("q")
         kept_ways = array("q") if work_dir else None
-        for _, _, way in _selected_ways(
-            osmium, source, way_selectors, required_tag_keys
-        ):
+        for _, _, way in _selected_ways(osmium, source, selects, tag_keys):
             kept.add_way(way.id)
             if kept_ways is not None:
                 kept_ways.append(way.id)
@@ -301,8 +350,8 @@ def locate_ways(
         for kind, way_direction, way in _selected_ways(
             osmium,
             source,
-            way_selectors,
-            required_tag_keys,
+            selects,
+            tag_keys,
             kept.id_filter(),
             locations,
         ):
@@ -314,26 +363,24 @@ def locate_ways(
 
 def read_osm(
     source: "str | os.PathLike | StreamedPbf",
-    way_filter: Callable,
-    required_tag_keys: tuple[str, ...] = (),
-    max_km_between_nodes: float = MAX_KM,
+    select: Callable,
+    tag_keys: tuple[str, ...] = (),
+    max_km_between_nodes: float = MAX_KM_BETWEEN_NODES,
 ) -> tuple[
     list[dict[int, float]],
     list[list[float]],
     list[dict[int, list[list[float]]]],
     list[int],
 ]:
-    """
-    Build the graph of the ways of `source` that `way_filter` keeps (`locate_ways`, then
-    `build_graph_from_polylines`), a way being also cut where a piece reaches
-    `max_km_between_nodes` (`cut_polylines`).
+    """Build the graph of the ways of `source` that `select` keeps (`locate_ways`, then
+    `build_graph_from_polylines`). A way is cut at its junctions, and at the first point
+    where a piece reaches `max_km_between_nodes` (`cut_polylines`).
 
-    Returns `(graph, nodes, shapes, node_ids)` in the GeoGraph layout, `node_ids` being
-    the OSM ids of the nodes.
+    Returns:
+        `(graph, nodes, shapes, node_ids)` in the layout of a GeoGraph. `node_ids` holds
+        the OSM ids of the nodes.
     """
-    junctions, polylines = locate_ways(
-        source, {"ways": way_filter}, required_tag_keys
-    )
+    junctions, polylines = locate_ways(source, {"ways": select}, tag_keys)
     polylines = (
         (way_direction, vertices) for _, way_direction, vertices in polylines
     )
@@ -344,18 +391,33 @@ def read_osm(
 
 def build_way_pieces(
     source: "str | os.PathLike | StreamedPbf",
-    way_selectors: dict[str, Callable],
-    required_tag_keys: tuple[str, ...],
+    selects: dict[str, Callable],
+    tag_keys: tuple[str, ...],
     max_km_between_nodes: float,
     work_dir: str | os.PathLike | None = None,
 ) -> PieceArrays:
-    """The pieces (`assembly.PieceArrays`) of the ways of `source` that `way_selectors` keep
-    (`locate_ways`, one read for every kind), cut at their junctions and where a piece
-    reaches `max_km_between_nodes` (`cut_polylines`). The ways of the kind "ferries" are not cut: each
-    joins the road nodes nearest its two ends if both lie within FERRY_END_KM
-    (`build_ferry_arcs`). No way kept raises a ValueError. With a `work_dir`, the node
-    locations and the pieces are kept in files there. Each step logs its counts at DEBUG.
+    """Read the ways of `source` that the select functions keep, and cut them into pieces.
+
+    A way is cut at its junctions, and at the first point where a piece reaches
+    `max_km_between_nodes` (`cut_polylines`). A way of the kind "ferries" is cut at its
+    junctions only, not by length. Each piece of a ferry joins the road nodes nearest
+    its two ends, if both are within FERRY_END_KM (`build_ferry_arcs`). With `work_dir`, the positions of the nodes and the pieces are
+    kept in files of that folder, and a later call with the same inputs reuses them. Each
+    step logs its counts at DEBUG.
+
+    Returns:
+        The pieces (`assembly.PieceArrays`).
+
+    Raises:
+        ValueError: The select functions keep no way.
     """
+    # `StreamedPbf.download` writes a layout file in place of an OSM file that is
+    # read by byte ranges. A layout file is JSON, so it starts with "{". An OSM
+    # file starts with "<" (XML) or with a zero byte (PBF).
+    if isinstance(source, (str, os.PathLike)):
+        with open(source, "rb") as file:
+            if file.read(1) == b"{":
+                source = StreamedPbf(source)
     if work_dir:
         os.makedirs(work_dir, exist_ok=True)
         done_marker = os.path.join(work_dir, "stage1.done")
@@ -367,11 +429,11 @@ def build_way_pieces(
                 if isinstance(source, (str, os.PathLike))
                 else source.about
             ),
-            "way_selectors": {
+            "selects": {
                 kind: getattr(select, "__qualname__", type(select).__name__)
-                for kind, select in way_selectors.items()
+                for kind, select in selects.items()
             },
-            "required_tag_keys": list(required_tag_keys),
+            "tag_keys": list(tag_keys),
             "max_km_between_nodes": max_km_between_nodes,
         }
         inputs_file = os.path.join(work_dir, "stage1.inputs.json")
@@ -389,7 +451,7 @@ def build_way_pieces(
             return PieceArrays(work_dir=work_dir, truncate=False)
     with _log_step(logger, "read and cut the ways", {}) as counts:
         junctions, ways = locate_ways(
-            source, way_selectors, required_tag_keys, work_dir=work_dir
+            source, selects, tag_keys, work_dir=work_dir
         )
         pieces, ferries = PieceArrays(work_dir=work_dir), []
         for kind, direction, vertices in ways:
@@ -405,13 +467,13 @@ def build_way_pieces(
         pieces.flush()
         counts["pieces"] = len(pieces.km)
     if not len(pieces.km):
-        raise ValueError(
-            f"No way of {source} is kept by {', '.join(way_selectors)}"
-        )
-    if "ferries" in way_selectors:
+        raise ValueError(f"No way of {source} is kept by {', '.join(selects)}")
+    if "ferries" in selects:
         with _log_step(logger, "attach the ferries", {}) as counts:
-            # The road nodes: the pieces' ends at 1e-7 degree, read in place, end u being
-            # piece u // 2's origin or destination (ties in nearest: the first end)
+            # The road nodes are the ends of the pieces, in units of 1e-7 degree. They
+            # are read in place. Each piece has two ends, and the ends are numbered in
+            # a row: end `2 * i` is the origin of piece `i`, and end `2 * i + 1` is
+            # its destination. When two ends are as near, the first one is taken.
             latitudes, longitudes = pieces.ends[0::2], pieces.ends[1::2]
             ids = (pieces.origins, pieces.destinations)
             near = NearNodes(latitudes, longitudes, scale=1e-7)
@@ -435,15 +497,17 @@ def build_way_pieces(
                 )
             counts["arcs"] = len(arcs)
     if work_dir:
-        # Written after the last piece, the marker says that every piece is on disk
+        # The marker is written after the last piece: it says that every piece is on
+        # disk
         pieces.flush()
         Path(done_marker).write_text("done\n")
     return pieces
 
 
 def _located_pieces(way_nodes):
-    """Split a way where a node is missing from the file (outside an extract) or has no
-    location."""
+    """Split a way where a node has no position: the node is missing from the file, for
+    example outside an extract.
+    """
     piece = []
     for node in way_nodes:
         if node.location.valid():
@@ -457,8 +521,11 @@ def _located_pieces(way_nodes):
 
 
 def select_vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
-    """Both ways (0) for a ferry not closed to motor vehicles, None for any other way."""
-    if tags.get("route") == "ferry" and "no" not in (
+    """Return 0 (both ways) for a vehicle ferry, and None for any other way. A vehicle
+    ferry is a ferry, or a shuttle train that carries cars and lorries (as in the Channel
+    Tunnel), that is not closed to motor vehicles.
+    """
+    if tags.get("route") in ("ferry", "shuttle_train") and "no" not in (
         tags.get("motor_vehicle"),
         tags.get("motorcar"),
     ):
@@ -472,25 +539,44 @@ def build_ferry_arcs(
     shapes: list[dict[int, list[list[float]]]],
     nearest: Callable,
 ) -> Iterator[tuple[int, int, float, list[list[float]]]]:
-    """`(u, v, km, shape)` of each ferry arc (`build_graph_from_polylines`'s layout)
-    whose ends lie within FERRY_END_KM of road nodes u and v (`nearest(point)` gives
-    `(node, km)`); the shape keeps the ferry's ends unless they are u and v."""
+    """Yield `(u, v, km, shape)` for each ferry arc that joins two road nodes.
+
+    `ferries`, `ends` and `shapes` are the graph of the ferries, as
+    `build_graph_from_polylines` returns it. `nearest(point)` returns `(km, road node)`
+    for an end of a ferry. An arc is kept when both its ends are within FERRY_END_KM of a
+    road node, and these two road nodes differ. `u` and `v` are these road nodes. `km` is
+    the length of the ferry route. `shape` starts and ends with the ends of the ferry,
+    unless they are the road nodes themselves.
+    """
     road = [nearest(end) for end in ends]
     for a, row in enumerate(ferries):
         for b, km in row.items():
-            (u, to_u), (v, to_v) = road[a], road[b]
+            (to_u, u), (to_v, v) = road[a], road[b]
             if u != v and max(to_u, to_v) <= FERRY_END_KM:
                 shape = [ends[a]] * (to_u > 0) + shapes[a].get(b, [])
                 yield u, v, km, shape + [ends[b]] * (to_v > 0)
 
 
 class StreamedPbf:
-    """
-    An OSM PBF file read by HTTP byte ranges, never stored (the planet, for example), on
-    Linux and macOS: `download` is a source's download hook, and `StreamedPbf(filename)`
-    a source of `locate_ways`, each pass reading the header and the section it needs
-    from a pipe that a child process fills. A dated file only: a response with another
-    size or tag (ETag or Last-Modified) stops the build.
+    """An OSM PBF file on a server, read by HTTP byte ranges and never stored.
+
+    The planet is read this way. Linux and macOS only.
+
+    A PBF file is a header, then blobs (blocks of data). The blobs of the nodes come
+    first, then the blobs of the ways, then the blobs of the relations. The layout of a
+    file is the byte offset where each of these three sections starts.
+
+    - `StreamedPbf.download(url, filename)` is the download function of a source. It
+      finds the layout and writes it to `filename`, a small JSON file: the layout file.
+    - `StreamedPbf(filename)` is a source object for `locate_ways`. For each pass,
+      `file(entities)` starts a child process. The child downloads the header and the
+      section that the pass needs, and writes them to a pipe that osmium reads.
+
+    The file on the server must not change during a build. `download` notes the size of
+    the file and its ETag, or its Last-Modified date. A later answer with another size or
+    tag stops the build. A dated file never changes. The server replaces a `latest` file
+    when it publishes new data. A build that is reading the file at that time stops
+    with an error.
     """
 
     def __init__(self, filename):
@@ -499,9 +585,12 @@ class StreamedPbf:
 
     @staticmethod
     def download(url: str, filename: str | os.PathLike) -> dict[str, str | int]:
-        """Write to `filename` the layout of the PBF at `url` (the header, then the node
-        and way sections, found by bisection) with its `size`, `tag`, `md5` (the
-        published one, not recomputed) and `version`; return `{version, bytes, md5}`.
+        """Find the layout of the PBF file at `url` and write it to `filename`, with the
+        `size` of the file, its `tag`, its `md5` and its `version`. The `md5` is the one
+        that the server publishes: the function does not compute it.
+
+        Returns:
+            `{version, bytes, md5}`, without the values that the server does not give.
         """
         osmium = require_osmium()
         session = requests.Session()
@@ -525,7 +614,8 @@ class StreamedPbf:
 
         def get(start, end):  # bytes [start, end) of the same file
             ask = {**_AGENT, "Range": f"bytes={start}-{min(end, size) - 1}"}
-            # Retried: one slow answer must not stop a build of hours
+            # A request is tried again: one slow answer must not stop a build that
+            # takes hours
             for attempt in range(6):
                 try:
                     answer = session.get(url, headers=ask, timeout=(10.0, 60.0))
@@ -549,8 +639,9 @@ class StreamedPbf:
             "osmosis_replication_timestamp"
         )
 
-        # (start, end, rank) of the first blob at or after offset: rank 0, 1 or 2 for
-        # nodes, ways or relations, 3 past the last blob
+        # Return `(start, end, rank)` of the first blob at or after `offset`. `rank` is
+        # 0 for a blob of nodes, 1 for ways, 2 for relations, and 3 when no blob
+        # follows.
         def kind(offset):
             while offset < size:
                 window = get(offset, offset + (1 << 20))
@@ -566,8 +657,9 @@ class StreamedPbf:
                 offset += len(window) - 8  # a signature may straddle windows
             return size, size, 3
 
-        # Start of the first blob of a rank >= rank, knowing it is that of the first blob
-        # at or after high: bisection, then a scan from low, blob by blob
+        # Return the start of the first blob whose rank is `rank` or higher. The ranks
+        # never decrease along the file, so the function bisects between `low` and
+        # `high`. Below `_SCAN` bytes, it reads the blobs one by one from `low`.
         def section(rank, low, high):
             while high - low > _SCAN:
                 middle = (low + high) // 2
@@ -608,7 +700,10 @@ class StreamedPbf:
             session.close()
 
     def file(self, entities: "osmium.osm.osm_entity_bits") -> "osmium.io.File":
-        """The header and the node (`osmium.osm.NODE`) or way section, from a pipe."""
+        """Start the child process of one pass. Return an input that gives osmium the
+        header and one section of the file: the nodes for `osmium.osm.NODE`, the ways
+        otherwise.
+        """
         if sys.platform == "win32":
             raise NotImplementedError(
                 "StreamedPbf via /dev/fd pipe is only supported on POSIX systems (Linux, macOS)."
@@ -627,8 +722,9 @@ class StreamedPbf:
         return osmium.io.File(f"/dev/fd/{self._pipe}", "pbf")
 
     def close(self, stop: bool = False) -> None:
-        """Wait for the child of the last pass, or `stop` it; raise if it failed (then
-        osmium read only part of the section, maybe up to a blob boundary, unaware).
+        """Wait for the child process of the last pass, or stop it when `stop` is true.
+        Raise a RuntimeError when the child failed: osmium then read only a part of the
+        section, and did not report it.
         """
         os.close(self._pipe)
         if stop:
@@ -640,54 +736,38 @@ class StreamedPbf:
             )
 
 
-def open_osm_source(
-    source: "str | os.PathLike | StreamedPbf",
-) -> "str | os.PathLike | StreamedPbf":
-    """Return a `StreamedPbf` when `source` is a layout file that
-    `StreamedPbf.download` wrote. Otherwise return `source` unchanged: `source` is
-    then the path of an OSM file, or a source object of the caller.
-    """
-    if isinstance(source, (str, os.PathLike)):
-        path = Path(source)
-        if path.is_file() and path.stat().st_size < 100_000:
-            try:
-                with open(path, "rb") as f:
-                    first = f.read(16)
-                if first.startswith(b'{"url":'):
-                    return StreamedPbf(str(path))
-            except OSError:
-                pass
-    return source
-
-
 def download_streamed(
     url: str, filename: str | os.PathLike
 ) -> dict[str, str | int]:
-    """Download layout descriptor of an OSM PBF file for streamed HTTP range reading."""
+    """Write the layout file of an OSM PBF file, so that a build reads the file by HTTP
+    byte ranges (`StreamedPbf.download`). Raise a RuntimeError without the C++ extension.
+    """
     if not has_cpp():
         raise RuntimeError(
-            "Streaming an OSM extract needs scgraph's C++ backend"
+            "Reading an OSM file by byte ranges needs the C++ extension of scgraph"
         )
     return StreamedPbf.download(url, filename)
 
 
-# The planet of a given date (never planet-latest), changed at each data release, read
-# by byte ranges from a mirror that serves them
+# The planet file of one date. A dated file never changes, so a build can read it by
+# byte ranges. Change the URL to take newer data. This mirror serves byte ranges.
 PLANET = {
     **GEOFABRIK,
     "url": "https://osm-planet-eu-central-1.s3.dualstack.eu-central-1.amazonaws.com/planet/pbf/2026/planet-261102.osm.pbf",
     "download": download_streamed,
 }
 _AGENT = {"User-Agent": "scgraph"}
-_SCAN = 1 << 23  # bytes below which the layout of a PBF is found blob by blob
+# In bytes. Below this distance, the start of a section is found blob by blob.
+_SCAN = 1 << 23
 _STREAMER_SCRIPT = str(
     Path(__file__).resolve().parent / "pbf_range_streamer.py"
 )
 
 
 def _blob(data):
-    """Length of the PBF blob that `data` starts with, headers included; its BlobHeader
-    holds a type then a datasize, as osmium and the planet dumps write it (no index).
+    """Return the length of the PBF blob that `data` starts with, headers included. Its
+    BlobHeader holds a type, then a datasize, as osmium and the planet files write it
+    (no index).
     """
     (length,) = struct.unpack(">I", data[:4])
     i, size, shift = 7 + data[5], 0, 0  # past the type

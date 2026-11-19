@@ -1,17 +1,23 @@
-"""Freeways and main roads (motorway, trunk, primary and vehicle ferries) of Europe,
-from the OpenStreetMap Europe extract.
+"""Main roads (motorway, trunk, primary and their links) and vehicle ferries of Europe,
+from the OpenStreetMap extract of Europe.
 
-Drawings: each piece's shape is simplified at 50 m when the way is cut; lengths are
-measured before. Vehicle ferries attach to road nodes within 2 km.
+- This network is `osm_main_roads` for Europe, with fewer nodes. A road is cut every
+  5 km, and a contracted arc ends at the first node where it reaches 5 km. Two nodes
+  along a road are then at most about 10 km apart.
+- The network keeps each strongly connected component of at least 100 nodes.
+- A vehicle ferry joins the road nodes nearest its two ends, if both are within 2 km.
+- The shape of each arc is simplified to within 50 m. Its length is measured on the
+  full shape.
+- Source: the Europe extract of Geofabrik, read by HTTP byte ranges and never stored.
+  The build needs the C++ extension of scgraph.
 """
 
 import os
-from collections.abc import Callable
 
 from scgraph.pipelines import osm_main_roads
 from scgraph.pipelines.steps.stage1_extract import osm
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {
     "roads": {
@@ -20,38 +26,31 @@ SOURCES = {
         "download": osm.download_streamed,
     }
 }
-MAX_KM = 5  # intermediate continental resolution
-MIN_NODES = 100  # retain European islands and regional networks
+# The length in km at which a road is cut. It is between the 2 km of a region and
+# the 10 km of the world: fewer nodes than `osm_main_roads`, more detail than the
+# world.
+MAX_KM_BETWEEN_NODES = 5
+# The network keeps each component of at least 100 nodes. The roads of an island
+# then stay in the file.
+MIN_COMPONENT_NODES = 100
 
 
 def build(
     files: dict[str, str],
     *,
-    source: Callable = osm.open_osm_source,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Build the Europe freeway and main roads network.
-
-    Args:
-        files: Mapping of source identifiers to local file paths.
-        source: Factory resolving the OSM source reader (defaults to open_osm_source).
-        work_dir: Working directory for intermediate checkpoints.
-
-    Returns:
-        The network file's arrays and the modes table, `(arrays, modes)`, of the built network.
+    """Build the main roads of Europe: `osm_main_roads.build`, with the cut length and the
+    component size of this module.
     """
     return osm_main_roads.build(
         files,
-        source=source,
-        max_km_between_nodes=MAX_KM,
-        min_nodes_per_strongly_connected_component=MIN_NODES,
+        max_km_between_nodes=MAX_KM_BETWEEN_NODES,
+        min_component_nodes=MIN_COMPONENT_NODES,
         work_dir=work_dir,
     )
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": [
         "paris_berlin",

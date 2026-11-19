@@ -195,12 +195,12 @@ HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
             id="only the largest component without a minimum size",
         ),
         pytest.param(
-            {"min_nodes": 2},
+            {"min_component_nodes": 2},
             [1, 2, 3, 4, 5],
             id="every component of the minimum size",
         ),
         pytest.param(
-            {"min_nodes": 1},
+            {"min_component_nodes": 1},
             [0, 1, 2, 3, 4, 5],
             id="every node with a minimum size of one node",
         ),
@@ -261,7 +261,7 @@ def test_near_nodes_finds_the_nearest_node(centre):
         for i in range(len(latitudes))
     )
 
-    node, km = assembly.NearNodes(latitudes, longitudes).find_nearest(
+    km, node = assembly.NearNodes(latitudes, longitudes).find_nearest(
         list(centre), 500
     )
 
@@ -273,7 +273,7 @@ def test_near_nodes_finds_no_nearest_node_beyond_the_distance():
     # One node, one degree of latitude north of the point: 111 km away
     near_nodes = assembly.NearNodes(array("d", [1.0]), array("d", [0.0]))
 
-    assert near_nodes.find_nearest([0.0, 0.0], 100) == (None, math.inf)
+    assert near_nodes.find_nearest([0.0, 0.0], 100) == (math.inf, None)
 
 
 # Four pieces of ways between five places, given by their source ids. A piece
@@ -322,7 +322,7 @@ def assembled(tmp_path_factory):
     arrays = assembly.assemble(
         assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
-        min_nodes_per_strongly_connected_component=1,
+        min_component_nodes=1,
     )
     return arrays
 

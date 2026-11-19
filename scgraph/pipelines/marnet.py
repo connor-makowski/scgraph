@@ -19,9 +19,6 @@ def build(files: dict[str, str]) -> GeoGraph:
     return GeoGraph.load_from_geojson(files["sea_lanes"], precision=4)
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": ["rotterdam_to_new_york", "rotterdam_to_singapore"],
 }

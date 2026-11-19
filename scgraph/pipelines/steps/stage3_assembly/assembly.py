@@ -1,11 +1,75 @@
-"""
-Assemble a network file from raw arcs. The C++ kernels
-(`cpp/src/pipelines/assembly.hpp`), with the same results at the scale of the planet,
-replace these when built; the pure-Python ones stay in `python`. Arrays in: buffers of
-the stated types (`array("q"/"i"/"d")`; any sequences for `python`); out: `array`
-(read-only memoryviews from C++). `PieceArrays`, `build_graph_from_pieces` and `assemble` chain the
-kernels in Python; `build_csr_from_adjacency_list` and `keep_largest_strongly_connected_component` take the GeoGraph layout
-for `load_from_osm`.
+"""Assemble the graph of a network from the pieces of its ways.
+
+WHAT IT ANSWERS
+
+`build_graph_from_pieces` turns the pieces that stage 1 cut (`PieceArrays`) into a
+graph. `assemble` turns this graph into the arrays of a network file. A route between
+two nodes of the same kept component has the same length before and after `assemble`.
+
+HOW A GRAPH IS STORED
+
+A graph is a dict of arrays, with the names of the network file. Node `u` has the arcs
+`offsets[u]` to `offsets[u + 1] - 1`. Arc `a` goes to node `heads[a]` and is
+`weights[a]` km long. `node_points` holds the latitude, then the longitude of each
+node, in units of 1e-7 degree. The shape points of arc `a` are
+`shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `node_ids` holds the id
+of each node in its source. `node_modes`, if the graph has several modes, holds the row
+of each node in the modes table.
+
+Example: two nodes joined both ways by a road of 1.5 km give `offsets = [0, 1, 2]`,
+`heads = [1, 0]` and `weights = [1.5, 1.5]`.
+
+HOW A RUN GOES
+
+1. `build_graph_from_pieces` makes one arc from a one-way piece and two arcs from a
+   two-way piece. `build_csr_from_arcs` stores the arcs by origin. It drops an arc
+   from a node to itself. Of several arcs between the same two nodes, it keeps the
+   shortest.
+2. `keep_strongly_connected_components` keeps the largest strongly connected
+   component, or each component of at least a given number of nodes. In such a
+   component, every node can reach every other node. An arc between two components
+   is dropped.
+3. `contract_chains` removes each pass-through node. A pass-through node has exactly
+   two neighbours, and a route that enters it can only go on to the other neighbour.
+   There are two cases. Either an arc joins the node to each neighbour in each
+   direction. Or the node has one arc in, from one neighbour, and one arc out, to the
+   other. A chain is a run of such nodes between two kept nodes. One contracted arc
+   replaces the chain, with the sum of its lengths. The arcs that the contracted arc
+   replaces are its members. The walk ends a contracted arc at the first node where
+   its length reaches `max_km_between_nodes`, and starts the next arc there. A chain
+   is never contracted across two modes.
+4. `build_chain_shapes` gives each contracted arc the shape points of its members,
+   with the removed nodes between them.
+5. `assemble` numbers the nodes by mode, then along a Hilbert curve. A network file
+   has this order.
+
+Example of step 3: the road 0-4-3-2-1-5 has arcs of 1 km, both ways, and
+`max_km_between_nodes` is 2. The walk starts at node 0 and cuts at node 3, then at
+node 1. The nodes 0, 1, 3 and 5 are kept. The arcs 0-3 and 3-1 are 2 km long, and the
+arc 1-5 is 1 km long.
+
+WHY THE RESULT IS RIGHT
+
+A pass-through node offers no choice, so step 3 does not change the length of a route
+between two kept nodes. Step 3 never makes an arc from a node to itself, nor a second
+arc between two nodes. When a chain would give one, the function keeps the middle
+node of the chain.
+
+Example: the chains 0-1-3 and 0-2-3 would give two arcs from 0 to 3. The first chain
+loses node 1. The second chain keeps node 2.
+
+THE C++ VERSION
+
+`build_csr_from_arcs`, `strongly_connected_components`, `contract_chains` and
+`simplify_shapes` have a C++ version (`cpp/src/pipelines/assembly.hpp`), which a
+network of the planet needs. The functions of this module call it when the extension
+is built and the inputs are `array` or `memoryview` buffers. The pure-Python versions
+give the same results. The namespace `python` of this module gives them, for example
+`assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
+version returns `array`s.
+
+`build_csr_from_adjacency_list` and `keep_largest_strongly_connected_component` take
+the layout of a GeoGraph, for `load_from_osm`.
 """
 
 import logging
@@ -50,7 +114,7 @@ def build_csr_from_arcs_python(
     destinations: Sequence[int],
     weights: Sequence[int | float],
 ) -> tuple[array, array, array, array, array]:
-    """Pure-Python implementation of CSR construction from raw arcs."""
+    """Pure-Python version of `build_csr_from_arcs`."""
     if not len(origins) == len(destinations) == len(weights):
         raise ValueError("one destination and one weight per origin expected")
     best = {}  # (origin, destination) -> input index of the shortest arc so far
@@ -88,14 +152,22 @@ def build_csr_from_arcs(
     array | memoryview,
     array | memoryview,
 ]:
-    """
-    Store arcs between source ids (int64 `origins`, `destinations`; float64 `weights`)
-    by origin. Returns `(node_ids, offsets, heads, weights, kept)`: the arcs' end ids,
-    sorted and unique (int64); the arcs of node `u` (its position in `node_ids`),
-    `heads[offsets[u]:offsets[u + 1]]` (int32) sorted by head, with their `weights`;
-    `kept` (int32), the input index of each arc, for its shape. Self-loops are dropped
-    (an id on self-loops only is no node); of parallel arcs the shortest is kept, the
-    first in the input on a tie.
+    """Store arcs by origin, in CSR arrays.
+
+    Args:
+        origins: The id of the origin of each arc in its source (int64).
+        destinations: The id of the destination of each arc (int64).
+        weights: The length of each arc (float64).
+
+    Returns:
+        `(node_ids, offsets, heads, weights, kept)`. `node_ids` (int64) lists the ids of
+        the ends, sorted, each once. Node `u` is the id at position `u`. The arcs of node
+        `u` are `heads[offsets[u]:offsets[u + 1]]` (int32), sorted by head, with their
+        `weights`. `kept[a]` (int32) is the input index of arc `a`: the caller finds the
+        shape of the arc with it. The function drops an arc from a node to itself, and an
+        id that has only such arcs gives no node. Of several arcs between the same two
+        nodes, the function keeps the shortest, and the first of the input when two are
+        as short.
     """
     if _cpp_build_csr_from_arcs is not None and isinstance(
         origins, (array, memoryview)
@@ -107,7 +179,7 @@ def build_csr_from_arcs(
 def strongly_connected_components_python(
     offsets: Sequence[int], heads: Sequence[int]
 ) -> tuple[array, array]:
-    """Pure-Python implementation of Kosaraju's strongly connected components."""
+    """Pure-Python version of `strongly_connected_components`."""
     n = len(offsets) - 1
     if (
         n < 0
@@ -167,23 +239,19 @@ def strongly_connected_components_python(
 def strongly_connected_components(
     offsets: array | memoryview, heads: array | memoryview
 ) -> tuple[array | memoryview, array | memoryview]:
-    """Compute the strongly connected components of a directed CSR graph.
+    """Find the strongly connected components of a graph, with Kosaraju's algorithm.
 
-    A strongly connected component (SCC) is a maximal subset of nodes where every
-    node can reach every other node following the directed arcs. In logistics networks,
-    this identifies mutually accessible clusters and isolates dead ends or cut fragments.
+    In a strongly connected component, every node can reach every other node along the
+    arcs.
 
-    Computed using Kosaraju's two-pass depth-first search algorithm.
-
-    Parameters:
-        offsets (array[int32]): CSR row offsets of size `num_nodes + 1`.
-        heads (array[int32]): CSR target node indices of size `num_arcs`.
+    Args:
+        offsets: The CSR offsets of the graph, one more than its nodes (int32).
+        heads: The head of each arc (int32).
 
     Returns:
-        tuple[array[int32], array[int32]]:
-            - `labels`: Component index (0-based) for each node, numbered in order
-              of appearance of their smallest node index.
-            - `sizes`: Number of nodes in each component.
+        `(labels, sizes)`. `labels[u]` is the number of the component of node `u`. The
+        components are numbered in the order of their lowest node. `sizes[c]` is the
+        number of nodes of component `c`.
     """
     if _cpp_strongly_connected_components is not None and isinstance(
         offsets, (array, memoryview)
@@ -195,14 +263,15 @@ def strongly_connected_components(
 def build_csr_from_adjacency_list(
     adjacency_list: list[dict[int, int | float]],
 ) -> tuple[array, array, array]:
-    """Store a graph from an adjacency list representation into CSR format.
+    """Store a graph in the layout of a GeoGraph as CSR arrays.
 
-    `adjacency_list[u]` maps head -> weight.
+    Args:
+        adjacency_list: For each node, a dict that gives the weight of the arc to each
+            head.
+
     Returns:
-        tuple[array[int32], array[int32], array[float64]]:
-            - offsets (int32)
-            - heads (int32, rows sorted by head)
-            - weights (float64)
+        `(offsets, heads, weights)`: int32, int32 and float64. The arcs of a node are
+        sorted by head.
     """
     offsets, heads, weights = array("i", [0]), array("i"), array("d")
     for row in adjacency_list:
@@ -216,39 +285,30 @@ def build_csr_from_adjacency_list(
 def keep_strongly_connected_components(
     offsets: array | memoryview,
     heads: array | memoryview,
-    min_nodes: int | None = None,
+    min_component_nodes: int | None = None,
 ) -> tuple[array, array | memoryview]:
-    """Filter a CSR graph to retain only viable strongly connected components (SCCs).
+    """Choose the nodes to keep, by strongly connected component.
 
-    In logistics and road routing, every location must be mutually reachable so that
-    vehicles are guaranteed a legal return route. This filtering prunes one-way dead
-    ends (sinks), unreachable origins (sources), and artificial fragments severed at
-    extract borders.
+    A node outside the kept components is a one-way dead end, a place that no route can
+    enter, or a fragment that the border of an extract cut off.
 
-    Selection strategy:
-    - If `min_nodes` is None: keeps only the single largest SCC (e.g. mainland road
-      network of a regional extract).
-    - If `min_nodes` is an integer: retains every SCC having at least that many nodes,
-      preserving separate viable landmasses and islands (e.g. Eurasia, Americas,
-      Australia, Great Britain at the world scale).
-
-    Parameters:
-        offsets (array[int32]): CSR row offsets of size `num_nodes + 1`.
-        heads (array[int32]): CSR target node indices of size `num_arcs`.
-        min_nodes (int | None): Minimum node count threshold for retained SCCs.
-            Defaults to None (retaining only the largest SCC).
+    Args:
+        offsets: The CSR offsets of the graph, one more than its nodes (int32).
+        heads: The head of each arc (int32).
+        min_component_nodes: The smallest number of nodes of a kept component. None keeps
+            only the largest component. Example: the world pipelines give 1000, so that
+            an island with roads of its own stays in the network.
 
     Returns:
-        tuple[array[int32], array[int32]]:
-            - `kept_nodes`: Sorted indices of nodes retained in the graph.
-            - `labels`: Component index assigned to each original node.
+        `(kept_nodes, labels)`. `kept_nodes` lists the kept nodes in rising order.
+        `labels[u]` is the number of the component of node `u`, kept or not.
     """
     labels, sizes = strongly_connected_components(offsets, heads)
-    if min_nodes is None:
+    if min_component_nodes is None:
         largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
         wanted = [c == largest for c in range(len(sizes))]
     else:
-        wanted = [size >= min_nodes for size in sizes]
+        wanted = [size >= min_component_nodes for size in sizes]
     return array("i", (u for u, c in enumerate(labels) if wanted[c])), labels
 
 
@@ -263,7 +323,9 @@ def keep_largest_strongly_connected_component(
     list[dict[int, list[list[float]]]],
     list[int],
 ]:
-    """Filter a GeoGraph-layout graph to keep only its largest strongly connected component."""
+    """Keep the largest strongly connected component of a graph in the layout of a
+    GeoGraph. Return `(graph, nodes, shapes, node_ids)` with the kept nodes only.
+    """
     kept, _ = keep_strongly_connected_components(
         *build_csr_from_adjacency_list(graph)[:2]
     )
@@ -281,18 +343,17 @@ def keep_largest_strongly_connected_component(
 
 
 class ContractedGraph(NamedTuple):
-    """Result of contracting degree-2 pass-through chains on a CSR graph.
-
-    Inherits from tuple for full backward-compatible unpacking:
-        kept, origins, heads, weights, member_offsets, members = contracted
+    """The result of `contract_chains`.
 
     Attributes:
-        kept (sequence[int]): Original node indices retained in the contracted graph.
-        origins (sequence[int]): Origin indices of the contracted arcs (indexed into kept).
-        heads (sequence[int]): Destination indices of the contracted arcs (indexed into kept).
-        weights (sequence[float]): Summed composite edge lengths in kilometres.
-        member_offsets (sequence[int]): Offsets into members for each contracted arc.
-        members (sequence[int]): Input arc indices comprising each contracted arc, in travel order.
+        kept: The nodes of the input graph that stay, in rising order.
+        origins: The origin of each contracted arc, as a position in `kept`.
+        heads: The head of each contracted arc, as a position in `kept`.
+        weights: The length of each contracted arc in km: the sum of its members.
+        member_offsets: Where the members of each contracted arc start in `members`.
+        members: The arcs of the input graph that each contracted arc replaces, in
+            travel order. The members of arc `i` are
+            `members[member_offsets[i]:member_offsets[i + 1]]`.
     """
 
     kept: array | memoryview
@@ -310,7 +371,7 @@ def contract_chains_python(
     node_modes: Sequence[int] | None = None,
     max_km_between_nodes: float = math.inf,
 ) -> ContractedGraph:
-    """Pure-Python implementation of CSR degree-2 chain contraction."""
+    """Pure-Python version of `contract_chains`."""
     n = len(offsets) - 1
     if len(weights) != len(heads) or (
         node_modes is not None and len(node_modes) != n
@@ -421,36 +482,26 @@ def contract_chains(
     node_modes: array | memoryview | None = None,
     max_km_between_nodes: float = math.inf,
 ) -> ContractedGraph:
-    """Contract degree-2 pass-through chains into composite weighted edges.
+    """Contract the chains of pass-through nodes of a graph.
 
-    A node is contracted away if it has degree 2 (two distinct neighbours,
-    either bidirectional with each or one-way through) and shares their mode.
-    Walking from its canonical end (a one-way start, or the end with the lower
-    index), a chain is segmented at the first node where the segment reaches
-    `max_km_between_nodes`, and any segment that would create a self-loop or duplicate arc is
-    split at its midpoint. Isolated cycles are walked from their lowest-index
-    node, which is retained.
+    The module docstring (*How a run goes*, step 3) gives the rule and an example. The
+    function walks a chain from its canonical end: the start of a one-way chain, or the
+    end with the lower index. A part of a chain that would give an arc from a node to
+    itself, or a second arc between two nodes, is split at its middle node. A cycle of
+    pass-through nodes is walked from its lowest node, which is kept.
 
-    Delegates to the C++ extension when available and inputs are arrays,
-    falling back to pure Python.
-
-    Parameters:
-        offsets (array[int32]): CSR row offsets of size `num_nodes + 1`.
-        heads (array[int32]): Target node indices of size `num_arcs`.
-        weights (array[float64]): Arc lengths in kilometres.
-        node_modes (array[uint8] | None): Optional per-node travel mode. If provided,
-            chains are never contracted across different modes.
-        max_km_between_nodes (float): Maximum length of a contracted composite segment in km.
-            Defaults to infinity (unlimited segment length).
+    Args:
+        offsets: The CSR offsets of the graph, one more than its nodes (int32).
+        heads: The head of each arc (int32).
+        weights: The length of each arc in km (float64).
+        node_modes: The mode of each node (uint8), or None. A chain is never contracted
+            across two modes.
+        max_km_between_nodes: The length in km at which a chain is cut. Along the chain,
+            an arc ends at the first node where it is this long or longer. So an arc can
+            be longer than this value, by less than the length of one input arc.
 
     Returns:
-        ContractedGraph: A namedtuple with fields:
-            - `kept`: Original node indices retained in the contracted graph.
-            - `origins`: Origin indices of the contracted arcs (indexed into `kept`).
-            - `heads`: Destination indices of the contracted arcs (indexed into `kept`).
-            - `weights`: Summed composite edge lengths in kilometres.
-            - `member_offsets`: Offsets into `members` for each contracted arc.
-            - `members`: Input arc indices comprising each contracted arc, in travel order.
+        A `ContractedGraph`.
     """
     if _cpp_contract_chains is not None and isinstance(
         offsets, (array, memoryview)
@@ -475,11 +526,20 @@ def simplify_shapes(
     endpoint_coords: array | memoryview,
     tolerance_meters: float,
 ) -> tuple[array | memoryview, array | memoryview]:
-    """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
+    """Simplify the shape of each arc with the Douglas-Peucker algorithm.
 
-    Drops intermediate shape points that fall within `tolerance_meters` metres of the
-    segment connecting the retained endpoints, calculated on a local flat-map
-    projection for each arc.
+    A shape point is dropped when it is within `tolerance_meters` of the line between the
+    two kept points around it. Distances are measured on a flat map around each arc.
+
+    Args:
+        shape_points: The shape points of all the arcs (int32 pairs, 1e-7 degree).
+        shape_offsets: Where the points of each arc start.
+        endpoint_coords: The latitude and the longitude of the two ends of each arc
+            (int32, four values per arc).
+        tolerance_meters: The tolerance, in meters.
+
+    Returns:
+        `(shape_points, shape_offsets)` of the simplified shapes.
     """
     if _cpp_simplify_shapes is not None and isinstance(
         shape_points, (array, memoryview)
@@ -493,11 +553,12 @@ def simplify_shapes(
 
 
 class NearNodes:
-    """
-    The nodes near a point, from their coordinates (`latitudes`, `longitudes`: sequences of degrees
-    once multiplied by `scale`, such as int32 at 1e-7 degree at the scale of the planet),
-    without a Python object per node: node indices by rows of 0.2 degree of latitude,
-    each sorted by longitude and searched by bisection.
+    """Find the nodes near a point, without one Python object per node.
+
+    `latitudes` and `longitudes` are sequences of numbers. A value times `scale` is in
+    degrees. For example, int32 values in units of 1e-7 degree take `scale=1e-7`. The
+    index groups the nodes in rows of 0.2 degree of latitude. In a row, the nodes are
+    sorted by longitude, and a search finds them by bisection.
     """
 
     def __init__(self, latitudes, longitudes, scale=1):
@@ -514,7 +575,9 @@ class NearNodes:
     def find_within(
         self, point: Sequence[float], km: float
     ) -> Iterator[tuple[float, int]]:
-        """`(km, node)` of each node within `km` of `point` ([latitude, longitude])."""
+        """Yield `(km, node)` for each node within `km` of `point`, a `[latitude, longitude]`
+        pair in degrees.
+        """
         lat, lon = point
         dlat = km / 110  # degrees: more than `km` (111.2 km per degree)
         cos = math.cos(math.radians(min(90, abs(lat) + dlat)))
@@ -547,22 +610,36 @@ class NearNodes:
 
     def find_nearest(
         self, point: Sequence[float], km: float
-    ) -> tuple[int | None, float]:
-        """`(node, km)` of the node nearest to `point` within `km` (ties: the lowest
-        node), or `(None, inf)`."""
-        d, i = min(self.find_within(point, km), default=(math.inf, None))
-        return i, d
+    ) -> tuple[float, int | None]:
+        """Return `(km, node)` for the node nearest to `point` within `km`, or
+        `(inf, None)` when there is none. When two nodes are as near, the lower one is
+        returned.
+        """
+        return min(self.find_within(point, km), default=(math.inf, None))
 
 
 class PieceArrays:
-    """The cut pieces of ways (`cut_polylines`) as growing columns: the source ids of
-    their ends (`origins`, `destinations`, int64) and the ends' coordinates (`ends`, int32
-    in 1e-7 degree, four per piece), `km` (float64), `directions` (int8, as polylines),
-    and their interior points (`points`, int32 pairs, piece `i`'s from `offsets[i]`),
-    each piece's drawing simplified at `tolerance_meters` metres (`simplify_shapes`, by
-    batches of BATCH pieces), or stored as it is with `tolerance_meters=None`. The columns are
-    `array`s, or files of `work_dir` read through memory maps; they hold the pieces up to
-    the last `flush`."""
+    """The pieces of the cut ways, stored as columns that grow.
+
+    A piece is the part of a way between two consecutive nodes (`cut_polylines`). Entry
+    `i` of each column describes piece `i`:
+
+    - `origins`, `destinations` (int64): the ids of its two ends in the source;
+    - `ends` (int32, four values per piece): the latitude and the longitude of its two
+      ends, in units of 1e-7 degree;
+    - `km` (float64): its length;
+    - `directions` (int8): its direction, as in a polyline (1, -1 or 0);
+    - `points` (int32 pairs) and `offsets`: its shape points. The points of piece `i` are
+      `points[2 * offsets[i]:2 * offsets[i + 1]]`.
+
+    `flush` simplifies the shapes of the new pieces to within `tolerance_meters`
+    (`simplify_shapes`) and stores them. `append` calls it every BATCH pieces.
+    `tolerance_meters=None` stores the shapes as they are.
+
+    Without `work_dir`, the columns are `array`s in memory. With `work_dir`, each column
+    is a file of that folder, read through a memory map. The columns hold the pieces up to
+    the last `flush`.
+    """
 
     BATCH = 10_000
     COLUMNS = dict(origins="q", destinations="q", ends="i", km="d")
@@ -602,7 +679,9 @@ class PieceArrays:
         endpoint_coords: Iterable[Sequence[float]],
         shape_points: Iterable[Sequence[float]],
     ) -> None:
-        """One piece; `endpoint_coords` and `shape_points`: [latitude, longitude] points in degrees."""
+        """Add one piece. `endpoint_coords` and `shape_points` are `[latitude, longitude]`
+        points in degrees.
+        """
         new = self._new
         new["origins"].append(origin_id)
         new["destinations"].append(destination_id)
@@ -620,7 +699,7 @@ class PieceArrays:
             self.flush()
 
     def flush(self) -> None:
-        """Simplify and store the drawings of the pieces appended since the last call."""
+        """Simplify and store the shapes of the pieces added since the last call."""
         new, starts = self._new, self._starts
         if self.tolerance_meters is not None:
             new["points"], starts = simplify_shapes(
@@ -650,20 +729,21 @@ class PieceArrays:
 def build_graph_from_pieces(
     pieces: PieceArrays,
 ) -> dict[str, array | memoryview]:
-    """Build a directed CSR network graph from polyline segments (`PieceArrays`).
+    """Build a graph from the pieces of ways.
 
-    Each polyline piece generates directed arcs according to its legal traversal
-    direction (bidirectional, one-way forward, or one-way reverse). Parallel arcs
-    between the same pair of nodes are resolved by retaining the shortest arc.
+    A two-way piece gives two arcs, and a one-way piece gives one arc in its direction.
+    Of several arcs between the same two nodes, the shortest is kept.
 
-    Used across all transportation networks (road, railway, and intermodal port networks).
-
-    Parameters:
-        pieces (PieceArrays): Growing columns of cut way pieces.
+    Args:
+        pieces: The pieces, as `osm.build_way_pieces` or `hubs.join` fill them.
 
     Returns:
-        dict[str, array]: CSR network representation containing offsets, heads,
-            weights, node_points, shape_offsets, shape_points, node_ids.
+        The graph as a dict of arrays: `offsets`, `heads`, `weights`, `node_points`,
+        `shape_offsets`, `shape_points` and `node_ids`. The module docstring describes
+        them.
+
+    Raises:
+        ValueError: Every piece joins a node to itself.
     """
     pieces.flush()
     piece, back = array("i"), array("b")
@@ -712,15 +792,25 @@ def assemble(
     graph: dict[str, array | memoryview],
     *,
     max_km_between_nodes: float,
-    min_nodes_per_strongly_connected_component: int | None,
+    min_component_nodes: int | None,
 ) -> dict[str, array]:
-    """The network file's arrays of `graph` (`build_graph_from_pieces`'s layout, with
-    `node_modes` if it has several modes): keep the components
-    (`keep_strongly_connected_components` with `min_nodes_per_strongly_connected_component`,
-    each one closed), contract the chains (`contract_chains` at `max_km_between_nodes`,
-    which never merges two modes), join their shapes (`build_chain_shapes`), and number the
-    nodes by mode, then along the Hilbert curve, as `GeoGraph.save_as_scgraph` does. Empties `graph`.
-    The component filter and the contraction log their counts at DEBUG.
+    """Turn a graph into the arrays of a network file.
+
+    The function runs steps 2 to 5 of the module docstring. It keeps the strongly
+    connected components, contracts the chains, joins the shapes of the contracted arcs,
+    and numbers the nodes by mode, then along the Hilbert curve.
+    `GeoGraph.save_as_scgraph` uses the same order. The first two steps log their counts
+    at DEBUG.
+
+    Args:
+        graph: The graph, as `build_graph_from_pieces` returns it, with `node_modes` if it
+            has several modes. The function empties this dict, to free its memory.
+        max_km_between_nodes: The length in km at which `contract_chains` cuts a chain.
+        min_component_nodes: The smallest number of nodes of a kept component. None keeps
+            only the largest component.
+
+    Returns:
+        The arrays of the network file, as `network_file.write` takes them.
     """
     with _log_step(
         logger,
@@ -730,7 +820,7 @@ def assemble(
         order = keep_strongly_connected_components(
             graph["offsets"],
             graph["heads"],
-            min_nodes_per_strongly_connected_component,
+            min_component_nodes,
         )
         given, graph = graph, _renumbered(graph, *order)
         given.clear()  # freed now, not when the caller lets it go: one copy at a time
@@ -782,9 +872,14 @@ def build_chain_shapes(
     member_offsets: Sequence[int],
     members: Sequence[int],
 ) -> tuple[array, array]:
-    """The shapes of the arcs that `contract_chains` gives for `graph`, as `(points,
-    offsets)` in its layout: the shapes of each arc's members in travel order, each
-    followed by the node it ends at, except the last."""
+    """Build the shape of each contracted arc.
+
+    The shape holds the shape points of each member, in travel order. Between two
+    members, it holds the point of the node that the contraction removed.
+
+    Returns:
+        `(points, offsets)`, as `shape_points` and `shape_offsets` of a graph.
+    """
     heads, node_points = graph["heads"], graph["node_points"]
     starts, line = graph["shape_offsets"], graph["shape_points"]
     points, offsets = array("i"), array("i", [0])
@@ -804,7 +899,7 @@ def _select_nodes(graph, nodes):
     `nodes` only. Node `nodes[i]` becomes node `i`.
 
     The arrays are `node_points`, then `node_ids` and `node_modes` if `graph` has
-    them. The network file writes the arrays in the order of the returned dict. This
+    them. `network_file.write` writes the arrays in the order of the returned dict. This
     order is fixed, so every run writes the same file.
     """
     # One view holds the latitudes and another the longitudes, without a copy.
@@ -822,8 +917,10 @@ def _select_nodes(graph, nodes):
 
 
 def _renumbered(graph, order, labels=None):
-    """`graph` with the nodes of `order` only, node `order[i]` becoming node `i`, its rows
-    sorted by head; with `labels`, only the arcs whose ends share one."""
+    """Return `graph` with the nodes of `order` only. Node `order[i]` becomes node `i`, and
+    the arcs of each node are sorted by head. With `labels`, an arc is kept only when its
+    two ends have the same label.
+    """
     new = array("i", [-1]) * (len(graph["offsets"]) - 1)
     for i, u in enumerate(order):
         new[u] = i

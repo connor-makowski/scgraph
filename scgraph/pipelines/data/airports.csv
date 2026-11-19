@@ -1,0 +1,1747 @@
+id,code,name,type,latitude,longitude,country
+115,BGSF,Kangerlussuaq International Airport,medium_airport,67.010446,-50.715294,GL
+117,BIAR,Akureyri International Airport,large_airport,65.656573,-18.072018,IS
+119,BIEG,Egilsstaðir Airport,medium_airport,65.283302,-14.4014,IS
+122,BIIS,Ísafjörður Airport,medium_airport,66.058098,-23.1353,IS
+123,BIKF,Keflavik International Airport,large_airport,63.985001,-22.6056,IS
+125,BIRK,Reykjavík Domestic Airport,medium_airport,64.128732,-21.93759,IS
+643,CAT4,Qualicum Beach Airport,medium_airport,49.337456,-124.393086,CA
+1293,CYLS,Barrie-Lake Simcoe Regional Airport,medium_airport,44.485056,-79.554663,CA
+1294,CNC3,Brampton-Caledon Airport,medium_airport,43.7603,-79.875,CA
+1673,CYBG,Saguenay-Bagotville Airport,medium_airport,48.330123,-70.992012,CA
+1675,CYBL,Campbell River Airport,medium_airport,49.950802,-125.271004,CA
+1682,CYBW,Calgary / Springbank Airport,medium_airport,51.103982,-114.369378,CA
+1686,CYCC,Cornwall Regional Airport,medium_airport,45.092637,-74.567724,CA
+1687,CYCD,Nanaimo Airport,medium_airport,49.05497,-123.869863,CA
+1716,CYEE,Huronia Airport,medium_airport,44.6833,-79.928299,CA
+1717,CYEG,Edmonton International Airport,large_airport,53.3097,-113.580002,CA
+1731,CYFD,Brantford Municipal Airport,medium_airport,43.131401,-80.342499,CA
+1763,CYHM,John C. Munro Hamilton International Airport,large_airport,43.171308,-79.929416,CA
+1768,CYHU,Montréal / Saint-Hubert Metropolitan Airport,medium_airport,45.517502,-73.416901,CA
+1770,CYHZ,Halifax / Stanfield International Airport,large_airport,44.880798,-63.508598,CA
+1780,CYJN,St Jean Airport,medium_airport,45.294399,-73.281097,CA
+1784,CYKA,Kamloops John Moose Fulton Field Regional Airport,medium_airport,50.703038,-120.448641,CA
+1787,CYKF,Region of Waterloo International Airport,medium_airport,43.4608,-80.378601,CA
+1808,CYLW,Kelowna International Airport,large_airport,49.9561,-119.377998,CA
+1820,CYMX,Montreal Mirabel International Airport,medium_airport,45.679501,-74.038696,CA
+1837,CYOO,Oshawa Executive Airport,medium_airport,43.922798,-78.894997,CA
+1839,CYOS,Owen Sound / Billy Bishop Regional Airport,medium_airport,44.590302,-80.837502,CA
+1840,CYOW,Ottawa Macdonald-Cartier International Airport,large_airport,45.322498,-75.669197,CA
+1842,CYPA,Prince Albert Glass Field,medium_airport,53.214199,-105.672997,CA
+1848,CYPK,Pitt Meadows Regional Airport,medium_airport,49.21488,-122.709294,CA
+1854,CYPQ,Peterborough Regional Airport,medium_airport,44.232251,-78.362053,CA
+1864,CYQB,Quebec Jean Lesage International Airport,large_airport,46.7911,-71.393303,CA
+1866,CYQF,Red Deer Regional Airport,medium_airport,52.182201,-113.893997,CA
+1867,CYQG,Windsor International Airport,large_airport,42.2756,-82.955597,CA
+1874,CYQQ,Comox Valley International Airport / CFB Comox,medium_airport,49.7108,-124.887001,CA
+1880,CYQW,North Battleford Airport,medium_airport,52.769409,-108.243742,CA
+1882,CYQY,Sydney / J.A. Douglas McCurdy Airport,medium_airport,46.161072,-60.049759,CA
+1893,CYRQ,Trois-Rivières Airport,medium_airport,46.352798,-72.679398,CA
+1908,CYSN,Niagara District Airport,medium_airport,43.191598,-79.171686,CA
+1919,CYTF,Alma Airport,medium_airport,48.5089,-71.641899,CA
+1924,CYTR,CFB Trenton,medium_airport,44.1189,-77.528099,CA
+1926,CYTZ,Billy Bishop Toronto City Airport,medium_airport,43.627852,-79.39553,CA
+1928,CYUL,Montreal / Pierre Elliott Trudeau International Airport,large_airport,45.467837,-73.742294,CA
+1931,CYUY,Rouyn Noranda Airport,medium_airport,48.2061,-78.835602,CA
+1936,CYVK,Vernon Regional Airport,medium_airport,50.246163,-119.330963,CA
+1941,CYVR,Vancouver International Airport,large_airport,49.193901,-123.183998,CA
+1946,CYWG,Winnipeg / James Armstrong Richardson International Airport,large_airport,49.91,-97.239899,CA
+1957,CYXE,Saskatoon John G. Diefenbaker International Airport,large_airport,52.170723,-106.700793,CA
+1967,CYXT,Northwest Regional Airport Terrace-Kitimat,medium_airport,54.468498,-128.576009,CA
+1968,CYXU,London International Airport,medium_airport,43.032845,-81.149003,CA
+1969,CYXX,Abbotsford International Airport,medium_airport,49.025299,-122.361,CA
+1972,CYYB,North Bay Jack Garland Airport,medium_airport,46.363602,-79.422798,CA
+1973,CYYC,Calgary International Airport,large_airport,51.118822,-114.009933,CA
+1976,CYYF,Penticton Regional Airport,medium_airport,49.4631,-119.601997,CA
+1977,CYYG,Charlottetown Airport,medium_airport,46.288911,-63.125174,CA
+1979,CYYJ,Victoria International Airport,large_airport,48.647201,-123.427792,CA
+1990,CYYZ,Toronto Pearson International Airport,large_airport,43.675935,-79.629421,CA
+2001,CYZV,Sept-Îles Airport,medium_airport,50.223301,-66.265602,CA
+2008,CZBB,Boundary Bay Airport,medium_airport,49.074338,-123.006877,CA
+2010,CZBF,Bathurst Airport,medium_airport,47.6297,-65.738899,CA
+2011,CZBM,Bromont (Roland Désourdy) Airport,medium_airport,45.290798,-72.741402,CA
+2050,DAAG,Houari Boumediene Airport,large_airport,36.693886,3.214531,DZ
+2071,DAOO,Oran Es-Sénia (Ahmed Ben Bella) International Airport,large_airport,35.620648,-0.622486,DZ
+2087,DBBB,Cotonou Cadjehoun International Airport,large_airport,6.35723,2.38435,BJ
+2090,DGAA,Kotoka International Airport,large_airport,5.60519,-0.166786,GH
+2096,DIAP,Félix-Houphouët-Boigny International Airport,large_airport,5.26139,-3.92629,CI
+2104,DNAA,Nnamdi Azikiwe International Airport,large_airport,9.00679,7.26317,NG
+2118,DNMM,Murtala Muhammed International Airport,large_airport,6.57737,3.32116,NG
+2125,DRRN,Diori Hamani International Airport,large_airport,13.4815,2.18361,NE
+2132,DTMB,Monastir Habib Bourguiba International Airport,medium_airport,35.758099,10.7547,TN
+2133,DTTA,Tunis Carthage International Airport,large_airport,36.851002,10.2272,TN
+2139,DTTJ,Djerba Zarzis International Airport,large_airport,33.873719,10.7773,TN
+2152,EBAW,Antwerp International Airport (Deurne),medium_airport,51.190667,4.463153,BE
+2155,EBBR,Brussels Airport,large_airport,50.901402,4.48444,BE
+2157,EBCI,Brussels South Charleroi Airport,large_airport,50.461963,4.459562,BE
+2158,EBCV,Chièvres Air Base,medium_airport,50.575802,3.831,BE
+2161,EBKT,Kortrijk-Wevelgem International Airport,medium_airport,50.818878,3.209551,BE
+2162,EBLG,Liège Airport,medium_airport,50.638574,5.443897,BE
+2163,EBOS,Ostend-Bruges International Airport,large_airport,51.1998,2.874673,BE
+2210,EDDC,Dresden Airport,large_airport,51.134123,13.767831,DE
+2211,EDDE,Erfurt-Weimar Airport,large_airport,50.978281,10.960713,DE
+2212,EDDF,Frankfurt Main Airport,large_airport,50.026706,8.55835,DE
+2213,EDDG,Münster Osnabrück Airport,large_airport,52.133816,7.688482,DE
+2214,EDDH,Hamburg Helmut Schmidt Airport,large_airport,53.630402,9.98823,DE
+2216,EDDK,Cologne Bonn Airport,large_airport,50.865898,7.14274,DE
+2217,EDDL,Düsseldorf Airport,large_airport,51.289501,6.76678,DE
+2218,EDDM,Munich Airport,large_airport,48.353802,11.7861,DE
+2219,EDDN,Nuremberg Airport,large_airport,49.498699,11.078056,DE
+2220,EDDP,Leipzig/Halle Airport,large_airport,51.420657,12.232705,DE
+2221,EDDR,Saarbrücken Airport,medium_airport,49.214545,7.109735,DE
+2222,EDDS,Stuttgart Airport,large_airport,48.689899,9.22196,DE
+2224,EDDV,Hannover Airport,large_airport,52.461102,9.68508,DE
+2225,EDDW,Bremen Airport,large_airport,53.046786,8.78932,DE
+2226,EDFE,Frankfurt-Egelsbach Airport,medium_airport,49.96,8.643043,DE
+2227,EDFH,Frankfurt-Hahn Airport,large_airport,49.946353,7.261734,DE
+2228,EDFM,Mannheim-City Airport,medium_airport,49.473057,8.514167,DE
+2231,EDFZ,Mainz-Finthen Airfield,medium_airport,49.967499,8.147222,DE
+2234,EDHI,Hamburg-Finkenwerder Airport,medium_airport,53.535278,9.835556,DE
+2236,EDHL,Lübeck Blankensee Airport,medium_airport,53.805401,10.7192,DE
+2237,EDJA,Memmingen Allgau Airport,large_airport,47.988092,10.238248,DE
+2243,EDLN,Mönchengladbach Airport,medium_airport,51.230278,6.504444,DE
+2244,EDLP,Paderborn Lippstadt Airport,large_airport,51.612527,8.617459,DE
+2246,EDLV,Weeze (Niederrhein) Airport,large_airport,51.601362,6.141228,DE
+2247,EDLW,Dortmund Airport,large_airport,51.518299,7.61224,DE
+2248,EDMA,Augsburg Airport,medium_airport,48.425278,10.931667,DE
+2252,EDMO,Oberpfaffenhofen Airport,medium_airport,48.081402,11.2831,DE
+2256,EDNY,Bodensee Airport Friedrichshafen,large_airport,47.671299,9.51149,DE
+2263,EDQM,Hof-Plauen Airport,medium_airport,50.288544,11.852876,DE
+2270,EDSB,Karlsruhe Baden-Baden Airport,large_airport,48.7794,8.0805,DE
+2277,EDTM,Mengen-Hohentengen Airfield,medium_airport,48.05389,9.372778,DE
+2278,EDTY,Adolf Würth Airport,medium_airport,49.118332,9.783889,DE
+2284,EDVE,Braunschweig-Wolfsburg Airport,medium_airport,52.319199,10.5561,DE
+2285,EDVK,Kassel Airport,large_airport,51.418395,9.391638,DE
+2296,EDXW,Westerland Sylt Airport,medium_airport,54.9132,8.34047,DE
+2299,EEKE,Kuressaare Airport,medium_airport,58.2299,22.509501,EE
+2301,EETN,Lennart Meri Tallinn Airport,large_airport,59.413246,24.83264,EE
+2307,EFHK,Helsinki Vantaa Airport,large_airport,60.318363,24.963341,FI
+2314,EFIV,Ivalo Airport,large_airport,68.6073,27.4053,FI
+2316,EFJY,Jyväskylä Airport,medium_airport,62.399502,25.678301,FI
+2324,EFKS,Kuusamo Airport,medium_airport,65.987602,29.239401,FI
+2325,EFKT,Kittilä International Airport,large_airport,67.700996,24.8468,FI
+2326,EFKU,Kuopio Airport,large_airport,63.007099,27.7978,FI
+2330,EFMA,Mariehamn Airport,medium_airport,60.1222,19.898199,FI
+2334,EFOU,Oulu Airport,large_airport,64.930099,25.354601,FI
+2341,EFRO,Rovaniemi Airport,large_airport,66.563327,25.829751,FI
+2347,EFTP,Tampere-Pirkkala Airport,large_airport,61.414101,23.604401,FI
+2349,EFTU,Turku Airport,large_airport,60.514099,22.2628,FI
+2385,EGAA,Belfast International Airport,large_airport,54.657501,-6.21583,GB
+2387,EGAC,George Best Belfast City Airport,medium_airport,54.618099,-5.8725,GB
+2389,EGBB,Birmingham Airport,large_airport,52.453899,-1.74803,GB
+2392,EGBJ,Gloucestershire Airport,medium_airport,51.894199,-2.16722,GB
+2398,EGCC,Manchester Airport,large_airport,53.349375,-2.279521,GB
+2404,EGHQ,Cornwall Airport Newquay,medium_airport,50.440601,-4.99541,GB
+2408,EGDR,RNAS Culdrose,medium_airport,50.086102,-5.25571,GB
+2415,EGFF,Cardiff International Airport,large_airport,51.396702,-3.34333,GB
+2417,EGGD,Bristol Airport,large_airport,51.382326,-2.716453,GB
+2418,EGGP,Liverpool John Lennon Airport,large_airport,53.334863,-2.849637,GB
+2419,EGGW,London Luton Airport,large_airport,51.874699,-0.368333,GB
+2421,EGHH,Bournemouth Airport,medium_airport,50.780483,-1.839576,GB
+2422,EGHI,Southampton Airport,medium_airport,50.950298,-1.3568,GB
+2424,EGJA,Alderney Airport,medium_airport,49.706104,-2.21472,GG
+2425,EGJB,Guernsey Airport,medium_airport,49.435001,-2.60197,GG
+2426,EGJJ,Jersey Airport,medium_airport,49.207901,-2.19551,JE
+2428,EGKB,London Biggin Hill Airport,medium_airport,51.330799,0.0325,GB
+2429,EGKK,London Gatwick Airport,large_airport,51.148744,-0.185739,GB
+2430,EGLC,London City Airport,medium_airport,51.505299,0.055278,GB
+2431,EGLF,Farnborough Airport,medium_airport,51.275799,-0.776333,GB
+2433,EGLK,Blackbushe Airport,medium_airport,51.323898,-0.8475,GB
+2434,EGLL,London Heathrow Airport,large_airport,51.470748,-0.459909,GB
+2435,EGMC,London Southend Airport,medium_airport,51.570562,0.693627,GB
+2442,EGNJ,Humberside Airport,medium_airport,53.576152,-0.34954,GB
+2443,EGNL,Barrow Walney Island Airport,medium_airport,54.128611,-3.2675,GB
+2444,EGNM,Leeds Bradford Airport,large_airport,53.865898,-1.66057,GB
+2446,EGNR,Hawarden Airport,medium_airport,53.178101,-2.97778,GB
+2447,EGNS,Isle of Man Airport,large_airport,54.083081,-4.623871,IM
+2448,EGNT,Newcastle International Airport,large_airport,55.037958,-1.689577,GB
+2449,EGNV,Teesside International Airport,medium_airport,54.509201,-1.42941,GB
+2450,EGNX,East Midlands Airport,large_airport,52.8311,-1.32806,GB
+2458,EGPC,Wick John O'Groats Airport,medium_airport,58.4589,-3.09306,GB
+2459,EGPD,Aberdeen International Airport,large_airport,57.2019,-2.19778,GB
+2460,EGPE,Inverness Airport,medium_airport,57.5425,-4.0475,GB
+2461,EGPF,Glasgow Airport,large_airport,55.871899,-4.43306,GB
+2462,EGPH,Edinburgh Airport,large_airport,55.950145,-3.372288,GB
+2464,EGPK,Glasgow Prestwick Airport,large_airport,55.501499,-4.577182,GB
+2475,EGSH,Norwich Airport,medium_airport,52.6758,1.28278,GB
+2476,EGSS,London Stansted Airport,large_airport,51.884998,0.235,GB
+2481,EGTE,Exeter International Airport,medium_airport,50.734261,-3.413984,GB
+2483,EGTK,London Oxford Airport,medium_airport,51.836899,-1.32,GB
+2488,EGUN,RAF Mildenhall,medium_airport,52.3619,0.486406,GB
+2493,EGVN,RAF Brize Norton,medium_airport,51.75,-1.58362,GB
+2496,EGWU,RAF Northolt,medium_airport,51.553001,-0.418167,GB
+2513,EHAM,Amsterdam Airport Schiphol,large_airport,52.308601,4.76389,NL
+2515,EHBK,Maastricht Aachen Airport,large_airport,50.911087,5.769401,NL
+2518,EHEH,Eindhoven Airport,large_airport,51.4501,5.37453,NL
+2519,EHGG,Groningen Airport Eelde,large_airport,53.119107,6.577652,NL
+2520,EHGR,Gilze Rijen Air Base,medium_airport,51.567402,4.93183,NL
+2521,EHKD,De Kooy Airfield / Den Helder Naval Air Station,medium_airport,52.923401,4.78062,NL
+2522,EHLE,Lelystad Airport,medium_airport,52.453188,5.514622,NL
+2523,EHLW,Leeuwarden Air Base,medium_airport,53.2286,5.76056,NL
+2524,EHRD,Rotterdam The Hague Airport,large_airport,51.956902,4.43722,NL
+2528,EHVK,Volkel Air Base,medium_airport,51.657222,5.707778,NL
+2530,EICK,Cork International Airport,large_airport,51.841301,-8.49111,IE
+2532,EIDL,Donegal Airport,medium_airport,55.044201,-8.341,IE
+2533,EIDW,Dublin Airport,large_airport,53.428713,-6.262121,IE
+2534,EIKN,Ireland West Airport Knock,large_airport,53.910439,-8.817002,IE
+2535,EIKY,Kerry Airport,medium_airport,52.180901,-9.52378,IE
+2537,EINN,Shannon Airport,large_airport,52.702,-8.92482,IE
+2539,EIWF,Waterford Airport,medium_airport,52.187199,-7.08696,IE
+2540,EKAH,Aarhus Airport,large_airport,56.303331,10.618286,DK
+2541,EKBI,Billund Airport,large_airport,55.740335,9.157019,DK
+2542,EKCH,Copenhagen Kastrup Airport,large_airport,55.617901,12.656,DK
+2543,EKEB,Esbjerg Airport,medium_airport,55.525902,8.5534,DK
+2549,EKOD,Odense Hans Christian Andersen Airport,large_airport,55.475307,10.327206,DK
+2551,EKRK,Copenhagen Roskilde Airport,medium_airport,55.585602,12.1314,DK
+2552,EKRN,Bornholm Airport,medium_airport,55.063301,14.7596,DK
+2553,EKSB,Sønderborg Airport,medium_airport,54.964401,9.79173,DK
+2558,EKVD,Kolding Vamdrup Airfield,medium_airport,55.436298,9.33092,DK
+2559,EKVG,Vágar Airport,large_airport,62.063256,-7.275782,FO
+2562,EKYT,Aalborg Airport,large_airport,57.094763,9.84993,DK
+2563,ELLX,Luxembourg-Findel International Airport,large_airport,49.626845,6.212134,LU
+2564,ENAL,Ålesund Airport,large_airport,62.560443,6.110845,NO
+2565,ENAN,"Andøya Airport, Andenes",medium_airport,69.295193,16.139379,NO
+2566,ENAT,Alta Airport,medium_airport,69.976097,23.3717,NO
+2568,ENBN,"Brønnøysund Airport, Brønnøy",medium_airport,65.461098,12.2175,NO
+2569,ENBO,Bodø Airport,large_airport,67.269203,14.3653,NO
+2570,ENBR,"Bergen Airport, Flesland",large_airport,60.2934,5.21814,NO
+2572,ENCN,Kristiansand Airport,large_airport,58.204201,8.08537,NO
+2574,ENDU,Bardufoss Airport,medium_airport,69.055801,18.5404,NO
+2575,ENEV,Harstad/Narvik Airport,large_airport,68.491302,16.678101,NO
+2577,ENFL,Florø Airport,medium_airport,61.583599,5.02472,NO
+2578,ENGM,Oslo-Gardermoen International Airport,large_airport,60.193901,11.1004,NO
+2579,ENHD,"Haugesund Airport, Karmøy",medium_airport,59.345299,5.20836,NO
+2581,ENKB,"Kristiansund Airport, Kvernberget",medium_airport,63.111801,7.82452,NO
+2583,ENKR,"Kirkenes Airport, Høybuktmoen",medium_airport,69.7258,29.8913,NO
+2585,ENML,"Molde Airport, Årø",medium_airport,62.744701,7.2625,NO
+2586,ENMS,"Mosjøen Airport, Kjærstad",medium_airport,65.783997,13.2149,NO
+2587,ENNA,"Lakselv Airport, Banak",medium_airport,70.068802,24.973499,NO
+2588,ENNO,Notodden Airport,medium_airport,59.565071,9.213152,NO
+2589,ENOL,Ørland Airport,medium_airport,63.698898,9.604,NO
+2593,ENSB,"Svalbard Airport, Longyear",medium_airport,78.246101,15.4656,NO
+2594,ENSN,Skien Airport,medium_airport,59.185001,9.56694,NO
+2597,ENSS,"Vardø Airport, Svartnes",medium_airport,70.3554,31.044901,NO
+2598,ENST,"Sandnessjøen Airport, Stokka",medium_airport,65.956802,12.4689,NO
+2599,ENTC,Tromsø Airport,large_airport,69.683296,18.9189,NO
+2600,ENTO,"Sandefjord Airport, Torp",large_airport,59.186699,10.2586,NO
+2601,ENVA,"Trondheim Airport, Værnes",large_airport,63.457802,10.924,NO
+2602,ENZV,"Stavanger Airport, Sola",large_airport,58.876701,5.63778,NO
+2604,EPBY,Ignacy Jan Paderewski Bydgoszcz Airport,medium_airport,53.096802,17.977699,PL
+2608,EPGD,Gdańsk Lech Wałęsa Airport,large_airport,54.377602,18.4662,PL
+2609,EPKK,Kraków John Paul II International Airport,large_airport,50.077702,19.7848,PL
+2613,EPKT,Katowice Wojciech Korfanty International Airport,large_airport,50.476015,19.080705,PL
+2616,EPLL,Łódź Władysław Reymont Airport,large_airport,51.721901,19.3981,PL
+2622,EPMO,Warsaw Modlin Airport,large_airport,52.451099,20.6518,PL
+2625,EPPO,Poznań-Ławica Airport,large_airport,52.421598,16.823359,PL
+2629,EPRZ,Rzeszów-Jasionka Airport,large_airport,50.109791,22.024155,PL
+2630,EPSC,Solidarity Szczecin–Goleniów Airport,large_airport,53.584702,14.9022,PL
+2635,EPSY,Olsztyn-Mazury Airport,medium_airport,53.481899,20.9377,PL
+2637,EPWA,Warsaw Chopin Airport,large_airport,52.165699,20.9671,PL
+2638,EPWR,Copernicus Wrocław Airport,large_airport,51.103719,16.882096,PL
+2639,EPZG,Zielona Góra-Babimost Airport,medium_airport,52.1385,15.7986,PL
+2646,ESDF,Ronneby Airport,medium_airport,56.266701,15.265,SE
+2648,ESGG,Göteborg Landvetter Airport,large_airport,57.6628,12.2798,SE
+2649,ESGJ,Jönköping Airport,medium_airport,57.757599,14.0687,SE
+2660,ESKN,Stockholm Skavsta Airport,large_airport,58.789656,16.911479,SE
+2669,ESMS,Malmö Sturup Airport,large_airport,55.535564,13.376327,SE
+2670,ESMT,Halmstad Airport,medium_airport,56.691101,12.8202,SE
+2676,ESNG,Gällivare Airport,medium_airport,67.132401,20.8146,SE
+2682,ESNN,Sundsvall-Härnösand Airport,medium_airport,62.528099,17.443899,SE
+2685,ESNQ,Kiruna Airport,large_airport,67.821999,20.3368,SE
+2687,ESNS,Skellefteå Airport,medium_airport,64.624802,21.0769,SE
+2689,ESNU,Umeå Airport,large_airport,63.791801,20.282801,SE
+2693,ESOE,Örebro Airport,medium_airport,59.223701,15.038,SE
+2696,ESOW,Stockholm Västerås Airport,large_airport,59.589401,16.6336,SE
+2697,ESPA,Luleå Airport,large_airport,65.5438,22.122,SE
+2701,ESSA,Stockholm-Arlanda Airport,large_airport,59.64849,17.928829,SE
+2702,ESSB,Stockholm-Bromma Airport,medium_airport,59.354401,17.9417,SE
+2707,ESSP,Norrköping Airport,medium_airport,58.5863,16.250601,SE
+2709,ESSU,Eskilstuna Airport,medium_airport,59.351101,16.708401,SE
+2710,ESSV,Visby Airport,large_airport,57.6628,18.346201,SE
+2711,ESTA,Ängelholm-Helsingborg Airport,medium_airport,56.296101,12.8471,SE
+2718,ETAR,Ramstein Air Base,medium_airport,49.436901,7.60028,DE
+2747,ETOU,Wiesbaden Army Airfield,medium_airport,50.049801,8.3254,DE
+2753,ETSI,Ingolstadt Manching Airport,medium_airport,48.715698,11.534,DE
+2758,EVRA,Riga International Airport,large_airport,56.920752,23.970711,LV
+2760,EYKA,Kaunas International Airport,large_airport,54.963965,24.08582,LT
+2766,EYVI,Vilnius International Airport,large_airport,54.634102,25.285801,LT
+2775,FACT,Cape Town International Airport,large_airport,-33.97403,18.604333,ZA
+2782,FAGC,Grand Central Airport,medium_airport,-25.9863,28.1401,ZA
+2784,FAGM,Rand Airport,medium_airport,-26.2425,28.151199,ZA
+2800,FALA,Lanseria International Airport,large_airport,-25.938964,27.926642,ZA
+2868,FCBB,Maya-Maya International Airport,large_airport,-4.2517,15.253,CG
+2878,FIMP,Sir Seewoosagur Ramgoolam International Airport,large_airport,-20.430201,57.683601,MU
+2882,FKKD,Douala International Airport,large_airport,4.00608,9.71948,CM
+2890,FKYS,Yaoundé Nsimalen International Airport,large_airport,3.72256,11.5533,CM
+2904,FMCZ,Dzaoudzi Pamandzi International Airport,large_airport,-12.809319,45.281815,YT
+2905,FMEE,Roland Garros Airport,large_airport,-20.890087,55.518894,RE
+2908,FMMI,Ivato International Airport,large_airport,-18.7969,47.478802,MG
+2942,FNLU,Quatro de Fevereiro International Airport,large_airport,-8.85837,13.2312,AO
+3039,FYWH,Hosea Kutako International Airport,large_airport,-22.4799,17.4709,NA
+3066,GABS,Modibo Keita International Airport,large_airport,12.5335,-7.94994,ML
+3076,GBYD,Banjul International Airport,large_airport,13.338,-16.652201,GM
+3077,GCFV,Fuerteventura Airport,large_airport,28.4527,-13.8638,ES
+3079,GCHI,El Hierro Airport,medium_airport,27.8148,-17.8871,ES
+3080,GCLA,La Palma Airport,medium_airport,28.626499,-17.7556,ES
+3081,GCLP,Gran Canaria Airport,large_airport,27.9319,-15.3866,ES
+3082,GCRR,César Manrique-Lanzarote Airport,large_airport,28.945499,-13.6052,ES
+3083,GCTS,Tenerife Sur Airport,large_airport,28.0445,-16.5725,ES
+3084,GCXO,Tenerife Norte-Ciudad de La Laguna Airport,large_airport,28.482752,-16.341707,ES
+3093,GEML,Melilla Airport,medium_airport,35.2798,-2.95626,ES
+3097,GGOV,Osvaldo Vieira International Airport,large_airport,11.894262,-15.653596,GW
+3099,GLRB,Roberts International Airport,large_airport,6.23379,-10.3623,LR
+3101,GMAD,Al Massira Airport,large_airport,30.322478,-9.412003,MA
+3103,GMFF,Fes Saïss International Airport,large_airport,33.927299,-4.97796,MA
+3106,GMFM,Bassatine Airport,medium_airport,33.879101,-5.51512,MA
+3107,GMFO,Oujda Angads Airport,large_airport,34.789558,-1.926041,MA
+3109,GMME,Rabat-Salé Airport,large_airport,34.051498,-6.75152,MA
+3113,GMMN,Mohammed V International Airport,large_airport,33.3675,-7.58997,MA
+3114,GMMW,Nador Al Aaroui International Airport,large_airport,34.9888,-3.02821,MA
+3115,GMMX,Marrakesh Menara Airport,large_airport,31.604807,-8.035788,MA
+3116,GMMY,Kenitra Air Base,medium_airport,34.298901,-6.59588,MA
+3119,GMTA,Cherif Al Idrissi Airport,medium_airport,35.177101,-3.83952,MA
+3121,GMTT,Tangier Ibn Battuta Airport,large_airport,35.731741,-5.921459,MA
+3122,GOGG,Ziguinchor Airport,medium_airport,12.55559,-16.283298,SN
+3138,GQPP,Nouadhibou International Airport,large_airport,20.932404,-17.030199,MR
+3150,GVAC,Amílcar Cabral International Airport,large_airport,16.7414,-22.9494,CV
+3153,GVNP,Nelson Mandela International Airport,large_airport,14.941126,-23.484728,CV
+3157,HAAB,Addis Ababa Bole International Airport,large_airport,8.97789,38.799301,ET
+3179,HEAZ,Almaza Air Force Base,medium_airport,30.091702,31.359739,EG
+3180,HEBA,Alexandria International Airport,large_airport,30.93249,29.696437,EG
+3183,HECA,Cairo International Airport,large_airport,30.111534,31.396694,EG
+3186,HEGN,Hurghada International Airport,large_airport,27.176776,33.796692,EG
+3192,HEMA,Marsa Alam International Airport,large_airport,25.555548,34.59245,EG
+3198,HESH,Sharm El Sheikh International Airport,large_airport,27.977272,34.394717,EG
+3206,HKJK,Jomo Kenyatta International Airport,large_airport,-1.318886,36.928233,KE
+3213,HKMO,Moi International Airport,large_airport,-4.03483,39.5942,KE
+3215,HKNW,Nairobi Wilson Airport,medium_airport,-1.32172,36.8148,KE
+3224,HLLM,Mitiga International Airport,large_airport,32.89177,13.287878,LY
+3237,HRYR,Kigali International Airport,large_airport,-1.96863,30.1395,RW
+3254,HTKJ,Kilimanjaro International Airport,large_airport,-3.427049,37.07353,TZ
+3260,HTZA,Abeid Amani Karume International Airport,large_airport,-6.22202,39.224899,TZ
+3263,HUEN,Entebbe International Airport,large_airport,0.042386,32.443501,UG
+3356,KABE,Lehigh Valley International Airport,medium_airport,40.651773,-75.442797,US
+3357,KABI,Abilene Regional Airport,medium_airport,32.411301,-99.6819,US
+3358,KABR,Aberdeen Regional Airport,medium_airport,45.4491,-98.421799,US
+3359,KABY,Southwest Georgia Regional Airport,medium_airport,31.532946,-84.196215,US
+3360,KACK,Nantucket Memorial Airport,medium_airport,41.253101,-70.060204,US
+3361,KACT,Waco Regional Airport,medium_airport,31.6113,-97.230499,US
+3362,KACV,California Redwood Coast-Humboldt County Airport,medium_airport,40.978101,-124.109,US
+3363,KACY,Atlantic City International Airport,medium_airport,39.456201,-74.577511,US
+3364,KADW,Joint Base Andrews,medium_airport,38.810799,-76.866997,US
+3365,KAEX,Alexandria International Airport,medium_airport,31.325828,-92.546702,US
+3366,KAFW,Perot Field/Fort Worth Alliance Airport,medium_airport,32.99044,-97.31947,US
+3367,KAGC,Allegheny County Airport,medium_airport,40.354401,-79.930199,US
+3368,KAGS,Augusta Regional At Bush Field,medium_airport,33.3699,-81.9645,US
+3369,KAHN,Athens Ben Epps Airport,medium_airport,33.948842,-83.325634,US
+3371,KALB,Albany International Airport,large_airport,42.748299,-73.801697,US
+3374,KALN,St Louis Regional Airport,medium_airport,38.890301,-90.045998,US
+3375,KALO,Waterloo Regional Airport,medium_airport,42.557098,-92.400299,US
+3376,KALW,Walla Walla Regional Airport,medium_airport,46.094898,-118.288002,US
+3377,KAMA,Rick Husband Amarillo International Airport,medium_airport,35.217857,-101.706444,US
+3378,KANB,Anniston Regional Airport,medium_airport,33.5882,-85.8581,US
+3379,KAND,Anderson Regional Airport,medium_airport,34.494598,-82.709396,US
+3380,KAOO,Altoona Blair County Airport,medium_airport,40.296398,-78.32,US
+3382,KAPN,Alpena County Regional Airport,medium_airport,45.078098,-83.560303,US
+3383,KART,Watertown International Airport,medium_airport,43.991901,-76.021698,US
+3384,KATL,Hartsfield Jackson Atlanta International Airport,large_airport,33.6367,-84.428101,US
+3385,KATY,Watertown Regional Airport,medium_airport,44.914001,-97.154701,US
+3386,KAUS,Austin Bergstrom International Airport,large_airport,30.197535,-97.662015,US
+3387,KAVL,Asheville Regional Airport,medium_airport,35.435488,-82.541853,US
+3388,KAVP,Wilkes-Barre/Scranton International Airport,medium_airport,41.337064,-75.724232,US
+3390,KAZO,Kalamazoo/Battle Creek International Airport,medium_airport,42.232105,-85.549637,US
+3391,KBAB,Beale Air Force Base,medium_airport,39.136101,-121.436996,US
+3393,KBAF,Westfield-Barnes Regional Airport,medium_airport,42.157799,-72.715599,US
+3394,KBAK,Columbus Municipal Airport,medium_airport,39.262386,-85.895576,US
+3396,KBDL,Bradley International Airport,large_airport,41.938555,-72.688016,US
+3397,KBDR,Igor I Sikorsky Memorial Airport,medium_airport,41.163502,-73.126198,US
+3398,KBED,Laurence G Hanscom Field,medium_airport,42.470001,-71.289001,US
+3399,KBFD,Bradford Regional Airport,medium_airport,41.803101,-78.640099,US
+3400,KBFF,Western Neb. Rgnl/William B. Heilig Airport,medium_airport,41.874001,-103.596001,US
+3401,KBFI,King County International Airport - Boeing Field,medium_airport,47.527042,-122.29995,US
+3402,KBFL,Meadows Field,medium_airport,35.433601,-119.056999,US
+3403,KBFM,Mobile Downtown Airport,medium_airport,30.626801,-88.0681,US
+3404,KBGM,Greater Binghamton/Edwin A Link field,medium_airport,42.208698,-75.979797,US
+3405,KBGR,Bangor International Airport,medium_airport,44.806364,-68.826668,US
+3406,KBHM,Birmingham-Shuttlesworth International Airport,large_airport,33.562877,-86.750712,US
+3408,KBIL,Billings Logan International Airport,medium_airport,45.808932,-108.541242,US
+3409,KBIS,Bismarck Municipal Airport,medium_airport,46.772734,-100.746874,US
+3411,KBJC,Rocky Mountain Metropolitan Airport,medium_airport,39.908798,-105.116997,US
+3413,KBKF,Buckley Space Force Base,medium_airport,39.701698,-104.751999,US
+3414,KBKL,Burke Lakefront Airport,medium_airport,41.517502,-81.683296,US
+3415,KBKW,Raleigh County Memorial Airport,medium_airport,37.7873,-81.124199,US
+3416,KBLI,Bellingham International Airport,medium_airport,48.792801,-122.538002,US
+3417,KBLV,Scott AFB/Midamerica Airport,medium_airport,38.5452,-89.835197,US
+3418,KBMG,Monroe County Airport,medium_airport,39.146,-86.616699,US
+3419,KBMI,Central Illinois Regional Airport at Bloomington-Normal,medium_airport,40.4771,-88.915901,US
+3420,KBNA,Nashville International Airport,large_airport,36.1245,-86.6782,US
+3421,KBOI,Boise Air Terminal/Gowen Field,large_airport,43.5644,-116.223,US
+3422,KBOS,Boston Logan International Airport,large_airport,42.36197,-71.0079,US
+3423,KBPT,Jack Brooks Regional Airport,medium_airport,29.9508,-94.020699,US
+3424,KBQK,Brunswick Golden Isles Airport,medium_airport,31.258801,-81.466499,US
+3425,KBRL,Southeast Iowa Regional Airport,medium_airport,40.783199,-91.125504,US
+3426,KBRO,Brownsville South Padre Island International Airport,medium_airport,25.907238,-97.425235,US
+3428,KBTM,Bert Mooney Airport,medium_airport,45.9548,-112.497002,US
+3429,KBTR,Baton Rouge Metropolitan Airport,medium_airport,30.533199,-91.149597,US
+3430,KBTV,Patrick Leahy Burlington International Airport,medium_airport,44.471901,-73.153297,US
+3431,KBUF,Buffalo Niagara International Airport,large_airport,42.940498,-78.732201,US
+3432,KBUR,Hollywood Burbank/Bob Hope Airport,large_airport,34.202834,-118.35805,US
+3433,KBVY,Beverly Regional Airport,medium_airport,42.584202,-70.916496,US
+3435,KBWI,Baltimore/Washington International Thurgood Marshall Airport,large_airport,39.1754,-76.668297,US
+3437,KBZN,Bozeman Yellowstone International Airport,medium_airport,45.778853,-111.153711,US
+3438,KCAE,Columbia Metropolitan Airport,medium_airport,33.938172,-81.123022,US
+3439,KCAK,Akron Canton Regional Airport,medium_airport,40.9161,-81.4422,US
+3442,KCDC,Cedar City Regional Airport,medium_airport,37.701,-113.098999,US
+3443,KCEC,Jack Mc Namara Field Airport,medium_airport,41.778929,-124.236403,US
+3445,KCEW,Bob Sikes Airport,medium_airport,30.778799,-86.522102,US
+3446,KCGF,Cuyahoga County Airport,medium_airport,41.565102,-81.486397,US
+3447,KCGI,Cape Girardeau Regional Airport,medium_airport,37.2253,-89.570801,US
+3448,KCHA,Chattanooga Metropolitan Airport (Lovell Field),medium_airport,35.035301,-85.203796,US
+3449,KCHO,Charlottesville Albemarle Airport,medium_airport,38.138599,-78.452904,US
+3450,KCHS,Charleston International Airport,large_airport,32.896159,-80.038151,US
+3451,KCID,The Eastern Iowa Airport,medium_airport,41.884701,-91.7108,US
+3452,KCIU,Chippewa County International Airport,medium_airport,46.242038,-84.462082,US
+3453,KCKB,North Central West Virginia Airport,medium_airport,39.2966,-80.228104,US
+3454,KCLE,Cleveland Hopkins International Airport,large_airport,41.411701,-81.8498,US
+3455,KCLL,Easterwood Field,medium_airport,30.5886,-96.3638,US
+3456,KCLM,William R Fairchild International Airport,medium_airport,48.120201,-123.5,US
+3457,KCLT,Charlotte Douglas International Airport,large_airport,35.214001,-80.9431,US
+3458,KCMH,John Glenn Columbus International Airport,large_airport,39.998001,-82.891899,US
+3459,KCMI,University of Illinois Willard Airport,medium_airport,40.039819,-88.276249,US
+3460,KCMX,Houghton County Memorial Airport,medium_airport,47.1684,-88.489098,US
+3461,KCNM,Cavern City Air Terminal,medium_airport,32.337502,-104.263,US
+3462,KCOF,Patrick Space Force Base,medium_airport,28.2349,-80.6101,US
+3463,KCOS,City of Colorado Springs Municipal Airport,large_airport,38.805801,-104.700996,US
+3464,KCOU,Columbia Regional Airport,medium_airport,38.8181,-92.219597,US
+3465,KCPR,Casper-Natrona County International Airport,medium_airport,42.907381,-106.461609,US
+3466,KCRP,Corpus Christi International Airport,medium_airport,27.770399,-97.501198,US
+3467,KCRW,Yeager Airport,medium_airport,38.3731,-81.593201,US
+3468,KCSG,Columbus Airport,medium_airport,32.516415,-84.939602,US
+3469,KCSV,Crossville Memorial Airport Whitson Field,medium_airport,35.95131,-85.08499,US
+3471,KCVG,Cincinnati Northern Kentucky International Airport,large_airport,39.048801,-84.667801,US
+3472,KCVO,Corvallis Municipal Airport,medium_airport,44.4972,-123.290001,US
+3476,KCYS,Cheyenne Regional Jerry Olson Field,medium_airport,41.155701,-104.811997,US
+3477,KDAA,Davison Army Air Field,medium_airport,38.715,-77.181,US
+3478,KDAB,Daytona Beach International Airport,medium_airport,29.18255,-81.059464,US
+3479,KDAL,Dallas Love Field,large_airport,32.844776,-96.847653,US
+3481,KDAY,James M. Cox Dayton International Airport,medium_airport,39.902401,-84.219398,US
+3482,KDBQ,Dubuque Regional Airport,medium_airport,42.402,-90.709503,US
+3483,KDCA,Ronald Reagan Washington National Airport,large_airport,38.8521,-77.037697,US
+3484,KDDC,Dodge City Regional Airport,medium_airport,37.763401,-99.965599,US
+3485,KDEC,Decatur Airport,medium_airport,39.834599,-88.8657,US
+3486,KDEN,Denver International Airport,large_airport,39.860027,-104.673792,US
+3487,KDET,Coleman A. Young Municipal Airport,medium_airport,42.409199,-83.009903,US
+3488,KDFW,Dallas Fort Worth International Airport,large_airport,32.896801,-97.038002,US
+3489,KDHN,Dothan Regional Airport,medium_airport,31.321301,-85.4496,US
+3491,KDLH,Duluth International Airport,medium_airport,46.841873,-92.198746,US
+3492,KDMA,Davis Monthan Air Force Base,medium_airport,32.1665,-110.883003,US
+3494,KDOV,Dover Civil Air Terminal/Dover Air Force Base,medium_airport,39.129501,-75.466003,US
+3496,KDSM,Des Moines International Airport,large_airport,41.534027,-93.656719,US
+3497,KDTW,Detroit Metropolitan Wayne County Airport,large_airport,42.21377,-83.353786,US
+3498,KDUJ,DuBois Regional Airport,medium_airport,41.178299,-78.898697,US
+3501,KEAU,Chippewa Valley Regional Airport,medium_airport,44.865799,-91.484299,US
+3504,KEEN,Dillant Hopkins Airport,medium_airport,42.898399,-72.270798,US
+3505,KEGE,Eagle County Regional Airport,medium_airport,39.642601,-106.917999,US
+3508,KEKO,Elko Regional Airport,medium_airport,40.824902,-115.792,US
+3509,KELD,South Arkansas Regional Airport at Goodwin Field,medium_airport,33.221001,-92.813301,US
+3510,KELM,Elmira Corning Regional Airport,medium_airport,42.159901,-76.891602,US
+3512,KELP,El Paso International Airport,large_airport,31.809908,-106.375607,US
+3514,KENW,Kenosha Regional Airport,medium_airport,42.595699,-87.927803,US
+3515,KERI,Erie International Tom Ridge Field,medium_airport,42.083127,-80.173867,US
+3517,KEUG,Eugene Airport,medium_airport,44.124599,-123.211998,US
+3518,KEVV,Evansville Regional Airport,medium_airport,38.036999,-87.532402,US
+3519,KEWB,New Bedford Regional Airport,medium_airport,41.676102,-70.956902,US
+3520,KEWN,Coastal Carolina Regional Airport,medium_airport,35.073002,-77.0429,US
+3521,KEWR,Newark Liberty International Airport,large_airport,40.6894,-74.170545,US
+3522,KEYW,Key West International Airport,medium_airport,24.556119,-81.759579,US
+3523,KFAR,Hector International Airport,medium_airport,46.9207,-96.815804,US
+3524,KFAT,Fresno Yosemite International Airport,large_airport,36.775767,-119.718018,US
+3525,KFAY,Fayetteville Regional Airport - Grannis Field,medium_airport,34.991199,-78.880302,US
+3527,KGPI,Glacier Park International Airport,medium_airport,48.310501,-114.255997,US
+3529,KFHU,Sierra Vista Municipal Airport / Libby Army Air Field,medium_airport,31.587383,-110.348225,US
+3530,KFLG,Flagstaff Pulliam Airport,medium_airport,35.139757,-111.669826,US
+3531,KFLL,Fort Lauderdale Hollywood International Airport,large_airport,26.072599,-80.152702,US
+3532,KFLO,Florence Regional Airport,medium_airport,34.185398,-79.7239,US
+3534,KFME,Fort Meade Executive Airport,medium_airport,39.0854,-76.759399,US
+3535,KFNT,Bishop International Airport,medium_airport,42.969294,-83.743355,US
+3536,KFOD,Fort Dodge Regional Airport,medium_airport,42.552624,-94.191237,US
+3538,KFPR,Treasure Coast International Airport,medium_airport,27.4951,-80.368301,US
+3539,KFRG,Republic Airport,medium_airport,40.728576,-73.414267,US
+3541,KFSD,Sioux Falls Regional Airport,medium_airport,43.585463,-96.741152,US
+3543,KFSM,Fort Smith Regional Airport,medium_airport,35.336601,-94.367401,US
+3545,KFTW,Fort Worth Meacham International Airport,medium_airport,32.819919,-97.360818,US
+3546,KFTY,Fulton County Airport Brown Field,medium_airport,33.779099,-84.5214,US
+3547,KFWA,Fort Wayne International Airport,medium_airport,40.978896,-85.194465,US
+3550,KGCK,Garden City Regional Airport,medium_airport,37.927502,-100.723999,US
+3551,KGCN,Grand Canyon National Park Airport,medium_airport,35.9524,-112.147003,US
+3552,KGEG,Spokane International Airport,large_airport,47.6199,-117.533997,US
+3553,KGFK,Grand Forks International Airport,medium_airport,47.949299,-97.176102,US
+3555,KGGG,East Texas Regional Airport,medium_airport,32.383999,-94.711502,US
+3556,KGGW,Glasgow Valley County Airport Wokal Field,medium_airport,48.212502,-106.614998,US
+3557,KGJT,Grand Junction Regional Airport,medium_airport,39.126663,-108.529387,US
+3559,KGNV,Gainesville Regional Airport,medium_airport,29.6901,-82.271797,US
+3560,KGON,Groton New London Airport,medium_airport,41.330101,-72.045097,US
+3561,KGPT,Gulfport Biloxi International Airport,medium_airport,30.405582,-89.069836,US
+3562,KGRB,Austin Straubel International Airport,medium_airport,44.483459,-88.130805,US
+3564,KGRI,Central Nebraska Regional Airport,medium_airport,40.967499,-98.309601,US
+3565,KGRK,Killeen Regional Airport / Robert Gray Army Airfield,medium_airport,31.0672,-97.828903,US
+3566,KGRR,Gerald R. Ford International Airport,large_airport,42.880798,-85.522797,US
+3568,KGSO,Piedmont Triad International Airport,large_airport,36.09937,-79.937262,US
+3569,KGSP,Greenville-Spartanburg International Airport,medium_airport,34.895699,-82.218903,US
+3570,KGTB,Wheeler Sack Army Air Field,medium_airport,44.055599,-75.719498,US
+3571,KGTF,Great Falls International Airport,medium_airport,47.481998,-111.371002,US
+3572,KGUP,Gallup Municipal Airport,medium_airport,35.511653,-108.788166,US
+3575,KGYY,Gary/Chicago International Airport,medium_airport,41.617087,-87.413206,US
+3576,KHFD,Hartford Brainard Airport,medium_airport,41.736698,-72.649399,US
+3577,KHGR,Hagerstown Regional Richard A Henson Field,medium_airport,39.708771,-77.728014,US
+3578,KHHR,Jack Northrop Field Hawthorne Municipal Airport,medium_airport,33.922798,-118.334999,US
+3579,KHIB,Range Regional Airport,medium_airport,47.384831,-92.836905,US
+3580,KHIF,Hill Air Force Base,medium_airport,41.12403,-111.973086,US
+3581,KHKY,Hickory Regional Airport,medium_airport,35.7411,-81.389503,US
+3582,KHLN,Helena Regional Airport,medium_airport,46.6068,-111.983002,US
+3585,KHON,Huron Regional Airport,medium_airport,44.385201,-98.2285,US
+3587,KHOT,Memorial Field Airport,medium_airport,34.4788,-93.096262,US
+3588,KHOU,William P. Hobby Airport,large_airport,29.645336,-95.276812,US
+3589,KHPN,Westchester County Airport,medium_airport,41.067001,-73.707603,US
+3591,KHRL,Valley International Airport,medium_airport,26.2285,-97.654404,US
+3592,KHRO,Boone County Airport,medium_airport,36.261501,-93.154701,US
+3593,KHST,Homestead Air Reserve Base,medium_airport,25.4886,-80.383598,US
+3594,KHSV,Huntsville International Airport,medium_airport,34.636244,-86.774378,US
+3595,KHTS,Tri-State Airport / Milton J. Ferguson Field,medium_airport,38.366699,-82.557999,US
+3599,KHVN,Tweed New Haven Airport,medium_airport,41.262869,-72.887694,US
+3600,KHYA,Cape Cod Gateway Airport,medium_airport,41.6693,-70.280403,US
+3602,KIAD,Washington Dulles International Airport,large_airport,38.9445,-77.455803,US
+3603,KIAG,Niagara Falls International Airport,medium_airport,43.1073,-78.946198,US
+3604,KIAH,George Bush Intercontinental Airport,large_airport,29.9844,-95.3414,US
+3605,KICT,Wichita Dwight D. Eisenhower National Airport,medium_airport,37.650314,-97.428583,US
+3606,KIDA,Idaho Falls Regional Airport,medium_airport,43.514599,-112.070999,US
+3608,KILG,Wilmington Airport,medium_airport,39.678699,-75.606499,US
+3609,KILM,Wilmington International Airport,medium_airport,34.272345,-77.905117,US
+3610,KIND,Indianapolis International Airport,large_airport,39.7173,-86.294403,US
+3612,KINL,Falls International Airport,medium_airport,48.5662,-93.403099,US
+3613,KINT,Smith Reynolds Airport,medium_airport,36.133701,-80.222,US
+3614,KIPT,Williamsport Regional Airport,medium_airport,41.242126,-76.92245,US
+3615,KIRK,Kirksville Regional Airport,medium_airport,40.093498,-92.544899,US
+3616,KISP,Long Island MacArthur Airport,medium_airport,40.796324,-73.101703,US
+3617,KIWA,Mesa Gateway Airport,medium_airport,33.3078,-111.654999,US
+3618,KJAC,Jackson Hole Airport,medium_airport,43.6073,-110.737999,US
+3619,KJAN,Jackson-Medgar Wiley Evers International Airport,medium_airport,32.311199,-90.075897,US
+3620,KJAX,Jacksonville International Airport,large_airport,30.492469,-81.687813,US
+3621,KJBR,Jonesboro Municipal Airport,medium_airport,35.831699,-90.6464,US
+3622,KJFK,John F. Kennedy International Airport,large_airport,40.639447,-73.779317,US
+3623,KJLN,Joplin Regional Airport,medium_airport,37.151798,-94.498299,US
+3624,KJMS,Jamestown Regional Airport,medium_airport,46.929699,-98.6782,US
+3625,KJST,John Murtha Johnstown Cambria County Airport,medium_airport,40.316101,-78.8339,US
+3627,KLAF,Purdue University Airport,medium_airport,40.412875,-86.939363,US
+3628,KLAL,Lakeland Linder International Airport,medium_airport,27.989267,-82.020715,US
+3629,KLAN,Capital Region International Airport,medium_airport,42.777582,-84.585721,US
+3630,KLAR,Laramie Regional Airport,medium_airport,41.312099,-105.675003,US
+3631,KLAS,Harry Reid International Airport,large_airport,36.083361,-115.151817,US
+3632,KLAX,Los Angeles International Airport,large_airport,33.942501,-118.407997,US
+3633,KLBB,Lubbock Preston Smith International Airport,medium_airport,33.663601,-101.822998,US
+3634,KLBE,Arnold Palmer Regional Airport,medium_airport,40.275902,-79.4048,US
+3635,KLBF,North Platte Regional Airport Lee Bird Field,medium_airport,41.126202,-100.683998,US
+3636,KLBL,Liberal Mid-America Regional Airport,medium_airport,37.044201,-100.959999,US
+3637,KLCH,Lake Charles Regional Airport,medium_airport,30.126101,-93.223297,US
+3638,KLCK,Rickenbacker International Airport,medium_airport,39.813801,-82.927803,US
+3639,KLEB,Lebanon Municipal Airport,medium_airport,43.626099,-72.304199,US
+3640,KLEX,Blue Grass Airport,medium_airport,38.035066,-84.606738,US
+3642,KLFT,Lafayette Regional Airport,medium_airport,30.205299,-91.987602,US
+3643,KLGA,LaGuardia Airport,large_airport,40.777199,-73.872597,US
+3644,KLGB,Long Beach International Airport,large_airport,33.816523,-118.149891,US
+3645,KLIT,Bill & Hillary Clinton National Airport/Adams Field,medium_airport,34.729222,-92.223591,US
+3646,KLMT,Crater Lake-Klamath Regional Airport,medium_airport,42.156101,-121.733002,US
+3647,KLNK,Lincoln Airport,medium_airport,40.844882,-96.76178,US
+3648,KLNS,Lancaster Airport,medium_airport,40.1217,-76.296097,US
+3649,KLOU,Bowman Field,medium_airport,38.228001,-85.663696,US
+3651,KLRD,Laredo International Airport,medium_airport,27.5438,-99.461601,US
+3654,KLSE,La Crosse Regional Airport,medium_airport,43.879002,-91.256699,US
+3656,KLSV,Nellis Air Force Base,medium_airport,36.236198,-115.033997,US
+3659,KLUK,Cincinnati Municipal Airport Lunken Field,medium_airport,39.102357,-84.418945,US
+3660,KLWM,Lawrence Municipal Airport,medium_airport,42.717201,-71.123398,US
+3662,KLYH,Lynchburg Regional Airport - Preston Glenn Field,medium_airport,37.326698,-79.200401,US
+3663,KMAF,Midland International Air and Space Port,medium_airport,31.942499,-102.202003,US
+3664,KMBS,MBS International Airport,medium_airport,43.533181,-84.083104,US
+3666,KMCC,McClellan Airfield,medium_airport,38.667599,-121.401001,US
+3667,KMCF,MacDill Air Force Base,medium_airport,27.8493,-82.521202,US
+3668,KMCI,Kansas City International Airport,large_airport,39.301699,-94.713893,US
+3669,KMCN,Middle Georgia Regional Airport,medium_airport,32.692799,-83.6492,US
+3670,KMCO,Orlando International Airport,large_airport,28.429399,-81.308998,US
+3672,KMDT,Harrisburg International Airport,medium_airport,40.192838,-76.762333,US
+3673,KMDW,Chicago Midway International Airport,large_airport,41.785999,-87.752403,US
+3674,KMEI,Key Field / Meridian Regional Airport,medium_airport,32.3326,-88.7519,US
+3675,KMEM,Frederick W. Smith International Airport,large_airport,35.043845,-89.97634,US
+3676,KMER,Castle Airport,medium_airport,37.380501,-120.568001,US
+3678,KMFE,McAllen Miller International Airport,medium_airport,26.176141,-98.237965,US
+3679,KMFR,Rogue Valley International-Medford Airport,medium_airport,42.374199,-122.873001,US
+3680,KMGE,Dobbins Air Reserve Base,medium_airport,33.915401,-84.516296,US
+3681,KMGM,Montgomery Regional (Dannelly Field) Airport,medium_airport,32.300598,-86.393997,US
+3682,KMGW,Morgantown Municipal Airport Walter L. (Bill) Hart Field,medium_airport,39.643305,-79.917598,US
+3683,KMHK,Manhattan Regional Airport,medium_airport,39.140999,-96.670799,US
+3684,KMHT,Manchester-Boston Regional Airport,medium_airport,42.932598,-71.435699,US
+3685,KMIA,Miami International Airport,large_airport,25.796011,-80.289751,US
+3688,KMIV,Millville Municipal Airport,medium_airport,39.367802,-75.072197,US
+3689,KMKC,Charles B. Wheeler Downtown Airport,medium_airport,39.123199,-94.592796,US
+3690,KMKE,General Mitchell International Airport,large_airport,42.947201,-87.896599,US
+3691,KMKG,Muskegon County Airport,medium_airport,43.169498,-86.238197,US
+3692,KMKL,McKellar-Sipes Regional Airport,medium_airport,35.599899,-88.915604,US
+3693,KMLB,Melbourne Orlando International Airport,medium_airport,28.102009,-80.641088,US
+3695,KMLI,Quad City International Airport,medium_airport,41.448502,-90.5075,US
+3697,KMLU,Monroe Regional Airport,medium_airport,32.510899,-92.037697,US
+3698,KMMU,Morristown Municipal Airport,medium_airport,40.799062,-74.414949,US
+3699,KMMV,McMinnville Municipal Airport,medium_airport,45.194401,-123.136002,US
+3700,KMOB,Mobile Regional Airport,medium_airport,30.6912,-88.242798,US
+3701,KMOD,Modesto City Co-Harry Sham Field,medium_airport,37.625801,-120.954002,US
+3702,KMOT,Minot International Airport,medium_airport,48.25801,-101.279123,US
+3703,KMQY,Smyrna Airport,medium_airport,36.008999,-86.520103,US
+3704,KMRB,Eastern WV Regional Airport/Shepherd Field,medium_airport,39.401901,-77.984596,US
+3705,KMRY,Monterey Regional Airport,medium_airport,36.586777,-121.844183,US
+3706,KMSL,Northwest Alabama Regional Airport,medium_airport,34.745123,-87.612981,US
+3707,KMSN,Dane County Regional Truax Field,medium_airport,43.1399,-89.337502,US
+3708,KMSO,Missoula Montana Airport,medium_airport,46.915816,-114.091107,US
+3709,KMSP,Minneapolis–Saint Paul International Airport / Wold–Chamberlain Field,large_airport,44.880081,-93.221741,US
+3710,KMSS,Massena International Airport Richards Field,medium_airport,44.936157,-74.844304,US
+3711,KMSY,Louis Armstrong New Orleans International Airport,large_airport,29.993401,-90.264673,US
+3713,KMTN,Martin State Airport,medium_airport,39.325699,-76.413803,US
+3717,KMYR,Myrtle Beach International Airport,large_airport,33.679699,-78.928299,US
+3718,KMYV,Yuba County Airport,medium_airport,39.097801,-121.57,US
+3720,KNBG,New Orleans NAS JRB/Alvin Callender Field,medium_airport,29.8253,-90.035004,US
+3722,KNEL,Lakehurst Maxfield Field Airport,medium_airport,40.033298,-74.353302,US
+3723,KNEW,Lakefront Airport,medium_airport,30.0424,-90.028297,US
+3724,KNFG,Camp Pendleton MCAS (Munn Field) Airport,medium_airport,33.3013,-117.355003,US
+3728,KNHK,Patuxent River Naval Air Station (Trapnell Field),medium_airport,38.285999,-76.411797,US
+3730,KNIP,Jacksonville Naval Air Station (Towers Field),medium_airport,30.2358,-81.680603,US
+3733,KNKX,Miramar Marine Corps Air Station - Mitscher Field,medium_airport,32.868401,-117.142998,US
+3735,KNPA,Naval Air Station Pensacola Forrest Sherman Field,medium_airport,30.352699,-87.318604,US
+3739,KNTD,Point Mugu Naval Air Station (Naval Base Ventura Co),medium_airport,34.1203,-119.121002,US
+3741,KNUQ,Moffett Federal Airfield,medium_airport,37.4161,-122.049004,US
+3743,KNZY,North Island Naval Air Station-Halsey Field,medium_airport,32.6992,-117.214996,US
+3744,KOAK,Oakland San Francisco Bay Airport,large_airport,37.720085,-122.221184,US
+3746,KOGD,Ogden Hinckley Airport,medium_airport,41.1959,-112.012001,US
+3747,KOKC,OKC Will Rogers World Airport,large_airport,35.393388,-97.598248,US
+3749,KOLM,Olympia Regional Airport,medium_airport,46.969399,-122.903,US
+3750,KOLU,Columbus Municipal Airport,medium_airport,41.448145,-97.340174,US
+3751,KOMA,Eppley Airfield,large_airport,41.3032,-95.894096,US
+3752,KONT,Ontario International Airport,large_airport,34.056,-117.600998,US
+3753,KOQU,Quonset State Airport,medium_airport,41.597099,-71.412102,US
+3754,KORD,Chicago O'Hare International Airport,large_airport,41.9786,-87.9048,US
+3755,KORF,Norfolk International Airport,large_airport,36.895341,-76.201,US
+3756,KORH,Worcester Regional Airport,medium_airport,42.2673,-71.875702,US
+3757,KOSH,Wittman Regional Airport,medium_airport,43.984402,-88.556999,US
+3758,KOSU,The Ohio State University Airport - Don Scott Field,medium_airport,40.0798,-83.072998,US
+3759,KOTH,Southwest Oregon Regional Airport,medium_airport,43.417099,-124.246002,US
+3761,KOWB,Owensboro Daviess County Airport,medium_airport,37.740101,-87.166801,US
+3763,KPAE,Seattle Paine Field International Airport,medium_airport,47.9063,-122.281998,US
+3764,KPAH,Barkley Regional Airport,medium_airport,37.060799,-88.773804,US
+3766,KPBI,President Donald J. Trump International Airport,large_airport,26.683201,-80.095596,US
+3767,KPDK,DeKalb Peachtree Airport,medium_airport,33.87633,-84.30213,US
+3768,KPDX,Portland International Airport,large_airport,45.588699,-122.598,US
+3770,KPHF,Newport News Williamsburg International Airport,medium_airport,37.131901,-76.492996,US
+3771,KPHL,Philadelphia International Airport,large_airport,39.871899,-75.241096,US
+3772,KPHX,Phoenix Sky Harbor International Airport,large_airport,33.435302,-112.005905,US
+3773,KPIA,General Wayne A. Downing Peoria International Airport,medium_airport,40.663841,-89.692631,US
+3774,KPIB,Hattiesburg Laurel Regional Airport,medium_airport,31.4671,-89.337097,US
+3775,KPIE,St. Petersburg Clearwater International Airport,large_airport,27.9102,-82.687401,US
+3776,KPIH,Pocatello Regional Airport,medium_airport,42.909801,-112.596001,US
+3777,KPIR,Pierre Regional Airport,medium_airport,44.382702,-100.286003,US
+3778,KPIT,Pittsburgh International Airport,large_airport,40.491501,-80.232903,US
+3779,KPKB,Mid Ohio Valley Regional Airport,medium_airport,39.3451,-81.439201,US
+3781,KPLN,Pellston Regional Airport of Emmet County Airport,medium_airport,45.5709,-84.7967,US
+3782,KPMD,Palmdale Regional Airport / USAF Plant 42 Airport,medium_airport,34.629398,-118.084999,US
+3783,KPNS,Pensacola International Airport,large_airport,30.472718,-87.186639,US
+3786,KPOU,Dutchess County Airport,medium_airport,41.626598,-73.884201,US
+3787,KPQI,Presque Isle International Airport,medium_airport,46.688999,-68.0448,US
+3788,KPRB,Paso Robles Municipal Airport,medium_airport,35.672901,-120.626999,US
+3789,KPRC,Prescott Regional Airport - Ernest A. Love Field,medium_airport,34.653502,-112.419883,US
+3791,KPSM,Portsmouth International Airport at Pease,medium_airport,43.0779,-70.823303,US
+3792,KPSP,Palm Springs International Airport,large_airport,33.8297,-116.507004,US
+3793,KPTK,Oakland County International Airport,medium_airport,42.665501,-83.420097,US
+3794,KPUB,Pueblo Memorial Airport,medium_airport,38.289101,-104.497002,US
+3795,KPVD,Rhode Island T. F. Green International Airport,large_airport,41.725038,-71.425668,US
+3796,KPWM,Portland International Jetport,large_airport,43.646198,-70.309303,US
+3797,KPWT,Bremerton National Airport,medium_airport,47.4902,-122.764999,US
+3837,KRAL,Riverside Municipal Airport,medium_airport,33.9519,-117.445,US
+3838,KRAP,Rapid City Regional Airport,medium_airport,44.0453,-103.056999,US
+3841,KRDD,Redding Municipal Airport,medium_airport,40.508999,-122.292999,US
+3842,KRDG,Reading Regional Airport (Carl A Spaatz Field),medium_airport,40.378502,-75.965202,US
+3843,KRDM,Roberts Field,medium_airport,44.254101,-121.150002,US
+3844,KRDU,Raleigh-Durham International Airport,large_airport,35.878659,-78.7873,US
+3845,KRFD,Chicago Rockford International Airport,medium_airport,42.1954,-89.097198,US
+3846,KRHI,Rhinelander Oneida County Airport,medium_airport,45.631199,-89.467499,US
+3847,KRIC,Richmond International Airport,large_airport,37.505199,-77.319702,US
+3849,KRIV,March Air Reserve Base,medium_airport,33.880699,-117.259003,US
+3850,KRKS,Southwest Wyoming Regional Airport,medium_airport,41.5942,-109.065001,US
+3852,KRND,Randolph Air Force Base,medium_airport,29.529699,-98.2789,US
+3853,KRNO,Reno Tahoe International Airport,large_airport,39.4991,-119.767998,US
+3854,KROA,Roanoke–Blacksburg Regional Airport,medium_airport,37.3255,-79.975403,US
+3855,KROC,Frederick Douglass Greater Rochester International Airport,large_airport,43.1189,-77.672401,US
+3856,KROW,Roswell Air Center Airport,medium_airport,33.301601,-104.530998,US
+3857,KRST,Rochester International Airport,medium_airport,43.908298,-92.5,US
+3858,KRSW,Southwest Florida International Airport,large_airport,26.534685,-81.752816,US
+3859,KRUT,Rutland - Southern Vermont Regional Airport,medium_airport,43.5294,-72.9496,US
+3860,KRWI,Rocky Mount Wilson Regional Airport,medium_airport,35.8563,-77.891899,US
+3861,KSAC,Sacramento Executive Airport,medium_airport,38.512501,-121.492996,US
+3862,KSAN,San Diego International Airport,large_airport,32.733601,-117.190002,US
+3863,KSAT,San Antonio International Airport,large_airport,29.533701,-98.469803,US
+3864,KSAV,Savannah Hilton Head International Airport,large_airport,32.126591,-81.19998,US
+3865,KSAW,Marquette Sawyer Regional Airport,medium_airport,46.351498,-87.395884,US
+3866,KSBA,Santa Barbara Municipal Airport,medium_airport,34.426201,-119.839996,US
+3867,KSBD,San Bernardino International Airport,large_airport,34.096717,-117.236596,US
+3868,KSBN,South Bend International Airport,medium_airport,41.708304,-86.316922,US
+3869,KSBP,San Luis County Regional Airport,medium_airport,35.236801,-120.641998,US
+3870,KSBY,Salisbury Ocean City Wicomico Regional Airport,medium_airport,38.3405,-75.5103,US
+3871,KSCH,Schenectady County Airport,medium_airport,42.852501,-73.928902,US
+3872,KSCK,Stockton Metropolitan Airport,medium_airport,37.893279,-121.238079,US
+3873,KSDF,Louisville Muhammad Ali International Airport,large_airport,38.1706,-85.735076,US
+3874,KSDM,Brown Field Municipal Airport,medium_airport,32.572639,-116.980019,US
+3875,KSEA,Seattle–Tacoma International Airport,large_airport,47.447943,-122.310276,US
+3876,KSFB,Orlando Sanford International Airport,large_airport,28.774277,-81.234626,US
+3877,KSFF,Felts Field,medium_airport,47.682899,-117.321925,US
+3878,KSFO,San Francisco International Airport,large_airport,37.619806,-122.374821,US
+3879,KSGF,Springfield Branson National Airport,medium_airport,37.245047,-93.388596,US
+3880,KSGH,Springfield-Beckley Municipal Airport,medium_airport,39.840302,-83.840202,US
+3881,KSHR,Sheridan County Airport,medium_airport,44.769199,-106.980003,US
+3882,KSHV,Shreveport Regional Airport,medium_airport,32.444747,-93.826741,US
+3883,KSJC,Mineta San Jose International Airport,large_airport,37.362452,-121.929188,US
+3884,KSJT,San Angelo Regional Mathis Field,medium_airport,31.3577,-100.496002,US
+3885,KSKA,Fairchild Air Force Base,medium_airport,47.615101,-117.655998,US
+3886,KSKF,Lackland Air Force Base,medium_airport,29.384199,-98.5811,US
+3887,KSLC,Salt Lake City International Airport,large_airport,40.78886,-111.979866,US
+3888,KSLE,Salem-Willamette Valley Airport/McNary Field,medium_airport,44.9095,-123.002998,US
+3889,KSLI,Los Alamitos Army Air Field,medium_airport,33.790864,-118.050342,US
+3890,KSLK,Adirondack Regional Airport,medium_airport,44.38691,-74.204629,US
+3891,KSLN,Salina Municipal Airport,medium_airport,38.791,-97.652199,US
+3892,KSMF,Sacramento International Airport,large_airport,38.6954,-121.591003,US
+3893,KSMX,Santa Maria Public Airport Captain G Allan Hancock Field,medium_airport,34.898899,-120.457001,US
+3894,KSNA,John Wayne Orange County International Airport,large_airport,33.675063,-117.869281,US
+3895,KSNS,Salinas Municipal Airport,medium_airport,36.6628,-121.606003,US
+3897,KSPI,Abraham Lincoln Capital Airport,medium_airport,39.844101,-89.677902,US
+3898,KSPS,Wichita Falls Municipal Airport / Sheppard Air Force Base,medium_airport,33.9888,-98.491898,US
+3899,KSRQ,Sarasota Bradenton International Airport,large_airport,27.394631,-82.554359,US
+3903,KSTC,Saint Cloud Regional Airport,medium_airport,45.5466,-94.059898,US
+3905,KSTL,St. Louis Lambert International Airport,large_airport,38.748697,-90.370003,US
+3906,KSTP,Saint Paul Downtown Holman Field,medium_airport,44.93479,-93.060036,US
+3907,KSUS,Spirit of St Louis Airport,medium_airport,38.662102,-90.652,US
+3908,KSUU,Travis Air Force Base,medium_airport,38.262699,-121.927002,US
+3909,KSUX,Sioux Gateway Airport / Brigadier General Bud Day Field,medium_airport,42.397605,-96.382237,US
+3910,KSVN,Hunter Army Air Field,medium_airport,32.009998,-81.145699,US
+3911,KSWF,New York Stewart International Airport,medium_airport,41.50421,-74.108901,US
+3912,KSWO,Stillwater Regional Airport,medium_airport,36.162132,-97.085581,US
+3913,KSYR,Syracuse Hancock International Airport,large_airport,43.111198,-76.1063,US
+3915,KTBN,Waynesville-St. Robert Regional Airport-Forney Field,medium_airport,37.7416,-92.140701,US
+3920,KTEB,Teterboro Airport,medium_airport,40.850101,-74.060799,US
+3922,KTIW,Tacoma Narrows Airport,medium_airport,47.267407,-122.577295,US
+3923,KTIX,Space Coast Regional Airport,medium_airport,28.514799,-80.799202,US
+3924,KTLH,Tallahassee International Airport,medium_airport,30.401209,-84.35433,US
+3925,KTOL,Eugene F. Kranz Toledo Express Airport,medium_airport,41.5868,-83.8078,US
+3926,KTPA,Tampa International Airport,large_airport,27.9755,-82.533203,US
+3928,KTRI,Tri-Cities Regional TN/VA Airport,medium_airport,36.475201,-82.407401,US
+3929,KTTN,Trenton Mercer Airport,medium_airport,40.276699,-74.813499,US
+3930,KTUL,Tulsa International Airport,large_airport,36.197084,-95.886225,US
+3931,KTUP,Tupelo Regional Airport,medium_airport,34.268101,-88.769897,US
+3932,KTUS,Tucson International Airport,large_airport,32.115004,-110.938053,US
+3933,KTVC,Cherry Capital Airport,medium_airport,44.741402,-85.582199,US
+3934,KTVL,Lake Tahoe Airport,medium_airport,38.893902,-119.995003,US
+3935,KTWF,Joslin Field Magic Valley Regional Airport,medium_airport,42.4818,-114.487999,US
+3936,KTXK,Texarkana Regional Airport (Webb Field),medium_airport,33.453701,-93.990997,US
+3937,KTYR,Tyler Pounds Regional Airport,medium_airport,32.354099,-95.402397,US
+3938,KTYS,McGhee Tyson Airport,large_airport,35.811001,-83.994003,US
+3940,KUIN,Quincy Regional Airport Baldwin Field,medium_airport,39.942699,-91.194603,US
+3941,KUKI,Ukiah Municipal Airport,medium_airport,39.125999,-123.200996,US
+3944,KVBG,Vandenberg Space Force Base,medium_airport,34.737301,-120.584,US
+3945,KVCT,Victoria Regional Airport,medium_airport,28.8526,-96.918503,US
+3946,KVLD,Valdosta Regional Airport,medium_airport,30.782499,-83.276703,US
+3948,KVPS,Destin-Fort Walton Beach Airport,medium_airport,30.481315,-86.515839,US
+3950,KVRB,Vero Beach Regional Airport,medium_airport,27.6556,-80.417901,US
+3952,KWRI,Mc Guire Air Force Base,medium_airport,40.015598,-74.591698,US
+3954,KWWD,Cape May County Airport,medium_airport,39.008499,-74.908302,US
+3955,KWYS,Yellowstone Airport,medium_airport,44.6884,-111.117996,US
+3957,KYIP,Willow Run Airport,medium_airport,42.2379,-83.530403,US
+3958,KYKM,Yakima Air Terminal McAllister Field,medium_airport,46.568199,-120.543999,US
+3961,KNYL,Yuma International Airport / Marine Corps Air Station Yuma,medium_airport,32.650938,-114.609375,US
+3972,LATI,Tirana International Airport Mother Teresa,large_airport,41.4147,19.7206,AL
+3974,LBBG,Burgas Airport,large_airport,42.569917,27.515173,BG
+3977,LBSF,Sofia Airport,large_airport,42.696357,23.417671,BG
+3979,LBWN,Varna Airport,large_airport,43.232101,27.8251,BG
+3980,LCLK,Larnaca International Airport,large_airport,34.875099,33.624901,CY
+3981,LCPH,Paphos International Airport,large_airport,34.717999,32.485699,CY
+3982,LCRA,RAF Akrotiri,medium_airport,34.590401,32.9879,CY
+3984,LDDU,Dubrovnik Ruđer Bošković Airport,large_airport,42.562247,18.265543,HR
+3987,LDPL,Pula Airport,large_airport,44.893501,13.9222,HR
+3991,LDSP,Split Saint Jerome Airport,large_airport,43.538898,16.298,HR
+3993,LDZA,Zagreb Franjo Tuđman International Airport,large_airport,45.742901,16.0688,HR
+3994,LDZD,Zadar Airport,large_airport,44.096986,15.353565,HR
+3997,LEAL,Alicante-Elche Miguel Hernández Airport,large_airport,38.2822,-0.558156,ES
+3998,LEAM,Almería Airport,medium_airport,36.843899,-2.3701,ES
+3999,LEAS,Asturias Airport,large_airport,43.563599,-6.03462,ES
+4001,LEBB,Bilbao Airport,large_airport,43.301102,-2.91061,ES
+4004,LEBL,Josep Tarradellas Barcelona-El Prat Airport,large_airport,41.2971,2.07846,ES
+4005,LEBZ,Badajoz Airport,medium_airport,38.8913,-6.82133,ES
+4007,LECO,A Coruña Airport,medium_airport,43.302101,-8.37726,ES
+4010,LEGE,Girona-Costa Brava Airport,large_airport,41.904639,2.761774,ES
+4011,LEGR,F.G.L. Airport Granada-Jaén Airport,medium_airport,37.188702,-3.77736,ES
+4012,LEGT,Getafe Air Base,medium_airport,40.294102,-3.72383,ES
+4013,LEIB,Ibiza Airport,large_airport,38.872898,1.37312,ES
+4015,LEJR,Jerez Airport,medium_airport,36.744598,-6.06011,ES
+4019,LEMD,Adolfo Suárez Madrid–Barajas Airport,large_airport,40.493407,-3.572249,ES
+4020,LEMG,Málaga-Costa del Sol Airport,large_airport,36.678234,-4.500208,ES
+4021,LEMH,Menorca Airport,large_airport,39.862598,4.21865,ES
+4025,LEPP,Pamplona Airport,medium_airport,42.77,-1.64633,ES
+4031,LERS,Reus Airport,large_airport,41.147509,1.168354,ES
+4035,LEPA,Palma de Mallorca Airport,large_airport,39.551701,2.73881,ES
+4037,LESO,San Sebastián Airport,medium_airport,43.356499,-1.79061,ES
+4038,LEST,Santiago-Rosalía de Castro Airport,large_airport,42.896301,-8.41514,ES
+4042,LEVC,Valencia Airport,large_airport,39.489162,-0.480961,ES
+4044,LECU,Madrid-Cuatro Vientos Airport,medium_airport,40.370701,-3.78514,ES
+4045,LEVT,Vitoria Airport,medium_airport,42.882801,-2.72447,ES
+4046,LEVX,Vigo Airport,medium_airport,42.2318,-8.62677,ES
+4047,LEXJ,Seve Ballesteros-Santander Airport,medium_airport,43.427101,-3.82001,ES
+4048,LEZG,Zaragoza Airport,large_airport,41.666199,-1.04155,ES
+4049,LEZL,Seville Airport,large_airport,37.417999,-5.89311,ES
+4059,LFBC,Cazaux (BA 120) Air Base,medium_airport,44.533298,-1.125,FR
+4060,LFBD,Bordeaux–Mérignac Airport,large_airport,44.82865,-0.715356,FR
+4061,LFBE,Bergerac Dordogne-Périgord airport,medium_airport,44.825298,0.518611,FR
+4062,LFBF,Toulouse-Francazal (BA 101) Air Base,medium_airport,43.545601,1.3675,FR
+4064,LFBH,La Rochelle Île de Ré Airport,medium_airport,46.179199,-1.19528,FR
+4070,LFBO,Toulouse-Blagnac Airport,large_airport,43.629101,1.36382,FR
+4071,LFBP,Pau Pyrénées Airport,medium_airport,43.380001,-0.418611,FR
+4073,LFBT,Tarbes-Lourdes-Pyrénées Airport,medium_airport,43.178699,-0.006439,FR
+4077,LFBZ,Biarritz Pays Basque airport,medium_airport,43.468372,-1.523223,FR
+4080,LFCH,Aérodrome d'Arcachon-La Teste-de-Buch,medium_airport,44.596401,-1.11083,FR
+4082,LFCK,Castres Mazamet Airport,medium_airport,43.556301,2.28918,FR
+4086,LFCR,Rodez–Aveyron Airport,medium_airport,44.407902,2.48267,FR
+4093,LFDH,Auch Gers Airfield,medium_airport,43.683606,0.599747,FR
+4104,LFGA,Colmar Houssen airport,medium_airport,48.109901,7.35901,FR
+4123,LFKB,Bastia-Poretta International airport,large_airport,42.5527,9.48373,FR
+4124,LFKC,Calvi Sainte Catherine Airport,medium_airport,42.530422,8.792984,FR
+4125,LFKF,Figari Sud-Corse Airport,large_airport,41.50185,9.097092,FR
+4126,LFKJ,Ajaccio Napoléon Bonaparte airport,medium_airport,41.923599,8.80292,FR
+4131,LFLB,Chambéry Aix les Bains airport,medium_airport,45.6381,5.88023,FR
+4132,LFLC,Clermont-Ferrand Auvergne airport,large_airport,45.786701,3.16917,FR
+4136,LFLI,Annemasse Airfield,medium_airport,46.192001,6.26839,FR
+4137,LFLL,Lyon Saint-Exupéry Airport,large_airport,45.725996,5.090139,FR
+4141,LFLP,Annecy Meythet airport,medium_airport,45.928947,6.0987,FR
+4142,LFLS,Grenoble Alpes Isère Airport,medium_airport,45.3629,5.32937,FR
+4144,LFLU,Valence-Chabeuil Airport,medium_airport,44.9216,4.9699,FR
+4146,LFLW,Aurillac airport,medium_airport,44.891399,2.42194,FR
+4148,LFLY,Lyon Bron Airport,medium_airport,45.727947,4.943991,FR
+4153,LFMI,Istres-Le Tubé Air Base,medium_airport,43.522701,4.92384,FR
+4154,LFMK,Carcassonne Salvaza Airport,medium_airport,43.216,2.30632,FR
+4155,LFML,Marseille Provence Airport,large_airport,43.438088,5.2125,FR
+4156,LFMN,Nice-Côte d'Azur Airport,large_airport,43.658401,7.21587,FR
+4157,LFMO,Orange-Caritat (BA 115) Air Base,medium_airport,44.140499,4.86672,FR
+4158,LFMP,Perpignan-Rivesaltes (Llabanère) Airport,medium_airport,42.740398,2.87067,FR
+4159,LFMQ,Le Castellet Airport,medium_airport,43.252499,5.78519,FR
+4161,LFMT,Montpellier-Méditerranée Airport,large_airport,43.576199,3.96301,FR
+4162,LFMU,Béziers Vias airport,medium_airport,43.323502,3.3539,FR
+4163,LFMV,Avignon Caumont airport,medium_airport,43.907299,4.90183,FR
+4164,LFMY,Salon-de-Provence (BA 701) Air Base,medium_airport,43.6064,5.10925,FR
+4169,LFOB,Beauvais-Tillé airport,large_airport,49.454399,2.11278,FR
+4176,LFOK,Chalons Vatry airport,medium_airport,48.77333,4.20611,FR
+4177,LFOP,Rouen Vallée de Seine Airport,medium_airport,49.384887,1.179142,FR
+4179,LFOT,Tours Val de Loire Airport,medium_airport,47.432201,0.727606,FR
+4183,LFPB,Paris-Le Bourget International Airport,large_airport,48.962276,2.436539,FR
+4185,LFPG,Charles de Gaulle International Airport,large_airport,49.00896,2.554117,FR
+4188,LFPN,Toussus-le-Noble Airport,medium_airport,48.7519,2.10619,FR
+4189,LFPO,Paris-Orly Airport,large_airport,48.729499,2.358963,FR
+4190,LFPT,Pontoise-Cormeilles Aerodrome,medium_airport,49.096064,2.035543,FR
+4191,LFPV,Vélizy-Villacoublay Air Base,medium_airport,48.774406,2.203102,FR
+4202,LFQQ,Lille Airport,large_airport,50.566564,3.102429,FR
+4206,LFRB,Brest Bretagne airport,large_airport,48.447899,-4.41854,FR
+4213,LFRI,La Roche-sur-Yon Les Ajoncs Airport,medium_airport,46.7019,-1.37863,FR
+4214,LFRJ,Landivisiau Air Base,medium_airport,48.5303,-4.15164,FR
+4215,LFRK,Caen Carpiquet airport,medium_airport,49.17678,-0.454883,FR
+4218,LFRN,Rennes-Saint-Jacques Airport,medium_airport,48.0695,-1.73479,FR
+4221,LFRS,Nantes Atlantique Airport,large_airport,47.153198,-1.61073,FR
+4225,LFRZ,Saint-Nazaire-Montoir Airport,medium_airport,47.31142,-2.152634,FR
+4226,LFSB,EuroAirport Basel–Mulhouse–Freiburg,large_airport,47.60068,7.521117,FR
+4238,LFST,Strasbourg Airport,large_airport,48.5383,7.62823,FR
+4241,LFTH,Toulon-Hyères Airport,medium_airport,43.097301,6.14603,FR
+4242,LFTW,Nîmes-Arles-Camargue Airport,medium_airport,43.757401,4.41635,FR
+4246,LFXA,Ambérieu Air Base (BA 278),medium_airport,45.987301,5.32844,FR
+4250,LGAL,Alexandroupoli Democritus Airport,medium_airport,40.8559,25.956301,GR
+4251,LGAV,Athens Eleftherios Venizelos International Airport,large_airport,37.936401,23.9445,GR
+4255,LGHI,Chios Island National Airport,medium_airport,38.343201,26.1406,GR
+4258,LGIR,Heraklion International Nikos Kazantzakis Airport,large_airport,35.339699,25.1803,GR
+4261,LGKF,"Kefalonia International Airport ""Anna Pollatou""",large_airport,38.120098,20.5005,GR
+4262,LGKL,Kalamata Airport,medium_airport,37.068298,22.025499,GR
+4264,LGKO,"Kos International Airport ""Ippokratis""",large_airport,36.794523,27.09115,GR
+4265,LGKP,Karpathos Airport,medium_airport,35.421398,27.146,GR
+4266,LGKR,Corfu Ioannis Kapodistrias International Airport,large_airport,39.60145,19.912179,GR
+4268,LGKV,Kavala Alexander the Great International Airport,large_airport,40.9133,24.6192,GR
+4274,LGMK,Mykonos Island National Airport,medium_airport,37.435101,25.348101,GR
+4275,LGMT,Mytilene International Airport,medium_airport,39.057406,26.598629,GR
+4277,LGPZ,Aktion National Airport,medium_airport,38.925499,20.765301,GR
+4279,LGRP,"Rhodes International Airport ""Diagoras""",large_airport,36.405399,28.086201,GR
+4281,LGSA,Chania International Airport,large_airport,35.531207,24.150673,GR
+4282,LGSK,Skiathos Island National Airport,medium_airport,39.177101,23.5037,GR
+4283,LGSM,Samos Airport,medium_airport,37.689999,26.911699,GR
+4286,LGSR,Santorini International Airport,large_airport,36.400045,25.478638,GR
+4293,LGTS,Thessaloniki Macedonia International Airport,large_airport,40.51928,22.970009,GR
+4295,LGZA,"Zakynthos International Airport ""Dionysios Solomos""",large_airport,37.7509,20.8843,GR
+4296,LHBP,Budapest Liszt Ferenc International Airport,large_airport,47.43018,19.262393,HU
+4299,LHKE,Kecskemét Air Base,medium_airport,46.9175,19.749201,HU
+4303,LHPR,Győr-Pér Airport,medium_airport,47.628436,17.804718,HU
+4309,LIBC,Crotone Sant'Anna Pythagoras Airport,medium_airport,38.9972,17.0802,IT
+4310,LIBD,Bari Karol Wojtyła International Airport,large_airport,41.138901,16.760599,IT
+4314,LIBP,Abruzzo Airport,large_airport,42.431079,14.182981,IT
+4315,LIBR,Brindisi Airport,large_airport,40.6576,17.947001,IT
+4317,LICA,Lamezia Terme Sant'Eufemia International Airport,large_airport,38.906214,16.246007,IT
+4318,LICC,Catania-Fontanarossa Airport,large_airport,37.466801,15.0664,IT
+4319,LICD,Lampedusa Airport,medium_airport,35.497898,12.6181,IT
+4320,LICG,Pantelleria Airport,medium_airport,36.816502,11.9689,IT
+4321,LICJ,Falcone–Borsellino Airport,large_airport,38.175999,13.091,IT
+4322,LICP,Palermo-Boccadifalco Airport,medium_airport,38.115919,13.31337,IT
+4323,LICR,Reggio Calabria Airport,medium_airport,38.071201,15.6516,IT
+4324,LICT,Vincenzo Florio Airport Trapani-Birgi,medium_airport,37.9114,12.488,IT
+4325,LICZ,Sigonella Navy Air Base,medium_airport,37.401699,14.9224,IT
+4330,LIEA,Alghero-Fertilia Airport,medium_airport,40.632099,8.29077,IT
+4331,LIED,Decimomannu Air Base,medium_airport,39.354198,8.97248,IT
+4332,LIEE,Cagliari Elmas Airport,large_airport,39.251499,9.05428,IT
+4333,LIEO,Olbia Costa Smeralda Airport,large_airport,40.898953,9.518457,IT
+4338,LIMA,Torino-Aeritalia Airport,medium_airport,45.084444,7.603056,IT
+4340,LIMC,Milan Malpensa International Airport,large_airport,45.6306,8.72811,IT
+4341,LIME,Il Caravaggio International Airport,large_airport,45.669362,9.708851,IT
+4342,LIMF,Turin Airport,large_airport,45.200802,7.64963,IT
+4343,LIMG,Riviera Villanova d'Albenga International Airport,medium_airport,44.050598,8.12743,IT
+4344,LIMJ,Genoa Cristoforo Colombo Airport,large_airport,44.412039,8.840732,IT
+4345,LIML,Milano Linate Airport,large_airport,45.445099,9.27674,IT
+4347,LIMP,Parma Airport,medium_airport,44.826351,10.29705,IT
+4350,LIMZ,Cuneo International Airport,medium_airport,44.547458,7.623045,IT
+4354,LIPE,Bologna Guglielmo Marconi Airport,large_airport,44.5354,11.2887,IT
+4355,LIPH,Treviso Airport,large_airport,45.648399,12.1944,IT
+4358,LIPL,Ghedi Air Base,medium_airport,45.432551,10.268612,IT
+4360,LIPO,Brescia Gabriele d'Annunzio Airport,medium_airport,45.428902,10.3306,IT
+4361,LIPQ,Trieste Airport,large_airport,45.827862,13.466672,IT
+4366,LIPX,Verona Villafranca Valerio Catullo Airport,large_airport,45.394955,10.887303,IT
+4367,LIPY,Marche Airport,medium_airport,43.616299,13.3623,IT
+4368,LIPZ,Venice Marco Polo Airport,large_airport,45.505299,12.3519,IT
+4370,LIRA,Ciampino–G. B. Pastine International Airport,large_airport,41.798769,12.595331,IT
+4371,LIRE,Pratica di Mare Air Base,medium_airport,41.654499,12.4452,IT
+4372,LIRF,Rome–Fiumicino Leonardo da Vinci International Airport,large_airport,41.804532,12.251998,IT
+4373,LIRG,Guidonia Air Base,medium_airport,41.990299,12.7408,IT
+4376,LIRL,Latina Air Base,medium_airport,41.5424,12.909,IT
+4378,LIRN,Naples International Airport,large_airport,40.886002,14.2908,IT
+4379,LIRP,Pisa International Airport,large_airport,43.683899,10.3927,IT
+4380,LIRQ,"Florence Airport, Peretola",large_airport,43.808558,11.202822,IT
+4382,LIRU,Rome Urbe Airport,medium_airport,41.952096,12.502231,IT
+4383,LIRV,Viterbo Airport,medium_airport,42.435297,12.061362,IT
+4384,LIRZ,Perugia San Francesco d'Assisi – Umbria International Airport,large_airport,43.095901,12.5132,IT
+4386,LJLJ,Ljubljana Jože Pučnik Airport,large_airport,46.223701,14.4576,SI
+4387,LJMB,Maribor Edvard Rusjan Airport,medium_airport,46.4799,15.6861,SI
+4388,LJPZ,Portorož Airport,medium_airport,45.47201,13.615951,SI
+4402,LKMT,Leoš Janáček Airport Ostrava,large_airport,49.696301,18.111099,CZ
+4405,LKPD,Pardubice Airport,large_airport,50.015049,15.73981,CZ
+4408,LKPR,Václav Havel Airport Prague,large_airport,50.100874,14.259911,CZ
+4409,LKTB,Brno-Tuřany Airport,medium_airport,49.151276,16.693972,CZ
+4411,LLBG,Ben Gurion International Airport,large_airport,32.011398,34.8867,IL
+4427,LMML,Malta International Airport,large_airport,35.845932,14.491546,MT
+4428,LOAN,Wiener Neustadt East Airport,medium_airport,47.8433,16.260099,AT
+4430,LOWG,Graz Airport,large_airport,46.9911,15.4396,AT
+4431,LOWI,Innsbruck Airport,large_airport,47.260201,11.344,AT
+4432,LOWL,Linz-Hörsching Airport,large_airport,48.235362,14.188128,AT
+4433,LOWS,Salzburg Airport,large_airport,47.793301,13.0043,AT
+4434,LOWW,Vienna International Airport,large_airport,48.110298,16.5697,AT
+4437,LPAR,Alverca Air Base,medium_airport,38.883301,-9.0301,PT
+4439,LPAZ,Santa Maria Airport,medium_airport,36.971401,-25.170601,PT
+4444,LPCS,Cascais Airport,medium_airport,38.724998,-9.35523,PT
+4446,LPEV,Évora Airfield,medium_airport,38.533501,-7.88964,PT
+4447,LPFL,Flores Airport,medium_airport,39.455299,-31.131399,PT
+4448,LPFR,Faro - Gago Coutinho International Airport,large_airport,37.015909,-7.970939,PT
+4449,LPGR,Graciosa Airport,medium_airport,39.092201,-28.0298,PT
+4450,LPHR,Horta Airport,medium_airport,38.519901,-28.7159,PT
+4451,LPLA,Lajes Airport,medium_airport,38.761799,-27.090799,PT
+4452,LPMA,Cristiano Ronaldo International Airport,large_airport,32.697812,-16.774613,PT
+4454,LPMT,Montijo Air Base,medium_airport,38.70929,-9.03368,PT
+4456,LPPD,João Paulo II Airport,large_airport,37.741199,-25.697901,PT
+4457,LPPI,Pico Airport,medium_airport,38.554298,-28.441299,PT
+4458,LPPM,Portimão Airport,medium_airport,37.1493,-8.58396,PT
+4459,LPPR,Francisco de Sá Carneiro Airport,large_airport,41.2481,-8.68139,PT
+4460,LPPS,Porto Santo Airport,medium_airport,33.073399,-16.35,PT
+4461,LPPT,Lisbon Humberto Delgado Airport,large_airport,38.7813,-9.13592,PT
+4462,LPSJ,São Jorge Airport,medium_airport,38.665501,-28.1758,PT
+4465,LPVR,Vila Real Airport,medium_airport,41.2743,-7.72047,PT
+4466,LPVZ,Aerodromo Goncalves Lobato (Viseu Airport),medium_airport,40.725498,-7.88899,PT
+4467,LQBK,Banja Luka International Airport,large_airport,44.941399,17.297501,BA
+4469,LQSA,Sarajevo International Airport,large_airport,43.8246,18.331499,BA
+4470,LQTZ,Tuzla International Airport,large_airport,44.459858,18.723627,BA
+4472,LRBC,Bacău George Enescu International  Airport,large_airport,46.5219,26.910299,RO
+4476,LRCL,Avram Iancu Cluj International Airport,large_airport,46.786042,23.685733,RO
+4479,LRCV,Craiova International Airport,large_airport,44.3181,23.888599,RO
+4480,LRIA,Iaşi International Airport,large_airport,47.179633,27.621431,RO
+4481,LROD,Oradea International Airport,large_airport,47.025299,21.9025,RO
+4482,LROP,Bucharest Henri Coandă International Airport,large_airport,44.571792,26.103285,RO
+4483,LRSB,Sibiu International Airport,large_airport,45.785841,24.086666,RO
+4485,LRSV,Suceava Ștefan cel Mare International Airport,large_airport,47.6875,26.354099,RO
+4487,LRTM,Târgu Mureş Transilvania International Airport,medium_airport,46.467701,24.4125,RO
+4488,LRTR,Timișoara Traian Vuia International Airport,large_airport,45.809898,21.3379,RO
+4489,LSGC,Les Eplatures Airport,medium_airport,47.0839,6.79284,CH
+4490,LSGG,Geneva International Airport,large_airport,46.238098,6.10895,CH
+4492,LSGS,Sion Airport,medium_airport,46.219166,7.326944,CH
+4494,LSMD,Dübendorf Air Base,medium_airport,47.398602,8.64823,CH
+4495,LSME,Emmen Air Base,medium_airport,47.092444,8.305184,CH
+4502,LSZA,Lugano Airport,medium_airport,46.004299,8.91058,CH
+4503,LSZB,Bern Airport,medium_airport,46.912736,7.498819,CH
+4504,LSZG,Grenchen Airfield,medium_airport,47.181599,7.41719,CH
+4505,LSZH,Zürich Airport,large_airport,47.458056,8.548056,CH
+4506,LSZR,Sankt Gallen Altenrhein Airport,medium_airport,47.485001,9.56077,CH
+4509,LTAC,Esenboğa International Airport,large_airport,40.128101,32.995098,TR
+4510,LTAD,Etimesgut Air Base,medium_airport,39.949799,32.688599,TR
+4511,LTAE,Akıncı Air Base,medium_airport,40.078899,32.565601,TR
+4515,LTAI,Antalya International Airport,large_airport,36.898701,30.800501,TR
+4516,LTAJ,Gaziantep Oğuzeli International Airport,large_airport,36.947201,37.478699,TR
+4518,LTAN,Konya Airport,large_airport,37.979,32.561901,TR
+4521,LTAR,Sivas Nuri Demirağ Airport,medium_airport,39.813801,36.9035,TR
+4522,LTAT,Malatya Erhaç Airport,medium_airport,38.435299,38.091,TR
+4523,LTAU,Kayseri Erkilet International Airport,large_airport,38.770401,35.495399,TR
+4526,LTAY,Çardak Airport,medium_airport,37.785599,29.7013,TR
+4527,LTAZ,Nevşehir Kapadokya Airport,large_airport,38.7719,34.5345,TR
+4528,LTBA,İstanbul Atatürk Airport,large_airport,40.971913,28.823714,TR
+4531,LTBH,Çanakkale Airport,medium_airport,40.137699,26.4268,TR
+4533,LTBJ,Adnan Menderes International Airport,large_airport,38.2924,27.157,TR
+4541,LTBR,Bursa Yenişehir Airport,medium_airport,40.255199,29.562599,TR
+4542,LTBS,Dalaman International Airport,large_airport,36.7131,28.7925,TR
+4547,LTBY,Hasan Polatkan Airport,large_airport,39.811644,30.519268,TR
+4548,LTCA,Elazığ Airport,medium_airport,38.597974,39.28348,TR
+4549,LTCC,Diyarbakır Airport,medium_airport,37.893902,40.201,TR
+4550,LTCD,Erzincan Airport,medium_airport,39.710201,39.527,TR
+4551,LTCE,Erzurum International Airport,medium_airport,39.956501,41.1702,TR
+4552,LTCF,Kars Airport,medium_airport,40.562199,43.115002,TR
+4553,LTCG,Trabzon International Airport,medium_airport,40.995098,39.7897,TR
+4555,LTCI,Van Ferit Melen Airport,medium_airport,38.468201,43.332298,TR
+4556,LTCJ,Batman Airport,medium_airport,37.929001,41.1166,TR
+4557,LTCK,Muş Airport,medium_airport,38.747799,41.661201,TR
+4559,LTCN,Kahramanmaraş Airport,medium_airport,37.538826,36.953522,TR
+4560,LTCO,Ağrı Airport,medium_airport,39.655642,43.025742,TR
+4561,LTCP,Adıyaman Airport,medium_airport,37.7314,38.468899,TR
+4562,LTCR,Mardin Airport,medium_airport,37.223301,40.631699,TR
+4566,LTFD,Balıkesir Koca Seyit Airport,large_airport,39.552533,27.010192,TR
+4567,LTFE,Milas Bodrum International Airport,large_airport,37.249314,27.66401,TR
+4568,LTFH,Samsun-Çarşamba Airport,medium_airport,41.253988,36.567546,TR
+4569,LTFJ,Istanbul Sabiha Gökçen International Airport,large_airport,40.898602,29.3092,TR
+4571,LUKK,Chişinău International Airport,large_airport,46.92774,28.931704,MD
+4572,LWOH,Ohrid St. Paul the Apostle Airport,large_airport,41.18,20.7423,MK
+4573,LWSK,Skopje International Airport,large_airport,41.958087,21.622581,MK
+4574,LXGB,Gibraltar Airport,large_airport,36.151679,-5.34978,GI
+4610,LYBE,Belgrade Nikola Tesla Airport,large_airport,44.818401,20.309099,RS
+4611,LYBT,Batajnica Air Base,medium_airport,44.935299,20.2575,RS
+4612,LYNI,Niš Constantine the Great Airport,large_airport,43.336538,21.856242,RS
+4613,LYPG,Podgorica Airport / Podgorica Golubovci Airbase,large_airport,42.359402,19.2519,ME
+4614,BKPR,Priština Adem Jashari International Airport,large_airport,42.5728,21.035801,XK
+4615,LYTV,Tivat Airport,medium_airport,42.404701,18.723301,ME
+4617,LZIB,M. R. Štefánik Airport,large_airport,48.1702,17.2127,SK
+4618,LZKZ,Košice International Airport,medium_airport,48.663101,21.2411,SK
+4623,LZTT,Poprad-Tatry Airport,medium_airport,49.070994,20.241394,SK
+4628,MBPV,Providenciales International Airport,large_airport,21.773697,-72.268321,TC
+4636,MDPC,Punta Cana International Airport,large_airport,18.567093,-68.364558,DO
+4637,MDPP,Gregorio Luperon International Airport,medium_airport,19.7579,-70.57,DO
+4638,MDSD,Las Américas International Airport,large_airport,18.429701,-69.6689,DO
+4640,MDST,Cibao International Airport,large_airport,19.40406,-70.604431,DO
+4644,MGGT,La Aurora International Airport,large_airport,14.582896,-90.527515,GT
+4648,MGSJ,San José Airport,medium_airport,13.9362,-90.8358,GT
+4661,MHLM,Ramón Villeda Morales International Airport,large_airport,15.4526,-87.923599,HN
+4663,MHRO,Juan Manuel Gálvez International Airport,large_airport,16.316799,-86.523003,HN
+4666,MHTG,Toncontín Airport,medium_airport,14.0609,-87.217201,HN
+4680,MKJP,Norman Manley International Airport,large_airport,17.935699,-76.787498,JM
+4681,MKJS,Sangster International Airport,large_airport,18.50342,-77.91323,JM
+4688,MMAA,General Juan N. Álvarez International Airport,large_airport,16.757126,-99.753113,MX
+4691,MMAS,Aguascalientes International Airport,large_airport,21.699589,-102.318372,MX
+4692,MMBT,Bahías de Huatulco International Airport,large_airport,15.775437,-96.260456,MX
+4697,MMCL,Bachigualato Federal International Airport,large_airport,24.76504,-107.475228,MX
+4703,MMCU,General Roberto Fierro Villalobos International Airport,large_airport,28.702649,-105.963764,MX
+4706,MMCZ,Cozumel International Airport,large_airport,20.514922,-86.928538,MX
+4707,MMDO,General Guadalupe Victoria International Airport,medium_airport,24.125468,-104.527938,MX
+4709,MMES,Ensenada International Airport / El Ciprés Air Base,medium_airport,31.794516,-116.602384,MX
+4710,MMGL,Guadalajara International Airport,large_airport,20.523342,-103.310108,MX
+4713,MMHO,General Ignacio L. Pesqueira International Airport,large_airport,29.092811,-111.053015,MX
+4722,MMLO,Guanajuato International Airport,large_airport,20.992695,-101.480284,MX
+4723,MMLP,Manuel Márquez de León International Airport,medium_airport,24.072331,-110.362662,MX
+4724,MMLT,Loreto International Airport,large_airport,25.989549,-111.348408,MX
+4726,MMMD,Manuel Crescencio Rejón International Airport,large_airport,20.930485,-89.645462,MX
+4727,MMML,General Rodolfo Sánchez Taboada International Airport,medium_airport,32.630629,-115.242805,MX
+4728,MMMM,General Francisco J. Mujica International Airport,large_airport,19.849899,-101.025002,MX
+4731,MMMX,Mexico City Benito Juárez International Airport,large_airport,19.435822,-99.07033,MX
+4732,MMMY,Monterrey International Airport,large_airport,25.778521,-100.106989,MX
+4733,MMMZ,General Rafael Buelna International Airport,large_airport,23.162823,-106.264517,MX
+4736,MMOX,Xoxocotlán International Airport,large_airport,16.998773,-96.726092,MX
+4738,MMPB,Hermanos Serdán International Airport,large_airport,19.158465,-98.371582,MX
+4745,MMPR,Puerto Vallarta International Airport,large_airport,20.679913,-105.254391,MX
+4747,MMQT,Querétaro Intercontinental Airport,large_airport,20.618779,-100.186449,MX
+4750,MMSD,Los Cabos International Airport,large_airport,23.151919,-109.720731,MX
+4752,MMSP,Ponciano Arriaga International Airport,medium_airport,22.262026,-100.935692,MX
+4755,MMTC,Francisco Sarabia Tinoco International Airport,medium_airport,25.562265,-103.404608,MX
+4757,MMTJ,General Abelardo L. Rodriguez International Airport,large_airport,32.541043,-116.969976,MX
+4758,MMTM,General Francisco Javier Mina International Airport,medium_airport,22.292622,-97.867058,MX
+4760,MMTO,Adolfo López Mateos International Airport,large_airport,19.3369,-99.56583,MX
+4761,MMTP,Tapachula International Airport,medium_airport,14.794549,-92.369871,MX
+4762,MMUN,Cancún International Airport,large_airport,21.040817,-86.87347,MX
+4764,MMVR,General Heriberto Jara International Airport,large_airport,19.139589,-96.188602,MX
+4765,MMZC,General Leobardo C. Ruiz International Airport,medium_airport,22.894942,-102.687154,MX
+4766,MMZH,Ixtapa-Zihuatanejo International Airport,large_airport,17.601771,-101.460629,MX
+4768,MMZO,Playa de Oro International Airport,medium_airport,19.1448,-104.558998,MX
+4774,MNMG,Augusto C. Sandino (Managua) International Airport,large_airport,12.1415,-86.168198,NI
+4791,MPMG,Marcos A. Gelabert International Airport,medium_airport,8.97334,-79.555603,PA
+4793,MPTO,Tocumen International Airport,large_airport,9.07136,-79.383499,PA
+4806,MRLB,Daniel Oduber Quirós International Airport,large_airport,10.5933,-85.544403,CR
+4810,MROC,Juan Santamaría International Airport,large_airport,9.99386,-84.208801,CR
+4820,MSLP,El Salvador International Airport Saint Óscar Arnulfo Romero y Galdámez,large_airport,13.44447,-89.055784,SV
+4823,MTCH,Cap Haitien International Airport,large_airport,19.725547,-72.20071,HT
+4825,MTPP,Toussaint Louverture International Airport,large_airport,18.580023,-72.292596,HT
+4839,MUHA,José Martí International Airport,large_airport,22.989201,-82.409103,CU
+4862,MWCR,Owen Roberts International Airport,large_airport,19.292801,-81.357697,KY
+4925,MYAF,Andros Town Airport,medium_airport,24.697901,-77.795601,BS
+4926,MYAK,Congo Town Airport,medium_airport,24.158701,-77.589798,BS
+4927,MYAM,Leonard M. Thompson International Airport,medium_airport,26.510711,-77.084262,BS
+4928,MYAN,San Andros Airport,medium_airport,25.053801,-78.049004,BS
+4933,MYBC,Chub Cay Airport,medium_airport,25.417101,-77.880898,BS
+4934,MYBG,Great Harbour Cay Airport,medium_airport,25.7383,-77.840103,BS
+4935,MYBS,South Bimini Airport,medium_airport,25.6999,-79.264702,BS
+4939,MYEF,Exuma International Airport,medium_airport,23.562599,-75.877998,BS
+4941,MYEH,North Eleuthera Airport,medium_airport,25.475823,-76.680784,BS
+4946,MYGF,Grand Bahama International Airport,large_airport,26.557996,-78.695583,BS
+4951,MYNN,Lynden Pindling International Airport,large_airport,25.039,-77.466202,BS
+4956,MZBZ,Philip S. W. Goldson International Airport,large_airport,17.539951,-88.303556,BZ
+4959,NFFN,Nadi International Airport,large_airport,-17.761822,177.437843,FJ
+4976,NSFA,Faleolo International Airport,large_airport,-13.83,-172.007996,WS
+4978,NSTU,Pago Pago International Airport,large_airport,-14.331,-170.710007,AS
+4979,NTAA,Fa'a'ā International Airport,large_airport,-17.553472,-149.606936,PF
+5006,NTTM,Moorea Temae Airport,medium_airport,-17.48979,-149.761777,PF
+5023,NZAA,Auckland International Airport,large_airport,-37.01199,174.786331,NZ
+5024,NZAP,Taupo Airport,medium_airport,-38.7397,176.084,NZ
+5025,NZAR,Ardmore Airport,medium_airport,-37.029701,174.973007,NZ
+5026,NZCH,Christchurch International Airport,large_airport,-43.489029,172.532065,NZ
+5030,NZGS,Gisborne Airport,medium_airport,-38.6633,177.977997,NZ
+5033,NZHN,Hamilton International Airport,medium_airport,-37.866961,175.331952,NZ
+5036,NZKK,Kerikeri Airport,medium_airport,-35.259148,173.913317,NZ
+5041,NZMS,Hood Airport,medium_airport,-40.974634,175.63454,NZ
+5043,NZNR,Hawke's Bay Airport,medium_airport,-39.465801,176.869995,NZ
+5044,NZNS,Nelson Airport,medium_airport,-41.296709,173.224323,NZ
+5045,NZNV,Invercargill Airport,medium_airport,-46.412399,168.313004,NZ
+5046,NZOH,RNZAF Base Ohakea,medium_airport,-40.206001,175.388,NZ
+5049,NZPM,Palmerston North Airport,medium_airport,-40.320599,175.617004,NZ
+5050,NZPP,Paraparaumu Airport,medium_airport,-40.904701,174.988998,NZ
+5052,NZRO,Rotorua Regional Airport,medium_airport,-38.1092,176.317001,NZ
+5055,NZTG,Tauranga Airport,medium_airport,-37.671902,176.195999,NZ
+5056,NZTU,Timaru Airport,medium_airport,-44.302799,171.225006,NZ
+5058,NZWB,Woodbourne Airport,medium_airport,-41.518299,173.869995,NZ
+5063,NZWN,Wellington International Airport,large_airport,-41.326839,174.806862,NZ
+5064,NZWO,Wairoa Airport,medium_airport,-39.011862,177.404401,NZ
+5065,NZWP,RNZAF Base Auckland-Whenuapai,medium_airport,-36.7878,174.630005,NZ
+5066,NZWR,Whangarei Airport,medium_airport,-35.769253,174.363713,NZ
+5068,NZWU,Wanganui Airport,medium_airport,-39.963467,175.02444,NZ
+5072,OAKB,Kabul International Airport,large_airport,34.565899,69.212303,AF
+5079,OBBI,Bahrain International Airport,large_airport,26.267295,50.63764,BH
+5083,OEAH,Al-Ahsa International Airport,large_airport,25.285299,49.485199,SA
+5087,OEDF,King Fahd International Airport,large_airport,26.4691,49.798209,SA
+5089,OEDR,King Abdulaziz Air Base,large_airport,26.2654,50.152,SA
+5097,OEJN,King Abdulaziz International Airport,large_airport,21.680241,39.157436,SA
+5112,OERK,King Khalid International Airport,large_airport,24.9576,46.698799,SA
+5166,OIIE,Imam Khomeini International Airport,large_airport,35.4161,51.152199,IR
+5204,OITT,Tabriz International Airport,large_airport,38.1339,46.235001,IR
+5212,OJAI,Queen Alia International Airport,large_airport,31.722601,35.993198,JO
+5213,OJAM,Marka International (Amman Civil) Airport,large_airport,31.9727,35.9916,JO
+5219,OKAS,Ali Al Salem Air Base,medium_airport,29.346905,47.520118,KW
+5220,OKKK,Kuwait International Airport,large_airport,29.224487,47.969813,KW
+5222,OLBA,Beirut Rafic Hariri International Airport,large_airport,33.819833,35.487443,LB
+5226,OMAA,Zayed International Airport,large_airport,24.440966,54.649237,AE
+5231,OMAM,Al Dhafra Air Base,medium_airport,24.248199,54.547699,AE
+5235,OMDB,Dubai International Airport,large_airport,25.24979,55.370992,AE
+5236,OMDM,Al Minhad Air Base,medium_airport,25.0268,55.366199,AE
+5237,OMFJ,Fujairah International Airport,large_airport,25.108411,56.328061,AE
+5238,OMRK,Ras Al Khaimah International Airport,large_airport,25.613501,55.938801,AE
+5239,OMSJ,Sharjah International Airport,large_airport,25.3286,55.5172,AE
+5242,OOMS,Muscat International Airport,large_airport,23.600218,58.285268,OM
+5255,OPKC,Jinnah International Airport,large_airport,24.9065,67.160797,PK
+5257,OPLA,Allama Iqbal International Airport,large_airport,31.521601,74.403603,PK
+5264,OPMT,Multan International Airport,large_airport,30.203199,71.419098,PK
+5289,ORBI,Baghdad International Airport / New Al Muthana Air Base,large_airport,33.262501,44.2346,IQ
+5292,ORER,Erbil International Airport,large_airport,36.236047,43.946615,IQ
+5294,ORMM,Basra International Airport,large_airport,30.549101,47.662102,IQ
+5308,OTBD,Doha International Airport,medium_airport,25.259431,51.565528,QA
+5309,OTBH,Al Udeid Air Base,medium_airport,25.1173,51.314999,QA
+5336,PAAQ,"Warren ""Bud"" Woods Palmer Municipal Airport",medium_airport,61.594898,-149.08901,US
+5337,PABA,Barter Island Long Range Radar Station Airport,medium_airport,70.134003,-143.582001,US
+5338,PABE,Bethel Airport,medium_airport,60.7798,-161.837997,US
+5342,PABR,Wiley Post Will Rogers Memorial Airport,medium_airport,71.285402,-156.766008,US
+5344,PABV,Birchwood Airport,medium_airport,61.4165,-149.507004,US
+5345,PACD,Cold Bay Airport,medium_airport,55.207871,-162.725029,US
+5348,PACV,Merle K (Mudhole) Smith Airport,medium_airport,60.491798,-145.477997,US
+5350,PADE,Deering Airport,medium_airport,66.068901,-162.766914,US
+5351,PADL,Dillingham Airport,medium_airport,59.044701,-158.505005,US
+5353,PADQ,Kodiak Airport,medium_airport,57.75,-152.494003,US
+5354,PADU,Tom Madsen (Dutch Harbor) Airport,medium_airport,53.89881,-166.544996,US
+5355,PAED,Elmendorf Air Force Base,medium_airport,61.251709,-149.807097,US
+5358,PAEM,Emmonak Airport,medium_airport,62.786098,-164.490997,US
+5359,PAEN,Kenai Municipal Airport,medium_airport,60.570946,-151.245174,US
+5360,PAFA,Fairbanks International Airport,medium_airport,64.815102,-147.856003,US
+5363,PAFM,Ambler Airport,medium_airport,67.105529,-157.855339,US
+5365,PAGA,Edward G. Pitka Sr Airport,medium_airport,64.736198,-156.936997,US
+5367,PAGK,Gulkana Airport,medium_airport,62.155859,-145.454662,US
+5368,PAGM,Gambell Airport,medium_airport,63.767694,-171.733303,US
+5369,PAGS,Gustavus Airport,medium_airport,58.425301,-135.707001,US
+5370,PAHL,Huslia Airport,medium_airport,65.697899,-156.350998,US
+5372,PAHN,Haines Airport,medium_airport,59.243921,-135.523925,US
+5373,PAHO,Homer Airport,medium_airport,59.644456,-151.479235,US
+5375,PAII,Egegik Airport,medium_airport,58.184386,-157.374873,US
+5376,PAIK,Bob Baker Memorial Airport,medium_airport,66.976128,-160.439014,US
+5377,PAIL,Iliamna Airport,medium_airport,59.754398,-154.910996,US
+5379,PAJN,Juneau International Airport,medium_airport,58.354935,-134.574416,US
+5380,PAKN,King Salmon Airport,medium_airport,58.677845,-156.651965,US
+5381,PAKP,Anaktuvuk Pass Airport,medium_airport,68.133598,-151.742996,US
+5382,PAKT,Ketchikan International Airport,medium_airport,55.355598,-131.714004,US
+5383,PAKW,Klawock Airport,medium_airport,55.579201,-133.076004,US
+5386,PAMR,Merrill Field,medium_airport,61.212792,-149.843988,US
+5387,PAMY,Mekoryuk Airport,medium_airport,60.372338,-166.269751,US
+5388,PANC,Ted Stevens Anchorage International Airport,large_airport,61.179004,-149.992561,US
+5389,PAUN,Unalakleet Airport,medium_airport,63.888401,-160.798996,US
+5392,PANV,Anvik Airport,medium_airport,62.646702,-160.190994,US
+5393,PAOM,Nome Airport,medium_airport,64.512199,-165.445007,US
+5395,PAOT,Ralph Wien Memorial Airport,medium_airport,66.884697,-162.598999,US
+5396,PAPB,St George Airport,medium_airport,56.577345,-169.663823,US
+5398,PAPG,Petersburg James A Johnson Airport,medium_airport,56.801701,-132.945007,US
+5399,PAPH,Port Heiden Airport,medium_airport,56.957893,-158.630219,US
+5400,PAPM,Platinum Airport,medium_airport,59.017675,-161.827927,US
+5401,PAQT,Nuiqsut Airport,medium_airport,70.209999,-151.005998,US
+5402,PARC,Arctic Village Airport,medium_airport,68.1147,-145.578995,US
+5403,PARY,Ruby Airport,medium_airport,64.727203,-155.470001,US
+5404,PASA,Savoonga Airport,medium_airport,63.686401,-170.492996,US
+5405,PASC,Deadhorse Airport,medium_airport,70.194702,-148.464996,US
+5406,PASD,Sand Point Airport,medium_airport,55.313908,-160.522099,US
+5408,PASI,Sitka Rocky Gutierrez Airport,medium_airport,57.0471,-135.362,US
+5410,PASN,St Paul Island Airport,medium_airport,57.166311,-170.222555,US
+5412,PASX,Soldotna Airport,medium_airport,60.474935,-151.038471,US
+5416,PATQ,Atqasuk Edward Burnell Sr Memorial Airport,medium_airport,70.46704,-157.436013,US
+5418,PAVD,Valdez Pioneer Field,medium_airport,61.132712,-146.246567,US
+5421,PAWG,Wrangell Airport,medium_airport,56.484299,-132.369995,US
+5422,PAWI,Wainwright Airport,medium_airport,70.638,-159.994995,US
+5424,PAWS,Wasilla Airport,medium_airport,61.571701,-149.539993,US
+5429,PFYU,Fort Yukon Airport,medium_airport,66.571651,-145.249987,US
+5430,PGRO,Rota International Airport,large_airport,14.173267,145.241103,MP
+5431,PGSN,Saipan International Airport,medium_airport,15.119384,145.728848,MP
+5433,PGUM,Antonio B. Won Pat International Airport,large_airport,13.485,144.797282,GU
+5434,PGWT,Francisco Manglona Borja / Tinian International Airport,medium_airport,14.999207,145.619355,MP
+5444,PHHN,Hana Airport,medium_airport,20.795601,-156.014008,US
+5446,PHJH,Kapalua Airport,medium_airport,20.9629,-156.673004,US
+5448,PHKO,Ellison Onizuka Kona International Airport at Keāhole,large_airport,19.738783,-156.045603,US
+5449,PHLI,Lihue Airport,large_airport,21.974393,-159.337146,US
+5450,PHMK,Molokai Airport,medium_airport,21.152901,-157.095993,US
+5451,PHMU,Waimea Kohala Airport,medium_airport,20.001301,-155.667999,US
+5453,PHNL,Daniel K. Inouye International Airport,large_airport,21.318387,-157.92567,US
+5454,PHNY,Lanai Airport,medium_airport,20.785675,-156.951324,US
+5455,PHOG,Kahului International Airport,large_airport,20.896263,-156.431837,US
+5457,PHTO,Hilo International Airport,medium_airport,19.72135,-155.045428,US
+5488,PKMJ,Marshall Islands International Airport,large_airport,7.06511,171.271656,MH
+5495,PPIZ,Point Lay LRRS Airport,medium_airport,69.732903,-163.005005,US
+5499,PTKK,Chuuk International Airport,large_airport,7.46187,151.843002,FM
+5501,PTRO,Roman Tmetuchl International Airport,large_airport,7.366965,134.544085,PW
+5510,RCBS,Kinmen Airport,medium_airport,24.4279,118.359001,TW
+5516,RCKH,Kaohsiung International Airport,large_airport,22.577101,120.349998,TW
+5517,RCKU,Chiayi Airport,medium_airport,23.462577,120.390544,TW
+5520,RCMQ,Taichung International Airport / Ching Chuang Kang Air Base,large_airport,24.2647,120.621002,TW
+5522,RCNN,Tainan International Airport / Tainan Air Base,large_airport,22.950399,120.206001,TW
+5523,RCPO,Hsinchu Air Base,medium_airport,24.818001,120.939003,TW
+5524,RCQC,Penghu Magong Airport,large_airport,23.568701,119.627998,TW
+5527,RCSS,Taipei Songshan International Airport,large_airport,25.067244,121.552822,TW
+5528,RCTP,Taiwan Taoyuan International Airport,large_airport,25.0777,121.233002,TW
+5531,RJAA,Narita International Airport,large_airport,35.76858,140.388714,JP
+5536,RJBB,Kansai International Airport,large_airport,34.427299,135.244003,JP
+5538,RJBE,Kobe Airport,large_airport,34.632801,135.223999,JP
+5541,RJBT,Konotori Tajima Airport,medium_airport,35.512798,134.787003,JP
+5544,RJCC,New Chitose Airport,large_airport,42.774753,141.690414,JP
+5545,RJCH,Hakodate Airport,large_airport,41.77,140.822006,JP
+5546,RJCJ,JASDF Chitose Air Base,medium_airport,42.794498,141.666,JP
+5550,RJCO,Sapporo Okadama Airport,medium_airport,43.117447,141.38134,JP
+5564,RJFF,Fukuoka Airport,large_airport,33.585899,130.451004,JP
+5566,RJFK,Kagoshima Airport,large_airport,31.8034,130.718994,JP
+5576,RJGG,Chubu Centrair International Airport,large_airport,34.858398,136.804993,JP
+5581,RJNA,Nagoya Airport / JASDF Komaki Air Base,medium_airport,35.255759,136.924095,JP
+5582,RJNF,Fukui Airport,medium_airport,36.142799,136.223999,JP
+5590,RJOA,Hiroshima Airport,large_airport,34.4361,132.919006,JP
+5591,RJOB,Okayama Momotaro Airport,large_airport,34.756901,133.854996,JP
+5593,RJOF,JASDF Hofu Airfield,medium_airport,34.034746,131.548716,JP
+5595,RJOI,Iwakuni Kintaikyo Airport,medium_airport,34.146333,132.247238,JP
+5597,RJOM,Matsuyama Airport,large_airport,33.826893,132.700114,JP
+5598,RJOO,Osaka Itami International Airport,large_airport,34.780853,135.440829,JP
+5600,RJOS,Tokushima Awaodori Airport / JMSDF Tokushima Air Base,large_airport,34.132559,134.607816,JP
+5601,RJOT,Takamatsu Airport,large_airport,34.214963,134.015454,JP
+5603,RJOY,Yao Airport,medium_airport,34.596298,135.602997,JP
+5605,RJSA,Aomori Airport,large_airport,40.733777,140.689477,JP
+5606,RJSC,Yamagata Airport,medium_airport,38.4119,140.371002,JP
+5615,RJSS,Sendai Airport,large_airport,38.139702,140.917007,JP
+5618,RJTA,JMSDF Atsugi Air Base / Naval Air Facility Atsugi,medium_airport,35.454601,139.449997,JP
+5623,RJTL,JMSDF Shimofusa Air Base,medium_airport,35.798901,140.011002,JP
+5627,RJTT,Tokyo Haneda International Airport,large_airport,35.549678,139.786958,JP
+5629,RJTY,Yokota Air Base,medium_airport,35.748501,139.348007,JP
+5630,RKJJ,Gwangju Airport,medium_airport,35.123173,126.805444,KR
+5634,RKJY,Yeosu Airport,medium_airport,34.8423,127.616997,KR
+5644,RKPU,Ulsan Airport,medium_airport,35.593498,129.352005,KR
+5653,RKSI,Incheon International Airport,large_airport,37.469101,126.450996,KR
+5654,RKSM,Seoul Air Base (K-16),medium_airport,37.444744,127.112718,KR
+5656,RKSS,Seoul Gimpo International Airport,large_airport,37.5583,126.791,KR
+5657,RKSW,Suwon Airport,medium_airport,37.239399,127.007004,KR
+5659,RKTH,Pohang Airport (G-815/K-3),medium_airport,35.987955,129.420383,KR
+5687,RPLC,Clark International Airport / Clark Air Base,large_airport,15.186,120.559998,PH
+5688,RPLI,Laoag International Airport,large_airport,18.175089,120.531006,PH
+5689,RPLL,Ninoy Aquino International Airport,large_airport,14.5086,121.019997,PH
+5691,RPLS,Danilo Atienza Air Base,medium_airport,14.4954,120.903999,PH
+5742,RPVM,Mactan Cebu International Airport,large_airport,10.309261,123.97974,PH
+5771,SABE,Aeroparque Jorge Newbery,large_airport,-34.559419,-58.415536,AR
+5775,SADF,San Fernando Airport,medium_airport,-34.4532,-58.5896,AR
+5781,SAEZ,Ezeiza International Airport - Ministro Pistarini,large_airport,-34.8222,-58.5358,AR
+5852,SAZS,Teniente Luis Candelaria International Airport,large_airport,-41.151199,-71.157501,AR
+5870,SBBI,Bacacheri Airport,medium_airport,-25.4051,-49.231998,BR
+5872,SBBR,Presidente Juscelino Kubitschek International Airport,large_airport,-15.869167,-47.920834,BR
+5877,SBBZ,Umberto Modiano Airport,medium_airport,-22.770881,-41.96308,BR
+5884,SBCH,Serafin Enoss Bertaso Airport,medium_airport,-27.134199,-52.656601,BR
+5888,SBCO,Canoas Air Force Base,medium_airport,-29.945928,-51.144413,BR
+5891,SBCT,Curitiba-Afonso Pena International Airport,large_airport,-25.5285,-49.1758,BR
+5893,SBCX,Hugo Cantergiani Regional Airport,medium_airport,-29.197183,-51.187647,BR
+5896,SBDN,Presidente Prudente Airport,medium_airport,-22.1751,-51.424599,BR
+5897,SBEG,Eduardo Gomes International Airport,large_airport,-3.03861,-60.049702,BR
+5906,SBGL,Rio de Janeiro Galeão – Tom Jobim International Airport,large_airport,-22.809999,-43.250557,BR
+5908,SBGO,Santa Genoveva International Airport,large_airport,-16.632,-49.220699,BR
+5910,SBGR,São Paulo/Guarulhos–Governor André Franco Montoro International Airport,large_airport,-23.431274,-46.469954,BR
+5927,SBKP,Viracopos International Airport,large_airport,-23.007404,-47.134502,BR
+5931,SBLO,Governor José Richa Airport,medium_airport,-23.334375,-51.128365,BR
+5937,SBME,Macaé Benedito Lacerda Airport,medium_airport,-22.343,-41.765999,BR
+5942,SBMO,Zumbi dos Palmares International Airport,large_airport,-9.512559,-35.791839,BR
+5945,SBMT,Campo de Marte Airport,medium_airport,-23.5091,-46.637798,BR
+5947,SBNF,Ministro Victor Konder International Airport,large_airport,-26.879431,-48.650979,BR
+5967,SBRJ,Santos Dumont Airport,large_airport,-22.910397,-43.16282,BR
+5968,SBRP,Leite Lopes Airport,medium_airport,-21.134314,-47.774053,BR
+5970,SBSJ,Professor Urbano Ernesto Stumpf Airport,medium_airport,-23.2292,-45.8615,BR
+5974,SBSP,Congonhas–Deputado Freitas Nobre Airport,large_airport,-23.627657,-46.654601,BR
+5975,SBSR,Prof. Eribelto Manoel Reino State Airport,medium_airport,-20.817113,-49.406963,BR
+5976,SBST,Santos Nero Moura Air Base / Guarujá Airport,medium_airport,-23.928192,-46.300195,BR
+5993,SBUL,Ten. Cel. Aviador César Bombonato Airport,medium_airport,-18.883579,-48.225936,BR
+5998,SBVT,Eurico de Aguiar Salles International Airport,large_airport,-20.258,-40.285,BR
+6015,SCEL,Comodoro Arturo Merino Benítez International Airport,large_airport,-33.390252,-70.794697,CL
+6056,SEGU,José Joaquín de Olmedo International Airport,large_airport,-2.15742,-79.883598,EC
+6088,SGAS,Silvio Pettirossi International Airport,large_airport,-25.240156,-57.519227,PY
+6091,SGES,Guaraní International Airport,large_airport,-25.4555,-54.843601,PY
+6099,SKAR,El Eden Airport,medium_airport,4.45278,-75.7664,CO
+6102,SKBG,Palonegro Airport,medium_airport,7.1265,-73.1848,CO
+6104,SKBO,El Dorado International Airport,large_airport,4.70159,-74.1469,CO
+6105,SKBQ,Ernesto Cortissoz International Airport,large_airport,10.8896,-74.7808,CO
+6109,SKCG,Rafael Nuñez International Airport,large_airport,10.4424,-75.513,CO
+6110,SKCL,Alfonso Bonilla Aragon International Airport,large_airport,3.542717,-76.381898,CO
+6148,SKPE,Matecaña International Airport,medium_airport,4.81267,-75.7395,CO
+6158,SKRG,Jose Maria Córdova International Airport,large_airport,6.16454,-75.4231,CO
+6176,SKVP,Alfonso López Pumarejo Airport,medium_airport,10.435,-73.2495,CO
+6193,SLVR,Viru Viru International Airport,large_airport,-17.6448,-63.135399,BO
+6195,SMJP,Johan Adolf Pengel International Airport,large_airport,5.45283,-55.187801,SR
+6198,SOCA,Cayenne – Félix Eboué Airport,large_airport,4.819964,-52.361326,GF
+6217,SPIM,Jorge Chávez International Airport,large_airport,-12.0219,-77.114305,PE
+6237,SPST,Cadete FAP Guillermo Del Castillo Paredes Airport,medium_airport,-6.50874,-76.373199,PE
+6247,SUMU,Carrasco General Cesáreo L. Berisso International Airport,large_airport,-34.835647,-56.026497,UY
+6300,SVMI,Maiquetía Simón Bolívar International Airport,large_airport,10.602214,-66.991174,VE
+6356,SYCJ,Cheddi Jagan International Airport,large_airport,6.49855,-58.254101,GY
+6359,TAPA,V. C. Bird International Airport,large_airport,17.1367,-61.792702,AG
+6360,TBPB,Grantley Adams International Airport,large_airport,13.074667,-59.491034,BB
+6362,TDPD,Douglas-Charles Airport,medium_airport,15.546673,-61.301082,DM
+6363,TFFF,Martinique Aimé Césaire International Airport,large_airport,14.591,-61.003201,MQ
+6364,TFFG,Grand Case-l'Espérance Airport,medium_airport,18.100057,-63.047444,MF
+6366,TFFR,Maryse Condé International Airport,large_airport,16.265443,-61.532754,GP
+6367,TGPY,Maurice Bishop International Airport,large_airport,12.003996,-61.785302,GD
+6369,TIST,Cyril E. King Airport,large_airport,18.337091,-64.977251,VI
+6370,TISX,Henry E. Rohlsen Airport,medium_airport,17.701413,-64.802608,VI
+6378,TJAB,Antonio Nery Juarbe Pol Airport,medium_airport,18.45085,-66.675768,PR
+6379,TJBQ,Rafael Hernández International Airport,medium_airport,18.4949,-67.129402,PR
+6381,TJIG,Fernando Luis Ribas Dominicci Airport,medium_airport,18.4568,-66.098099,PR
+6382,TJMZ,Eugenio Maria De Hostos Airport,medium_airport,18.255699,-67.148499,PR
+6383,TJPS,Mercedita International Airport,medium_airport,18.008301,-66.563004,PR
+6384,TJSJ,Luis Munoz Marin International Airport,large_airport,18.4394,-66.001801,PR
+6385,TJVQ,Antonio Rivera Rodriguez Airport,medium_airport,18.1348,-65.493599,PR
+6386,TKPK,Robert L. Bradshaw International Airport,large_airport,17.310845,-62.719117,KN
+6388,TLPC,George F. L. Charles Airport,medium_airport,14.0202,-60.992901,LC
+6389,TLPL,Hewanorra International Airport,large_airport,13.7332,-60.952599,LC
+6402,TNCA,Queen Beatrix International Airport,large_airport,12.501056,-70.014281,AW
+6403,TNCB,Flamingo International Airport,large_airport,12.131,-68.268501,BQ
+6404,TNCC,Hato International Airport,large_airport,12.1889,-68.959801,CW
+6406,TNCM,Princess Juliana International Airport,large_airport,18.041,-63.108898,SX
+6407,TQPF,Clayton J. Lloyd International Airport,medium_airport,18.204773,-63.05383,AI
+6410,TTPP,Piarco International Airport,large_airport,10.59535,-61.337568,TT
+6411,TUPJ,Terrance B. Lettsome International Airport,large_airport,18.445492,-64.541707,VG
+6412,TVSB,J F Mitchell Airport,medium_airport,12.9884,-61.262001,VC
+6413,TVSC,Canouan Airport,medium_airport,12.699,-61.3424,VC
+6414,TVSM,Mustique Airport,medium_airport,12.8879,-61.180199,VC
+6416,TXKF,L.F. Wade International Airport,large_airport,32.363802,-64.67824,BM
+6421,UAAA,Almaty International Airport,large_airport,43.354267,77.042828,KZ
+6423,UACC,Nursultan Nazarbayev International Airport,large_airport,51.027035,71.467094,KZ
+6426,UAFM,Manas International Airport,large_airport,43.061298,74.4776,KG
+6429,UAII,Shymkent International Airport,large_airport,42.365021,69.47564,KZ
+6435,UASS,Semei International Airport,large_airport,50.351295,80.234398,KZ
+6439,UAUU,Kostanay International Airport,large_airport,53.206902,63.550301,KZ
+6440,UBBB,Heydar Aliyev International Airport,large_airport,40.47278,50.050931,AZ
+6451,UGKO,David the Builder Kutaisi International Airport,large_airport,42.177448,42.485353,GE
+6453,UGTB,Tbilisi International Airport,large_airport,41.669201,44.9547,GE
+6454,UHBB,Ignatyevo Airport,medium_airport,50.426723,127.415502,RU
+6462,UHWW,Vladivostok International Airport,large_airport,43.396256,132.148155,RU
+6465,UIII,Irkutsk International Airport,large_airport,52.266707,104.395563,RU
+6467,UKBB,Boryspil International Airport,large_airport,50.345001,30.894699,UA
+6472,UKDE,Zaporizhzhia International Airport,medium_airport,47.866962,35.314723,UA
+6474,UKFF,Simferopol International Airport,large_airport,45.0522,33.975101,UA
+6476,UKHH,Kharkiv International Airport,medium_airport,49.926943,36.290814,UA
+6478,UKKK,Igor Sikorsky Kyiv International Airport (Zhuliany),medium_airport,50.40194,30.45194,UA
+6480,UKLI,Ivano-Frankivsk International Airport,medium_airport,48.884201,24.6861,UA
+6481,UKLL,Lviv International Airport,large_airport,49.8125,23.9561,UA
+6487,UKOO,Odesa International Airport,large_airport,46.427196,30.672649,UA
+6489,ULLI,Pulkovo Airport,large_airport,59.800301,30.262501,RU
+6490,ULMM,Emperor Nicholas II Murmansk Airport,large_airport,68.7817,32.750801,RU
+6498,UMKK,Khrabrovo Airport,large_airport,54.89161,20.598559,RU
+6501,UMMS,Minsk National Airport,large_airport,53.888071,28.039964,BY
+6505,UNEE,Alexei Leonov Kemerovo International Airport,large_airport,55.2701,86.107201,RU
+6506,UNKL,Krasnoyarsk International Airport,large_airport,56.175743,92.485788,RU
+6507,UNNT,Novosibirsk Tolmachevo Airport,large_airport,55.019756,82.618675,RU
+6511,URKA,Anapa Vityazevo Airport,medium_airport,45.002102,37.347301,RU
+6512,URKK,Krasnodar Pashkovsky International Airport,large_airport,45.034465,39.174215,RU
+6514,URMM,Mineralnye Vody Airport,large_airport,44.225101,43.081902,RU
+6520,URWA,Astrakhan Narimanovo Boris M. Kustodiev International Airport,large_airport,46.282843,48.010511,RU
+6924,07FA,Ocean Reef Club Airport,medium_airport,25.325399,-80.274803,US
+16091,KABQ,Albuquerque International Sunport,large_airport,35.039976,-106.608925,US
+16092,PADK,Adak Airport,medium_airport,51.883564,-176.642783,US
+16291,PANI,Aniak Airport,medium_airport,61.5816,-159.542999,US
+17619,PAHC,Holy Cross Airport,medium_airport,62.188301,-159.774994,US
+18945,K61B,Boulder City Municipal Airport,medium_airport,35.947161,-114.858799,US
+18966,K67L,Mesquite Airport,medium_airport,36.833105,-114.055928,US
+19033,K76F,Van Zandt County Regional Airport,medium_airport,32.681499,-95.9841,US
+19042,K79J,South Alabama Regional At Bill Benton Field Airport,medium_airport,31.3088,-86.393799,US
+19242,KAEG,Double Eagle II Airport,medium_airport,35.145199,-106.794998,US
+19257,KAIA,Alliance Municipal Airport,medium_airport,42.052543,-102.803965,US
+19275,KALS,San Luis Valley Regional Airport/Bergman Field,medium_airport,37.434898,-105.866997,US
+19291,KAPA,Centennial Airport,medium_airport,39.570099,-104.848999,US
+19293,KAPF,Naples Municipal Airport,medium_airport,26.152599,-81.775299,US
+19308,KASE,Aspen-Pitkin County Airport (Sardy Field),medium_airport,39.223202,-106.869003,US
+19314,KAST,Astoria Regional Airport,medium_airport,46.158001,-123.878998,US
+19320,KATW,Appleton International Airport,medium_airport,44.258515,-88.519,US
+19321,KAUG,Augusta State Airport,medium_airport,44.320599,-69.797302,US
+19326,KAUW,Wausau Downtown Airport,medium_airport,44.926201,-89.626602,US
+19334,KAWO,Arlington Municipal Airport,medium_airport,48.161448,-122.158442,US
+19359,KBCT,Boca Raton Airport,medium_airport,26.3785,-80.107697,US
+19373,KBHB,Hancock County-Bar Harbor Airport,medium_airport,44.450001,-68.361504,US
+19377,KBIH,Eastern Sierra Regional Airport,medium_airport,37.3731,-118.363998,US
+19380,KBJI,Bemidji Regional Airport,medium_airport,47.509399,-94.933701,US
+19388,KBLH,Blythe Airport,medium_airport,33.619202,-114.717003,US
+19406,KBRD,Brainerd Lakes Regional Airport,medium_airport,46.402861,-94.129727,US
+19469,KCCR,Buchanan Field,medium_airport,37.9897,-122.056999,US
+19474,KCDR,Chadron Municipal Airport,medium_airport,42.837601,-103.095001,US
+19482,KCEZ,Cortez Municipal Airport,medium_airport,37.303001,-108.627998,US
+19517,KCMA,Camarillo Airport,medium_airport,34.213699,-119.094002,US
+19529,KCNY,Canyonlands Regional Airport,medium_airport,38.755001,-109.754997,US
+19530,KCOD,Yellowstone Regional Airport,medium_airport,44.520199,-109.024002,US
+19531,KCOE,Coeur D'Alene Airport - Pappy Boyington Field,medium_airport,47.7743,-116.82,US
+19534,KCON,Concord Municipal Airport,medium_airport,43.202702,-71.502296,US
+19552,KCRQ,McClellan-Palomar Airport,medium_airport,33.1283,-117.279999,US
+19569,KCVN,Clovis Municipal Airport,medium_airport,34.426594,-103.078794,US
+19571,KCWA,Central Wisconsin Airport,medium_airport,44.777448,-89.670238,US
+19630,KDIK,Dickinson Theodore Roosevelt Regional Airport,medium_airport,46.797533,-102.801905,US
+19644,KDNL,Daniel Field,medium_airport,33.466499,-82.039398,US
+19648,KDPA,Dupage Airport,medium_airport,41.907799,-88.248596,US
+19654,KDRO,Durango La Plata County Airport,medium_airport,37.151501,-107.753998,US
+19655,KDRT,Del Rio International Airport,medium_airport,29.374201,-100.927002,US
+19661,KDTS,Destin Executive Airport,medium_airport,30.400101,-86.471497,US
+19668,KDVL,Devils Lake Regional Airport,medium_airport,48.115454,-98.908796,US
+19676,KDXR,Danbury Municipal Airport,medium_airport,41.371656,-73.482227,US
+19716,KEAR,Kearney Regional Airport,medium_airport,40.727001,-99.006798,US
+19717,KEAT,Pangborn Memorial Airport,medium_airport,47.398899,-120.207001,US
+19731,KEFD,Ellington Airport,medium_airport,29.6073,-95.158798,US
+19770,KESC,Delta County Airport,medium_airport,45.723199,-87.088623,US
+19843,KFAF,Felker Army Air Field,medium_airport,37.1325,-76.608803,US
+19851,KFCS,Butts AAF (Fort Carson) Air Field,medium_airport,38.678398,-104.757004,US
+19868,KFHR,Friday Harbor Airport,medium_airport,48.523654,-123.024645,US
+19881,KFMN,Four Corners Regional Airport,medium_airport,36.741199,-108.230003,US
+19882,KFMY,Page Field,medium_airport,26.586599,-81.863297,US
+19885,KFNL,Northern Colorado Regional Airport,medium_airport,40.44969,-105.011272,US
+19912,KFXE,Fort Lauderdale Executive Airport,medium_airport,26.1973,-80.1707,US
+19929,KGCC,Northeast Wyoming Regional Airport,medium_airport,44.3489,-105.539001,US
+19936,KGDV,Dawson Community Airport,medium_airport,47.137658,-104.80691,US
+19958,KGLH,Mid Delta Regional Airport,medium_airport,33.482899,-90.985603,US
+19963,KGMU,Greenville Downtown Airport,medium_airport,34.847903,-82.350217,US
+19982,KGTR,Golden Triangle Regional Airport,medium_airport,33.450298,-88.5914,US
+19984,KGUC,Gunnison Crested Butte Regional Airport,medium_airport,38.534672,-106.934566,US
+20038,KHDN,Yampa Valley Airport,medium_airport,40.481201,-107.218002,US
+20041,KHEF,Washington Manassas Harry P. Davis Field,medium_airport,38.723021,-77.515422,US
+20053,KHII,Lake Havasu City Airport,medium_airport,34.570506,-114.357745,US
+20054,KHIO,Portland Hillsboro Airport,medium_airport,45.540401,-122.949997,US
+20071,KHOB,Lea County Regional Airport,medium_airport,32.6875,-103.217003,US
+20081,KHRT,Hurlburt Field,medium_airport,30.427799,-86.689301,US
+20099,KHVR,Havre City County Airport,medium_airport,48.541387,-109.762859,US
+20102,KHWO,North Perry Airport,medium_airport,26.0012,-80.2407,US
+20105,KHXD,Hilton Head Airport,medium_airport,32.2244,-80.697502,US
+20107,KHYI,San Marcos Regional Airport,medium_airport,29.8927,-97.862999,US
+20109,KHYS,Hays Regional Airport,medium_airport,38.844521,-99.273148,US
+20160,KIFP,Laughlin Bullhead International Airport,medium_airport,35.154726,-114.559322,US
+20161,KIGM,Kingman Airport,medium_airport,35.259499,-113.938004,US
+20173,KILN,Wilmington Airpark,medium_airport,39.427898,-83.792099,US
+20177,KIMT,Ford Airport,medium_airport,45.81911,-88.114557,US
+20184,KIPL,Imperial County Airport,medium_airport,32.83539,-115.574026,US
+20187,KISM,Kissimmee Gateway Airport,medium_airport,28.289801,-81.437103,US
+20189,KISO,Kinston Regional Jetport At Stallings Field,medium_airport,35.331402,-77.608803,US
+20193,KITH,Ithaca Tompkins Regional Airport,medium_airport,42.491001,-76.458397,US
+20213,KJHW,Chautauqua County-Jamestown Airport,medium_airport,42.15425,-79.254008,US
+20218,KJNX,Johnston Regional Airport,medium_airport,35.540901,-78.390297,US
+20220,KJQF,Concord-Padgett Regional Airport,medium_airport,35.387798,-80.709099,US
+20319,KLAW,Lawton Fort Sill Regional Airport,medium_airport,34.567699,-98.416603,US
+20329,KLEE,Leesburg International Airport,medium_airport,28.823099,-81.808701,US
+20337,KLGU,Logan-Cache Airport,medium_airport,41.791199,-111.851997,US
+20390,KLWB,Greenbrier Valley Airport,medium_airport,37.857914,-80.400438,US
+20393,KLWS,Lewiston Nez Perce County Airport,medium_airport,46.3745,-117.014999,US
+20480,KMCE,Merced Regional Macready Field,medium_airport,37.284698,-120.514,US
+20481,KMCK,McCook Ben Nelson Regional Airport,medium_airport,40.207787,-100.592794,US
+20482,KMCW,Mason City Municipal Airport,medium_airport,43.159801,-93.329716,US
+20506,KMHR,Sacramento Mather Airport,medium_airport,38.554744,-121.297989,US
+20564,KMTH,Florida Keys Marathon International Airport,medium_airport,24.726006,-81.05138,US
+20565,KMTJ,Montrose Regional Airport,medium_airport,38.5098,-107.893997,US
+20579,KMWA,Veterans Airport of Southern Illinois,medium_airport,37.751208,-89.016568,US
+20634,KNDZ,Whiting Field Naval Air Station South Airport,medium_airport,30.704399,-87.023003,US
+20639,KNFW,NAS Fort Worth JRB / Carswell Field,medium_airport,32.769199,-97.441498,US
+20656,KNSE,Whiting Field Naval Air Station - North,medium_airport,30.724199,-87.021896,US
+20661,KNUW,Whidbey Island Naval Air Station (Ault Field),medium_airport,48.351799,-122.655998,US
+20709,KOAJ,Albert J Ellis Airport,medium_airport,34.829201,-77.612099,US
+20722,KOFK,Karl Stefan Memorial Airport,medium_airport,41.9855,-97.435097,US
+20727,KOGS,Ogdensburg International Airport,medium_airport,44.6819,-75.4655,US
+20732,KOKB,Oceanside Municipal Airport,medium_airport,33.217947,-117.351683,US
+20739,KOLF,L M Clayton Airport,medium_airport,48.094501,-105.574997,US
+20741,KOLS,Nogales International Airport,medium_airport,31.4177,-110.848,US
+20752,KONP,Newport Municipal Airport,medium_airport,44.580399,-124.057999,US
+20757,KOPF,Miami-Opa Locka Executive Airport,medium_airport,25.907,-80.278397,US
+20765,KORL,Orlando Executive Airport,medium_airport,28.5455,-81.332901,US
+20777,KOWD,Norwood Memorial Airport,medium_airport,42.190498,-71.172897,US
+20785,KOXR,Oxnard Airport,medium_airport,34.200802,-119.207001,US
+20805,KPAO,Palo Alto Airport,medium_airport,37.461102,-122.114998,US
+20808,KPBG,Plattsburgh International Airport,medium_airport,44.650902,-73.468102,US
+20815,KPDT,Eastern Oregon Regional Airport at Pendleton,medium_airport,45.695099,-118.841003,US
+20821,KPGA,Page Municipal Airport,medium_airport,36.924234,-111.447716,US
+20822,KPGD,Punta Gorda Airport,medium_airport,26.9202,-81.990501,US
+20824,KPGV,Pitt-Greenville Airport,medium_airport,35.635535,-77.384262,US
+20850,KPNE,Northeast Philadelphia Airport,medium_airport,40.082406,-75.010614,US
+20870,KPSC,Tri Cities Airport,medium_airport,46.264702,-119.119003,US
+20883,KPUW,Pullman-Moscow Regional Airport,medium_airport,46.741601,-117.11163,US
+20890,KPVU,Provo Municipal Airport,medium_airport,40.218894,-111.722445,US
+20896,KPWK,Chicago Executive Airport,medium_airport,42.114222,-87.901494,US
+20927,KRHP,Western Carolina Regional Airport,medium_airport,35.195202,-83.862999,US
+20933,KRIW,Central Wyoming Regional Airport,medium_airport,43.064201,-108.459999,US
+20935,KRKD,Knox County Regional Airport,medium_airport,44.060101,-69.099197,US
+20940,KRME,Griffiss International Airport,medium_airport,43.233799,-75.406998,US
+20972,KRVS,Tulsa Riverside Airport,medium_airport,36.0396,-95.984596,US
+20981,KRYY,Cobb County International Airport-McCollum Field,medium_airport,34.01316,-84.59721,US
+21033,KSAF,Santa Fe Municipal Airport,medium_airport,35.6171,-106.088997,US
+21046,KSDY,Sidney - Richland Regional Airport,medium_airport,47.705141,-104.194422,US
+21062,KSGR,Sugar Land Regional Airport,medium_airport,29.622299,-95.656502,US
+21065,KSGU,St George Regional Airport,medium_airport,37.036389,-113.510306,US
+21066,KSHD,Shenandoah Valley Regional Airport,medium_airport,38.263802,-78.8964,US
+21076,KSKX,Taos Regional Airport,medium_airport,36.452494,-105.67749,US
+21086,KSMN,Lemhi County Airport,medium_airport,45.122233,-113.88196,US
+21087,KSMO,Santa Monica Municipal Airport,medium_airport,34.0158,-118.450996,US
+21097,KSOW,Show Low Regional Airport,medium_airport,34.264062,-110.007091,US
+21105,KSQL,San Carlos Airport,medium_airport,37.51313,-122.250838,US
+21109,KSSF,Stinson Municipal Airport,medium_airport,29.337,-98.4711,US
+21114,KSTS,Charles M. Schulz Sonoma County Airport,medium_airport,38.508999,-122.813003,US
+21118,KSUN,Friedman Memorial Airport,medium_airport,43.504398,-114.295998,US
+21121,KSVC,Grant County Airport,medium_airport,32.636701,-108.154736,US
+21188,KTEX,Telluride Regional Airport,medium_airport,37.9538,-107.907997,US
+21204,KTMB,Miami Executive Airport,medium_airport,25.6479,-80.4328,US
+21220,KTRK,Truckee Tahoe Airport,medium_airport,39.318628,-120.140562,US
+21228,KTTD,Portland Troutdale Airport,medium_airport,45.5494,-122.401001,US
+21232,KTVF,Thief River Falls Regional Airport,medium_airport,48.065701,-96.184998,US
+21261,KU42,South Valley Regional Airport,medium_airport,40.619499,-111.992996,US
+21280,KUAO,Aurora State Airport,medium_airport,45.247101,-122.769997,US
+21300,KUNV,State College Regional Airport,medium_airport,40.849374,-77.84852,US
+21305,KUUU,Newport State Airport,medium_airport,41.532207,-71.281039,US
+21318,KVEL,Vernal Regional Airport,medium_airport,40.436214,-109.511661,US
+21321,KVGT,North Las Vegas Airport,medium_airport,36.209074,-115.193982,US
+21325,KVIS,Visalia Municipal Airport,medium_airport,36.318699,-119.392998,US
+21333,KVNY,Van Nuys Airport,medium_airport,34.209801,-118.489998,US
+21335,KVQQ,Cecil Airport,medium_airport,30.2187,-81.876701,US
+21375,KWJF,General William J Fox Airfield,medium_airport,34.7411,-118.219002,US
+21403,KX51,Miami Homestead General Aviation Airport,medium_airport,25.499201,-80.554296,US
+21410,KXNA,Northwest Arkansas National Airport,medium_airport,36.281898,-94.306801,US
+21844,PAMC,McGrath Airport,medium_airport,62.9529,-155.606003,US
+23952,KORS,Orcas Island Airport,medium_airport,48.708199,-122.910004,US
+26343,PAYA,Yakutat Airport,medium_airport,59.508717,-139.660435,US
+26375,USPP,Perm International Airport,large_airport,57.914501,56.021198,RU
+26378,USSS,Koltsovo Airport,large_airport,56.743099,60.8027,RU
+26392,UTTT,Tashkent International Airport,large_airport,41.2579,69.281197,UZ
+26394,UUDD,Domodedovo International Airport,large_airport,55.408798,37.9063,RU
+26396,UUEE,Sheremetyevo International Airport,large_airport,55.977486,37.386677,RU
+26401,UUWW,Vnukovo International Airport,large_airport,55.591499,37.261501,RU
+26402,UUYY,Syktyvkar Airport,medium_airport,61.646999,50.8451,RU
+26403,UWGG,Nizhny Novgorod / Strigino International Airport,large_airport,56.227351,43.785152,RU
+26404,UWKD,Kazan International Airport,large_airport,55.606201,49.278702,RU
+26411,UWUU,Ufa International Airport,large_airport,54.557499,55.874401,RU
+26412,UWWW,Kurumoch International Airport,large_airport,53.504902,50.164299,RU
+26434,VABB,Chhatrapati Shivaji Maharaj International Airport,large_airport,19.088699,72.867897,IN
+26455,VAPO,Pune International Airport,large_airport,18.5821,73.919701,IN
+26489,VEAT,Agartala - Maharaja Bir Bikram Airport,medium_airport,23.886999,91.240402,IN
+26496,VECC,Netaji Subhash Chandra Bose International Airport,large_airport,22.654012,88.44765,IN
+26500,VEGK,Gorakhpur Airport,medium_airport,26.7397,83.449699,IN
+26534,VGHS,Hazrat Shahjalal International Airport,large_airport,23.843347,90.397783,BD
+26535,VHHH,Hong Kong International Airport,large_airport,22.31184,113.914862,HK
+26536,VHSK,Shek Kong Air Base,medium_airport,22.4366,114.080002,HK
+26539,VIAM,Ambala Air Force Station,medium_airport,30.368099,76.816704,IN
+26550,VICG,Shaheed Bhagat Singh International Airport,large_airport,30.6735,76.788498,IN
+26554,VIDN,Dehradun Jolly Grant Airport,medium_airport,30.189243,78.176651,IN
+26555,VIDP,Indira Gandhi International Airport,large_airport,28.55563,77.09519,IN
+26563,VIJP,Jaipur International Airport,large_airport,26.8242,75.812202,IN
+26570,VILK,Chaudhary Charan Singh International Airport,large_airport,26.760599,80.889297,IN
+26589,VMMC,Macau International Airport,large_airport,22.149599,113.592003,MO
+26603,VOBG,HAL Airport,medium_airport,12.95,77.668198,IN
+26609,VOCI,Cochin International Airport,large_airport,10.151047,76.400838,IN
+26618,VOMM,Chennai International Airport,large_airport,12.990005,80.169296,IN
+26627,VOTP,Tirupati International Airport,large_airport,13.631988,79.539869,IN
+26628,VOTR,Tiruchirappalli International Airport,large_airport,10.762915,78.717741,IN
+26629,VOTV,Thiruvananthapuram International Airport,large_airport,8.481889,76.920029,IN
+26636,VRMM,Velana International Airport,large_airport,4.19183,73.529099,MV
+26638,VTBD,Don Mueang International Airport,large_airport,13.9126,100.607002,TH
+26645,VTBU,U-Tapao–Rayong–Pattaya International Airport,large_airport,12.6799,101.004997,TH
+26700,VVNB,Noi Bai International Airport,large_airport,21.221201,105.806999,VN
+26708,VVTS,Tan Son Nhat International Airport,large_airport,10.8188,106.652,VN
+26709,VVVH,Vinh Airport,medium_airport,18.7376,105.670998,VN
+26811,WBGR,Miri Airport,medium_airport,4.32201,113.987,MY
+26814,WBKK,Kota Kinabalu International Airport,large_airport,5.932743,116.049324,MY
+26815,WBKL,Labuan Airport,medium_airport,5.301667,115.248333,MY
+26819,WBSB,Brunei International Airport,large_airport,4.9442,114.928001,BN
+26828,WIDD,Hang Nadim International Airport,large_airport,1.12103,104.119003,ID
+26830,WIDN,Raja Haji Fisabilillah International Airport,medium_airport,0.92397,104.53341,ID
+26835,WIII,Soekarno-Hatta International Airport,large_airport,-6.12557,106.655998,ID
+26867,WMKB,RMAF Butterworth Air Base,medium_airport,5.46592,100.390999,MY
+26873,WMKJ,Senai International Airport,large_airport,1.64131,103.669998,MY
+26874,WMKK,Kuala Lumpur International Airport,large_airport,2.74558,101.709999,MY
+26876,WMKM,Malacca International Airport,medium_airport,2.265613,102.252778,MY
+26878,WMKP,Penang International Airport,large_airport,5.296303,100.276185,MY
+26879,WMSA,Sultan Abdul Aziz Shah International Airport,large_airport,3.13058,101.549004,MY
+26886,WSSL,Seletar Airport,medium_airport,1.41555,103.86673,SG
+26887,WSSS,Singapore Changi Airport,large_airport,1.35019,103.994003,SG
+26889,YAMB,RAAF Base Amberley,medium_airport,-27.635381,152.711223,AU
+26893,YARM,Armidale Airport,medium_airport,-30.528099,151.617004,AU
+26901,YBBN,Brisbane International Airport,large_airport,-27.384199,153.117004,AU
+26902,YBCG,Gold Coast Airport,large_airport,-28.165962,153.506641,AU
+26920,YBNA,Ballina Byron Gateway Airport,medium_airport,-28.833236,153.561471,AU
+26921,YBNS,Bairnsdale Airport,medium_airport,-37.887539,147.569379,AU
+26932,YBTH,Bathurst Airport,medium_airport,-33.406817,149.651161,AU
+26947,YCCA,Chinchilla Airport,medium_airport,-26.771947,150.617571,AU
+26963,YCOR,Corowa Airport,medium_airport,-35.994701,146.356995,AU
+26995,YGLB,Goulburn Airport,medium_airport,-34.810299,149.725998,AU
+27003,YHBA,Hervey Bay Airport,medium_airport,-25.320127,152.880662,AU
+27007,YHML,Hamilton Airport,medium_airport,-37.648899,142.065002,AU
+27011,YHSM,Horsham Airport,medium_airport,-36.669701,142.173004,AU
+27025,YKMP,Kempsey Airport,medium_airport,-31.07232,152.765313,AU
+27027,YKRY,Kingaroy Airport,medium_airport,-26.581077,151.839927,AU
+27028,YKSC,Kingscote Airport,medium_airport,-35.713902,137.520996,AU
+27035,YLIS,Lismore Airport,medium_airport,-28.830689,153.258419,AU
+27041,YLTV,Latrobe Valley Airport,medium_airport,-38.211004,146.470817,AU
+27043,YMAV,Melbourne Avalon International Airport,large_airport,-38.040269,144.467196,AU
+27044,YMAY,Albury Airport,medium_airport,-36.066758,146.959148,AU
+27051,YMEN,Melbourne Essendon Airport,medium_airport,-37.7281,144.901993,AU
+27053,YMES,RAAF Base East Sale,medium_airport,-38.0989,147.149002,AU
+27058,YMHB,Hobart International Airport,large_airport,-42.837032,147.513022,AU
+27064,YMMB,Melbourne Moorabbin Airport,medium_airport,-37.977765,145.099799,AU
+27066,YMML,Melbourne Airport,large_airport,-37.670732,144.837898,AU
+27081,YNAR,Narrandera Airport,medium_airport,-34.702202,146.511993,AU
+27082,YNBR,Narrabri Airport,medium_airport,-30.319201,149.826996,AU
+27096,YPAD,Adelaide International Airport,large_airport,-34.947512,138.533393,AU
+27102,YPEA,RAAF Base Pearce,medium_airport,-31.667801,116.014999,AU
+27106,YPJT,Perth Jandakot Airport,medium_airport,-32.0975,115.880997,AU
+27109,YPKS,Parkes Airport,medium_airport,-33.131401,148.238998,AU
+27112,YPLC,Port Lincoln Airport,medium_airport,-34.605301,135.880005,AU
+27115,YPMQ,Port Macquarie Airport,medium_airport,-31.435801,152.863007,AU
+27116,YPOD,Portland Airport,medium_airport,-38.3181,141.470993,AU
+27119,YPPH,Perth International Airport,large_airport,-31.9403,115.967003,AU
+27130,YSBK,Sydney Bankstown Airport,medium_airport,-33.923618,150.990792,AU
+27131,YSCB,Canberra Airport,medium_airport,-35.3069,149.195007,AU
+27133,YSCN,Camden Airport,medium_airport,-34.038338,150.686406,AU
+27135,YSDU,Dubbo City Regional Airport,medium_airport,-32.216702,148.574997,AU
+27142,YSNW,Naval Air Station Nowra - HMAS Albatross,medium_airport,-34.9466,150.542451,AU
+27144,YSRI,RAAF Base Richmond,medium_airport,-33.604652,150.783051,AU
+27145,YSSY,Sydney Kingsford Smith International Airport,large_airport,-33.946098,151.177002,AU
+27147,YSTW,Tamworth Airport,medium_airport,-31.077898,150.845484,AU
+27148,YSWG,Wagga Wagga Airport,medium_airport,-35.163484,147.46832,AU
+27153,YTEM,Temora Airport,medium_airport,-34.421398,147.511993,AU
+27161,YTRE,Taree Airport,medium_airport,-31.888599,152.514008,AU
+27175,YWLM,Newcastle Airport,large_airport,-32.796114,151.835025,AU
+27179,YWSL,West Sale Airport,medium_airport,-38.090827,146.965335,AU
+27188,ZBAA,Beijing Capital International Airport,large_airport,40.077349,116.596702,CN
+27194,ZGGG,Guangzhou Baiyun International Airport,large_airport,23.392401,113.299004,CN
+27195,ZGHA,Changsha Huanghua International Airport,large_airport,28.189199,113.220001,CN
+27198,ZGSZ,Shenzhen Bao'an International Airport,large_airport,22.639474,113.803262,CN
+27199,ZHCC,Zhengzhou Xinzheng International Airport,large_airport,34.526497,113.849165,CN
+27200,ZHHH,Wuhan Tianhe International Airport,large_airport,30.774798,114.213723,CN
+27205,ZLXY,Xi'an Xianyang International Airport,large_airport,34.442207,108.762385,CN
+27215,ZSAM,Xiamen Gaoqi International Airport,large_airport,24.543889,118.127454,CN
+27216,ZSCN,Nanchang Changbei International Airport,large_airport,28.864815,115.90271,CN
+27217,ZSFZ,Fuzhou Changle International Airport,large_airport,25.929254,119.672524,CN
+27218,ZSHC,Hangzhou Xiaoshan International Airport,large_airport,30.23609,120.428865,CN
+27219,ZSJN,Jinan Yaoqiang International Airport,large_airport,36.857201,117.216003,CN
+27220,ZSNB,Ningbo Lishe International Airport,large_airport,29.8267,121.461998,CN
+27221,ZSNJ,Nanjing Lukou International Airport,large_airport,31.735032,118.865949,CN
+27222,ZSOF,Hefei Xinqiao International Airport,large_airport,31.98779,116.9769,CN
+27223,ZSPD,Shanghai Pudong International Airport,large_airport,31.1434,121.805,CN
+27228,ZUCK,Chongqing Jiangbei International Airport,large_airport,29.712254,106.651895,CN
+27230,ZUUU,Chengdu Shuangliu International Airport,large_airport,30.558257,103.945966,CN
+27243,ZYTX,Shenyang Taoxian International Airport,large_airport,41.6398,123.483668,CN
+28114,ENOV,"Ørsta-Volda Airport, Hovden",medium_airport,62.18,6.0741,NO
+28115,ENHF,Hammerfest Airport,medium_airport,70.679703,23.6686,NO
+28118,VTBS,Suvarnabhumi Airport,large_airport,13.6811,100.747002,TH
+29264,ENLK,Leknes Airport,medium_airport,68.152496,13.6094,NO
+29265,ENMH,Mehamn Airport,medium_airport,71.029701,27.8267,NO
+29277,ENRA,"Mo i Rana Airport, Røssvoll",medium_airport,66.363899,14.3014,NO
+29278,ENRM,"Rørvik Airport, Ryum",medium_airport,64.838303,11.1461,NO
+29281,ENSH,"Svolvær Airport, Helle",medium_airport,68.243301,14.6692,NO
+29282,ENSK,"Stokmarknes Airport, Skagen",medium_airport,68.578827,15.033417,NO
+29284,ENVD,Vadsø Airport,medium_airport,70.0653,29.8447,NO
+29358,ESNZ,Åre Östersund Airport,medium_airport,63.193546,14.504168,SE
+29483,LOXN,Wiener Neustadt West Airport,medium_airport,47.839722,16.220278,AT
+29493,LPVL,Vilar de Luz Airfield,medium_airport,41.27729,-8.516209,PT
+29695,KSUZ,Saline County Regional Airport,medium_airport,34.590599,-92.479401,US
+30593,ZGSD,Zhuhai Jinwan Airport,large_airport,22.006399,113.375999,CN
+30768,MPHO,Panamá Pacífico International Airport,medium_airport,8.91479,-79.599602,PA
+30923,VVDL,Lien Khuong Airport,medium_airport,11.750556,108.366997,VN
+30979,LCEN,Ercan International Airport,large_airport,35.153064,33.507352,CY
+31055,FAOR,O.R. Tambo International Airport,large_airport,-26.140081,28.246801,ZA
+31923,MMSM,Felipe Ángeles International Airport,large_airport,19.743824,-99.01507,MX
+31941,SOOA,Maripasoula Airport,medium_airport,3.655907,-54.039431,GF
+32045,UNWW,Spichenkovo Airport,medium_airport,53.811401,86.877197,RU
+32249,TFFJ,St. Jean Airport,medium_airport,17.904398,-62.843333,BL
+32305,SBAE,Bauru/Arealva–Moussa Nakhal Tobias State Airport,medium_airport,-22.160755,-49.070325,BR
+32468,UNTT,Tomsk Kamov Airport,large_airport,56.380299,85.208298,RU
+32555,UUYS,Usinsk Airport,medium_airport,66.0047,57.367199,RU
+32675,WSAC,Changi Air Base (East),medium_airport,1.34414,104.009003,SG
+32684,ZSWX,Sunan Shuofang International Airport,large_airport,31.496952,120.43038,CN
+34932,ULLP,Pushkin Airport,medium_airport,59.685001,30.338301,RU
+35104,UWLL,Ulyanovsk Baratayevka Airport,medium_airport,54.27016,48.225569,RU
+35145,VOBL,Kempegowda International Airport Bengaluru,large_airport,13.1979,77.706299,IN
+42320,TJCP,Benjamin Rivera Noriega Airport,medium_airport,18.312954,-65.303893,PR
+42924,URMG,Akhmat Kadyrov Grozny International Airport,large_airport,43.388106,45.699772,RU
+42967,UUBW,Zhukovsky International Airport,large_airport,55.553299,38.150002,RU
+42985,USSK,Uktus Airport,medium_airport,56.701698,60.790001,RU
+44467,HKNY,Laikipia Air Base,medium_airport,0.029024,37.025196,KE
+44484,LTDA,Hatay Airport,medium_airport,36.36079,36.285589,TR
+44487,LTFG,Gazipaşa-Alanya Airport,medium_airport,36.298832,32.297017,TR
+44491,LTCS,Şanlıurfa GAP Airport,large_airport,37.445663,38.895592,TR
+44686,OTHH,Hamad International Airport,large_airport,25.273056,51.608056,QA
+44781,LTCU,Bingöl Airport,medium_airport,38.860131,40.594489,TR
+44789,LTCB,Ordu–Giresun Airport,medium_airport,40.966872,38.085995,TR
+44790,LTCT,Iğdır Airport,medium_airport,39.976627,43.876648,TR
+45955,KEDC,Austin Executive Airport,medium_airport,30.398049,-97.566909,US
+45961,KBBG,Branson Airport,medium_airport,36.532082,-93.200544,US
+46530,KECP,Northwest Florida Beaches International Airport,medium_airport,30.357106,-85.795414,US
+298716,LICB,Comiso Airport,medium_airport,36.99583,14.60889,IT
+300320,OMDW,Al Maktoum International Airport,large_airport,24.896171,55.16235,AE
+301881,EDDB,Berlin Brandenburg Airport,large_airport,52.361738,13.502341,DE
+308134,LEMI,Region of Murcia International Airport,large_airport,37.802852,-1.124884,ES
+308273,SEQM,Mariscal Sucre International Airport,large_airport,-0.125399,-78.354306,EC
+309484,EPLB,Lublin Airport,large_airport,51.240157,22.713461,PL
+315119,YBWW,Toowoomba Wellcamp Airport,large_airport,-27.558332,151.793335,AU
+315898,LPCB,Aerodromo de Castelo Branco,medium_airport,39.844528,-7.439875,PT
+316546,LTCV,Şırnak Şerafettin Elçi Airport,medium_airport,37.3647,42.0582,TR
+317032,LPSO,Aeródromo Municipal de Ponte de Sor,medium_airport,39.211545,-8.057787,PT
+317457,LTFM,İstanbul Airport,large_airport,41.274874,28.732136,TR
+317863,LTCW,Hakkari Yüksekova Airport,medium_airport,37.5497,44.2381,TR
+322383,TVSA,Argyle International Airport,large_airport,13.159725,-61.148801,VC
+323315,GQNO,Nouakchott–Oumtounsy International Airport,large_airport,18.31,-15.969722,MR
+324440,KXWA,Williston Basin International Airport,medium_airport,48.260863,-103.75116,US
+325736,GOBD,Blaise Diagne International Airport,large_airport,14.670878,-17.072829,SN
+326363,URRP,Platov International Airport,large_airport,47.493888,39.924722,RU
+333692,OPIS,Islamabad International Airport,large_airport,33.549,72.82566,PK
+342096,ZSQD,Qingdao Jiaodong International Airport,large_airport,36.361953,120.088171,CN
+507498,YMTG,Mount Gambier Airport,medium_airport,-37.744382,140.780561,AU

@@ -1,44 +1,58 @@
 """Main roads of an OpenStreetMap extract from Geofabrik joined to the sea lanes of
-`eurostat_marnet` at the ports of the World Port Index, for example `region="europe/denmark"`.
+`eurostat_marnet` at the ports of the World Port Index (`hubs.join`), for example
+`region="europe/denmark"`.
 
-- A distance is in km along the network: main roads and car ferries (directed, as
-  `osm_main_roads`), sea lanes (undirected, as `eurostat_marnet`) and the two connectors
-  of each joined port. There are no times, and changing mode at a port costs nothing.
-- A port with a position joins when it has both connectors; the others stay out rather
-  than be joined over land or across the sea.
-- Road connector: a straight line to the nearest main-road node within 20 km whose line
-  crosses less than 3 km of water (10 km for an open roadstead), in the largest road
-  component that has such a node; it weighs 1.2 times its length.
-- Sea connector: the shortest path over water to a sea node, at most 2,500 km and within
-  2 degrees of the region's roads, starting within 6 km of the port, on cells of 1/240
-  degree of Natural Earth 1:10m land, lakes and river centrelines; it weighs its length,
-  and its shape points are the cells' centres, stored to 1e-7 degree.
-- The network keeps its largest strongly connected component. Nodes: junctions, ports and
-  the ends of their connectors, the points of the sea lanes (not cut, then contracted
-  like the roads), and along a road nodes at most about 4 km apart (cut, then
-  contracted, at 2 km); no arc spans two modes. Road and ferry drawings are simplified
-  at 50 m when the ways are cut; lengths are measured before. Each node has its mode,
-  `road`, `port` or `sea` (`node_modes`, rows of `modes`); `road` and `sea` cite the
-  source of their node ids, ports have scgraph's (negative).
-- Sources: the World Port Index and Geofabrik URLs are not pinned, and
-  `PIPELINE_VERSION` does not follow changes of a source: a rebuild may differ.
-- Not for: navigation or travel times; inland navigation between two river points.
+- A distance is in km along the network. The network holds main roads and vehicle
+  ferries (directed, as in `osm_main_roads`), sea lanes (both ways, as in
+  `eurostat_marnet`) and the two connectors of each joined port. There are no times.
+  A change of mode at a port costs nothing.
+- A port joins the network when it has a road connector and a sea connector. A port
+  without one of them stays out: the pipeline does not join it by a line over land or
+  across the sea.
+- Road connector. It is a straight line from the port to a main-road node within
+  20 km. The line crosses less than 3 km of water, or 10 km for an open roadstead (a
+  port where ships anchor off the coast). Among the nodes that fit, the port takes the
+  nearest one of the largest road component. The connector weighs 1.2 times the
+  length of the line, because a real road bends.
+- Sea connector. It is the shortest path over water from the port to a sea node, at
+  most 2,500 km long. The path starts at a water cell within 6 km of the port. It
+  stays within 2 degrees of the roads of the region. It runs on cells of 1/240 degree,
+  made from the land, the lakes and the river centrelines of Natural Earth 1:10m. The
+  connector weighs the length of the path, plus the short line from its last cell to
+  the sea node. Its shape points are the centres of the
+  cells, stored to 1e-7 degree.
+- The network keeps its largest strongly connected component. Its nodes are the road
+  junctions, the ports, the ends of their connectors and the points of the sea lanes.
+  A road is cut every 2 km, and a contracted arc ends at the first node where it
+  reaches 2 km. Two nodes along a road are then at most about 4 km apart. A sea lane
+  is not cut, but its chains are contracted like those of a road. A chain is never
+  contracted across two modes.
+- The shape of each road or ferry arc is simplified to within 50 m. Its length is
+  measured on the full shape.
+- Each node has a mode: `road`, `port` or `sea`. `node_modes` gives its row in
+  `modes`. Each mode names the source of its node ids. The id of a port is its World
+  Port Index number.
+- Sources. The ports come from a table kept with scgraph (`hubs.TABLES`), made from
+  one copy of the World Port Index. The Geofabrik URL always gives the newest extract,
+  and `PIPELINE_VERSION` does not change when a source changes. So a rebuild can give
+  another network.
+- Not for navigation or travel times. Not for inland navigation between two points of
+  a river.
 """
 
 import logging
 import os
-from collections.abc import Callable
 
 from scgraph.pipelines import eurostat_marnet
 from scgraph.pipelines.steps.stage1_extract import osm
-from scgraph.pipelines.steps.stage2_intermodal import ports
+from scgraph.pipelines.steps.stage2_intermodal import hubs
 from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
 from scgraph.pipelines.steps.stage3_assembly import assembly
 from scgraph.utils import _log_step
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 
 def _natural_earth(layer):
@@ -51,50 +65,60 @@ def _natural_earth(layer):
     }
 
 
-# Small sources first: a failure then costs no new download of the extract
+# The small sources come first. When one of them fails, the extract is not yet
+# downloaded.
 SOURCES = {
     "sea": eurostat_marnet.SOURCES["sea_lanes"],
-    "ports": {
-        "url": "https://msi.nga.mil/api/publications/download?type=view&key=16920959/SFH00000/UpdatedPub150.csv",
-        "download": ports.download,
-        "credit": "National Geospatial-Intelligence Agency, World Port Index (Pub. 150)",
-        "license": "NOASSERTION",
-        "license_url": "https://msi.nga.mil/Publications/WPI",
-    },
+    "ports": hubs.TABLES["ports"],
     "land": _natural_earth("land"),
     "lakes": _natural_earth("lakes"),
     "rivers": _natural_earth("rivers_lake_centerlines"),
     "roads": osm.GEOFABRIK,
 }
-MARGIN = 2  # degrees of raster around the roads, where sea connectors run
+# The land mask covers the roads of the region and this margin around them, in
+# degrees. A sea connector runs inside the mask.
+MARGIN = 2
 SELECTS = {
     "roads": osm.select_main_roads,
     "ferries": osm.select_vehicle_ferries,
 }
 MODES = [
     {"name": "road", "source": "roads"},
-    {"name": "port"},
+    {"name": "port", "source": "ports"},
     {"name": "sea", "source": "sea"},
 ]
 
-download = osm.download  # for every source: checks osmium first
+# For the sources without a download function of their own: it checks osmium before
+# the first download
+download = osm.download
 
 
 def build(
     files: dict[str, str],
     *,
-    source: Callable = osm.open_osm_source,
-    max_km_between_nodes: float = osm.MAX_KM,
-    min_nodes_per_strongly_connected_component: int | None = None,
+    max_km_between_nodes: float = osm.MAX_KM_BETWEEN_NODES,
+    min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """The keywords give another scale (`world_main_roads_and_marnet`);
-    `min_nodes_per_strongly_connected_component=None` keeps the largest component only.
+    """Build the roads and the sea lanes of a region, joined at ports.
+    `world_main_roads_and_marnet` calls this function with other values of the keywords.
+
+    Args:
+        files: The path of the downloaded file of each source of `SOURCES`.
+        max_km_between_nodes: The length in km at which a way is cut, and at which a
+            chain is cut. Two nodes along a way are at most about twice this far apart.
+        min_component_nodes: The smallest number of nodes of a kept component. None keeps
+            only the largest component.
+        work_dir: A folder where the build keeps files between its steps, so that a later
+            build resumes from them. None keeps nothing.
+
+    Returns:
+        `(arrays, modes)`: the arrays of the network file, and the modes table.
     """
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     stage2_work_dir = os.path.join(work_dir, "stage2") if work_dir else None
     pieces = osm.build_way_pieces(
-        source(files["roads"]),
+        files["roads"],
         SELECTS,
         ("highway", "route"),
         max_km_between_nodes,
@@ -118,24 +142,25 @@ def build(
         *(files[name] for name in ("land", "lakes", "rivers")),
         bbox=(south, west, north, east),
     )
-    wpi = ports.read_world_port_index(files["ports"])
-    wpi = [p for p in wpi if mask.get_cell(*p[:2]) is not None]
-    with _log_step(logger, "join the ports", {"ports": len(wpi)}) as counts:
-        graph, joined = ports.join(
-            graph, sea, wpi, mask, work_dir=stage2_work_dir
+    ports = hubs.read_ports(files["ports"])
+    ports = [port for port in ports if mask.get_cell(*port.point) is not None]
+    with _log_step(logger, "join the ports", {"ports": len(ports)}) as counts:
+        graph, joined = hubs.join(
+            {"road": graph, "sea": sea},
+            ports,
+            mask,
+            [mode["name"] for mode in MODES],
+            work_dir=stage2_work_dir,
         )
-        counts["joined"] = joined
+        counts["joined"] = joined.get("port", 0)
     arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,
-        min_nodes_per_strongly_connected_component=min_nodes_per_strongly_connected_component,
+        min_component_nodes=min_component_nodes,
     )
     return arrays, MODES
 
 
-# ---------------------------------------------------------------------------
-# Stage 4 Validation Contract
-# ---------------------------------------------------------------------------
 VALIDATION = {
     "cases": {
         "europe/denmark": ["aarhus_to_copenhagen_intermodal"],

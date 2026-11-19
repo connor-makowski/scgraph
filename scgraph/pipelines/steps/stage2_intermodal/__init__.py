@@ -1,3 +1,3 @@
-"""Stage 2: Intermodal integration and domain connectors (ports, landmask)."""
+"""Stage 2 joins the networks of several modes at hubs."""
 
-from scgraph.pipelines.steps.stage2_intermodal import landmask, ports
+from scgraph.pipelines.steps.stage2_intermodal import hubs, landmask
