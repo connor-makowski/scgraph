@@ -93,7 +93,7 @@ TABLES = {
     "ports": _table(
         "ports",
         "National Geospatial-Intelligence Agency, World Port Index (Pub. 150)",
-        "NOASSERTION",
+        "LicenseRef-US-Government-Work",
         "https://msi.nga.mil/Publications/WPI",
         "UpdatedPub150.csv, SHA-256 315644f1e7796629",
     ),
