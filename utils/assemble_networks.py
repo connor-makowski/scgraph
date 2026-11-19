@@ -1,22 +1,25 @@
-"""Assemble a data release from the networks that the workflow `build_networks.yml` built.
+"""Assemble a data release from the files that the workflow `build_networks.yml` made.
 
-Usage: python utils/assemble_networks.py BUILT PREVIOUS RELEASE TAG COMMIT
+Usage: python utils/assemble_networks.py FILES PREVIOUS RELEASE TAG COMMIT
 
 A data release is a set of network files published as the assets of one GitHub release.
-BUILT holds the network files of this build. PREVIOUS holds the files of the previous
-data release, or nothing. The script writes into RELEASE:
+FILES holds the network files of this run: the world network, and the files that
+`scgraph.pipelines.derive` derived from it. PREVIOUS holds `networks.json` of the
+previous data release, or nothing. The script writes into RELEASE:
 
-- one file per network. A network is carried over when its pipeline and its sources
-  did not change since the previous release: the release then keeps the previous file,
-  byte for byte. Otherwise the release takes the new file;
-- `networks.json`, the index of the release: its tag, and one entry per network with
-  the commit that built its file;
-- `notes.md`, the notes of the release, with the credit line of each network.
+- each network file, compressed with gzip. A user decompresses a file before loading
+  it;
+- `networks.json`, the index of the release: its tag, and one entry per file. An entry
+  gives the `content_sha256` of the file once decompressed, and the commit of the run
+  that made the file. A file is carried over when a file of the previous release has
+  the same `content_sha256`: its entry keeps the commit of that release;
+- `notes.md`, the notes of the release, with the credit line of each file.
 
 The script stops when the license of a source is `NOASSERTION`: the license could not
 be established, so the network is not published.
 """
 
+import gzip
 import json
 import os
 import shutil
@@ -26,52 +29,36 @@ from pathlib import Path
 from scgraph import GeoGraph
 
 
-def get_build_inputs(info: dict) -> tuple[dict, list[dict]]:
-    """Return what decides the graph of a built network: its pipeline and its sources.
+def read_previous_commits(previous: str | os.PathLike) -> dict[str, str]:
+    """Return, for each `content_sha256` of the previous data release, the commit of
+    the run that made the file.
 
     Args:
-        info: What `GeoGraph.get_scgraph_info` returns for the network file.
-
-    Returns:
-        The pipeline (name, region, version), and the record of each source without
-        its URL. The same source can be read from several mirrors, so its URL does not
-        identify it: its digest and its version do.
-    """
-    sources = [
-        {key: value for key, value in source.items() if key != "url"}
-        for source in info["sources"]
-    ]
-    return info["pipeline"], sources
-
-
-def read_previous_release(previous: str | os.PathLike) -> dict[str, dict]:
-    """Return the networks of the previous data release that this version of scgraph
-    reads.
-
-    Args:
-        previous: The directory of the files of the previous data release.
-
-    Returns:
-        For each file name: the `info` of the file, as `GeoGraph.get_scgraph_info`
-        returns it, and the `commit` that built it. A file in another file format is
-        left out, so its network is built again.
+        previous: The directory that holds `networks.json` of the previous data
+            release. It may be empty.
     """
     index = Path(previous, "networks.json")
     entries = (
         json.loads(index.read_text())["networks"] if index.is_file() else []
     )
-    networks = {}
-    for entry in entries:
-        try:
-            info = GeoGraph.get_scgraph_info(Path(previous, entry["file"]))
-        except ValueError:
-            continue
-        networks[entry["file"]] = {"info": info, "commit": entry["commit"]}
-    return networks
+    return {entry["content_sha256"]: entry["commit"] for entry in entries}
+
+
+def compress(file: Path, compressed_file: Path) -> None:
+    """Write `file` compressed with gzip. The compressed file records no time and no
+    name, so the same file always gives the same bytes."""
+    with (
+        open(file, "rb") as source,
+        open(compressed_file, "wb") as target,
+        gzip.GzipFile(
+            filename="", mode="wb", fileobj=target, mtime=0
+        ) as packed,
+    ):
+        shutil.copyfileobj(source, packed)
 
 
 def assemble(
-    built: str | os.PathLike,
+    files: str | os.PathLike,
     previous: str | os.PathLike,
     release: str | os.PathLike,
     tag: str,
@@ -81,44 +68,39 @@ def assemble(
     new directory `release`.
 
     Args:
-        built: The directory of the network files of this build.
-        previous: The directory of the files of the previous data release. It may be
-            empty.
+        files: The directory of the network files of this run.
+        previous: The directory that holds `networks.json` of the previous data
+            release. It may be empty.
         release: The directory to create.
         tag: The tag of the release.
-        commit: The commit that built the files of `built`.
+        commit: The commit of this run.
 
     Raises:
         ValueError: The license of a source of a network is `NOASSERTION`.
     """
-    previous_networks = read_previous_release(previous)
+    previous_commits = read_previous_commits(previous)
     Path(release).mkdir()
     networks = []
-    for built_file in sorted(Path(built).glob("*.scgraph")):
-        info = GeoGraph.get_scgraph_info(built_file)
+    for file in sorted(Path(files).glob("*.scgraph")):
+        info = GeoGraph.get_scgraph_info(file)
         for source in info["sources"]:
             if source["license"] == "NOASSERTION":
                 raise ValueError(
-                    f"{built_file.name}: the license of the source "
+                    f"{file.name}: the license of the source "
                     f"'{source['name']}' is not established"
                 )
-        earlier = previous_networks.get(built_file.name)
-        is_carried_over = earlier is not None and get_build_inputs(
-            earlier["info"]
-        ) == get_build_inputs(info)
-        kept_file = (
-            Path(previous, built_file.name) if is_carried_over else built_file
-        )
-        kept_info = earlier["info"] if is_carried_over else info
-        shutil.copyfile(kept_file, Path(release, built_file.name))
+        compressed_file = Path(release, file.name + ".gz")
+        compress(file, compressed_file)
+        is_carried_over = info["content_sha256"] in previous_commits
         networks.append(
             {
-                "file": built_file.name,
-                "status": "carried over" if is_carried_over else "rebuilt",
-                "commit": earlier["commit"] if is_carried_over else commit,
-                "bytes": kept_file.stat().st_size,
+                "file": compressed_file.name,
+                "compressed_bytes": compressed_file.stat().st_size,
+                "bytes": file.stat().st_size,
+                "status": "carried over" if is_carried_over else "new",
+                "commit": previous_commits.get(info["content_sha256"], commit),
                 **{
-                    key: kept_info[key]
+                    key: info[key]
                     for key in (
                         "content_sha256",
                         "format_version",
@@ -130,6 +112,8 @@ def assemble(
                         "sources",
                     )
                 },
+                # Only a derived file has a derivation: its parent, modes and bbox
+                "derivation": info.get("derivation"),
             }
         )
     index = {"tag": tag, "networks": networks}
@@ -144,16 +128,16 @@ def format_notes(networks: list[dict], commit: str) -> str:
 
     Args:
         networks: The entries of the index `networks.json`.
-        commit: The commit that built the rebuilt networks.
+        commit: The commit of this run.
 
     Returns:
-        The text: how the files were built, how to load one, one table row per
-        network, then the credit line of each network.
+        The text: where the files come from, how to load one, one table row per
+        file, then the credit line of each file.
     """
     rows = [
-        f"| `{network['file']}` | {network['bytes'] / 1e6:.1f} MB "
+        f"| `{network['file']}` | {network['compressed_bytes'] / 1e6:.1f} MB "
+        f"| {network['bytes'] / 1e6:.1f} MB "
         f"| {network['nodes']:,} | {network['arcs']:,} "
-        f"| {(network['data_up_to'] or '')[:10] or 'no date'} "
         f"| {network['status']} | `{network['content_sha256'][:16]}` |"
         for network in networks
     ]
@@ -166,25 +150,37 @@ def format_notes(networks: list[dict], commit: str) -> str:
     )
     return "\n".join(
         [
-            f"The pipelines of scgraph built these network files. A rebuilt "
-            f"network comes from commit {commit}, and it passed the validation "
-            "cases of its pipeline. A carried-over network is the file of the "
-            "previous data release: its pipeline and its sources did not change.",
+            "`world_multimodal.scgraph` holds the roads, the railways, the sea "
+            "lanes and the flights of the world. Ports, airports and rail "
+            "terminals join them. Every other file is a part of this network. A "
+            "file named for a part of the world holds the roads, the railways and "
+            "the rail terminals inside a rectangle. It also holds every sea lane, "
+            "port and airport of the world. A route of such a file stays inside "
+            "the rectangle on land, so it can be longer than in the world file. A "
+            "file with `no_shapes` in its name holds the same network without the "
+            "shapes of its arcs. The lengths of its routes are the same.",
             "",
-            "To use a file, download it and load it with "
-            '`GeoGraph.load_from_scgraph("FILE")`. This needs a version of '
-            "scgraph that reads the file format version "
+            f"A new file comes from commit {commit}. The world network passed the "
+            "validation cases of its pipeline when it was built. A derived file "
+            "fails no case that the world file passes, among the cases on its "
+            "modes that have two ends inside its rectangle. A carried-over file "
+            "has the content of the same file in the previous data release.",
+            "",
+            "To use a file, download it and decompress it (`gunzip FILE.gz`). Load "
+            'it with `GeoGraph.load_from_scgraph("FILE")`, and keep some modes '
+            'only with `modes=["road"]`. This needs a version of scgraph that reads '
+            "the file format version "
             f"{', '.join(map(str, format_versions))}. "
             '`GeoGraph.get_scgraph_info("FILE")` gives the sources of a file and '
-            "its `content_sha256`. `networks.json` holds the full digests and the "
-            "commit that built each file.",
+            "its `content_sha256`. `networks.json` holds the full digests, the "
+            "rectangle of each derived file and the commit of each file.",
             "",
-            "| File | Size | Nodes | Arcs | Data up to | Status | `content_sha256` |",
+            "| File | Download | Decompressed | Nodes | Arcs | Status | `content_sha256` |",
             "|---|---|---|---|---|---|---|",
             *rows,
             "",
-            "**Credits and licenses.** Cite the credit line of a network with "
-            "the results that use it.",
+            "**Credits and licenses.** Cite the credit line of a file with the "
+            "results that use it.",
             "",
             *credits,
             "",

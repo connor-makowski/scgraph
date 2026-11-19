@@ -43,7 +43,7 @@ scgraph/
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
   pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
-    build.py                     # The runner: build_file (download, build, cache) and python -m scgraph.pipelines.build
+    build.py, derive.py          # The runner: build_file (download, build, cache). derive_file: a part of a network file as a new file. Both run with python -m
     steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
@@ -136,7 +136,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
 - `scgraph/pipelines/steps/stage4_validation/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.build NAME --validate` (add `--local-files-only` to check a network in the cache without a download)
 
-**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–58` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–59` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files
 
 **Test pattern:**
 ```python
@@ -188,7 +188,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.
-- **Data releases**: A data release publishes built networks as the assets of a GitHub release. A maintainer pushes a tag `networks-YYYY.MM.DD` on a commit of `dev` (`-dev.N` for a development release). `build_networks.yml` builds the networks and drafts the release with `utils/assemble_networks.py`. When the download of a source fails, the maintainer runs the failed job again. The maintainer reads the draft, then publishes it. A published data release is never changed.
+- **Data releases**: A data release publishes built networks as the assets of a GitHub release. A maintainer pushes a tag `networks-YYYY.MM.DD` on a commit of `dev` (`-dev.N` for a development release). `build_networks.yml` builds `world_multimodal`, derives the other files from it (`scgraph.pipelines.derive`) and drafts the release with `utils/assemble_networks.py`. The world file is carried over from the previous release when the same version of the pipeline built it from the same source URLs. When the download of a source fails, the maintainer runs the failed job again. The maintainer reads the draft, then publishes it. A published data release is never changed.
 
 ## Release Checklist (owner only — do not execute)
 

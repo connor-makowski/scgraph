@@ -1,0 +1,227 @@
+"""Tests of `scgraph.pipelines.derive`: a network file derived from a parent file."""
+
+import pytest
+
+from scgraph import GeoGraph, pipelines
+from scgraph.pipelines import derive
+
+# The parent network of these tests. A node is `id: [latitude, longitude]`.
+# A road joins the nodes 1, 2 and 3 along the equator. A second road goes
+# from node 2 to node 4, two degrees north. Node 10 is a port. It joins node
+# 3 to the sea lane from node 20 to node 21, which is at 50 degrees east.
+ROAD_NODES = {1: [0, 0], 2: [0, 0.03], 3: [0, 0.06], 4: [2, 0.03]}
+PORT_NODES = {10: [0, 0.07]}
+SEA_NODES = {20: [-0.1, 0.07], 21: [-0.1, 50]}
+NODES = ROAD_NODES | PORT_NODES | SEA_NODES
+# Each link is (node, node, km), and gives one arc each way.
+ROAD_LINKS = [(1, 2, 3.0), (2, 3, 3.0), (2, 4, 222.0)]
+PORT_AND_SEA_LINKS = [(3, 10, 1.0), (10, 20, 11.0), (20, 21, 5550.0)]
+# The road from node 1 to node 2 bends at this point: the only arc shape.
+BEND = [0.01, 0.015]
+MODES = [
+    {"name": "road", "source": "osm"},
+    {"name": "port", "source": "ports"},
+    {"name": "sea", "source": "sea"},
+]
+# No mode cites the source `land`, as in a multimodal pipeline.
+SOURCES = [{"name": name} for name in ("osm", "ports", "sea", "land")]
+# The bbox (south, west, north, east) holds the nodes 1, 2 and 3. Node 4 and
+# node 21 are outside it.
+BBOX = (-1, -1, 1, 1)
+
+
+@pytest.fixture(scope="module")
+def parent_file(tmp_path_factory):
+    """The network file of the parent network, with the header that a
+    pipeline writes."""
+    position = {node: u for u, node in enumerate(NODES)}
+    graph, shapes = [{} for _ in NODES], [{} for _ in NODES]
+    for a, b, km in ROAD_LINKS + PORT_AND_SEA_LINKS:
+        graph[position[a]][position[b]] = graph[position[b]][position[a]] = km
+    shapes[position[1]][position[2]] = shapes[position[2]][position[1]] = [BEND]
+    path = str(tmp_path_factory.mktemp("parent") / "parent.scgraph")
+    GeoGraph(
+        graph=graph,
+        nodes=list(NODES.values()),
+        intermediate_nodes=shapes,
+        node_ids=list(NODES),
+        node_modes=[0] * 4 + [1] + [2] * 2,  # rows of MODES, as NODES
+        modes=MODES,
+        coordinate_dtype="int32",
+    ).save_as_scgraph(
+        path,
+        metadata=pipelines.build_metadata("world_multimodal", None, 1, SOURCES),
+    )
+    return path
+
+
+# The networks of these tests have fewer than 10 nodes, the default smallest
+# component. So each derivation that keeps nodes gives `min_component_nodes=1`.
+@pytest.fixture(scope="module")
+def sea_file(parent_file, tmp_path_factory):
+    """The file derived from the parent file with the modes of the sea."""
+    path = str(tmp_path_factory.mktemp("sea") / "sea.scgraph")
+    derive.derive_file(
+        parent_file, path, modes=["sea", "port"], min_component_nodes=1
+    )
+    return path
+
+
+@pytest.fixture(scope="module")
+def bbox_file(parent_file, tmp_path_factory):
+    """The file derived from the parent file with the bbox."""
+    path = str(tmp_path_factory.mktemp("bbox") / "bbox.scgraph")
+    derive.derive_file(parent_file, path, bbox=BBOX, min_component_nodes=1)
+    return path
+
+
+def _nodes_by_mode(file):
+    """The nodes of a network file: for each mode, the sorted ids of its nodes."""
+    network = GeoGraph.load_from_scgraph(file)
+    nodes = {mode["name"]: [] for mode in network.modes}
+    for row, node in zip(network.node_modes, network.node_ids):
+        nodes[network.modes[row]["name"]].append(node)
+    return {mode: sorted(ids) for mode, ids in nodes.items()}
+
+
+def _km_from_node_1_to_node_21(file):
+    """The length of the shortest route of a network file from the west end
+    of the road to the east end of the sea lane."""
+    return GeoGraph.load_from_scgraph(file).get_shortest_path(
+        {"latitude": 0, "longitude": 0}, {"latitude": -0.1, "longitude": 50}
+    )["length"]
+
+
+def test_a_derived_file_holds_only_the_nodes_of_the_modes_asked(sea_file):
+    assert _nodes_by_mode(sea_file) == {"port": [10], "sea": [20, 21]}
+
+
+def test_a_derived_file_cites_only_the_sources_that_serve_its_modes(sea_file):
+    sources = GeoGraph.get_scgraph_info(sea_file)["sources"]
+
+    # Only the mode `road`, which is removed, cites `osm`.
+    assert sources == [{"name": "ports"}, {"name": "sea"}, {"name": "land"}]
+
+
+def test_a_bbox_cuts_the_roads_and_keeps_every_sea_node(bbox_file):
+    # Node 4 is a road node north of the bbox. Node 21 is a sea node east of
+    # the bbox. Node 2 lost its road to node 4, and it stays.
+    assert _nodes_by_mode(bbox_file) == {
+        "road": [1, 2, 3],
+        "port": [10],
+        "sea": [20, 21],
+    }
+
+
+def test_a_route_of_a_derived_file_has_its_length_in_the_parent_file(bbox_file):
+    # The links of the parent network on this route: 3 + 3 km of road, 1 + 11
+    # km at the port, 5550 km of sea
+    assert _km_from_node_1_to_node_21(bbox_file) == pytest.approx(5568.0)
+
+
+def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
+    parent_file, bbox_file, tmp_path
+):
+    no_shapes_file = str(tmp_path / "bbox.no_shapes.scgraph")
+
+    derive.derive_file(
+        parent_file,
+        no_shapes_file,
+        bbox=BBOX,
+        keep_shapes=False,
+        min_component_nodes=1,
+    )
+
+    assert GeoGraph.get_scgraph_info(no_shapes_file)["shapes"] is False
+    assert _km_from_node_1_to_node_21(
+        no_shapes_file
+    ) == _km_from_node_1_to_node_21(bbox_file)
+
+
+def test_the_header_of_a_derived_file_records_its_derivation(
+    parent_file, bbox_file
+):
+    derivation = GeoGraph.get_scgraph_info(bbox_file)["derivation"]
+
+    assert derivation == {
+        "parent_content_sha256": GeoGraph.get_scgraph_info(parent_file)[
+            "content_sha256"
+        ],
+        "modes": None,
+        "bbox": list(BBOX),
+        "min_component_nodes": 1,
+    }
+
+
+def test_a_derivation_that_keeps_no_node_is_refused(parent_file, tmp_path):
+    # The network of the parent file has 6 nodes. The smallest component that a
+    # derivation keeps has 10 nodes, unless the call gives another size.
+    with pytest.raises(ValueError, match="no component of 10 nodes"):
+        derive.derive_file(parent_file, str(tmp_path / "empty.scgraph"))
+
+
+def test_a_bbox_with_its_south_above_its_north_is_refused(
+    parent_file, tmp_path
+):
+    south, west, north, east = 1, -1, -1, 1
+
+    with pytest.raises(ValueError, match="south above its north"):
+        derive.derive_file(
+            parent_file,
+            str(tmp_path / "bbox.scgraph"),
+            bbox=(south, west, north, east),
+        )
+
+
+# The network of the validation test, at the ends of three cases that the
+# pipeline `osm_multimodal` lists for `europe/denmark`. A road of 100 + 87 km
+# joins Aarhus to Copenhagen. It passes through a road node north of Denmark.
+# - `aarhus_to_copenhagen_intermodal` asks for a route of 186.9 km, within
+#   10 %, between the two towns. This network passes the case.
+# - `arhus_port` asks that the port of Aarhus is joined to a road, to a
+#   railway and to a sea lane. `aalborg_airport` asks for an airport at
+#   Aalborg. This network fails the two cases.
+AARHUS, COPENHAGEN = [56.1629, 10.2039], [55.6761, 12.5683]
+ARHUS_PORT, NORTH_OF_DENMARK = [56.15, 10.216667], [58, 11.4]
+# This bbox holds the two towns and the port. The node north of Denmark and
+# Aalborg are outside it.
+DENMARK_BBOX = (55, 9, 57, 13)
+
+
+@pytest.fixture(scope="module")
+def denmark_file(tmp_path_factory):
+    path = str(tmp_path_factory.mktemp("denmark") / "denmark.scgraph")
+    GeoGraph(
+        graph=[{1: 1.6, 2: 100.0}, {0: 1.6}, {0: 100.0, 3: 87.0}, {2: 87.0}],
+        nodes=[AARHUS, ARHUS_PORT, NORTH_OF_DENMARK, COPENHAGEN],
+        intermediate_nodes=[{}, {}, {}, {}],
+        node_modes=[0, 1, 0, 0],
+        modes=[{"name": "road"}, {"name": "port"}],
+        coordinate_dtype="int32",
+    ).save_as_scgraph(
+        path,
+        metadata=pipelines.build_metadata(
+            "osm_multimodal", "europe/denmark", 1, []
+        ),
+    )
+    return path
+
+
+def test_a_derived_file_fails_only_for_a_case_that_its_parent_file_passes(
+    denmark_file, tmp_path
+):
+    whole_file = str(tmp_path / "whole.scgraph")
+    cut_file = str(tmp_path / "cut.scgraph")
+    derive.derive_file(denmark_file, whole_file, min_component_nodes=1)
+    derive.derive_file(
+        denmark_file, cut_file, bbox=DENMARK_BBOX, min_component_nodes=1
+    )
+
+    # The whole network passes one case and fails two, as its parent file.
+    derive.validate_derived_file(whole_file, denmark_file)
+    # The bbox cuts the road between the two towns. The message names this
+    # case, and not the case of the port, which the parent file fails too.
+    with pytest.raises(
+        RuntimeError, match="passes: aarhus_to_copenhagen_intermodal$"
+    ):
+        derive.validate_derived_file(cut_file, denmark_file)
