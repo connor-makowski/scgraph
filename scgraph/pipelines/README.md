@@ -390,9 +390,7 @@ header records the `content_sha256` of the parent file, the modes and the bbox.
 
 The command checks the derived network against some cases of `world_multimodal` (`--no-validate`
 skips this check): the cases whose two points are inside the bbox, on modes that the file holds.
-There are 16 such cases here. The check reads these cases from the pipeline that built the world
-file. This world file was built when that pipeline had the name `world_multimodal`: with this
-file, the command needs `--no-validate`.
+There are 16 such cases here.
 
 The validation of the world accepts that up to 1 % of the cities of a list have no road route.
 The world file can therefore pass with a few failed cases. A derived network has fewer cities,
