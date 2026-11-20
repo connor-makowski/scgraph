@@ -229,7 +229,7 @@ The command writes `derived/oceania.scgraph` and prints its path. With `--no-sha
 writes `derived/oceania.no_shapes.scgraph`: the same network without the shapes of its arcs.
 
 The numbers below come from one derivation of `oceania` on 2026-11-19, on Linux, with the C++
-extension. The parent file is the `world_multimodal` of the data release
+extension. The parent file is the `world_multimodal` of the network release
 `networks-2026.11.19-dev.1` (325.6 MB).
 
 | Step | Nodes | Arcs |

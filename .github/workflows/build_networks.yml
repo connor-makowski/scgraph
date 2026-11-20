@@ -1,6 +1,6 @@
 name: Build the reference networks
 
-# A data release publishes network files as assets of a GitHub release.
+# A network release publishes network files as assets of a GitHub release.
 #
 # To make one, push a tag `networks-YYYY.MM.DD` on a commit of `dev`. A development
 # release adds `-dev.N` and is published as a pre-release. The last job creates the
@@ -10,7 +10,7 @@ name: Build the reference networks
 # One network is built from its sources: `world_multimodal`. Every other file is
 # derived from it by `scgraph.pipelines.derive`, with no download: `VIEWS` of that
 # module lists the derived files. The world file is carried over from the previous
-# published data release when the same version of the pipeline built it from the same
+# published network release when the same version of the pipeline built it from the same
 # source URLs. That release may be a development release.
 on:
   push:
@@ -28,7 +28,7 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
   TAG: ${{ github.ref_name }}
-  # jq filter: the tag of the last published data release, or nothing
+  # jq filter: the tag of the last published network release, or nothing
   PREVIOUS_TAG_FILTER: >-
     [.[] | select(.tagName | startswith("networks-")) | select(.isDraft | not)]
     | sort_by(.publishedAt) | last | .tagName // ""
@@ -71,11 +71,11 @@ jobs:
           grep -n 'osm-planet-us-west-2' scgraph/pipelines/steps/stage1_extract/osm.py
       - name: Install scgraph with the C++ extension and osmium
         run: uv sync --extra osm
-      - name: Find the previous data release
+      - name: Find the previous network release
         id: previous
         run: |
           tag=$(gh release list --limit 100 --json tagName,isDraft,publishedAt -q "$PREVIOUS_TAG_FILTER")
-          echo "previous data release: ${tag:-none}"
+          echo "previous network release: ${tag:-none}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       # The URL of each source tells its content: the planet file has its date in its
       # name, and the other sources are read at a fixed commit or kept with the code.
@@ -155,7 +155,7 @@ jobs:
         run: |
           is_draft=$(gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null || true)
           if [ "$is_draft" = "true" ]; then gh release delete "$TAG" --yes; fi
-      - name: Download the index of the previous data release
+      - name: Download the index of the previous network release
         run: |
           mkdir previous
           if [ -n "${{ needs.world.outputs.previous_tag }}" ]; then

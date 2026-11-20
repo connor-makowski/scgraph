@@ -207,7 +207,8 @@ HOW TO ADD A NETWORK TO SCGRAPH
 
 scgraph does not import this package when it is imported. The functions that need it
 import it when they are called: `load_from_osm`, `build_geograph`,
-`list_buildable_geographs` and `clear_geograph_cache`.
+`list_buildable_geographs`, `clear_geograph_cache`, and `load_geograph` for a network
+of a network release.
 """
 
 import inspect
