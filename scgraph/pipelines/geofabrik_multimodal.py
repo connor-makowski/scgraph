@@ -37,7 +37,7 @@ HUBS AND CONNECTORS
   another only through a hub: a port (road, sea, and rail where the port has a
   railway), an airport (road, and its flights) or a rail terminal (road and rail).
   A change of mode at a hub costs nothing.
-- A connector joins a hub to the network of one mode (`hub_connectors.join_networks_at_hubs`). A hub joins the
+- A connector joins a hub to the network of one mode (`step2_hub_connectors.join_networks_at_hubs`). A hub joins the
   network when it reaches at least two networks. A hub that reaches fewer than two
   networks stays out.
 - Road connector, and rail connector. It is a straight line from the hub to a node
@@ -81,7 +81,7 @@ SOURCES AND LIMITS
 
 - Sources: the OpenStreetMap extract of Geofabrik, the sea lanes of Eurostat
   SeaRoute, and Natural Earth for the land and the water. The hubs and the flights
-  come from small tables kept with scgraph (`hub_connectors.HUB_TABLES`, made by
+  come from small tables kept with scgraph (`step2_hub_connectors.HUB_TABLES`, made by
   `utils/build_hub_tables.py`).
 - The Geofabrik URL always gives the newest extract, and `PIPELINE_VERSION` does not
   change when a source changes. So a rebuild can give another network.
@@ -102,10 +102,10 @@ import os
 from typing import TYPE_CHECKING
 
 from scgraph.pipelines import eurostat_sea_lanes
-from scgraph.pipelines.steps import osm_ways
-from scgraph.pipelines.steps import hub_connectors
-from scgraph.pipelines.steps.land_mask import LandMask
-from scgraph.pipelines.steps import network_arrays
+from scgraph.pipelines.steps import step1_osm_ways
+from scgraph.pipelines.steps import step2_hub_connectors
+from scgraph.pipelines.steps.step2_land_mask import LandMask
+from scgraph.pipelines.steps import step3_network_assembly
 from scgraph.utils import _log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
@@ -133,8 +133,8 @@ SOURCES = {
     "land": _natural_earth("land"),
     "lakes": _natural_earth("lakes"),
     "rivers": _natural_earth("rivers_lake_centerlines"),
-    **hub_connectors.HUB_TABLES,
-    "osm": osm_ways.GEOFABRIK,
+    **step2_hub_connectors.HUB_TABLES,
+    "osm": step1_osm_ways.GEOFABRIK,
 }
 MODES = [
     {"name": "road", "source": "osm"},
@@ -149,7 +149,7 @@ MODES = [
 MARGIN = 2
 
 download = (
-    osm_ways.download
+    step1_osm_ways.download
 )  # for the sources without their own download: checks osmium first
 
 
@@ -160,7 +160,7 @@ def select_main_roads_with_class(
     The class is the `highway` value of the way. Example: a one-way motorway gives
     `(1, "motorway")`.
     """
-    direction = osm_ways.select_main_roads(tags)
+    direction = step1_osm_ways.select_main_roads(tags)
     return None if direction is None else (direction, tags["highway"])
 
 
@@ -171,7 +171,7 @@ def select_vehicle_ferries_with_class(
     way. The class is the `route` value of the way. Example: a shuttle train gives
     `(0, "shuttle_train")`.
     """
-    direction = osm_ways.select_vehicle_ferries(tags)
+    direction = step1_osm_ways.select_vehicle_ferries(tags)
     return None if direction is None else (direction, tags["route"])
 
 
@@ -212,7 +212,7 @@ def select_rail_with_class(
 def build(
     files: dict[str, str],
     *,
-    max_km_between_nodes: float = osm_ways.MAX_KM_BETWEEN_NODES,
+    max_km_between_nodes: float = step1_osm_ways.MAX_KM_BETWEEN_NODES,
     min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
@@ -238,7 +238,7 @@ def build(
     # 1. The railways and the roads, in one read of the extract. Each mode has its
     # own junctions and its own pieces, so that a level crossing is not a change of
     # mode. Each select function gives the class of a way with its direction.
-    pieces = osm_ways.build_way_pieces(
+    pieces = step1_osm_ways.build_way_pieces(
         files["osm"],
         {
             "rail": {"ways": select_rail_with_class},
@@ -252,11 +252,13 @@ def build(
         folder("ways"),
         optional_modes=("rail",),
     )
-    roads = network_arrays.build_graph_from_pieces(pieces["road"])
+    roads = step3_network_assembly.build_graph_from_pieces(pieces["road"])
     layers = {"road": roads}
     # A region may have no railway. Its hubs then join the roads and the sea lanes.
     if len(pieces["rail"].km):
-        layers["rail"] = network_arrays.build_graph_from_pieces(pieces["rail"])
+        layers["rail"] = step3_network_assembly.build_graph_from_pieces(
+            pieces["rail"]
+        )
     del pieces  # the graphs hold their own arrays
     # 2. The sea lanes, with the passage of each lane as its class
     with _log_step(logger, "read the sea lanes", {}) as counts:
@@ -279,9 +281,9 @@ def build(
     )
     # 4. The hubs inside the raster
     region_hubs = (
-        hub_connectors.read_ports(files["ports"])
-        + hub_connectors.read_airports(files["airports"])
-        + hub_connectors.read_rail_terminals(files["rail_terminals"])
+        step2_hub_connectors.read_ports(files["ports"])
+        + step2_hub_connectors.read_airports(files["airports"])
+        + step2_hub_connectors.read_rail_terminals(files["rail_terminals"])
     )
     region_hubs = [
         hub for hub in region_hubs if mask.get_cell(*hub.point) is not None
@@ -290,17 +292,17 @@ def build(
     with _log_step(
         logger, "join at the hubs", {"hubs": len(region_hubs)}
     ) as counts:
-        graph, joined = hub_connectors.join_networks_at_hubs(
+        graph, joined = step2_hub_connectors.join_networks_at_hubs(
             {**layers, "sea": sea},
             region_hubs,
             mask,
             [mode["name"] for mode in MODES],
-            flights=hub_connectors.read_flights(files["flights"]),
+            flights=step2_hub_connectors.read_flights(files["flights"]),
             work_dir=folder("hubs"),
         )
         counts.update(joined)
     # 6. Keep the connected network, contract its chains, number its nodes
-    arrays = network_arrays.assemble_network_arrays(
+    arrays = step3_network_assembly.assemble_network(
         graph,
         max_km_between_nodes=max_km_between_nodes,
         min_component_nodes=min_component_nodes,

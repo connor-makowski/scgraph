@@ -52,16 +52,16 @@ The runner, `build.py`, runs a pipeline. `build_network_file` downloads the sour
 
 A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, one module for each step:
 
-* **Read the sources (`steps.osm_ways`)**:
-  `osm_ways` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`osm_planet_reader`). `osm_ways.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`network_arrays.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
-* **Join the modes (`steps.hub_connectors`, `steps.land_mask`)**:
-  `hub_connectors.join_networks_at_hubs` joins the networks of several modes at hubs: ports, airports and rail terminals. `land_mask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
-* **Assemble the graph (`steps.network_arrays`)**:
-  `network_arrays.build_graph_from_pieces` stores the arcs as CSR arrays (`build_csr_from_arcs`). `network_arrays.assemble_network_arrays` keeps the strongly connected components (`strongly_connected_components`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
-* **Validate the network (`steps.validation_cases`)**:
-  `validate_network` checks a built network against cases. A case describes a known route of the real world, such as a driving distance or a published sea distance. The docstring of `steps/validation_cases` lists the kinds of cases and their rules. With `validate=True`, `build_network_file` validates the built file, and a network that fails does not enter the cache.
+* **Read the sources (`steps.step1_osm_ways`)**:
+  `step1_osm_ways` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`step1_osm_planet_reader`). `step1_osm_ways.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`step3_network_assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
+* **Join the modes (`steps.step2_hub_connectors`, `steps.step2_land_mask`)**:
+  `step2_hub_connectors.join_networks_at_hubs` joins the networks of several modes at hubs: ports, airports and rail terminals. `step2_land_mask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
+* **Assemble the graph (`steps.step3_network_assembly`)**:
+  `step3_network_assembly.build_graph_from_pieces` stores the arcs as CSR arrays (`build_csr_from_arcs`). `step3_network_assembly.assemble_network` keeps the strongly connected components (`strongly_connected_components`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
+* **Validate the network (`steps.step4_validation_cases`)**:
+  `validate_network` checks a built network against cases. A case describes a known route of the real world, such as a driving distance or a published sea distance. The docstring of `steps/step4_validation_cases` lists the kinds of cases and their rules. With `validate=True`, `build_network_file` validates the built file, and a network that fails does not enter the cache.
 
-The costly functions of `land_mask` and `network_arrays` have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`) and a pure-Python version that gives the same results.
+The costly functions of `step2_land_mask` and `step3_network_assembly` have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`) and a pure-Python version that gives the same results.
 
 ---
 
@@ -204,7 +204,7 @@ Graph reduction replaces chains of non-branching nodes with direct composite edg
 ```mermaid
 flowchart TD
     subgraph BuildTime["Pipeline Assembly (Static Contraction)"]
-        A["Flat CSR Arrays"] --> B["network_arrays.contract_chains"]
+        A["Flat CSR Arrays"] --> B["step3_network_assembly.contract_chains"]
         B --> C["Contracted CSR Graph & Aggregated Polyline Shapes"]
         C --> D["Binary .scgraph Network File"]
     end
@@ -231,7 +231,7 @@ Operates on an instantiated `Graph` via `graph.reduce(iterations=-1)`:
 
 ---
 
-### Static CSR Contraction (`network_arrays.contract_chains`)
+### Static CSR Contraction (`step3_network_assembly.contract_chains`)
 
 Operates directly on flat C-style arrays during pipeline assembly:
 * Takes `(offsets, heads, weights, node_modes, max_km_between_nodes, arc_classes)` and returns a `ContractedGraph` namedtuple:
@@ -239,7 +239,7 @@ Operates directly on flat C-style arrays during pipeline assembly:
   * `origins`, `heads`, `weights`: Compressed composite edges.
   * `member_offsets`, `members`: Indices of original input arcs forming each composite edge.
 * `node_modes` is optional. A chain is never contracted across two modes.
-* `arc_classes` is optional: the class of each arc. The header of `network_arrays.py` gives its rule.
+* `arc_classes` is optional: the class of each arc. The header of `step3_network_assembly.py` gives its rule.
 * `max_km_between_nodes` cuts a chain into segments of about that length (default: no cut).
 * A segment that would create a self-loop or a duplicate arc is split at its midpoint.
 * The aggregated geometry is generated by `build_chain_shapes` using `members`.

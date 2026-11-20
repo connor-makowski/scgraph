@@ -6,10 +6,11 @@ from itertools import groupby
 import pytest
 from helpers import great_circle_km, needs_the_cpp_extension
 
-from scgraph.pipelines.steps import network_arrays
+from scgraph.pipelines.steps import step3_network_assembly
+from scgraph.pipelines.steps.near_nodes import NearNodes
 from scgraph.utils import has_cpp
 
-BACKENDS = {"python": network_arrays.python}
+BACKENDS = {"python": step3_network_assembly.python}
 if has_cpp():
     from scgraph import cpp
 
@@ -202,7 +203,7 @@ HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
     ],
 )
 def test_components_are_kept_by_their_size(options, kept_nodes):
-    nodes, labels = network_arrays.keep_strongly_connected_components(
+    nodes, labels = step3_network_assembly.keep_strongly_connected_components(
         OFFSETS, HEADS, **options
     )
 
@@ -241,9 +242,7 @@ def test_near_nodes_finds_every_node_within_a_distance(centre, km):
         if great_circle_km(centre, [latitudes[i], longitudes[i]]) <= km
     ]
 
-    found = network_arrays.NearNodes(latitudes, longitudes).find_within(
-        list(centre), km
-    )
+    found = NearNodes(latitudes, longitudes).find_within(list(centre), km)
 
     assert sorted(i for _, i in found) == nodes_within_km
 
@@ -256,9 +255,7 @@ def test_near_nodes_finds_the_nearest_node(centre):
         for i in range(len(latitudes))
     )
 
-    km, node = network_arrays.NearNodes(latitudes, longitudes).find_nearest(
-        list(centre), 500
-    )
+    km, node = NearNodes(latitudes, longitudes).find_nearest(list(centre), 500)
 
     assert node == nearest_node
     assert km == pytest.approx(nearest_km)
@@ -266,7 +263,7 @@ def test_near_nodes_finds_the_nearest_node(centre):
 
 def test_near_nodes_finds_no_nearest_node_beyond_the_distance():
     # One node, one degree of latitude north of the point: 111 km away
-    near_nodes = network_arrays.NearNodes(array("d", [1.0]), array("d", [0.0]))
+    near_nodes = NearNodes(array("d", [1.0]), array("d", [0.0]))
 
     assert near_nodes.find_nearest([0.0, 0.0], 100) == (math.inf, None)
 
@@ -303,7 +300,7 @@ def assembled(tmp_path_factory):
     """The arrays of the network built from the four pieces. The arguments
     keep every component, even of one node, and cut no arc: no chain reaches
     100 km."""
-    pieces = network_arrays.PieceArrays(
+    pieces = step3_network_assembly.PieceArrays(
         work_dir=tmp_path_factory.mktemp("pieces")
     )
     shapes = {1: POINTS_FROM_1_TO_2, 2: POINTS_FROM_2_TO_3}
@@ -316,8 +313,8 @@ def assembled(tmp_path_factory):
             [PLACES[origin], PLACES[destination]],
             shapes.get(origin, []),
         )
-    arrays = network_arrays.assemble_network_arrays(
-        network_arrays.build_graph_from_pieces(pieces),
+    arrays = step3_network_assembly.assemble_network(
+        step3_network_assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
         min_component_nodes=1,
     )
@@ -366,13 +363,13 @@ def test_an_assembled_arc_has_the_class_of_its_pieces(tmp_path):
     # to place 3, then a trunk road. A class is a row of the classes table.
     primary, trunk = 5, 3
     places = {1: [0, 0], 2: [0, 0.01], 3: [0, 0.02], 4: [0, 0.03]}
-    pieces = network_arrays.PieceArrays(work_dir=tmp_path)
+    pieces = step3_network_assembly.PieceArrays(work_dir=tmp_path)
     for origin, class_row in ((1, primary), (2, primary), (3, trunk)):
         ends = [places[origin], places[origin + 1]]
         pieces.append(origin, origin + 1, 1.0, 0, ends, [], class_row)
 
-    arrays = network_arrays.assemble_network_arrays(
-        network_arrays.build_graph_from_pieces(pieces),
+    arrays = step3_network_assembly.assemble_network(
+        step3_network_assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
         min_component_nodes=1,
     )
@@ -388,18 +385,18 @@ def test_an_assembled_arc_has_the_class_of_its_pieces(tmp_path):
 
 
 def test_pieces_with_and_without_a_class_are_refused():
-    pieces = network_arrays.PieceArrays()
+    pieces = step3_network_assembly.PieceArrays()
     pieces.append(1, 2, 1.0, 0, [[0, 0], [0, 0.01]], [], 5)
     pieces.append(2, 3, 1.0, 0, [[0, 0.01], [0, 0.02]], [])
 
     with pytest.raises(ValueError, match="have a class and the others"):
-        network_arrays.build_graph_from_pieces(pieces)
+        step3_network_assembly.build_graph_from_pieces(pieces)
 
 
 def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
     # PieceArrays stores the pieces by batches of 10,000. Each of the 10,002
     # pieces has one point, at its own latitude: i units of 1e-7 degree.
-    pieces = network_arrays.PieceArrays(
+    pieces = step3_network_assembly.PieceArrays(
         tolerance_meters=None, work_dir=tmp_path
     )
     for i in range(10_002):
@@ -417,7 +414,7 @@ def _csr(one_way=(), two_way=()):
     # (origin, destination, km) arcs, two_way ones in both directions, by origin
     arcs = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]
     columns = (array(t, c) for t, c in zip("qqd", zip(*arcs)))
-    return network_arrays.python.build_csr_from_arcs(*columns)[1:4]
+    return step3_network_assembly.python.build_csr_from_arcs(*columns)[1:4]
 
 
 def _two_way(*pairs):
@@ -693,7 +690,10 @@ def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel():
             contracted = cpp.contract_chains(*arguments)
 
             assert list(map(list, contracted)) == list(
-                map(list, network_arrays.python.contract_chains(*arguments))
+                map(
+                    list,
+                    step3_network_assembly.python.contract_chains(*arguments),
+                )
             ), f"seed {seed}"
 
 
@@ -831,5 +831,5 @@ def test_the_cpp_kernel_simplifies_random_walks_as_the_python_kernel():
         ends, interior = _random_shape(seed)
 
         assert _simplify(cpp, ends, interior, 20) == _simplify(
-            network_arrays.python, ends, interior, 20
+            step3_network_assembly.python, ends, interior, 20
         ), f"seed {seed}"

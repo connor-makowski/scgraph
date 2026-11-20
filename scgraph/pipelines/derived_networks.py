@@ -77,7 +77,7 @@ HOW A DERIVED FILE IS VALIDATED
 `validate_derived_network_file` reads the validation cases of the pipeline of the parent
 file. It selects a case when two conditions hold. The two ends of the case are inside
 the bbox. The derived file holds the modes on which the kind of the case searches its
-routes (`RULES` of `validation_cases`). Some kinds search on every mode: the derived
+routes (`RULES` of `step4_validation_cases`). Some kinds search on every mode: the derived
 file must then hold every mode of the parent file.
 
 The derived file passes when it fails no selected case that the parent file passes.
@@ -103,8 +103,8 @@ from array import array
 from collections.abc import Sequence
 
 from scgraph import network_file, pipelines
-from scgraph.pipelines.steps import network_arrays
-from scgraph.pipelines.steps.validation_cases import (
+from scgraph.pipelines.steps import step3_network_assembly
+from scgraph.pipelines.steps.step4_validation_cases import (
     RULES,
     load_validation_cases,
     validate_network,
@@ -201,7 +201,7 @@ def derive_network_file(
     with _log_step(
         logger,
         "select the nodes",
-        network_arrays._count_nodes_and_arcs(parent_arrays),
+        step3_network_assembly._count_nodes_and_arcs(parent_arrays),
     ) as counts:
         # 1. Select the nodes
         land_rows = {
@@ -225,16 +225,18 @@ def derive_network_file(
             ),
         )
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
-        graph = network_arrays._renumbered(parent_arrays, selected)
-        counts.update(network_arrays._count_nodes_and_arcs(graph, "kept_"))
+        graph = step3_network_assembly._renumbered(parent_arrays, selected)
+        counts.update(
+            step3_network_assembly._count_nodes_and_arcs(graph, "kept_")
+        )
     with _log_step(
         logger,
         "keep the strongly connected components",
-        network_arrays._count_nodes_and_arcs(graph),
+        step3_network_assembly._count_nodes_and_arcs(graph),
     ) as counts:
         # 3. Keep the strongly connected components
         kept_nodes, component_of_node = (
-            network_arrays.keep_strongly_connected_components(
+            step3_network_assembly.keep_strongly_connected_components(
                 graph["offsets"], graph["heads"], min_component_nodes
             )
         )
@@ -244,8 +246,12 @@ def derive_network_file(
                 "or more with these modes inside the bbox"
             )
         # An arc between two components is dropped
-        graph = network_arrays._renumbered(graph, kept_nodes, component_of_node)
-        counts.update(network_arrays._count_nodes_and_arcs(graph, "kept_"))
+        graph = step3_network_assembly._renumbered(
+            graph, kept_nodes, component_of_node
+        )
+        counts.update(
+            step3_network_assembly._count_nodes_and_arcs(graph, "kept_")
+        )
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
     if len(kept_mode_rows) == 1:

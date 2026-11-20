@@ -57,7 +57,7 @@ def _validate_pipeline(pipeline, name, region, filename):
     validation = getattr(pipeline, "VALIDATION", None)
     if not validation:
         return
-    from scgraph.pipelines.steps.validation_cases import (
+    from scgraph.pipelines.steps.step4_validation_cases import (
         load_validation_cases,
         validate_network,
     )

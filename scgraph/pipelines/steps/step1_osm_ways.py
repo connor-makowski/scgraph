@@ -7,7 +7,7 @@ imports `osmium` only when it reads a file.
 WHAT IT ANSWERS
 
 `read_osm` gives a graph in the layout of a GeoGraph, for `load_from_osm`.
-`build_way_pieces` gives the pieces of the kept ways (`network_arrays.PieceArrays`), for a
+`build_way_pieces` gives the pieces of the kept ways (`step3_network_assembly.PieceArrays`), for a
 pipeline. A select function chooses the ways. It takes the tags of a way. It returns
 the direction of the way: 1 (one way, in the order of its nodes), -1 (one way, against
 that order) or 0 (both ways). It returns None to leave the way out.
@@ -84,8 +84,8 @@ import requests
 
 from scgraph.helpers.polylines import cut_polylines, build_graph_from_polylines
 from scgraph.pipelines import CLASS_ROWS, CLASSES, download_file
-from scgraph.pipelines.steps.network_arrays import (
-    NearNodes,
+from scgraph.pipelines.steps.near_nodes import NearNodes
+from scgraph.pipelines.steps.step3_network_assembly import (
     PieceArrays,
 )
 from scgraph.utils import _log_step, has_cpp
@@ -516,7 +516,7 @@ def build_way_pieces(
     inputs reuses them. Each step logs its counts at DEBUG.
 
     Returns:
-        The pieces of each mode (`network_arrays.PieceArrays`), by the name of the mode.
+        The pieces of each mode (`step3_network_assembly.PieceArrays`), by the name of the mode.
 
     Raises:
         ValueError: The select functions of a mode keep no way, and the mode is not in
@@ -902,7 +902,9 @@ PLANET = {
 _AGENT = {"User-Agent": "scgraph"}
 # In bytes. Below this distance, the start of a section is found blob by blob.
 _SCAN = 1 << 23
-_STREAMER_SCRIPT = str(Path(__file__).resolve().parent / "osm_planet_reader.py")
+_STREAMER_SCRIPT = str(
+    Path(__file__).resolve().parent / "step1_osm_planet_reader.py"
+)
 
 
 def _blob(data):

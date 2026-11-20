@@ -46,8 +46,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from scgraph.pipelines import CLASS_ROWS
-from scgraph.pipelines.steps.network_arrays import (
-    NearNodes,
+from scgraph.pipelines.steps.near_nodes import NearNodes
+from scgraph.pipelines.steps.step3_network_assembly import (
     PieceArrays,
     build_graph_from_pieces,
     strongly_connected_components,
@@ -55,7 +55,7 @@ from scgraph.pipelines.steps.network_arrays import (
 from scgraph.utils import haversine
 
 if TYPE_CHECKING:
-    from scgraph.pipelines.steps.land_mask import LandMask
+    from scgraph.pipelines.steps.step2_land_mask import LandMask
 
 # The longest connector to each mode, in km: the straight line to a road or rail node,
 # and the water path to a sea node
@@ -191,7 +191,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
 
 class _Layer:
     """The network of one mode, from the network file's arrays
-    (`network_arrays.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
+    (`step3_network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
     node ids and its arcs, each with its class.
     """
 

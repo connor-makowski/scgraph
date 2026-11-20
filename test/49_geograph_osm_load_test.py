@@ -7,7 +7,7 @@ from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
 from scgraph.pipelines import geofabrik_multimodal
-from scgraph.pipelines.steps import osm_ways
+from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.utils import has_cpp
 
@@ -199,12 +199,12 @@ def test_a_way_goes_to_the_first_select_that_keeps_it(osm_file):
     # Both selects keep the primary roads, and "ways" comes first.
     selects = {
         "road": {
-            "ways": osm_ways.select_main_roads,
+            "ways": step1_osm_ways.select_main_roads,
             "ferries": select_primary_roads,
         }
     }
 
-    _, polylines = osm_ways.locate_ways(osm_file, selects, ("highway",))
+    _, polylines = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
 
     assert {kind for _, kind, _, _, _ in polylines} == {"ways"}
 
@@ -214,11 +214,11 @@ def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
         return 0 if tags.get("highway") == "primary" else None
 
     selects = {
-        "road": {"ways": osm_ways.select_main_roads},
+        "road": {"ways": step1_osm_ways.select_main_roads},
         "primary_road": {"ways": select_primary_roads},
     }
 
-    _, polylines = osm_ways.locate_ways(osm_file, selects, ("highway",))
+    _, polylines = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
 
     # Way 3 is the primary road from node 5 to node 6. Both modes keep it.
     modes_of_way_3 = {
@@ -235,11 +235,11 @@ def test_ways_of_two_kinds_meet_at_a_node_that_both_have(osm_file):
     selects = {
         "road": {
             "ferries": select_side_roads,
-            "ways": osm_ways.select_main_roads,
+            "ways": step1_osm_ways.select_main_roads,
         }
     }
 
-    junctions, _ = osm_ways.locate_ways(osm_file, selects, ("highway",))
+    junctions, _ = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
 
     # Node 3 is the end of the main road 1 and of the side road 4.
     # Node 1 is the end of the main road 1 only.
@@ -253,10 +253,10 @@ def test_ways_of_two_modes_do_not_meet_at_a_node_that_both_have(osm_file):
 
     selects = {
         "side_road": {"ways": select_side_roads},
-        "road": {"ways": osm_ways.select_main_roads},
+        "road": {"ways": step1_osm_ways.select_main_roads},
     }
 
-    junctions, _ = osm_ways.locate_ways(osm_file, selects, ("highway",))
+    junctions, _ = step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
 
     # Node 3 is the end of the main road 1 and of the side road 4: one way of
     # each mode.
@@ -273,7 +273,7 @@ def test_a_select_that_returns_an_unknown_class_name_is_refused(osm_file):
     selects = {"road": {"ways": select_roads_as_canals}}
 
     with pytest.raises(ValueError, match="canal"):
-        osm_ways.locate_ways(osm_file, selects, ("highway",))
+        step1_osm_ways.locate_ways(osm_file, selects, ("highway",))
 
 
 def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
@@ -323,17 +323,17 @@ def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
     # The file has no railway. A build that took the roads kept in the
     # folder for railways would succeed.
     with pytest.raises(ValueError, match="No way"):
-        osm_ways.build_way_pieces(
+        step1_osm_ways.build_way_pieces(
             osm_file,
             {"rail": {"ways": geofabrik_multimodal.select_rail}},
             ("railway",),
-            osm_ways.MAX_KM_BETWEEN_NODES,
+            step1_osm_ways.MAX_KM_BETWEEN_NODES,
             os.path.join(work_dir, "ways"),  # the folder of `build_main_roads`
         )
 
 
 # The planet file is too large to download: scgraph reads it in place, by
-# HTTP byte ranges (`osm_ways.StreamedPbf`). It first finds where the nodes and
+# HTTP byte ranges (`step1_osm_ways.StreamedPbf`). It first finds where the nodes and
 # the ways start in the file. In a file above 8 MB, it finds them by bisection.
 @pytest.fixture(scope="module")
 def planet_folder(osm_file, tmp_path_factory):
@@ -427,7 +427,9 @@ def planet_url(planet_folder):
 def test_streamed_pbf_download_records_the_version_size_and_md5_of_the_file(
     planet_url, planet_folder, tmp_path
 ):
-    record = osm_ways.StreamedPbf.download(planet_url, tmp_path / "layout.json")
+    record = step1_osm_ways.StreamedPbf.download(
+        planet_url, tmp_path / "layout.json"
+    )
 
     # The version is the time in the header of the PBF. The md5 is the one
     # that the mirror publishes beside the file.
@@ -442,7 +444,7 @@ def test_a_pbf_read_by_byte_ranges_gives_the_network_of_its_ways(
     planet_url, osm_file, tmp_path
 ):
     layout = str(tmp_path / "layout.json")
-    osm_ways.StreamedPbf.download(planet_url, layout)
+    step1_osm_ways.StreamedPbf.download(planet_url, layout)
 
     streamed = build_main_roads({"roads": layout})[0]
 
@@ -454,7 +456,7 @@ def test_a_pbf_that_changes_on_the_server_stops_the_build(
     planet_url, planet_folder, tmp_path
 ):
     layout = str(tmp_path / "layout.json")
-    osm_ways.StreamedPbf.download(planet_url, layout)
+    step1_osm_ways.StreamedPbf.download(planet_url, layout)
     (planet_folder / "tag").write_text('"second upload"')
 
     with pytest.raises(RuntimeError, match="Reading http"):
@@ -463,7 +465,7 @@ def test_a_pbf_that_changes_on_the_server_stops_the_build(
 
 @pytest.mark.skipif(has_cpp(), reason="The C++ extension is built")
 def test_the_planet_is_not_streamed_without_the_cpp_extension(tmp_path):
-    download_planet = osm_ways.PLANET["download"]
+    download_planet = step1_osm_ways.PLANET["download"]
 
     # The refusal comes before any request: nothing listens at this address.
     with pytest.raises(RuntimeError, match="C\\+\\+ extension"):

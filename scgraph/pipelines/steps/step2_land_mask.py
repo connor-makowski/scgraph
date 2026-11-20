@@ -4,7 +4,7 @@ WHAT IT ANSWERS
 
 `LandMask.is_on_land` tells whether a point is on land. `LandMask.find_water_path`
 gives the shortest path over water from a point to the nearest of a set of cells.
-`hub_connectors.join_networks_at_hubs` uses it for the sea connector of a port.
+`step2_hub_connectors.join_networks_at_hubs` uses it for the sea connector of a port.
 
 HOW THE MASK IS STORED
 

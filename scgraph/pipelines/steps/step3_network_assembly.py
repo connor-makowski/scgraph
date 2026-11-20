@@ -2,9 +2,9 @@
 
 WHAT IT ANSWERS
 
-`build_graph_from_pieces` turns the pieces that `osm_ways` cut (`PieceArrays`) into a
-graph. `assemble_network_arrays` turns this graph into the arrays of a network file. A route between
-two nodes of the same kept component has the same length before and after `assemble_network_arrays`.
+`build_graph_from_pieces` turns the pieces that `step1_osm_ways` cut (`PieceArrays`) into a
+graph. `assemble_network` turns this graph into the arrays of a network file. A route between
+two nodes of the same kept component has the same length before and after `assemble_network`.
 
 HOW A GRAPH IS STORED
 
@@ -47,7 +47,7 @@ HOW A RUN GOES
    the class of its members.
 4. `build_chain_shapes` gives each contracted arc the shape points of its members,
    with the removed nodes between them.
-5. `assemble_network_arrays` numbers the nodes by mode, then along a Hilbert curve. A network file
+5. `assemble_network` numbers the nodes by mode, then along a Hilbert curve. A network file
    has this order.
 
 Example of step 3: the road 0-4-3-2-1-5 has arcs of 1 km, both ways, and
@@ -79,7 +79,7 @@ THE C++ VERSION
 network of the planet needs. The functions of this module call it when the extension
 is built and the inputs are `array` or `memoryview` buffers. The pure-Python versions
 give the same results. The namespace `python` of this module gives them, for example
-`network_arrays.python.contract_chains`. The C++ version returns memoryviews, and the Python
+`step3_network_assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
 version returns `array`s.
 
 `build_csr_from_adjacency_list` and `keep_largest_strongly_connected_component` take
@@ -91,8 +91,8 @@ import math
 import mmap
 import os
 from array import array
-from bisect import bisect_left, bisect_right
-from collections.abc import Iterable, Iterator, Sequence
+from bisect import bisect_left
+from collections.abc import Iterable, Sequence
 from functools import reduce
 from itertools import accumulate
 from operator import add
@@ -118,7 +118,7 @@ from scgraph.helpers.douglas_peucker import (
 )
 from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
 from scgraph.network_file import extract_coordinates
-from scgraph.utils import _log_step, haversine
+from scgraph.utils import _log_step
 
 logger = logging.getLogger(__name__)
 
@@ -591,72 +591,6 @@ def simplify_shapes(
     )
 
 
-class NearNodes:
-    """Find the nodes near a point, without one Python object per node.
-
-    `latitudes` and `longitudes` are sequences of numbers. A value times `scale` is in
-    degrees. For example, int32 values in units of 1e-7 degree take `scale=1e-7`. The
-    index groups the nodes in rows of 0.2 degree of latitude. In a row, the nodes are
-    sorted by longitude, and a search finds them by bisection.
-    """
-
-    def __init__(self, latitudes, longitudes, scale=1):
-        self.latitudes, self.longitudes = latitudes, longitudes
-        self.rows, self.scale = {}, scale
-        for i, lat in enumerate(latitudes):
-            row = math.floor(lat * scale / 0.2)
-            self.rows.setdefault(row, array("i")).append(i)
-        for row, nodes in self.rows.items():
-            self.rows[row] = array(
-                "i", sorted(nodes, key=longitudes.__getitem__)
-            )
-
-    def find_within(
-        self, point: Sequence[float], km: float
-    ) -> Iterator[tuple[float, int]]:
-        """Yield `(km, node)` for each node within `km` of `point`, a `[latitude, longitude]`
-        pair in degrees.
-        """
-        lat, lon = point
-        dlat = km / 110  # degrees: more than `km` (111.2 km per degree)
-        cos = math.cos(math.radians(min(90, abs(lat) + dlat)))
-        if cos < 1e-9 or (dlon := km / (110 * cos)) >= 180:
-            spans = [(-180, 180)]
-        else:  # around the antimeridian, two spans
-            spans = [(lon - dlon, lon + dlon)]
-            spans += [(w + 360, e + 360) for w, e in spans if w < -180]
-            spans += [(w - 360, e - 360) for w, e in spans[:1] if e > 180]
-        latitudes, longitudes = self.latitudes, self.longitudes
-        scale = self.scale
-
-        def key(i):
-            return longitudes[i] * scale  # degrees (x * 1 == x)
-
-        for row in range(
-            math.floor((lat - dlat) / 0.2), math.floor((lat + dlat) / 0.2) + 1
-        ):
-            nodes = self.rows.get(row, ())
-            for west, east in spans:
-                lo, hi = bisect_left(nodes, west, key=key), bisect_right(
-                    nodes, east, key=key
-                )
-                for i in nodes[lo:hi]:
-                    d = haversine(
-                        point, [latitudes[i] * scale, longitudes[i] * scale]
-                    )
-                    if d <= km:
-                        yield d, i
-
-    def find_nearest(
-        self, point: Sequence[float], km: float
-    ) -> tuple[float, int | None]:
-        """Return `(km, node)` for the node nearest to `point` within `km`, or
-        `(inf, None)` when there is none. When two nodes are as near, the lower one is
-        returned.
-        """
-        return min(self.find_within(point, km), default=(math.inf, None))
-
-
 class PieceArrays:
     """The pieces of the cut ways, stored as columns that grow.
 
@@ -780,7 +714,7 @@ def build_graph_from_pieces(
     Of several arcs between the same two nodes, the shortest is kept.
 
     Args:
-        pieces: The pieces, as `osm_ways.build_way_pieces` or `hub_connectors.join_networks_at_hubs` fill them.
+        pieces: The pieces, as `step1_osm_ways.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
 
     Returns:
         The graph as a dict of arrays: `offsets`, `heads`, `weights`, `node_points`,
@@ -841,7 +775,7 @@ def build_graph_from_pieces(
     return graph
 
 
-def assemble_network_arrays(
+def assemble_network(
     graph: dict[str, array | memoryview],
     *,
     max_km_between_nodes: float,

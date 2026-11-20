@@ -68,8 +68,8 @@ jobs:
       - name: Read the planet from the us-west-2 mirror
         run: |
           sed -i 's/osm-planet-eu-central-1\.s3\.dualstack\.eu-central-1/osm-planet-us-west-2.s3.dualstack.us-west-2/' \
-            scgraph/pipelines/steps/osm_ways.py
-          grep -n 'osm-planet-us-west-2' scgraph/pipelines/steps/osm_ways.py
+            scgraph/pipelines/steps/step1_osm_ways.py
+          grep -n 'osm-planet-us-west-2' scgraph/pipelines/steps/step1_osm_ways.py
       - name: Install scgraph with the C++ extension and osmium
         run: uv sync --extra osm
       - name: Find the previous network release

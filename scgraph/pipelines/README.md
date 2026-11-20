@@ -164,9 +164,9 @@ Where to read more: `build.py`, function `build_network_file`.
 
 #### Step 2. Read and cut the ways
 
-`osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline selects. It cuts
-each way at its junctions. It also cuts a way where a piece would be longer than
-`max_km_between_nodes` (2 km). A route starts at the node nearest to its origin, so a long
+`step1_osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline
+selects. It cuts each way at its junctions. It also cuts a way where a piece would be longer
+than `max_km_between_nodes` (2 km). A route starts at the node nearest to its origin, so a long
 road needs nodes along it. The function simplifies the shape of each piece to within 50 m.
 
 The pipeline reads the extract once, for its two modes. The log line of this step gives the
@@ -184,13 +184,13 @@ Each mode has its own junctions and its own pieces, so the roads and the railway
 A road and a railway can share a node of OpenStreetMap at a level crossing. The build makes
 one node for each mode there, so no route changes mode at a level crossing.
 
-The function also attaches the vehicle ferries to the roads (`osm_ways.build_ferry_arcs`). A ferry
-is kept when each of its ends is within 2 km of a road node. The ferries give 12 arcs in this
-build, one for each direction. Two ferry routes join the same two road nodes, and a graph
+The function also attaches the vehicle ferries to the roads (`step1_osm_ways.build_ferry_arcs`).
+A ferry is kept when each of its ends is within 2 km of a road node. The ferries give 12 arcs in
+this build, one for each direction. Two ferry routes join the same two road nodes, and a graph
 holds one arc from a node to another, the shorter one. So the file has 10 arcs of the class
 `ferry`.
 
-Where to read more: the docstring at the top of `steps/osm_ways.py`.
+Where to read more: the docstring at the top of `steps/step1_osm_ways.py`.
 
 #### Step 3. Read the sea lanes
 
@@ -204,15 +204,15 @@ region and come back.
 cell is land or water. The next step uses it for two checks: a connector to a road or to a
 railway crosses little water, and a connector to a sea lane stays on water.
 
-Where to read more: the docstring at the top of `steps/land_mask.py`.
+Where to read more: the docstring at the top of `steps/step2_land_mask.py`.
 
 #### Step 5. Join the networks at the hubs
 
 At this point the build holds three graphs with no arc between them: roads, railways and sea
-lanes. `hub_connectors.join_networks_at_hubs` adds the hubs and their connectors.
+lanes. `step2_hub_connectors.join_networks_at_hubs` adds the hubs and their connectors.
 
 The tables give 242 hubs inside the raster, which is wider than Denmark.
-`hub_connectors.join_networks_at_hubs` joins a hub that reaches at least two networks:
+`step2_hub_connectors.join_networks_at_hubs` joins a hub that reaches at least two networks:
 
 - a port can reach a road, a sea lane, and a railway when its table says that it has one;
 - an airport can reach a road, and its flights count as a second network;
@@ -230,11 +230,11 @@ length is the great-circle distance.
 
 The result is one graph of 66,146 nodes and 195,274 arcs.
 
-Where to read more: the docstring at the top of `steps/hub_connectors.py`.
+Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 
 #### Step 6. Assemble the graph
 
-`network_arrays.assemble_network_arrays` does three things.
+`step3_network_assembly.assemble_network` does three things.
 
 | Step | Nodes | Arcs |
 |---|---|---|
@@ -252,7 +252,7 @@ Where to read more: the docstring at the top of `steps/hub_connectors.py`.
 - **Order the nodes.** The nodes are sorted by mode, then along a Hilbert curve. Nodes that are
   near on the map are then near in the file, so a search reads nearby memory.
 
-Where to read more: the docstring at the top of `steps/network_arrays.py`.
+Where to read more: the docstring at the top of `steps/step3_network_assembly.py`.
 
 #### Step 7. The runner writes the network file
 
@@ -274,7 +274,7 @@ that the port of Arhus has a connector to a road, to a railway and to a sea lane
 Then the runner moves the file into the cache. A network that fails a case does not enter the
 cache.
 
-Where to read more: the docstring of `steps/validation_cases`.
+Where to read more: the docstring of `steps/step4_validation_cases`.
 
 ### What comes out
 
@@ -403,7 +403,7 @@ Parts 1 and 2 for the world, then prepares the GitHub release.
 ### What comes before the tag
 
 The date of the data is in the code, not in the tag. The constant `PLANET` of
-`steps/osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
+`steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
 `networks-2026.11.20-dev.1` holds the planet of 2026-11-02.
 

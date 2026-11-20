@@ -27,7 +27,7 @@ from scgraph import GeoGraph, network_file, pipelines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.pipelines import eurostat_sea_lanes, geofabrik_multimodal
 from scgraph.pipelines import network_builder
-from scgraph.pipelines.steps import network_arrays, osm_ways
+from scgraph.pipelines.steps import step3_network_assembly, step1_osm_ways
 from scgraph.utils import has_cpp
 
 
@@ -1005,10 +1005,10 @@ def _main_roads_pipeline(server):
     select functions give no class."""
     module = types.ModuleType("my_pipelines.main_roads")
     module.SOURCES = {
-        "roads": {**osm_ways.GEOFABRIK, "url": f"{server}/{{region}}.osm"}
+        "roads": {**step1_osm_ways.GEOFABRIK, "url": f"{server}/{{region}}.osm"}
     }
     module.PIPELINE_VERSION, module.build = 1, build_main_roads
-    module.download = osm_ways.download
+    module.download = step1_osm_ways.download
     return module
 
 
@@ -1103,10 +1103,10 @@ def test_a_ferry_arc_and_a_shuttle_train_arc_have_their_own_classes(tmp_path):
         }
     }
 
-    pieces = osm_ways.build_way_pieces(
+    pieces = step1_osm_ways.build_way_pieces(
         str(strait_file), selects, ("highway", "route"), max_km_between_nodes=2
     )
-    graph = network_arrays.build_graph_from_pieces(pieces["road"])
+    graph = step3_network_assembly.build_graph_from_pieces(pieces["road"])
 
     ids, offsets = graph["node_ids"], graph["offsets"]
     class_names = {

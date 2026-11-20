@@ -1,4 +1,4 @@
-"""Write `sea_distances.csv` in `scgraph/pipelines/steps/validation_cases/cases`: 20 port pairs, their WPI positions and their reference
+"""Write `sea_distances.csv` in `scgraph/pipelines/steps/step4_validation_cases/cases`: 20 port pairs, their WPI positions and their reference
 sea distances (run by hand; the CSV is the frozen, committed output, never overwritten).
 
 References:
@@ -29,7 +29,7 @@ from scgraph.utils import haversine as haversine_km
 
 OUT = (
     Path(__file__).resolve().parents[2]
-    / "scgraph/pipelines/steps/validation_cases/cases/sea_distances.csv"
+    / "scgraph/pipelines/steps/step4_validation_cases/cases/sea_distances.csv"
 )
 
 NM_KM = 1.852

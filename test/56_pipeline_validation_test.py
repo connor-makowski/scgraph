@@ -1,4 +1,4 @@
-"""Tests of `validation_cases`: a built network checked against its cases."""
+"""Tests of `step4_validation_cases`: a built network checked against its cases."""
 
 import importlib
 
@@ -6,7 +6,7 @@ import pytest
 
 from helpers import great_circle_km
 from scgraph import GeoGraph, pipelines
-from scgraph.pipelines.steps.validation_cases import (
+from scgraph.pipelines.steps.step4_validation_cases import (
     load_validation_cases,
     validate_network,
 )

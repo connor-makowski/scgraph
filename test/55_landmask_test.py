@@ -6,7 +6,7 @@ import pytest
 from helpers import great_circle_km
 
 from scgraph import Graph
-from scgraph.pipelines.steps import land_mask
+from scgraph.pipelines.steps import step2_land_mask
 
 # These tests call the land mask, a step of the builds that joins ports to
 # water. No public call runs it alone: a build needs the download of its maps.
@@ -95,7 +95,7 @@ TARGET_ON_THE_ISLAND = [56.148, 0.12]
 @pytest.fixture(scope="module")
 def coast(tmp_path_factory):
     folder = tmp_path_factory.mktemp("coast")
-    return land_mask.LandMask.from_natural_earth(
+    return step2_land_mask.LandMask.from_natural_earth(
         _write_geojson(
             folder / "land.geojson",
             [("MultiPolygon", [[MAINLAND, LAKE, LAGOON], [ISLAND]])],
@@ -199,7 +199,7 @@ def test_a_search_finds_no_path_when_it_may_hold_one_cell_less_than_its_path(
     )
     one_cell_less_than_the_path = len(points) - 1
 
-    found = land_mask.find_water_path_cells(
+    found = step2_land_mask.find_water_path_cells(
         coast.bits,
         coast.width,
         coast.height,
@@ -228,7 +228,7 @@ TARGET_AT_172_WEST = [5.5, -172.5]
 @pytest.fixture(scope="module")
 def globe(tmp_path_factory):
     folder = tmp_path_factory.mktemp("globe")
-    return land_mask.LandMask.from_natural_earth(
+    return step2_land_mask.LandMask.from_natural_earth(
         _write_geojson(
             folder / "land.geojson",
             [("Polygon", [LAND_AWAY_FROM_THE_ANTIMERIDIAN])],

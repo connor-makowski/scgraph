@@ -19,7 +19,7 @@ from array import array
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_ROWS
-from scgraph.pipelines.steps import network_arrays
+from scgraph.pipelines.steps import step3_network_assembly
 
 PIPELINE_VERSION = 1
 
@@ -86,7 +86,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         files: The path of the downloaded file of the source `sea_lanes`.
 
     Returns:
-        The graph as a dict of arrays, as `network_arrays.build_graph_from_pieces` returns
+        The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
         it, with `arc_classes`. The arcs have no shape points.
     """
     sea = build(files)
@@ -108,8 +108,10 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         class_row = CLASS_ROWS[passage or "open_sea"]
         for a, b in zip(points, points[1:]):
             class_row_of_arc[a, b] = class_row_of_arc[b, a] = class_row
-    offsets, heads, weights = network_arrays.build_csr_from_adjacency_list(
-        sea.graph_object.graph
+    offsets, heads, weights = (
+        step3_network_assembly.build_csr_from_adjacency_list(
+            sea.graph_object.graph
+        )
     )
     points = [to_units(point) for point in sea.nodes]
     return {
