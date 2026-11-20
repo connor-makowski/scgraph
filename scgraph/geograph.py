@@ -80,6 +80,58 @@ _PUBLISHED_GEOGRAPHS = (
     "world_highways",
     "world_railways",
 )
+# What `list_geographs` says of each network of scgraph 3.6.0. `superseded_by` names
+# the released network that covers the same need with newer data. That network may
+# hold more modes, and its results differ.
+_BUILT_IN_GEOGRAPHS = {
+    "marnet": {
+        "description": "Sea lanes of the world (Eurostat SeaRoute)",
+        "superseded_by": "world_sea",
+    },
+    "north_america_rail": {
+        "description": "Class I railroads of North America",
+        "superseded_by": "north_america",
+    },
+    "oak_ridge_maritime": {
+        "description": "Sea lanes of the world (Oak Ridge National Laboratory, 2000)",
+        "superseded_by": "world_sea",
+    },
+    "us_freeway": {
+        "description": "Freeways of the United States",
+        "superseded_by": "north_america",
+    },
+    "world_highways_and_marnet": {
+        "description": "Highways of the world, joined to the sea lanes of marnet",
+        "superseded_by": "world_multimodal",
+    },
+    "world_highways": {
+        "description": "Highways of the world",
+        "superseded_by": "world_multimodal",
+    },
+    "world_railways": {
+        "description": "Railways of the world",
+        "superseded_by": "world_rail",
+    },
+}
+_WORLD_PART = (
+    "The part of world_multimodal between latitudes {} and {} and longitudes {} "
+    "and {}, with every sea lane, port and airport of the world"
+)
+# What `list_geographs` says of each released network
+_RELEASED_DESCRIPTIONS = {
+    "world_multimodal": "Main roads, railways, sea lanes and regular flights of the "
+    "world, joined at ports, airports and rail terminals",
+    "world_sea": "Sea lanes and ports of the world",
+    "world_rail": "Railways and rail terminals of the world",
+    "europe": _WORLD_PART.format(34, 72, -25, 45),
+    "north_america": _WORLD_PART.format(7, 84, -170, -50),
+    "south_america": _WORLD_PART.format(-57, 13, -82, -34),
+    "africa": _WORLD_PART.format(-35, 38, -18, 52),
+    "west_south_asia": _WORLD_PART.format(5, 45, 25, 98),
+    "east_southeast_asia": _WORLD_PART.format(-11, 55, 92, 150),
+    "north_asia": _WORLD_PART.format(40, 78, 45, 180),
+    "oceania": _WORLD_PART.format(-50, 0, 110, 180),
+}
 # The names of the released networks: the networks of the network release that
 # `network_release` pins. load_geograph downloads them as network files. Each network
 # has two files: `network_release` lists the file without shapes under the name of
@@ -329,7 +381,9 @@ class GeoGraphIO:
             json.dump(out_dict, f)
 
     def save_as_graphjson(
-        self, filename: str, save_intermediate_nodes: bool = True
+        self,
+        filename: str | os.PathLike,
+        save_intermediate_nodes: bool = True,
     ) -> None:
         """
         Function:
@@ -356,6 +410,7 @@ class GeoGraphIO:
             - What: Whether to include the intermediate nodes in the saved JSON file (if they exist)
             - Default: True
         """
+        filename = os.fspath(filename)
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
         # A cached network must stay the one its cache.json names
@@ -385,7 +440,7 @@ class GeoGraphIO:
 
     def save_as_scgraph(
         self,
-        filename: str,
+        filename: str | os.PathLike,
         save_intermediate_nodes: bool = True,
         metadata: dict | Literal["auto"] | None = "auto",
         coordinate_dtype: Literal["auto", "float64", "int32"] = "auto",
@@ -430,6 +485,7 @@ class GeoGraphIO:
 
         - The `content_sha256` of the file: the SHA-256 of every byte after its first 40, also stored in its bytes 8 to 39
         """
+        filename = os.fspath(filename)
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
         if coordinate_dtype not in ("auto", "float64", "int32"):
@@ -671,21 +727,21 @@ class GeoGraphIO:
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
-        - Not the graph of the `osm_main_roads` pipeline from the same file: this loader neither attaches ferries, nor contracts chains, nor simplifies shapes
+        - Not the graph of the `geofabrik_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
 
         - `filename`
             - Type: str | os.PathLike | source object
-            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.pipelines.steps.osm.locate_ways` takes
+            - What: The path of the OpenStreetMap file, for example an extract downloaded from https://download.geofabrik.de, or a source object as `scgraph.pipelines.steps.step1_osm_ways.locate_ways` takes
 
         Optional Arguments:
 
         - `select`
             - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
-            - Default: None: `scgraph.pipelines.steps.osm.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns 1 or -1)
+            - Default: None: `scgraph.pipelines.steps.step1_osm_ways.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.step1_osm_ways.get_way_direction(tags)` returns 1 or -1)
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -696,7 +752,7 @@ class GeoGraphIO:
         - `max_km_between_nodes`
             - Type: float | int | None
             - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
-            - Default: None: `scgraph.pipelines.steps.osm.MAX_KM_BETWEEN_NODES` (2)
+            - Default: None: `scgraph.pipelines.steps.step1_osm_ways.MAX_KM_BETWEEN_NODES` (2)
         - `largest_component`
             - Type: bool
             - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
@@ -733,10 +789,10 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.pipelines.steps.stage3_assembly.assembly import (
+        from scgraph.pipelines.steps.step3_network_assembly import (
             keep_largest_strongly_connected_component,
         )
-        from scgraph.pipelines.steps.stage1_extract.osm import (
+        from scgraph.pipelines.steps.step1_osm_ways import (
             MAX_KM_BETWEEN_NODES,
             select_main_roads,
             read_osm,
@@ -774,7 +830,7 @@ class GeoGraphIO:
 
     @staticmethod
     def load_from_graphjson(
-        filename: str,
+        filename: str | os.PathLike,
         reduce_iterations: int = 0,
         lazy: bool = False,
     ) -> "GeoGraph":
@@ -816,6 +872,7 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
+        filename = os.fspath(filename)
         if not filename.endswith(".graphjson"):
             raise ValueError("Filename must end with .graphjson")
         with open(filename, "r") as f:
@@ -869,7 +926,7 @@ class GeoGraphIO:
             )
             if credits:
                 info["attribution"] = "; ".join(credits)
-            # ISO 8601 times in UTC (as Geofabrik and ArcGIS give them) sort as text
+            # ISO 8601 times in UTC (as Geofabrik gives them) sort as text
             dates = [
                 s["version"] for s in sources if _is_date(s.get("version"))
             ]
@@ -878,7 +935,7 @@ class GeoGraphIO:
 
     @staticmethod
     def load_from_scgraph(
-        filename: str,
+        filename: str | os.PathLike,
         reduce_iterations: int = 0,
         lazy: bool = False,
         modes: list[str] | str | None = None,
@@ -927,6 +984,7 @@ class GeoGraphIO:
                     modes=modes,
                 )
             )
+        filename = os.fspath(filename)
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
         # The C++ graph reads the arcs in place and checks them. The arcs are in the
@@ -1209,7 +1267,7 @@ class GeoGraphIO:
         """
         Function:
 
-        - List all built-in GeoGraphs available, indicating which are already cached locally.
+        - List the networks that `load_geograph` takes, indicating which are already cached locally.
         - The published geographs are a fixed list, listed without any network request; for another `geograph_url`, the names are read from the `contents.txt` file at that URL.
         - The list holds the seven networks of scgraph 3.6.0 and the networks of the network release that this version of scgraph loads (`scgraph.network_release.TAG`).
 
@@ -1232,6 +1290,11 @@ class GeoGraphIO:
         - A list of dicts, one per available geograph, sorted by name:
             - `name`: str — the geograph name (without extension)
             - `cached`: bool — whether the file is already in the local cache (for a released network: its file of that release, with or without shapes)
+            - With the default `geograph_url`, also:
+                - `kind`: str — `"released"` for a network of the network release, `"built-in"` for a network of scgraph 3.6.0
+                - `description`: str — what the network holds
+                - for `"released"`: `nodes`, `arcs`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
+                - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more modes (load it with `modes`), and its results differ
         """
         cache_path = resolve_cache_dir(cache_dir)
         release_folder = cache_path.joinpath("releases", network_release.TAG)
@@ -1252,20 +1315,28 @@ class GeoGraphIO:
                 for line in response.text.splitlines()
                 if line.strip().endswith(".graphjson")
             )
-        return [
-            {
-                "name": name,
-                "cached": (
-                    any(
-                        release_folder.joinpath(name + suffix).is_file()
-                        for suffix in (".scgraph", ".no_shapes.scgraph")
-                    )
-                    if name in released
-                    else cache_path.joinpath(f"{name}.graphjson").exists()
-                ),
-            }
-            for name in available
-        ]
+        rows = []
+        for name in available:
+            if name in released:
+                is_cached = any(
+                    release_folder.joinpath(name + suffix).is_file()
+                    for suffix in (".scgraph", ".no_shapes.scgraph")
+                )
+                about = {
+                    "kind": "released",
+                    "description": _RELEASED_DESCRIPTIONS.get(name, ""),
+                    **network_release.NETWORKS[name],
+                }
+            else:
+                is_cached = cache_path.joinpath(f"{name}.graphjson").exists()
+                # Another URL hosts networks that scgraph does not know
+                about = (
+                    {"kind": "built-in", **_BUILT_IN_GEOGRAPHS[name]}
+                    if geograph_url == _GEOGRAPH_URL
+                    else {}
+                )
+            rows.append({"name": name, "cached": is_cached, **about})
+        return rows
 
     @staticmethod
     def clear_geograph_cache(
@@ -1451,20 +1522,9 @@ class GeoGraphIO:
     def build_geograph(
         name: (
             Literal[
-                "europe_freeway",
-                "europe_rail",
-                "eurostat_marnet",
-                "marnet",
-                "north_america_rail",
-                "oak_ridge_maritime",
-                "osm_main_roads",
-                "osm_main_roads_and_marnet",
-                "osm_multimodal",
-                "osm_rail",
-                "us_freeway",
-                "world_main_roads",
-                "world_main_roads_and_marnet",
-                "world_multimodal",
+                "eurostat_sea_lanes",
+                "geofabrik_multimodal",
+                "osm_world_multimodal",
             ]
             | types.ModuleType
         ),
@@ -1475,6 +1535,8 @@ class GeoGraphIO:
         *,
         refresh: bool = False,
         local_files_only: bool | None = None,
+        modes: list[str] | str | None = None,
+        validate: bool = False,
     ) -> "GeoGraph":
         """
         Function:
@@ -1493,13 +1555,13 @@ class GeoGraphIO:
             - What: The name of the network (see `GeoGraph.list_buildable_geographs()`), or a pipeline module with the contract of `scgraph.pipelines` (for example a copy of one, adapted)
             - Note: A module is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a built-in pipeline; two modules with the same last name share that cache entry; `list_buildable_geographs` does not list it
 
-        - The runner behind this function, `scgraph.pipelines.build.build_file`, has more options: keeping the work folder of a long build to resume it, and checking the built network against its validation cases.
+        - The runner behind this function, `scgraph.pipelines.network_builder.build_network_file`, has one more option: keeping the work folder of a long build to resume it.
 
         Optional Arguments:
 
         - `region`
             - Type: str | None
-            - What: For the OpenStreetMap networks, the path of a Geofabrik extract, as in its download URL
+            - What: For `geofabrik_multimodal`, the path of a Geofabrik extract, as in its download URL
             - Default: None
             - Examples: 'europe/luxembourg', 'europe/france/bretagne', 'north-america/us/texas'
             - See: https://download.geofabrik.de for the extracts and their paths (all of them, machine-readable: https://download.geofabrik.de/index-v1-nogeom.json)
@@ -1523,13 +1585,23 @@ class GeoGraphIO:
             - Type: bool | None
             - What: Whether to use only the cache, without any network request
             - Default: None: True if the environment variable `SCGRAPH_OFFLINE` is `1`, else False
+        - `modes`
+            - Type: list[str] | str | None
+            - What: The names of the modes to load from the built network, as in `load_from_scgraph`, for example `["road"]`
+            - Default: None: every mode
+        - `validate`
+            - Type: bool
+            - What: Whether to check the built network against the validation cases of its pipeline; a network that fails is not kept in the cache, and a RuntimeError names the failed cases; a network that the cache already holds is checked as it is, and stays
+            - Default: False
 
         Returns:
 
-        - The GeoGraph of the network (a LazyGeoGraph if `lazy`)
+        - The GeoGraph of the network (a LazyGeoGraph if `lazy`); `scgraph_file` gives the path of its network file
 
         Raises:
 
+        - `RuntimeError` with `validate` if the network fails a validation case
+        - `ValueError` if `modes` names a mode that the network does not have
         - `ValueError` for an unknown name or a pipeline module named like a built-in one, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
@@ -1545,19 +1617,23 @@ class GeoGraphIO:
                     lazy=False,
                     refresh=refresh,
                     local_files_only=local_files_only,
+                    modes=modes,
+                    validate=validate,
                 )
             )
-        from scgraph.pipelines.build import build_file
+        from scgraph.pipelines.network_builder import build_network_file
 
         return GeoGraph.load_from_scgraph(
-            build_file(
+            build_network_file(
                 name,
                 region,
                 cache_dir,
                 refresh=refresh,
                 local_files_only=local_files_only,
+                validate=validate,
             ),
             reduce_iterations=reduce_iterations,
+            modes=modes,
         )
 
     @staticmethod

@@ -46,22 +46,22 @@ When `scgraph` is imported, it uses the C++ classes if the extension is compiled
 
 The package `scgraph.pipelines` builds networks from their online sources. A pipeline is one module of this package. It names the sources of one network and has a `build` function. The docstring of `scgraph.pipelines` gives the contract of a pipeline. The guide [scgraph/pipelines/README.md](scgraph/pipelines/README.md) follows a network from its sources to a route: the build step by step, the derivation, the network release and the load, with the numbers of real runs.
 
-The runner, `build.py`, runs a pipeline. `build_file` downloads the sources and calls `build` in a work folder. It writes the network to a `.scgraph` file, with the metadata of the build (pipeline, sources, software) in the header. Then it moves the file into the cache.
+The runner, `network_builder.py`, runs a pipeline. `build_network_file` downloads the sources and calls `build` in a work folder. It writes the network to a `.scgraph` file, with the metadata of the build (pipeline, sources, software) in the header. Then it moves the file into the cache.
 
-`derive.py` derives a network file from another network file, the parent file, with no download (`derive_file`). The derived file holds some modes of the parent file, and its land networks inside a bbox. Its header records the digest of the parent file.
+`derived_networks.py` derives a network file from another network file, the parent file, with no download (`derive_network_file`). The derived file holds some modes of the parent file, and its land networks inside a bbox. Its header records the digest of the parent file.
 
-A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
+A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for each step:
 
-* **Stage 1, read the sources (`steps.stage1_extract`)**:
-  `osm` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`pbf_range_streamer`). `arcgis` downloads an ArcGIS layer. `osm.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
-* **Stage 2, join the modes (`steps.stage2_intermodal`)**:
-  `hubs.join` joins the networks of several modes at hubs: ports, airports and rail terminals. `landmask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
-* **Stage 3, assemble the graph (`steps.stage3_assembly`)**:
-  `assembly.build_graph_from_pieces` stores the arcs as CSR arrays (`build_csr_from_arcs`). `assembly.assemble` keeps the strongly connected components (`strongly_connected_components`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
-* **Stage 4, validate the network (`steps.stage4_validation`)**:
-  `validate_network` checks a built network against cases. A case describes a known route of the real world, such as a driving distance or a published sea distance. The docstring of `steps/stage4_validation` lists the kinds of cases and their rules. With `validate=True`, `build_file` validates the built file, and a network that fails does not enter the cache.
+* **Read the sources (`steps.step1_osm_ways`)**:
+  `step1_osm_ways` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`step1_osm_planet_reader`). `step1_osm_ways.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`step3_network_assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
+* **Join the modes (`steps.step2_hub_connectors`, `steps.step2_land_mask`)**:
+  `step2_hub_connectors.join_networks_at_hubs` joins the networks of several modes at hubs: ports, airports and rail terminals. `step2_land_mask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
+* **Assemble the graph (`steps.step3_network_assembly`)**:
+  `step3_network_assembly.build_graph_from_pieces` stores the arcs as CSR arrays (`build_csr_from_arcs`). `step3_network_assembly.assemble_network` keeps the strongly connected components (`strongly_connected_components`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
+* **Validate the network (`steps.step4_validation_cases`)**:
+  `validate_network` checks a built network against cases. A case describes a known route of the real world, such as a driving distance or a published sea distance. The docstring of `steps/step4_validation_cases` lists the kinds of cases and their rules. With `validate=True`, `build_network_file` validates the built file, and a network that fails does not enter the cache.
 
-The costly functions of stages 2 and 3 have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`) and a pure-Python version that gives the same results.
+The costly functions of `step2_land_mask` and `step3_network_assembly` have a C++ version in `scgraph/cpp/src/pipelines/` (`assembly.hpp`, `landmask.hpp`) and a pure-Python version that gives the same results.
 
 ---
 
@@ -204,7 +204,7 @@ Graph reduction replaces chains of non-branching nodes with direct composite edg
 ```mermaid
 flowchart TD
     subgraph BuildTime["Pipeline Assembly (Static Contraction)"]
-        A["Flat CSR Arrays"] --> B["assembly.contract_chains"]
+        A["Flat CSR Arrays"] --> B["step3_network_assembly.contract_chains"]
         B --> C["Contracted CSR Graph & Aggregated Polyline Shapes"]
         C --> D["Binary .scgraph Network File"]
     end
@@ -231,7 +231,7 @@ Operates on an instantiated `Graph` via `graph.reduce(iterations=-1)`:
 
 ---
 
-### Static CSR Contraction (`assembly.contract_chains`)
+### Static CSR Contraction (`step3_network_assembly.contract_chains`)
 
 Operates directly on flat C-style arrays during pipeline assembly:
 * Takes `(offsets, heads, weights, node_modes, max_km_between_nodes, arc_classes)` and returns a `ContractedGraph` namedtuple:
@@ -239,7 +239,7 @@ Operates directly on flat C-style arrays during pipeline assembly:
   * `origins`, `heads`, `weights`: Compressed composite edges.
   * `member_offsets`, `members`: Indices of original input arcs forming each composite edge.
 * `node_modes` is optional. A chain is never contracted across two modes.
-* `arc_classes` is optional: the class of each arc. The header of `assembly.py` gives its rule.
+* `arc_classes` is optional: the class of each arc. The header of `step3_network_assembly.py` gives its rule.
 * `max_km_between_nodes` cuts a chain into segments of about that length (default: no cut).
 * A segment that would create a self-loop or a duplicate arc is split at its midpoint.
 * The aggregated geometry is generated by `build_chain_shapes` using `members`.
@@ -360,9 +360,9 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     "symmetric": false,
     "node_order": "hilbert",
     "pipeline": {
-      "name": "osm_main_roads",
+      "name": "geofabrik_multimodal",
       "region": "europe/luxembourg",
-      "version": 1
+      "version": 2
     },
     "software": {
       "scgraph": "<version>",
@@ -371,7 +371,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     },
     "sources": [
       {
-        "name": "roads",
+        "name": "osm",
         "url": "https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf",
         "sha256": "...",
         "bytes": 35600000,
@@ -383,6 +383,8 @@ The header contains top-level structural fields and a nested `metadata` dictiona
   }
 }
 ```
+
+The example shows one source. It leaves out the arrays of the modes, of the classes and of the shapes.
 
 #### Header Fields Specification
 
@@ -399,7 +401,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 | `metadata.pipeline` | `dict` | The pipeline that built the file: its name, the region, and its `PIPELINE_VERSION`. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
 | `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, URLs, file digests, and data timestamps. |
-| `metadata.derivation` | `dict` | Only in a file that `scgraph.pipelines.derive` derived from another network file: the `parent_content_sha256`, and the `modes`, the `bbox` and the `min_component_nodes` of the derivation. Such a file has no `metadata.description`. |
+| `metadata.derivation` | `dict` | Only in a file that `scgraph.pipelines.derived_networks` derived from another network file: the `parent_content_sha256`, and the `modes`, the `bbox` and the `min_component_nodes` of the derivation. Such a file has no `metadata.description`. |
 
 ---
 
@@ -423,17 +425,18 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `node_modes` *(opt)* | `uint8` | $N$ | The mode of each node: the row of its mode in `metadata.modes`, counted from 0. Each node has one mode, so the value is an index, not a set of bits. A file has at most 256 modes. |
 | `arc_classes` *(opt)* | `uint8` | $M$ | The class of each arc: the row of its class in `metadata.classes`, counted from 0. A file has at most 256 classes. |
 
-For example, `world_main_roads_and_marnet` has three modes:
+For example, the first modes of `geofabrik_multimodal` are:
 
 ```json
 "modes": [
-  {"name": "road", "source": "roads"},
-  {"name": "port", "source": "ports"},
-  {"name": "sea", "source": "sea"}
+  {"name": "road", "source": "osm"},
+  {"name": "rail", "source": "osm"},
+  {"name": "sea", "source": "sea"},
+  {"name": "port", "source": "ports"}
 ]
 ```
 
-Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nodes `2`. The road nodes come first, then the ports, then the sea nodes. Each mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
+Its road nodes have the value `0` in `node_modes`, its rail nodes `1`, its sea nodes `2` and its ports `3`. The road nodes come first, then the rail nodes, then the sea nodes, then the ports. Each mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
 
 A pipeline may record the class of each arc in `arc_classes`. A program reads the name of a class from the header of the file. A later version of scgraph may give a class another row.
 

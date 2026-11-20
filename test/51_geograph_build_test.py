@@ -18,37 +18,17 @@ import types
 import typing
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
 
 import pytest
 import requests
-from helpers import great_circle_km
+from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph, network_file, pipelines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph.pipelines import (
-    eurostat_marnet,
-    marnet,
-    north_america_rail,
-    osm_main_roads,
-    osm_main_roads_and_marnet,
-    osm_multimodal,
-)
-from scgraph.pipelines import build
-from scgraph.pipelines.steps import assembly, osm
+from scgraph.pipelines import eurostat_sea_lanes, geofabrik_multimodal
+from scgraph.pipelines import network_builder
+from scgraph.pipelines.steps import step3_network_assembly, step1_osm_ways
 from scgraph.utils import has_cpp
-
-# Two lines meeting at (0.01, 0): 4 nodes, not read in Hilbert order
-_FEATURES = [
-    {"type": "Feature", "properties": {}, "geometry": g}
-    for g in (
-        {"type": "LineString", "coordinates": [[0.02, 0], [0.01, 0], [0, 0]]},
-        {"type": "LineString", "coordinates": [[0.01, 0], [0.01, 0.01]]},
-    )
-]
-_GEOJSON = json.dumps(
-    {"type": "FeatureCollection", "features": _FEATURES}
-).encode()
 
 
 def _sea_gpkg(lanes):
@@ -63,6 +43,15 @@ def _sea_gpkg(lanes):
         wkb = struct.pack(f">BII{len(xy)}d", 0, 2, len(xy) // 2, *xy)
         database.execute('insert into "type" values (?, ?)', (b"GP\x00\x02" + bytes(36) + wkb, passage))  # fmt: skip
     return database.serialize()
+
+
+# Two lines meeting at (0.01, 0) (lon, lat): 4 nodes, not read in Hilbert order
+_LINES = [([0.02, 0, 0.01, 0, 0, 0], None), ([0.01, 0, 0.01, 0.01], None)]
+_LINES_GPKG = _sea_gpkg(_LINES)
+# The same lines, with the end of the first one moved from 0.02 to 0.03
+_LINES_GPKG_WITH_A_MOVED_END = _sea_gpkg(
+    [([0.03, 0, 0.01, 0, 0, 0], None), _LINES[1]]
+)
 
 
 def _polygons(*rings):
@@ -90,7 +79,7 @@ def _polygons(*rings):
 # (5.5 km of water to any road), "Inland" (14 km from water) and "Far" (on the coast,
 # 27 km from the road) are not
 _FILES = {
-    "/lines.geojson": _GEOJSON,
+    "/lines.gpkg": _LINES_GPKG,
     "/roads.osm": b"""<osm version="0.6">
 <node id="1" version="1" lat="0" lon="0"/>
 <node id="2" version="1" lat="-0.01" lon="0"/>
@@ -149,51 +138,45 @@ _FILES = {
 }
 
 
-def _build_tangled_lines_geojson():
+def _build_tangled_lines_gpkg():
     """80 lines through 60 points, drawn at random with a fixed seed, as the
-    bytes of a GeoJSON file. The lines share points, so a node has several
-    arcs: the order in which a build writes them shows in the file."""
+    bytes of a GeoPackage of sea lanes. The lines share points, so a node has
+    several arcs: the order in which a build writes them shows in the file."""
     rng = random.Random(3)
     points = [[rng.uniform(0, 0.3), rng.uniform(0, 0.3)] for _ in range(60)]
     lines = [rng.sample(points, rng.randint(2, 6)) for _ in range(80)]
-    geometries = [{"type": "LineString", "coordinates": line} for line in lines]
-    return json.dumps(
-        {"type": "GeometryCollection", "geometries": geometries}
-    ).encode()
+    return _sea_gpkg(
+        [([x for point in line for x in point], None) for line in lines]
+    )
 
 
-_FILES["/tangled_lines.geojson"] = _build_tangled_lines_geojson()
+_FILES["/tangled_lines.gpkg"] = _build_tangled_lines_gpkg()
+
+# Where the local server has each source of `geofabrik_multimodal`
+_LOCAL_SOURCES = {
+    "osm": "/{region}.osm",
+    "land": "/land.geojson",
+    "lakes": "/lakes.geojson",
+    "rivers": "/rivers.geojson",
+    "sea": "/sea.gpkg",
+    "ports": "/ports.csv",
+    "airports": "/airports.csv",
+    "flights": "/flights.csv",
+    "rail_terminals": "/rail_terminals.csv",
+}
 
 
 class _Source(BaseHTTPRequestHandler):
-    """The files of _FILES at their paths, the lines as an ArcGIS layer at /layer
-    (one feature per page), and 404 for any other path."""
+    """The files of _FILES at their paths, and 404 for any other path."""
 
     served = []
 
     def do_GET(self):
-        url = urlparse(self.path)
-        query = {key: value[0] for key, value in parse_qs(url.query).items()}
-        self.served.append(url.path)
-        if not (url.path in _FILES or url.path.startswith("/layer")):
+        self.served.append(self.path)
+        if self.path not in _FILES:
             self.send_error(404)
             return
-        if url.path in _FILES:
-            body = _FILES[url.path]
-        elif url.path == "/layer":
-            body = {
-                "objectIdField": "OBJECTID",
-                "maxRecordCount": 1,
-                "editingInfo": {"lastEditDate": 1704164645000},
-            }
-        elif "returnCountOnly" in query:
-            body = {"count": len(_FEATURES)}
-        else:
-            offset, count = int(query["resultOffset"]), int(
-                query["resultRecordCount"]
-            )
-            body = {"features": _FEATURES[offset : offset + count]}
-        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        data = _FILES[self.path]
         self.send_response(200)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -227,74 +210,76 @@ def source(monkeypatch):
 
 
 @pytest.fixture
-def marnet_reads_the_local_lines(source, monkeypatch):
-    """The `marnet` pipeline downloads /lines.geojson of the local server in
-    place of its online source. The fixture gives the URL of that file. The
+def sea_lanes_are_the_local_lines(source, monkeypatch):
+    """The `eurostat_sea_lanes` pipeline downloads /lines.gpkg of the local server
+    in place of its online source. The fixture gives the URL of that file. The
     network of these two lines has 4 nodes."""
-    url = f"{source}/lines.geojson"
-    monkeypatch.setitem(marnet.SOURCES["sea_lanes"], "url", url)
+    url = f"{source}/lines.gpkg"
+    monkeypatch.setitem(eurostat_sea_lanes.SOURCES["sea_lanes"], "url", url)
     return url
 
 
 def test_build_geograph_downloads_and_builds_a_network_once(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    first = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
-    second = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    first = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
+    second = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
 
     assert len(first.nodes) == 4
     assert second.graph_object.graph == first.graph_object.graph
-    assert _Source.served == ["/lines.geojson"]  # the second call is local
+    assert _Source.served == ["/lines.gpkg"]  # the second call is local
 
 
 def test_build_geograph_numbers_the_nodes_along_the_hilbert_curve(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    # The lines of /lines.geojson list their points in another order.
-    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    # The lines of /lines.gpkg list their points in another order.
+    geo = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
 
     assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
 
 
 # The header of a network file says what built the network. The tests below
-# read the header of a marnet built from the local lines.
+# read the header of the network built from the local lines.
 @pytest.fixture
-def marnet_file_info(tmp_path, marnet_reads_the_local_lines):
-    built_file = build.build_file("marnet", cache_dir=tmp_path)
+def network_file_info(tmp_path, sea_lanes_are_the_local_lines):
+    built_file = network_builder.build_network_file(
+        "eurostat_sea_lanes", cache_dir=tmp_path
+    )
     return GeoGraph.get_scgraph_info(built_file)
 
 
 def test_a_network_file_records_what_built_it_and_from_which_sources(
-    marnet_file_info, marnet_reads_the_local_lines
+    network_file_info, sea_lanes_are_the_local_lines
 ):
-    source = marnet.SOURCES["sea_lanes"]
-    first_line_of_pipeline_docstring = marnet.__doc__.split("\n")[0]
+    source = eurostat_sea_lanes.SOURCES["sea_lanes"]
+    first_line_of_pipeline_docstring = eurostat_sea_lanes.__doc__.split("\n")[0]
 
-    assert marnet_file_info["pipeline"] == {
-        "name": "marnet",
+    assert network_file_info["pipeline"] == {
+        "name": "eurostat_sea_lanes",
         "region": None,
-        "version": marnet.PIPELINE_VERSION,
+        "version": eurostat_sea_lanes.PIPELINE_VERSION,
     }
-    assert first_line_of_pipeline_docstring in marnet_file_info["description"]
-    assert marnet_file_info["node_order"] == "hilbert"
-    software = marnet_file_info["software"]
+    assert first_line_of_pipeline_docstring in network_file_info["description"]
+    assert network_file_info["node_order"] == "hilbert"
+    software = network_file_info["software"]
     assert software["backend"] == ("cpp" if has_cpp() else "python")
     assert software["platform"].startswith(sysconfig.get_platform())
-    # The record has no version: a GeoJSON file does not date its data.
-    assert marnet_file_info["sources"] == [
+    # The record has no version: this file does not date its data.
+    assert network_file_info["sources"] == [
         {
             "name": "sea_lanes",
-            "url": marnet_reads_the_local_lines,
-            "sha256": hashlib.sha256(_GEOJSON).hexdigest(),
-            "bytes": len(_GEOJSON),
+            "url": sea_lanes_are_the_local_lines,
+            "sha256": hashlib.sha256(_LINES_GPKG).hexdigest(),
+            "bytes": len(_LINES_GPKG),
             "credit": source["credit"],
             "license": "EUPL-1.2",
             "license_url": source["license_url"],
         }
     ]
-    assert marnet_file_info["data_up_to"] is None  # no source has a version
+    assert network_file_info["data_up_to"] is None  # no source has a version
     # The credit line to cite
-    assert marnet_file_info["attribution"] == f"{source['credit']} (EUPL-1.2)"
+    assert network_file_info["attribution"] == f"{source['credit']} (EUPL-1.2)"
 
 
 # The math functions of the C library decide the last bit of a length. Two
@@ -303,10 +288,10 @@ def test_a_network_file_records_what_built_it_and_from_which_sources(
     not platform.libc_ver()[0],
     reason="Python does not know the C library of this platform",
 )
-def test_network_file_names_the_c_library_of_the_platform(marnet_file_info):
+def test_network_file_names_the_c_library_of_the_platform(network_file_info):
     library, version = platform.libc_ver()
 
-    assert marnet_file_info["software"]["platform"].endswith(
+    assert network_file_info["software"]["platform"].endswith(
         f" {library} {version}"
     )
 
@@ -314,20 +299,24 @@ def test_network_file_names_the_c_library_of_the_platform(marnet_file_info):
 # The time of the download is the only clock time of a build. It stays out of
 # the network file, so that the same sources give the same file.
 def test_download_time_is_in_cache_json_and_not_in_the_network_file(
-    tmp_path, marnet_file_info
+    tmp_path, network_file_info
 ):
-    cache_json = tmp_path / "networks" / "marnet" / "cache.json"
+    cache_json = tmp_path / "networks" / "eurostat_sea_lanes" / "cache.json"
     download_time = json.loads(cache_json.read_text())["downloaded"]
 
-    assert download_time not in json.dumps(marnet_file_info)
+    assert download_time not in json.dumps(network_file_info)
 
 
 def test_a_built_network_is_a_folder_with_cache_json_and_the_file_it_names(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(
+        network_builder.build_network_file(
+            "eurostat_sea_lanes", cache_dir=tmp_path
+        )
+    )
 
-    folder = tmp_path / "networks" / "marnet"
+    folder = tmp_path / "networks" / "eurostat_sea_lanes"
     cache_json = json.loads((folder / "cache.json").read_text())
     assert cache_json["file"] == built_file.name
     assert {p.name for p in folder.iterdir()} == {"cache.json", built_file.name}
@@ -343,27 +332,31 @@ def test_a_built_network_is_a_folder_with_cache_json_and_the_file_it_names(
 
 
 def test_list_buildable_geographs_tells_which_networks_are_in_the_cache(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
 
     listing = {
         n["name"]: n for n in GeoGraph.list_buildable_geographs(tmp_path)
     }
-    assert listing["marnet"]["cached"]
-    assert not listing["us_freeway"]["cached"]
+    assert listing["eurostat_sea_lanes"]["cached"]
+    assert not listing["osm_world_multimodal"]["cached"]
 
 
 def test_list_buildable_geographs_does_not_count_a_network_without_its_file(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(
+        network_builder.build_network_file(
+            "eurostat_sea_lanes", cache_dir=tmp_path
+        )
+    )
     built_file.unlink()
 
     listing = {
         n["name"]: n for n in GeoGraph.list_buildable_geographs(tmp_path)
     }
-    assert not listing["marnet"]["cached"]
+    assert not listing["eurostat_sea_lanes"]["cached"]
 
 
 def _cut_short(file):
@@ -378,15 +371,19 @@ def _cut_short(file):
     ids=["its file is missing", "its file cannot be read"],
 )
 def test_build_geograph_builds_again_a_network_without_a_readable_file(
-    tmp_path, marnet_reads_the_local_lines, damage
+    tmp_path, sea_lanes_are_the_local_lines, damage
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(
+        network_builder.build_network_file(
+            "eurostat_sea_lanes", cache_dir=tmp_path
+        )
+    )
     damage(built_file)
 
-    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"] * 2
+    assert _Source.served == ["/lines.gpkg"] * 2
 
 
 # The tests below state when `build_geograph` may download. The argument
@@ -400,7 +397,7 @@ def test_build_geograph_builds_again_a_network_without_a_readable_file(
 )
 def test_a_network_that_is_not_in_the_cache_is_refused_without_a_download(
     tmp_path,
-    marnet_reads_the_local_lines,
+    sea_lanes_are_the_local_lines,
     monkeypatch,
     scgraph_offline,
     local_files_only,
@@ -413,99 +410,99 @@ def test_a_network_that_is_not_in_the_cache_is_refused_without_a_download(
         match=r"local_files_only=True \(or SCGRAPH_OFFLINE=1\)",
     ):
         GeoGraph.build_geograph(
-            "marnet", cache_dir=tmp_path, local_files_only=local_files_only
+            "eurostat_sea_lanes",
+            cache_dir=tmp_path,
+            local_files_only=local_files_only,
         )
 
     assert _Source.served == []
 
 
 def test_scgraph_offline_loads_a_cached_network_without_a_request(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
     monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
 
-    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_local_files_only_false_builds_despite_scgraph_offline(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
     monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
 
     geo = GeoGraph.build_geograph(
-        "marnet", cache_dir=tmp_path, local_files_only=False
+        "eurostat_sea_lanes", cache_dir=tmp_path, local_files_only=False
     )
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]
-
-
-def test_refresh_downloads_and_builds_again_a_network_that_is_in_the_cache(
-    tmp_path, marnet_reads_the_local_lines
-):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
-
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path, refresh=True)
-
-    assert _Source.served == ["/lines.geojson"] * 2
+    assert _Source.served == ["/lines.gpkg"]
 
 
 def test_refresh_is_refused_when_scgraph_offline_forbids_the_download(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
     monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
 
     with pytest.raises(ValueError, match="SCGRAPH_OFFLINE"):
-        GeoGraph.build_geograph("marnet", cache_dir=tmp_path, refresh=True)
+        GeoGraph.build_geograph(
+            "eurostat_sea_lanes", cache_dir=tmp_path, refresh=True
+        )
 
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_local_files_only_refuses_a_cached_network_that_cannot_be_read(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(
+        network_builder.build_network_file(
+            "eurostat_sea_lanes", cache_dir=tmp_path
+        )
+    )
     _cut_short(built_file)
 
     with pytest.raises(ValueError, match="can't be read"):
         GeoGraph.build_geograph(
-            "marnet", cache_dir=tmp_path, local_files_only=True
+            "eurostat_sea_lanes", cache_dir=tmp_path, local_files_only=True
         )
 
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_a_failed_download_leaves_the_cached_network_and_says_how_to_load_it(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=tmp_path)
     # The server now answers 404 for the source.
-    monkeypatch.delitem(_FILES, "/lines.geojson")
+    monkeypatch.delitem(_FILES, "/lines.gpkg")
 
     with pytest.raises(requests.HTTPError, match="local_files_only=True"):
-        GeoGraph.build_geograph("marnet", cache_dir=tmp_path, refresh=True)
+        GeoGraph.build_geograph(
+            "eurostat_sea_lanes", cache_dir=tmp_path, refresh=True
+        )
 
     cached = GeoGraph.build_geograph(
-        "marnet", cache_dir=tmp_path, local_files_only=True
+        "eurostat_sea_lanes", cache_dir=tmp_path, local_files_only=True
     )
     assert len(cached.nodes) == 4
 
 
-def _lines_pipeline(source, build=marnet.build, expected_km=2.22):
+def _lines_pipeline(source, build=eurostat_sea_lanes.build, expected_km=2.22):
     """A pipeline module of one's own, cached as "lines". It builds the network of
-    /lines.geojson. Its validation case is the route between the ends of the first
+    /lines.gpkg. Its validation case is the route between the ends of the first
     line, (0, 0) and (0, 0.02) (lat, lon): 0.02 degree of the equator, 2.22 km. The
     validation fails for another `expected_km`."""
     module = types.ModuleType("my_pipelines.lines")
     module.SOURCES = {
         "sea_lanes": {
-            **marnet.SOURCES["sea_lanes"],
-            "url": f"{source}/lines.geojson",
+            **eurostat_sea_lanes.SOURCES["sea_lanes"],
+            "url": f"{source}/lines.gpkg",
         }
     }
     module.PIPELINE_VERSION, module.build = 1, build
@@ -529,7 +526,9 @@ def test_build_file_caches_a_network_that_passes_its_validation(
 ):
     pipeline = _lines_pipeline(source)
 
-    built_file = build.build_file(pipeline, cache_dir=tmp_path, validate=True)
+    built_file = network_builder.build_network_file(
+        pipeline, cache_dir=tmp_path, validate=True
+    )
 
     cached = GeoGraph.build_geograph(
         pipeline, cache_dir=tmp_path, local_files_only=True
@@ -545,7 +544,9 @@ def test_build_file_does_not_cache_a_network_that_fails_its_validation(
     pipeline = _lines_pipeline(source, expected_km=100)
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
-        build.build_file(pipeline, cache_dir=tmp_path, validate=True)
+        network_builder.build_network_file(
+            pipeline, cache_dir=tmp_path, validate=True
+        )
 
     assert not (tmp_path / "networks" / "lines").exists()
 
@@ -553,38 +554,51 @@ def test_build_file_does_not_cache_a_network_that_fails_its_validation(
 def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
     tmp_path, source, monkeypatch
 ):
-    earlier_file = build.build_file(_lines_pipeline(source), cache_dir=tmp_path)
+    earlier_file = network_builder.build_network_file(
+        _lines_pipeline(source), cache_dir=tmp_path
+    )
     earlier_bytes = Path(earlier_file).read_bytes()
     # The source has changed since, and the network it gives fails its validation
-    moved_end = _GEOJSON.replace(b"0.02", b"0.03")
-    monkeypatch.setitem(_FILES, "/lines.geojson", moved_end)
+    monkeypatch.setitem(_FILES, "/lines.gpkg", _LINES_GPKG_WITH_A_MOVED_END)
     failing = _lines_pipeline(source, expected_km=100)
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
-        build.build_file(
+        network_builder.build_network_file(
             failing, cache_dir=tmp_path, refresh=True, validate=True
         )
 
-    cached_file = build.build_file(
+    cached_file = network_builder.build_network_file(
         failing, cache_dir=tmp_path, local_files_only=True
     )
     assert cached_file == earlier_file
     assert Path(cached_file).read_bytes() == earlier_bytes
 
 
+def test_build_geograph_refuses_a_network_that_fails_its_validation(
+    tmp_path, source
+):
+    # No route of this network is 100 km long
+    pipeline = _lines_pipeline(source, expected_km=100)
+
+    with pytest.raises(RuntimeError, match="validation failed for lines"):
+        GeoGraph.build_geograph(pipeline, cache_dir=tmp_path, validate=True)
+
+
 def test_validate_checks_a_cached_network_without_building_it_again(
     tmp_path, source
 ):
-    build.build_file(_lines_pipeline(source), cache_dir=tmp_path)
+    network_builder.build_network_file(
+        _lines_pipeline(source), cache_dir=tmp_path
+    )
     # The same pipeline, with a case that its network fails
     failing = _lines_pipeline(source, expected_km=100)
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
-        build.build_file(
+        network_builder.build_network_file(
             failing, cache_dir=tmp_path, validate=True, local_files_only=True
         )
 
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def _fail_to_build(files):
@@ -600,7 +614,7 @@ def test_a_failed_build_keeps_its_sources_for_the_next_build(tmp_path, source):
     geo = GeoGraph.build_geograph(repaired, cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]  # downloaded once
+    assert _Source.served == ["/lines.gpkg"]  # downloaded once
 
 
 def test_refresh_downloads_the_sources_again_after_a_failed_build(
@@ -613,7 +627,7 @@ def test_refresh_downloads_the_sources_again_after_a_failed_build(
     repaired = _lines_pipeline(source)
     GeoGraph.build_geograph(repaired, cache_dir=tmp_path, refresh=True)
 
-    assert _Source.served == ["/lines.geojson"] * 2
+    assert _Source.served == ["/lines.gpkg"] * 2
 
 
 def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
@@ -621,12 +635,14 @@ def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
 ):
     def build_with_a_step_file(files, *, work_dir=None):
         Path(work_dir, "step_file").touch()
-        return marnet.build(files)
+        return eurostat_sea_lanes.build(files)
 
     pipeline = _lines_pipeline(source, build=build_with_a_step_file)
     work_dir = tmp_path / "work"
 
-    build.build_file(pipeline, cache_dir=tmp_path / "cache", work_dir=work_dir)
+    network_builder.build_network_file(
+        pipeline, cache_dir=tmp_path / "cache", work_dir=work_dir
+    )
 
     # The runner removes its own work folder after a build, not the caller's
     assert (work_dir / "step_file").is_file()
@@ -644,7 +660,7 @@ def test_a_build_works_in_a_folder_on_another_disk_than_the_cache(
     tmp_path, source
 ):
     with tempfile.TemporaryDirectory(dir="/dev/shm") as work_dir:
-        build.build_file(
+        network_builder.build_network_file(
             _lines_pipeline(source), cache_dir=tmp_path, work_dir=work_dir
         )
 
@@ -667,7 +683,7 @@ def test_build_geograph_builds_again_for_another_pipeline_version(
     GeoGraph.build_geograph(next_version, cache_dir=tmp_path)
     GeoGraph.build_geograph(next_version, cache_dir=tmp_path)
 
-    assert _Source.served == ["/lines.geojson"] * 2  # once for each version
+    assert _Source.served == ["/lines.gpkg"] * 2  # once for each version
 
 
 def test_local_files_only_loads_a_network_of_another_pipeline_version(
@@ -688,21 +704,24 @@ def test_local_files_only_loads_a_network_of_another_pipeline_version(
     (warning,) = [w for w in caught if "pipeline version" in str(w.message)]
     assert warning.filename == __file__
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_a_new_build_replaces_the_network_file_of_the_earlier_build(
     tmp_path, source, monkeypatch
 ):
     pipeline = _lines_pipeline(source)
-    earlier_file = Path(build.build_file(pipeline, cache_dir=tmp_path))
+    earlier_file = Path(
+        network_builder.build_network_file(pipeline, cache_dir=tmp_path)
+    )
     # The source has changed since. The new network has another content,
     # so its file has another name.
-    moved_end = _GEOJSON.replace(b"0.02", b"0.03")
-    monkeypatch.setitem(_FILES, "/lines.geojson", moved_end)
+    monkeypatch.setitem(_FILES, "/lines.gpkg", _LINES_GPKG_WITH_A_MOVED_END)
 
     new_file = Path(
-        build.build_file(pipeline, cache_dir=tmp_path, refresh=True)
+        network_builder.build_network_file(
+            pipeline, cache_dir=tmp_path, refresh=True
+        )
     )
 
     folder = tmp_path / "networks" / "lines"
@@ -721,46 +740,32 @@ def test_a_pipeline_module_gives_the_last_part_of_its_name_to_its_network(
 
 
 def test_a_pipeline_module_named_like_a_built_in_network_is_refused(tmp_path):
-    # Its network would take the place of the built-in marnet in the cache.
-    namesake = types.ModuleType("my_pipelines.marnet")
+    # Its network would take the place of the network of scgraph in the cache.
+    namesake = types.ModuleType("my_pipelines.eurostat_sea_lanes")
 
     with pytest.raises(ValueError, match="Invalid pipeline module name"):
         GeoGraph.build_geograph(namesake, cache_dir=tmp_path)
 
 
-# The ArcGIS layer of the local server holds the two lines of /lines.geojson
-# and gives one line per page.
-def test_build_geograph_reads_every_page_of_an_arcgis_layer_and_its_version(
-    tmp_path, source, monkeypatch
-):
-    monkeypatch.setitem(
-        north_america_rail.SOURCES["rail_lines"], "url", f"{source}/layer"
-    )
-
-    geo = GeoGraph.build_geograph("north_america_rail", cache_dir=tmp_path)
-
-    assert len(geo.nodes) == 4  # the first line alone has 3 nodes
-    # The version of the data is the last edit of the layer, which the layer
-    # gives as 1704164645000 ms after 1970.
-    (layer,) = geo.metadata["sources"]
-    assert layer["version"] == "2024-01-02T03:04:05Z"
-
-
 # The same sources must give the same network file in every process, so
 # that a file can be checked against another build. The tests below build in
 # child processes, as separate users do. A child takes the URL of the local
-# server, its cache folder, the name of the network, its region or "", and
-# the backend: "pure python" hides the C++ extension from the child.
+# server, its cache folder, the name of the network, its region or "", the
+# backend ("pure python" hides the C++ extension from the child), and where
+# the local server has each source of `geofabrik_multimodal`.
 _BUILD_IN_A_CHILD_PROCESS = """
 import sys
-server, cache_dir, name, region, backend = sys.argv[1:]
+import json
+server, cache_dir, name, region, backend, local_sources = sys.argv[1:]
 if backend == "pure python":
     sys.modules["scgraph.cpp"] = None  # importing the extension now fails
 from scgraph import GeoGraph
-from scgraph.pipelines import marnet, osm_main_roads
-marnet.SOURCES["sea_lanes"]["url"] = server + "/tangled_lines.geojson"
-roads = {**osm_main_roads.SOURCES["roads"], "url": server + "/{region}.osm"}
-osm_main_roads.SOURCES["roads"] = roads
+from scgraph.pipelines import eurostat_sea_lanes, geofabrik_multimodal
+eurostat_sea_lanes.SOURCES["sea_lanes"]["url"] = server + "/tangled_lines.gpkg"
+for source, path in json.loads(local_sources).items():
+    geofabrik_multimodal.SOURCES[source] = {
+        **geofabrik_multimodal.SOURCES[source], "url": server + path
+    }
 GeoGraph.build_geograph(name, region=region or None, cache_dir=cache_dir)
 """
 
@@ -782,6 +787,7 @@ def _build_in_a_child_process(
             name,
             region or "",
             backend,
+            json.dumps(_LOCAL_SOURCES),
         ],
         env={**os.environ, "PYTHONHASHSEED": hash_seed},
         check=True,
@@ -792,15 +798,15 @@ def _build_in_a_child_process(
     return folder / json.loads((folder / "cache.json").read_text())["file"]
 
 
-# The two kinds of pipeline. marnet returns a GeoGraph, which scgraph then
-# writes to a network file. osm_main_roads returns the arrays of the network
-# file: its region "roads" is the file /roads.osm of the local server.
+# The two kinds of pipeline. eurostat_sea_lanes returns a GeoGraph, which scgraph
+# then writes to a network file. geofabrik_multimodal returns the arrays of the
+# network file: its region "roads" is the file /roads.osm of the local server.
 _NETWORKS_OF_BOTH_KINDS = [
-    pytest.param("marnet", None, id="marnet"),
+    pytest.param("eurostat_sea_lanes", None, id="eurostat_sea_lanes"),
     pytest.param(
-        "osm_main_roads",
+        "geofabrik_multimodal",
         "roads",
-        id="osm_main_roads",
+        id="geofabrik_multimodal",
         marks=pytest.mark.skipif(
             importlib.util.find_spec("osmium") is None,
             reason="osmium is not installed",
@@ -854,14 +860,48 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
     tmp_path, source, monkeypatch
 ):
     pytest.importorskip("osmium")  # checked before the download
-    monkeypatch.setitem(
-        osm_main_roads.SOURCES["roads"], "url", f"{source}/{{region}}.osm"
-    )
+    for name, path in _LOCAL_SOURCES.items():
+        monkeypatch.setitem(
+            geofabrik_multimodal.SOURCES,
+            name,
+            {**geofabrik_multimodal.SOURCES[name], "url": source + path},
+        )
+    # The local server has no file /nowhere.osm
     with pytest.raises(ValueError, match="No extract 'nowhere'"):
         GeoGraph.build_geograph(
-            "osm_main_roads", region="nowhere", cache_dir=str(tmp_path)
+            "geofabrik_multimodal", region="nowhere", cache_dir=str(tmp_path)
         )
-    assert GeoGraph.get_cache_info(cache_dir=str(tmp_path)) == []
+    # The small sources were downloaded before the extract. No network is built.
+    kinds = {entry["kind"] for entry in GeoGraph.get_cache_info(str(tmp_path))}
+    assert "built" not in kinds
+
+
+# The strait has roads and ferries, and no railway.
+def test_a_region_without_a_railway_builds_without_rail_nodes(
+    tmp_path, source, monkeypatch
+):
+    pytest.importorskip("osmium")
+    for name, path in _LOCAL_SOURCES.items():
+        monkeypatch.setitem(
+            geofabrik_multimodal.SOURCES,
+            name,
+            {**geofabrik_multimodal.SOURCES[name], "url": source + path},
+        )
+
+    strait = GeoGraph.build_geograph(
+        "geofabrik_multimodal", region="strait", cache_dir=tmp_path
+    )
+
+    assert _points_of(strait, "rail") == []
+    # The road nodes 1, 2, 3, 5 and 4 of the strait. Node 2 stays a node: it
+    # joins a road to a ferry, which are two classes.
+    assert _points_of(strait, "road") == [
+        [0, 0],
+        [0, 0.01],
+        [0, 0.06],
+        [0, 0.065],
+        [0, 0.07],
+    ]
 
 
 # From the command line, a network is built into the cache without being loaded, and
@@ -870,16 +910,16 @@ def test_build_command_builds_the_file_build_geograph_loads(
     tmp_path, source, monkeypatch, capsys
 ):
     monkeypatch.setitem(
-        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
+        eurostat_sea_lanes.SOURCES["sea_lanes"], "url", f"{source}/lines.gpkg"
     )
-    build.main(["marnet", "--cache-dir", str(tmp_path)])
+    network_builder.main(["eurostat_sea_lanes", "--cache-dir", str(tmp_path)])
     path = capsys.readouterr().out.strip()
-    folder = tmp_path / "networks" / "marnet"
+    folder = tmp_path / "networks" / "eurostat_sea_lanes"
     assert path == str(
         folder / json.loads((folder / "cache.json").read_text())["file"]
     )
-    geo = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
-    assert _Source.served == ["/lines.geojson"]  # loaded, not built again
+    geo = GeoGraph.build_geograph("eurostat_sea_lanes", cache_dir=str(tmp_path))
+    assert _Source.served == ["/lines.gpkg"]  # loaded, not built again
     assert len(geo.nodes) == 4
 
 
@@ -891,19 +931,19 @@ def test_build_geograph_calls_the_download_hook_of_a_source(tmp_path):
     def stream(url, filename):
         calls.append(url)
         with open(filename, "wb") as file:
-            file.write(_GEOJSON)
+            file.write(_LINES_GPKG)
         return {"bytes": 10**11, "md5": "0" * 32}
 
     module = types.ModuleType("my_pipelines.streamed")
-    url = "https://planet.example/lines.geojson"
+    url = "https://planet.example/lines.gpkg"
     module.SOURCES = {
         "sea_lanes": {
-            **marnet.SOURCES["sea_lanes"],
+            **eurostat_sea_lanes.SOURCES["sea_lanes"],
             "url": url,
             "download": stream,
         }
     }
-    module.PIPELINE_VERSION, module.build = 1, marnet.build
+    module.PIPELINE_VERSION, module.build = 1, eurostat_sea_lanes.build
     module.download = lambda url, filename: pytest.fail("module's hook called")
     geo = GeoGraph.build_geograph(module, cache_dir=str(tmp_path))
     (record,) = geo.metadata["sources"]
@@ -968,6 +1008,20 @@ def _build_strait_osm():
 _FILES["/strait.osm"] = _build_strait_osm()
 
 
+def _main_roads_pipeline(server):
+    """A pipeline module of one's own, cached as "main_roads". It builds the main
+    roads and the vehicle ferries of the file /{region}.osm of the local server,
+    with the steps of `geofabrik_multimodal` (`helpers.build_main_roads`). Its
+    select functions give no class."""
+    module = types.ModuleType("my_pipelines.main_roads")
+    module.SOURCES = {
+        "roads": {**step1_osm_ways.GEOFABRIK, "url": f"{server}/{{region}}.osm"}
+    }
+    module.PIPELINE_VERSION, module.build = 1, build_main_roads
+    module.download = step1_osm_ways.download
+    return module
+
+
 def _strait_km(*nodes):
     """The length of the line through these nodes of the strait."""
     places = [_STRAIT_NODES[node] for node in nodes]
@@ -976,19 +1030,17 @@ def _strait_km(*nodes):
 
 @pytest.fixture(scope="module")
 def strait_network(tmp_path_factory):
-    """The network that `osm_main_roads` builds from the strait. The local
-    server stands for Geofabrik: the region "strait" is its file /strait.osm.
+    """The network that the pipeline of main roads builds from the strait. The
+    local server stands for Geofabrik: the region "strait" is its file
+    /strait.osm.
 
     The build keeps the nodes 1, 3, 4 and 5. It contracts node 2, which only
     joins road 1 to ferry 3.
     """
     pytest.importorskip("osmium")
-    with _local_server() as server, pytest.MonkeyPatch.context() as patch:
-        patch.setitem(
-            osm_main_roads.SOURCES["roads"], "url", f"{server}/{{region}}.osm"
-        )
+    with _local_server() as server:
         return GeoGraph.build_geograph(
-            "osm_main_roads",
+            _main_roads_pipeline(server),
             region="strait",
             cache_dir=tmp_path_factory.mktemp("strait"),
         )
@@ -1034,37 +1086,37 @@ def test_a_ferry_that_starts_inside_a_road_cuts_the_road_at_that_node(
 
 # With a work folder, the build keeps the pieces of the ways in files and
 # not in memory.
-def test_osm_main_roads_builds_the_same_network_with_a_work_folder(tmp_path):
+def test_ferries_are_attached_the_same_way_with_a_work_folder(tmp_path):
     pytest.importorskip("osmium")
     strait_file = tmp_path / "strait.osm"
     strait_file.write_bytes(_FILES["/strait.osm"])
 
-    built_in_memory = osm_main_roads.build({"roads": str(strait_file)})
-    built_in_files = osm_main_roads.build(
+    built_in_memory = build_main_roads({"roads": str(strait_file)})
+    built_in_files = build_main_roads(
         {"roads": str(strait_file)}, work_dir=str(tmp_path / "work")
     )
 
     assert built_in_files == built_in_memory
 
 
-# The select functions of `osm_multimodal` give the class of each way. Only
-# that pipeline uses them, and its fixture has no ferry. So this test runs the
-# two steps of a build that cut the ways of the strait and store them.
+# The select functions of `geofabrik_multimodal` give the class of each way.
+# The fixture of that pipeline has no ferry. So this test runs the two steps
+# of a build that cut the ways of the strait and store them.
 def test_a_ferry_arc_and_a_shuttle_train_arc_have_their_own_classes(tmp_path):
     pytest.importorskip("osmium")
     strait_file = tmp_path / "strait.osm"
     strait_file.write_bytes(_FILES["/strait.osm"])
     selects = {
         "road": {
-            "ways": osm_multimodal.select_main_roads_with_class,
-            "ferries": osm_multimodal.select_vehicle_ferries_with_class,
+            "ways": geofabrik_multimodal.select_main_roads_with_class,
+            "ferries": geofabrik_multimodal.select_vehicle_ferries_with_class,
         }
     }
 
-    pieces = osm.build_way_pieces(
+    pieces = step1_osm_ways.build_way_pieces(
         str(strait_file), selects, ("highway", "route"), max_km_between_nodes=2
     )
-    graph = assembly.build_graph_from_pieces(pieces["road"])
+    graph = step3_network_assembly.build_graph_from_pieces(pieces["road"])
 
     ids, offsets = graph["node_ids"], graph["offsets"]
     class_names = {
@@ -1082,28 +1134,14 @@ def test_a_ferry_arc_and_a_shuttle_train_arc_have_their_own_classes(tmp_path):
 
 
 def _build_coast_network(tmp_path):
-    """The network that `osm_main_roads_and_marnet` builds from the coast that
-    the comment above `_FILES` describes: a road, a sea lane and five ports."""
-    return _build_from_local_sources(
-        tmp_path,
-        osm_main_roads_and_marnet,
-        {
-            "roads": "/{region}.osm.pbf",
-            "land": "/land.geojson",
-            "lakes": "/lakes.geojson",
-            "rivers": "/rivers.geojson",
-            "sea": "/sea.gpkg",
-            "ports": "/ports.csv",
-        },
-    )
-
-
-def _build_from_local_sources(tmp_path, pipeline, paths):
-    """The network that `pipeline` builds from the sources at `paths` (source ->
-    path) of the local server, which stands for every source. The OSM file is
-    served as a Geofabrik extract: a PBF whose header gives the time of its
-    data. The region "roads" is the file /roads.osm.pbf.
+    """The network that `geofabrik_multimodal` builds from the coast that the
+    comment above `_FILES` describes: the road, the railways, the sea lane and
+    the hubs. The local server stands for every source. The OSM file is served
+    as a Geofabrik extract: a PBF whose header gives the time of its data. The
+    region "roads" is the file /roads.osm.pbf.
     """
+    pipeline = geofabrik_multimodal
+    paths = {**_LOCAL_SOURCES, "osm": "/{region}.osm.pbf"}
     osmium = pytest.importorskip("osmium")
     xml, pbf = tmp_path / "roads.osm", tmp_path / "roads.osm.pbf"
     xml.write_bytes(_FILES["/roads.osm"])
@@ -1121,9 +1159,7 @@ def _build_from_local_sources(tmp_path, pipeline, paths):
                 {**pipeline.SOURCES[name], "url": server + path},
             )
         return GeoGraph.build_geograph(
-            pipeline.__name__.rsplit(".", 1)[-1],
-            region="roads",
-            cache_dir=tmp_path,
+            "geofabrik_multimodal", region="roads", cache_dir=tmp_path
         )
 
 
@@ -1139,22 +1175,20 @@ def coast_cache(tmp_path_factory):
 @pytest.fixture(scope="module")
 def coast_network(coast_cache):
     return GeoGraph.build_geograph(
-        "osm_main_roads_and_marnet",
+        "geofabrik_multimodal",
         region="roads",
         cache_dir=coast_cache,
         local_files_only=True,
     )
 
 
-# The select functions of `osm_main_roads_and_marnet` give no class.
+# The select functions of the pipeline of main roads give no class.
 def test_a_pipeline_whose_selects_give_no_class_builds_no_arc_classes(
-    coast_cache,
+    tmp_path, source
 ):
-    path = build.build_file(
-        "osm_main_roads_and_marnet",
-        region="roads",
-        cache_dir=coast_cache,
-        local_files_only=True,
+    pytest.importorskip("osmium")
+    path = network_builder.build_network_file(
+        _main_roads_pipeline(source), region="strait", cache_dir=tmp_path
     )
 
     arrays, metadata = network_file.read(path)
@@ -1165,30 +1199,43 @@ def test_a_pipeline_whose_selects_give_no_class_builds_no_arc_classes(
 
 def test_nodes_are_stored_by_mode_and_each_mode_names_its_source(coast_network):
     assert coast_network.modes == [
-        {"name": "road", "source": "roads"},
-        {"name": "port", "source": "ports"},
+        {"name": "road", "source": "osm"},
+        {"name": "rail", "source": "osm"},
         {"name": "sea", "source": "sea"},
+        {"name": "port", "source": "ports"},
+        {"name": "airport", "source": "airports"},
+        {"name": "rail_terminal", "source": "rail_terminals"},
     ]
-    # 3 road nodes, then 2 ports, then the 2 ends of the sea lane
-    assert list(coast_network.node_modes) == [0, 0, 0, 1, 1, 2, 2]
+    # 3 road nodes, 4 rail nodes, the 2 ends of the sea lane, 2 ports, 2 airports
+    # and 1 rail terminal
+    assert list(coast_network.node_modes) == [0] * 3 + [1] * 4 + [
+        2,
+        2,
+        3,
+        3,
+        4,
+        4,
+        5,
+    ]
+
+
+def test_build_geograph_loads_only_the_modes_asked(coast_cache):
+    roads = GeoGraph.build_geograph(
+        "geofabrik_multimodal",
+        region="roads",
+        cache_dir=coast_cache,
+        local_files_only=True,
+        modes=["road"],
+        lazy=True,  # the modes also reach a network that is loaded at its first use
+    )
+
+    # The 3 road nodes of the coast, and no hub
+    assert _mode_names(roads) == ["road", "road", "road"]
 
 
 def test_a_road_fragment_apart_from_the_main_road_is_left_out(coast_network):
-    road_nodes = sorted(list(coast_network.nodes)[:3])
-
     # The fragment at (0.005, 0.024) is not among them.
-    assert road_nodes == [[-0.01, 0], [0, 0], [0.01, 0]]
-
-
-def test_only_a_port_near_a_road_and_near_water_becomes_a_node(coast_network):
-    port_nodes = sorted(list(coast_network.nodes)[3:5])
-    ids_of_port_nodes = sorted(list(coast_network.node_ids)[3:5])
-
-    # "Near" and "Anchorage". "Island" and "Far" are too far from the road,
-    # and "Inland" is too far from water.
-    assert port_nodes == [[0, 0.02], [0.01, 0.06]]
-    # A port keeps its number in the ports table, the World Port Index number
-    assert ids_of_port_nodes == [1, 2]
+    assert _points_of(coast_network, "road") == [[-0.01, 0], [0, 0], [0.01, 0]]
 
 
 def test_a_route_from_the_road_to_the_sea_lane_passes_through_a_port(
@@ -1250,26 +1297,34 @@ def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
         if hasattr(record, "scgraph")
     }
     assert counts == {
-        # The main road in 2 pieces and the fragment
-        "read and cut the ways": {"pieces": 3},
+        # Roads: the main road in 2 pieces and the fragment. Railways: the line
+        # in 2 pieces, the branch, the second track and the crossover.
+        "read and cut the ways": {"pieces": 8},
         "attach the ferries": {"arcs": 0},
-        # The 2 ends of the sea lane, joined in both directions
-        "read the sea lanes": {"nodes": 2, "arcs": 2},
-        # 2 of the 5 ports are joined to the road and to the sea
-        "join the ports": {"ports": 5, "joined": 2},
-        # The fragment of 2 nodes and 2 arcs is left out. 3 road nodes, 2 ports
-        # and 2 sea nodes remain.
-        "keep the strongly connected components": {
-            "nodes": 9,
-            "arcs": 16,
-            "kept_nodes": 7,
-            "kept_arcs": 14,
+        # The 2 ends of the sea lane
+        "read the sea lanes": {"nodes": 2},
+        # 5 ports, 4 airports and 1 rail terminal. 5 of them reach two networks.
+        "join at the hubs": {
+            "hubs": 10,
+            "port": 2,
+            "airport": 2,
+            "rail_terminal": 1,
         },
+        # 5 road nodes, 6 rail nodes, 2 sea nodes and 5 hubs. The road fragment
+        # of 2 nodes and 2 arcs is left out.
+        "keep the strongly connected components": {
+            "nodes": 18,
+            "arcs": 38,
+            "kept_nodes": 16,
+            "kept_arcs": 36,
+        },
+        # Two rail nodes only join two tracks: the south end of the line and
+        # the south end of the second track. Their chains are contracted.
         "contract the chains": {
-            "nodes": 7,
-            "arcs": 14,
-            "kept_nodes": 7,
-            "kept_arcs": 14,
+            "nodes": 16,
+            "arcs": 36,
+            "kept_nodes": 14,
+            "kept_arcs": 32,
         },
     }
 
@@ -1281,48 +1336,17 @@ def test_each_source_is_recorded_with_the_version_of_its_data(coast_network):
     }
 
     assert versions == {
-        "roads": "2026-11-06T20:21:43Z",  # the time in the header of the PBF
+        "osm": "2026-11-06T20:21:43Z",  # the time in the header of the PBF
         "land": "5.1.2",  # the release of Natural Earth that the pipeline names
         "lakes": "5.1.2",
         "rivers": "5.1.2",
         "sea": None,
-        "ports": "UpdatedPub150.csv, SHA-256 315644f1e7796629",  # the table's
+        # A table kept with scgraph says which copy of its source made it
+        "ports": "UpdatedPub150.csv, SHA-256 315644f1e7796629",
+        "airports": "airports.csv at commit 1cdbf9cbed1e47bed8f115ec173b91aeb999e44f",
+        "flights": "flights of 2021: OpenSky v21.12; T-100 and Eurostat read on 2026-11-17",
+        "rail_terminals": "query of 2026-11-16",
     }
-
-
-@pytest.fixture(scope="module")
-def multimodal_cache(tmp_path_factory):
-    """The cache folder that holds the network of `osm_multimodal` for the coast
-    of `_FILES`: the road, the railways, the sea lane, and the hubs of the comment
-    above `_FILES`. The region of the network is "roads".
-    """
-    cache_dir = tmp_path_factory.mktemp("multimodal")
-    _build_from_local_sources(
-        cache_dir,
-        osm_multimodal,
-        {
-            "osm": "/{region}.osm.pbf",
-            "land": "/land.geojson",
-            "lakes": "/lakes.geojson",
-            "rivers": "/rivers.geojson",
-            "sea": "/sea.gpkg",
-            "ports": "/ports.csv",
-            "airports": "/airports.csv",
-            "flights": "/flights.csv",
-            "rail_terminals": "/rail_terminals.csv",
-        },
-    )
-    return cache_dir
-
-
-@pytest.fixture(scope="module")
-def multimodal_network(multimodal_cache):
-    return GeoGraph.build_geograph(
-        "osm_multimodal",
-        region="roads",
-        cache_dir=multimodal_cache,
-        local_files_only=True,
-    )
 
 
 def _mode_names(network):
@@ -1341,27 +1365,27 @@ def _points_of(network, mode):
 # (0, 0) is a node of the road and of the railway branch in the OSM file. The two
 # networks must stay apart there: a route changes mode only at a hub. So each
 # network has its own node at (0, 0), and no arc joins a road node to a rail node.
-def test_roads_and_railways_stay_apart_at_a_level_crossing(multimodal_network):
-    modes = _mode_names(multimodal_network)
+def test_roads_and_railways_stay_apart_at_a_level_crossing(coast_network):
+    modes = _mode_names(coast_network)
 
-    assert [0, 0] in _points_of(multimodal_network, "road")
-    assert [0, 0] in _points_of(multimodal_network, "rail")
+    assert [0, 0] in _points_of(coast_network, "road")
+    assert [0, 0] in _points_of(coast_network, "rail")
     assert not any(
         {modes[u], modes[v]} == {"road", "rail"}
-        for u, arcs in enumerate(multimodal_network.graph_object.graph)
+        for u, arcs in enumerate(coast_network.graph_object.graph)
         for v in arcs
     )
 
 
 def test_a_railway_is_read_both_ways_and_without_its_sidings(
-    multimodal_network,
+    coast_network,
 ):
     # The line's south end leads, through the crossover, to the end of the
     # second track at (-0.004, 0.011). Without the crossover, the second track
     # would be an island, left out. Read one way, the line tagged `oneway=yes`
     # would lose its two ends and the second track. The siding would add
     # (0.01, 0.015).
-    assert _points_of(multimodal_network, "rail") == [
+    assert _points_of(coast_network, "rail") == [
         [-0.004, 0.011],
         [0, 0],
         [0, 0.012],
@@ -1369,20 +1393,22 @@ def test_a_railway_is_read_both_ways_and_without_its_sidings(
     ]
 
 
-def test_each_hub_joins_the_modes_it_serves(multimodal_network):
-    modes = _mode_names(multimodal_network)
-    ids = list(multimodal_network.node_ids)
+def test_each_hub_joins_the_modes_it_serves(coast_network):
+    modes = _mode_names(coast_network)
+    ids = list(coast_network.node_ids)
 
     reached = {
         (modes[u], ids[u]): sorted({modes[v] for v in arcs})
-        for u, arcs in enumerate(multimodal_network.graph_object.graph)
+        for u, arcs in enumerate(coast_network.graph_object.graph)
         if modes[u] in ("port", "airport", "rail_terminal")
     }
 
     # Each hub keeps the id of its table; an airport reaches the other by its
-    # flight. The port Anchorage has no rail flag, so no rail connector. Far
-    # field has no road, so its flight is dropped. Lone field has no flight, so
-    # it reaches one mode only. Both stay out.
+    # flight. The ports Island and Far are too far from the road, and Inland is
+    # too far from water: the three stay out. The port Anchorage has no rail
+    # flag, so no rail connector. Far field has no road, so its flight is
+    # dropped. Lone field has no flight, so it reaches one mode only. Both stay
+    # out.
     assert reached == {
         ("port", 1): ["rail", "road", "sea"],
         ("port", 2): ["road", "sea"],
@@ -1396,12 +1422,12 @@ def test_each_hub_joins_the_modes_it_serves(multimodal_network):
 # are primary roads. Its railways have no `usage` tag, and its sea lane is
 # outside a passage.
 def test_each_arc_has_the_class_of_its_way_its_connector_or_its_flight(
-    multimodal_cache,
+    coast_cache,
 ):
-    path = build.build_file(
-        "osm_multimodal",
+    path = network_builder.build_network_file(
+        "geofabrik_multimodal",
         region="roads",
-        cache_dir=multimodal_cache,
+        cache_dir=coast_cache,
         local_files_only=True,
     )
 
@@ -1444,7 +1470,7 @@ def test_a_railway_line_takes_its_class_from_highspeed_then_from_usage(
 ):
     tags = {"railway": "rail", **tags}
 
-    assert osm_multimodal.select_rail_with_class(tags) == (0, class_name)
+    assert geofabrik_multimodal.select_rail_with_class(tags) == (0, class_name)
 
 
 def test_the_arcs_of_a_lane_of_a_passage_have_the_class_of_the_passage(
@@ -1457,7 +1483,7 @@ def test_the_arcs_of_a_lane_of_a_passage_have_the_class_of_the_passage(
         _sea_gpkg([([32, 30, 32, 31], "suez"), ([32, 31, 32, 32], None)])
     )
 
-    sea = eurostat_marnet.build_graph({"sea_lanes": str(lanes)})
+    sea = eurostat_sea_lanes.build_sea_lane_arrays({"sea_lanes": str(lanes)})
 
     latitudes = [round(value * 1e-7) for value in sea["node_points"][0::2]]
     classes = {
@@ -1477,13 +1503,13 @@ def test_the_arcs_of_a_lane_of_a_passage_have_the_class_of_the_passage(
 
 # Eurostat stores a lane that crosses the antimeridian as two lines. One
 # ends at longitude 180 and the other starts at longitude -180.
-def test_eurostat_marnet_joins_a_lane_cut_at_the_antimeridian(tmp_path):
+def test_eurostat_sea_lanes_joins_a_lane_cut_at_the_antimeridian(tmp_path):
     lanes = tmp_path / "lanes.gpkg"
     lanes.write_bytes(
         _sea_gpkg([([179, 0, 180, 0], None), ([-180, 0, -179, 0], None)])
     )
 
-    geo = eurostat_marnet.build({"sea_lanes": str(lanes)})
+    geo = eurostat_sea_lanes.build({"sea_lanes": str(lanes)})
 
     route = geo.get_shortest_path(
         origin_node={"latitude": 0, "longitude": 179},
@@ -1497,7 +1523,9 @@ def test_eurostat_marnet_joins_a_lane_cut_at_the_antimeridian(tmp_path):
 
 # Two points of the Arctic are joined by a direct lane of each Arctic
 # passage, and by an open-sea lane that goes round by the south.
-def test_eurostat_marnet_leaves_out_the_lanes_of_the_arctic_passages(tmp_path):
+def test_eurostat_sea_lanes_leaves_out_the_lanes_of_the_arctic_passages(
+    tmp_path,
+):
     lanes = tmp_path / "lanes.gpkg"
     lanes.write_bytes(
         _sea_gpkg(
@@ -1509,7 +1537,7 @@ def test_eurostat_marnet_leaves_out_the_lanes_of_the_arctic_passages(tmp_path):
         )
     )
 
-    geo = eurostat_marnet.build({"sea_lanes": str(lanes)})
+    geo = eurostat_sea_lanes.build({"sea_lanes": str(lanes)})
 
     route = geo.get_shortest_path(
         origin_node={"latitude": 75, "longitude": 100},
@@ -1526,10 +1554,10 @@ def test_eurostat_marnet_leaves_out_the_lanes_of_the_arctic_passages(tmp_path):
     "name, region, message",
     [
         ("nowhere", None, "Unknown network"),
-        ("marnett", None, "Did you mean 'marnet'"),
-        ("osm_main_roads", None, "needs a region"),
-        ("marnet", "europe/luxembourg", "has no region"),
-        ("osm_main_roads", "../europe", "Invalid region"),
+        ("eurostat_marnett", None, "Did you mean 'eurostat_sea_lanes'"),
+        ("geofabrik_multimodal", None, "needs a region"),
+        ("eurostat_sea_lanes", "europe/luxembourg", "has no region"),
+        ("geofabrik_multimodal", "../europe", "Invalid region"),
     ],
 )
 def test_build_geograph_checks_its_arguments_before_downloading(
@@ -1556,7 +1584,7 @@ def test_saving_a_file_among_the_built_networks_of_the_cache_is_refused(
 ):
     monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(tmp_path))
     geo = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
-    target = tmp_path / "networks" / "marnet" / file_name
+    target = tmp_path / "networks" / "eurostat_sea_lanes" / file_name
     target.parent.mkdir(parents=True)
 
     with pytest.raises(ValueError, match=re.escape(str(target))):

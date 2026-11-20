@@ -142,6 +142,55 @@ def test_list_geographs_lists_the_networks_of_the_pinned_network_release(
     assert cached["world_sea"] and "africa" in cached
 
 
+# `list_geographs` makes no request. It says enough of each network for a user
+# to choose one: what the network holds, and the size of its download.
+def test_list_geographs_describes_each_released_network(cache):
+    released = [
+        network
+        for network in GeoGraph.list_geographs(cache)
+        if network["kind"] == "released"
+    ]
+
+    assert all(network["description"] for network in released)
+    assert all(
+        network["download_mb"] > network["download_mb_without_shapes"] > 0
+        for network in released
+    )
+
+
+# The description of a part of the world gives its rectangle. The rectangle is
+# the bbox that derives the network from the world file.
+def test_the_description_of_a_part_of_the_world_gives_its_bbox(cache):
+    from scgraph.pipelines.derived_networks import DERIVED_NETWORKS
+
+    listed = {
+        network["name"]: network for network in GeoGraph.list_geographs(cache)
+    }
+
+    for name, selection in DERIVED_NETWORKS.items():
+        if "bbox" in selection:
+            south, west, north, east = selection["bbox"]
+            assert (
+                f"latitudes {south} and {north} and longitudes {west} and {east}"
+                in listed[name]["description"]
+            )
+
+
+def test_each_network_of_3_6_0_names_the_released_network_that_supersedes_it(
+    cache,
+):
+    listed = {
+        network["name"]: network for network in GeoGraph.list_geographs(cache)
+    }
+    built_in = [n for n in listed.values() if n["kind"] == "built-in"]
+
+    assert len(built_in) == 7
+    assert all(
+        listed[network["superseded_by"]]["kind"] == "released"
+        for network in built_in
+    )
+
+
 # Three tests below load the network lazily: the file is fetched at the first
 # use of the network, with the same arguments.
 def test_shapes_false_loads_the_network_without_the_shapes_of_its_arcs(

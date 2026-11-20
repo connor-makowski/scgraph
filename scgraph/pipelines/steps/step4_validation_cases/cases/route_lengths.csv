@@ -1,0 +1,4 @@
+id,origin_lat,origin_lon,destination_lat,destination_lon,reference,source,tolerance,tolerance_reason
+aarhus_to_copenhagen_intermodal,56.1629,10.2039,55.6761,12.5683,186.9,Molslinjen / Geofabrik,0.10,Kattegat vehicle ferry
+rotterdam_to_new_york,51.95,4.14,40.71,-74.01,6151.0,CERDI / NGA Pub 151,0.05,North Atlantic shipping lane
+rotterdam_to_singapore,51.95,4.14,1.28,103.85,15551.1,CERDI / NGA Pub 151,0.05,Via Suez and Malacca

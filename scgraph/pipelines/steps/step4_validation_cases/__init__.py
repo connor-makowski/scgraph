@@ -1,5 +1,5 @@
 """
-Stage 4 checks a built network against known routes of the real world.
+This step checks a built network against known routes of the real world.
 
 A case describes one known route. It gives the two ends of the route and a
 reference value from a published source. Each case is one row of a CSV file in
@@ -379,7 +379,9 @@ def _read_all_cases() -> dict[str, dict]:
     return cases
 
 
-def load_cases(validation: dict, region: str | None = None) -> list[dict]:
+def load_validation_cases(
+    validation: dict, region: str | None = None
+) -> list[dict]:
     """Return the cases that the `VALIDATION` of a pipeline lists (the module
     docstring describes the entries). For a regional pipeline, return the cases of
     `region`, and no case when the region has none. Without `region`, return the
@@ -440,7 +442,7 @@ def validate_network(
         network: The path of a network file, or a loaded GeoGraph. A file is read
             again for each set of modes, one at a time, to limit the memory used.
             The coverage rule resets the cache of trees of a loaded GeoGraph.
-        cases: The cases, as `load_cases` returns them.
+        cases: The cases, as `load_validation_cases` returns them.
 
     Returns:
         A `ValidationResult`: the number of cases that passed and failed, and one

@@ -9,7 +9,7 @@ direction is queried once on the public OSRM demo server (driving profile, overv
 >= 1.5 s apart, with a generic User-Agent; the raw answers go to
 road_distances_osrm_raw.jsonl, which it refuses to overwrite. Queried 2026-11-06.
 
-`cases` writes ../cases/road_distances.csv from the raw answers (no query), and refuses to
+`cases` writes `road_distances.csv` in `scgraph/pipelines/steps/step4_validation_cases/cases` from the raw answers (no query), and refuses to
 overwrite it: a per-case `tolerance` and its `tolerance_reason` are set by hand afterwards,
 in a commit that gives the reason. City-centre coordinates: Natural Earth 1:10m populated
 places v5.1.2 (public domain), by NE_ID.
@@ -26,7 +26,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 RAW = HERE / "road_distances_osrm_raw.jsonl"
-CASES = HERE.parent / "cases" / "road_distances.csv"
+CASES = (
+    HERE.parents[1]
+    / "scgraph/pipelines/steps/step4_validation_cases/cases/road_distances.csv"
+)
 URL = "https://router.project-osrm.org/route/v1/driving/{},{};{},{}?overview=false"
 NE_URL = (
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/"
@@ -130,7 +133,7 @@ def cases(ne_path: str | os.PathLike) -> None:
                 f"coordinates: Natural Earth 10m populated places v5.1.2 ({NE_URL}); "
                 "reference: OSRM demo server router.project-osrm.org, driving profile "
                 "(no data version in the answer), queried once per direction on "
-                "2026-11-06, raw answers in references/road_distances_osrm_raw.jsonl"
+                "2026-11-06, raw answers in utils/validation_references/road_distances_osrm_raw.jsonl"
             ),
             "tolerance": "",
             "tolerance_reason": "",

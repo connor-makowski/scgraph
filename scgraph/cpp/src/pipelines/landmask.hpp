@@ -1,6 +1,6 @@
 #pragma once
 // The shortest path over water on a one-bit land raster, for LandMask.find_water_path.
-// Read the header of scgraph/pipelines/steps/stage2_intermodal/landmask.py first: it
+// Read the header of scgraph/pipelines/steps/step2_land_mask.py first: it
 // explains the raster and the search. This function gives the same answers as the
 // pure-Python version, with the same tie rules. It only adds the step costs that Python
 // computed, so it has no floating-point operation that a compiler could fuse or reorder.

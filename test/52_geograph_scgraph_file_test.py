@@ -1391,3 +1391,22 @@ def test_hilbert_order_follows_the_curve():
     # the curve visits them south-west, north-west, north-east, south-east
     nodes = [[45, 90], [-45, -90], [45, -90], [-45, 90]]
     assert hilbert_order(nodes) == [1, 2, 0, 3]
+
+
+def test_a_network_file_is_saved_and_loaded_with_a_path_object(tmp_path):
+    saved = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
+
+    saved.save_as_scgraph(tmp_path / "two_nodes.scgraph")
+    loaded = GeoGraph.load_from_scgraph(tmp_path / "two_nodes.scgraph")
+
+    assert loaded.nodes == saved.nodes
+    assert loaded.scgraph_file == str(tmp_path / "two_nodes.scgraph")
+
+
+def test_a_graphjson_file_is_saved_and_loaded_with_a_path_object(tmp_path):
+    saved = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
+
+    saved.save_as_graphjson(tmp_path / "two_nodes.graphjson")
+    loaded = GeoGraph.load_from_graphjson(tmp_path / "two_nodes.graphjson")
+
+    assert loaded.nodes == saved.nodes

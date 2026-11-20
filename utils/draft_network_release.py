@@ -1,10 +1,10 @@
 """Assemble a network release from the files that the workflow `build_networks.yml` made.
 
-Usage: python utils/assemble_networks.py FILES PREVIOUS RELEASE TAG COMMIT
+Usage: python utils/draft_network_release.py FILES PREVIOUS RELEASE TAG COMMIT
 
 A network release is a set of network files published as the assets of one GitHub release.
 FILES holds the network files of this run: the world network, and the files that
-`scgraph.pipelines.derive` derived from it. PREVIOUS holds `networks.json` of the
+`scgraph.pipelines.derived_networks` derived from it. PREVIOUS holds `networks.json` of the
 previous network release, or nothing. The script writes into RELEASE:
 
 - each network file, compressed with gzip. A user decompresses a file before loading
@@ -57,7 +57,7 @@ def compress(file: Path, compressed_file: Path) -> None:
         shutil.copyfileobj(source, packed)
 
 
-def assemble(
+def write_release_draft(
     files: str | os.PathLike,
     previous: str | os.PathLike,
     release: str | os.PathLike,
@@ -189,4 +189,4 @@ def format_notes(networks: list[dict], commit: str) -> str:
 
 
 if __name__ == "__main__":
-    assemble(*sys.argv[1:])
+    write_release_draft(*sys.argv[1:])

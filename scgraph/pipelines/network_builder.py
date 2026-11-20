@@ -1,7 +1,7 @@
-"""The runner of the pipelines. `build_file` downloads the sources of a network, builds
+"""The runner of the pipelines. `build_network_file` downloads the sources of a network, builds
 the network and keeps it in the cache. `GeoGraph.build_geograph` calls it.
 
-`python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D] [--validate]`
+`python -m scgraph.pipelines.network_builder NAME [--region R] [--cache-dir D] [--validate]`
 builds a network without loading it, and prints the path of its file. `--help` lists
 the other options.
 """
@@ -57,12 +57,12 @@ def _validate_pipeline(pipeline, name, region, filename):
     validation = getattr(pipeline, "VALIDATION", None)
     if not validation:
         return
-    from scgraph.pipelines.steps.stage4_validation import (
-        load_cases,
+    from scgraph.pipelines.steps.step4_validation_cases import (
+        load_validation_cases,
         validate_network,
     )
 
-    cases = load_cases(validation, region=region)
+    cases = load_validation_cases(validation, region=region)
     if not cases:
         return
     logger.info("Validating %s against %d case(s)", name, len(cases))
@@ -314,7 +314,7 @@ def _move_into_cache(
     return built_file
 
 
-def build_file(
+def build_network_file(
     name: str | types.ModuleType,
     region: str | None = None,
     cache_dir: str | os.PathLike | None = None,
@@ -453,7 +453,7 @@ def build_file(
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        prog="python -m scgraph.pipelines.build",
+        prog="python -m scgraph.pipelines.network_builder",
         description="Build a network from its online sources into the cache, without "
         "loading it, and print the path of its network file.",
     )
@@ -491,7 +491,7 @@ def main(argv: list[str] | None = None) -> None:
     )  # each download, and the credit to cite
     try:
         print(  # noqa: T201 (the output of the command)
-            build_file(
+            build_network_file(
                 args.name,
                 args.region,
                 args.cache_dir,

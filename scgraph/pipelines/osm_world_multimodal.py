@@ -1,7 +1,8 @@
 """Roads, railways, sea lanes and flights of the world, joined at ports, airports and
-rail terminals: `osm_multimodal` for the planet.
+rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
 
-- Distances, modes, classes, hubs and their connectors are those of `osm_multimodal`.
+- Distances, modes, classes, hubs and their connectors are those of
+  `geofabrik_multimodal`.
 - A shortest route in km takes any mode. Between two distant places it takes a
   flight, because a flight is a straight line. To compare modes, derive a cost per
   mode from the km, or load only some modes (`load_from_scgraph(modes=...)`).
@@ -12,20 +13,21 @@ rail terminals: `osm_multimodal` for the planet.
   10 km, and a contracted arc ends at the first node where it reaches 10 km. Two nodes
   along a road or a railway are then at most about 20 km apart.
 - Sources: the OpenStreetMap planet of the date in its URL, and the other sources of
-  `osm_multimodal`. The planet is read by HTTP byte ranges and never stored. The
+  `geofabrik_multimodal`. The planet is read by HTTP byte ranges and never stored. The
   build needs the C++ extension of scgraph.
-- Not for navigation, timetables, or the capacity of a terminal.
+- Not for navigation, timetables, the capacity of a terminal, or inland navigation
+  between two points of a river.
 """
 
 import os
 
-from scgraph.pipelines import osm_multimodal as regional
-from scgraph.pipelines.steps.stage1_extract import osm
+from scgraph.pipelines import geofabrik_multimodal as regional
+from scgraph.pipelines.steps import step1_osm_ways
 
 PIPELINE_VERSION = 2
 
 # The sources of the regional pipeline, with the planet in place of the extract
-SOURCES = {**regional.SOURCES, "osm": osm.PLANET}
+SOURCES = {**regional.SOURCES, "osm": step1_osm_ways.PLANET}
 # The length in km at which a way is cut, and at which a chain is cut. A larger
 # value gives fewer nodes: with 10, the world network has about 3.3 million nodes.
 MAX_KM_BETWEEN_NODES = 10
@@ -42,8 +44,8 @@ def build(
     *,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Build the multimodal network of the world: `osm_multimodal.build`, with the cut
-    length and the component size of this module.
+    """Build the multimodal network of the world: `geofabrik_multimodal.build`, with
+    the cut length and the component size of this module.
     """
     return regional.build(
         files,

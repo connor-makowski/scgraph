@@ -6,7 +6,7 @@ Eurostat stores the ends of a lane cut at the antimeridian twice, at -180 and at
 Route, Northwest Passage) are dropped: no query can avoid a passage yet, and these are
 open only part of the year.
 
-`build_graph` gives the same network as arrays, with the class of each arc, for a
+`build_sea_lane_arrays` gives the same network as arrays, with the class of each arc, for a
 pipeline that joins the sea lanes to other modes. The class of an arc is the `pass` of
 its lane, for example `suez`. It is `open_sea` for a lane outside a passage.
 """
@@ -19,7 +19,7 @@ from array import array
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_ROWS
-from scgraph.pipelines.steps.stage3_assembly import assembly
+from scgraph.pipelines.steps import step3_network_assembly
 
 PIPELINE_VERSION = 1
 
@@ -71,7 +71,7 @@ def build(files: dict[str, str]) -> GeoGraph:
     return GeoGraph.load_from_geojson(geojson, precision=COORDINATE_DECIMALS)
 
 
-def build_graph(files: dict[str, str]) -> dict[str, array]:
+def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     """Build the sea lanes as the arrays of a graph, with the class of each arc.
 
     The nodes and the arcs are those of the GeoGraph that `build` returns. The nodes
@@ -86,7 +86,7 @@ def build_graph(files: dict[str, str]) -> dict[str, array]:
         files: The path of the downloaded file of the source `sea_lanes`.
 
     Returns:
-        The graph as a dict of arrays, as `assembly.build_graph_from_pieces` returns
+        The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
         it, with `arc_classes`. The arcs have no shape points.
     """
     sea = build(files)
@@ -108,8 +108,10 @@ def build_graph(files: dict[str, str]) -> dict[str, array]:
         class_row = CLASS_ROWS[passage or "open_sea"]
         for a, b in zip(points, points[1:]):
             class_row_of_arc[a, b] = class_row_of_arc[b, a] = class_row
-    offsets, heads, weights = assembly.build_csr_from_adjacency_list(
-        sea.graph_object.graph
+    offsets, heads, weights = (
+        step3_network_assembly.build_csr_from_adjacency_list(
+            sea.graph_object.graph
+        )
     )
     points = [to_units(point) for point in sea.nodes]
     return {
@@ -132,7 +134,7 @@ def build_graph(files: dict[str, str]) -> dict[str, array]:
 
 
 # The kind `sea_distances` measures between ports. This network has no port
-# node, so that kind is checked on `world_main_roads_and_marnet`.
+# node, so that kind is checked on the network of `osm_world_multimodal`.
 VALIDATION = {
     "cases": ["passages", "rotterdam_to_new_york", "rotterdam_to_singapore"],
 }
