@@ -1,4 +1,4 @@
-"""Tests of `scgraph.pipelines.derive`: a network file derived from a parent file."""
+"""Tests of `scgraph.pipelines.derived_networks`: a network file derived from a parent file."""
 
 from array import array
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from scgraph import GeoGraph, network_file, pipelines
-from scgraph.pipelines import derive
+from scgraph.pipelines import derived_networks
 
 # The parent network of these tests. A node is `id: [latitude, longitude]`.
 # A road joins the nodes 1, 2 and 3 along the equator. A second road goes
@@ -66,7 +66,7 @@ def parent_file(tmp_path_factory):
 def sea_file(parent_file, tmp_path_factory):
     """The file derived from the parent file with the modes of the sea."""
     path = str(tmp_path_factory.mktemp("sea") / "sea.scgraph")
-    derive.derive_file(
+    derived_networks.derive_network_file(
         parent_file, path, modes=["sea", "port"], min_component_nodes=1
     )
     return path
@@ -76,7 +76,9 @@ def sea_file(parent_file, tmp_path_factory):
 def bbox_file(parent_file, tmp_path_factory):
     """The file derived from the parent file with the bbox."""
     path = str(tmp_path_factory.mktemp("bbox") / "bbox.scgraph")
-    derive.derive_file(parent_file, path, bbox=BBOX, min_component_nodes=1)
+    derived_networks.derive_network_file(
+        parent_file, path, bbox=BBOX, min_component_nodes=1
+    )
     return path
 
 
@@ -151,7 +153,7 @@ def test_a_derived_file_keeps_the_class_of_each_arc_and_the_list_of_classes(
     )
     bbox_file = str(tmp_path / "bbox.scgraph")
 
-    derive.derive_file(
+    derived_networks.derive_network_file(
         classed_file, bbox_file, bbox=BBOX, min_component_nodes=1
     )
 
@@ -168,7 +170,7 @@ def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
 ):
     no_shapes_file = str(tmp_path / "bbox.no_shapes.scgraph")
 
-    derive.derive_file(
+    derived_networks.derive_network_file(
         parent_file,
         no_shapes_file,
         bbox=BBOX,
@@ -201,7 +203,9 @@ def test_a_derivation_that_keeps_no_node_is_refused(parent_file, tmp_path):
     # The network of the parent file has 6 nodes. The smallest component that a
     # derivation keeps has 10 nodes, unless the call gives another size.
     with pytest.raises(ValueError, match="no component of 10 nodes"):
-        derive.derive_file(parent_file, str(tmp_path / "empty.scgraph"))
+        derived_networks.derive_network_file(
+            parent_file, str(tmp_path / "empty.scgraph")
+        )
 
 
 def test_a_bbox_with_its_south_above_its_north_is_refused(
@@ -210,7 +214,7 @@ def test_a_bbox_with_its_south_above_its_north_is_refused(
     south, west, north, east = 1, -1, -1, 1
 
     with pytest.raises(ValueError, match="south above its north"):
-        derive.derive_file(
+        derived_networks.derive_network_file(
             parent_file,
             str(tmp_path / "bbox.scgraph"),
             bbox=(south, west, north, east),
@@ -256,19 +260,21 @@ def test_a_derived_file_fails_only_for_a_case_that_its_parent_file_passes(
 ):
     whole_file = str(tmp_path / "whole.scgraph")
     cut_file = str(tmp_path / "cut.scgraph")
-    derive.derive_file(denmark_file, whole_file, min_component_nodes=1)
-    derive.derive_file(
+    derived_networks.derive_network_file(
+        denmark_file, whole_file, min_component_nodes=1
+    )
+    derived_networks.derive_network_file(
         denmark_file, cut_file, bbox=DENMARK_BBOX, min_component_nodes=1
     )
 
     # The whole network passes one case and fails two, as its parent file.
-    derive.validate_derived_file(whole_file, denmark_file)
+    derived_networks.validate_derived_network_file(whole_file, denmark_file)
     # The bbox cuts the road between the two towns. The message names this
     # case, and not the case of the port, which the parent file fails too.
     with pytest.raises(
         RuntimeError, match="passes: aarhus_to_copenhagen_intermodal$"
     ):
-        derive.validate_derived_file(cut_file, denmark_file)
+        derived_networks.validate_derived_network_file(cut_file, denmark_file)
 
 
 # A small world for the files of a network release, with the six modes of
@@ -358,7 +364,7 @@ DERIVED_NAMES = ["world_sea", "world_rail", *REGION_POINTS]
 def test_a_network_release_gets_two_files_for_each_derived_network(
     small_world_file, tmp_path
 ):
-    written = derive.derive_release_files(
+    written = derived_networks.derive_network_release_files(
         small_world_file, tmp_path, validate=False
     )
 
@@ -372,7 +378,7 @@ def test_a_network_release_gets_two_files_for_each_derived_network(
 def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(
     small_world_file, tmp_path
 ):
-    written = derive.derive_release_files(
+    written = derived_networks.derive_network_release_files(
         small_world_file, tmp_path, ["europe", "world_sea"], validate=False
     )
 
@@ -398,7 +404,9 @@ def test_a_name_that_is_not_a_derived_network_is_refused(
     small_world_file, tmp_path
 ):
     with pytest.raises(ValueError, match="Unknown derived network 'atlantis'"):
-        derive.derive_release_files(small_world_file, tmp_path, ["atlantis"])
+        derived_networks.derive_network_release_files(
+            small_world_file, tmp_path, ["atlantis"]
+        )
 
 
 # A derived network is validated against the cases of the pipeline that built
@@ -407,7 +415,7 @@ def test_derived_files_of_an_unknown_pipeline_are_refused_with_validation(
     world_file_of_an_unknown_pipeline, tmp_path
 ):
     with pytest.raises(ValueError, match="atlantis_multimodal.*--no-validate"):
-        derive.derive_release_files(
+        derived_networks.derive_network_release_files(
             world_file_of_an_unknown_pipeline, tmp_path, ["world_sea"]
         )
 
@@ -415,7 +423,7 @@ def test_derived_files_of_an_unknown_pipeline_are_refused_with_validation(
 def test_the_derive_command_writes_without_validation_when_asked(
     world_file_of_an_unknown_pipeline, tmp_path, capsys
 ):
-    derive.main(
+    derived_networks.main(
         [
             world_file_of_an_unknown_pipeline,
             str(tmp_path),

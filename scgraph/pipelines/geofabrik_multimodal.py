@@ -21,7 +21,7 @@ WHAT THE NETWORK HOLDS
   of its parts has an end at sea.
 - Railways. The network holds the lines tagged `railway=rail`, without sidings,
   spurs and yard tracks. Every line is read both ways, whatever its `oneway` tag.
-- Sea lanes. They are the sea lanes of the world, as `eurostat_marnet` reads them,
+- Sea lanes. They are the sea lanes of the world, as `eurostat_sea_lanes` reads them,
   both ways.
 - Flights. Two airports with regular flights are joined both ways, with the
   great-circle distance between them: large or medium airports with at least 104
@@ -37,7 +37,7 @@ HUBS AND CONNECTORS
   another only through a hub: a port (road, sea, and rail where the port has a
   railway), an airport (road, and its flights) or a rail terminal (road and rail).
   A change of mode at a hub costs nothing.
-- A connector joins a hub to the network of one mode (`hubs.join`). A hub joins the
+- A connector joins a hub to the network of one mode (`hub_connectors.join_networks_at_hubs`). A hub joins the
   network when it reaches at least two networks. A hub that reaches fewer than two
   networks stays out.
 - Road connector, and rail connector. It is a straight line from the hub to a node
@@ -81,7 +81,7 @@ SOURCES AND LIMITS
 
 - Sources: the OpenStreetMap extract of Geofabrik, the sea lanes of Eurostat
   SeaRoute, and Natural Earth for the land and the water. The hubs and the flights
-  come from small tables kept with scgraph (`hubs.TABLES`, made by
+  come from small tables kept with scgraph (`hub_connectors.HUB_TABLES`, made by
   `utils/build_hub_tables.py`).
 - The Geofabrik URL always gives the newest extract, and `PIPELINE_VERSION` does not
   change when a source changes. So a rebuild can give another network.
@@ -101,11 +101,11 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from scgraph.pipelines import eurostat_marnet
-from scgraph.pipelines.steps.stage1_extract import osm
-from scgraph.pipelines.steps.stage2_intermodal import hubs
-from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
-from scgraph.pipelines.steps.stage3_assembly import assembly
+from scgraph.pipelines import eurostat_sea_lanes
+from scgraph.pipelines.steps import osm_ways
+from scgraph.pipelines.steps import hub_connectors
+from scgraph.pipelines.steps.land_mask import LandMask
+from scgraph.pipelines.steps import network_arrays
 from scgraph.utils import _log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
@@ -129,12 +129,12 @@ def _natural_earth(layer):
 # The small sources come first. When one of them fails, the extract is not yet
 # downloaded.
 SOURCES = {
-    "sea": eurostat_marnet.SOURCES["sea_lanes"],
+    "sea": eurostat_sea_lanes.SOURCES["sea_lanes"],
     "land": _natural_earth("land"),
     "lakes": _natural_earth("lakes"),
     "rivers": _natural_earth("rivers_lake_centerlines"),
-    **hubs.TABLES,
-    "osm": osm.GEOFABRIK,
+    **hub_connectors.HUB_TABLES,
+    "osm": osm_ways.GEOFABRIK,
 }
 MODES = [
     {"name": "road", "source": "osm"},
@@ -149,7 +149,7 @@ MODES = [
 MARGIN = 2
 
 download = (
-    osm.download
+    osm_ways.download
 )  # for the sources without their own download: checks osmium first
 
 
@@ -160,7 +160,7 @@ def select_main_roads_with_class(
     The class is the `highway` value of the way. Example: a one-way motorway gives
     `(1, "motorway")`.
     """
-    direction = osm.select_main_roads(tags)
+    direction = osm_ways.select_main_roads(tags)
     return None if direction is None else (direction, tags["highway"])
 
 
@@ -171,7 +171,7 @@ def select_vehicle_ferries_with_class(
     way. The class is the `route` value of the way. Example: a shuttle train gives
     `(0, "shuttle_train")`.
     """
-    direction = osm.select_vehicle_ferries(tags)
+    direction = osm_ways.select_vehicle_ferries(tags)
     return None if direction is None else (direction, tags["route"])
 
 
@@ -212,7 +212,7 @@ def select_rail_with_class(
 def build(
     files: dict[str, str],
     *,
-    max_km_between_nodes: float = osm.MAX_KM_BETWEEN_NODES,
+    max_km_between_nodes: float = osm_ways.MAX_KM_BETWEEN_NODES,
     min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
@@ -238,7 +238,7 @@ def build(
     # 1. The railways and the roads, in one read of the extract. Each mode has its
     # own junctions and its own pieces, so that a level crossing is not a change of
     # mode. Each select function gives the class of a way with its direction.
-    pieces = osm.build_way_pieces(
+    pieces = osm_ways.build_way_pieces(
         files["osm"],
         {
             "rail": {"ways": select_rail_with_class},
@@ -249,18 +249,20 @@ def build(
         },
         ("railway", "highway", "route"),
         max_km_between_nodes,
-        folder("stage1"),
+        folder("ways"),
         optional_modes=("rail",),
     )
-    roads = assembly.build_graph_from_pieces(pieces["road"])
+    roads = network_arrays.build_graph_from_pieces(pieces["road"])
     layers = {"road": roads}
     # A region may have no railway. Its hubs then join the roads and the sea lanes.
     if len(pieces["rail"].km):
-        layers["rail"] = assembly.build_graph_from_pieces(pieces["rail"])
+        layers["rail"] = network_arrays.build_graph_from_pieces(pieces["rail"])
     del pieces  # the graphs hold their own arrays
     # 2. The sea lanes, with the passage of each lane as its class
     with _log_step(logger, "read the sea lanes", {}) as counts:
-        sea = eurostat_marnet.build_graph({"sea_lanes": files["sea"]})
+        sea = eurostat_sea_lanes.build_sea_lane_arrays(
+            {"sea_lanes": files["sea"]}
+        )
         counts["nodes"] = len(sea["node_ids"])
     # 3. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
@@ -269,7 +271,7 @@ def build(
     west = max(-180, min(longitudes) * 1e-7 - MARGIN)
     north = min(90, max(latitudes) * 1e-7 + MARGIN)
     east = min(180, max(longitudes) * 1e-7 + MARGIN)
-    # join() frees the roads. Delete the views, so that nothing here keeps them
+    # `join_networks_at_hubs` frees the roads. Delete the views, so that nothing here keeps them
     del node_points, latitudes, longitudes
     mask = LandMask.from_natural_earth(
         *(files[name] for name in ("land", "lakes", "rivers")),
@@ -277,9 +279,9 @@ def build(
     )
     # 4. The hubs inside the raster
     region_hubs = (
-        hubs.read_ports(files["ports"])
-        + hubs.read_airports(files["airports"])
-        + hubs.read_rail_terminals(files["rail_terminals"])
+        hub_connectors.read_ports(files["ports"])
+        + hub_connectors.read_airports(files["airports"])
+        + hub_connectors.read_rail_terminals(files["rail_terminals"])
     )
     region_hubs = [
         hub for hub in region_hubs if mask.get_cell(*hub.point) is not None
@@ -288,17 +290,17 @@ def build(
     with _log_step(
         logger, "join at the hubs", {"hubs": len(region_hubs)}
     ) as counts:
-        graph, joined = hubs.join(
+        graph, joined = hub_connectors.join_networks_at_hubs(
             {**layers, "sea": sea},
             region_hubs,
             mask,
             [mode["name"] for mode in MODES],
-            flights=hubs.read_flights(files["flights"]),
+            flights=hub_connectors.read_flights(files["flights"]),
             work_dir=folder("hubs"),
         )
         counts.update(joined)
     # 6. Keep the connected network, contract its chains, number its nodes
-    arrays = assembly.assemble(
+    arrays = network_arrays.assemble_network_arrays(
         graph,
         max_km_between_nodes=max_km_between_nodes,
         min_component_nodes=min_component_nodes,

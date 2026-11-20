@@ -116,12 +116,12 @@ def test_cache_dir_argument_wins_over_scgraph_cache_dir(
 def test_list_buildable_geographs_looks_in_scgraph_cache_dir(
     environment_cache,
 ):
-    built = environment_cache / "networks" / "eurostat_marnet"
+    built = environment_cache / "networks" / "eurostat_sea_lanes"
     built.mkdir(parents=True)
     (built / "cache.json").write_text('{"file": "built.scgraph"}')
     (built / "built.scgraph").write_bytes(b"")
     listing = {n["name"]: n for n in GeoGraph.list_buildable_geographs()}
-    assert listing["eurostat_marnet"]["cached"]
+    assert listing["eurostat_sea_lanes"]["cached"]
 
 
 def test_clear_geograph_cache_clears_only_the_cache_of_scgraph_cache_dir(
@@ -343,7 +343,7 @@ def test_the_name_of_a_released_network_at_another_url_loads_from_that_url(
 @pytest.fixture
 def filled_cache(tmp_path):
     """A cache holding a published geograph, two files of a network release, built
-    networks (eurostat_marnet, a real network file, and geofabrik_multimodal of a region
+    networks (eurostat_sea_lanes, a real network file, and geofabrik_multimodal of a region
     and of a sub-region), a cache.json that names no file, a build's work folder and a
     user file.
     """
@@ -353,7 +353,7 @@ def filled_cache(tmp_path):
         "notes.txt": b"x",
         "releases/networks-1/europe.no_shapes.scgraph": b"x" * 3,
         "releases/networks-1/europe.scgraph": b"x" * 7,
-        "networks/eurostat_marnet/cache.json": "m.scgraph",
+        "networks/eurostat_sea_lanes/cache.json": "m.scgraph",
         "networks/geofabrik_multimodal/europe/e.scgraph": b"x" * 30,
         "networks/geofabrik_multimodal/europe/cache.json": "e.scgraph",
         "networks/geofabrik_multimodal/europe/france/f.scgraph": b"x" * 40,
@@ -367,9 +367,9 @@ def filled_cache(tmp_path):
             content = json.dumps({"file": content}).encode()
         (tmp_path / path).write_bytes(content)
     built = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 1]])
-    pipeline = {"name": "eurostat_marnet", "region": None, "version": 3}
+    pipeline = {"name": "eurostat_sea_lanes", "region": None, "version": 3}
     built.save_as_scgraph(
-        str(tmp_path / "networks/eurostat_marnet/m.scgraph"),
+        str(tmp_path / "networks/eurostat_sea_lanes/m.scgraph"),
         metadata={"pipeline": pipeline, "software": {"scgraph": "9.9"}},
     )
     return tmp_path
@@ -378,7 +378,7 @@ def filled_cache(tmp_path):
 def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
     info = GeoGraph.get_cache_info(str(filled_cache))
     built_bytes = (
-        (filled_cache / "networks/eurostat_marnet/m.scgraph").stat().st_size
+        (filled_cache / "networks/eurostat_sea_lanes/m.scgraph").stat().st_size
     )
     assert [
         (i["kind"], i["name"], i["region"], Path(i["file"]).name, i["bytes"])
@@ -388,7 +388,7 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         ("published", "marnet", None, "marnet.scgraph", 5),
         ("released", "europe", None, "europe.no_shapes.scgraph", 3),
         ("released", "europe", None, "europe.scgraph", 7),
-        ("built", "eurostat_marnet", None, "m.scgraph", built_bytes),
+        ("built", "eurostat_sea_lanes", None, "m.scgraph", built_bytes),
         ("built", "geofabrik_multimodal", "europe", "e.scgraph", 30),
         ("built", "geofabrik_multimodal", "europe/france", "f.scgraph", 40),
         ("building", "geofabrik_multimodal", None, "geofabrik_multimodal", 50),
@@ -416,10 +416,10 @@ def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
             id="the published files of a name",
         ),
         pytest.param(
-            {"name": "eurostat_marnet"},
+            {"name": "eurostat_sea_lanes"},
             {
-                "networks/eurostat_marnet/m.scgraph",
-                "networks/eurostat_marnet/cache.json",
+                "networks/eurostat_sea_lanes/m.scgraph",
+                "networks/eurostat_sea_lanes/cache.json",
             },
             id="the built network of a name without region",
         ),
@@ -488,10 +488,12 @@ def test_clear_geograph_cache_leaves_a_file_it_cannot_remove_with_a_warning(
     filled_cache, caplog
 ):
     before = _list_files(filled_cache)
-    (filled_cache / "networks/eurostat_marnet").chmod(0o555)
+    (filled_cache / "networks/eurostat_sea_lanes").chmod(0o555)
     try:
-        GeoGraph.clear_geograph_cache(str(filled_cache), name="eurostat_marnet")
+        GeoGraph.clear_geograph_cache(
+            str(filled_cache), name="eurostat_sea_lanes"
+        )
     finally:
-        (filled_cache / "networks/eurostat_marnet").chmod(0o755)
+        (filled_cache / "networks/eurostat_sea_lanes").chmod(0o755)
     assert _list_files(filled_cache) == before
     assert "m.scgraph" in caplog.text

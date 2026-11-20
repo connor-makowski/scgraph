@@ -1,4 +1,4 @@
-"""Tests of stage 4: the validation of a built network against its cases."""
+"""Tests of `validation_cases`: a built network checked against its cases."""
 
 import importlib
 
@@ -6,8 +6,8 @@ import pytest
 
 from helpers import great_circle_km
 from scgraph import GeoGraph, pipelines
-from scgraph.pipelines.steps.stage4_validation import (
-    load_cases,
+from scgraph.pipelines.steps.validation_cases import (
+    load_validation_cases,
     validate_network,
 )
 
@@ -18,7 +18,7 @@ from scgraph.pipelines.steps.stage4_validation import (
 def test_every_case_that_a_pipeline_lists_exists(name):
     pipeline = importlib.import_module(f"scgraph.pipelines.{name}")
 
-    assert load_cases(pipeline.VALIDATION)
+    assert load_validation_cases(pipeline.VALIDATION)
 
 
 # A regional pipeline lists its cases by region. `aarhus_to_copenhagen_intermodal`
@@ -42,14 +42,14 @@ CASES_BY_REGION = {
 def test_a_regional_pipeline_gets_the_cases_of_the_region_asked(
     region, case_ids
 ):
-    cases = load_cases(CASES_BY_REGION, region=region)
+    cases = load_validation_cases(CASES_BY_REGION, region=region)
 
     assert [case["id"] for case in cases] == case_ids
 
 
 def test_a_case_that_is_in_no_file_of_cases_is_refused():
     with pytest.raises(ValueError, match="no_such_case"):
-        load_cases({"cases": ["no_such_case"]})
+        load_validation_cases({"cases": ["no_such_case"]})
 
 
 # The tests below use a network of two towns on the equator, one degree of

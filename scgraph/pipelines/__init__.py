@@ -2,7 +2,7 @@
 A pipeline builds one network from its online sources.
 
 A pipeline is a module. `GeoGraph.build_geograph` runs it: the runner
-(`scgraph.pipelines.build`) downloads the sources, calls `build`, writes the network
+(`scgraph.pipelines.network_builder`) downloads the sources, calls `build`, writes the network
 file and keeps it in the cache. Each pipeline of this package is also an example to
 copy and adapt. The guide `README.md` of this package follows a network from its
 sources to its use: the build step by step, the derivation, the network release and the
@@ -29,10 +29,10 @@ WHAT A PIPELINE MODULE HOLDS
   `PIPELINE_VERSION` differs.
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
-    - a GeoGraph. `eurostat_marnet` does this, and so does the example below.
+    - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
     - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
-      file: by mode, then along a Hilbert curve (`assembly.assemble` gives this
+      file: by mode, then along a Hilbert curve (`network_arrays.assemble_network_arrays` gives this
       order). The weights are in km. `modes` is the modes table (see below).
       `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
       `arc_classes`, the class of each arc (see *The classes*). The runner then
@@ -42,7 +42,7 @@ WHAT A PIPELINE MODULE HOLDS
   them.
 - `VALIDATION`, optional: `{"cases": [...]}`, the cases that the built network must
   pass. A case describes a known route of the real world. The docstring of
-  `steps/stage4_validation` describes the kinds of cases, their rules and the entries
+  `steps/validation_cases` describes the kinds of cases, their rules and the entries
   of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
@@ -54,16 +54,16 @@ THE DOWNLOAD FUNCTIONS
 
 A download function is `download(url, filename)`. It writes to `filename` what `build`
 reads. This is the source itself, or a small file that says how to read the source in
-place (`osm.download_streamed` does this for the planet, which is never stored).
+place (`osm_ways.download_streamed` does this for the planet, which is never stored).
 
 The function may return a dict. The runner adds it to the record of the source: the
-entry of the source in the header of the network file. For example, `osm.download`
+entry of the source in the header of the network file. For example, `osm_ways.download`
 returns the `version` of an OpenStreetMap extract, the time that its data is up to.
 
 The runner also puts the `sha256` and the `bytes` of the downloaded file in the
 record. There is one exception. A source can have its own `download` in `SOURCES`.
 When that function returns a dict, the dict must identify the source, and the runner
-does not compute `sha256` and `bytes`. `osm.download_streamed` gives the `bytes` and
+does not compute `sha256` and `bytes`. `osm_ways.download_streamed` gives the `bytes` and
 the `md5` that the server publishes.
 
 THE MODES TABLE
@@ -102,7 +102,7 @@ A network file holds the class of each arc (`ARCHITECTURE.md`, section 7), and
 HOW TO RUN A PIPELINE
 
     GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
-    python -m scgraph.pipelines.build geofabrik_multimodal --region europe/denmark --validate
+    python -m scgraph.pipelines.network_builder geofabrik_multimodal --region europe/denmark --validate
 
 The first line builds the network, or loads it from the cache. The command builds the
 network without loading it, and prints the path of its file. With `--validate`, the
@@ -112,28 +112,28 @@ THE STEPS OF A BUILD
 
 A build runs steps, such as "read and cut the ways" or "contract the chains". Each
 step logs one line at DEBUG, with its counts and its duration (`utils._log_step`).
-The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
+The functions of the steps are in `scgraph.pipelines.steps`, one module for each step:
 
-1. Read the sources (`stage1_extract`). `osm.build_way_pieces` reads the ways of an
-   OpenStreetMap file that the select functions keep. It takes the select functions
+1. Read the sources. `osm_ways.build_way_pieces` reads the ways of an OpenStreetMap
+   file that the select functions keep. It takes the select functions
    of each mode. One read of the file serves every mode. Each mode gets its own
    junctions and its own pieces, so a road never joins a railway. The function
    cuts each way at the junctions of its mode, and where a piece reaches
    `max_km_between_nodes`. It simplifies the shape of each piece to within 50 m. It
-   attaches the ferries to road nodes (`osm.build_ferry_arcs`).
-2. Join the modes (`stage2_intermodal`). `hubs.join` joins the networks of several
-   modes at hubs: ports, airports and rail terminals. `landmask.LandMask` tells land
+   attaches the ferries to road nodes (`osm_ways.build_ferry_arcs`).
+2. Join the modes. `hub_connectors.join_networks_at_hubs` joins the networks of
+   several modes at hubs: ports, airports and rail terminals. `land_mask.LandMask` tells land
    from water for the connectors of a hub.
-3. Assemble the graph (`stage3_assembly`). `assembly.build_graph_from_pieces` stores
-   the pieces as a graph. `assembly.assemble` keeps the strongly connected
+3. Assemble the graph. `network_arrays.build_graph_from_pieces` stores the pieces as
+   a graph. `network_arrays.assemble_network_arrays` keeps the strongly connected
    components, contracts the chains of nodes and puts the nodes in the order of the
    file. No chain is contracted across two modes or two classes.
-4. Validate the network (`stage4_validation`). `validate_network` checks the built
+4. Validate the network. `validation_cases.validate_network` checks the built
    file against the cases of `VALIDATION`.
 
-A graph has two layouts in the steps. From `assembly.build_graph_from_pieces` on, a
-graph is a dict of the arrays of the network file. `osm.read_osm` and
-`assembly.keep_largest_strongly_connected_component` use the layout of a GeoGraph,
+A graph has two layouts in the steps. From `network_arrays.build_graph_from_pieces` on, a
+graph is a dict of the arrays of the network file. `osm_ways.read_osm` and
+`network_arrays.keep_largest_strongly_connected_component` use the layout of a GeoGraph,
 because `load_from_osm` calls them.
 
 WHAT THE NETWORK FILE RECORDS
@@ -153,7 +153,7 @@ The runner writes the metadata of the build into the header of the network file
 The header holds no clock time. The time of the download is in `cache.json`, in the
 cache.
 
-`scgraph.pipelines.derive` derives a network file from another network file, with no
+`scgraph.pipelines.derived_networks` derives a network file from another network file, with no
 download. The derived file holds some modes of its parent file, and its land networks
 inside a bbox. Its header has no `description`. It also records `derivation`: the
 `parent_content_sha256`, and the `modes`, the `bbox` and the `min_component_nodes` of
@@ -164,7 +164,7 @@ same sources, the same version of scgraph, the same backend, and the same platfo
 with the same C library or macOS version. A test checks this. The C++ build and the
 pure-Python build give the same nodes, the same arcs and the same lengths. Two
 things may differ: the order of the arcs of a node, and the choice between two
-routes of the same length. A test checks this with `eurostat_marnet` and
+routes of the same length. A test checks this with `eurostat_sea_lanes` and
 `geofabrik_multimodal`, on small inputs. Between two platforms, a few lengths or
 shape points may differ in the last bit, because the math libraries differ.
 
@@ -174,11 +174,11 @@ This pipeline builds the cycleways of an OpenStreetMap extract, both ways:
 
 ```py
 from scgraph import GeoGraph
-from scgraph.pipelines.steps import osm
+from scgraph.pipelines.steps import osm_ways
 
 PIPELINE_VERSION = 1
-SOURCES = {"ways": osm.GEOFABRIK}
-download = osm.download  # checks osmium before downloading the extract
+SOURCES = {"ways": osm_ways.GEOFABRIK}
+download = osm_ways.download  # checks osmium before downloading the extract
 
 def select(tags):
     return 0 if tags.get("highway") == "cycleway" else None
@@ -201,7 +201,7 @@ HOW TO ADD A NETWORK TO SCGRAPH
    in alphabetical order. A test checks that the two lists are the same.
 3. Add its row to the table of *Building Networks from Their Sources*, in `README.md`
    and in the docstring of `scgraph/__init__.py`.
-4. Add its cases to `steps/stage4_validation/cases/` and list them in `VALIDATION`.
+4. Add its cases to `steps/validation_cases/cases/` and list them in `VALIDATION`.
 5. Build and validate the network with the command above.
 
 scgraph does not import this package when it is imported. The functions that need it
@@ -223,7 +223,7 @@ from scgraph.utils import has_cpp
 logger = logging.getLogger(__name__)
 
 NAMES = (
-    "eurostat_marnet",
+    "eurostat_sea_lanes",
     "geofabrik_multimodal",
     "osm_world_multimodal",
 )

@@ -1,17 +1,9 @@
-"""The functions of the steps of a build, in four stages.
+"""The functions of the steps of a build, one module for each step.
 
-- `stage1_extract` reads the sources: OpenStreetMap files (`osm`).
-- `stage2_intermodal` joins the networks of several modes at hubs (`hubs`), with a
-  land mask (`landmask`).
-- `stage3_assembly` assembles the graph of the network file (`assembly`).
-- `stage4_validation` checks a built network against known routes.
+- `osm_ways` reads the ways of an OpenStreetMap file and cuts them into pieces.
+  `osm_planet_reader` reads the planet file by HTTP byte ranges for it.
+- `hub_connectors` joins the networks of several modes at hubs, with the land and
+  the water of `land_mask`.
+- `network_arrays` assembles the arrays of the network file.
+- `validation_cases` checks a built network against known routes.
 """
-
-from scgraph.pipelines.steps.stage3_assembly import assembly
-from scgraph.pipelines.steps.stage2_intermodal import hubs, landmask
-from scgraph.pipelines.steps.stage1_extract import osm
-from scgraph.pipelines.steps.stage4_validation import (
-    ValidationResult,
-    load_cases,
-    validate_network,
-)

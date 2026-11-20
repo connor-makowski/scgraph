@@ -3,13 +3,13 @@
 WHAT IT ANSWERS
 
 The network `world_multimodal` holds the roads, the railways, the sea lanes and the
-flights of the world. `derive_file` takes a network file, the "parent file". It
+flights of the world. `derive_network_file` takes a network file, the "parent file". It
 writes a smaller network as a new network file, the "derived file". The derived file
 holds some modes of the parent file, and its land networks inside a "bbox". A bbox
 is a rectangle of latitudes and longitudes: `(south, west, north, east)`, in degrees.
 A network release publishes `world_multimodal` and the networks derived from it.
 `DERIVED_NETWORKS` names each derived network, with its modes or its bbox.
-`derive_release_files` writes all the derived files of a network release.
+`derive_network_release_files` writes all the derived files of a network release.
 
 Each route of the derived file is a route of the parent file, with the same length.
 
@@ -17,7 +17,7 @@ WHAT IT READS
 
 A pipeline with several modes built the parent file, for example `osm_world_multimodal`.
 The file holds the mode of each node and the shape of each arc. Its coordinates are
-int32 values, in units of 1e-7 degree. `derive_file` maps the parent file, and
+int32 values, in units of 1e-7 degree. `derive_network_file` maps the parent file, and
 copies into memory only the nodes and the arcs that it keeps.
 
 HOW A RUN GOES
@@ -74,10 +74,10 @@ WHAT THE HEADER OF A DERIVED FILE RECORDS
 
 HOW A DERIVED FILE IS VALIDATED
 
-`validate_derived_file` reads the validation cases of the pipeline of the parent
+`validate_derived_network_file` reads the validation cases of the pipeline of the parent
 file. It selects a case when two conditions hold. The two ends of the case are inside
 the bbox. The derived file holds the modes on which the kind of the case searches its
-routes (`RULES` of `stage4_validation`). Some kinds search on every mode: the derived
+routes (`RULES` of `validation_cases`). Some kinds search on every mode: the derived
 file must then hold every mode of the parent file.
 
 The derived file passes when it fails no selected case that the parent file passes.
@@ -89,7 +89,7 @@ this case too, and it passes its validation.
 
 THE COMMAND LINE
 
-`python -m scgraph.pipelines.derive WORLD_FILE OUTPUT_DIR` writes the derived files
+`python -m scgraph.pipelines.derived_networks WORLD_FILE OUTPUT_DIR` writes the derived files
 of a network release into `OUTPUT_DIR`, and prints their paths. With names after
 `OUTPUT_DIR`, it writes these derived networks only, for example `oceania`.
 `--help` lists the options.
@@ -103,10 +103,10 @@ from array import array
 from collections.abc import Sequence
 
 from scgraph import network_file, pipelines
-from scgraph.pipelines.steps.stage3_assembly import assembly
-from scgraph.pipelines.steps.stage4_validation import (
+from scgraph.pipelines.steps import network_arrays
+from scgraph.pipelines.steps.validation_cases import (
     RULES,
-    load_cases,
+    load_validation_cases,
     validate_network,
 )
 from scgraph.utils import _log_step
@@ -120,7 +120,7 @@ LAND_MODES = ("road", "rail", "rail_terminal")
 # The bbox of a call without a bbox: every point is inside it.
 _WHOLE_GLOBE = (-90, -180, 90, 180)
 # The networks that a network release derives from the file of `world_multimodal`.
-# An entry gives the arguments of `derive_file` for one network. `modes` names the
+# An entry gives the arguments of `derive_network_file` for one network. `modes` names the
 # modes to keep. `bbox` is the rectangle that cuts the land networks, as (south,
 # west, north, east) in degrees.
 DERIVED_NETWORKS: dict[str, dict] = {
@@ -137,7 +137,7 @@ DERIVED_NETWORKS: dict[str, dict] = {
 }
 
 
-def derive_file(
+def derive_network_file(
     parent_file: str | os.PathLike,
     derived_file: str | os.PathLike,
     modes: list[str] | None = None,
@@ -201,7 +201,7 @@ def derive_file(
     with _log_step(
         logger,
         "select the nodes",
-        assembly._count_nodes_and_arcs(parent_arrays),
+        network_arrays._count_nodes_and_arcs(parent_arrays),
     ) as counts:
         # 1. Select the nodes
         land_rows = {
@@ -225,16 +225,16 @@ def derive_file(
             ),
         )
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
-        graph = assembly._renumbered(parent_arrays, selected)
-        counts.update(assembly._count_nodes_and_arcs(graph, "kept_"))
+        graph = network_arrays._renumbered(parent_arrays, selected)
+        counts.update(network_arrays._count_nodes_and_arcs(graph, "kept_"))
     with _log_step(
         logger,
         "keep the strongly connected components",
-        assembly._count_nodes_and_arcs(graph),
+        network_arrays._count_nodes_and_arcs(graph),
     ) as counts:
         # 3. Keep the strongly connected components
         kept_nodes, component_of_node = (
-            assembly.keep_strongly_connected_components(
+            network_arrays.keep_strongly_connected_components(
                 graph["offsets"], graph["heads"], min_component_nodes
             )
         )
@@ -244,8 +244,8 @@ def derive_file(
                 "or more with these modes inside the bbox"
             )
         # An arc between two components is dropped
-        graph = assembly._renumbered(graph, kept_nodes, component_of_node)
-        counts.update(assembly._count_nodes_and_arcs(graph, "kept_"))
+        graph = network_arrays._renumbered(graph, kept_nodes, component_of_node)
+        counts.update(network_arrays._count_nodes_and_arcs(graph, "kept_"))
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
     if len(kept_mode_rows) == 1:
@@ -289,7 +289,7 @@ def derive_file(
     )
 
 
-def validate_derived_file(
+def validate_derived_network_file(
     derived_file: str | os.PathLike, parent_file: str | os.PathLike
 ) -> None:
     """Check that a derived file fails no validation case that its parent file
@@ -297,7 +297,7 @@ def validate_derived_file(
     bbox. The module docstring says which cases are selected.
 
     Args:
-        derived_file: A network file that `derive_file` wrote.
+        derived_file: A network file that `derive_network_file` wrote.
         parent_file: The network file that `derived_file` was derived from.
 
     Raises:
@@ -309,7 +309,7 @@ def validate_derived_file(
     if "derivation" not in info:
         raise ValueError(
             f"{derived_file} has no derivation in its header: "
-            "validate_derived_file needs a file that derive_file wrote"
+            "validate_derived_network_file needs a file that derive_network_file wrote"
         )
     parent_pipeline, derivation = info["pipeline"], info["derivation"]
     modes = derivation["modes"]
@@ -341,7 +341,9 @@ def validate_derived_file(
         ) from None
     cases = [
         case
-        for case in load_cases(pipeline.VALIDATION, parent_pipeline["region"])
+        for case in load_validation_cases(
+            pipeline.VALIDATION, parent_pipeline["region"]
+        )
         if is_selected(case)
     ]
 
@@ -366,7 +368,7 @@ def validate_derived_file(
         )
 
 
-def derive_release_files(
+def derive_network_release_files(
     world_file: str | os.PathLike,
     output_dir: str | os.PathLike,
     names: Sequence[str] | None = None,
@@ -386,7 +388,7 @@ def derive_release_files(
         output_dir: The folder of the derived files. It must exist.
         names: The names of the derived networks to write, among `DERIVED_NETWORKS`.
             None writes every derived network.
-        validate: Check each derived network with `validate_derived_file`. The two
+        validate: Check each derived network with `validate_derived_network_file`. The two
             files of a network hold the same network, so the function checks only
             the file with shapes.
 
@@ -410,11 +412,11 @@ def derive_release_files(
     written = []
     for name in selected:
         with_shapes = os.path.join(output_dir, f"{name}.scgraph")
-        derive_file(world_file, with_shapes, **DERIVED_NETWORKS[name])
+        derive_network_file(world_file, with_shapes, **DERIVED_NETWORKS[name])
         if validate:
-            validate_derived_file(with_shapes, world_file)
+            validate_derived_network_file(with_shapes, world_file)
         without_shapes = os.path.join(output_dir, f"{name}.no_shapes.scgraph")
-        derive_file(
+        derive_network_file(
             world_file,
             without_shapes,
             **DERIVED_NETWORKS[name],
@@ -425,14 +427,14 @@ def derive_release_files(
         world_without_shapes = os.path.join(
             output_dir, "world_multimodal.no_shapes.scgraph"
         )
-        derive_file(world_file, world_without_shapes, keep_shapes=False)
+        derive_network_file(world_file, world_without_shapes, keep_shapes=False)
         written.append(world_without_shapes)
     return written
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        prog="python -m scgraph.pipelines.derive",
+        prog="python -m scgraph.pipelines.derived_networks",
         description="Write the derived files of a network release from the file "
         "of world_multimodal, with no download, and print their paths.",
     )
@@ -456,7 +458,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)  # the count of validation cases
     try:
-        paths = derive_release_files(
+        paths = derive_network_release_files(
             args.world_file,
             args.output_dir,
             args.names or None,

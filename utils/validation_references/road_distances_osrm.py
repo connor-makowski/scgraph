@@ -9,7 +9,7 @@ direction is queried once on the public OSRM demo server (driving profile, overv
 >= 1.5 s apart, with a generic User-Agent; the raw answers go to
 road_distances_osrm_raw.jsonl, which it refuses to overwrite. Queried 2026-11-06.
 
-`cases` writes `road_distances.csv` in `scgraph/pipelines/steps/stage4_validation/cases` from the raw answers (no query), and refuses to
+`cases` writes `road_distances.csv` in `scgraph/pipelines/steps/validation_cases/cases` from the raw answers (no query), and refuses to
 overwrite it: a per-case `tolerance` and its `tolerance_reason` are set by hand afterwards,
 in a commit that gives the reason. City-centre coordinates: Natural Earth 1:10m populated
 places v5.1.2 (public domain), by NE_ID.
@@ -28,7 +28,7 @@ HERE = Path(__file__).resolve().parent
 RAW = HERE / "road_distances_osrm_raw.jsonl"
 CASES = (
     HERE.parents[1]
-    / "scgraph/pipelines/steps/stage4_validation/cases/road_distances.csv"
+    / "scgraph/pipelines/steps/validation_cases/cases/road_distances.csv"
 )
 URL = "https://router.project-osrm.org/route/v1/driving/{},{};{},{}?overview=false"
 NE_URL = (

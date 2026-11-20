@@ -1,10 +1,10 @@
 # Hub tables
 
-Small tables that the multimodal pipelines read (`hubs.TABLES`). They are snapshots kept
+Small tables that the multimodal pipelines read (`hub_connectors.HUB_TABLES`). They are snapshots kept
 with the code, so that a build reads the same hubs on every machine.
 `utils/build_hub_tables.py` makes them again from their sources; a new snapshot is reviewed
 like any change of code. The change that brings a new snapshot also updates the `version`
-of the table in `hubs.TABLES` and the counts below. It raises the `PIPELINE_VERSION` of
+of the table in `hub_connectors.HUB_TABLES` and the counts below. It raises the `PIPELINE_VERSION` of
 the pipelines that read the table, so that a cached network is built again.
 
 | Table | Rows | Columns | Source | Licence |

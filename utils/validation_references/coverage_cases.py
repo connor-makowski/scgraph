@@ -6,14 +6,14 @@ largest population figure Natural Earth gives for the place, metropolitan where 
 Each city gets a landmass: the Natural Earth land polygon that contains it (else the nearest
 one; its distance is recorded), with the Americas split at the Darien Gap (no road there):
 cities of South American countries form their own landmass. The landmass's main city is its
-most populous city (POP_MAX) in this list. The coverage rule of `stage4_validation` checks
+most populous city (POP_MAX) in this list. The coverage rule of `validation_cases` checks
 that each city is within 5 km of a road, and that a road route joins it to the main city.
 
 Island and strait cases (crossings): 12 fixed pairs whose road route needs a bridge,
 tunnel or ferry. Coordinates from Natural Earth (NE_ID) except Ronne and Kadikoy (not in
 Natural Earth), read from their Wikipedia pages (2026-11-06).
 
-Writes `coverage.csv` and `crossings.csv` in `scgraph/pipelines/steps/stage4_validation/cases` (refuses to
+Writes `coverage.csv` and `crossings.csv` in `scgraph/pipelines/steps/validation_cases/cases` (refuses to
 overwrite them). A row
 disabled later by hand (Mazatlan) says why in its `source`.
 
@@ -36,7 +36,7 @@ from scgraph.utils import haversine
 # The folder of the case files, in the package
 CASES = (
     Path(__file__).resolve().parents[2]
-    / "scgraph/pipelines/steps/stage4_validation/cases"
+    / "scgraph/pipelines/steps/validation_cases/cases"
 )
 NE = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/"
 SOUTH_AMERICA = {

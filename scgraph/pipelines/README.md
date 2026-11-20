@@ -115,7 +115,7 @@ from its log. Another day gives other numbers, because the extract changes every
 
 ```
 pip install "scgraph[osm]"
-python -m scgraph.pipelines.build geofabrik_multimodal --region europe/denmark --validate
+python -m scgraph.pipelines.network_builder geofabrik_multimodal --region europe/denmark --validate
 ```
 
 The command prints the path of the network file. It logs each download. To see each step with
@@ -123,10 +123,10 @@ its counts, call the runner from Python with the logging level DEBUG:
 
 ```py
 import logging
-from scgraph.pipelines.build import build_file
+from scgraph.pipelines.network_builder import build_network_file
 
 logging.basicConfig(level=logging.DEBUG)
-build_file("geofabrik_multimodal", region="europe/denmark", validate=True)
+build_network_file("geofabrik_multimodal", region="europe/denmark", validate=True)
 ```
 
 ### The steps
@@ -160,11 +160,11 @@ It downloads five of them. The four others are small tables kept with scgraph, w
 
 The extract comes last. When a small source fails, the large download has not started.
 
-Where to read more: `build.py`, function `build_file`.
+Where to read more: `build.py`, function `build_network_file`.
 
 #### Step 2. Read and cut the ways
 
-`osm.build_way_pieces` reads the extract and keeps the ways that the pipeline selects. It cuts
+`osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline selects. It cuts
 each way at its junctions. It also cuts a way where a piece would be longer than
 `max_km_between_nodes` (2 km). A route starts at the node nearest to its origin, so a long
 road needs nodes along it. The function simplifies the shape of each piece to within 50 m.
@@ -184,13 +184,13 @@ Each mode has its own junctions and its own pieces, so the roads and the railway
 A road and a railway can share a node of OpenStreetMap at a level crossing. The build makes
 one node for each mode there, so no route changes mode at a level crossing.
 
-The function also attaches the vehicle ferries to the roads (`osm.build_ferry_arcs`). A ferry
+The function also attaches the vehicle ferries to the roads (`osm_ways.build_ferry_arcs`). A ferry
 is kept when each of its ends is within 2 km of a road node. The ferries give 12 arcs in this
 build, one for each direction. Two ferry routes join the same two road nodes, and a graph
 holds one arc from a node to another, the shorter one. So the file has 10 arcs of the class
 `ferry`.
 
-Where to read more: the docstring at the top of `steps/stage1_extract/osm.py`.
+Where to read more: the docstring at the top of `steps/osm_ways.py`.
 
 #### Step 3. Read the sea lanes
 
@@ -204,15 +204,15 @@ region and come back.
 cell is land or water. The next step uses it for two checks: a connector to a road or to a
 railway crosses little water, and a connector to a sea lane stays on water.
 
-Where to read more: the docstring at the top of `steps/stage2_intermodal/landmask.py`.
+Where to read more: the docstring at the top of `steps/land_mask.py`.
 
 #### Step 5. Join the networks at the hubs
 
 At this point the build holds three graphs with no arc between them: roads, railways and sea
-lanes. `hubs.join` adds the hubs and their connectors.
+lanes. `hub_connectors.join_networks_at_hubs` adds the hubs and their connectors.
 
-The tables give 242 hubs inside the raster, which is wider than Denmark. `hubs.join` joins a
-hub that reaches at least two networks:
+The tables give 242 hubs inside the raster, which is wider than Denmark.
+`hub_connectors.join_networks_at_hubs` joins a hub that reaches at least two networks:
 
 - a port can reach a road, a sea lane, and a railway when its table says that it has one;
 - an airport can reach a road, and its flights count as a second network;
@@ -230,11 +230,11 @@ length is the great-circle distance.
 
 The result is one graph of 66,146 nodes and 195,274 arcs.
 
-Where to read more: the docstring at the top of `steps/stage2_intermodal/hubs.py`.
+Where to read more: the docstring at the top of `steps/hub_connectors.py`.
 
 #### Step 6. Assemble the graph
 
-`assembly.assemble` does three things.
+`network_arrays.assemble_network_arrays` does three things.
 
 | Step | Nodes | Arcs |
 |---|---|---|
@@ -252,7 +252,7 @@ Where to read more: the docstring at the top of `steps/stage2_intermodal/hubs.py
 - **Order the nodes.** The nodes are sorted by mode, then along a Hilbert curve. Nodes that are
   near on the map are then near in the file, so a search reads nearby memory.
 
-Where to read more: the docstring at the top of `steps/stage3_assembly/assembly.py`.
+Where to read more: the docstring at the top of `steps/network_arrays.py`.
 
 #### Step 7. The runner writes the network file
 
@@ -274,7 +274,7 @@ that the port of Arhus has a connector to a road, to a railway and to a sea lane
 Then the runner moves the file into the cache. A network that fails a case does not enter the
 cache.
 
-Where to read more: the docstring of `steps/stage4_validation`.
+Where to read more: the docstring of `steps/validation_cases`.
 
 ### What comes out
 
@@ -311,9 +311,9 @@ To keep some modes only, load the file with `modes`. With the roads alone, the r
 the same two points is 302.2 km:
 
 ```py
-from scgraph.pipelines.build import build_file
+from scgraph.pipelines.network_builder import build_network_file
 
-file = build_file("geofabrik_multimodal", region="europe/denmark")  # the file of the cache
+file = build_network_file("geofabrik_multimodal", region="europe/denmark")  # the file of the cache
 roads = GeoGraph.load_from_scgraph(file, modes=["road"])
 ```
 
@@ -345,9 +345,9 @@ Part 4 loads some modes only.
 
 ## Part 2. Derive a network from a network file
 
-`derive_file` of `derive.py` reads one network file, the parent file, and writes a smaller
-one, the derived file. It downloads nothing. The docstring of the module `derive.py` gives the
-rules.
+`derive_network_file` of `derived_networks.py` reads one network file, the parent file, and
+writes a smaller one, the derived file. It downloads nothing. The docstring of the module
+`derived_networks.py` gives the rules.
 
 A derivation takes two choices. The first is a list of modes. The second is a bbox, a rectangle
 `(south, west, north, east)` in degrees. The table `DERIVED_NETWORKS` of the same module names
@@ -355,7 +355,7 @@ the ten derived networks of a network release, each with its modes or its bbox. 
 are `world_sea` and `oceania`.
 
 ```
-python -m scgraph.pipelines.derive world_multimodal.scgraph derived oceania
+python -m scgraph.pipelines.derived_networks world_multimodal.scgraph derived oceania
 ```
 
 The arguments are the world file, the output folder and the name of a derived network. The
@@ -378,7 +378,7 @@ extension. The parent file is the `world_multimodal` of the network release
   the railways and the rail terminals inside it. The sea lanes, the ports and the airports of
   the world all stay, so a route may leave the bbox by sea or by air.
 - **Keep the components.** The selection leaves 49 nodes apart from the rest,
-  in strongly connected components of fewer than 10 nodes. `derive_file` removes them. It
+  in strongly connected components of fewer than 10 nodes. `derive_network_file` removes them. It
   does not contract the chains again: a junction that lost a road stays as a node.
 
 The derivation took 1.4 s. The derived file is 19.7 MB, and 7.0 MB without the shapes. Its
@@ -403,7 +403,7 @@ Parts 1 and 2 for the world, then prepares the GitHub release.
 ### What comes before the tag
 
 The date of the data is in the code, not in the tag. The constant `PLANET` of
-`steps/stage1_extract/osm.py` holds the URL of one planet file of OpenStreetMap, and this URL
+`steps/osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
 `networks-2026.11.20-dev.1` holds the planet of 2026-11-02.
 
@@ -474,7 +474,7 @@ The network release `networks-2026.11.20-dev.1` holds 23 files.
 - `networks.json`, the index of the network release. It gives for each file its size, its
   `content_sha256`, its number of nodes and of arcs, its sources and its credit line.
 
-`utils/assemble_networks.py` compresses the files, and writes the index and the notes of the
+`utils/draft_network_release.py` compresses the files, and writes the index and the notes of the
 network release. The notes show a table of the files and the credit line of each file.
 
 ### From the draft to the users
@@ -511,7 +511,7 @@ scgraph refuses a downloaded file whose `content_sha256` is not the one in
   release.
 
 Where to read more: the comment at the top of `build_networks.yml`, and the docstring of
-`utils/assemble_networks.py`.
+`utils/draft_network_release.py`.
 
 ## Part 4. Load a released network
 
@@ -585,16 +585,16 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 
 ## A network of your own
 
-- **Another network derived from a released network.** `derive_file` takes any modes and any
+- **Another network derived from a released network.** `derive_network_file` takes any modes and any
   bbox. The parent file is in the cache after a load, and `scgraph_file` gives its path. The
   parent file must have the shapes of its arcs.
 
   ```py
   from scgraph import GeoGraph
-  from scgraph.pipelines.derive import derive_file
+  from scgraph.pipelines.derived_networks import derive_network_file
 
   europe = GeoGraph.load_geograph("europe")
-  derive_file(europe.scgraph_file, "iberia.scgraph", bbox=(36, -10, 44, 4))
+  derive_network_file(europe.scgraph_file, "iberia.scgraph", bbox=(36, -10, 44, 4))
   iberia = GeoGraph.load_from_scgraph("iberia.scgraph")
   ```
 

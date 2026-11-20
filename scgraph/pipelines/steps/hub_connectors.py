@@ -31,7 +31,7 @@ rail node and 4.08 km from a road node, and the water path to the nearest sea no
 0.99 km long. Its node gets three connectors, each in both directions: 0.91 km to the
 railway (1.2 times 0.76), 4.90 km to the road (1.2 times 4.08) and 0.99 km to the sea.
 
-The hubs come from small tables kept with scgraph (`TABLES`, in `scgraph/pipelines/data/`),
+The hubs come from small tables kept with scgraph (`HUB_TABLES`, in `scgraph/pipelines/data/`),
 each made by `utils/build_hub_tables.py` from its source. A pipeline may name its own
 table instead: a source whose URL starts with http is downloaded.
 """
@@ -46,7 +46,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from scgraph.pipelines import CLASS_ROWS
-from scgraph.pipelines.steps.stage3_assembly.assembly import (
+from scgraph.pipelines.steps.network_arrays import (
     NearNodes,
     PieceArrays,
     build_graph_from_pieces,
@@ -55,7 +55,7 @@ from scgraph.pipelines.steps.stage3_assembly.assembly import (
 from scgraph.utils import haversine
 
 if TYPE_CHECKING:
-    from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
+    from scgraph.pipelines.steps.land_mask import LandMask
 
 # The longest connector to each mode, in km: the straight line to a road or rail node,
 # and the water path to a sea node
@@ -65,7 +65,7 @@ CONNECTOR_KM = {"road": 20, "rail": 10, "sea": 2500}
 WATER_KM, ROADSTEAD_WATER_KM = 3, 10
 # A land connector weighs this many times its straight line, because a real road bends
 CIRCUITY = 1.2
-DATA = Path(__file__).parents[2] / "data"
+DATA = Path(__file__).parents[1] / "data"
 
 
 def copy_table(url: str, filename: str | os.PathLike) -> None:
@@ -93,7 +93,7 @@ def _table(
 
 
 # The sources of the hub tables, as a pipeline lists them in its SOURCES
-TABLES = {
+HUB_TABLES = {
     "ports": _table(
         "ports",
         "National Geospatial-Intelligence Agency, World Port Index (Pub. 150)",
@@ -191,7 +191,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
 
 class _Layer:
     """The network of one mode, from the network file's arrays
-    (`assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
+    (`network_arrays.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
     node ids and its arcs, each with its class.
     """
 
@@ -234,7 +234,7 @@ class _Layer:
                 yield u, self.heads[a], weights[a], shape, arc_classes[a]
 
 
-def join(
+def join_networks_at_hubs(
     layers: dict[str, dict],
     hubs: Iterable[Hub],
     land_mask: "LandMask",

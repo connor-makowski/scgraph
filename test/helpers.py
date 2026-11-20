@@ -49,24 +49,24 @@ def build_main_roads(files, *, work_dir=None):
     mode: read and cut the ways, store the pieces as a graph, assemble the arrays.
     Its select functions give no class.
     """
-    from scgraph.pipelines.steps import assembly, osm
+    from scgraph.pipelines.steps import network_arrays, osm_ways
 
-    pieces = osm.build_way_pieces(
+    pieces = osm_ways.build_way_pieces(
         files["roads"],
         {
             "road": {
-                "ways": osm.select_main_roads,
-                "ferries": osm.select_vehicle_ferries,
+                "ways": osm_ways.select_main_roads,
+                "ferries": osm_ways.select_vehicle_ferries,
             }
         },
         ("highway", "route"),
-        osm.MAX_KM_BETWEEN_NODES,
-        os.path.join(work_dir, "stage1") if work_dir else None,
+        osm_ways.MAX_KM_BETWEEN_NODES,
+        os.path.join(work_dir, "ways") if work_dir else None,
     )
-    graph = assembly.build_graph_from_pieces(pieces["road"])
-    arrays = assembly.assemble(
+    graph = network_arrays.build_graph_from_pieces(pieces["road"])
+    arrays = network_arrays.assemble_network_arrays(
         graph,
-        max_km_between_nodes=osm.MAX_KM_BETWEEN_NODES,
+        max_km_between_nodes=osm_ways.MAX_KM_BETWEEN_NODES,
         min_component_nodes=None,  # only the largest component
     )
     return arrays, [{"name": None}]

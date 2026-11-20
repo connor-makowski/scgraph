@@ -22,12 +22,12 @@ rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
 import os
 
 from scgraph.pipelines import geofabrik_multimodal as regional
-from scgraph.pipelines.steps.stage1_extract import osm
+from scgraph.pipelines.steps import osm_ways
 
 PIPELINE_VERSION = 2
 
 # The sources of the regional pipeline, with the planet in place of the extract
-SOURCES = {**regional.SOURCES, "osm": osm.PLANET}
+SOURCES = {**regional.SOURCES, "osm": osm_ways.PLANET}
 # The length in km at which a way is cut, and at which a chain is cut. A larger
 # value gives fewer nodes: with 10, the world network has about 3.3 million nodes.
 MAX_KM_BETWEEN_NODES = 10

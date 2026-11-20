@@ -685,7 +685,7 @@ class GeoGraphIO:
         - `select`
             - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
-            - Default: None: `scgraph.pipelines.steps.osm.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns 1 or -1)
+            - Default: None: `scgraph.pipelines.steps.osm_ways.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns 1 or -1)
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -733,10 +733,10 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.pipelines.steps.stage3_assembly.assembly import (
+        from scgraph.pipelines.steps.network_arrays import (
             keep_largest_strongly_connected_component,
         )
-        from scgraph.pipelines.steps.stage1_extract.osm import (
+        from scgraph.pipelines.steps.osm_ways import (
             MAX_KM_BETWEEN_NODES,
             select_main_roads,
             read_osm,
@@ -1450,7 +1450,7 @@ class GeoGraphIO:
     def build_geograph(
         name: (
             Literal[
-                "eurostat_marnet",
+                "eurostat_sea_lanes",
                 "geofabrik_multimodal",
                 "osm_world_multimodal",
             ]
@@ -1481,7 +1481,7 @@ class GeoGraphIO:
             - What: The name of the network (see `GeoGraph.list_buildable_geographs()`), or a pipeline module with the contract of `scgraph.pipelines` (for example a copy of one, adapted)
             - Note: A module is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a built-in pipeline; two modules with the same last name share that cache entry; `list_buildable_geographs` does not list it
 
-        - The runner behind this function, `scgraph.pipelines.build.build_file`, has more options: keeping the work folder of a long build to resume it, and checking the built network against its validation cases.
+        - The runner behind this function, `scgraph.pipelines.network_builder.build_network_file`, has more options: keeping the work folder of a long build to resume it, and checking the built network against its validation cases.
 
         Optional Arguments:
 
@@ -1535,10 +1535,10 @@ class GeoGraphIO:
                     local_files_only=local_files_only,
                 )
             )
-        from scgraph.pipelines.build import build_file
+        from scgraph.pipelines.network_builder import build_network_file
 
         return GeoGraph.load_from_scgraph(
-            build_file(
+            build_network_file(
                 name,
                 region,
                 cache_dir,

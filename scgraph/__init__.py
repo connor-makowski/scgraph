@@ -548,7 +548,7 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 
 `build_geograph` builds a network on your machine from its online sources. It downloads the sources once and keeps the built network in the local cache. Later calls load the network from the cache, without network access. A source can be large: the OpenStreetMap extract of a country can take several GB. scgraph logs a warning before a download above 100 MB.
 
-Each network is built by a pipeline. A pipeline is a module of `scgraph.pipelines`, and its docstring describes the network: what it holds, its rules and its limits. From the command line, `python -m scgraph.pipelines.build NAME [--region R] [--cache-dir D]` builds a network without loading it, and prints the path of its file.
+Each network is built by a pipeline. A pipeline is a module of `scgraph.pipelines`, and its docstring describes the network: what it holds, its rules and its limits. From the command line, `python -m scgraph.pipelines.network_builder NAME [--region R] [--cache-dir D]` builds a network without loading it, and prints the path of its file.
 
 ```py
 import logging
@@ -560,15 +560,15 @@ logging.basicConfig(level=logging.INFO)  # optional: show the downloads and the 
 # (needs: pip install scgraph[osm])
 denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
 # INFO:scgraph.pipelines:Downloading https://download.geofabrik.de/europe/denmark-latest.osm.pbf (498.2 MB)
-# INFO:scgraph.pipelines.build:Building geofabrik_multimodal
+# INFO:scgraph.pipelines.network_builder:Building geofabrik_multimodal
 # The last INFO line gives the credit to cite.
 
 # Sea lanes of the world, from Eurostat SeaRoute
-sea = GeoGraph.build_geograph("eurostat_marnet")
+sea = GeoGraph.build_geograph("eurostat_sea_lanes")
 
 # What can be built, who to credit, and what is already in the cache
 GeoGraph.list_buildable_geographs()
-# [{"name": "eurostat_marnet", "description": "Sea lanes of Eurostat SeaRoute at 5 km resolution, (...)",
+# [{"name": "eurostat_sea_lanes", "description": "Sea lanes of Eurostat SeaRoute at 5 km resolution, (...)",
 #   "credit": "Eurostat, SeaRoute maritime network (...)", "license": "EUPL-1.2",
 #   "needs_region": False, "cached": False, "cached_regions": []},
 #  ...]
@@ -578,7 +578,7 @@ The region of `geofabrik_multimodal` is the path of a [Geofabrik extract](https:
 
 | Name | Network | Source |
 |---|---|---|
-| `eurostat_marnet` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out (unlike the built-in `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
+| `eurostat_sea_lanes` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out (unlike the built-in `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
 | `geofabrik_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each arc has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
 | `osm_world_multimodal` | `geofabrik_multimodal` for the world (needs the C++ extension). This pipeline builds the released network `world_multimodal` | The sources of `geofabrik_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
 
@@ -702,7 +702,7 @@ Ways meet only where they share an OSM node, so roads that cross on a bridge or 
 | Parameter | Default | Description |
 |---|---|---|
 | `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`), or a source object (`scgraph.pipelines.steps.osm.locate_ways`) |
-| `select` | `None` (`scgraph.pipelines.steps.osm.select_main_roads`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.pipelines.steps.osm.MAIN_ROADS`), one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns `1` or `-1` |
+| `select` | `None` (`scgraph.pipelines.steps.osm_ways.select_main_roads`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.pipelines.steps.osm.MAIN_ROADS`), one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns `1` or `-1` |
 | `tag_keys` | `("highway",)` | Tag keys of which a way must have at least one to reach `select`, filtered in osmium (faster); `()` sends every way to `select` |
 | `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new arc, at the next point of the way |
 | `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |

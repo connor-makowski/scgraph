@@ -9,7 +9,7 @@ name: Build the reference networks
 #
 # One network is built from its sources: `world_multimodal`, by the pipeline
 # `osm_world_multimodal`. Every other file is derived from it by
-# `scgraph.pipelines.derive`, with no download: `DERIVED_NETWORKS` of that module
+# `scgraph.pipelines.derived_networks`, with no download: `DERIVED_NETWORKS` of that module
 # names the derived networks. The world file is carried over from the previous
 # published network release when the same pipeline, at the same version, built it
 # from the same source URLs. That release may be a development release.
@@ -68,8 +68,8 @@ jobs:
       - name: Read the planet from the us-west-2 mirror
         run: |
           sed -i 's/osm-planet-eu-central-1\.s3\.dualstack\.eu-central-1/osm-planet-us-west-2.s3.dualstack.us-west-2/' \
-            scgraph/pipelines/steps/stage1_extract/osm.py
-          grep -n 'osm-planet-us-west-2' scgraph/pipelines/steps/stage1_extract/osm.py
+            scgraph/pipelines/steps/osm_ways.py
+          grep -n 'osm-planet-us-west-2' scgraph/pipelines/steps/osm_ways.py
       - name: Install scgraph with the C++ extension and osmium
         run: uv sync --extra osm
       - name: Find the previous network release
@@ -116,7 +116,7 @@ jobs:
       - name: Build and validate the world network, if it is not carried over
         run: |
           if [ -f files/world_multimodal.scgraph ]; then echo "carried over"; exit 0; fi
-          uv run python -m scgraph.pipelines.build osm_world_multimodal --cache-dir cache --validate
+          uv run python -m scgraph.pipelines.network_builder osm_world_multimodal --cache-dir cache --validate
           mkdir -p files
           cp cache/networks/osm_world_multimodal/*.scgraph files/world_multimodal.scgraph
       - uses: actions/upload-artifact@v4
@@ -149,7 +149,7 @@ jobs:
       # without them. The command also writes the world file without shapes.
       - name: Derive and validate each network
         run: |
-          uv run python -m scgraph.pipelines.derive files/world_multimodal.scgraph files
+          uv run python -m scgraph.pipelines.derived_networks files/world_multimodal.scgraph files
           ls -l files
       # A run that is started again replaces its own draft
       - name: Delete the draft of an earlier run
@@ -164,7 +164,7 @@ jobs:
           fi
       - name: Assemble the release
         run: |
-          uv run python utils/assemble_networks.py files previous release "$TAG" "$GITHUB_SHA"
+          uv run python utils/draft_network_release.py files previous release "$TAG" "$GITHUB_SHA"
           cat release/notes.md >> "$GITHUB_STEP_SUMMARY"
       - name: Create the draft
         run: |

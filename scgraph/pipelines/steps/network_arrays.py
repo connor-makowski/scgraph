@@ -2,9 +2,9 @@
 
 WHAT IT ANSWERS
 
-`build_graph_from_pieces` turns the pieces that stage 1 cut (`PieceArrays`) into a
-graph. `assemble` turns this graph into the arrays of a network file. A route between
-two nodes of the same kept component has the same length before and after `assemble`.
+`build_graph_from_pieces` turns the pieces that `osm_ways` cut (`PieceArrays`) into a
+graph. `assemble_network_arrays` turns this graph into the arrays of a network file. A route between
+two nodes of the same kept component has the same length before and after `assemble_network_arrays`.
 
 HOW A GRAPH IS STORED
 
@@ -47,7 +47,7 @@ HOW A RUN GOES
    the class of its members.
 4. `build_chain_shapes` gives each contracted arc the shape points of its members,
    with the removed nodes between them.
-5. `assemble` numbers the nodes by mode, then along a Hilbert curve. A network file
+5. `assemble_network_arrays` numbers the nodes by mode, then along a Hilbert curve. A network file
    has this order.
 
 Example of step 3: the road 0-4-3-2-1-5 has arcs of 1 km, both ways, and
@@ -79,7 +79,7 @@ THE C++ VERSION
 network of the planet needs. The functions of this module call it when the extension
 is built and the inputs are `array` or `memoryview` buffers. The pure-Python versions
 give the same results. The namespace `python` of this module gives them, for example
-`assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
+`network_arrays.python.contract_chains`. The C++ version returns memoryviews, and the Python
 version returns `array`s.
 
 `build_csr_from_adjacency_list` and `keep_largest_strongly_connected_component` take
@@ -780,7 +780,7 @@ def build_graph_from_pieces(
     Of several arcs between the same two nodes, the shortest is kept.
 
     Args:
-        pieces: The pieces, as `osm.build_way_pieces` or `hubs.join` fill them.
+        pieces: The pieces, as `osm_ways.build_way_pieces` or `hub_connectors.join_networks_at_hubs` fill them.
 
     Returns:
         The graph as a dict of arrays: `offsets`, `heads`, `weights`, `node_points`,
@@ -841,7 +841,7 @@ def build_graph_from_pieces(
     return graph
 
 
-def assemble(
+def assemble_network_arrays(
     graph: dict[str, array | memoryview],
     *,
     max_km_between_nodes: float,
