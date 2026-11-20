@@ -22,6 +22,7 @@
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"
 #include "../src/snap_index.hpp"
+#include "../src/arc_selection.hpp"
 #include "ndarray_types.hpp"
 
 namespace nb = nanobind;
@@ -293,6 +294,22 @@ NB_MODULE(cpp, m) {
        "[[latitude, longitude] of node i for i in ids] in one C loop, from the points of the nodes "
        "(latitude then longitude of each node, int32 in 1e-7 degree or float64 degrees) and a list of "
        "ids (negative ids count from the end); a route's coordinates for NodePoints.take");
+
+    m.def("select_arcs", [](Int32Array offsets, Int32Array heads, Uint8Array node_modes,
+                            std::vector<bool> is_mode_kept, std::optional<Int32Array> shape_offsets) {
+        ArcSelection selection = select_arcs(
+            {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
+            {node_modes.data(), node_modes.shape(0)}, is_mode_kept,
+            shape_offsets ? std::span(shape_offsets->data(), shape_offsets->shape(0)) : std::span<const int32_t>());
+        return nb::make_tuple(
+            owned_view(std::move(selection.offsets)), owned_view(std::move(selection.heads)),
+            shape_offsets ? owned_view(std::move(selection.shape_offsets)) : nb::none(),
+            selection.node_runs, selection.arc_runs, selection.shape_point_runs);
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("node_modes"), nb::arg("is_mode_kept"),
+       nb::arg("shape_offsets") = nb::none(),
+       "The nodes of the kept modes of a network file and the arcs between them, as (offsets, heads, "
+       "shape_offsets, node_runs, arc_runs, shape_point_runs); explained in scgraph/cpp/src/arc_selection.hpp, "
+       "same result as scgraph.helpers.arc_selection.select_arcs");
 
     m.def("shape_path", &shape_path<double>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));
@@ -601,8 +618,8 @@ NB_MODULE(cpp, m) {
             return csr_graph(offsets, heads, weights, false);
         }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"),
            "Create a Graph from its arcs stored by origin (compressed sparse rows), as in a .scgraph network file")
-        // For load_from_scgraph: the arrays of a file mapped read-only, read in place
-        .def_static("_from_mapped_csr", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
+        // For load_from_scgraph: arrays that the graph reads in place and keeps alive
+        .def_static("_from_csr_in_place", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
             return csr_graph(offsets, heads, weights, true);
         }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"))
 

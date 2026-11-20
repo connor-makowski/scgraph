@@ -751,7 +751,7 @@ class GeoGraphIO:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
         - The file is checked before use: a damaged or foreign file raises a ValueError (in the C++ build, damaged arc shapes raise it when they are read)
-        - Without `modes`, in the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
+        - In the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
@@ -777,7 +777,7 @@ class GeoGraphIO:
             - Default: False
         - `modes`
             - Type: list[str] | str | None
-            - What: The names of the modes to load (see `modes`): only their nodes and the arcs between them, copied from the file instead of mapped; `modes` is the file's list, which `node_modes` indexes, and the file's metadata (sources, attribution, as `scgraph_info` gives it) stays the whole file's
+            - What: The names of the modes to load (see `modes`): only their nodes and the arcs between them, in the order of the file; `modes` is the file's list, which `node_modes` indexes, and the file's metadata (sources, attribution, as `scgraph_info` gives it) stays the whole file's
             - Default: None (every mode)
         """
         if lazy:
@@ -791,8 +791,9 @@ class GeoGraphIO:
             )
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
-        # The C++ graph reads the arcs in place, from the mapped file, and checks them
-        mapped = Graph.__module__ == "scgraph.cpp" and modes is None
+        # The C++ graph reads the arcs in place and checks them. The arcs are in the
+        # mapped file, or in the new arrays of a selection of modes.
+        mapped = Graph.__module__ == "scgraph.cpp"
         with _log_step(
             logger,
             "read the network file",
@@ -802,7 +803,7 @@ class GeoGraphIO:
             indicators["nodes"] = len(arrays["node_points"]) // 2
             indicators["arcs"] = len(arrays["heads"])
         try:
-            graph = (Graph._from_mapped_csr if mapped else Graph.from_csr)(
+            graph = (Graph._from_csr_in_place if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
             )
         except ValueError as error:
@@ -2283,7 +2284,7 @@ def _order_by_hilbert(geograph):
     if Graph.__module__ == "scgraph.cpp":
         # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
         # the new graph keeps instead of copying them again
-        graph = Graph._from_mapped_csr(*geograph.graph_object._csr(order))
+        graph = Graph._from_csr_in_place(*geograph.graph_object._csr(order))
     else:
         # Renumbered dicts, sharing the graph's weight objects (from_csr would not)
         rows = geograph.graph_object.unreduced_graph

@@ -15,14 +15,6 @@
 
 namespace nb = nanobind;
 
-// A memoryview that owns the vector
-template <class T>
-static nb::object owned_view(std::vector<T>&& values) {
-    auto* owned = new std::vector<T>(std::move(values));
-    nb::capsule owner(owned, [](void* p) noexcept { delete static_cast<std::vector<T>*>(p); });
-    return nb::cast(nb::ndarray<nb::memview, T, nb::ndim<1>>(owned->data(), {owned->size()}, owner));
-}
-
 void bind_pipelines(nb::module_& m) {
     // Assembly kernels (contracts in scgraph/pipelines/steps/stage3_assembly/assembly.py)
     auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights) {

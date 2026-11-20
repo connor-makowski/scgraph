@@ -469,9 +469,9 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - each value of `node_modes` is a row of `metadata.modes`;
    - each value of `arc_classes` is a row of `metadata.classes`.
 
-   `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer, without `modes`. In the C++ build, `load_from_scgraph` maps the file when it gets no `modes`. A mapped read does not check the values. The C++ graph checks the offsets and the heads when it is built.
+   `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer. In the C++ build, `load_from_scgraph` always maps the file. A mapped read does not check the values. The C++ graph checks the offsets and the heads when it is built.
 
-If `read` gets `modes`, it reads only the nodes of these modes. Between steps 4 and 5, it checks that each name is in `metadata.modes`, and that the values of `node_modes` do not decrease. Each arc that it reads keeps its class, and `metadata.classes` stays the whole list.
+If `read` gets `modes`, it keeps only the nodes of these modes and the arcs between them. It first checks that each name is in `metadata.modes`. The function `select_arcs` then visits each arc of the kept nodes once. `scgraph/cpp/src/arc_selection.hpp` explains this function, and `scgraph/helpers/arc_selection.py` is its pure-Python version. `select_arcs` checks each value that it reads, as step 6 does, and it checks that the values of `node_modes` do not decrease. It writes new `offsets`, `heads` and `shape_offsets`, because their values change. Every other array keeps its values. A mapped read takes these values in place when they are consecutive in the file, and copies them otherwise. Each kept arc keeps its class, and `metadata.classes` stays the whole list.
 
 `read` does not check the digest in bytes 8 to 39 (`content_sha256`). scgraph uses the digest as the name of a cached file, not to find a file that changed after it was written.
 
