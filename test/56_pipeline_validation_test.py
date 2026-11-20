@@ -48,18 +48,6 @@ def test_a_case_that_is_in_no_file_of_cases_is_refused():
         load_cases({"cases": ["no_such_case"]})
 
 
-@pytest.mark.parametrize(
-    "name", ["marnet", "us_freeway", "north_america_rail", "oak_ridge_maritime"]
-)
-def test_published_network_passes_its_validation_cases(name, request):
-    validation = importlib.import_module(f"scgraph.pipelines.{name}").VALIDATION
-    result = validate_network(
-        request.getfixturevalue(name), load_cases(validation)
-    )
-    assert result.is_success, result.failures
-    assert result.passed == len(validation["cases"])
-
-
 # The tests below use a network of two towns on the equator, one degree of
 # longitude apart: 111.19 km on a sphere of radius 6371 km. One road joins them.
 WEST_TOWN, EAST_TOWN = (0, 0), (0, 1)

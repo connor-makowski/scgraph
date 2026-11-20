@@ -18,7 +18,6 @@ import types
 import typing
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
 
 import pytest
 import requests
@@ -28,8 +27,6 @@ from scgraph import GeoGraph, network_file, pipelines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.pipelines import (
     eurostat_marnet,
-    marnet,
-    north_america_rail,
     osm_main_roads,
     osm_main_roads_and_marnet,
     osm_multimodal,
@@ -37,18 +34,6 @@ from scgraph.pipelines import (
 from scgraph.pipelines import build
 from scgraph.pipelines.steps import assembly, osm
 from scgraph.utils import has_cpp
-
-# Two lines meeting at (0.01, 0): 4 nodes, not read in Hilbert order
-_FEATURES = [
-    {"type": "Feature", "properties": {}, "geometry": g}
-    for g in (
-        {"type": "LineString", "coordinates": [[0.02, 0], [0.01, 0], [0, 0]]},
-        {"type": "LineString", "coordinates": [[0.01, 0], [0.01, 0.01]]},
-    )
-]
-_GEOJSON = json.dumps(
-    {"type": "FeatureCollection", "features": _FEATURES}
-).encode()
 
 
 def _sea_gpkg(lanes):
@@ -63,6 +48,15 @@ def _sea_gpkg(lanes):
         wkb = struct.pack(f">BII{len(xy)}d", 0, 2, len(xy) // 2, *xy)
         database.execute('insert into "type" values (?, ?)', (b"GP\x00\x02" + bytes(36) + wkb, passage))  # fmt: skip
     return database.serialize()
+
+
+# Two lines meeting at (0.01, 0) (lon, lat): 4 nodes, not read in Hilbert order
+_LINES = [([0.02, 0, 0.01, 0, 0, 0], None), ([0.01, 0, 0.01, 0.01], None)]
+_LINES_GPKG = _sea_gpkg(_LINES)
+# The same lines, with the end of the first one moved from 0.02 to 0.03
+_LINES_GPKG_WITH_A_MOVED_END = _sea_gpkg(
+    [([0.03, 0, 0.01, 0, 0, 0], None), _LINES[1]]
+)
 
 
 def _polygons(*rings):
@@ -90,7 +84,7 @@ def _polygons(*rings):
 # (5.5 km of water to any road), "Inland" (14 km from water) and "Far" (on the coast,
 # 27 km from the road) are not
 _FILES = {
-    "/lines.geojson": _GEOJSON,
+    "/lines.gpkg": _LINES_GPKG,
     "/roads.osm": b"""<osm version="0.6">
 <node id="1" version="1" lat="0" lon="0"/>
 <node id="2" version="1" lat="-0.01" lon="0"/>
@@ -149,51 +143,32 @@ _FILES = {
 }
 
 
-def _build_tangled_lines_geojson():
+def _build_tangled_lines_gpkg():
     """80 lines through 60 points, drawn at random with a fixed seed, as the
-    bytes of a GeoJSON file. The lines share points, so a node has several
-    arcs: the order in which a build writes them shows in the file."""
+    bytes of a GeoPackage of sea lanes. The lines share points, so a node has
+    several arcs: the order in which a build writes them shows in the file."""
     rng = random.Random(3)
     points = [[rng.uniform(0, 0.3), rng.uniform(0, 0.3)] for _ in range(60)]
     lines = [rng.sample(points, rng.randint(2, 6)) for _ in range(80)]
-    geometries = [{"type": "LineString", "coordinates": line} for line in lines]
-    return json.dumps(
-        {"type": "GeometryCollection", "geometries": geometries}
-    ).encode()
+    return _sea_gpkg(
+        [([x for point in line for x in point], None) for line in lines]
+    )
 
 
-_FILES["/tangled_lines.geojson"] = _build_tangled_lines_geojson()
+_FILES["/tangled_lines.gpkg"] = _build_tangled_lines_gpkg()
 
 
 class _Source(BaseHTTPRequestHandler):
-    """The files of _FILES at their paths, the lines as an ArcGIS layer at /layer
-    (one feature per page), and 404 for any other path."""
+    """The files of _FILES at their paths, and 404 for any other path."""
 
     served = []
 
     def do_GET(self):
-        url = urlparse(self.path)
-        query = {key: value[0] for key, value in parse_qs(url.query).items()}
-        self.served.append(url.path)
-        if not (url.path in _FILES or url.path.startswith("/layer")):
+        self.served.append(self.path)
+        if self.path not in _FILES:
             self.send_error(404)
             return
-        if url.path in _FILES:
-            body = _FILES[url.path]
-        elif url.path == "/layer":
-            body = {
-                "objectIdField": "OBJECTID",
-                "maxRecordCount": 1,
-                "editingInfo": {"lastEditDate": 1704164645000},
-            }
-        elif "returnCountOnly" in query:
-            body = {"count": len(_FEATURES)}
-        else:
-            offset, count = int(query["resultOffset"]), int(
-                query["resultRecordCount"]
-            )
-            body = {"features": _FEATURES[offset : offset + count]}
-        data = body if isinstance(body, bytes) else json.dumps(body).encode()
+        data = _FILES[self.path]
         self.send_response(200)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -227,74 +202,74 @@ def source(monkeypatch):
 
 
 @pytest.fixture
-def marnet_reads_the_local_lines(source, monkeypatch):
-    """The `marnet` pipeline downloads /lines.geojson of the local server in
-    place of its online source. The fixture gives the URL of that file. The
+def sea_lanes_are_the_local_lines(source, monkeypatch):
+    """The `eurostat_marnet` pipeline downloads /lines.gpkg of the local server
+    in place of its online source. The fixture gives the URL of that file. The
     network of these two lines has 4 nodes."""
-    url = f"{source}/lines.geojson"
-    monkeypatch.setitem(marnet.SOURCES["sea_lanes"], "url", url)
+    url = f"{source}/lines.gpkg"
+    monkeypatch.setitem(eurostat_marnet.SOURCES["sea_lanes"], "url", url)
     return url
 
 
 def test_build_geograph_downloads_and_builds_a_network_once(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    first = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
-    second = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    first = GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
+    second = GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
 
     assert len(first.nodes) == 4
     assert second.graph_object.graph == first.graph_object.graph
-    assert _Source.served == ["/lines.geojson"]  # the second call is local
+    assert _Source.served == ["/lines.gpkg"]  # the second call is local
 
 
 def test_build_geograph_numbers_the_nodes_along_the_hilbert_curve(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    # The lines of /lines.geojson list their points in another order.
-    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    # The lines of /lines.gpkg list their points in another order.
+    geo = GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
 
     assert hilbert_order(geo.nodes) == list(range(len(geo.nodes)))
 
 
 # The header of a network file says what built the network. The tests below
-# read the header of a marnet built from the local lines.
+# read the header of the network built from the local lines.
 @pytest.fixture
-def marnet_file_info(tmp_path, marnet_reads_the_local_lines):
-    built_file = build.build_file("marnet", cache_dir=tmp_path)
+def network_file_info(tmp_path, sea_lanes_are_the_local_lines):
+    built_file = build.build_file("eurostat_marnet", cache_dir=tmp_path)
     return GeoGraph.get_scgraph_info(built_file)
 
 
 def test_a_network_file_records_what_built_it_and_from_which_sources(
-    marnet_file_info, marnet_reads_the_local_lines
+    network_file_info, sea_lanes_are_the_local_lines
 ):
-    source = marnet.SOURCES["sea_lanes"]
-    first_line_of_pipeline_docstring = marnet.__doc__.split("\n")[0]
+    source = eurostat_marnet.SOURCES["sea_lanes"]
+    first_line_of_pipeline_docstring = eurostat_marnet.__doc__.split("\n")[0]
 
-    assert marnet_file_info["pipeline"] == {
-        "name": "marnet",
+    assert network_file_info["pipeline"] == {
+        "name": "eurostat_marnet",
         "region": None,
-        "version": marnet.PIPELINE_VERSION,
+        "version": eurostat_marnet.PIPELINE_VERSION,
     }
-    assert first_line_of_pipeline_docstring in marnet_file_info["description"]
-    assert marnet_file_info["node_order"] == "hilbert"
-    software = marnet_file_info["software"]
+    assert first_line_of_pipeline_docstring in network_file_info["description"]
+    assert network_file_info["node_order"] == "hilbert"
+    software = network_file_info["software"]
     assert software["backend"] == ("cpp" if has_cpp() else "python")
     assert software["platform"].startswith(sysconfig.get_platform())
-    # The record has no version: a GeoJSON file does not date its data.
-    assert marnet_file_info["sources"] == [
+    # The record has no version: this file does not date its data.
+    assert network_file_info["sources"] == [
         {
             "name": "sea_lanes",
-            "url": marnet_reads_the_local_lines,
-            "sha256": hashlib.sha256(_GEOJSON).hexdigest(),
-            "bytes": len(_GEOJSON),
+            "url": sea_lanes_are_the_local_lines,
+            "sha256": hashlib.sha256(_LINES_GPKG).hexdigest(),
+            "bytes": len(_LINES_GPKG),
             "credit": source["credit"],
             "license": "EUPL-1.2",
             "license_url": source["license_url"],
         }
     ]
-    assert marnet_file_info["data_up_to"] is None  # no source has a version
+    assert network_file_info["data_up_to"] is None  # no source has a version
     # The credit line to cite
-    assert marnet_file_info["attribution"] == f"{source['credit']} (EUPL-1.2)"
+    assert network_file_info["attribution"] == f"{source['credit']} (EUPL-1.2)"
 
 
 # The math functions of the C library decide the last bit of a length. Two
@@ -303,10 +278,10 @@ def test_a_network_file_records_what_built_it_and_from_which_sources(
     not platform.libc_ver()[0],
     reason="Python does not know the C library of this platform",
 )
-def test_network_file_names_the_c_library_of_the_platform(marnet_file_info):
+def test_network_file_names_the_c_library_of_the_platform(network_file_info):
     library, version = platform.libc_ver()
 
-    assert marnet_file_info["software"]["platform"].endswith(
+    assert network_file_info["software"]["platform"].endswith(
         f" {library} {version}"
     )
 
@@ -314,20 +289,20 @@ def test_network_file_names_the_c_library_of_the_platform(marnet_file_info):
 # The time of the download is the only clock time of a build. It stays out of
 # the network file, so that the same sources give the same file.
 def test_download_time_is_in_cache_json_and_not_in_the_network_file(
-    tmp_path, marnet_file_info
+    tmp_path, network_file_info
 ):
-    cache_json = tmp_path / "networks" / "marnet" / "cache.json"
+    cache_json = tmp_path / "networks" / "eurostat_marnet" / "cache.json"
     download_time = json.loads(cache_json.read_text())["downloaded"]
 
-    assert download_time not in json.dumps(marnet_file_info)
+    assert download_time not in json.dumps(network_file_info)
 
 
 def test_a_built_network_is_a_folder_with_cache_json_and_the_file_it_names(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(build.build_file("eurostat_marnet", cache_dir=tmp_path))
 
-    folder = tmp_path / "networks" / "marnet"
+    folder = tmp_path / "networks" / "eurostat_marnet"
     cache_json = json.loads((folder / "cache.json").read_text())
     assert cache_json["file"] == built_file.name
     assert {p.name for p in folder.iterdir()} == {"cache.json", built_file.name}
@@ -343,27 +318,27 @@ def test_a_built_network_is_a_folder_with_cache_json_and_the_file_it_names(
 
 
 def test_list_buildable_geographs_tells_which_networks_are_in_the_cache(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
 
     listing = {
         n["name"]: n for n in GeoGraph.list_buildable_geographs(tmp_path)
     }
-    assert listing["marnet"]["cached"]
-    assert not listing["us_freeway"]["cached"]
+    assert listing["eurostat_marnet"]["cached"]
+    assert not listing["osm_rail"]["cached"]
 
 
 def test_list_buildable_geographs_does_not_count_a_network_without_its_file(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(build.build_file("eurostat_marnet", cache_dir=tmp_path))
     built_file.unlink()
 
     listing = {
         n["name"]: n for n in GeoGraph.list_buildable_geographs(tmp_path)
     }
-    assert not listing["marnet"]["cached"]
+    assert not listing["eurostat_marnet"]["cached"]
 
 
 def _cut_short(file):
@@ -378,15 +353,15 @@ def _cut_short(file):
     ids=["its file is missing", "its file cannot be read"],
 )
 def test_build_geograph_builds_again_a_network_without_a_readable_file(
-    tmp_path, marnet_reads_the_local_lines, damage
+    tmp_path, sea_lanes_are_the_local_lines, damage
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(build.build_file("eurostat_marnet", cache_dir=tmp_path))
     damage(built_file)
 
-    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"] * 2
+    assert _Source.served == ["/lines.gpkg"] * 2
 
 
 # The tests below state when `build_geograph` may download. The argument
@@ -400,7 +375,7 @@ def test_build_geograph_builds_again_a_network_without_a_readable_file(
 )
 def test_a_network_that_is_not_in_the_cache_is_refused_without_a_download(
     tmp_path,
-    marnet_reads_the_local_lines,
+    sea_lanes_are_the_local_lines,
     monkeypatch,
     scgraph_offline,
     local_files_only,
@@ -413,99 +388,105 @@ def test_a_network_that_is_not_in_the_cache_is_refused_without_a_download(
         match=r"local_files_only=True \(or SCGRAPH_OFFLINE=1\)",
     ):
         GeoGraph.build_geograph(
-            "marnet", cache_dir=tmp_path, local_files_only=local_files_only
+            "eurostat_marnet",
+            cache_dir=tmp_path,
+            local_files_only=local_files_only,
         )
 
     assert _Source.served == []
 
 
 def test_scgraph_offline_loads_a_cached_network_without_a_request(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
     monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
 
-    geo = GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_local_files_only_false_builds_despite_scgraph_offline(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
     monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
 
     geo = GeoGraph.build_geograph(
-        "marnet", cache_dir=tmp_path, local_files_only=False
+        "eurostat_marnet", cache_dir=tmp_path, local_files_only=False
     )
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]
+    assert _Source.served == ["/lines.gpkg"]
 
 
 def test_refresh_downloads_and_builds_again_a_network_that_is_in_the_cache(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
 
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path, refresh=True)
+    GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path, refresh=True)
 
-    assert _Source.served == ["/lines.geojson"] * 2
+    assert _Source.served == ["/lines.gpkg"] * 2
 
 
 def test_refresh_is_refused_when_scgraph_offline_forbids_the_download(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
     monkeypatch.setenv("SCGRAPH_OFFLINE", "1")
 
     with pytest.raises(ValueError, match="SCGRAPH_OFFLINE"):
-        GeoGraph.build_geograph("marnet", cache_dir=tmp_path, refresh=True)
+        GeoGraph.build_geograph(
+            "eurostat_marnet", cache_dir=tmp_path, refresh=True
+        )
 
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_local_files_only_refuses_a_cached_network_that_cannot_be_read(
-    tmp_path, marnet_reads_the_local_lines
+    tmp_path, sea_lanes_are_the_local_lines
 ):
-    built_file = Path(build.build_file("marnet", cache_dir=tmp_path))
+    built_file = Path(build.build_file("eurostat_marnet", cache_dir=tmp_path))
     _cut_short(built_file)
 
     with pytest.raises(ValueError, match="can't be read"):
         GeoGraph.build_geograph(
-            "marnet", cache_dir=tmp_path, local_files_only=True
+            "eurostat_marnet", cache_dir=tmp_path, local_files_only=True
         )
 
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_a_failed_download_leaves_the_cached_network_and_says_how_to_load_it(
-    tmp_path, marnet_reads_the_local_lines, monkeypatch
+    tmp_path, sea_lanes_are_the_local_lines, monkeypatch
 ):
-    GeoGraph.build_geograph("marnet", cache_dir=tmp_path)
+    GeoGraph.build_geograph("eurostat_marnet", cache_dir=tmp_path)
     # The server now answers 404 for the source.
-    monkeypatch.delitem(_FILES, "/lines.geojson")
+    monkeypatch.delitem(_FILES, "/lines.gpkg")
 
     with pytest.raises(requests.HTTPError, match="local_files_only=True"):
-        GeoGraph.build_geograph("marnet", cache_dir=tmp_path, refresh=True)
+        GeoGraph.build_geograph(
+            "eurostat_marnet", cache_dir=tmp_path, refresh=True
+        )
 
     cached = GeoGraph.build_geograph(
-        "marnet", cache_dir=tmp_path, local_files_only=True
+        "eurostat_marnet", cache_dir=tmp_path, local_files_only=True
     )
     assert len(cached.nodes) == 4
 
 
-def _lines_pipeline(source, build=marnet.build, expected_km=2.22):
+def _lines_pipeline(source, build=eurostat_marnet.build, expected_km=2.22):
     """A pipeline module of one's own, cached as "lines". It builds the network of
-    /lines.geojson. Its validation case is the route between the ends of the first
+    /lines.gpkg. Its validation case is the route between the ends of the first
     line, (0, 0) and (0, 0.02) (lat, lon): 0.02 degree of the equator, 2.22 km. The
     validation fails for another `expected_km`."""
     module = types.ModuleType("my_pipelines.lines")
     module.SOURCES = {
         "sea_lanes": {
-            **marnet.SOURCES["sea_lanes"],
-            "url": f"{source}/lines.geojson",
+            **eurostat_marnet.SOURCES["sea_lanes"],
+            "url": f"{source}/lines.gpkg",
         }
     }
     module.PIPELINE_VERSION, module.build = 1, build
@@ -556,8 +537,7 @@ def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
     earlier_file = build.build_file(_lines_pipeline(source), cache_dir=tmp_path)
     earlier_bytes = Path(earlier_file).read_bytes()
     # The source has changed since, and the network it gives fails its validation
-    moved_end = _GEOJSON.replace(b"0.02", b"0.03")
-    monkeypatch.setitem(_FILES, "/lines.geojson", moved_end)
+    monkeypatch.setitem(_FILES, "/lines.gpkg", _LINES_GPKG_WITH_A_MOVED_END)
     failing = _lines_pipeline(source, expected_km=100)
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
@@ -584,7 +564,7 @@ def test_validate_checks_a_cached_network_without_building_it_again(
             failing, cache_dir=tmp_path, validate=True, local_files_only=True
         )
 
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def _fail_to_build(files):
@@ -600,7 +580,7 @@ def test_a_failed_build_keeps_its_sources_for_the_next_build(tmp_path, source):
     geo = GeoGraph.build_geograph(repaired, cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]  # downloaded once
+    assert _Source.served == ["/lines.gpkg"]  # downloaded once
 
 
 def test_refresh_downloads_the_sources_again_after_a_failed_build(
@@ -613,7 +593,7 @@ def test_refresh_downloads_the_sources_again_after_a_failed_build(
     repaired = _lines_pipeline(source)
     GeoGraph.build_geograph(repaired, cache_dir=tmp_path, refresh=True)
 
-    assert _Source.served == ["/lines.geojson"] * 2
+    assert _Source.served == ["/lines.gpkg"] * 2
 
 
 def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
@@ -621,7 +601,7 @@ def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
 ):
     def build_with_a_step_file(files, *, work_dir=None):
         Path(work_dir, "step_file").touch()
-        return marnet.build(files)
+        return eurostat_marnet.build(files)
 
     pipeline = _lines_pipeline(source, build=build_with_a_step_file)
     work_dir = tmp_path / "work"
@@ -667,7 +647,7 @@ def test_build_geograph_builds_again_for_another_pipeline_version(
     GeoGraph.build_geograph(next_version, cache_dir=tmp_path)
     GeoGraph.build_geograph(next_version, cache_dir=tmp_path)
 
-    assert _Source.served == ["/lines.geojson"] * 2  # once for each version
+    assert _Source.served == ["/lines.gpkg"] * 2  # once for each version
 
 
 def test_local_files_only_loads_a_network_of_another_pipeline_version(
@@ -688,7 +668,7 @@ def test_local_files_only_loads_a_network_of_another_pipeline_version(
     (warning,) = [w for w in caught if "pipeline version" in str(w.message)]
     assert warning.filename == __file__
     assert len(geo.nodes) == 4
-    assert _Source.served == ["/lines.geojson"]  # the first build only
+    assert _Source.served == ["/lines.gpkg"]  # the first build only
 
 
 def test_a_new_build_replaces_the_network_file_of_the_earlier_build(
@@ -698,8 +678,7 @@ def test_a_new_build_replaces_the_network_file_of_the_earlier_build(
     earlier_file = Path(build.build_file(pipeline, cache_dir=tmp_path))
     # The source has changed since. The new network has another content,
     # so its file has another name.
-    moved_end = _GEOJSON.replace(b"0.02", b"0.03")
-    monkeypatch.setitem(_FILES, "/lines.geojson", moved_end)
+    monkeypatch.setitem(_FILES, "/lines.gpkg", _LINES_GPKG_WITH_A_MOVED_END)
 
     new_file = Path(
         build.build_file(pipeline, cache_dir=tmp_path, refresh=True)
@@ -721,29 +700,11 @@ def test_a_pipeline_module_gives_the_last_part_of_its_name_to_its_network(
 
 
 def test_a_pipeline_module_named_like_a_built_in_network_is_refused(tmp_path):
-    # Its network would take the place of the built-in marnet in the cache.
-    namesake = types.ModuleType("my_pipelines.marnet")
+    # Its network would take the place of the network of scgraph in the cache.
+    namesake = types.ModuleType("my_pipelines.eurostat_marnet")
 
     with pytest.raises(ValueError, match="Invalid pipeline module name"):
         GeoGraph.build_geograph(namesake, cache_dir=tmp_path)
-
-
-# The ArcGIS layer of the local server holds the two lines of /lines.geojson
-# and gives one line per page.
-def test_build_geograph_reads_every_page_of_an_arcgis_layer_and_its_version(
-    tmp_path, source, monkeypatch
-):
-    monkeypatch.setitem(
-        north_america_rail.SOURCES["rail_lines"], "url", f"{source}/layer"
-    )
-
-    geo = GeoGraph.build_geograph("north_america_rail", cache_dir=tmp_path)
-
-    assert len(geo.nodes) == 4  # the first line alone has 3 nodes
-    # The version of the data is the last edit of the layer, which the layer
-    # gives as 1704164645000 ms after 1970.
-    (layer,) = geo.metadata["sources"]
-    assert layer["version"] == "2024-01-02T03:04:05Z"
 
 
 # The same sources must give the same network file in every process, so
@@ -757,8 +718,8 @@ server, cache_dir, name, region, backend = sys.argv[1:]
 if backend == "pure python":
     sys.modules["scgraph.cpp"] = None  # importing the extension now fails
 from scgraph import GeoGraph
-from scgraph.pipelines import marnet, osm_main_roads
-marnet.SOURCES["sea_lanes"]["url"] = server + "/tangled_lines.geojson"
+from scgraph.pipelines import eurostat_marnet, osm_main_roads
+eurostat_marnet.SOURCES["sea_lanes"]["url"] = server + "/tangled_lines.gpkg"
 roads = {**osm_main_roads.SOURCES["roads"], "url": server + "/{region}.osm"}
 osm_main_roads.SOURCES["roads"] = roads
 GeoGraph.build_geograph(name, region=region or None, cache_dir=cache_dir)
@@ -792,11 +753,11 @@ def _build_in_a_child_process(
     return folder / json.loads((folder / "cache.json").read_text())["file"]
 
 
-# The two kinds of pipeline. marnet returns a GeoGraph, which scgraph then
-# writes to a network file. osm_main_roads returns the arrays of the network
-# file: its region "roads" is the file /roads.osm of the local server.
+# The two kinds of pipeline. eurostat_marnet returns a GeoGraph, which scgraph
+# then writes to a network file. osm_main_roads returns the arrays of the
+# network file: its region "roads" is the file /roads.osm of the local server.
 _NETWORKS_OF_BOTH_KINDS = [
-    pytest.param("marnet", None, id="marnet"),
+    pytest.param("eurostat_marnet", None, id="eurostat_marnet"),
     pytest.param(
         "osm_main_roads",
         "roads",
@@ -870,16 +831,16 @@ def test_build_command_builds_the_file_build_geograph_loads(
     tmp_path, source, monkeypatch, capsys
 ):
     monkeypatch.setitem(
-        marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.geojson"
+        eurostat_marnet.SOURCES["sea_lanes"], "url", f"{source}/lines.gpkg"
     )
-    build.main(["marnet", "--cache-dir", str(tmp_path)])
+    build.main(["eurostat_marnet", "--cache-dir", str(tmp_path)])
     path = capsys.readouterr().out.strip()
-    folder = tmp_path / "networks" / "marnet"
+    folder = tmp_path / "networks" / "eurostat_marnet"
     assert path == str(
         folder / json.loads((folder / "cache.json").read_text())["file"]
     )
-    geo = GeoGraph.build_geograph("marnet", cache_dir=str(tmp_path))
-    assert _Source.served == ["/lines.geojson"]  # loaded, not built again
+    geo = GeoGraph.build_geograph("eurostat_marnet", cache_dir=str(tmp_path))
+    assert _Source.served == ["/lines.gpkg"]  # loaded, not built again
     assert len(geo.nodes) == 4
 
 
@@ -891,19 +852,19 @@ def test_build_geograph_calls_the_download_hook_of_a_source(tmp_path):
     def stream(url, filename):
         calls.append(url)
         with open(filename, "wb") as file:
-            file.write(_GEOJSON)
+            file.write(_LINES_GPKG)
         return {"bytes": 10**11, "md5": "0" * 32}
 
     module = types.ModuleType("my_pipelines.streamed")
-    url = "https://planet.example/lines.geojson"
+    url = "https://planet.example/lines.gpkg"
     module.SOURCES = {
         "sea_lanes": {
-            **marnet.SOURCES["sea_lanes"],
+            **eurostat_marnet.SOURCES["sea_lanes"],
             "url": url,
             "download": stream,
         }
     }
-    module.PIPELINE_VERSION, module.build = 1, marnet.build
+    module.PIPELINE_VERSION, module.build = 1, eurostat_marnet.build
     module.download = lambda url, filename: pytest.fail("module's hook called")
     geo = GeoGraph.build_geograph(module, cache_dir=str(tmp_path))
     (record,) = geo.metadata["sources"]
@@ -1526,9 +1487,9 @@ def test_eurostat_marnet_leaves_out_the_lanes_of_the_arctic_passages(tmp_path):
     "name, region, message",
     [
         ("nowhere", None, "Unknown network"),
-        ("marnett", None, "Did you mean 'marnet'"),
+        ("eurostat_marnett", None, "Did you mean 'eurostat_marnet'"),
         ("osm_main_roads", None, "needs a region"),
-        ("marnet", "europe/luxembourg", "has no region"),
+        ("eurostat_marnet", "europe/luxembourg", "has no region"),
         ("osm_main_roads", "../europe", "Invalid region"),
     ],
 )
@@ -1556,7 +1517,7 @@ def test_saving_a_file_among_the_built_networks_of_the_cache_is_refused(
 ):
     monkeypatch.setenv("SCGRAPH_CACHE_DIR", str(tmp_path))
     geo = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 0.01]])
-    target = tmp_path / "networks" / "marnet" / file_name
+    target = tmp_path / "networks" / "eurostat_marnet" / file_name
     target.parent.mkdir(parents=True)
 
     with pytest.raises(ValueError, match=re.escape(str(target))):

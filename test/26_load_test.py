@@ -116,12 +116,12 @@ def test_cache_dir_argument_wins_over_scgraph_cache_dir(
 def test_list_buildable_geographs_looks_in_scgraph_cache_dir(
     environment_cache,
 ):
-    built = environment_cache / "networks" / "us_freeway"
+    built = environment_cache / "networks" / "eurostat_marnet"
     built.mkdir(parents=True)
     (built / "cache.json").write_text('{"file": "built.scgraph"}')
     (built / "built.scgraph").write_bytes(b"")
     listing = {n["name"]: n for n in GeoGraph.list_buildable_geographs()}
-    assert listing["us_freeway"]["cached"]
+    assert listing["eurostat_marnet"]["cached"]
 
 
 def test_clear_geograph_cache_clears_only_the_cache_of_scgraph_cache_dir(

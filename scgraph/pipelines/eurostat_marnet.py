@@ -132,7 +132,7 @@ def build_graph(files: dict[str, str]) -> dict[str, array]:
 
 
 # The kind `sea_distances` measures between ports. This network has no port
-# node, so that kind is checked on `world_main_roads_and_marnet`.
+# node, so that kind is checked on `world_multimodal`.
 VALIDATION = {
     "cases": ["passages", "rotterdam_to_new_york", "rotterdam_to_singapore"],
 }

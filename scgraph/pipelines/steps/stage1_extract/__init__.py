@@ -1,3 +1,3 @@
-"""Stage 1 reads the sources (OpenStreetMap, ArcGIS)."""
+"""Stage 1 reads the sources (OpenStreetMap)."""
 
-from scgraph.pipelines.steps.stage1_extract import arcgis, osm
+from scgraph.pipelines.steps.stage1_extract import osm

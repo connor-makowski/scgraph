@@ -53,7 +53,7 @@ The runner, `build.py`, runs a pipeline. `build_file` downloads the sources and 
 A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
 
 * **Stage 1, read the sources (`steps.stage1_extract`)**:
-  `osm` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`pbf_range_streamer`). `arcgis` downloads an ArcGIS layer. `osm.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
+  `osm` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`pbf_range_streamer`). `osm.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
 * **Stage 2, join the modes (`steps.stage2_intermodal`)**:
   `hubs.join` joins the networks of several modes at hubs: ports, airports and rail terminals. `landmask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
 * **Stage 3, assemble the graph (`steps.stage3_assembly`)**:
@@ -423,7 +423,7 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `node_modes` *(opt)* | `uint8` | $N$ | The mode of each node: the row of its mode in `metadata.modes`, counted from 0. Each node has one mode, so the value is an index, not a set of bits. A file has at most 256 modes. |
 | `arc_classes` *(opt)* | `uint8` | $M$ | The class of each arc: the row of its class in `metadata.classes`, counted from 0. A file has at most 256 classes. |
 
-For example, `world_main_roads_and_marnet` has three modes:
+For example, `osm_main_roads_and_marnet` has three modes:
 
 ```json
 "modes": [

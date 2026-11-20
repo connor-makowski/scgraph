@@ -562,13 +562,13 @@ luxembourg = GeoGraph.build_geograph("osm_main_roads", region="europe/luxembourg
 # INFO:scgraph.pipelines.build:Building osm_main_roads
 # INFO:scgraph.pipelines.build:Built osm_main_roads. Credit: © OpenStreetMap contributors (ODbL-1.0)
 
-# Class I railroads of North America, from the U.S. Federal Railroad Administration
-rail = GeoGraph.build_geograph("north_america_rail")
+# Sea lanes of the world, from Eurostat SeaRoute
+sea = GeoGraph.build_geograph("eurostat_marnet")
 
 # What can be built, who to credit, and what is already in the cache
 GeoGraph.list_buildable_geographs()
-# [{"name": "marnet", "description": "Sea lanes of the published `marnet` network (...)",
-#   "credit": "Eurostat SeaRoute, via searoute-py (edited for scgraph)", "license": "EUPL-1.2",
+# [{"name": "eurostat_marnet", "description": "Sea lanes of Eurostat SeaRoute at 5 km resolution, (...)",
+#   "credit": "Eurostat, SeaRoute maritime network (...)", "license": "EUPL-1.2",
 #   "needs_region": False, "cached": False, "cached_regions": []},
 #  ...]
 ```
@@ -577,20 +577,12 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 
 | Name | Network | Source |
 |---|---|---|
-| `marnet` | Sea lanes of the built-in `marnet` | GeoJSON kept in the scgraph repository, from Eurostat SeaRoute via searoute-py |
-| `eurostat_marnet` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out (unlike `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
-| `oak_ridge_maritime` | Sea lanes of the built-in `oak_ridge_maritime` | GeoJSON kept in the scgraph repository, from Oak Ridge National Laboratory |
-| `north_america_rail` | Class I railroads of North America | FRA and BTS, ArcGIS layer |
-| `us_freeway` | Freeways of the United States | Esri, ArcGIS layer |
+| `eurostat_marnet` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out (unlike the built-in `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
 | `osm_main_roads` | Motorway, trunk and primary roads and their links of a region, with vehicle ferries | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
 | `osm_rail` | Railway lines of a region, without sidings, spurs and yard tracks, read both ways | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
-| `europe_freeway` | `osm_main_roads` for Europe (needs the C++ extension) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
-| `europe_rail` | `osm_rail` for Europe (needs the C++ extension) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `eurostat_marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index, Natural Earth |
 | `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each arc has its class | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
-| `world_main_roads` | `osm_main_roads` for the world (needs the C++ extension) | OpenStreetMap planet, read by byte ranges, never stored |
-| `world_main_roads_and_marnet` | `osm_main_roads_and_marnet` for the world (needs the C++ extension) | the same, with the OpenStreetMap planet |
-| `world_multimodal` | `osm_multimodal` for the world (needs the C++ extension) | the same, with the OpenStreetMap planet |
+| `world_multimodal` | `osm_multimodal` for the world (needs the C++ extension) | The sources of `osm_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
 
 **Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for the `osm_*` networks. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
 
@@ -620,9 +612,9 @@ The file of `osm_multimodal` also records the class of each arc, for example `mo
 
 **A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
-The networks that `build_geograph` builds are not the built-in files. They are built from the current version of their sources, so their node numbers differ and results can differ slightly from those of `load_geograph`.
+The networks that `build_geograph` builds are not the built-in files of `load_geograph`. They come from other sources, or from a newer version of a source, so their nodes and their results differ.
 
-These networks also have more nodes. The `us_freeway` and `north_america_rail` networks have a node at every junction and about every 2 km along a line. The `osm_*` networks have a node at every junction, and two nodes along a road are at most about 4 km apart. Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
+The `osm_*` networks have a node at every junction, and two nodes along a road are at most about 4 km apart. Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
 
 In the `osm_*` networks, the shape of each arc is simplified to within 50 m (Douglas–Peucker). Lengths are measured on the full shape.
 

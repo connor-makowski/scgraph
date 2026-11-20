@@ -29,8 +29,7 @@ WHAT A PIPELINE MODULE HOLDS
   `PIPELINE_VERSION` differs.
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
-    - a GeoGraph. The GeoJSON and ArcGIS pipelines do this, and so does the example
-      below.
+    - a GeoGraph. `eurostat_marnet` does this, and so does the example below.
     - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
       file: by mode, then along a Hilbert curve (`assembly.assemble` gives this
@@ -121,8 +120,7 @@ The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
    junctions and its own pieces, so a road never joins a railway. The function
    cuts each way at the junctions of its mode, and where a piece reaches
    `max_km_between_nodes`. It simplifies the shape of each piece to within 50 m. It
-   attaches the ferries to road nodes (`osm.build_ferry_arcs`). `arcgis.download`
-   downloads an ArcGIS layer.
+   attaches the ferries to road nodes (`osm.build_ferry_arcs`).
 2. Join the modes (`stage2_intermodal`). `hubs.join` joins the networks of several
    modes at hubs: ports, airports and rail terminals. `landmask.LandMask` tells land
    from water for the connectors of a hub.
@@ -166,8 +164,8 @@ same sources, the same version of scgraph, the same backend, and the same platfo
 with the same C library or macOS version. A test checks this. The C++ build and the
 pure-Python build give the same nodes, the same arcs and the same lengths. Two
 things may differ: the order of the arcs of a node, and the choice between two
-routes of the same length. A test checks this with the `marnet` and `osm_main_roads`
-pipelines on small inputs. Between two platforms, a few lengths or shape points may differ in the last
+routes of the same length. A test checks this with the `eurostat_marnet` and
+`osm_main_roads` pipelines on small inputs. Between two platforms, a few lengths or shape points may differ in the last
 bit, because the math libraries differ.
 
 A PIPELINE OF YOUR OWN
@@ -225,19 +223,11 @@ from scgraph.utils import has_cpp
 logger = logging.getLogger(__name__)
 
 NAMES = (
-    "europe_freeway",
-    "europe_rail",
     "eurostat_marnet",
-    "marnet",
-    "north_america_rail",
-    "oak_ridge_maritime",
     "osm_main_roads",
     "osm_main_roads_and_marnet",
     "osm_multimodal",
     "osm_rail",
-    "us_freeway",
-    "world_main_roads",
-    "world_main_roads_and_marnet",
     "world_multimodal",
 )
 # The names of the classes (the docstring of this module, *The classes*)

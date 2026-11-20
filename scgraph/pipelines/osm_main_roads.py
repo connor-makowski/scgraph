@@ -43,19 +43,12 @@ download = osm.download  # checks osmium before downloading a large extract
 def build(
     files: dict[str, str],
     *,
-    max_km_between_nodes: float = osm.MAX_KM_BETWEEN_NODES,
-    min_component_nodes: int | None = None,
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, list[dict]]:
-    """Build the main roads of a region. `world_main_roads` calls this function with
-    other values of the keywords.
+    """Build the main roads of a region.
 
     Args:
         files: The path of the downloaded file of each source of `SOURCES`.
-        max_km_between_nodes: The length in km at which a way is cut, and at which a
-            chain is cut. Two nodes along a way are at most about twice this far apart.
-        min_component_nodes: The smallest number of nodes of a kept component. None keeps
-            only the largest component.
         work_dir: A folder where the build keeps files between its steps, so that a later
             build resumes from them. None keeps nothing.
 
@@ -67,14 +60,14 @@ def build(
         files["roads"],
         SELECTS,
         ("highway", "route"),
-        max_km_between_nodes=max_km_between_nodes,
+        max_km_between_nodes=osm.MAX_KM_BETWEEN_NODES,
         work_dir=stage1_work_dir,
     )
     graph = assembly.build_graph_from_pieces(pieces["road"])
     arrays = assembly.assemble(
         graph,
-        max_km_between_nodes=max_km_between_nodes,
-        min_component_nodes=min_component_nodes,
+        max_km_between_nodes=osm.MAX_KM_BETWEEN_NODES,
+        min_component_nodes=None,  # only the largest component
     )
     return arrays, [{"name": None}]
 

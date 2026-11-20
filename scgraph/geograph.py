@@ -869,7 +869,7 @@ class GeoGraphIO:
             )
             if credits:
                 info["attribution"] = "; ".join(credits)
-            # ISO 8601 times in UTC (as Geofabrik and ArcGIS give them) sort as text
+            # ISO 8601 times in UTC (as Geofabrik gives them) sort as text
             dates = [
                 s["version"] for s in sources if _is_date(s.get("version"))
             ]
@@ -1450,19 +1450,11 @@ class GeoGraphIO:
     def build_geograph(
         name: (
             Literal[
-                "europe_freeway",
-                "europe_rail",
                 "eurostat_marnet",
-                "marnet",
-                "north_america_rail",
-                "oak_ridge_maritime",
                 "osm_main_roads",
                 "osm_main_roads_and_marnet",
                 "osm_multimodal",
                 "osm_rail",
-                "us_freeway",
-                "world_main_roads",
-                "world_main_roads_and_marnet",
                 "world_multimodal",
             ]
             | types.ModuleType
