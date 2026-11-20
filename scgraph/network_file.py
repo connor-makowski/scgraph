@@ -37,6 +37,7 @@ VERSION = 1
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # array name -> the dtypes it may have; shape_* hold the arc shapes, if any; node_ids and
 # node_modes (optional): each node's id in its source and its row of metadata["modes"].
+# arc_classes (optional): each arc's row of metadata["classes"].
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `extract_coordinates`).
@@ -49,6 +50,7 @@ ARRAYS = {
     "shape_points": ("int32", "float64"),
     "node_ids": ("int32", "int64"),
     "node_modes": ("uint8",),
+    "arc_classes": ("uint8",),
 }
 POINT_ARRAYS = ("node_points", "shape_points")
 _ALIGN = 64
@@ -98,6 +100,7 @@ RESERVED = frozenset(
         "crs",
         "units",
         "modes",
+        "classes",
         "symmetric",
         "node_order",
         "content_sha256",
@@ -118,12 +121,15 @@ def header_metadata(
     *,
     units: str,
     modes: list[dict],
+    classes: Sequence[str] | None = None,
 ) -> dict:
     """The metadata `write` takes for a network whose nodes are in scgraph's order
     (`helpers.hilbert`, within each mode): scgraph's keys (`crs`, `units`,
     `modes`, `node_order`) and the `build_metadata`, what built the network (see
-    `scgraph.pipelines`). A metadata key that scgraph writes itself, or a mode whose `source`
-    names no entry of the metadata's `sources`, raises a ValueError."""
+    `scgraph.pipelines`). For a network with `arc_classes`, `classes` gives the names of
+    the classes, and the metadata gets the key `classes`. A metadata key that scgraph
+    writes itself, or a mode whose `source` names no entry of the metadata's `sources`,
+    raises a ValueError."""
     if RESERVED & set(build_metadata):
         raise ValueError(
             f"metadata may not set {sorted(RESERVED & set(build_metadata))}"
@@ -140,6 +146,7 @@ def header_metadata(
         "crs": "EPSG:4326",
         "units": units,
         **({"modes": modes} if modes != [{"name": None}] else {}),
+        **({"classes": list(classes)} if classes is not None else {}),
         "node_order": NODE_ORDER,
         **build_metadata,
     }
@@ -417,6 +424,9 @@ def _select(filename, file, entries, metadata, modes):
         )
         result["heads"].extend(heads[a] + shift[column[heads[a]]] for a in kept)
         result["weights"].extend(weights[a] for a in kept)
+        if "arc_classes" in entries:
+            arc_classes = piece("arc_classes", base, end)
+            result["arc_classes"].extend(arc_classes[a] for a in kept)
         if "shape_offsets" in entries:
             bounds = piece("shape_offsets", base, end + 1)
             if not _is_sorted(bounds):
@@ -763,14 +773,23 @@ def _check(filename, arrays, metadata, arcs=True):
             name not in arrays or len(arrays[name]) == n,
             f"one {what} per node expected",
         )
-    if "node_modes" in arrays:
-        modes = metadata.get("modes")
-        require(isinstance(modes, list), "node modes without a list of modes")
-        # Not read on a mapped file, which opening does not read node by node
-        require(
-            not arcs or max(arrays["node_modes"], default=-1) < len(modes),
-            "invalid node modes",
-        )
+    require(
+        "arc_classes" not in arrays or len(arrays["arc_classes"]) == m,
+        "one arc class per arc expected",
+    )
+    # Each value of these arrays is a row of a list of the metadata
+    for name, what, key in (
+        ("node_modes", "node modes", "modes"),
+        ("arc_classes", "arc classes", "classes"),
+    ):
+        if name in arrays:
+            rows = metadata.get(key)
+            require(isinstance(rows, list), f"{what} without a list of {key}")
+            # A mapped read does not check the values: it does not read the arrays
+            require(
+                not arcs or max(arrays[name], default=-1) < len(rows),
+                f"invalid {what}",
+            )
 
 
 def _is_sorted(values):

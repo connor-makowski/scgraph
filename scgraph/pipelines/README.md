@@ -4,8 +4,9 @@ This guide follows one build from its sources to its network file. It explains w
 receives, what it does and what it gives, with the numbers of a real build.
 
 The build is the pipeline `osm_multimodal` for the region `europe/denmark`. It ran on
-2026-11-18 on Linux, with the C++ extension. The numbers come from its log. Another day gives
-other numbers, because the OpenStreetMap extract changes every day.
+2026-11-20 on Linux, with the C++ extension, from the extract of 2026-11-18. The numbers come
+from its log. Another day gives other numbers, because the OpenStreetMap extract changes every
+day.
 
 The guide gives no rule of its own. Each rule is in the docstring of the function that applies
 it, and the guide names that function.
@@ -26,6 +27,8 @@ it, and the guide names that function.
 - A **hub** is a place where a route changes mode: a port, an airport or a rail terminal. A hub
   is one node.
 - A **connector** is the pair of arcs that joins a hub to the network of one mode.
+- The **class** of an arc is defined in the docstring of `scgraph.pipelines`, part *The
+  classes*. Examples: `motorway`, `ferry`, `rail_main`.
 - A **chain** is a row of nodes that each have only two neighbors, as along a road with no
   junction.
 
@@ -64,18 +67,23 @@ each way at its junctions. It also cuts a way where a piece would be longer than
 the shape of each piece to within 50 m.
 
 The pipeline reads the extract once, for its two modes. The log line of this step gives the
-sum of the two counts: 26,463 pieces.
+sum of the two counts: 26,457 pieces.
 
 | Mode | Ways kept | Pieces |
 |---|---|---|
-| `rail` | railway lines | 5,681 |
-| `road` | main roads | 20,782 |
+| `rail` | railway lines | 5,680 |
+| `road` | main roads | 20,777 |
+
+Each select function of this pipeline also gives the class of the way, and each piece has
+the class of its way.
 
 Each mode has its own junctions and its own pieces, so the two networks stay apart. A road and
 a railway share a node of OpenStreetMap at a level crossing, and no route changes mode there.
 
 Then `osm.build_ferry_arcs` attaches the vehicle ferries to the roads: 12 arcs in this build.
-A ferry is kept when both its ends are near a road node.
+A ferry is kept when both its ends are near a road node. The file has 10 arcs of the class
+`ferry`: two ferry routes join the same two road nodes, and the graph keeps the shorter of
+two arcs between the same two nodes.
 
 Where to read more: the header of `steps/stage1_extract/osm.py`.
 
@@ -108,7 +116,7 @@ node and 0.99 km over water to a sea node.
 The step also joins each pair of airports that has regular flights, by one arc each way. Its
 length is the great-circle distance.
 
-The result is one graph of 66,149 nodes and 195,281 arcs.
+The result is one graph of 66,146 nodes and 195,274 arcs.
 
 Where to read more: the header of `steps/stage2_intermodal/hubs.py`.
 
@@ -118,16 +126,17 @@ Where to read more: the header of `steps/stage2_intermodal/hubs.py`.
 
 | Step | Nodes | Arcs |
 |---|---|---|
-| the joined graph | 66,149 | 195,281 |
-| keep the largest strongly connected component | 63,792 | 192,750 |
-| contract the chains | 50,173 | 171,827 |
+| the joined graph | 66,146 | 195,274 |
+| keep the largest strongly connected component | 63,784 | 192,735 |
+| contract the chains | 50,320 | 171,999 |
 
 - **Keep the connected part.** In a strongly connected component, a route exists from every
   node to every other node. The step removes the rest, for example a road on a small island
   with no ferry.
 - **Contract the chains.** A chain becomes one arc with the length and the shape of the chain.
   The route lengths do not change. A chain is never contracted across two modes, and a chain
-  longer than `max_km_between_nodes` keeps nodes along it.
+  longer than `max_km_between_nodes` keeps nodes along it. In this build, the rule of the
+  classes keeps 151 nodes more than a contraction without it.
 - **Order the nodes.** The nodes are sorted by mode, then along a Hilbert curve. Nodes that are
   near on the map are then near in the file, so a search reads nearby memory.
 
@@ -135,8 +144,9 @@ Where to read more: the header of `steps/stage3_assembly/assembly.py`.
 
 ### 7. The runner writes the network file
 
-The runner writes the arrays to one file of 4.0 MB. The header of the file records the
-pipeline, each source with its version and its license, and the software of the build.
+The runner writes the arrays to one file of 4.2 MB. The header of the file records the
+pipeline, each source with its version and its license, the software of the build, and the
+names of the classes.
 `GeoGraph.get_scgraph_info(file)` reads this back.
 
 Where to read more: the docstring of `scgraph.pipelines`, part *What the network file
@@ -154,13 +164,13 @@ Where to read more: the docstring of `steps/stage4_validation`.
 
 ## What comes out
 
-The file holds 50,173 nodes and 171,827 arcs.
+The file holds 50,320 nodes and 171,999 arcs.
 
 | Mode | Nodes |
 |---|---|
 | `sea` | 42,157 |
-| `road` | 6,032 |
-| `rail` | 1,910 |
+| `road` | 6,162 |
+| `rail` | 1,927 |
 | `port` | 63 |
 | `airport` | 10 |
 | `rail_terminal` | 1 |
@@ -189,6 +199,19 @@ from scgraph.pipelines.build import build_file
 file = build_file("osm_multimodal", region="europe/denmark")  # the file of the cache
 roads = GeoGraph.load_from_scgraph(file, modes=["road"])
 ```
+
+Each arc has a class. A two-way road gives two arcs, and the table counts the km of both.
+
+| Classes | Arcs | km |
+|---|---|---|
+| `motorway`, `motorway_link` | 2,198 | 2,845 |
+| `trunk`, `trunk_link` | 1,040 | 787 |
+| `primary`, `primary_link` | 6,799 | 5,061 |
+| `ferry` | 10 | 153 |
+| `rail_highspeed`, `rail_main`, `rail_branch`, `rail_other` | 4,540 | 6,770 |
+| `open_sea` and the ten passages | 157,022 | 6,540,886 |
+| `flight` | 28 | 5,050 |
+| `road_connector`, `rail_connector`, `sea_connector` | 362 | 1,238 |
 
 ## A network derived from a network file
 

@@ -734,6 +734,11 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
             "coordinates of two dtypes",
             id="node points and shape points of two dtypes",
         ),
+        pytest.param(
+            {"arc_classes": array("B", [0])},
+            "one arc class per arc",
+            id="fewer arc classes than arcs",
+        ),
     ],
 )
 def test_a_file_whose_arrays_do_not_fit_together_is_refused(
@@ -747,17 +752,28 @@ def test_a_file_whose_arrays_do_not_fit_together_is_refused(
         GeoGraph.load_from_scgraph(path)
 
 
-def test_a_file_with_node_modes_and_no_list_of_modes_is_refused(tmp_path):
+# A value of `node_modes` is a row of the list `modes` of the metadata, and a
+# value of `arc_classes` is a row of the list `classes`.
+@pytest.mark.parametrize("missing_list", ["modes", "classes"])
+def test_a_file_with_rows_and_without_their_list_is_refused(
+    tmp_path, missing_list
+):
     path = str(tmp_path / "arrays.scgraph")
-    network_file.write(path, _two_road_nodes_and_a_port(), {})
+    arrays = _two_road_nodes_and_a_port() | {"arc_classes": array("B", [0, 0])}
+    metadata = {"modes": ROAD_AND_PORT, "classes": ["motorway"]}
+    del metadata[missing_list]
+    network_file.write(path, arrays, metadata)
 
-    with pytest.raises(ValueError, match="without a list of modes"):
+    with pytest.raises(ValueError, match=f"without a list of {missing_list}"):
         GeoGraph.load_from_scgraph(path)
 
 
 # `load_from_scgraph(modes=...)` loads the nodes of some modes only. It finds
 # them without reading the whole file, so the file must list its nodes mode by
-# mode. It checks the arrays that it reads on the way.
+# mode. It checks the arrays that it reads on the way. The file names one
+# class, so the only row of an arc class is 0. The case of an arc class beyond
+# the list is here, because a mapped read of the whole file does not check the
+# values of an array.
 @pytest.mark.parametrize(
     "invalid_arrays, message",
     [
@@ -794,6 +810,11 @@ def test_a_file_with_node_modes_and_no_list_of_modes_is_refused(tmp_path):
             "invalid shape offsets",
             id="shape offsets that decrease",
         ),
+        pytest.param(
+            {"arc_classes": array("B", [0, 1])},
+            "invalid arc classes",
+            id="an arc class beyond the list of classes",
+        ),
     ],
 )
 def test_loading_some_modes_refuses_arrays_that_do_not_fit_together(
@@ -801,7 +822,8 @@ def test_loading_some_modes_refuses_arrays_that_do_not_fit_together(
 ):
     path = str(tmp_path / "arrays.scgraph")
     arrays = {**_two_road_nodes_and_a_port(), **invalid_arrays}
-    network_file.write(path, arrays, {"modes": ROAD_AND_PORT})
+    metadata = {"modes": ROAD_AND_PORT, "classes": ["motorway"]}
+    network_file.write(path, arrays, metadata)
 
     with pytest.raises(ValueError, match=message):
         GeoGraph.load_from_scgraph(path, modes=["road"])
@@ -817,6 +839,9 @@ def test_loading_a_mode_that_the_file_does_not_have_is_refused(tmp_path):
         GeoGraph.load_from_scgraph(path, modes=["rail"])
 
 
+ARC_CLASS_NAMES = ["connector", "motorway", "primary", "lane", "strait"]
+
+
 def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
     """Write a file of five nodes, listed mode by mode: the road nodes 10 and
     11, the port 20, the sea nodes 30 and 31. A node has its id as latitude
@@ -829,6 +854,10 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
 
     The shape of an arc repeats the point (origin id, destination id): once
     from 10 and 31, twice from 11 and 20, never from 30.
+
+    Each arc has a class, a row of ARC_CLASS_NAMES. The four arcs between two
+    road nodes or two sea nodes have a class each. The three arcs of the port
+    are connectors.
     """
     arrays = {
         "offsets": array("i", [0, 1, 3, 4, 5, 7]),
@@ -850,11 +879,51 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
             + [31, 20]
             + [31, 30],
         ),
+        "arc_classes": array("B", [1, 2, 0, 0, 3, 0, 4]),
     }
     if not with_node_ids:
         del arrays["node_ids"]
     names = [{"name": name} for name in ("road", "port", "sea")]
-    network_file.write(path, arrays, {"modes": names})
+    network_file.write(
+        path, arrays, {"modes": names, "classes": ARC_CLASS_NAMES}
+    )
+
+
+# `network_file.read` gives the class of each arc, with the list of the names
+# of the classes.
+def test_a_file_written_with_arc_classes_is_read_back_with_them(tmp_path):
+    path = str(tmp_path / "modes.scgraph")
+    _write_road_port_and_sea(path, "d")
+
+    arrays, metadata = network_file.read(path)
+
+    assert list(arrays["arc_classes"]) == [1, 2, 0, 0, 3, 0, 4]
+    assert metadata["classes"] == ARC_CLASS_NAMES
+
+
+def test_reading_some_modes_keeps_the_class_of_each_kept_arc(tmp_path):
+    path = str(tmp_path / "modes.scgraph")
+    _write_road_port_and_sea(path, "d")
+
+    arrays, _ = network_file.read(path, modes=["road", "sea"])
+
+    # The kept arcs are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30.
+    assert list(arrays["arc_classes"]) == [1, 2, 3, 4]
+
+
+def test_a_geograph_loaded_from_a_file_with_classes_is_saved_without_them(
+    tmp_path,
+):
+    path, saved_path = (
+        str(tmp_path / name) for name in ("a.scgraph", "b.scgraph")
+    )
+    _write_road_port_and_sea(path, "d")
+
+    GeoGraph.load_from_scgraph(path).save_as_scgraph(saved_path)
+
+    arrays, metadata = network_file.read(saved_path)
+    assert "arc_classes" not in arrays
+    assert "classes" not in metadata
 
 
 def test_loading_one_mode_gives_its_nodes_and_the_arcs_between_them(tmp_path):
@@ -1256,6 +1325,22 @@ def test_a_damaged_file_is_refused(file_to_damage, damage, message):
 
     with pytest.raises(ValueError, match=message):
         GeoGraph.load_from_scgraph(str(file_to_damage))
+
+
+# A later version of scgraph may add an array to the file. Here the header
+# names the bytes of `heads` a second time, as `later_array`.
+def test_a_file_with_an_array_that_scgraph_does_not_know_is_read_without_it(
+    file_to_damage,
+):
+    known_arrays, _ = network_file.read(str(file_to_damage))
+    data = file_to_damage.read_bytes()
+    header = _read_header(data)
+    header["arrays"]["later_array"] = header["arrays"]["heads"]
+    file_to_damage.write_bytes(_replace_header(data, header))
+
+    arrays, _ = network_file.read(str(file_to_damage))
+
+    assert arrays == known_arrays
 
 
 # The C++ build reads the shapes in place and does not check them all at

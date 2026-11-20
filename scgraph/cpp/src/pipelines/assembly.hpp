@@ -264,9 +264,10 @@ struct Contracted {
 
 // The same rules, in the same order of operations, as contract_chains_python in
 // assembly.py: the two versions give the same arcs and the same sums.
+// node_modes and arc_classes may be null: the graph then has no modes, or no classes.
 inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
                                   const uint8_t* node_modes, int64_t node_count, int64_t arc_count,
-                                  double max_km_between_nodes) {
+                                  double max_km_between_nodes, const uint8_t* arc_classes) {
     check_offsets(offsets, node_count, arc_count);
     const int32_t n = static_cast<int32_t>(node_count);
     std::vector<int32_t> indegree(n, 0), first(n, -1), second(n, -1);
@@ -281,21 +282,29 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         }
     }
     auto degree = [&](int32_t v) { return offsets[v + 1] - offsets[v]; };
+    auto arc = [&](int32_t u, int32_t v) {  // the index of arc u -> v
+        return static_cast<int32_t>(std::lower_bound(heads + offsets[u], heads + offsets[u + 1], v) - heads);
+    };
     std::vector<char> chain(n), keep(n), seen(n, 0);
     for (int32_t v = 0; v < n; ++v) {
         const int32_t* out = heads + offsets[v];
         // Predecessors are seen in rising order, so first < second
         const bool two_way = degree(v) == 2 && indegree[v] == 2 && first[v] == out[0] && second[v] == out[1];
         const bool one_way = degree(v) == 1 && indegree[v] == 1 && first[v] != out[0];
+        // All the arcs that leave v or enter v have one class: two arcs for a one-way node, four for a
+        // two-way node. Called for a pass-through node only, which has these arcs.
+        auto has_one_class = [&]() {
+            const uint8_t c = arc_classes[offsets[v]];
+            return arc_classes[arc(first[v], v)] == c &&
+                   (one_way || (arc_classes[offsets[v] + 1] == c && arc_classes[arc(second[v], v)] == c));
+        };
         chain[v] = (two_way || one_way) &&
                    (!node_modes || (node_modes[out[0]] == node_modes[v] &&
-                                    node_modes[two_way ? out[1] : first[v]] == node_modes[v]));
+                                    node_modes[two_way ? out[1] : first[v]] == node_modes[v])) &&
+                   (!arc_classes || has_one_class());
         keep[v] = !chain[v];
     }
     for (auto* unused : {&indegree, &first, &second}) std::vector<int32_t>().swap(*unused);
-    auto arc = [&](int32_t u, int32_t v) {  // the index of arc u -> v
-        return static_cast<int32_t>(std::lower_bound(heads + offsets[u], heads + offsets[u + 1], v) - heads);
-    };
     std::unordered_set<uint64_t> pairs;  // (origin, head) of the arcs made by contraction
     auto exists = [&](int32_t u, int32_t v) {  // an input arc, or an arc made
         return pairs.count(static_cast<uint64_t>(u) << 32 | v) || std::binary_search(heads + offsets[u], heads + offsets[u + 1], v);

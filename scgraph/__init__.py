@@ -517,7 +517,7 @@ The region of the `osm_*` networks is the path of a [Geofabrik extract](https://
 | `europe_freeway` | `osm_main_roads` for Europe (needs the C++ extension) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `europe_rail` | `osm_rail` for Europe (needs the C++ extension) | OpenStreetMap Europe extract from [Geofabrik](https://download.geofabrik.de), read by byte ranges |
 | `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `eurostat_marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index, Natural Earth |
-| `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
+| `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each arc has its class | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
 | `world_main_roads` | `osm_main_roads` for the world (needs the C++ extension) | OpenStreetMap planet, read by byte ranges, never stored |
 | `world_main_roads_and_marnet` | `osm_main_roads_and_marnet` for the world (needs the C++ extension) | the same, with the OpenStreetMap planet |
 | `world_multimodal` | `osm_multimodal` for the world (needs the C++ extension) | the same, with the OpenStreetMap planet |
@@ -545,6 +545,8 @@ A rebuild removes the old network file. On Windows, an old file that another pro
 Each node has a mode, for example `road`, `sea` or `port`. `geo.node_modes[i]` gives the row of node `i` in `geo.modes`. That row names the mode and the source of the node ids (OpenStreetMap for roads). The file stores the nodes of each mode together. Routes use kilometers for every mode.
 
 In `osm_multimodal`, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
+
+The file of `osm_multimodal` also records the class of each arc, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `scgraph.network_file.read(file)` returns `(arrays, metadata)`, and the class of arc `a` is `metadata["classes"][arrays["arc_classes"][a]]`. The docstring of `scgraph.pipelines` lists the classes.
 
 **A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [How a pipeline builds a network](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 

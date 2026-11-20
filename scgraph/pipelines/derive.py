@@ -31,7 +31,9 @@ HOW A RUN GOES
    junction that lost a road in step 2 stays as a node.
 4. Write the derived file. Its nodes keep the order of the parent file: by mode, then
    along a Hilbert curve. Its modes table holds the kept modes only. As in every
-   network file, a derived file with one mode has no `node_modes`.
+   network file, a derived file with one mode has no `node_modes`. If the parent
+   file has `arc_classes`, each kept arc keeps its class, and the derived file holds
+   the whole list of classes.
 
 Example: a two-way road joins the nodes 1, 2 and 3 along the equator, with 3 km
 between two nodes. A second two-way road goes from node 2 to node 4, which is two
@@ -275,7 +277,10 @@ def derive_file(
         derived_file,
         graph,
         network_file.header_metadata(
-            metadata, units=parent_metadata["units"], modes=kept_modes
+            metadata,
+            units=parent_metadata["units"],
+            modes=kept_modes,
+            classes=parent_metadata.get("classes"),
         ),
     )
 

@@ -42,17 +42,19 @@ void bind_pipelines(nb::module_& m) {
     };
     m.def("strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
     m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Uint8Array> node_modes,
-                                double max_km_between_nodes) {
+                                double max_km_between_nodes, std::optional<Uint8Array> arc_classes) {
         const int64_t n = (int64_t)offsets.shape(0) - 1;
-        if (weights.shape(0) != heads.shape(0) || (node_modes && (int64_t)node_modes->shape(0) != n))
-            throw std::invalid_argument("expected one weight per arc and one mode per node");
+        if (weights.shape(0) != heads.shape(0) || (node_modes && (int64_t)node_modes->shape(0) != n)
+            || (arc_classes && arc_classes->shape(0) != heads.shape(0)))
+            throw std::invalid_argument("expected one weight and one class per arc, and one mode per node");
         auto c = assembly::contract_chains(offsets.data(), heads.data(), weights.data(),
-                                           node_modes ? node_modes->data() : nullptr, n, (int64_t)heads.shape(0), max_km_between_nodes);
+                                           node_modes ? node_modes->data() : nullptr, n, (int64_t)heads.shape(0), max_km_between_nodes,
+                                           arc_classes ? arc_classes->data() : nullptr);
         return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
                               owned_view(std::move(c.heads)), owned_view(std::move(c.weights)),
                               owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
     }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("node_modes") = nb::none(),
-       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity());
+       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("arc_classes") = nb::none());
     m.def("simplify_shapes", [](Int32Array shape_points, Int32Array shape_offsets, Int32Array endpoint_coords, double tolerance_meters) {
         const int64_t shapes = (int64_t)shape_offsets.shape(0) - 1;
         if (shape_points.shape(0) % 2 || (int64_t)endpoint_coords.shape(0) != 4 * shapes)

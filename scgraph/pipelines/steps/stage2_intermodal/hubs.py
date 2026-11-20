@@ -22,6 +22,10 @@ A hub that reaches fewer than two networks stays out: a port without a road woul
 the sea to nothing. The networks of two modes never share a node, so a route goes from
 one network to another only through a hub.
 
+When the networks have the class of each arc (`arc_classes`), the joined network has
+it too. A connector then has the class of the mode that it reaches, for example
+`road_connector`, and a flight has the class `flight`.
+
 Example: the port of Arhus (World Port Index 30260, served by rail) lies 0.76 km from a
 rail node and 4.08 km from a road node, and the water path to the nearest sea node is
 0.99 km long. Its node gets three connectors, each in both directions: 0.91 km to the
@@ -41,6 +45,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
+from scgraph.pipelines import CLASS_ROWS
 from scgraph.pipelines.steps.stage3_assembly.assembly import (
     NearNodes,
     PieceArrays,
@@ -188,9 +193,13 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
 class _Layer:
     """The network of one mode, from the network file's arrays
     (`assembly.build_graph_from_pieces`'s layout) or from a GeoGraph: its node points
-    in 1e-7 degree, its node ids and its arcs."""
+    in 1e-7 degree, its node ids and its arcs. `has_classes` is True when the network
+    has `arc_classes`. A GeoGraph has none."""
 
     def __init__(self, network: "dict | GeoGraph"):
+        self.has_classes = (
+            isinstance(network, dict) and "arc_classes" in network
+        )
         if isinstance(network, dict):
             points = memoryview(network["node_points"])
             self.latitudes, self.longitudes = points[0::2], points[1::2]
@@ -227,12 +236,15 @@ class _Layer:
     def point(self, u: int) -> list[float]:
         return [self.latitudes[u] * 1e-7, self.longitudes[u] * 1e-7]
 
-    def arcs(self) -> Iterator[tuple[int, int, float, list]]:
-        """(origin, destination, km, shape) of each arc, the shape's points in degrees."""
+    def arcs(self) -> Iterator[tuple[int, int, float, list, int | None]]:
+        """(origin, destination, km, shape, class row) of each arc. The points of the
+        shape are in degrees. The class row is None when the network has no classes.
+        """
         network = self.network
         if isinstance(network, dict):
             weights = network["weights"]
             starts, line = network["shape_offsets"], network["shape_points"]
+            arc_classes = network.get("arc_classes")
             for u in range(len(self)):
                 for a in range(self.offsets[u], self.offsets[u + 1]):
                     points = line[2 * starts[a] : 2 * starts[a + 1]]
@@ -240,12 +252,13 @@ class _Layer:
                         [x * 1e-7, y * 1e-7]
                         for x, y in zip(points[::2], points[1::2])
                     ]
-                    yield u, self.heads[a], weights[a], shape
+                    class_row = None if arc_classes is None else arc_classes[a]
+                    yield u, self.heads[a], weights[a], shape, class_row
         else:
             shapes = network.intermediate_nodes or [{}] * len(self)
             for u, row in enumerate(network.graph_object.graph):
                 for v, km in row.items():
-                    yield u, v, km, shapes[u].get(v, [])
+                    yield u, v, km, shapes[u].get(v, []), None
 
 
 def join(
@@ -275,8 +288,21 @@ def join(
         The joined network as the network file's arrays, and the number of hubs
         joined of each kind. `node_modes` gives the row of each node in `modes`.
         `node_ids` keeps each layer's ids and gives each hub its id in its table.
+        `arc_classes` gives the row of each arc in `scgraph.pipelines.CLASSES`, when
+        the layers have `arc_classes`.
+
+    Raises:
+        ValueError: Some layers have `arc_classes` and the others have none.
     """
     layers = {mode: _Layer(network) for mode, network in layers.items()}
+    has_classes = any(layer.has_classes for layer in layers.values())
+    # The class row of a connector, by the mode that it reaches, and of a flight.
+    # Without classes in the layers, a connector and a flight have none.
+    connector_row = {
+        mode: CLASS_ROWS[f"{mode}_connector"] if has_classes else None
+        for mode in layers
+    }
+    flight_row = CLASS_ROWS["flight"] if has_classes else None
     first, n = {}, 0  # the index of each layer's first node
     for mode, layer in layers.items():
         first[mode], n = n, n + len(layer)
@@ -289,13 +315,13 @@ def join(
                 return layer.point(u - first[mode])
         return points[u - n]
 
-    def add(u, v, km, shape):
-        pieces.append(u, v, km, 1, [at(u), at(v)], shape)
+    def add(u, v, km, shape, class_row):
+        pieces.append(u, v, km, 1, [at(u), at(v)], shape, class_row)
 
     # 1. The arcs of each layer, on node indices that follow each other
     for mode, layer in layers.items():
-        for u, v, km, shape in layer.arcs():
-            add(first[mode] + u, first[mode] + v, km, shape)
+        for u, v, km, shape, class_row in layer.arcs():
+            add(first[mode] + u, first[mode] + v, km, shape, class_row)
     # 2. The connectors of each hub, and its node if it reaches two modes
     connect = {
         mode: _land_connector(layer, land_mask, CONNECTOR_KM[mode])
@@ -335,14 +361,14 @@ def join(
             airport[hub.id] = h
         for mode, (u, km, shape) in arcs.items():
             u += first[mode]
-            add(h, u, km, shape)
-            add(u, h, km, shape[::-1])
+            add(h, u, km, shape, connector_row[mode])
+            add(u, h, km, shape[::-1], connector_row[mode])
     # 3. The flights, airport to airport
     for one, other in flights:
         a, b = airport[one], airport[other]
         km = haversine(at(a), at(b))
-        add(a, b, km, [])
-        add(b, a, km, [])
+        add(a, b, km, [], flight_row)
+        add(b, a, km, [], flight_row)
     # 4. The graph, with the mode and the source id of each node
     layer_ids = [layer.ids for layer in layers.values()]
     layer_modes = [modes.index(mode) for mode in layers]

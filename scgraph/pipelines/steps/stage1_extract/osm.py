@@ -18,6 +18,10 @@ modes table. A mode has one select function for each kind of way. The kinds are 
 and `ferries`. The kind `ferries` is special: `build_way_pieces` does not cut a ferry
 by length, and attaches it to the nodes of its mode.
 
+A select function may return the direction with the class of the way (docstring of
+`scgraph.pipelines`, *The classes*). Example: for a one-way trunk road,
+`osm_multimodal.select_main_roads_with_class` returns `(1, "trunk")`.
+
 HOW A FILE IS READ
 
 An OpenStreetMap file lists the nodes, then the ways. A way lists the ids of its
@@ -79,7 +83,7 @@ from typing import TYPE_CHECKING
 import requests
 
 from scgraph.helpers.polylines import cut_polylines, build_graph_from_polylines
-from scgraph.pipelines import download_file
+from scgraph.pipelines import CLASS_ROWS, CLASSES, download_file
 from scgraph.pipelines.steps.stage3_assembly.assembly import (
     NearNodes,
     PieceArrays,
@@ -193,10 +197,11 @@ def _opened(source, entities):
 
 
 def _selected_ways(osmium, source, selects, tag_keys, *filters):
-    """Yield `(mode, kind, direction, way)` for each way, once for each mode that keeps
-    it. In a mode, a way goes to the first select function that keeps it, in the order
-    of the dict. osmium drops the ways that have none of `tag_keys`, and the ways that
-    `filters` refuse, before Python sees them.
+    """Yield `(mode, kind, direction, class_name, way)` for each way, once for each
+    mode that keeps it. In a mode, a way goes to the first select function that keeps
+    it, in the order of the dict. `class_name` is None when the select function returns
+    a direction alone. osmium drops the ways that have none of `tag_keys`, and the ways
+    that `filters` refuse, before Python sees them.
     """
     with _opened(source, osmium.osm.WAY) as file:
         ways = osmium.FileProcessor(file, osmium.osm.WAY)
@@ -207,14 +212,27 @@ def _selected_ways(osmium, source, selects, tag_keys, *filters):
         for way in ways:
             for mode, kinds in selects.items():
                 for kind, select in kinds.items():
-                    direction = select(way.tags)
-                    if direction is None:
+                    selected = select(way.tags)
+                    if selected is None:
                         continue
-                    if type(direction) is not int or not -1 <= direction <= 1:
-                        raise ValueError(
-                            f"select returned {direction!r}: 1, -1, 0 or None"
+                    direction, class_name = (
+                        selected
+                        if isinstance(selected, tuple)
+                        else (selected, None)
+                    )
+                    if (
+                        type(direction) is not int
+                        or not -1 <= direction <= 1
+                        or (
+                            class_name is not None
+                            and class_name not in CLASS_ROWS
                         )
-                    yield mode, kind, direction, way
+                    ):
+                        raise ValueError(
+                            f"select returned {selected!r}: 1, -1, 0, a pair "
+                            "(direction, name of scgraph.pipelines.CLASSES) or None"
+                        )
+                    yield mode, kind, direction, class_name, way
                     break
 
 
@@ -275,7 +293,7 @@ def locate_ways(
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[
     dict[str, _Junctions],
-    Iterator[tuple[str, str, int, list[tuple[int, list[float]]]]],
+    Iterator[tuple[str, str, int, str | None, list[tuple[int, list[float]]]]],
 ]:
     """Locate the ways of `source` that the select functions keep.
 
@@ -306,7 +324,8 @@ def locate_ways(
         `(junctions, polylines)`. `junctions[mode]` holds the OSM ids of the nodes
         where kept ways of the mode meet, or where one of them crosses itself.
         `id in junctions[mode]` tests one id. `polylines` is a generator of
-        `(mode, kind, direction, vertices)`. `vertices` is a list of
+        `(mode, kind, direction, class_name, vertices)`. `class_name` is the class
+        that the select function gave to the way, or None. `vertices` is a list of
         `(id, [latitude, longitude])`. The pair `(direction, vertices)` is a
         polyline, in the form that `cut_polylines` takes. A way is split where one
         of its nodes is missing from the file.
@@ -374,7 +393,7 @@ def locate_ways(
         kept_ways = array("q") if work_dir else None
         # The set and the repeats of the mode of the way that is read
         mode_seen_ids = mode_repeats = None
-        for mode, _, _, way in _selected_ways(
+        for mode, _, _, _, way in _selected_ways(
             osmium, source, selects, tag_keys
         ):
             kept.add_way(way.id)
@@ -431,7 +450,7 @@ def locate_ways(
     # Third pass, as the polylines are read: the located pieces of the kept ways
     def polylines(locations):
         locations.ignore_errors()
-        for mode, kind, direction, way in _selected_ways(
+        for mode, kind, direction, class_name, way in _selected_ways(
             osmium,
             source,
             selects,
@@ -440,7 +459,7 @@ def locate_ways(
             locations,
         ):
             for piece in _located_pieces(way.nodes):
-                yield mode, kind, direction, piece
+                yield mode, kind, direction, class_name, piece
 
     return junctions, polylines(osmium.NodeLocationsForWays(store))
 
@@ -467,7 +486,7 @@ def read_osm(
     selects = {"all": {"ways": select}}
     junctions, polylines = locate_ways(source, selects, tag_keys)
     polylines = (
-        (direction, vertices) for _, _, direction, vertices in polylines
+        (direction, vertices) for _, _, direction, _, vertices in polylines
     )
     return build_graph_from_polylines(
         polylines, junctions["all"], max_km_between_nodes
@@ -490,7 +509,8 @@ def build_way_pieces(
     is cut at its junctions only, not by length. Each piece of a ferry joins the
     nodes nearest its two ends, if both are within FERRY_END_KM
     (`build_ferry_arcs`). A ferry joins nodes of its own mode: the ends of the
-    pieces of that mode. With `work_dir`, the positions of the nodes and the
+    pieces of that mode. A piece has the class that the select function gave to
+    its way, if it gave one. With `work_dir`, the positions of the nodes and the
     pieces are kept in files of that folder, and a later call with the same
     inputs reuses them. Each step logs its counts at DEBUG.
 
@@ -533,6 +553,8 @@ def build_way_pieces(
             },
             "tag_keys": list(tag_keys),
             "max_km_between_nodes": max_km_between_nodes,
+            # The pieces hold rows of this table
+            "classes": list(CLASSES),
         }
         inputs_file = os.path.join(work_dir, "stage1.inputs.json")
         try:
@@ -557,10 +579,13 @@ def build_way_pieces(
         pieces = {
             mode: PieceArrays(work_dir=pieces_dirs[mode]) for mode in selects
         }
-        ferries = {mode: [] for mode in selects}
-        for mode, kind, direction, vertices in ways:
+        # The ferries of each mode, by the row of their class
+        ferries = {mode: defaultdict(list) for mode in selects}
+        for mode, kind, direction, class_name, vertices in ways:
+            # A way without a class has no row
+            class_row = CLASS_ROWS.get(class_name)
             if kind == "ferries":
-                ferries[mode].append((direction, vertices))
+                ferries[mode][class_row].append((direction, vertices))
                 continue
             vertex_points = dict(vertices)
             for origin_id, destination_id, km, way, shape in cut_polylines(
@@ -568,7 +593,7 @@ def build_way_pieces(
             ):
                 ends = vertex_points[origin_id], vertex_points[destination_id]
                 pieces[mode].append(
-                    origin_id, destination_id, km, way, ends, shape
+                    origin_id, destination_id, km, way, ends, shape, class_row
                 )
         for mode_pieces in pieces.values():
             mode_pieces.flush()
@@ -590,24 +615,27 @@ def build_way_pieces(
             longitudes = mode_pieces.ends[1::2]
             ids = (mode_pieces.origins, mode_pieces.destinations)
             near = NearNodes(latitudes, longitudes, scale=1e-7)
-            rows, ends, shapes, _ = build_graph_from_polylines(
-                ferries[mode], junctions[mode], math.inf
-            )
-            arcs = list(
-                build_ferry_arcs(
-                    rows,
-                    ends,
-                    shapes,
-                    partial(near.find_nearest, km=FERRY_END_KM),
+            # The ferries of one class give the arcs of that class
+            arcs = []
+            for class_row, polylines in ferries[mode].items():
+                rows, ends, shapes, _ = build_graph_from_polylines(
+                    polylines, junctions[mode], math.inf
                 )
-            )
-            for u, v, km, shape in arcs:
+                arcs += (
+                    (*arc, class_row)
+                    for arc in build_ferry_arcs(
+                        rows,
+                        ends,
+                        shapes,
+                        partial(near.find_nearest, km=FERRY_END_KM),
+                    )
+                )
+            for u, v, km, shape, class_row in arcs:
                 road = [
                     [latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)
                 ]
-                mode_pieces.append(
-                    ids[u % 2][u // 2], ids[v % 2][v // 2], km, 1, road, shape
-                )
+                end_ids = ids[u % 2][u // 2], ids[v % 2][v // 2]
+                mode_pieces.append(*end_ids, km, 1, road, shape, class_row)
             mode_pieces.flush()
             counts["arcs"] = len(arcs)
     if work_dir:
