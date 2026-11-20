@@ -574,6 +574,16 @@ def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
     assert Path(cached_file).read_bytes() == earlier_bytes
 
 
+def test_build_geograph_refuses_a_network_that_fails_its_validation(
+    tmp_path, source
+):
+    # No route of this network is 100 km long
+    pipeline = _lines_pipeline(source, expected_km=100)
+
+    with pytest.raises(RuntimeError, match="validation failed for lines"):
+        GeoGraph.build_geograph(pipeline, cache_dir=tmp_path, validate=True)
+
+
 def test_validate_checks_a_cached_network_without_building_it_again(
     tmp_path, source
 ):
@@ -1207,6 +1217,19 @@ def test_nodes_are_stored_by_mode_and_each_mode_names_its_source(coast_network):
         4,
         5,
     ]
+
+
+def test_build_geograph_loads_only_the_modes_asked(coast_cache):
+    roads = GeoGraph.build_geograph(
+        "geofabrik_multimodal",
+        region="roads",
+        cache_dir=coast_cache,
+        local_files_only=True,
+        modes=["road"],
+    )
+
+    # The 3 road nodes of the coast, and no hub
+    assert _mode_names(roads) == ["road", "road", "road"]
 
 
 def test_a_road_fragment_apart_from_the_main_road_is_left_out(coast_network):

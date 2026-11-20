@@ -77,15 +77,17 @@ Get the shortest maritime path between Shanghai and Savannah, GA:
 ```py
 from scgraph import GeoGraph
 
-marnet_geograph = GeoGraph.load_geograph("marnet")
+world_sea = GeoGraph.load_geograph("world_sea")
 
-output = marnet_geograph.get_shortest_path(
+output = world_sea.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},
     destination_node={"latitude": 32.08, "longitude": -81.09},
     output_units='km',
 )
-print(output['length'])  #=> 19596.4653
+print(output['length'])  #=> 19264.1889
 ```
+
+`marnet`, the sea network of scgraph 3.6.0, loads the same way and gives 19596.4653 km.
 
 The output dictionary always contains:
 
@@ -95,18 +97,19 @@ The output dictionary always contains:
 | `coordinate_path` | List of `[latitude, longitude]` pairs making up the path |
 
 
-### Built-in Geographs
-All built-in geographs measure distances in kilometers and are downloaded on first use and cached locally.
+### Which Network?
 
-| Name | Load Key | Description | Attribution |
-|---|---|---|---|
-| `marnet` | `GeoGraph.load_geograph("marnet")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
-| `oak_ridge_maritime` | `GeoGraph.load_geograph("oak_ridge_maritime")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
-| `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
-| `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
-| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
-| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
-| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| Need | Network | Call |
+|---|---|---|
+| Routes over roads, railways, sea lanes and flights | `world_multimodal`, or a part of the world such as `europe` | `GeoGraph.load_geograph("europe")` |
+| Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
+| Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
+| One kind of transport of a larger network | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
+| The data of today for one region | a network built on your machine | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
+| Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)`, then `save_as_scgraph` to load it faster later |
+| A result of scgraph 3.6.0, unchanged | a built-in geograph | `GeoGraph.load_geograph("marnet")` |
+
+`GeoGraph.list_geographs()` lists every network that `load_geograph` takes. For each network it gives what the network holds and the size of its download. For a network of scgraph 3.6.0, `superseded_by` names the released network that serves the same need from newer sources.
 
 ### Network Releases
 
@@ -175,6 +178,19 @@ europe = GeoGraph.load_geograph(
 The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked, published and loaded.
 
 The notebook [Routes on a multimodal network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb) draws routes of `oceania` on interactive maps. It shows the kinds of transport that a route uses, the choice of the modes, and two limit cases.
+
+### Built-in Geographs
+These are the seven networks of scgraph 3.6.0. `load_geograph` still loads them, with the same results. All built-in geographs measure distances in kilometers and are downloaded on first use and cached locally.
+
+| Name | Load Key | Description | Attribution |
+|---|---|---|---|
+| `marnet` | `GeoGraph.load_geograph("marnet")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
+| `oak_ridge_maritime` | `GeoGraph.load_geograph("oak_ridge_maritime")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
+| `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
+| `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
+| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
+| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
 ## Quick Start: OSMNx Integration
 
@@ -500,10 +516,13 @@ marnet_geograph = GeoGraph.load_geograph("marnet", local_files_only=True)
 # List all available geographs and whether each is cached locally (no network request)
 available = GeoGraph.list_geographs()
 # [
-#     {"name": "africa",             "cached": False},
-#     {"name": "east_southeast_asia", "cached": False},
-#     {"name": "europe",             "cached": True},
-#     {"name": "marnet",             "cached": True},
+#     ...
+#     {"name": "europe", "cached": True, "kind": "released",
+#      "description": "The part of world_multimodal between latitudes 34 and 72 and longitudes -25 and 45, ...",
+#      "nodes": 1048594, "arcs": 2071242, "download_mb": 60.4, "download_mb_without_shapes": 28.3,
+#      "data_up_to": "2026-11-02T00:59:53Z"},
+#     {"name": "marnet", "cached": False, "kind": "built-in",
+#      "description": "Sea lanes of the world (Eurostat SeaRoute)", "superseded_by": "world_sea"},
 #     ...
 # ]
 
@@ -626,6 +645,8 @@ In these networks, the shape of each road, ferry or railway arc is simplified to
 | `lazy` | `False` | Defer downloading/loading until the geograph is first accessed |
 | `refresh` | `False` | Download the sources and build the network again, even if the cache holds a current build |
 | `local_files_only` | `None` | Use only the cache, never download; defaults to `True` if `SCGRAPH_OFFLINE=1`, else `False` |
+| `modes` | `None` | The modes to load from the built network, e.g. `["road"]`; `None` loads every mode |
+| `validate` | `False` | Check the built network against the validation cases of its pipeline; a network that fails is not kept in the cache, and a `RuntimeError` names the failed cases |
 
 ## Loading from OSMNx
 

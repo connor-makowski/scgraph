@@ -13,7 +13,7 @@ The maintainer then runs this script with the tag of that release, for example
 merged, scgraph loads the release that was pinned before.
 
 The script downloads `networks.json`, the index of the release, and writes the module
-again.
+again: the tag, the digest of each file, and what `list_geographs` says of each network.
 """
 
 import sys
@@ -46,6 +46,12 @@ TAG = "{tag}"
 CONTENT_SHA256 = {{
 {rows}
 }}
+# What `GeoGraph.list_geographs` says of each network of this release: its numbers of
+# nodes and of arcs, the size in MB of its download with and without the shapes of the
+# arcs, and the time of its newest source data.
+NETWORKS = {{
+{networks}
+}}
 '''
 
 
@@ -59,8 +65,24 @@ def main(tag: str) -> None:
             response.json()["networks"], key=lambda network: network["file"]
         )
     )
+    files = {
+        network["file"].removesuffix(".scgraph.gz"): network
+        for network in response.json()["networks"]
+    }
+    networks = "\n".join(
+        f'    "{name}": {{\n'
+        f'        "nodes": {files[name]["nodes"]},\n'
+        f'        "arcs": {files[name]["arcs"]},\n'
+        f'        "download_mb": {files[name]["compressed_bytes"] / 1e6:.1f},\n'
+        f'        "download_mb_without_shapes": '
+        f'{files[name + ".no_shapes"]["compressed_bytes"] / 1e6:.1f},\n'
+        f'        "data_up_to": "{files[name]["data_up_to"]}",\n'
+        f"    }},"
+        for name in sorted(files)
+        if not name.endswith(".no_shapes")
+    )
     module = Path(__file__).parent.parent / "scgraph" / "network_release.py"
-    module.write_text(MODULE.format(tag=tag, rows=rows))
+    module.write_text(MODULE.format(tag=tag, rows=rows, networks=networks))
     print(f"Wrote {module}")
 
 
