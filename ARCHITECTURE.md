@@ -305,6 +305,7 @@ The `inverse_graph` is preserved across edits and updated incrementally.
 
 Networks built or downloaded by `scgraph` are cached on disk (default: `~/.cache/scgraph`):
 * **Hierarchy**: `networks/<name>/<region>/<content_sha256>.scgraph` next to a `cache.json` that names the file and gives the download time.
+* **Network Releases**: `releases/<tag>/<name>.scgraph` is a network file that `load_geograph` downloaded from the network release `<tag>`. `<name>.no_shapes.scgraph` is the same network without arc shapes. A file gets this name only after its content is checked, so a later load does not check it again. The docstring of `_fetch_released_file`, in `geograph.py`, gives the steps of a download.
 * **Atomic Writes**: A build writes into its work folder: `.work/<name>/<region>` of the cache directory, or the `work_dir` of the caller. It then moves the finished `.scgraph` file into the cache. The file arrives beside its final place and takes its name in one step. `cache.json` is written the same way, after the file. `cache.json` therefore always names a whole file. A build that succeeds removes its work folder. A build that fails keeps its work folder, with the downloaded sources. The next build resumes from it. `refresh=True` empties it first.
 * **Offline Operation**: Setting `SCGRAPH_OFFLINE=1` or `local_files_only=True` prevents all network requests, loading only existing cached builds.
 * **Cache Management**: `GeoGraph.clear_geograph_cache()` safely removes cached networks without altering user files.
@@ -473,7 +474,7 @@ The function `network_file.read` reads a network file. It makes these checks, in
 
 If `read` gets `modes`, it reads only the nodes of these modes. Between steps 4 and 5, it checks that each name is in `metadata.modes`, and that the values of `node_modes` do not decrease. Each arc that it reads keeps its class, and `metadata.classes` stays the whole list.
 
-`read` does not check the digest in bytes 8 to 39 (`content_sha256`). scgraph uses the digest as the name of a cached file, not to find a file that changed after it was written.
+`read` does not check the digest in bytes 8 to 39 (`content_sha256`). scgraph uses the digest as the name of a cached file. `network_file.check_content` computes the digest again, to find a file that was cut or changed after it was written. `load_geograph` calls it once, after a download.
 
 ### Compatibility Between Versions
 

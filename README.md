@@ -108,6 +108,72 @@ All built-in geographs measure distances in kilometers and are downloaded on fir
 | `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 | `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
+### Network Releases
+
+The maintainers of scgraph also build networks of the whole world from OpenStreetMap and other open sources. A **network release** is a set of these networks, published together on GitHub under one tag, for example `networks-2026.11.20`. A network of a network release is a **released network**. `load_geograph` loads a released network by its name.
+
+```py
+from scgraph import GeoGraph
+
+europe = GeoGraph.load_geograph("europe")
+
+paris = {"latitude": 48.8566, "longitude": 2.3522}
+berlin = {"latitude": 52.52, "longitude": 13.405}
+route = europe.get_shortest_path(origin_node=paris, destination_node=berlin)
+print(route["length"])  #=> 909.028 (km: the shortest route takes a flight)
+```
+
+**The networks.** Distances are in kilometers. The shape of an arc is the list of points that draw the arc on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.20-dev.1`.
+
+| Name | What it holds | Download, with shapes | Without shapes |
+|---|---|---|---|
+| `world_multimodal` | The main roads, the railways, the sea lanes and the regular flights of the world. Ports, airports and rail terminals join them | 196.9 MB | 88.9 MB |
+| `world_sea` | The sea lanes and the ports of the world | 3.7 MB | 1.2 MB |
+| `world_rail` | The railways and the rail terminals of the world | 28.9 MB | 10.5 MB |
+| `europe` | Latitudes 34 to 72, longitudes -25 to 45 | 60.4 MB | 28.3 MB |
+| `north_america` | Latitudes 7 to 84, longitudes -170 to -50 | 41.3 MB | 19.0 MB |
+| `south_america` | Latitudes -57 to 13, longitudes -82 to -34 | 16.6 MB | 7.4 MB |
+| `africa` | Latitudes -35 to 38, longitudes -18 to 52 | 20.3 MB | 9.9 MB |
+| `west_south_asia` | Latitudes 5 to 45, longitudes 25 to 98 | 30.2 MB | 14.5 MB |
+| `east_southeast_asia` | Latitudes -11 to 55, longitudes 92 to 150 | 56.5 MB | 22.6 MB |
+| `north_asia` | Latitudes 40 to 78, longitudes 45 to 180 | 13.0 MB | 5.1 MB |
+| `oceania` | Latitudes -50 to 0, longitudes 110 to 180 | 9.2 MB | 3.5 MB |
+
+A network named for a part of the world is a part of `world_multimodal`. It holds the roads, the railways and the rail terminals inside its rectangle. It also holds every sea lane, port and airport of the world, so a route can leave the rectangle by sea or by air.
+
+**Some modes only.** Each node of these networks has a mode: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. A route changes mode at a port, an airport or a rail terminal. `modes` loads the nodes of some modes only:
+
+```py
+roads = GeoGraph.load_geograph("europe", modes=["road"])
+route = roads.get_shortest_path(origin_node=paris, destination_node=berlin)
+print(route["length"])  #=> 1031.6 (km, by road)
+```
+
+**A smaller download.** `shapes=False` downloads the file without the shapes. The route lengths are the same. The `coordinate_path` of a route then goes in a straight line from node to node.
+
+**The first load and the next ones.** The first load downloads the file, decompresses it and checks its content. If the download is damaged, `load_geograph` raises a `ValueError` and keeps no file. Every later load reads the cache and makes no network request. The cache keeps the files of each network release until `clear_geograph_cache` removes them. The section *Built-in Geographs: Cache Management* gives the place of the cache and the offline switch.
+
+**The same network later.** Each version of scgraph loads one network release, so the same version loads the same network on every machine. A later version of scgraph may load a newer network release. To load exactly the same network then, record the tag of the network release and the `content_sha256` of the file. The `content_sha256` is the SHA-256 digest of the content of a network file.
+
+```py
+from scgraph import network_release
+
+network_release.TAG  # 'networks-2026.11.20-dev.1', the network release that this scgraph loads
+info = GeoGraph.get_scgraph_info(europe.scgraph_file)
+info["content_sha256"]  # '4212a887e6fa1807...'
+info["attribution"]     # the credit line to cite with your results
+info["data_up_to"]      # '2026-11-02T00:59:53Z', the time of the newest source data
+
+# Later, on any machine: this call loads the same file, or raises a ValueError
+europe = GeoGraph.load_geograph(
+    "europe",
+    version="networks-2026.11.20-dev.1",
+    content_sha256="4212a887e6fa18071a1eb886a6a6ca69831255f3e09ddb14b5b7bc8cfa1ca6ad",
+)
+```
+
+The guide [scgraph/pipelines/README.md](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
+
 ## Quick Start: OSMNx Integration
 
 Route on any OpenStreetMap network (including bike, drive, and walk) using [OSMNx](https://osmnx.readthedocs.io/). This example finds the fastest and shortest bike paths between two points in Somerville and Cambridge, MA, then cross-evaluates each path's time and distance:
@@ -411,7 +477,7 @@ output = marnet_geograph.get_shortest_path(
 
 Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access.
 
-The first load also converts the downloaded `<name>.graphjson` into a binary network file, `<name>.scgraph`, beside it. Later loads read the binary file, which is much faster. The `.graphjson` is kept. The conversion changes three things:
+For one of the seven networks of scgraph 3.6.0, the first load also converts the downloaded `<name>.graphjson` into a binary network file, `<name>.scgraph`, beside it. Later loads read the binary file, which is much faster. The `.graphjson` is kept. The conversion changes three things:
 
 - **Node ids**: Nodes are numbered along a Hilbert curve, so that nodes close on the globe get close ids. Route lengths do not change. When two routes have exactly the same length, the other one may be returned.
 - **Coordinates**: Coordinates are stored to 1e-7 degree (about 1 cm). A few published ports have 9 decimals.
@@ -432,13 +498,11 @@ marnet_geograph = GeoGraph.load_geograph("marnet", local_files_only=True)
 # List all available geographs and whether each is cached locally (no network request)
 available = GeoGraph.list_geographs()
 # [
-#     {"name": "marnet",                    "cached": True},
-#     {"name": "north_america_rail",        "cached": False},
-#     {"name": "oak_ridge_maritime",        "cached": False},
-#     {"name": "us_freeway",                "cached": True},
-#     {"name": "world_highways_and_marnet", "cached": False},
-#     {"name": "world_highways",            "cached": False},
-#     {"name": "world_railways",            "cached": False},
+#     {"name": "africa",             "cached": False},
+#     {"name": "east_southeast_asia", "cached": False},
+#     {"name": "europe",             "cached": True},
+#     {"name": "marnet",             "cached": True},
+#     ...
 # ]
 
 # What the cache holds: one dict per file, with its kind, name, region, path and size
@@ -466,12 +530,16 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 
 | Parameter | Default | Description |
 |---|---|---|
-| `name` | required | Name of the built-in geograph (e.g. `'marnet'`, `'us_freeway'`) |
+| `name` | required | Name of the built-in geograph (e.g. `'marnet'`, `'us_freeway'`), or of a released network (e.g. `'europe'`) |
 | `cache_dir` | `None` | Custom directory for downloaded files; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
-| `geograph_url` | `'https://raw.githubusercontent.com/...'` | Base URL for fetching geographs |
+| `geograph_url` | `'https://raw.githubusercontent.com/...'` | Base URL for fetching geographs. With another URL, every name loads `<name>.graphjson` from that URL |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
 | `local_files_only` | `None` | Use only the cache, never download; defaults to `True` if `SCGRAPH_OFFLINE=1`, else `False` |
+| `version` | `None` | For a released network: the tag of the network release, e.g. `'networks-2026.11.20'`; defaults to the network release of the installed scgraph (`scgraph.network_release.TAG`) |
+| `content_sha256` | `None` | For a released network: the `content_sha256` that the file must have (as `get_scgraph_info` gives it); another file raises a `ValueError`. With `version`, it loads exactly the same network again later |
+| `modes` | `None` | For a released network: the modes to load, e.g. `["road"]`; `None` loads every mode |
+| `shapes` | `True` | For a released network: `False` loads the file without the shapes of the arcs |
 
 ## Building Networks from Their Sources
 
@@ -721,7 +789,7 @@ my_geograph = GeoGraph.load_from_scgraph('my_geograph.scgraph')
 my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
-The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, modes, number of nodes and arcs, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`.
+The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, modes, number of nodes and arcs, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
 
 **Coordinates.** Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node). The `coordinate_dtype` parameter of `save_as_scgraph` chooses the form: `"float64"`, `"int32"` or `"auto"` (the default). With `"auto"`, a GeoGraph keeps its own `coordinate_dtype`. It is `"int32"` for a network read from an int32 file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), and `"float64"` otherwise.
 

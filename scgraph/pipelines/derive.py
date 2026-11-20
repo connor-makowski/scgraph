@@ -8,7 +8,7 @@ writes a smaller network as a new network file, the "derived file". The derived 
 holds some modes of the parent file, and its land networks inside a "bbox". A bbox
 is a rectangle of latitudes and longitudes: `(south, west, north, east)`, in degrees.
 A "view" is a named choice of modes and of bbox. `VIEWS` lists the views of
-`world_multimodal` for a data release.
+`world_multimodal` for a network release.
 
 Each route of the derived file is a route of the parent file, with the same length.
 
@@ -116,7 +116,7 @@ logger = logging.getLogger(__name__)
 LAND_MODES = ("road", "rail", "rail_terminal")
 # The bbox of a call without a bbox: every point is inside it.
 _WHOLE_GLOBE = (-90, -180, 90, 180)
-# The views of `world_multimodal` for a data release, as `name: (modes, bbox)`.
+# The views of `world_multimodal` for a network release, as `name: (modes, bbox)`.
 # These are the arguments of `derive_file`. A `modes` of None keeps every mode. A
 # bbox is (south, west, north, east), in degrees.
 VIEWS: dict[str, tuple[list[str] | None, Sequence[float] | None]] = {

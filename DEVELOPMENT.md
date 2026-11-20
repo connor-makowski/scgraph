@@ -40,6 +40,7 @@ scgraph/
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
   network_file.py                # Reading and writing .scgraph network files (stdlib)
+  network_release.py             # The network release that this version of scgraph loads (written by utils/pin_network_release.py)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
   pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
@@ -47,8 +48,7 @@ scgraph/
     steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
-    visvalingam.py               # Visvalingam-Whyatt line simplification
-    douglas_peucker.py           # Douglas-Peucker line simplification
+    visvalingam.py, douglas_peucker.py  # Line simplification (Visvalingam-Whyatt, Douglas-Peucker)
     polylines.py                 # Polylines to a graph: nodes where they end or meet, arcs with their shape
     hilbert.py                   # Hilbert-curve order of nodes
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
@@ -188,7 +188,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.
-- **Data releases**: A data release publishes built networks as the assets of a GitHub release. A maintainer pushes a tag `networks-YYYY.MM.DD` on a commit of `dev` (`-dev.N` for a development release). `build_networks.yml` builds `world_multimodal`, derives the other files from it (`scgraph.pipelines.derive`) and drafts the release with `utils/assemble_networks.py`. The world file is carried over from the previous release when the same version of the pipeline built it from the same source URLs. When the download of a source fails, the maintainer runs the failed job again. The maintainer reads the draft, then publishes it. A published data release is never changed.
+- **Network releases**: A network release publishes built networks as the assets of a GitHub release. A maintainer pushes a tag `networks-YYYY.MM.DD` on a commit of `dev` (`-dev.N` for a development release). `build_networks.yml` builds `world_multimodal`, derives the other files from it (`scgraph.pipelines.derive`) and drafts the release with `utils/assemble_networks.py`. The world file is carried over from the previous release when the same version of the pipeline built it from the same source URLs. When the download of a source fails, the maintainer runs the failed job again. The maintainer reads the draft, then publishes it. A published network release is never changed. `scgraph/network_release.py` pins the network release that `load_geograph` loads. After a publication, `utils/pin_network_release.py TAG` writes this module again, in a PR of its own. A release of scgraph pins a network release that is not a development release.
 
 ## Release Checklist (owner only — do not execute)
 

@@ -13,7 +13,8 @@ from scgraph.utils import (
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph import network_file
+from scgraph import network_file, network_release
+import gzip
 import hashlib
 import importlib
 import json
@@ -25,6 +26,7 @@ import requests
 import secrets
 import shutil
 import types
+import zlib
 from array import array
 from collections import Counter
 from math import isfinite
@@ -78,6 +80,141 @@ _PUBLISHED_GEOGRAPHS = (
     "world_highways",
     "world_railways",
 )
+# The names of the released networks: the networks of the network release that
+# `network_release` pins. load_geograph downloads them as network files. Each network
+# has two files: `network_release` lists the file without shapes under the name of
+# the network followed by `.no_shapes`.
+_RELEASED_GEOGRAPHS = tuple(
+    name
+    for name in network_release.CONTENT_SHA256
+    if not name.endswith(".no_shapes")
+)
+_RELEASE_URL = "https://github.com/connor-makowski/scgraph/releases/download"
+
+
+def _fetch_released_file(
+    name: str,
+    version: str | None,
+    shapes: bool,
+    content_sha256: str | None,
+    cache_path: Path,
+    local_files_only: bool,
+) -> Path:
+    """Return the path, in the cache, of a network file of a network release. Download
+    the file if the cache does not hold it.
+
+    Example: `name="europe"` and `shapes=False`, for the network release
+    `networks-2026.11.20`.
+
+    1. The cache keeps the file as
+       `releases/networks-2026.11.20/europe.no_shapes.scgraph`. If the file is there,
+       the function makes no request and goes to step 6.
+    2. The function downloads `europe.no_shapes.scgraph.gz` from the network release
+       into `releases/`. A file of a network release is compressed with gzip.
+    3. It decompresses the download, also into `releases/`.
+    4. It checks the decompressed file. `network_file.check_content` computes the
+       digest of the content, and compares it with the digest in the header of the
+       file. For the pinned network release, the digest must also equal the digest that
+       `network_release` records for this file.
+    5. It renames the checked file to the path of step 1. The rename is atomic.
+    6. If the caller gave `content_sha256`, the digest in the header must equal it.
+
+    A file of the cache is therefore always whole, and a later load does not compute
+    its digest again. A download that fails step 4 leaves no file in the cache. A file
+    that fails step 6 stays in the cache, because it is a whole file of the network
+    release: the caller asked for another content.
+
+    Parameters:
+        name: The name of a network of `_RELEASED_GEOGRAPHS`.
+        version: The tag of the network release, or None for `network_release.TAG`.
+        shapes: False for the file without the shapes of the arcs.
+        content_sha256: The digest that the file must have, or None.
+        cache_path: The cache directory.
+        local_files_only: If True, the function never downloads.
+
+    Raises:
+        ValueError: `version` is not a tag, or a step 4 or 6 fails.
+        FileNotFoundError: The file is not in the cache and `local_files_only` is
+            True, or the network release does not have the file.
+        ConnectionError: The server answers the download with another error status.
+    """
+    from scgraph.pipelines import download_file
+
+    tag = network_release.TAG if version is None else version
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tag):
+        raise ValueError(
+            f"Invalid version '{version}': a version is the tag of a network release, "
+            f"such as '{network_release.TAG}'"
+        )
+    stem = name if shapes else f"{name}.no_shapes"
+    file = cache_path.joinpath("releases", tag, f"{stem}.scgraph")
+    if not file.is_file():
+        if local_files_only:
+            raise FileNotFoundError(
+                f"The network '{stem}' of the network release '{tag}' is not in the "
+                f"cache ({cache_path}) and local_files_only=True (or "
+                "SCGRAPH_OFFLINE=1) forbids downloading it"
+            )
+        url = f"{_RELEASE_URL}/{tag}/{stem}.scgraph.gz"
+        releases = cache_path.joinpath("releases")
+        releases.mkdir(parents=True, exist_ok=True)
+        partial = releases.joinpath(
+            f".{file.name}.{os.getpid()}.{secrets.token_hex(4)}.download"
+        )
+        compressed = partial.with_name(f"{partial.name}.gz")
+        try:
+            with _log_step(
+                logger, "download the released network", {"url": url}
+            ):
+                try:
+                    download_file(url, compressed)
+                except requests.HTTPError as error:
+                    if error.response.status_code == 404:
+                        raise FileNotFoundError(
+                            f"The network release '{tag}' has no file "
+                            f"'{stem}.scgraph.gz' ({url})"
+                        ) from error
+                    raise ConnectionError(
+                        f"Failed to download '{url}'. "
+                        f"HTTP status: {error.response.status_code}."
+                    ) from error
+                try:
+                    with (
+                        gzip.open(compressed) as source,
+                        open(partial, "wb") as target,
+                    ):
+                        shutil.copyfileobj(source, target)
+                except (EOFError, gzip.BadGzipFile, zlib.error) as error:
+                    raise ValueError(
+                        f"{url}: damaged download ({error})"
+                    ) from error
+                compressed.unlink()  # frees the disk before the check
+                found = network_file.check_content(partial)
+            if tag == network_release.TAG:
+                recorded = network_release.CONTENT_SHA256[stem]
+                if found != recorded:
+                    raise ValueError(
+                        f"{url} has the content_sha256 {found}, and scgraph "
+                        f"records {recorded} for this file"
+                    )
+            file.parent.mkdir(exist_ok=True)
+            try:
+                os.replace(partial, file)
+            except PermissionError:
+                # Windows does not replace a file that a process has mapped. Another
+                # process then downloaded the same file first, and the cache has it.
+                if not file.is_file():
+                    raise
+        finally:
+            compressed.unlink(missing_ok=True)
+            partial.unlink(missing_ok=True)
+    if content_sha256 is not None:
+        found = network_file.get_scgraph_info(file)["content_sha256"]
+        if found != content_sha256:
+            raise ValueError(
+                f"{file} has the content_sha256 {found}, not {content_sha256}"
+            )
+    return file
 
 
 class GeoGraphIO:
@@ -756,6 +893,7 @@ class GeoGraphIO:
         - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
+        - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
 
         Required Arguments:
@@ -826,6 +964,7 @@ class GeoGraphIO:
             for key, value in metadata.items()
             if key not in network_file.RESERVED
         }
+        geograph.scgraph_file = filename
         geograph.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
         # index is built now, not at the first query (an empty network has none)
@@ -887,11 +1026,18 @@ class GeoGraphIO:
         lazy: bool = False,
         *,
         local_files_only: bool | None = None,
+        version: str | None = None,
+        content_sha256: str | None = None,
+        modes: list[str] | str | None = None,
+        shapes: bool = True,
     ) -> "GeoGraph":
         """
         Function:
 
         - Load a built-in GeoGraph by name, using a local cache.
+        - A network release is a set of networks that the maintainers of scgraph build from open sources and publish together under one tag. A network of a network release is a released network. The name of a released network, such as `europe`, `world_sea` or `world_multimodal`, loads that network. `list_geographs` gives every name, and the README describes each network (section *Network Releases*).
+        - For such a name, the first call downloads the network file, decompresses it, checks its content, then keeps it in the cache. Later calls read the cache without any network request. The arguments `version`, `content_sha256`, `modes` and `shapes` apply to these networks only.
+        - The points below apply to the seven networks of scgraph 3.6.0 (`marnet`, `us_freeway`, ...), which are published as `.graphjson` files.
         - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
         - On subsequent calls, loads directly from cache without any network requests.
         - The first load converts the .graphjson into a network file beside it (`<name>.scgraph`, much faster to load), which later loads read; the .graphjson is kept, and a damaged conversion is made again from it.
@@ -917,6 +1063,7 @@ class GeoGraphIO:
         - `geograph_url`
             - Type: str
             - What: The base URL where the built-in geograph .graphjson files are hosted
+            - Note: With another URL than the default, every name loads `<name>.graphjson` from that URL, also the name of a released network
         - `reduce_iterations`
             - Type: int
             - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
@@ -929,6 +1076,30 @@ class GeoGraphIO:
             - Type: bool | None
             - What: Whether to use only the cache, without any network request
             - Default: None: True if the environment variable `SCGRAPH_OFFLINE` is `1`, else False
+        - `version`
+            - Type: str | None
+            - What: The tag of the network release to load, for example 'networks-2026.11.20'
+            - Default: None: the network release that this version of scgraph loads (`scgraph.network_release.TAG`)
+        - `content_sha256`
+            - Type: str | None
+            - What: The `content_sha256` that the network file must have. It is the SHA-256 digest of the content of the file, and `get_scgraph_info` gives it. A file with another digest raises a ValueError. Pass it with `version` to load exactly the network of an earlier computation.
+            - Default: None
+        - `modes`
+            - Type: list[str] | str | None
+            - What: The names of the modes to load, as in `load_from_scgraph`, for example `["road"]`
+            - Default: None (every mode)
+        - `shapes`
+            - Type: bool
+            - What: Whether to load the shapes of the arcs. The shape of an arc is the list of points that draw it on a map between its two nodes. False downloads a file of about half the size. The route lengths are the same, and a `coordinate_path` then goes in a straight line from node to node.
+            - Default: True
+
+        Raises:
+
+        - `ValueError` if the downloaded file is damaged, or if it is not the file that scgraph records for the network release that it loads by default. The file does not enter the cache.
+        - `ValueError` if the file does not have the digest of `content_sha256`, or if `version` is not a tag
+        - `ValueError` if `version`, `content_sha256`, `modes` or `shapes` is passed for a network that is not loaded from a network release
+        - `FileNotFoundError` if the network release does not have the file, or with `local_files_only` if the file is not in the cache
+        - `ConnectionError` if the server refuses the download
         """
         if lazy:
             return LazyGeoGraph(
@@ -939,11 +1110,39 @@ class GeoGraphIO:
                     reduce_iterations=reduce_iterations,
                     lazy=False,
                     local_files_only=local_files_only,
+                    version=version,
+                    content_sha256=content_sha256,
+                    modes=modes,
+                    shapes=shapes,
                 )
             )
         if local_files_only is None:
             local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
         cache_path = resolve_cache_dir(cache_dir)
+        # A caller that passes its own `geograph_url` hosts `.graphjson` files, and
+        # one of them may have the name of a released network. That name then loads
+        # the file of the caller.
+        if name in _RELEASED_GEOGRAPHS and geograph_url == _GEOGRAPH_URL:
+            released_file = _fetch_released_file(
+                name=name,
+                version=version,
+                shapes=shapes,
+                content_sha256=content_sha256,
+                cache_path=cache_path,
+                local_files_only=local_files_only,
+            )
+            return GeoGraph.load_from_scgraph(
+                str(released_file),
+                reduce_iterations=reduce_iterations,
+                modes=modes,
+            )
+        if (version, content_sha256, modes, shapes) != (None, None, None, True):
+            raise ValueError(
+                f"'{name}' is not loaded from a network release: its name is not in "
+                "the network release that this scgraph loads "
+                f"({network_release.TAG}), or `geograph_url` is given. `version`, "
+                "`content_sha256`, `modes` and `shapes` do not apply to it"
+            )
         cache_path.mkdir(parents=True, exist_ok=True)
         cached_file = cache_path.joinpath(f"{name}.graphjson")
         # Converted once into a network file beside it, which every later load reads
@@ -1011,6 +1210,7 @@ class GeoGraphIO:
 
         - List all built-in GeoGraphs available, indicating which are already cached locally.
         - The published geographs are a fixed list, listed without any network request; for another `geograph_url`, the names are read from the `contents.txt` file at that URL.
+        - The list holds the seven networks of scgraph 3.6.0 and the networks of the network release that this version of scgraph loads (`scgraph.network_release.TAG`).
 
         Optional Arguments:
 
@@ -1030,10 +1230,13 @@ class GeoGraphIO:
 
         - A list of dicts, one per available geograph, sorted by name:
             - `name`: str — the geograph name (without extension)
-            - `cached`: bool — whether the file is already in the local cache
+            - `cached`: bool — whether the file is already in the local cache (for a released network: its file of that release, with or without shapes)
         """
         cache_path = resolve_cache_dir(cache_dir)
-        available = sorted(_PUBLISHED_GEOGRAPHS)
+        release_folder = cache_path.joinpath("releases", network_release.TAG)
+        available = sorted({*_PUBLISHED_GEOGRAPHS, *_RELEASED_GEOGRAPHS})
+        # As in load_geograph: another URL hosts `.graphjson` files only
+        released = set(_RELEASED_GEOGRAPHS)
         if geograph_url != _GEOGRAPH_URL:
             url = f"{geograph_url.rstrip('/')}/contents.txt"
             response = requests.get(url, timeout=60)
@@ -1042,6 +1245,7 @@ class GeoGraphIO:
                     f"Failed to fetch geograph list from '{url}'. "
                     f"HTTP status: {response.status_code}."
                 )
+            released = set()
             available = sorted(
                 line.removesuffix(".graphjson")
                 for line in response.text.splitlines()
@@ -1050,7 +1254,14 @@ class GeoGraphIO:
         return [
             {
                 "name": name,
-                "cached": cache_path.joinpath(f"{name}.graphjson").exists(),
+                "cached": (
+                    any(
+                        release_folder.joinpath(name + suffix).is_file()
+                        for suffix in (".scgraph", ".no_shapes.scgraph")
+                    )
+                    if name in released
+                    else cache_path.joinpath(f"{name}.graphjson").exists()
+                ),
             }
             for name in available
         ]
@@ -1065,8 +1276,8 @@ class GeoGraphIO:
         """
         Function:
 
-        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded (and their `.scgraph` conversions) and the networks `build_geograph` built (under `networks/`)
-        - With `name` (and `region`), remove only that network: its built-in geograph and its built networks (of every region, or of `region` only)
+        - Remove what scgraph keeps in the local cache directory: the built-in geographs `load_geograph` downloaded (and their `.scgraph` conversions), the network files it downloaded from network releases (under `releases/`) and the networks `build_geograph` built (under `networks/`)
+        - With `name` (and `region`), remove only that network: its built-in geograph, its files of every network release, and its built networks (of every region, or of `region` only)
         - Other files in the directory are kept; the directory itself is removed if nothing else is left in it
         - On Windows, the files of a network still loaded in this process can't be removed: they are left in place, with a logging warning that names them, until a later clear
 
@@ -1092,6 +1303,7 @@ class GeoGraphIO:
 
         if name is not None and name not in {
             *_PUBLISHED_GEOGRAPHS,
+            *_RELEASED_GEOGRAPHS,
             *pipelines.NAMES,
         }:
             raise ValueError(f"Unknown network '{name}'")
@@ -1126,9 +1338,13 @@ class GeoGraphIO:
                     remove(cache_path.joinpath(published + suffix))
         if name is None:
             remove(root)
+            remove(cache_path.joinpath("releases"))
             remove(cache_path.joinpath(".work"))  # failed or interrupted builds
         elif region is None:
             remove(root.joinpath(name))
+            for stem in (name, f"{name}.no_shapes"):
+                for file in cache_path.glob(f"releases/*/{stem}.scgraph"):
+                    remove(file)
         else:
             # Only this entry's files: a sub-region is an entry of its own, in a sub-folder
             folder = root.joinpath(name, region)
@@ -1157,11 +1373,12 @@ class GeoGraphIO:
         Returns:
 
         - A list of dicts, one per file or folder:
-            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
+            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"released"` (a network file `load_geograph` downloaded from a network release), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
             - `name`: str | None — the network name
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder
             - `bytes`: int — its size
+            - for `"released"` only: `version`, the tag of the network release
             - for `"built"` only: `pipeline_version` and `scgraph`, the versions of the network's pipeline and of scgraph that built it, read from the file (None if it can't be read)
         """
         cache_path = resolve_cache_dir(cache_dir)
@@ -1177,6 +1394,17 @@ class GeoGraphIO:
             for suffix in (".graphjson", ".scgraph")
             if (file := cache_path.joinpath(name + suffix)).is_file()
         ]
+        for file in sorted(cache_path.glob("releases/*/*.scgraph")):
+            info.append(
+                {
+                    "kind": "released",
+                    "name": file.name.split(".")[0],
+                    "region": None,
+                    "file": str(file),
+                    "bytes": file.stat().st_size,
+                    "version": file.parent.name,
+                }
+            )
         root = cache_path.joinpath("networks")
         for pointer in sorted(
             root.rglob("cache.json"), key=lambda pointer: pointer.parent
@@ -2834,6 +3062,8 @@ class GeoGraph(
         self.coordinate_dtype = coordinate_dtype
         # How the network was built, as read from a network file (see save_as_scgraph)
         self.metadata = {}
+        # The network file that the geograph was read from, if any (load_from_scgraph)
+        self.scgraph_file = None
         self.modes = (
             [dict(mode) for mode in modes] if modes else [{"name": None}]
         )

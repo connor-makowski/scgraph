@@ -329,16 +329,29 @@ def test_list_geographs_reads_contents_txt_of_another_url(
     assert requested == ["https://example.org/geographs/contents.txt"]
 
 
+def test_the_name_of_a_released_network_at_another_url_loads_from_that_url(
+    tmp_path, requested
+):
+    # A caller who hosts geographs of scgraph 3.6.0 may have named one "europe".
+    GeoGraph.load_geograph(
+        "europe", str(tmp_path), geograph_url="https://example.org/geographs"
+    )
+
+    assert requested == ["https://example.org/geographs/europe.graphjson"]
+
+
 @pytest.fixture
 def filled_cache(tmp_path):
-    """A cache holding a published geograph, built networks (marnet, a real network
-    file, and osm_rail of a region and of a sub-region), a cache.json that names no file,
-    a build's work folder and a user file.
+    """A cache holding a published geograph, two files of a network release, built
+    networks (marnet, a real network file, and osm_rail of a region and of a
+    sub-region), a cache.json that names no file, a build's work folder and a user file.
     """
     files = {
         "marnet.graphjson": b"x" * 10,
         "marnet.scgraph": b"x" * 5,
         "notes.txt": b"x",
+        "releases/networks-1/europe.no_shapes.scgraph": b"x" * 3,
+        "releases/networks-1/europe.scgraph": b"x" * 7,
         "networks/marnet/cache.json": "m.scgraph",
         "networks/osm_rail/europe/e.scgraph": b"x" * 30,
         "networks/osm_rail/europe/cache.json": "e.scgraph",
@@ -370,14 +383,17 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
     ] == [
         ("published", "marnet", None, "marnet.graphjson", 10),
         ("published", "marnet", None, "marnet.scgraph", 5),
+        ("released", "europe", None, "europe.no_shapes.scgraph", 3),
+        ("released", "europe", None, "europe.scgraph", 7),
         ("built", "marnet", None, "m.scgraph", marnet_bytes),
         ("built", "osm_rail", "europe", "e.scgraph", 30),
         ("built", "osm_rail", "europe/france", "f.scgraph", 40),
         ("building", "osm_rail", None, "osm_rail", 50),
     ]
+    assert info[2]["version"] == "networks-1"
     # Versions read from the file; None for a file that can't be read
-    assert (info[2]["pipeline_version"], info[2]["scgraph"]) == (3, "9.9")
-    assert (info[3]["pipeline_version"], info[3]["scgraph"]) == (None, None)
+    assert (info[4]["pipeline_version"], info[4]["scgraph"]) == (3, "9.9")
+    assert (info[5]["pipeline_version"], info[5]["scgraph"]) == (None, None)
 
 
 def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
@@ -400,6 +416,14 @@ def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
                 "networks/marnet/cache.json",
             },
             id="the published and the built files of a name",
+        ),
+        pytest.param(
+            {"name": "europe"},
+            {
+                "releases/networks-1/europe.no_shapes.scgraph",
+                "releases/networks-1/europe.scgraph",
+            },
+            id="the files of a name in every network release",
         ),
         pytest.param(
             {"name": "osm_rail"},

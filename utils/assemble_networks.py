@@ -1,11 +1,11 @@
-"""Assemble a data release from the files that the workflow `build_networks.yml` made.
+"""Assemble a network release from the files that the workflow `build_networks.yml` made.
 
 Usage: python utils/assemble_networks.py FILES PREVIOUS RELEASE TAG COMMIT
 
-A data release is a set of network files published as the assets of one GitHub release.
+A network release is a set of network files published as the assets of one GitHub release.
 FILES holds the network files of this run: the world network, and the files that
 `scgraph.pipelines.derive` derived from it. PREVIOUS holds `networks.json` of the
-previous data release, or nothing. The script writes into RELEASE:
+previous network release, or nothing. The script writes into RELEASE:
 
 - each network file, compressed with gzip. A user decompresses a file before loading
   it;
@@ -30,11 +30,11 @@ from scgraph import GeoGraph
 
 
 def read_previous_commits(previous: str | os.PathLike) -> dict[str, str]:
-    """Return, for each `content_sha256` of the previous data release, the commit of
+    """Return, for each `content_sha256` of the previous network release, the commit of
     the run that made the file.
 
     Args:
-        previous: The directory that holds `networks.json` of the previous data
+        previous: The directory that holds `networks.json` of the previous network
             release. It may be empty.
     """
     index = Path(previous, "networks.json")
@@ -64,12 +64,12 @@ def assemble(
     tag: str,
     commit: str,
 ) -> None:
-    """Write the files, the index and the notes of the data release `tag` into the
+    """Write the files, the index and the notes of the network release `tag` into the
     new directory `release`.
 
     Args:
         files: The directory of the network files of this run.
-        previous: The directory that holds `networks.json` of the previous data
+        previous: The directory that holds `networks.json` of the previous network
             release. It may be empty.
         release: The directory to create.
         tag: The tag of the release.
@@ -124,7 +124,7 @@ def assemble(
 
 
 def format_notes(networks: list[dict], commit: str) -> str:
-    """Return the notes of a data release, in Markdown.
+    """Return the notes of a network release, in Markdown.
 
     Args:
         networks: The entries of the index `networks.json`.
@@ -164,7 +164,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
             "validation cases of its pipeline when it was built. A derived file "
             "fails no case that the world file passes, among the cases on its "
             "modes that have two ends inside its rectangle. A carried-over file "
-            "has the content of the same file in the previous data release.",
+            "has the content of the same file in the previous network release.",
             "",
             "To use a file, download it and decompress it (`gunzip FILE.gz`). Load "
             'it with `GeoGraph.load_from_scgraph("FILE")`, and keep some modes '

@@ -310,6 +310,36 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
     }
 
 
+def check_content(filename: str | os.PathLike) -> str:
+    """Check that the content of a network file has the digest that its writer
+    recorded. Return that digest.
+
+    The first 40 bytes of a file hold the magic number and `content_sha256`. This
+    digest is the SHA-256 of the bytes from byte 40 to the end of the file. `read`
+    does not check it. This function reads the whole file and computes the digest
+    again. A file that was cut or changed after it was written has another digest.
+
+    Parameters:
+        filename (str): Path of the binary `.scgraph` file.
+
+    Returns:
+        str: The `content_sha256` of the file.
+
+    Raises:
+        ValueError: If the content does not have the recorded digest. A file that is
+            not a network file raises it too.
+    """
+    with open(filename, "rb") as file:
+        file.seek(len(MAGIC))
+        recorded = file.read(32)
+        if hashlib.file_digest(file, "sha256").digest() != recorded:
+            raise ValueError(
+                f"{filename}: the content does not have the recorded "
+                "content_sha256 (the file was cut or changed)"
+            )
+    return recorded.hex()
+
+
 def _read(filename, file, mapped, modes):
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
