@@ -24,7 +24,7 @@ import pytest
 import requests
 from helpers import great_circle_km
 
-from scgraph import GeoGraph, pipelines
+from scgraph import GeoGraph, network_file, pipelines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.pipelines import (
     eurostat_marnet,
@@ -35,6 +35,7 @@ from scgraph.pipelines import (
     osm_multimodal,
 )
 from scgraph.pipelines import build
+from scgraph.pipelines.steps import assembly, osm
 from scgraph.utils import has_cpp
 
 # Two lines meeting at (0.01, 0): 4 nodes, not read in Hilbert order
@@ -1046,6 +1047,40 @@ def test_osm_main_roads_builds_the_same_network_with_a_work_folder(tmp_path):
     assert built_in_files == built_in_memory
 
 
+# The select functions of `osm_multimodal` give the class of each way. Only
+# that pipeline uses them, and its fixture has no ferry. So this test runs the
+# two steps of a build that cut the ways of the strait and store them.
+def test_a_ferry_arc_and_a_shuttle_train_arc_have_their_own_classes(tmp_path):
+    pytest.importorskip("osmium")
+    strait_file = tmp_path / "strait.osm"
+    strait_file.write_bytes(_FILES["/strait.osm"])
+    selects = {
+        "road": {
+            "ways": osm_multimodal.select_main_roads_with_class,
+            "ferries": osm_multimodal.select_vehicle_ferries_with_class,
+        }
+    }
+
+    pieces = osm.build_way_pieces(
+        str(strait_file), selects, ("highway", "route"), max_km_between_nodes=2
+    )
+    graph = assembly.build_graph_from_pieces(pieces["road"])
+
+    ids, offsets = graph["node_ids"], graph["offsets"]
+    class_names = {
+        (ids[u], ids[graph["heads"][arc]]): pipelines.CLASSES[
+            graph["arc_classes"][arc]
+        ]
+        for u in range(len(ids))
+        for arc in range(offsets[u], offsets[u + 1])
+    }
+    # Road 1 joins the nodes 1 and 2. Ferry 3 joins the nodes 2 and 3. The
+    # shuttle train 7 joins the nodes 5 and 1.
+    assert class_names[1, 2] == "primary"
+    assert class_names[2, 3] == "ferry"
+    assert class_names[5, 1] == "shuttle_train"
+
+
 def _build_coast_network(tmp_path):
     """The network that `osm_main_roads_and_marnet` builds from the coast that
     the comment above `_FILES` describes: a road, a sea lane and five ports."""
@@ -1093,8 +1128,39 @@ def _build_from_local_sources(tmp_path, pipeline, paths):
 
 
 @pytest.fixture(scope="module")
-def coast_network(tmp_path_factory):
-    return _build_coast_network(tmp_path_factory.mktemp("coast"))
+def coast_cache(tmp_path_factory):
+    """The cache folder that holds the network of the coast, for the region
+    "roads"."""
+    cache_dir = tmp_path_factory.mktemp("coast")
+    _build_coast_network(cache_dir)
+    return cache_dir
+
+
+@pytest.fixture(scope="module")
+def coast_network(coast_cache):
+    return GeoGraph.build_geograph(
+        "osm_main_roads_and_marnet",
+        region="roads",
+        cache_dir=coast_cache,
+        local_files_only=True,
+    )
+
+
+# The select functions of `osm_main_roads_and_marnet` give no class.
+def test_a_pipeline_whose_selects_give_no_class_builds_no_arc_classes(
+    coast_cache,
+):
+    path = build.build_file(
+        "osm_main_roads_and_marnet",
+        region="roads",
+        cache_dir=coast_cache,
+        local_files_only=True,
+    )
+
+    arrays, metadata = network_file.read(path)
+
+    assert "arc_classes" not in arrays
+    assert "classes" not in metadata
 
 
 def test_nodes_are_stored_by_mode_and_each_mode_names_its_source(coast_network):
@@ -1225,12 +1291,14 @@ def test_each_source_is_recorded_with_the_version_of_its_data(coast_network):
 
 
 @pytest.fixture(scope="module")
-def multimodal_network(tmp_path_factory):
-    """The network that `osm_multimodal` builds from the coast of `_FILES`: the
-    road, the railways, the sea lane, and the hubs of the comment above `_FILES`.
+def multimodal_cache(tmp_path_factory):
+    """The cache folder that holds the network of `osm_multimodal` for the coast
+    of `_FILES`: the road, the railways, the sea lane, and the hubs of the comment
+    above `_FILES`. The region of the network is "roads".
     """
-    return _build_from_local_sources(
-        tmp_path_factory.mktemp("multimodal"),
+    cache_dir = tmp_path_factory.mktemp("multimodal")
+    _build_from_local_sources(
+        cache_dir,
         osm_multimodal,
         {
             "osm": "/{region}.osm.pbf",
@@ -1243,6 +1311,17 @@ def multimodal_network(tmp_path_factory):
             "flights": "/flights.csv",
             "rail_terminals": "/rail_terminals.csv",
         },
+    )
+    return cache_dir
+
+
+@pytest.fixture(scope="module")
+def multimodal_network(multimodal_cache):
+    return GeoGraph.build_geograph(
+        "osm_multimodal",
+        region="roads",
+        cache_dir=multimodal_cache,
+        local_files_only=True,
     )
 
 
@@ -1310,6 +1389,89 @@ def test_each_hub_joins_the_modes_it_serves(multimodal_network):
         ("airport", 100): ["airport", "road"],
         ("airport", 101): ["airport", "road"],
         ("rail_terminal", 200): ["rail", "road"],
+    }
+
+
+# The test reads the classes from the network file. The roads of the coast
+# are primary roads. Its railways have no `usage` tag, and its sea lane is
+# outside a passage.
+def test_each_arc_has_the_class_of_its_way_its_connector_or_its_flight(
+    multimodal_cache,
+):
+    path = build.build_file(
+        "osm_multimodal",
+        region="roads",
+        cache_dir=multimodal_cache,
+        local_files_only=True,
+    )
+
+    arrays, metadata = network_file.read(path)
+
+    modes = [metadata["modes"][row]["name"] for row in arrays["node_modes"]]
+    classes = {}  # the modes of the two ends of an arc -> the classes found
+    for u, mode in enumerate(modes):
+        for arc in range(arrays["offsets"][u], arrays["offsets"][u + 1]):
+            ends = tuple(sorted((mode, modes[arrays["heads"][arc]])))
+            class_name = metadata["classes"][arrays["arc_classes"][arc]]
+            classes.setdefault(ends, set()).add(class_name)
+    assert classes == {
+        ("road", "road"): {"primary"},
+        ("rail", "rail"): {"rail_other"},
+        ("sea", "sea"): {"open_sea"},
+        ("airport", "airport"): {"flight"},
+        ("airport", "road"): {"road_connector"},
+        ("port", "road"): {"road_connector"},
+        ("rail_terminal", "road"): {"road_connector"},
+        ("port", "rail"): {"rail_connector"},
+        ("rail", "rail_terminal"): {"rail_connector"},
+        ("port", "sea"): {"sea_connector"},
+    }
+
+
+# A high-speed line is also a main line (`usage=main`): `highspeed` comes
+# first. A line without `usage` is `rail_other`.
+@pytest.mark.parametrize(
+    "tags, class_name",
+    [
+        ({"highspeed": "yes", "usage": "main"}, "rail_highspeed"),
+        ({"usage": "main"}, "rail_main"),
+        ({"usage": "branch"}, "rail_branch"),
+        ({}, "rail_other"),
+    ],
+)
+def test_a_railway_line_takes_its_class_from_highspeed_then_from_usage(
+    tags, class_name
+):
+    tags = {"railway": "rail", **tags}
+
+    assert osm_multimodal.select_rail_with_class(tags) == (0, class_name)
+
+
+def test_the_arcs_of_a_lane_of_a_passage_have_the_class_of_the_passage(
+    tmp_path,
+):
+    # Along longitude 32: a lane of the Suez Canal from latitude 30 to 31,
+    # then a lane outside a passage from latitude 31 to 32.
+    lanes = tmp_path / "lanes.gpkg"
+    lanes.write_bytes(
+        _sea_gpkg([([32, 30, 32, 31], "suez"), ([32, 31, 32, 32], None)])
+    )
+
+    sea = eurostat_marnet.build_graph({"sea_lanes": str(lanes)})
+
+    latitudes = [round(value * 1e-7) for value in sea["node_points"][0::2]]
+    classes = {
+        (latitudes[u], latitudes[sea["heads"][arc]]): pipelines.CLASSES[
+            sea["arc_classes"][arc]
+        ]
+        for u in range(len(latitudes))
+        for arc in range(sea["offsets"][u], sea["offsets"][u + 1])
+    }
+    assert classes == {
+        (30, 31): "suez",
+        (31, 30): "suez",
+        (31, 32): "open_sea",
+        (32, 31): "open_sea",
     }
 
 

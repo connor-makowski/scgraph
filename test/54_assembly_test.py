@@ -364,6 +364,41 @@ def test_the_shape_of_a_contracted_arc_passes_through_the_contracted_node(
     assert shapes[3, 1] == points_from_1_to_3[::-1]
 
 
+def test_an_assembled_arc_has_the_class_of_its_pieces(tmp_path):
+    # The road 1-2-3-4 has pieces of 1 km, both ways. It is a primary road up
+    # to place 3, then a trunk road. A class is a row of the classes table.
+    primary, trunk = 5, 3
+    places = {1: [0, 0], 2: [0, 0.01], 3: [0, 0.02], 4: [0, 0.03]}
+    pieces = assembly.PieceArrays(work_dir=tmp_path)
+    for origin, class_row in ((1, primary), (2, primary), (3, trunk)):
+        ends = [places[origin], places[origin + 1]]
+        pieces.append(origin, origin + 1, 1.0, 0, ends, [], class_row)
+
+    arrays = assembly.assemble(
+        assembly.build_graph_from_pieces(pieces),
+        max_km_between_nodes=100,
+        min_component_nodes=1,
+    )
+
+    # Place 2 is contracted. Place 3 stays, and each arc has its class.
+    class_rows = _by_node_ids(arrays, lambda arc: arrays["arc_classes"][arc])
+    assert class_rows == {
+        (1, 3): primary,
+        (3, 1): primary,
+        (3, 4): trunk,
+        (4, 3): trunk,
+    }
+
+
+def test_pieces_with_and_without_a_class_are_refused():
+    pieces = assembly.PieceArrays()
+    pieces.append(1, 2, 1.0, 0, [[0, 0], [0, 0.01]], [], 5)
+    pieces.append(2, 3, 1.0, 0, [[0, 0.01], [0, 0.02]], [])
+
+    with pytest.raises(ValueError, match="have a class and the others"):
+        assembly.build_graph_from_pieces(pieces)
+
+
 def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
     # PieceArrays stores the pieces by batches of 10,000. Each of the 10,002
     # pieces has one point, at its own latitude: i units of 1e-7 degree.
@@ -390,15 +425,16 @@ def _two_way(*pairs):
     return _csr(two_way=[(u, v, 1.0) for u, v in pairs])
 
 
-# Each case below is the three arguments of `contract_chains`: a graph as
-# (offsets, heads, km), the mode of each node or None, and the length at
-# which a chain is cut. The arcs are 1 km long.
+# Each case below is the four arguments of `contract_chains`: a graph as
+# (offsets, heads, km), the mode of each node or None, the length at which a
+# chain is cut, and the class of each arc or None. The arcs are 1 km long.
 
 # Node 2 is between 1 and 3. Node 4 is a dead end off node 1.
 ROAD_WITH_A_DEAD_END = (
     _two_way((0, 1), (1, 2), (2, 3), (1, 4)),
     None,
     math.inf,
+    None,
 )
 # The chains 0-1-3 and 0-2-3 would give two arcs from 0 to 3. The first one
 # contracts node 1. The second one keeps its middle node, 2.
@@ -406,6 +442,7 @@ TWO_CHAINS_BETWEEN_THE_SAME_NODES = (
     _two_way((0, 1), (1, 3), (0, 2), (2, 3)),
     None,
     math.inf,
+    None,
 )
 # The loop 0 -> 1 -> 2 -> 3 -> 0 would give an arc from 0 to 0. It keeps its
 # middle node, 2.
@@ -416,22 +453,26 @@ ONE_WAY_LOOP_OFF_A_ROAD = (
     ),
     None,
     math.inf,
+    None,
 )
 TWO_ONE_WAY_ROADS_THAT_MERGE = (
     _csr(one_way=[(0, 2, 1), (1, 2, 1), (2, 3, 1)]),
     None,
     math.inf,
+    None,
 )
 ONE_WAY_CYCLE = (
     _csr(one_way=[(1, 2, 1), (2, 3, 1), (3, 0, 1), (0, 1, 1)]),
     None,
     math.inf,
+    None,
 )
 # The mode of each node: a road (nodes 0 and 1), a port (2), the sea (3 and 4)
 ROAD_PORT_SEA = (
     _two_way((0, 1), (1, 2), (2, 3), (3, 4)),
     array("B", [0, 0, 1, 2, 2]),
     math.inf,
+    None,
 )
 # The road is 0-4-3-2-1-5. It is walked from its lower end, node 0, and cut
 # every 2 km: at node 3, then at node 1.
@@ -439,13 +480,32 @@ LONG_ROAD_CUT_EVERY_2_KM = (
     _two_way((5, 1), (1, 2), (2, 3), (3, 4), (4, 0)),
     None,
     2.0,
+    None,
+)
+# The one-way road 0 -> 1 -> 2 -> 3 -> 4 has the class 0 up to node 2, then
+# the class 1.
+ONE_WAY_ROAD_OF_TWO_CLASSES = (
+    _csr(one_way=[(0, 1, 1), (1, 2, 1), (2, 3, 1), (3, 4, 1)]),
+    None,
+    math.inf,
+    array("B", [0, 0, 1, 1]),
+)
+# The arcs of the road 0-1-2-3-4 are listed by origin, then by head: 0-1, 1-0,
+# 1-2, 2-1, 2-3, 3-2, 3-4, 4-3. Only the arc from 2 to 1 has the class 1. Arcs
+# of two classes enter node 1, and arcs of two classes leave node 2. The four
+# arcs of node 3 have the class 0.
+ROAD_WITH_ONE_ARC_OF_ANOTHER_CLASS = (
+    _two_way((0, 1), (1, 2), (2, 3), (3, 4)),
+    None,
+    math.inf,
+    array("B", [0, 0, 0, 1, 0, 0, 0, 0]),
 )
 
 
 # `contract_chains` gives first the nodes that it keeps.
 @both_backends
 @pytest.mark.parametrize(
-    "graph, modes, max_km, kept_nodes",
+    "graph, modes, max_km, arc_classes, kept_nodes",
     [
         pytest.param(
             *ROAD_WITH_A_DEAD_END,
@@ -482,12 +542,22 @@ LONG_ROAD_CUT_EVERY_2_KM = (
             [0, 1, 3, 5],
             id="a long chain is cut each time it reaches max_km_between_nodes",
         ),
+        pytest.param(
+            *ONE_WAY_ROAD_OF_TWO_CLASSES,
+            [0, 2, 4],
+            id="a node between one-way arcs of two classes is kept",
+        ),
+        pytest.param(
+            *ROAD_WITH_ONE_ARC_OF_ANOTHER_CLASS,
+            [0, 1, 2, 4],
+            id="a node is kept when one arc in or one arc out has another class",
+        ),
     ],
 )
 def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
-    backend, graph, modes, max_km, kept_nodes
+    backend, graph, modes, max_km, arc_classes, kept_nodes
 ):
-    kept, *_ = backend.contract_chains(*graph, modes, max_km)
+    kept, *_ = backend.contract_chains(*graph, modes, max_km, arc_classes)
 
     assert list(kept) == kept_nodes
 
@@ -495,7 +565,7 @@ def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
 def _random_chains(seed):
     # Junctions 0-19 joined by chains of new nodes, both ways or one way (loops and
     # parallel chains among them), numbered at random, the same length both ways; a few
-    # nodes of another mode
+    # nodes of another mode; one arc in ten of another class
     rng = random.Random(seed)
     ids, arcs, count = rng.sample(range(10**6), 400), ([], []), 20
     for _ in range(60):
@@ -513,23 +583,30 @@ def _random_chains(seed):
         )
     graph = _csr(*arcs)
     modes = array("B", (rng.random() < 0.05 for _ in range(len(graph[0]) - 1)))
-    return graph, modes, rng.choice([math.inf, 0.5])
+    max_km = rng.choice([math.inf, 0.5])
+    arc_classes = array("B", (rng.random() < 0.1 for _ in graph[1]))
+    return graph, modes, max_km, arc_classes
 
 
-# The test below states what holds for any graph: it runs on the seven cases
-# above and on six random graphs. A contracted arc is given by its `members`:
-# the arcs of the graph that it replaces, in travel order.
+# The test below states what holds for any graph: it runs on the first seven
+# cases above and on six random graphs. A contracted arc is given by its
+# `members`: the arcs of the graph that it replaces, in travel order. The graphs
+# are taken without classes: classes only keep more nodes, and the test after
+# this one gives the random graphs their classes.
 on_every_graph = pytest.mark.parametrize(
     "graph, modes, max_km",
     [
-        ROAD_WITH_A_DEAD_END,
-        TWO_CHAINS_BETWEEN_THE_SAME_NODES,
-        ONE_WAY_LOOP_OFF_A_ROAD,
-        TWO_ONE_WAY_ROADS_THAT_MERGE,
-        ONE_WAY_CYCLE,
-        ROAD_PORT_SEA,
-        LONG_ROAD_CUT_EVERY_2_KM,
-        *(_random_chains(seed) for seed in range(6)),
+        case[:3]
+        for case in (
+            ROAD_WITH_A_DEAD_END,
+            TWO_CHAINS_BETWEEN_THE_SAME_NODES,
+            ONE_WAY_LOOP_OFF_A_ROAD,
+            TWO_ONE_WAY_ROADS_THAT_MERGE,
+            ONE_WAY_CYCLE,
+            ROAD_PORT_SEA,
+            LONG_ROAD_CUT_EVERY_2_KM,
+            *(_random_chains(seed) for seed in range(6)),
+        )
     ],
 )
 
@@ -591,18 +668,34 @@ def test_contracted_arcs_replace_the_chains_of_the_graph(
         assert km_along.get(nodes[::-1], length) == length
 
 
+# A contracted arc has one class: the class of each of its members.
+@both_backends
+def test_the_members_of_a_contracted_arc_have_the_same_class(backend):
+    for seed in range(6):
+        graph, modes, max_km, arc_classes = _random_chains(seed)
+
+        *_, member_offsets, members = backend.contract_chains(
+            *graph, modes, max_km, arc_classes
+        )
+
+        for arcs in _members_of_each_arc(member_offsets, members):
+            assert len({arc_classes[arc] for arc in arcs}) == 1, f"seed {seed}"
+
+
 # Both builds must give the same network file. Where a loop or a parallel
-# chain is cut is a choice that the two kernels make the same way.
+# chain is cut is a choice that the two kernels make the same way. Each
+# random graph is contracted without its classes, then with them.
 @needs_the_cpp_extension
 def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel():
     for seed in range(6):
-        graph, modes, max_km = _random_chains(seed)
+        graph, modes, max_km, arc_classes = _random_chains(seed)
+        without_classes = (*graph, modes, max_km)
+        for arguments in (without_classes, (*without_classes, arc_classes)):
+            contracted = cpp.contract_chains(*arguments)
 
-        contracted = cpp.contract_chains(*graph, modes, max_km)
-
-        assert list(map(list, contracted)) == list(
-            map(list, assembly.python.contract_chains(*graph, modes, max_km))
-        ), f"seed {seed}"
+            assert list(map(list, contracted)) == list(
+                map(list, assembly.python.contract_chains(*arguments))
+            ), f"seed {seed}"
 
 
 def _simplify(backend, ends, interior, tolerance_m):

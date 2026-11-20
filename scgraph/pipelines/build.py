@@ -262,10 +262,13 @@ def _write_network(
         # close on the globe get close ids
         return network.save_as_scgraph(str(filename), metadata=metadata)
     arrays, modes = network  # the arrays of the file, already in that order
+    classes = pipelines.CLASSES if "arc_classes" in arrays else None
     return network_file.write(
         str(filename),
         arrays,
-        network_file.header_metadata(metadata, units="km", modes=modes),
+        network_file.header_metadata(
+            metadata, units="km", modes=modes, classes=classes
+        ),
     )
 
 

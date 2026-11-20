@@ -16,15 +16,19 @@ node, in units of 1e-7 degree. The shape points of arc `a` are
 of each node in its source. `node_modes`, if the graph has several modes, holds the row
 of each node in the modes table.
 
-Example: two nodes joined both ways by a road of 1.5 km give `offsets = [0, 1, 2]`,
-`heads = [1, 0]` and `weights = [1.5, 1.5]`.
+`arc_classes`, if the pieces have classes, holds the row of each arc in the classes
+table (`scgraph.pipelines.CLASSES`).
+
+Example: two nodes joined both ways by a trunk road of 1.5 km give
+`offsets = [0, 1, 2]`, `heads = [1, 0]` and `weights = [1.5, 1.5]`. `trunk` is row 2 of
+the classes table, so `arc_classes = [2, 2]`.
 
 HOW A RUN GOES
 
 1. `build_graph_from_pieces` makes one arc from a one-way piece and two arcs from a
-   two-way piece. `build_csr_from_arcs` stores the arcs by origin. It drops an arc
-   from a node to itself. Of several arcs between the same two nodes, it keeps the
-   shortest.
+   two-way piece. An arc has the class of its piece. `build_csr_from_arcs` stores the
+   arcs by origin. It drops an arc from a node to itself. Of several arcs between the
+   same two nodes, it keeps the shortest.
 2. `keep_strongly_connected_components` keeps the largest strongly connected
    component, or each component of at least a given number of nodes. In such a
    component, every node can reach every other node. An arc between two components
@@ -37,7 +41,10 @@ HOW A RUN GOES
    replaces the chain, with the sum of its lengths. The arcs that the contracted arc
    replaces are its members. The walk ends a contracted arc at the first node where
    its length reaches `max_km_between_nodes`, and starts the next arc there. A chain
-   is never contracted across two modes.
+   is never contracted across two modes. In a graph with classes, a pass-through node
+   meets one more condition. All the arcs that enter it or leave it have the same
+   class. So a chain is never contracted across two classes, and a contracted arc has
+   the class of its members.
 4. `build_chain_shapes` gives each contracted arc the shape points of its members,
    with the removed nodes between them.
 5. `assemble` numbers the nodes by mode, then along a Hilbert curve. A network file
@@ -47,6 +54,13 @@ Example of step 3: the road 0-4-3-2-1-5 has arcs of 1 km, both ways, and
 `max_km_between_nodes` is 2. The walk starts at node 0 and cuts at node 3, then at
 node 1. The nodes 0, 1, 3 and 5 are kept. The arcs 0-3 and 3-1 are 2 km long, and the
 arc 1-5 is 1 km long.
+
+Example of the classes in step 3: the road 0-1-2-3-4 has arcs of 1 km, both ways. It
+is a motorway from node 0 to node 2, and a primary road from node 2 to node 4. Node 2
+has two motorway arcs and two primary arcs, so it is kept. The nodes 1 and 3 are
+removed. The contracted arcs between 0 and 2 are motorway arcs of 2 km, and the
+contracted arcs between 2 and 4 are primary arcs of 2 km. A node is removed only when
+all its arcs have one class. With a primary arc from 2 to 1 only, node 1 is kept too.
 
 WHY THE RESULT IS RIGHT
 
@@ -370,13 +384,18 @@ def contract_chains_python(
     weights: Sequence[int | float],
     node_modes: Sequence[int] | None = None,
     max_km_between_nodes: float = math.inf,
+    arc_classes: Sequence[int] | None = None,
 ) -> ContractedGraph:
     """Pure-Python version of `contract_chains`."""
     n = len(offsets) - 1
-    if len(weights) != len(heads) or (
-        node_modes is not None and len(node_modes) != n
+    if (
+        len(weights) != len(heads)
+        or (node_modes is not None and len(node_modes) != n)
+        or (arc_classes is not None and len(arc_classes) != len(heads))
     ):
-        raise ValueError("expected one weight per arc and one mode per node")
+        raise ValueError(
+            "expected one weight and one class per arc, and one mode per node"
+        )
     if (
         n < 0
         or offsets[n] != len(heads)
@@ -401,7 +420,19 @@ def contract_chains_python(
         same = node_modes is None or all(
             node_modes[x] == node_modes[v] for x in out + inn
         )
-        return (two_way or one_way) and same
+        return (
+            (two_way or one_way)
+            and same
+            and (arc_classes is None or has_one_class(v, inn))
+        )
+
+    def has_one_class(v, inn):
+        # The arcs that leave v, then the arc that enters v from each node of inn
+        arcs = [
+            *range(offsets[v], offsets[v + 1]),
+            *(offsets[u] + bisect_left(rows[u], v) for u in inn),
+        ]
+        return len({arc_classes[a] for a in arcs}) == 1
 
     def contract(s, a):
         nodes, path = [s], [a]  # walk to the next kept node
@@ -481,6 +512,7 @@ def contract_chains(
     weights: array | memoryview,
     node_modes: array | memoryview | None = None,
     max_km_between_nodes: float = math.inf,
+    arc_classes: array | memoryview | None = None,
 ) -> ContractedGraph:
     """Contract the chains of pass-through nodes of a graph.
 
@@ -499,6 +531,7 @@ def contract_chains(
         max_km_between_nodes: The length in km at which a chain is cut. Along the chain,
             an arc ends at the first node where it is this long or longer. So an arc can
             be longer than this value, by less than the length of one input arc.
+        arc_classes: The class of each arc (uint8), or None.
 
     Returns:
         A `ContractedGraph`.
@@ -508,7 +541,12 @@ def contract_chains(
     ):
         return ContractedGraph(
             *_cpp_contract_chains(
-                offsets, heads, weights, node_modes, max_km_between_nodes
+                offsets,
+                heads,
+                weights,
+                node_modes,
+                max_km_between_nodes,
+                arc_classes,
             )
         )
     return contract_chains_python(
@@ -517,6 +555,7 @@ def contract_chains(
         weights,
         node_modes=node_modes,
         max_km_between_nodes=max_km_between_nodes,
+        arc_classes=arc_classes,
     )
 
 
@@ -630,7 +669,9 @@ class PieceArrays:
     - `km` (float64): its length;
     - `directions` (int8): its direction, as in a polyline (1, -1 or 0);
     - `points` (int32 pairs) and `offsets`: its shape points. The points of piece `i` are
-      `points[2 * offsets[i]:2 * offsets[i + 1]]`.
+      `points[2 * offsets[i]:2 * offsets[i + 1]]`;
+    - `class_rows` (uint8): the row of its class in `scgraph.pipelines.CLASSES`. The
+      column is empty when the pieces have no class.
 
     `flush` simplifies the shapes of the new pieces to within `tolerance_meters`
     (`simplify_shapes`) and stores them. `append` calls it every BATCH pieces.
@@ -643,7 +684,7 @@ class PieceArrays:
 
     BATCH = 10_000
     COLUMNS = dict(origins="q", destinations="q", ends="i", km="d")
-    COLUMNS.update(directions="b", points="i", offsets="q")
+    COLUMNS.update(directions="b", points="i", offsets="q", class_rows="B")
 
     def __init__(self, tolerance_meters=50, work_dir=None, truncate=True):
         self.tolerance_meters, self.work_dir = tolerance_meters, work_dir
@@ -678,9 +719,11 @@ class PieceArrays:
         direction: int,
         endpoint_coords: Iterable[Sequence[float]],
         shape_points: Iterable[Sequence[float]],
+        class_row: int | None = None,
     ) -> None:
         """Add one piece. `endpoint_coords` and `shape_points` are `[latitude, longitude]`
-        points in degrees.
+        points in degrees. `class_row` is the row of the class of the piece in
+        `scgraph.pipelines.CLASSES`. It is None for pieces without a class.
         """
         new = self._new
         new["origins"].append(origin_id)
@@ -694,6 +737,8 @@ class PieceArrays:
         ends, points = extract_coordinates(flat, "int32")
         new["ends"].extend(ends)
         new["points"].extend(points)
+        if class_row is not None:
+            new["class_rows"].append(class_row)
         self._starts.append(len(new["points"]) // 2)
         if len(self._starts) > self.BATCH:
             self.flush()
@@ -739,13 +784,16 @@ def build_graph_from_pieces(
 
     Returns:
         The graph as a dict of arrays: `offsets`, `heads`, `weights`, `node_points`,
-        `shape_offsets`, `shape_points` and `node_ids`. The module docstring describes
-        them.
+        `shape_offsets`, `shape_points` and `node_ids`, and `arc_classes` when the
+        pieces have classes. The module docstring describes them.
 
     Raises:
-        ValueError: Every piece joins a node to itself.
+        ValueError: Every piece joins a node to itself. Or some pieces have a class
+            and the others have none.
     """
     pieces.flush()
+    if len(pieces.class_rows) not in (0, len(pieces.km)):
+        raise ValueError("Some pieces have a class and the others have none")
     piece, back = array("i"), array("b")
     for i, direction in enumerate(pieces.directions):
         for reverse in (0, 1) if direction == 0 else (int(direction < 0),):
@@ -777,7 +825,7 @@ def build_graph_from_pieces(
                 line[0::2], line[1::2] = line[-2::-2], line[-1::-2]
             points.extend(line)
             shape_offsets.append(len(points) // 2)
-    return {
+    graph = {
         "offsets": offsets,
         "heads": heads,
         "weights": weights,
@@ -786,6 +834,11 @@ def build_graph_from_pieces(
         "shape_points": points,
         "node_ids": node_ids,
     }
+    if len(pieces.class_rows):
+        graph["arc_classes"] = array(
+            "B", (pieces.class_rows[piece[i]] for i in kept)
+        )
+    return graph
 
 
 def assemble(
@@ -828,7 +881,7 @@ def assemble(
     with _log_step(
         logger, "contract the chains", _count_nodes_and_arcs(graph)
     ) as counts:
-        modes = graph.get("node_modes")
+        modes, arc_classes = graph.get("node_modes"), graph.get("arc_classes")
         kept, origins, heads, weights, member_offsets, members = (
             contract_chains(
                 graph["offsets"],
@@ -836,6 +889,7 @@ def assemble(
                 graph["weights"],
                 node_modes=modes,
                 max_km_between_nodes=max_km_between_nodes,
+                arc_classes=arc_classes,
             )
         )
         points, shape_offsets = build_chain_shapes(
@@ -852,6 +906,10 @@ def assemble(
             "shape_points": points,
             **_select_nodes(graph, kept),
         }
+        if arc_classes is not None:  # the members of an arc have one class
+            graph["arc_classes"] = array(
+                "B", (arc_classes[members[i]] for i in member_offsets[:-1])
+            )
         counts.update(_count_nodes_and_arcs(graph, "kept_"))
     node_points = memoryview(graph["node_points"])
     latitudes, longitudes = node_points[0::2], node_points[1::2]
@@ -919,7 +977,8 @@ def _select_nodes(graph, nodes):
 def _renumbered(graph, order, labels=None):
     """Return `graph` with the nodes of `order` only. Node `order[i]` becomes node `i`, and
     the arcs of each node are sorted by head. With `labels`, an arc is kept only when its
-    two ends have the same label.
+    two ends have the same label. A kept arc keeps its shape, and its class if `graph`
+    has `arc_classes`.
     """
     new = array("i", [-1]) * (len(graph["offsets"]) - 1)
     for i, u in enumerate(order):
@@ -934,6 +993,9 @@ def _renumbered(graph, order, labels=None):
         "weights": array("d"),
     }
     out["shape_offsets"], out["shape_points"] = array("i", [0]), array("i")
+    arc_classes = graph.get("arc_classes")
+    if arc_classes is not None:
+        out["arc_classes"] = array("B")
     for u in order:
         for v, a in sorted(
             (new[heads[a]], a) for a in range(offsets[u], offsets[u + 1])
@@ -945,6 +1007,8 @@ def _renumbered(graph, order, labels=None):
                     line[2 * starts[a] : 2 * starts[a + 1]]
                 )
                 out["shape_offsets"].append(len(out["shape_points"]) // 2)
+                if arc_classes is not None:
+                    out["arc_classes"].append(arc_classes[a])
         out["offsets"].append(len(out["heads"]))
     return {**out, **_select_nodes(graph, order)}
 

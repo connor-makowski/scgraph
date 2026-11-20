@@ -205,7 +205,7 @@ def test_a_way_goes_to_the_first_select_that_keeps_it(osm_file):
 
     _, polylines = osm.locate_ways(osm_file, selects, ("highway",))
 
-    assert {kind for _, kind, _, _ in polylines} == {"ways"}
+    assert {kind for _, kind, _, _, _ in polylines} == {"ways"}
 
 
 def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
@@ -221,7 +221,7 @@ def test_a_way_that_two_modes_keep_goes_to_each_of_them(osm_file):
 
     # Way 3 is the primary road from node 5 to node 6. Both modes keep it.
     modes_of_way_3 = {
-        mode for mode, _, _, vertices in polylines if vertices[0][0] == 5
+        mode for mode, _, _, _, vertices in polylines if vertices[0][0] == 5
     }
     assert modes_of_way_3 == {"road", "primary_road"}
 
@@ -261,6 +261,18 @@ def test_ways_of_two_modes_do_not_meet_at_a_node_that_both_have(osm_file):
     # each mode.
     assert 3 not in junctions["road"]
     assert 3 not in junctions["side_road"]
+
+
+# A select function may give the class of a way with its direction. The class
+# is a name of `scgraph.pipelines.CLASSES`.
+def test_a_select_that_returns_an_unknown_class_name_is_refused(osm_file):
+    def select_roads_as_canals(tags):
+        return 0, "canal"
+
+    selects = {"road": {"ways": select_roads_as_canals}}
+
+    with pytest.raises(ValueError, match="canal"):
+        osm.locate_ways(osm_file, selects, ("highway",))
 
 
 def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):

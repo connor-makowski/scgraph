@@ -34,7 +34,9 @@ WHAT A PIPELINE MODULE HOLDS
       `network_file.write` takes them. The nodes are already in the order of the
       file: by mode, then along a Hilbert curve (`assembly.assemble` gives this
       order). The weights are in km. `modes` is the modes table (see below). The
-      other OpenStreetMap pipelines of this package do this.
+      other OpenStreetMap pipelines of this package do this. `arrays` may hold
+      `arc_classes`, the class of each arc (see *The classes*). The runner then
+      writes the names of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
   them.
@@ -71,6 +73,32 @@ or a hub (`port`, `airport`, `rail_terminal`). The modes table is a list with on
 dict per mode: its `name`, and the `source` that gives the ids of its nodes. A network
 with one mode gives `[{"name": None}]`.
 
+THE CLASSES
+
+The class of an arc is its category in the source: a motorway, a vehicle ferry, a
+main railway line, a sea passage. `CLASSES` holds the names of the classes:
+
+- roads: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
+  `primary_link`, `ferry`, `shuttle_train`, `road_connector`;
+- railways: `rail_highspeed`, `rail_main`, `rail_branch`, `rail_other`,
+  `rail_connector`;
+- sea lanes: `open_sea` for a lane outside a passage, the passages `babelmandeb`,
+  `bering`, `corinth`, `dover`, `gibraltar`, `kiel`, `magellan`, `malacca`, `panama`
+  and `suez`, and `sea_connector`;
+- `flight`.
+
+The purpose of a class is one speed for all its arcs. So the connectors of a hub have
+classes of their own: a sea connector can be 2,500 km long. No class has the name of
+a mode.
+
+A pipeline records classes when its select functions give them. A select function
+returns the direction of a way: 1, -1 or 0. It may return a pair in its place: the
+direction and the name of a class, for example `(1, "motorway")`. A pipeline of your
+own uses the names of `CLASSES` only.
+
+A network file holds the class of each arc (`ARCHITECTURE.md`, section 7), and
+`network_file.read` returns it. A GeoGraph does not hold the classes.
+
 HOW TO RUN A PIPELINE
 
     GeoGraph.build_geograph("osm_rail", region="europe/luxembourg")
@@ -100,7 +128,7 @@ The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
 3. Assemble the graph (`stage3_assembly`). `assembly.build_graph_from_pieces` stores
    the pieces as a graph. `assembly.assemble` keeps the strongly connected
    components, contracts the chains of nodes and puts the nodes in the order of the
-   file.
+   file. No chain is contracted across two modes or two classes.
 4. Validate the network (`stage4_validation`). `validate_network` checks the built
    file against the cases of `VALIDATION`.
 
@@ -210,6 +238,42 @@ NAMES = (
     "world_main_roads_and_marnet",
     "world_multimodal",
 )
+# The names of the classes (the docstring of this module, *The classes*)
+CLASSES = (
+    # Roads: the `highway` value of the way, or the `route` value of a vehicle ferry
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+    "primary",
+    "primary_link",
+    "ferry",
+    "shuttle_train",
+    "road_connector",
+    # A high-speed line is `rail_highspeed`. Another line takes its class from its
+    # `usage` value.
+    "rail_highspeed",
+    "rail_main",
+    "rail_branch",
+    "rail_other",
+    "rail_connector",
+    # Sea lanes: `open_sea` outside a passage, then the passages of the source
+    "open_sea",
+    "babelmandeb",
+    "bering",
+    "corinth",
+    "dover",
+    "gibraltar",
+    "kiel",
+    "magellan",
+    "malacca",
+    "panama",
+    "suez",
+    "sea_connector",
+    "flight",
+)
+# The row of each class: the value that `arc_classes` holds for an arc of the class
+CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
 # In bytes. A larger download is logged at WARNING, which shows without a logging
 # setup.
 LARGE_DOWNLOAD = 100e6

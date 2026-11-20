@@ -5,7 +5,13 @@ terminals, for example `region="europe/denmark"`.
   ferries (as in `osm_main_roads`), railway lines without sidings, spurs and yard
   tracks (as in `osm_rail`), the sea lanes of `eurostat_marnet`, the regular flights
   between airports, and the connectors of the hubs. There are no times and no costs:
-  a user derives them from the km and the mode of each arc.
+  a user derives them from the km and the class of each arc.
+- Each arc has a class. `arc_classes` gives its row in `classes`. A road arc has the
+  `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
+  railway arc is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
+  arc has the name of its passage, for example `suez`, or `open_sea`. A flight is
+  `flight`. A connector to a road has the class `road_connector`, a connector to a
+  railway `rail_connector`, and a connector to a sea lane `sea_connector`.
 - The networks of two modes never share a node. A route goes from one network to
   another only through a hub: a port (road, sea, and rail where the port has a
   railway), an airport (road, and its flights) or a rail terminal (road and rail). The
@@ -37,6 +43,7 @@ terminals, for example `region="europe/denmark"`.
 
 import logging
 import os
+from typing import TYPE_CHECKING
 
 from scgraph.pipelines import (
     eurostat_marnet,
@@ -49,9 +56,12 @@ from scgraph.pipelines.steps.stage2_intermodal.landmask import LandMask
 from scgraph.pipelines.steps.stage3_assembly import assembly
 from scgraph.utils import _log_step
 
+if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
+    import osmium
+
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 # The small sources come first. When one of them fails, the extract is not yet
 # downloaded.
@@ -76,6 +86,45 @@ MARGIN = osm_main_roads_and_marnet.MARGIN  # degrees of raster around the roads
 download = (
     osm.download
 )  # for the sources without their own download: checks osmium first
+
+
+def select_main_roads_with_class(
+    tags: "osmium.osm.TagList",
+) -> tuple[int, str] | None:
+    """Return the direction and the class of a main road, and None for any other way.
+    The class is the `highway` value of the way. Example: a one-way motorway gives
+    `(1, "motorway")`.
+    """
+    direction = osm.select_main_roads(tags)
+    return None if direction is None else (direction, tags["highway"])
+
+
+def select_vehicle_ferries_with_class(
+    tags: "osmium.osm.TagList",
+) -> tuple[int, str] | None:
+    """Return the direction and the class of a vehicle ferry, and None for any other
+    way. The class is the `route` value of the way. Example: a shuttle train gives
+    `(0, "shuttle_train")`.
+    """
+    direction = osm.select_vehicle_ferries(tags)
+    return None if direction is None else (direction, tags["route"])
+
+
+def select_rail_with_class(
+    tags: "osmium.osm.TagList",
+) -> tuple[int, str] | None:
+    """Return the direction and the class of a railway line, and None for any other
+    way. A line with `highspeed=yes` has the class `rail_highspeed`. Another line has
+    the class of its `usage` value: `rail_main` for `main`, `rail_branch` for `branch`,
+    and `rail_other` for any other value or none.
+    """
+    direction = osm_rail.select_rail(tags)
+    if direction is None:
+        return None
+    if tags.get("highspeed") == "yes":
+        return direction, "rail_highspeed"
+    usage = {"main": "rail_main", "branch": "rail_branch"}
+    return direction, usage.get(tags.get("usage"), "rail_other")
 
 
 def build(
@@ -106,12 +155,15 @@ def build(
 
     # 1. The railways and the roads, in one read of the extract. Each mode has its
     # own junctions and its own pieces, so that a level crossing is not a change of
-    # mode.
+    # mode. Each select function gives the class of a way with its direction.
     pieces = osm.build_way_pieces(
         files["osm"],
         {
-            "rail": {"ways": osm_rail.select_rail},
-            **osm_main_roads_and_marnet.SELECTS,
+            "rail": {"ways": select_rail_with_class},
+            "road": {
+                "ways": select_main_roads_with_class,
+                "ferries": select_vehicle_ferries_with_class,
+            },
         },
         ("railway", "highway", "route"),
         max_km_between_nodes,
@@ -120,10 +172,10 @@ def build(
     rails = assembly.build_graph_from_pieces(pieces["rail"])
     roads = assembly.build_graph_from_pieces(pieces["road"])
     del pieces  # the two graphs hold their own arrays
-    # 2. The sea lanes
+    # 2. The sea lanes, with the passage of each lane as its class
     with _log_step(logger, "read the sea lanes", {}) as counts:
-        sea = eurostat_marnet.build({"sea_lanes": files["sea"]})
-        counts["nodes"] = len(sea.nodes)
+        sea = eurostat_marnet.build_graph({"sea_lanes": files["sea"]})
+        counts["nodes"] = len(sea["node_ids"])
     # 3. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
     latitudes, longitudes = node_points[0::2], node_points[1::2]

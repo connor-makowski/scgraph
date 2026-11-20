@@ -1,7 +1,7 @@
 """Roads, railways, sea lanes and flights of the world, joined at ports, airports and
 rail terminals: `osm_multimodal` for the planet.
 
-- Distances, modes, hubs and their connectors are those of `osm_multimodal`.
+- Distances, modes, classes, hubs and their connectors are those of `osm_multimodal`.
 - A shortest route in km takes any mode. Between two distant places it takes a
   flight, because a flight is a straight line. To compare modes, derive a cost per
   mode from the km, or load only some modes (`load_from_scgraph(modes=...)`).
@@ -22,7 +22,7 @@ import os
 from scgraph.pipelines import osm_multimodal as regional
 from scgraph.pipelines.steps.stage1_extract import osm
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 # The sources of the regional pipeline, with the planet in place of the extract
 SOURCES = {**regional.SOURCES, "osm": osm.PLANET}

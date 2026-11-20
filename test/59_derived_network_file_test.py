@@ -1,8 +1,10 @@
 """Tests of `scgraph.pipelines.derive`: a network file derived from a parent file."""
 
+from array import array
+
 import pytest
 
-from scgraph import GeoGraph, pipelines
+from scgraph import GeoGraph, network_file, pipelines
 from scgraph.pipelines import derive
 
 # The parent network of these tests. A node is `id: [latitude, longitude]`.
@@ -117,6 +119,45 @@ def test_a_route_of_a_derived_file_has_its_length_in_the_parent_file(bbox_file):
     # The links of the parent network on this route: 3 + 3 km of road, 1 + 11
     # km at the port, 5550 km of sea
     assert _km_from_node_1_to_node_21(bbox_file) == pytest.approx(5568.0)
+
+
+def _name_each_arc(arrays):
+    """A name for each arc of the arrays of a network, in the order of the
+    arcs: "1-2" for the arc from node 1 to node 2."""
+    ids, offsets, heads = (
+        arrays[name] for name in ("node_ids", "offsets", "heads")
+    )
+    return [
+        f"{ids[u]}-{ids[heads[arc]]}"
+        for u in range(len(ids))
+        for arc in range(offsets[u], offsets[u + 1])
+    ]
+
+
+def test_a_derived_file_keeps_the_class_of_each_arc_and_the_list_of_classes(
+    parent_file, tmp_path
+):
+    # The parent file again, where each of the 12 arcs has a class of its own.
+    # The name of the class is the name of the arc.
+    arrays, metadata = network_file.read(parent_file)
+    class_names = _name_each_arc(arrays)
+    arrays["arc_classes"] = array("B", range(len(class_names)))
+    classed_file = str(tmp_path / "classed.scgraph")
+    network_file.write(
+        classed_file, arrays, metadata | {"classes": class_names}
+    )
+    bbox_file = str(tmp_path / "bbox.scgraph")
+
+    derive.derive_file(
+        classed_file, bbox_file, bbox=BBOX, min_component_nodes=1
+    )
+
+    # The bbox removes node 4 and its two arcs, so the other arcs move up.
+    arrays, metadata = network_file.read(bbox_file)
+    assert metadata["classes"] == class_names
+    assert [
+        class_names[row] for row in arrays["arc_classes"]
+    ] == _name_each_arc(arrays)
 
 
 def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
