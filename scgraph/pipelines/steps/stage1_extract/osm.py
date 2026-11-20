@@ -499,6 +499,7 @@ def build_way_pieces(
     tag_keys: tuple[str, ...],
     max_km_between_nodes: float,
     work_dir: str | os.PathLike | None = None,
+    optional_modes: tuple[str, ...] = (),
 ) -> dict[str, PieceArrays]:
     """Read the ways of `source` that the select functions keep, and cut them into pieces.
 
@@ -518,8 +519,9 @@ def build_way_pieces(
         The pieces of each mode (`assembly.PieceArrays`), by the name of the mode.
 
     Raises:
-        ValueError: The select functions of a mode keep no way. The message names the
-            mode.
+        ValueError: The select functions of a mode keep no way, and the mode is not in
+            `optional_modes`. The message names the mode. An optional mode without a
+            way has no piece.
     """
     # `StreamedPbf.download` writes a layout file in place of an OSM file that is
     # read by byte ranges. A layout file is JSON, so it starts with "{". An OSM
@@ -601,7 +603,7 @@ def build_way_pieces(
             len(mode_pieces.km) for mode_pieces in pieces.values()
         )
     for mode, mode_pieces in pieces.items():
-        if not len(mode_pieces.km):
+        if not len(mode_pieces.km) and mode not in optional_modes:
             raise ValueError(f"No way of {source} is kept for the mode {mode}")
     for mode, mode_pieces in pieces.items():
         if "ferries" not in selects[mode]:

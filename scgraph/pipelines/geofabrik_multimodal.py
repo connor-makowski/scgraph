@@ -89,8 +89,8 @@ SOURCES AND LIMITS
   flight, because a flight is a straight line. To compare modes, derive a cost per
   mode (time, CO2) from the km, or load only some modes
   (`load_from_scgraph(modes=...)`).
-- The region needs at least one railway line. A region without one, such as
-  `europe/malta`, raises a ValueError.
+- A region without a railway, such as `europe/malta`, has no rail node. Its hubs join
+  the roads and the sea lanes.
 - `GeoGraph.load_from_osm` gives another graph from the same extract. That loader
   reads one mode, attaches no ferry, contracts no chain and simplifies no shape.
 - Not for navigation, timetables, the capacity of a terminal, or inland navigation
@@ -250,10 +250,14 @@ def build(
         ("railway", "highway", "route"),
         max_km_between_nodes,
         folder("stage1"),
+        optional_modes=("rail",),
     )
-    rails = assembly.build_graph_from_pieces(pieces["rail"])
     roads = assembly.build_graph_from_pieces(pieces["road"])
-    del pieces  # the two graphs hold their own arrays
+    layers = {"road": roads}
+    # A region may have no railway. Its hubs then join the roads and the sea lanes.
+    if len(pieces["rail"].km):
+        layers["rail"] = assembly.build_graph_from_pieces(pieces["rail"])
+    del pieces  # the graphs hold their own arrays
     # 2. The sea lanes, with the passage of each lane as its class
     with _log_step(logger, "read the sea lanes", {}) as counts:
         sea = eurostat_marnet.build_graph({"sea_lanes": files["sea"]})
@@ -285,7 +289,7 @@ def build(
         logger, "join at the hubs", {"hubs": len(region_hubs)}
     ) as counts:
         graph, joined = hubs.join(
-            {"road": roads, "rail": rails, "sea": sea},
+            {**layers, "sea": sea},
             region_hubs,
             mask,
             [mode["name"] for mode in MODES],

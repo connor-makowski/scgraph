@@ -834,6 +834,34 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
     assert "built" not in kinds
 
 
+# The strait has roads and ferries, and no railway.
+def test_a_region_without_a_railway_builds_without_rail_nodes(
+    tmp_path, source, monkeypatch
+):
+    pytest.importorskip("osmium")
+    for name, path in _LOCAL_SOURCES.items():
+        monkeypatch.setitem(
+            geofabrik_multimodal.SOURCES,
+            name,
+            {**geofabrik_multimodal.SOURCES[name], "url": source + path},
+        )
+
+    strait = GeoGraph.build_geograph(
+        "geofabrik_multimodal", region="strait", cache_dir=tmp_path
+    )
+
+    assert _points_of(strait, "rail") == []
+    # The road nodes 1, 2, 3, 5 and 4 of the strait. Node 2 stays a node: it
+    # joins a road to a ferry, which are two classes.
+    assert _points_of(strait, "road") == [
+        [0, 0],
+        [0, 0.01],
+        [0, 0.06],
+        [0, 0.065],
+        [0, 0.07],
+    ]
+
+
 # From the command line, a network is built into the cache without being loaded, and
 # the path of its file is printed; build_geograph then loads that file
 def test_build_command_builds_the_file_build_geograph_loads(
