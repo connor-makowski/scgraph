@@ -87,10 +87,13 @@ step logs one line at DEBUG, with its counts and its duration (`utils._log_step`
 The functions of the steps are in `scgraph.pipelines.steps`, in four stages:
 
 1. Read the sources (`stage1_extract`). `osm.build_way_pieces` reads the ways of an
-   OpenStreetMap file that the select functions keep. It cuts each way at its
-   junctions, and where a piece reaches `max_km_between_nodes`. It simplifies the
-   shape of each piece to within 50 m. It attaches the ferries to road nodes
-   (`osm.build_ferry_arcs`). `arcgis.download` downloads an ArcGIS layer.
+   OpenStreetMap file that the select functions keep. It takes the select functions
+   of each mode. One read of the file serves every mode. Each mode gets its own
+   junctions and its own pieces, so a road never joins a railway. The function
+   cuts each way at the junctions of its mode, and where a piece reaches
+   `max_km_between_nodes`. It simplifies the shape of each piece to within 50 m. It
+   attaches the ferries to road nodes (`osm.build_ferry_arcs`). `arcgis.download`
+   downloads an ArcGIS layer.
 2. Join the modes (`stage2_intermodal`). `hubs.join` joins the networks of several
    modes at hubs: ports, airports and rail terminals. `landmask.LandMask` tells land
    from water for the connectors of a hub.

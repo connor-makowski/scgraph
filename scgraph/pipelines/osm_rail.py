@@ -52,12 +52,12 @@ def build(
     stage1_work_dir = os.path.join(work_dir, "stage1") if work_dir else None
     pieces = osm.build_way_pieces(
         files["rail"],
-        {"rail": select_rail},
+        {"rail": {"ways": select_rail}},
         ("railway",),
         max_km_between_nodes=max_km_between_nodes,
         work_dir=stage1_work_dir,
     )
-    graph = assembly.build_graph_from_pieces(pieces)
+    graph = assembly.build_graph_from_pieces(pieces["rail"])
     arrays = assembly.assemble(
         graph,
         max_km_between_nodes=max_km_between_nodes,
