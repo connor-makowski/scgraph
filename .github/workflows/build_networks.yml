@@ -7,11 +7,12 @@ name: Build the reference networks
 # release as a draft. A maintainer reads the draft, then publishes it. The files of a
 # published release never change: a correction is a new tag.
 #
-# One network is built from its sources: `world_multimodal`. Every other file is
-# derived from it by `scgraph.pipelines.derive`, with no download: `VIEWS` of that
-# module lists the derived files. The world file is carried over from the previous
-# published network release when the same version of the pipeline built it from the same
-# source URLs. That release may be a development release.
+# One network is built from its sources: `world_multimodal`, by the pipeline
+# `osm_world_multimodal`. Every other file is derived from it by
+# `scgraph.pipelines.derive`, with no download: `DERIVED_NETWORKS` of that module
+# names the derived networks. The world file is carried over from the previous
+# published network release when the same pipeline, at the same version, built it
+# from the same source URLs. That release may be a development release.
 on:
   push:
     tags:
@@ -89,7 +90,7 @@ jobs:
           uv run python - <<'PYTHON'
           import os
           from scgraph import GeoGraph
-          from scgraph.pipelines import world_multimodal
+          from scgraph.pipelines import osm_world_multimodal as pipeline
 
           file = "previous/world_multimodal.scgraph"
           try:
@@ -97,10 +98,16 @@ jobs:
           except ValueError as error:  # another file format: build the network
               print(error)
               raise SystemExit
-          then = info["pipeline"]["version"], {s["name"]: s["url"] for s in info["sources"]}
-          now = world_multimodal.PIPELINE_VERSION, {
-              name: source["url"] for name, source in world_multimodal.SOURCES.items()
-          }
+          then = (
+              info["pipeline"]["name"],
+              info["pipeline"]["version"],
+              {s["name"]: s["url"] for s in info["sources"]},
+          )
+          now = (
+              "osm_world_multimodal",
+              pipeline.PIPELINE_VERSION,
+              {name: source["url"] for name, source in pipeline.SOURCES.items()},
+          )
           print(f"then: {then}\nnow:  {now}")
           if then == now:
               os.makedirs("files")
@@ -109,9 +116,9 @@ jobs:
       - name: Build and validate the world network, if it is not carried over
         run: |
           if [ -f files/world_multimodal.scgraph ]; then echo "carried over"; exit 0; fi
-          uv run python -m scgraph.pipelines.build world_multimodal --cache-dir cache --validate
+          uv run python -m scgraph.pipelines.build osm_world_multimodal --cache-dir cache --validate
           mkdir -p files
-          cp cache/networks/world_multimodal/*.scgraph files/world_multimodal.scgraph
+          cp cache/networks/osm_world_multimodal/*.scgraph files/world_multimodal.scgraph
       - uses: actions/upload-artifact@v4
         with:
           name: world
@@ -138,17 +145,11 @@ jobs:
         with:
           name: world
           path: files
-      # Each view gives two files: with the shapes of its arcs, and without them. The
-      # two files hold the same network, so one validation serves both.
-      - name: Derive and validate each view
+      # Each derived network gives two files: with the shapes of its arcs, and
+      # without them. The command also writes the world file without shapes.
+      - name: Derive and validate each network
         run: |
-          world=files/world_multimodal.scgraph
-          derive="uv run python -m scgraph.pipelines.derive"
-          for view in $(uv run python -c "from scgraph.pipelines.derive import VIEWS; print(*VIEWS)"); do
-            $derive "$world" "$view" files --validate
-            $derive "$world" "$view" files --no-shapes
-          done
-          uv run python -c "from scgraph.pipelines.derive import derive_file; derive_file('$world', 'files/world_multimodal.no_shapes.scgraph', keep_shapes=False)"
+          uv run python -m scgraph.pipelines.derive files/world_multimodal.scgraph files
           ls -l files
       # A run that is started again replaces its own draft
       - name: Delete the draft of an earlier run

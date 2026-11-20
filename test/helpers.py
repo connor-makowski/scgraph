@@ -1,4 +1,5 @@
 import math
+import os
 
 import pytest
 
@@ -37,3 +38,35 @@ def great_circle_km(a, b):
         + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
     )
     return 2 * 6371 * math.asin(math.sqrt(h))
+
+
+def build_main_roads(files, *, work_dir=None):
+    """Build the main roads and the vehicle ferries of the OSM file `files["roads"]`,
+    as the arrays of a network file and a modes table.
+
+    The function is the `build` of a small pipeline for the tests. For the roads
+    alone, it runs the steps that the pipeline `geofabrik_multimodal` runs for each
+    mode: read and cut the ways, store the pieces as a graph, assemble the arrays.
+    Its select functions give no class.
+    """
+    from scgraph.pipelines.steps import assembly, osm
+
+    pieces = osm.build_way_pieces(
+        files["roads"],
+        {
+            "road": {
+                "ways": osm.select_main_roads,
+                "ferries": osm.select_vehicle_ferries,
+            }
+        },
+        ("highway", "route"),
+        osm.MAX_KM_BETWEEN_NODES,
+        os.path.join(work_dir, "stage1") if work_dir else None,
+    )
+    graph = assembly.build_graph_from_pieces(pieces["road"])
+    arrays = assembly.assemble(
+        graph,
+        max_km_between_nodes=osm.MAX_KM_BETWEEN_NODES,
+        min_component_nodes=None,  # only the largest component
+    )
+    return arrays, [{"name": None}]

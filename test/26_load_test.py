@@ -343,8 +343,9 @@ def test_the_name_of_a_released_network_at_another_url_loads_from_that_url(
 @pytest.fixture
 def filled_cache(tmp_path):
     """A cache holding a published geograph, two files of a network release, built
-    networks (marnet, a real network file, and osm_rail of a region and of a
-    sub-region), a cache.json that names no file, a build's work folder and a user file.
+    networks (eurostat_marnet, a real network file, and geofabrik_multimodal of a region
+    and of a sub-region), a cache.json that names no file, a build's work folder and a
+    user file.
     """
     files = {
         "marnet.graphjson": b"x" * 10,
@@ -352,13 +353,13 @@ def filled_cache(tmp_path):
         "notes.txt": b"x",
         "releases/networks-1/europe.no_shapes.scgraph": b"x" * 3,
         "releases/networks-1/europe.scgraph": b"x" * 7,
-        "networks/marnet/cache.json": "m.scgraph",
-        "networks/osm_rail/europe/e.scgraph": b"x" * 30,
-        "networks/osm_rail/europe/cache.json": "e.scgraph",
-        "networks/osm_rail/europe/france/f.scgraph": b"x" * 40,
-        "networks/osm_rail/europe/france/cache.json": "f.scgraph",
-        "networks/us_freeway/cache.json": "gone.scgraph",
-        ".work/osm_rail/europe/sources/rail.osm.pbf": b"x" * 50,
+        "networks/eurostat_marnet/cache.json": "m.scgraph",
+        "networks/geofabrik_multimodal/europe/e.scgraph": b"x" * 30,
+        "networks/geofabrik_multimodal/europe/cache.json": "e.scgraph",
+        "networks/geofabrik_multimodal/europe/france/f.scgraph": b"x" * 40,
+        "networks/geofabrik_multimodal/europe/france/cache.json": "f.scgraph",
+        "networks/osm_world_multimodal/cache.json": "gone.scgraph",
+        ".work/geofabrik_multimodal/europe/sources/rail.osm.pbf": b"x" * 50,
     }
     for path, content in files.items():
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
@@ -366,9 +367,9 @@ def filled_cache(tmp_path):
             content = json.dumps({"file": content}).encode()
         (tmp_path / path).write_bytes(content)
     built = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[0, 0], [0, 1]])
-    pipeline = {"name": "marnet", "region": None, "version": 3}
+    pipeline = {"name": "eurostat_marnet", "region": None, "version": 3}
     built.save_as_scgraph(
-        str(tmp_path / "networks/marnet/m.scgraph"),
+        str(tmp_path / "networks/eurostat_marnet/m.scgraph"),
         metadata={"pipeline": pipeline, "software": {"scgraph": "9.9"}},
     )
     return tmp_path
@@ -376,7 +377,9 @@ def filled_cache(tmp_path):
 
 def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
     info = GeoGraph.get_cache_info(str(filled_cache))
-    marnet_bytes = (filled_cache / "networks/marnet/m.scgraph").stat().st_size
+    built_bytes = (
+        (filled_cache / "networks/eurostat_marnet/m.scgraph").stat().st_size
+    )
     assert [
         (i["kind"], i["name"], i["region"], Path(i["file"]).name, i["bytes"])
         for i in info
@@ -385,10 +388,10 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         ("published", "marnet", None, "marnet.scgraph", 5),
         ("released", "europe", None, "europe.no_shapes.scgraph", 3),
         ("released", "europe", None, "europe.scgraph", 7),
-        ("built", "marnet", None, "m.scgraph", marnet_bytes),
-        ("built", "osm_rail", "europe", "e.scgraph", 30),
-        ("built", "osm_rail", "europe/france", "f.scgraph", 40),
-        ("building", "osm_rail", None, "osm_rail", 50),
+        ("built", "eurostat_marnet", None, "m.scgraph", built_bytes),
+        ("built", "geofabrik_multimodal", "europe", "e.scgraph", 30),
+        ("built", "geofabrik_multimodal", "europe/france", "f.scgraph", 40),
+        ("building", "geofabrik_multimodal", None, "geofabrik_multimodal", 50),
     ]
     assert info[2]["version"] == "networks-1"
     # Versions read from the file; None for a file that can't be read
@@ -409,13 +412,16 @@ def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
     [
         pytest.param(
             {"name": "marnet"},
+            {"marnet.graphjson", "marnet.scgraph"},
+            id="the published files of a name",
+        ),
+        pytest.param(
+            {"name": "eurostat_marnet"},
             {
-                "marnet.graphjson",
-                "marnet.scgraph",
-                "networks/marnet/m.scgraph",
-                "networks/marnet/cache.json",
+                "networks/eurostat_marnet/m.scgraph",
+                "networks/eurostat_marnet/cache.json",
             },
-            id="the published and the built files of a name",
+            id="the built network of a name without region",
         ),
         pytest.param(
             {"name": "europe"},
@@ -426,20 +432,20 @@ def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
             id="the files of a name in every network release",
         ),
         pytest.param(
-            {"name": "osm_rail"},
+            {"name": "geofabrik_multimodal"},
             {
-                "networks/osm_rail/europe/e.scgraph",
-                "networks/osm_rail/europe/cache.json",
-                "networks/osm_rail/europe/france/f.scgraph",
-                "networks/osm_rail/europe/france/cache.json",
+                "networks/geofabrik_multimodal/europe/e.scgraph",
+                "networks/geofabrik_multimodal/europe/cache.json",
+                "networks/geofabrik_multimodal/europe/france/f.scgraph",
+                "networks/geofabrik_multimodal/europe/france/cache.json",
             },
             id="every region of a name without region",
         ),
         pytest.param(
-            {"name": "osm_rail", "region": "europe"},
+            {"name": "geofabrik_multimodal", "region": "europe"},
             {
-                "networks/osm_rail/europe/e.scgraph",
-                "networks/osm_rail/europe/cache.json",
+                "networks/geofabrik_multimodal/europe/e.scgraph",
+                "networks/geofabrik_multimodal/europe/cache.json",
             },
             id="a region without its sub-regions",
         ),
@@ -459,7 +465,7 @@ def test_clear_geograph_cache_removes_only_the_files_of_the_selected_network(
     "selector",
     [
         {"name": "../networks"},
-        {"name": "osm_rail", "region": "../.."},
+        {"name": "geofabrik_multimodal", "region": "../.."},
         {"region": "europe"},
     ],
 )
@@ -472,7 +478,7 @@ def test_clear_geograph_cache_refuses_a_selector_that_leaves_the_network(
     assert _list_files(filled_cache) == before
 
 
-# The folder of the built marnet is made read-only: its files cannot be
+# The folder of a built network is made read-only: its files cannot be
 # removed. On Windows, the file of a network that is still loaded behaves so.
 @pytest.mark.skipif(
     not hasattr(os, "geteuid") or os.geteuid() == 0,
@@ -482,13 +488,10 @@ def test_clear_geograph_cache_leaves_a_file_it_cannot_remove_with_a_warning(
     filled_cache, caplog
 ):
     before = _list_files(filled_cache)
-    (filled_cache / "networks/marnet").chmod(0o555)
+    (filled_cache / "networks/eurostat_marnet").chmod(0o555)
     try:
-        GeoGraph.clear_geograph_cache(str(filled_cache), name="marnet")
+        GeoGraph.clear_geograph_cache(str(filled_cache), name="eurostat_marnet")
     finally:
-        (filled_cache / "networks/marnet").chmod(0o755)
-    assert before - _list_files(filled_cache) == {
-        "marnet.graphjson",
-        "marnet.scgraph",
-    }
+        (filled_cache / "networks/eurostat_marnet").chmod(0o755)
+    assert _list_files(filled_cache) == before
     assert "m.scgraph" in caplog.text

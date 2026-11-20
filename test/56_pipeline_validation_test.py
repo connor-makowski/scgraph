@@ -21,16 +21,20 @@ def test_every_case_that_a_pipeline_lists_exists(name):
     assert load_cases(pipeline.VALIDATION)
 
 
-# A regional pipeline lists its cases by region. `paris_marseille` is a row of
-# `cases/route_lengths.csv`.
-CASES_BY_REGION = {"cases": {"europe/france": ["paris_marseille"]}}
+# A regional pipeline lists its cases by region. `aarhus_to_copenhagen_intermodal`
+# is a row of `cases/route_lengths.csv`.
+CASES_BY_REGION = {
+    "cases": {"europe/denmark": ["aarhus_to_copenhagen_intermodal"]}
+}
 
 
 @pytest.mark.parametrize(
     "region, case_ids",
     [
         pytest.param(
-            "europe/france", ["paris_marseille"], id="a region that has cases"
+            "europe/denmark",
+            ["aarhus_to_copenhagen_intermodal"],
+            id="a region that has cases",
         ),
         pytest.param("europe/spain", [], id="a region without cases"),
     ],

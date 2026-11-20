@@ -33,8 +33,8 @@ WHAT A PIPELINE MODULE HOLDS
     - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
       file: by mode, then along a Hilbert curve (`assembly.assemble` gives this
-      order). The weights are in km. `modes` is the modes table (see below). The
-      other OpenStreetMap pipelines of this package do this. `arrays` may hold
+      order). The weights are in km. `modes` is the modes table (see below).
+      `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
       `arc_classes`, the class of each arc (see *The classes*). The runner then
       writes the names of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
@@ -47,7 +47,7 @@ WHAT A PIPELINE MODULE HOLDS
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
 
-The runner reads no other name. Names such as `SELECTS`, `MODES` or
+The runner reads no other name. Names such as `MODES`, `MARGIN` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.
 
 THE DOWNLOAD FUNCTIONS
@@ -101,8 +101,8 @@ A network file holds the class of each arc (`ARCHITECTURE.md`, section 7), and
 
 HOW TO RUN A PIPELINE
 
-    GeoGraph.build_geograph("osm_rail", region="europe/luxembourg")
-    python -m scgraph.pipelines.build osm_rail --region europe/luxembourg --validate
+    GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
+    python -m scgraph.pipelines.build geofabrik_multimodal --region europe/denmark --validate
 
 The first line builds the network, or loads it from the cache. The command builds the
 network without loading it, and prints the path of its file. With `--validate`, the
@@ -164,9 +164,9 @@ same sources, the same version of scgraph, the same backend, and the same platfo
 with the same C library or macOS version. A test checks this. The C++ build and the
 pure-Python build give the same nodes, the same arcs and the same lengths. Two
 things may differ: the order of the arcs of a node, and the choice between two
-routes of the same length. A test checks this with the `eurostat_marnet` and
-`osm_main_roads` pipelines on small inputs. Between two platforms, a few lengths or shape points may differ in the last
-bit, because the math libraries differ.
+routes of the same length. A test checks this with `eurostat_marnet` and
+`geofabrik_multimodal`, on small inputs. Between two platforms, a few lengths or
+shape points may differ in the last bit, because the math libraries differ.
 
 A PIPELINE OF YOUR OWN
 
@@ -224,11 +224,8 @@ logger = logging.getLogger(__name__)
 
 NAMES = (
     "eurostat_marnet",
-    "osm_main_roads",
-    "osm_main_roads_and_marnet",
-    "osm_multimodal",
-    "osm_rail",
-    "world_multimodal",
+    "geofabrik_multimodal",
+    "osm_world_multimodal",
 )
 # The names of the classes (the docstring of this module, *The classes*)
 CLASSES = (

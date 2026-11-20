@@ -671,7 +671,7 @@ class GeoGraphIO:
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
-        - Not the graph of the `osm_main_roads` pipeline from the same file: this loader neither attaches ferries, nor contracts chains, nor simplifies shapes
+        - Not the graph of the `geofabrik_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
@@ -1451,11 +1451,8 @@ class GeoGraphIO:
         name: (
             Literal[
                 "eurostat_marnet",
-                "osm_main_roads",
-                "osm_main_roads_and_marnet",
-                "osm_multimodal",
-                "osm_rail",
-                "world_multimodal",
+                "geofabrik_multimodal",
+                "osm_world_multimodal",
             ]
             | types.ModuleType
         ),
@@ -1490,7 +1487,7 @@ class GeoGraphIO:
 
         - `region`
             - Type: str | None
-            - What: For the OpenStreetMap networks, the path of a Geofabrik extract, as in its download URL
+            - What: For `geofabrik_multimodal`, the path of a Geofabrik extract, as in its download URL
             - Default: None
             - Examples: 'europe/luxembourg', 'europe/france/bretagne', 'north-america/us/texas'
             - See: https://download.geofabrik.de for the extracts and their paths (all of them, machine-readable: https://download.geofabrik.de/index-v1-nogeom.json)

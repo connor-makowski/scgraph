@@ -1,4 +1,4 @@
-"""Write ../cases/sea_distances.csv: 20 port pairs, their WPI positions and their reference
+"""Write `sea_distances.csv` in `scgraph/pipelines/steps/stage4_validation/cases`: 20 port pairs, their WPI positions and their reference
 sea distances (run by hand; the CSV is the frozen, committed output, never overwritten).
 
 References:
@@ -27,7 +27,10 @@ from pathlib import Path
 
 from scgraph.utils import haversine as haversine_km
 
-OUT = Path(__file__).resolve().parents[1] / "cases" / "sea_distances.csv"
+OUT = (
+    Path(__file__).resolve().parents[2]
+    / "scgraph/pipelines/steps/stage4_validation/cases/sea_distances.csv"
+)
 
 NM_KM = 1.852
 SAME_PORT_KM = 25.0
@@ -37,7 +40,7 @@ WPI_SOURCE = (
 CERDI_SOURCE = (
     "CERDI-seadistance V1.1 (Bertoli, Goujon & Santoni 2016; Zenodo 240493; "
     "CC-BY-4.0), read from the extract that "
-    "references/sea_distances_build_cases.py describes"
+    "utils/validation_references/sea_distances_build_cases.py describes"
 )
 PUB151_SOURCE = (
     "NGA Pub. 151 Distances Between Ports, 11th ed. 2001 (US Gov., no copyright), "

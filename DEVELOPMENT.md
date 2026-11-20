@@ -43,8 +43,8 @@ scgraph/
   network_release.py             # The network release that this version of scgraph loads (written by utils/pin_network_release.py)
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
-  pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
-    build.py, derive.py          # The runner: build_file (download, build, cache). derive_file: a part of a network file as a new file. Both run with python -m
+  pipelines/                     # geofabrik_multimodal (a region), osm_world_multimodal (the world), eurostat_marnet (sea lanes); contract: docstring of __init__.py; guide: README.md
+    build.py, derive.py          # The runner: build_file (download, build, cache). derive.py: derive_file, and derive_release_files for the derived networks of a release. Both run with python -m
     steps/                       # stage1_extract, stage2_intermodal, stage3_assembly, stage4_validation (ARCHITECTURE.md §1)
   helpers/
     geojson.py                   # GeoJSON parsing and simplification

@@ -88,7 +88,7 @@ the call that derives a network.
 
 This part follows one build from its sources to its network file.
 
-The example runs the pipeline `osm_multimodal` on the region `europe/denmark`. A region is
+The example runs the pipeline `geofabrik_multimodal` on the region `europe/denmark`. A region is
 the path of an extract on Geofabrik, a server of OpenStreetMap extracts. The build ran on
 2026-11-20 on Linux, with the C++ extension, from the extract of 2026-11-18. The numbers come
 from its log. Another day gives other numbers, because the extract changes every day.
@@ -115,7 +115,7 @@ from its log. Another day gives other numbers, because the extract changes every
 
 ```
 pip install "scgraph[osm]"
-python -m scgraph.pipelines.build osm_multimodal --region europe/denmark --validate
+python -m scgraph.pipelines.build geofabrik_multimodal --region europe/denmark --validate
 ```
 
 The command prints the path of the network file. It logs each download. To see each step with
@@ -126,7 +126,7 @@ import logging
 from scgraph.pipelines.build import build_file
 
 logging.basicConfig(level=logging.DEBUG)
-build_file("osm_multimodal", region="europe/denmark", validate=True)
+build_file("geofabrik_multimodal", region="europe/denmark", validate=True)
 ```
 
 ### The steps
@@ -299,7 +299,7 @@ cache holds the file.
 ```py
 from scgraph import GeoGraph
 
-denmark = GeoGraph.build_geograph("osm_multimodal", region="europe/denmark")
+denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
 route = denmark.get_shortest_path(
     {"latitude": 56.1629, "longitude": 10.2039},
     {"latitude": 55.6761, "longitude": 12.5683},
@@ -313,7 +313,7 @@ the same two points is 302.2 km:
 ```py
 from scgraph.pipelines.build import build_file
 
-file = build_file("osm_multimodal", region="europe/denmark")  # the file of the cache
+file = build_file("geofabrik_multimodal", region="europe/denmark")  # the file of the cache
 roads = GeoGraph.load_from_scgraph(file, modes=["road"])
 ```
 
@@ -332,8 +332,8 @@ Each arc has a class. A two-way road gives two arcs, and the table counts the km
 
 ### The network of the world
 
-The pipeline `world_multimodal` runs the same steps on the whole planet. It differs in three
-points:
+The pipeline `osm_world_multimodal` runs the same steps on the whole planet. It builds the
+network `world_multimodal`. The pipeline differs from `geofabrik_multimodal` in three points:
 
 - It reads the planet file by HTTP byte ranges, and never stores it.
 - It cuts a road or a railway every 10 km, not every 2 km. This gives about 3.3 million nodes.
@@ -350,18 +350,19 @@ one, the derived file. It downloads nothing. The docstring of the module `derive
 rules.
 
 A derivation takes two choices. The first is a list of modes. The second is a bbox, a rectangle
-`(south, west, north, east)` in degrees. A **view** is a named pair of these choices. `VIEWS`
-of the same module lists the ten views of `world_multimodal`, for example `world_sea` and
-`oceania`.
+`(south, west, north, east)` in degrees. The table `DERIVED_NETWORKS` of the same module names
+the ten derived networks of a network release, each with its modes or its bbox. Two examples
+are `world_sea` and `oceania`.
 
 ```
-python -m scgraph.pipelines.derive world_multimodal.scgraph oceania derived --validate
+python -m scgraph.pipelines.derive world_multimodal.scgraph derived oceania
 ```
 
-The arguments are the parent file, the view and the output folder. The command writes
-`derived/oceania.scgraph` and prints its path. With `--no-shapes`, it writes
-`derived/oceania.no_shapes.scgraph` instead: the same network without the shapes of its arcs.
-In a network release, the workflow of Part 3 runs this command for each view.
+The arguments are the world file, the output folder and the name of a derived network. The
+command writes `derived/oceania.scgraph`, and `derived/oceania.no_shapes.scgraph`: the same
+network without the shapes of its arcs. It prints the two paths. Without a name, the command
+writes the files of the ten derived networks, and the world file without shapes. In a network
+release, the workflow of Part 3 runs the command this way, once.
 
 The numbers below come from one derivation of `oceania` on 2026-11-20, on Linux, with the C++
 extension. The parent file is the `world_multimodal` of the network release
@@ -383,14 +384,16 @@ extension. The parent file is the `world_multimodal` of the network release
 The derivation took 1.4 s. The derived file is 19.7 MB, and 7.0 MB without the shapes. Its
 header records the `content_sha256` of the parent file, the modes and the bbox.
 
-With `--validate`, the command checks the derived file against some cases of
-`world_multimodal`: the cases whose two points are inside the bbox, on modes that the file
-holds. There are 16 such cases here.
+The command checks the derived network against some cases of `world_multimodal` (`--no-validate`
+skips this check): the cases whose two points are inside the bbox, on modes that the file holds.
+There are 16 such cases here. The check reads these cases from the pipeline that built the world
+file. This world file was built when that pipeline had the name `world_multimodal`: with this
+file, the command needs `--no-validate`.
 
 The validation of the world accepts that up to 1 % of the cities of a list have no road route.
-The world file can therefore pass with a few failed cases. A view has fewer cities, so the
-same failed city can be more than 1 % of them. For this reason, a derived file passes when it
-fails no case that the parent file passes. Here it fails none.
+The world file can therefore pass with a few failed cases. A derived network has fewer cities,
+so the same failed city can be more than 1 % of them. For this reason, a derived file passes
+when it fails no case that the parent file passes. Here it fails none.
 
 ## Part 3. Publish a network release
 
@@ -435,8 +438,8 @@ flowchart TD
     B --> V{"Does it pass its validation cases?"}
     V -- "no" --> X2["The run stops"]
     V -- "yes" --> D
-    O --> D["Job 3: derive the file of each view (Part 2),<br/>with and without shapes,<br/>and the world file without shapes"]
-    D --> W{"Does each view pass its validation?<br/>Does each source have a license?"}
+    O --> D["Job 3: derive the two files of each derived network (Part 2),<br/>with and without shapes,<br/>and the world file without shapes"]
+    D --> W{"Does each derived network pass its validation?<br/>Does each source have a license?"}
     W -- "no" --> X3["The run stops"]
     W -- "yes" --> F["Compress the 22 files,<br/>write networks.json and the notes,<br/>create the draft of the network release"]
 ```
@@ -453,10 +456,10 @@ The times come from two runs: `networks-2026.11.20-dev.1`, which built the world
 - **Job 2 reads the planet from another server.** The workflow first replaces the planet URL
   of the code by a mirror that is faster from a machine of GitHub. The header of the world
   file records the URL that was read.
-- **Job 2 builds the world only when something changed.** It reads the header of the world
-  file of the last published network release. It takes this file when the pipeline has the same
-  `PIPELINE_VERSION` and the same source URLs, the mirror on both sides. A new planet URL
-  therefore gives a new build.
+- **Job 2 builds the world only when something changed.** It reads the header of the world file
+  of the last published network release. It takes this file when the pipeline has the same name,
+  the same `PIPELINE_VERSION` and the same source URLs, the mirror on both sides. A new planet
+  URL therefore gives a new build.
 - **Job 2 has 5 h 55 min.** GitHub stops a job at 6 hours. A job that is run again starts from
   nothing.
 
@@ -464,8 +467,8 @@ The times come from two runs: `networks-2026.11.20-dev.1`, which built the world
 
 The network release `networks-2026.11.20-dev.1` holds 23 files.
 
-- 22 network files, compressed with gzip: `world_multimodal` and the ten views, each with and
-  without the shapes of its arcs. For example `oceania.scgraph.gz` (9.2 MB) and
+- 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
+  with and without the shapes of its arcs. For example `oceania.scgraph.gz` (9.2 MB) and
   `oceania.no_shapes.scgraph.gz` (3.5 MB). The shapes are half of a file or more. A user who
   needs only the route lengths loads the file without them (`shapes=False`).
 - `networks.json`, the index of the network release. It gives for each file its size, its
@@ -480,7 +483,7 @@ The run ends with a draft.
 
 1. **Read the draft.** The maintainer checks three things. When job 2 built the world, its log
    has the line `Validation PASSED`, with the number of cases. The log of job 3 has the line
-   `0 failed in this file only` for each view. The table of the notes has 22 files, with
+   `0 failed in this file only` for each derived network. The table of the notes has 22 files, with
    numbers of nodes close to those of the last network release.
 2. **Publish.** The maintainer publishes the draft on its GitHub page. The publication of a
    GitHub release also starts the workflow that publishes scgraph on PyPI. That workflow skips
@@ -582,7 +585,7 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 
 ## A network of your own
 
-- **Another view of a released network.** `derive_file` takes any modes and any
+- **Another network derived from a released network.** `derive_file` takes any modes and any
   bbox. The parent file is in the cache after a load, and `scgraph_file` gives its path. The
   parent file must have the shapes of its arcs.
 

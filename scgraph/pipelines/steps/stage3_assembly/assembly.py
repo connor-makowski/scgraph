@@ -310,7 +310,7 @@ def keep_strongly_connected_components(
         offsets: The CSR offsets of the graph, one more than its nodes (int32).
         heads: The head of each arc (int32).
         min_component_nodes: The smallest number of nodes of a kept component. None keeps
-            only the largest component. Example: the world pipelines give 1000, so that
+            only the largest component. Example: `osm_world_multimodal` gives 1000, so that
             an island with roads of its own stays in the network.
 
     Returns:

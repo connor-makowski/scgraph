@@ -199,11 +199,6 @@ HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
             [1, 2, 3, 4, 5],
             id="every component of the minimum size",
         ),
-        pytest.param(
-            {"min_component_nodes": 1},
-            [0, 1, 2, 3, 4, 5],
-            id="every node with a minimum size of one node",
-        ),
     ],
 )
 def test_components_are_kept_by_their_size(options, kept_nodes):

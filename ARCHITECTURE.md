@@ -360,9 +360,9 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     "symmetric": false,
     "node_order": "hilbert",
     "pipeline": {
-      "name": "osm_main_roads",
+      "name": "geofabrik_multimodal",
       "region": "europe/luxembourg",
-      "version": 1
+      "version": 2
     },
     "software": {
       "scgraph": "<version>",
@@ -371,7 +371,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     },
     "sources": [
       {
-        "name": "roads",
+        "name": "osm",
         "url": "https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf",
         "sha256": "...",
         "bytes": 35600000,
@@ -383,6 +383,8 @@ The header contains top-level structural fields and a nested `metadata` dictiona
   }
 }
 ```
+
+The example shows one source. It leaves out the arrays of the modes, of the classes and of the shapes.
 
 #### Header Fields Specification
 
@@ -423,17 +425,18 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `node_modes` *(opt)* | `uint8` | $N$ | The mode of each node: the row of its mode in `metadata.modes`, counted from 0. Each node has one mode, so the value is an index, not a set of bits. A file has at most 256 modes. |
 | `arc_classes` *(opt)* | `uint8` | $M$ | The class of each arc: the row of its class in `metadata.classes`, counted from 0. A file has at most 256 classes. |
 
-For example, `osm_main_roads_and_marnet` has three modes:
+For example, the first modes of `geofabrik_multimodal` are:
 
 ```json
 "modes": [
-  {"name": "road", "source": "roads"},
-  {"name": "port", "source": "ports"},
-  {"name": "sea", "source": "sea"}
+  {"name": "road", "source": "osm"},
+  {"name": "rail", "source": "osm"},
+  {"name": "sea", "source": "sea"},
+  {"name": "port", "source": "ports"}
 ]
 ```
 
-Its road nodes have the value `0` in `node_modes`, its ports `1` and its sea nodes `2`. The road nodes come first, then the ports, then the sea nodes. Each mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
+Its road nodes have the value `0` in `node_modes`, its rail nodes `1`, its sea nodes `2` and its ports `3`. The road nodes come first, then the rail nodes, then the sea nodes, then the ports. Each mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
 
 A pipeline may record the class of each arc in `arc_classes`. A program reads the name of a class from the header of the file. A later version of scgraph may give a class another row.
 

@@ -1,10 +1,4 @@
 id,origin_lat,origin_lon,destination_lat,destination_lon,reference,source,tolerance,tolerance_reason
 aarhus_to_copenhagen_intermodal,56.1629,10.2039,55.6761,12.5683,186.9,Molslinjen / Geofabrik,0.10,Kattegat vehicle ferry
-luxembourg_to_bettembourg,49.6000,6.1333,49.5186,6.1028,11.5,CFL / OSM,0.10,CFL Line 60 corridor
-luxembourg_to_esch,49.6116,6.1319,49.4958,5.9806,19.7,OSM / Geofabrik,0.10,A4 freeway corridor
-paris_marseille,48.8566,2.3522,43.2965,5.3698,775.0,APRR / ASF / Autoroute du Soleil,0.05,A6/A7 corridor
-paris_bordeaux,48.8566,2.3522,44.8378,-0.5792,585.0,Cofiroute / A10 Aquitaine,0.05,A10 corridor
-toulouse_nice,43.6047,1.4442,43.7102,7.2620,565.0,Vinci Autoroutes / A61-A9-A8,0.05,Southern transversal
-lille_strasbourg,50.6292,3.0573,48.5734,7.7521,520.0,Sanef / A26-A4,0.05,Grand Est diagonal
 rotterdam_to_new_york,51.95,4.14,40.71,-74.01,6151.0,CERDI / NGA Pub 151,0.05,North Atlantic shipping lane
 rotterdam_to_singapore,51.95,4.14,1.28,103.85,15551.1,CERDI / NGA Pub 151,0.05,Via Suez and Malacca

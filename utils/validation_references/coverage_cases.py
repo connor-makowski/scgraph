@@ -13,7 +13,8 @@ Island and strait cases (crossings): 12 fixed pairs whose road route needs a bri
 tunnel or ferry. Coordinates from Natural Earth (NE_ID) except Ronne and Kadikoy (not in
 Natural Earth), read from their Wikipedia pages (2026-11-06).
 
-Writes ../cases/coverage.csv and ../cases/crossings.csv (refuses to overwrite them). A row
+Writes `coverage.csv` and `crossings.csv` in `scgraph/pipelines/steps/stage4_validation/cases` (refuses to
+overwrite them). A row
 disabled later by hand (Mazatlan) says why in its `source`.
 
 Usage: python -I coverage_cases.py NE_POPULATED_PLACES.geojson NE_LAND.geojson
@@ -32,7 +33,11 @@ from shapely.geometry import Point, shape
 
 from scgraph.utils import haversine
 
-CASES = Path(__file__).resolve().parents[1] / "cases"
+# The folder of the case files, in the package
+CASES = (
+    Path(__file__).resolve().parents[2]
+    / "scgraph/pipelines/steps/stage4_validation/cases"
+)
 NE = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/"
 SOUTH_AMERICA = {
     "ARG",

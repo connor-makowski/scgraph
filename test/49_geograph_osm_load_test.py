@@ -1,11 +1,12 @@
+import os
 import subprocess
 import sys
 
 import pytest
-from helpers import great_circle_km
+from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines import osm_main_roads, osm_rail
+from scgraph.pipelines import geofabrik_multimodal
 from scgraph.pipelines.steps.stage1_extract import osm
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.utils import has_cpp
@@ -304,10 +305,10 @@ def test_a_build_resumed_in_its_work_folder_gives_the_same_network(
     osm_file, tmp_path
 ):
     work_dir = str(tmp_path / "work")
-    built_without_folder = osm_main_roads.build({"roads": osm_file})[0]
+    built_without_folder = build_main_roads({"roads": osm_file})[0]
 
-    first = osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)[0]
-    resumed = osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)[0]
+    first = build_main_roads({"roads": osm_file}, work_dir=work_dir)[0]
+    resumed = build_main_roads({"roads": osm_file}, work_dir=work_dir)[0]
 
     assert first == built_without_folder
     assert resumed == built_without_folder
@@ -317,12 +318,20 @@ def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
     osm_file, tmp_path
 ):
     work_dir = str(tmp_path / "work")
-    osm_main_roads.build({"roads": osm_file}, work_dir=work_dir)
+    build_main_roads({"roads": osm_file}, work_dir=work_dir)
 
     # The file has no railway. A build that took the roads kept in the
     # folder for railways would succeed.
     with pytest.raises(ValueError, match="No way"):
-        osm_rail.build({"rail": osm_file}, work_dir=work_dir)
+        osm.build_way_pieces(
+            osm_file,
+            {"rail": {"ways": geofabrik_multimodal.select_rail}},
+            ("railway",),
+            osm.MAX_KM_BETWEEN_NODES,
+            os.path.join(
+                work_dir, "stage1"
+            ),  # the folder of `build_main_roads`
+        )
 
 
 # The planet file is too large to download: scgraph reads it in place, by
@@ -437,10 +446,10 @@ def test_a_pbf_read_by_byte_ranges_gives_the_network_of_its_ways(
     layout = str(tmp_path / "layout.json")
     osm.StreamedPbf.download(planet_url, layout)
 
-    streamed = osm_main_roads.build({"roads": layout})[0]
+    streamed = build_main_roads({"roads": layout})[0]
 
     # The PBF holds the ways of the small file, and filler that no select keeps.
-    assert streamed == osm_main_roads.build({"roads": osm_file})[0]
+    assert streamed == build_main_roads({"roads": osm_file})[0]
 
 
 def test_a_pbf_that_changes_on_the_server_stops_the_build(
@@ -451,7 +460,7 @@ def test_a_pbf_that_changes_on_the_server_stops_the_build(
     (planet_folder / "tag").write_text('"second upload"')
 
     with pytest.raises(RuntimeError, match="Reading http"):
-        osm_main_roads.build({"roads": layout})
+        build_main_roads({"roads": layout})
 
 
 @pytest.mark.skipif(has_cpp(), reason="The C++ extension is built")

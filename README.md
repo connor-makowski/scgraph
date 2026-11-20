@@ -513,7 +513,7 @@ GeoGraph.get_cache_info()
 # Clear the cached geographs (other files in the cache directory are kept)
 GeoGraph.clear_geograph_cache()
 # ... or only one network (and, for a built network, one region)
-GeoGraph.clear_geograph_cache(name="osm_main_roads", region="europe/luxembourg")
+GeoGraph.clear_geograph_cache(name="geofabrik_multimodal", region="europe/denmark")
 ```
 
 On Windows, the files of a network still loaded in the process can't be deleted: `clear_geograph_cache` leaves them in place, with a logging warning that names them, and a later clear removes them.
@@ -555,11 +555,12 @@ from scgraph import GeoGraph
 
 logging.basicConfig(level=logging.INFO)  # optional: show the downloads and the credit
 
-# Main roads of Luxembourg from OpenStreetMap (needs: pip install scgraph[osm])
-luxembourg = GeoGraph.build_geograph("osm_main_roads", region="europe/luxembourg")
-# INFO:scgraph.pipelines:Downloading https://download.geofabrik.de/europe/luxembourg-latest.osm.pbf (47.9 MB)
-# INFO:scgraph.pipelines.build:Building osm_main_roads
-# INFO:scgraph.pipelines.build:Built osm_main_roads. Credit: © OpenStreetMap contributors (ODbL-1.0)
+# Roads and railways of Denmark, joined to the sea lanes of the world and to flights
+# (needs: pip install scgraph[osm])
+denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
+# INFO:scgraph.pipelines:Downloading https://download.geofabrik.de/europe/denmark-latest.osm.pbf (498.2 MB)
+# INFO:scgraph.pipelines.build:Building geofabrik_multimodal
+# The last INFO line gives the credit to cite.
 
 # Sea lanes of the world, from Eurostat SeaRoute
 sea = GeoGraph.build_geograph("eurostat_marnet")
@@ -572,18 +573,15 @@ GeoGraph.list_buildable_geographs()
 #  ...]
 ```
 
-The region of the `osm_*` networks is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region that Geofabrik does not have raises a `ValueError`, before any large download.
+The region of `geofabrik_multimodal` is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region that Geofabrik does not have raises a `ValueError`, before any large download.
 
 | Name | Network | Source |
 |---|---|---|
 | `eurostat_marnet` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out (unlike the built-in `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
-| `osm_main_roads` | Motorway, trunk and primary roads and their links of a region, with vehicle ferries | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
-| `osm_rail` | Railway lines of a region, without sidings, spurs and yard tracks, read both ways | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de) |
-| `osm_main_roads_and_marnet` | Main roads of a region and the sea lanes of `eurostat_marnet`, joined at the ports of the World Port Index | OpenStreetMap, Eurostat SeaRoute, NGA World Port Index, Natural Earth |
-| `osm_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each arc has its class | OpenStreetMap, Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
-| `world_multimodal` | `osm_multimodal` for the world (needs the C++ extension) | The sources of `osm_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
+| `geofabrik_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each arc has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
+| `osm_world_multimodal` | `geofabrik_multimodal` for the world (needs the C++ extension). This pipeline builds the released network `world_multimodal` | The sources of `geofabrik_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
 
-**Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for the `osm_*` networks. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
+**Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for `geofabrik_multimodal`. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
 
 **What a network file says about itself.** The file stores the pipeline, the sources with the time of their data, and the software that built it. `GeoGraph.get_scgraph_info(file)` reads this metadata, with the credit line to cite (`attribution`) and the newest data time (`data_up_to`). The fields are listed in the docstring of `scgraph.pipelines` and in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format).
 
@@ -601,28 +599,28 @@ A rebuild removes the old network file. On Windows, an old file that another pro
 
 **Saving.** `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory. Save an edited network elsewhere.
 
-**Networks of several modes.** Some networks join several modes of transport. In `osm_main_roads_and_marnet`, ports join the roads and the sea lanes. In `osm_multimodal`, ports, airports and rail terminals join roads, railways, sea lanes and regular flights. Such a place is a hub, and a hub is one node. A connector is the pair of arcs that joins a hub to the network of one mode. The docstring of each pipeline gives the rules of its connectors.
+**Networks of several modes.** `geofabrik_multimodal` and `osm_world_multimodal` join several modes of transport. Ports, airports and rail terminals join roads, railways, sea lanes and regular flights. Such a place is a hub, and a hub is one node. A connector is the pair of arcs that joins a hub to the network of one mode. The docstring of `geofabrik_multimodal` gives the rules of the connectors.
 
 Each node has a mode, for example `road`, `sea` or `port`. `geo.node_modes[i]` gives the row of node `i` in `geo.modes`. That row names the mode and the source of the node ids (OpenStreetMap for roads). The file stores the nodes of each mode together. Routes use kilometers for every mode.
 
-In `osm_multimodal`, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
+In these networks, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
 
-The file of `osm_multimodal` also records the class of each arc, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `scgraph.network_file.read(file)` returns `(arrays, metadata)`, and the class of arc `a` is `metadata["classes"][arrays["arc_classes"][a]]`. The docstring of `scgraph.pipelines` lists the classes.
+The file of these networks also records the class of each arc, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `scgraph.network_file.read(file)` returns `(arrays, metadata)`, and the class of arc `a` is `metadata["classes"][arrays["arc_classes"][a]]`. The docstring of `scgraph.pipelines` lists the classes.
 
 **A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
-The networks that `build_geograph` builds are not the built-in files of `load_geograph`. They come from other sources, or from a newer version of a source, so their nodes and their results differ.
+The networks that `build_geograph` builds are not the built-in geographs of `load_geograph`. They come from other sources, or from a newer version of a source, so their nodes and their results differ.
 
-The `osm_*` networks have a node at every junction, and two nodes along a road are at most about 4 km apart. Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
+`geofabrik_multimodal` has a node at every junction, and two nodes along a road or a railway are at most about 4 km apart (about 20 km in `osm_world_multimodal`). Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
 
-In the `osm_*` networks, the shape of each arc is simplified to within 50 m (Douglas–Peucker). Lengths are measured on the full shape.
+In these networks, the shape of each road, ferry or railway arc is simplified to within 50 m (Douglas–Peucker). Lengths are measured on the full shape.
 
 ### `build_geograph` Parameters
 
 | Parameter | Default | Description |
 |---|---|---|
 | `name` | required | Name of the network (table above), or a pipeline module |
-| `region` | `None` | For the `osm_*` networks: the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL (e.g. `'europe/luxembourg'`, `'north-america/us/texas'`) |
+| `region` | `None` | For `geofabrik_multimodal`: the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL (e.g. `'europe/luxembourg'`, `'north-america/us/texas'`) |
 | `cache_dir` | `None` | Custom cache directory; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer downloading/loading until the geograph is first accessed |
