@@ -83,7 +83,9 @@ from scgraph.geograph import GeoGraph
 from scgraph.grid import GridGraph
 """
 
-scgraph.write_text(f'r"""\n{readme}\n"""\n\n{init_setup}')
+scgraph.write_text(
+    f'r"""\n{readme}\n"""\n\n{init_setup}'
+)
 
 # Update the versions manifest loaded dynamically by client-side JS
 update_versions_manifest()

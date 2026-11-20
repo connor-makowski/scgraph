@@ -44,8 +44,8 @@ scgraph/
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
   pipelines/                     # geofabrik_multimodal (a region), osm_world_multimodal (the world), eurostat_sea_lanes (sea lanes); contract: docstring of __init__.py; guide: README.md
-    build.py, derived_networks.py          # The runner: build_network_file (download, build, cache). derived_networks.py: derive_network_file, and derive_network_release_files for the derived networks of a release. Both run with python -m
-    steps/                       # step1_osm_ways, step1_osm_planet_reader, step2_hub_connectors, step2_land_mask, step3_network_assembly, step4_validation_cases (ARCHITECTURE.md §1)
+    network_builder.py, derived_networks.py  # The runner: build_network_file (download, build, cache). derived_networks.py: derive_network_file, and derive_network_release_files for the derived networks of a release. Both run with python -m
+    steps/                       # step1_osm_ways, step1_osm_planet_reader, step2_hub_connectors, step2_land_mask, step3_network_assembly, step4_validation_cases, near_nodes (ARCHITECTURE.md §1)
   helpers/
     geojson.py                   # GeoJSON parsing and simplification
     visvalingam.py, douglas_peucker.py  # Line simplification (Visvalingam-Whyatt, Douglas-Peucker)

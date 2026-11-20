@@ -97,8 +97,8 @@ from its log. Another day gives other numbers, because the extract changes every
 
 - A **source** is a file that a pipeline reads, such as an OpenStreetMap extract. Most sources
   are on a server, and some are small tables kept with scgraph.
-- The **runner** is the module `build.py`. It downloads the sources, calls the pipeline and
-  keeps the network file in the cache.
+- The **runner** is the module `network_builder.py`. It downloads the sources, calls the
+  pipeline and keeps the network file in the cache.
 - A **way** is a line of OpenStreetMap: a part of a road, of a railway or of a ferry route.
 - A **piece** is the part of a way between two nodes of the network.
 - The **mode** of a node is its kind: `road`, `rail`, `sea`, or the kind of a hub (`port`,
@@ -131,6 +131,10 @@ build_network_file("geofabrik_multimodal", region="europe/denmark", validate=Tru
 
 ### The steps
 
+The build below has eight steps. The modules of `scgraph/pipelines/steps` group them in four:
+read the sources (`step1_…`), join the modes (`step2_…`), assemble the network (`step3_…`) and
+validate (`step4_…`).
+
 ```mermaid
 flowchart TD
     A["Step 1: get the nine sources"]
@@ -160,7 +164,7 @@ It downloads five of them. The four others are small tables kept with scgraph, w
 
 The extract comes last. When a small source fails, the large download has not started.
 
-Where to read more: `build.py`, function `build_network_file`.
+Where to read more: `network_builder.py`, function `build_network_file`.
 
 #### Step 2. Read and cut the ways
 

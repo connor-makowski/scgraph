@@ -112,7 +112,8 @@ THE STEPS OF A BUILD
 
 A build runs steps, such as "read and cut the ways" or "contract the chains". Each
 step logs one line at DEBUG, with its counts and its duration (`utils._log_step`).
-The functions of the steps are in `scgraph.pipelines.steps`, one module for each step:
+The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for
+each step:
 
 1. Read the sources. `step1_osm_ways.build_way_pieces` reads the ways of an OpenStreetMap
    file that the select functions keep. It takes the select functions

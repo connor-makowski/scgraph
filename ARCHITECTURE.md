@@ -46,11 +46,11 @@ When `scgraph` is imported, it uses the C++ classes if the extension is compiled
 
 The package `scgraph.pipelines` builds networks from their online sources. A pipeline is one module of this package. It names the sources of one network and has a `build` function. The docstring of `scgraph.pipelines` gives the contract of a pipeline. The guide [scgraph/pipelines/README.md](scgraph/pipelines/README.md) follows a network from its sources to a route: the build step by step, the derivation, the network release and the load, with the numbers of real runs.
 
-The runner, `build.py`, runs a pipeline. `build_network_file` downloads the sources and calls `build` in a work folder. It writes the network to a `.scgraph` file, with the metadata of the build (pipeline, sources, software) in the header. Then it moves the file into the cache.
+The runner, `network_builder.py`, runs a pipeline. `build_network_file` downloads the sources and calls `build` in a work folder. It writes the network to a `.scgraph` file, with the metadata of the build (pipeline, sources, software) in the header. Then it moves the file into the cache.
 
 `derived_networks.py` derives a network file from another network file, the parent file, with no download (`derive_network_file`). The derived file holds some modes of the parent file, and its land networks inside a bbox. Its header records the digest of the parent file.
 
-A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, one module for each step:
+A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for each step:
 
 * **Read the sources (`steps.step1_osm_ways`)**:
   `step1_osm_ways` reads the ways of an OpenStreetMap file, from disk or by HTTP byte ranges (`step1_osm_planet_reader`). `step1_osm_ways.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`step3_network_assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).

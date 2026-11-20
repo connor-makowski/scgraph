@@ -70,7 +70,7 @@ When building from source, if a C++ compiler is not available or compilation fai
 
 ---
 
-## Quick Start: Using Built-in GeoGraphs
+## Quick Start: Load a Network
 
 Get the shortest maritime path between Shanghai and Savannah, GA:
 
@@ -87,7 +87,7 @@ output = world_sea.get_shortest_path(
 print(output['length'])  #=> 19264.1889
 ```
 
-`marnet`, the sea network of scgraph 3.6.0, loads the same way and gives 19596.4653 km.
+`world_sea` is a released network: scgraph downloads it (3.7 MB) on the first load and keeps it in the cache. `marnet`, the sea network of scgraph 3.6.0, still loads the same way and still gives 19596.4653 km. The two networks come from different versions of the sea lanes, so their lengths differ.
 
 The output dictionary always contains:
 
@@ -104,12 +104,13 @@ The output dictionary always contains:
 | Routes over roads, railways, sea lanes and flights | `world_multimodal`, or a part of the world such as `europe` | `GeoGraph.load_geograph("europe")` |
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
-| One kind of transport of a larger network | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
-| The data of today for one region | a network built on your machine | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
-| Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)`, then `save_as_scgraph` to load it faster later |
+| One mode of transport of a larger network, for example the roads | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
+| The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", version=..., content_sha256=...)` |
+| The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
+| Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)`, then `save_as_scgraph` to load it faster later |
 | A result of scgraph 3.6.0, unchanged | a built-in geograph | `GeoGraph.load_geograph("marnet")` |
 
-`GeoGraph.list_geographs()` lists every network that `load_geograph` takes. For each network it gives what the network holds and the size of its download. For a network of scgraph 3.6.0, `superseded_by` names the released network that serves the same need from newer sources.
+`GeoGraph.list_geographs()` lists every network that `load_geograph` takes. For each network it gives what the network holds, and for a released network the size of its download. For a network of scgraph 3.6.0, `superseded_by` names the released network that covers the same need with newer data. The networks of 3.6.0 still load, with the same results.
 
 ### Network Releases
 
@@ -721,8 +722,8 @@ Ways meet only where they share an OSM node, so roads that cross on a bridge or 
 
 | Parameter | Default | Description |
 |---|---|---|
-| `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`), or a source object (`scgraph.pipelines.steps.osm.locate_ways`) |
-| `select` | `None` (`scgraph.pipelines.steps.step1_osm_ways.select_main_roads`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.pipelines.steps.osm.MAIN_ROADS`), one way where `scgraph.pipelines.steps.osm.get_way_direction(tags)` returns `1` or `-1` |
+| `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`), or a source object (`scgraph.pipelines.steps.step1_osm_ways.locate_ways`) |
+| `select` | `None` (`scgraph.pipelines.steps.step1_osm_ways.select_main_roads`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.pipelines.steps.step1_osm_ways.MAIN_ROADS`), one way where `scgraph.pipelines.steps.step1_osm_ways.get_way_direction(tags)` returns `1` or `-1` |
 | `tag_keys` | `("highway",)` | Tag keys of which a way must have at least one to reach `select`, filtered in osmium (faster); `()` sends every way to `select` |
 | `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new arc, at the next point of the way |
 | `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |

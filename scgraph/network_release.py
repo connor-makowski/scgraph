@@ -45,7 +45,7 @@ CONTENT_SHA256 = {
 }
 # What `GeoGraph.list_geographs` says of each network of this release: its numbers of
 # nodes and of arcs, the size in MB of its download with and without the shapes of the
-# arcs, and the time of its newest source data.
+# arcs, and the time of its newest source data (None when no source gives a time).
 NETWORKS = {
     "africa": {
         "nodes": 374498,
@@ -122,6 +122,6 @@ NETWORKS = {
         "arcs": 159174,
         "download_mb": 3.7,
         "download_mb_without_shapes": 1.2,
-        "data_up_to": "None",
+        "data_up_to": None,
     },
 }

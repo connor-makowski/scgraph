@@ -158,6 +158,24 @@ def test_list_geographs_describes_each_released_network(cache):
     )
 
 
+# The description of a part of the world gives its rectangle. The rectangle is
+# the bbox that derives the network from the world file.
+def test_the_description_of_a_part_of_the_world_gives_its_bbox(cache):
+    from scgraph.pipelines.derived_networks import DERIVED_NETWORKS
+
+    listed = {
+        network["name"]: network for network in GeoGraph.list_geographs(cache)
+    }
+
+    for name, selection in DERIVED_NETWORKS.items():
+        if "bbox" in selection:
+            south, west, north, east = selection["bbox"]
+            assert (
+                f"latitudes {south} and {north} and longitudes {west} and {east}"
+                in listed[name]["description"]
+            )
+
+
 def test_each_network_of_3_6_0_names_the_released_network_that_supersedes_it(
     cache,
 ):

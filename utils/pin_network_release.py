@@ -48,7 +48,7 @@ CONTENT_SHA256 = {{
 }}
 # What `GeoGraph.list_geographs` says of each network of this release: its numbers of
 # nodes and of arcs, the size in MB of its download with and without the shapes of the
-# arcs, and the time of its newest source data.
+# arcs, and the time of its newest source data (None when no source gives a time).
 NETWORKS = {{
 {networks}
 }}
@@ -76,7 +76,7 @@ def main(tag: str) -> None:
         f'        "download_mb": {files[name]["compressed_bytes"] / 1e6:.1f},\n'
         f'        "download_mb_without_shapes": '
         f'{files[name + ".no_shapes"]["compressed_bytes"] / 1e6:.1f},\n'
-        f'        "data_up_to": "{files[name]["data_up_to"]}",\n'
+        f'        "data_up_to": {files[name]["data_up_to"]!r},\n'
         f"    }},"
         for name in sorted(files)
         if not name.endswith(".no_shapes")

@@ -1226,6 +1226,7 @@ def test_build_geograph_loads_only_the_modes_asked(coast_cache):
         cache_dir=coast_cache,
         local_files_only=True,
         modes=["road"],
+        lazy=True,  # the modes also reach a network that is loaded at its first use
     )
 
     # The 3 road nodes of the coast, and no hub
@@ -1502,7 +1503,7 @@ def test_the_arcs_of_a_lane_of_a_passage_have_the_class_of_the_passage(
 
 # Eurostat stores a lane that crosses the antimeridian as two lines. One
 # ends at longitude 180 and the other starts at longitude -180.
-def test_eurostat_marnet_joins_a_lane_cut_at_the_antimeridian(tmp_path):
+def test_eurostat_sea_lanes_joins_a_lane_cut_at_the_antimeridian(tmp_path):
     lanes = tmp_path / "lanes.gpkg"
     lanes.write_bytes(
         _sea_gpkg([([179, 0, 180, 0], None), ([-180, 0, -179, 0], None)])
@@ -1522,7 +1523,9 @@ def test_eurostat_marnet_joins_a_lane_cut_at_the_antimeridian(tmp_path):
 
 # Two points of the Arctic are joined by a direct lane of each Arctic
 # passage, and by an open-sea lane that goes round by the south.
-def test_eurostat_marnet_leaves_out_the_lanes_of_the_arctic_passages(tmp_path):
+def test_eurostat_sea_lanes_leaves_out_the_lanes_of_the_arctic_passages(
+    tmp_path,
+):
     lanes = tmp_path / "lanes.gpkg"
     lanes.write_bytes(
         _sea_gpkg(

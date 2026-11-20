@@ -24,7 +24,7 @@ static nb::object owned_view(std::vector<T>&& values) {
 }
 
 void bind_pipelines(nb::module_& m) {
-    // Assembly kernels (contracts in scgraph/pipelines/steps/stage3_assembly/assembly.py)
+    // Assembly kernels (contracts in scgraph/pipelines/steps/step3_network_assembly.py)
     auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights) {
         const int64_t m = (int64_t)origins.shape(0);
         if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m)
@@ -64,7 +64,7 @@ void bind_pipelines(nb::module_& m) {
         return nb::make_tuple(owned_view(std::move(r.points)), owned_view(std::move(r.offsets)));
     }, nb::arg("shape_points"), nb::arg("shape_offsets"), nb::arg("endpoint_coords"), nb::arg("tolerance_meters"));
 
-    // Water paths on a land raster (contract in scgraph/pipelines/steps/stage2_intermodal/landmask.py)
+    // Water paths on a land raster (contract in scgraph/pipelines/steps/step2_land_mask.py)
     auto bind_water = [](Uint8Array bits,
                          int64_t width, int64_t height, bool wrap, int64_t start, Int64Array targets,
                          double max_km, DoubleArray east_km, DoubleArray diagonal_km, double north_km,
@@ -86,5 +86,5 @@ void bind_pipelines(nb::module_& m) {
        nb::arg("targets"), nb::arg("max_km"), nb::arg("east_km"), nb::arg("diagonal_km"), nb::arg("north_km"),
        nb::arg("max_cells"),
        "Cheapest path over water cells to a target cell: (km, cells) or None; see "
-       "scgraph.pipelines.steps.stage2_intermodal.landmask.python.find_water_path_cells");
+       "scgraph.pipelines.steps.step2_land_mask.find_water_path_cells");
 }
