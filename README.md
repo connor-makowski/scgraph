@@ -172,7 +172,9 @@ europe = GeoGraph.load_geograph(
 )
 ```
 
-The guide [scgraph/pipelines/README.md](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
+The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked, published and loaded.
+
+The notebook [Routes on a multimodal network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb) draws routes of `oceania` on interactive maps. It shows the kinds of transport that a route uses, the choice of the modes, and two limit cases.
 
 ## Quick Start: OSMNx Integration
 
@@ -615,7 +617,7 @@ In `osm_multimodal`, the shortest route in kilometers between two distant places
 
 The file of `osm_multimodal` also records the class of each arc, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `scgraph.network_file.read(file)` returns `(arrays, metadata)`, and the class of arc `a` is `metadata["classes"][arrays["arc_classes"][a]]`. The docstring of `scgraph.pipelines` lists the classes.
 
-**A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [How a pipeline builds a network](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
+**A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
 The networks that `build_geograph` builds are not the built-in files. They are built from the current version of their sources, so their node numbers differ and results can differ slightly from those of `load_geograph`.
 
@@ -1126,6 +1128,7 @@ logging.getLogger("scgraph").setLevel(logging.DEBUG)
 - [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) — Load OSM data, solve for time and distance on bike networks
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb) — Export multiple routes as GeoJSON
 - [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) — Add/remove nodes and edges
+- [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb) — Load a released network, draw routes by kind of transport, choose the modes
 
 ---
 
