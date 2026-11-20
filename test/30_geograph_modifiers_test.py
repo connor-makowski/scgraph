@@ -129,6 +129,14 @@ def test_remove_coord_node_restores_path():
     )
 
 
+def test_remove_node_removes_the_point_of_the_node():
+    g = _fresh()
+
+    g.remove_node(symmetric_node=True)
+
+    assert g.nodes == [[0, 0], [0, 1], [1, 0]]
+
+
 def _snapped(g, point):
     # Node a point is connected to when snapping to the closest node only
     return g.get_shortest_path(

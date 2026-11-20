@@ -1737,7 +1737,33 @@ class GeoGraphModifiers:
     def remove_node(
         self, symmetric_node: bool = False
     ) -> dict[int, int | float]:
-        return self.graph_object.remove_node(symmetric_node=symmetric_node)
+        """
+        Function:
+
+        - Remove the last node of the geograph: its edges, its point and its mode
+
+        Optional Arguments:
+
+        - `symmetric_node`
+            - Type: bool
+            - What: Whether each edge to this node has an edge back from this node; if True, the removal reads the edges of this node only
+            - Default: False
+
+        Returns:
+
+        - The edges of the removed node, as a dictionary {destination id: distance}
+
+        Raises:
+
+        - `RuntimeError`: The geograph has no node
+        """
+        removed_edges = self.graph_object.remove_node(
+            symmetric_node=symmetric_node
+        )
+        self.nodes.pop()
+        del self.node_modes[len(self.nodes) :]
+        self.snap_index = None
+        return removed_edges
 
     def remove_edge(
         self, origin_id: int, destination_id: int, symmetric: bool = False
@@ -1983,9 +2009,6 @@ class GeoGraphModifiers:
             - EG: If node A has a distance of 10 to node B, then node B has a distance of 10 to node A
         """
         self.remove_node(symmetric_node=True)
-        self.nodes.pop()
-        del self.node_modes[len(self.nodes) :]
-        self.snap_index = None
 
     def add_haversine_edge(
         self,
