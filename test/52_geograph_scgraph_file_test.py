@@ -803,12 +803,28 @@ def test_a_file_with_rows_and_without_their_list_is_refused(
             id="an arc to a node that does not exist",
         ),
         pytest.param(
+            {"heads": array("i", [1, 3])},
+            "arc to a missing node",
+            id="an arc to a node after the last node",
+        ),
+        pytest.param(
             {
                 "shape_offsets": array("i", [0, 1, 0]),
                 "shape_points": array("d"),
             },
             "invalid shape offsets",
             id="shape offsets that decrease",
+        ),
+        pytest.param(
+            {
+                # The second arc now goes to the port: a load of the road
+                # reads the shape offsets of the first arc only.
+                "heads": array("i", [1, 2]),
+                "shape_offsets": array("i", [0, 2, 1]),
+                "shape_points": array("d", [0.0, 0.0]),
+            },
+            "invalid shape offsets",
+            id="a shape that ends after the last shape point",
         ),
         pytest.param(
             {"arc_classes": array("B", [0, 1])},

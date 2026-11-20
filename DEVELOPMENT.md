@@ -51,10 +51,10 @@ scgraph/
     douglas_peucker.py           # Douglas-Peucker line simplification
     polylines.py                 # Polylines to a graph: nodes where they end or meet, arcs with their shape
     hilbert.py                   # Hilbert-curve order of nodes
-    snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
+    snap_index.py, arc_selection.py  # Pure-Python versions of cpp/src: the snapping index; the nodes and arcs of some modes of a file
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
+    │                            #   transit_node_routing, snap_index, arc_selection, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
     bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/

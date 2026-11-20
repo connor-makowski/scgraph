@@ -725,7 +725,7 @@ The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/conno
 
 **Coordinates.** Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node). The `coordinate_dtype` parameter of `save_as_scgraph` chooses the form: `"float64"`, `"int32"` or `"auto"` (the default). With `"auto"`, a GeoGraph keeps its own `coordinate_dtype`. It is `"int32"` for a network read from an int32 file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), and `"float64"` otherwise.
 
-**Mapped files.** In the C++ build, `load_from_scgraph` (without `modes`) maps the file and reads it in place while the GeoGraph is alive. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
+**Mapped files.** In the C++ build, `load_from_scgraph` maps the file and reads it in place while the GeoGraph is alive. With `modes`, it copies only the arrays whose values are not consecutive in the file. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
 
 **Nodes and arc shapes read from the file.** A GeoGraph read from a network file (so also from `load_geograph` and `build_geograph`) reads its node coordinates and its arc shapes from the file:
 
@@ -1028,7 +1028,7 @@ marnet.get_shortest_path(
 - `node_scans` is the size of the search: the number of times it went over the arcs of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
 - `origin_snap_distance` and `destination_snap_distance` are the distances from each end of the query to its nearest node of the network, in `distance_units`.
 - `kept_nodes` is the number of nodes left after the reduction.
-- `mapped` is true when the file is read in place, without a copy. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
+- `mapped` is true when the load maps the file and reads it in place. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
 
 `build_geograph` also logs one line for each step of the OSM pipelines, with its counts and `duration_ms`. A step that removes nodes logs the counts that it received and the counts that it kept (`kept_nodes`, `kept_arcs`).
 

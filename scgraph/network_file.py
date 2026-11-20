@@ -17,9 +17,8 @@ import os
 import secrets
 import sys
 from array import array
-from bisect import bisect_left
 from collections.abc import Iterable, MutableSequence, Sequence
-from itertools import islice
+from itertools import chain, islice, starmap
 from operator import eq, index, le
 from types import MappingProxyType
 
@@ -30,6 +29,10 @@ try:
     from scgraph.cpp import shape_path as _shape_path
 except ImportError:
     _coordinate_lists = _shape_path = None
+try:
+    from scgraph.cpp import select_arcs
+except ImportError:
+    from scgraph.helpers.arc_selection import select_arcs
 
 MAGIC = b"SCGRAPH1"
 VERSION = 1
@@ -260,8 +263,11 @@ def read(
         filename (str): Path of the binary `.scgraph` file to read.
         mapped (bool): When True on little-endian platforms, returns memory-mapped
             views instead of copying arrays into RAM. Defaults to False.
-        modes (str | list[str] | None): Optional mode filter selecting specific
-            modal subnetworks.
+        modes (str | list[str] | None): The names of the modes to read. The arrays
+            then hold only the nodes of these modes and the arcs between them, in
+            the order of the file. With `mapped`, an array is a memory-mapped view
+            when its values are consecutive in the file, and a new array otherwise.
+            Defaults to None (every mode).
 
     Returns:
         tuple[dict[str, array | memoryview], dict]:
@@ -273,15 +279,24 @@ def read(
         ValueError: If the header or the layout of the arrays is not valid. The digest is not checked at reading.
         FileNotFoundError: If the file does not exist.
     """
-    mapped = mapped and sys.byteorder == "little" and modes is None
+    mapped = mapped and sys.byteorder == "little"
     try:
         with open(filename, "rb") as file:
-            arrays, metadata = _read(filename, file, mapped, modes)
+            arrays, metadata, is_mode_kept = _read(
+                filename, file, mapped, modes
+            )
     except ValueError:
         raise
     except (AttributeError, KeyError, OverflowError, TypeError) as error:
         raise ValueError(f"{filename}: invalid header ({error!r})") from error
-    _check(filename, arrays, metadata, arcs=not mapped)
+    if is_mode_kept is None:
+        _check(filename, arrays, metadata, arcs=not mapped)
+    else:
+        # The selection checks the values of the arcs, where it reads them
+        _check(filename, arrays, metadata, arcs=False)
+        arrays = _select_modes(
+            filename, arrays, metadata, is_mode_kept, in_place=mapped
+        )
     return arrays, metadata
 
 
@@ -311,6 +326,9 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
 
 
 def _read(filename, file, mapped, modes):
+    """The arrays of the whole file and its metadata. With `modes`, the third value
+    says, for each mode of the file, whether `modes` names it. This value is None
+    when the read keeps every mode."""
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
     digest = file.read(32)
@@ -325,9 +343,23 @@ def _read(filename, file, mapped, modes):
             f"{filename} has format version {header.get('format_version')}; "
             f"this version of scgraph reads version {VERSION}"
         )
-    if mapped:
+    is_mode_kept = None
+    if modes is not None:
+        modes = (modes,) if isinstance(modes, str) else modes
+        mode_names = [
+            mode["name"]
+            for mode in header["metadata"].get("modes") or [{"name": None}]
+        ]
+        unknown = [mode for mode in modes if mode not in mode_names]
+        if unknown:
+            raise ValueError(f"{filename}: unknown modes {unknown}")
+        if not all(name in modes for name in mode_names):
+            is_mode_kept = [name in modes for name in mode_names]
+    # A selection also reads the file in place, and copies only what it keeps
+    view = None
+    if mapped or (is_mode_kept is not None and sys.byteorder == "little"):
         view = memoryview(mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ))
-    arrays, entries = {}, {}
+    arrays = {}
     for name, entry in header["arrays"].items():
         if name not in ARRAYS:
             continue  # added by a later version, not needed to read the graph
@@ -345,98 +377,87 @@ def _read(filename, file, mapped, modes):
             or start + count * values.itemsize > file_size
         ):
             raise ValueError(f"{filename}: invalid array '{name}'")
-        if mapped:
+        if view is not None:
             end = start + count * values.itemsize
             arrays[name] = view[start:end].cast(typecode)
             continue
-        entries[name] = typecode, start, count
-        if modes is not None:
-            continue  # only the selection is read, below
         file.seek(start)
         values.fromfile(file, count)
         arrays[name] = _little_endian(values)
-    if modes is not None:
-        arrays = _select(filename, file, entries, header["metadata"], modes)
     metadata = dict(header["metadata"])
     metadata["content_sha256"] = digest.hex()
-    return arrays, metadata
+    return arrays, metadata, is_mode_kept
 
 
-def _select(filename, file, entries, metadata, modes):
-    # node_modes is sorted (scgraph writes it so): each mode found by bisection
-    def piece(name, first, last):
-        typecode, start, count = entries[name]
-        if not 0 <= first <= last <= count:
-            raise ValueError(f"{filename}: invalid array '{name}'")
-        values = array(typecode)
-        file.seek(start + first * values.itemsize)
-        values.fromfile(file, last - first)
-        return _little_endian(values)
+def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
+    """The arrays of the nodes of the kept modes, and of the arcs between them.
 
-    modes = (modes,) if isinstance(modes, str) else modes
-    rows = [row["name"] for row in metadata.get("modes") or [{"name": None}]]
-    unknown = [mode for mode in modes if mode not in rows]
-    if unknown:
-        raise ValueError(f"{filename}: unknown modes {unknown}")
-    n = entries["offsets"][2] - 1
-    for name in ("node_ids", "node_modes"):
-        if name in entries and entries[name][2] != n:
-            raise ValueError(f"{filename}: one {name} value per node expected")
-    if "node_points" not in entries or entries["node_points"][2] != 2 * n:
-        raise ValueError(f"{filename}: one point per node expected")
-    # Without node_modes, every node is in the first mode
-    column = bytes(max(n, 0))
-    if "node_modes" in entries:
-        column = piece("node_modes", 0, n)
-        if not _is_sorted(column) or max(column, default=0) >= len(rows):
-            raise ValueError(f"{filename}: unsorted or unknown node modes")
-    starts = [bisect_left(column, row) for row in range(len(rows) + 1)]
-    shift, count = {}, 0  # new position - old position, by mode row read
-    for row, name in enumerate(rows):
-        if name in modes:
-            shift[row] = count - starts[row]
-            count += starts[row + 1] - starts[row]
-    result = {name: array(entries[name][0]) for name in entries}
-    result["offsets"].append(0)
-    if "shape_offsets" in entries:
-        result["shape_offsets"].append(0)
-    for row in shift:
-        first, last = starts[row], starts[row + 1]
-        result["node_points"] += piece("node_points", 2 * first, 2 * last)
-        if "node_ids" in entries:
-            result["node_ids"] += piece("node_ids", first, last)
-        else:  # a node's id is its position in the file
-            result.setdefault("node_ids", array("q")).extend(range(first, last))
-        if "node_modes" in entries:
-            result["node_modes"] += column[first:last]
-        offsets = piece("offsets", first, last + 1)
-        if not _is_sorted(offsets):
-            raise ValueError(f"{filename}: invalid offsets")
-        base, end, total = offsets[0], offsets[-1], len(result["heads"])
-        heads, weights = piece("heads", base, end), piece("weights", base, end)
-        if heads and not (min(heads) >= 0 and max(heads) < n):
-            raise ValueError(f"{filename}: arc to a missing node")
-        kept = array(
-            "i", (a for a, head in enumerate(heads) if column[head] in shift)
+    `arrays` holds the whole file, and `_check` has checked the lengths.
+    `is_mode_kept` says, for each mode of the file, whether the read keeps it.
+    `select_arcs` computes the arrays whose values change. For the other arrays, it
+    gives runs: the ranges of positions of the file that the selection keeps
+    (`scgraph/cpp/src/arc_selection.hpp` explains them). With `in_place`, an array
+    that keeps one run is a slice of the array of the file, not a copy."""
+    node_count = len(arrays["offsets"]) - 1
+    try:
+        (
+            offsets,
+            heads,
+            shape_offsets,
+            node_runs,
+            arc_runs,
+            shape_point_runs,
+        ) = select_arcs(
+            arrays["offsets"],
+            arrays["heads"],
+            # Without node_modes, every node is in the first mode
+            arrays.get("node_modes", bytes(node_count)),
+            is_mode_kept,
+            arrays.get("shape_offsets"),
         )
-        result["offsets"].extend(
-            total + bisect_left(kept, o - base) for o in offsets[1:]
-        )
-        result["heads"].extend(heads[a] + shift[column[heads[a]]] for a in kept)
-        result["weights"].extend(weights[a] for a in kept)
-        if "arc_classes" in entries:
-            arc_classes = piece("arc_classes", base, end)
-            result["arc_classes"].extend(arc_classes[a] for a in kept)
-        if "shape_offsets" in entries:
-            bounds = piece("shape_offsets", base, end + 1)
-            if not _is_sorted(bounds):
-                raise ValueError(f"{filename}: invalid shape offsets")
-            skip, points = 2 * bounds[0], result["shape_points"]
-            shape = piece("shape_points", skip, 2 * bounds[-1])
-            for a in kept:
-                points += shape[2 * bounds[a] - skip : 2 * bounds[a + 1] - skip]
-                result["shape_offsets"].append(len(points) // 2)
-    return result
+    except ValueError as error:
+        raise ValueError(f"{filename}: {error}") from error
+    selected = {"offsets": offsets, "heads": heads}
+    if shape_offsets is not None:
+        selected["shape_offsets"] = shape_offsets
+    # Each other array, the runs that it follows, and its values per position
+    for name, runs, width in (
+        ("weights", arc_runs, 1),
+        ("arc_classes", arc_runs, 1),
+        ("node_points", node_runs, 2),
+        ("node_ids", node_runs, 1),
+        ("node_modes", node_runs, 1),
+        ("shape_points", shape_point_runs, 2),
+    ):
+        if name in arrays:
+            selected[name] = _take_runs(arrays[name], runs, in_place, width)
+    if "node_ids" not in arrays:
+        # The id of a node is its position in the file
+        positions = chain.from_iterable(starmap(range, node_runs))
+        selected["node_ids"] = array("q", positions)
+    if "arc_classes" in arrays:
+        # `_check` does not read the classes of a mapped file. `translate` deletes
+        # the valid classes in one pass in C: a byte that is left is not a class.
+        valid = bytes(range(256))[: len(metadata["classes"])]
+        if bytes(selected["arc_classes"]).translate(None, valid):
+            raise ValueError(f"{filename}: invalid arc classes")
+    return selected
+
+
+def _take_runs(values, runs, in_place, width=1):
+    """The values of `values` at the positions of `runs`, in order. A run
+    (first, last) holds the positions first to last - 1, and a position holds
+    `width` values (2 in an array of points). With `in_place`, one run is a slice of
+    `values`. Otherwise, the runs are copied one after the other into a new array.
+    """
+    if in_place and len(runs) == 1:
+        first, last = runs[0]
+        return values[width * first : width * last]
+    values = memoryview(values)
+    taken = array(values.format)
+    for first, last in runs:
+        taken.frombytes(values[width * first : width * last].cast("B"))
+    return taken
 
 
 class ArcShapes(Sequence):
