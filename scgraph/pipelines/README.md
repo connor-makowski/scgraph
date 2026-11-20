@@ -530,6 +530,7 @@ route["length"]  # 3930.3 km, by road
 without the shapes of the arcs, and `modes` for some modes only. The README of the repository
 lists the eleven networks, in section *Network Releases*. It also gives the other
 arguments, the way to read the credit line, and the way to load exactly the same file later.
+The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on maps.
 
 The first call downloads
 `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.20-dev.1/oceania.no_shapes.scgraph.gz`.
