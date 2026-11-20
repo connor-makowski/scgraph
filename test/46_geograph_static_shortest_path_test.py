@@ -462,9 +462,8 @@ def _add_a_node_then_remove_it(geograph):
     geograph.remove_coord_node()
 
 
-def _remove_a_node_from_the_graph_only(geograph):
-    # `remove_node` removes the dead end 4 from the graph and keeps its
-    # position in `nodes`.
+def _remove_a_node(geograph):
+    # `remove_node` removes the dead end 4.
     geograph.remove_node()
 
 
@@ -473,7 +472,7 @@ def _remove_a_node_from_the_graph_only(geograph):
     [
         _add_a_node,
         _add_a_node_then_remove_it,
-        _remove_a_node_from_the_graph_only,
+        _remove_a_node,
     ],
 )
 def test_geograph_a_star_haversine_matches_dijkstra_after_a_change_of_nodes(
