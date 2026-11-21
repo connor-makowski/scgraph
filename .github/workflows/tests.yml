@@ -1,0 +1,39 @@
+name: Tests & Lint
+
+# A pull request shows whether the tests and the lint pass, in both builds: with the
+# C++ extension, then in pure Python. The commands are those of DEVELOPMENT.md.
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (C++ build, then pure Python) and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Lint
+        run: uv run --extra dev nox -s lint
+
+      - name: Tests in both builds
+        run: uv run --extra dev nox -s tests-3.12

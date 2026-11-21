@@ -94,7 +94,7 @@ CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3
 | `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
 | `python3 utils/compare_versions.py BASE HEAD` | Benchmark two git refs side by side; options in `--help` |
 | `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
-| `uv run nox -s lint` | Check `scgraph` and `test` with ruff, and the types of `scgraph` with pyrefly |
+| `uv run nox -s lint` | Check `scgraph` and `test` with ruff, and the types of `scgraph` with pyrefly. `.github/workflows/tests.yml` runs this session and `tests-3.12` on every pull request |
 
 **Benchmarks** (`utils/bench.py`): Runs timing benchmarks across GeoGraphs, GridGraphs, hierarchical routing, and specialized features, and outputs `benchmark.md`. Its docstring lists the sections (`load`, `reduce`, `query`, `grid`, `hierarchy`, `misc`, `snap`).
 
