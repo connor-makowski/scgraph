@@ -128,7 +128,7 @@ route = europe.get_shortest_path(origin_node=paris, destination_node=berlin)
 print(route["length"])  #=> 909.028 (km: the shortest route takes a flight)
 ```
 
-**The networks.** Distances are in kilometers. The shape of an arc is the list of points that draw the arc on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.20-dev.1`.
+**The networks.** Distances are in kilometers. The shape of an arc is the list of points that draw the arc on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.20-dev.2`.
 
 | Name | What it holds | Download, with shapes | Without shapes |
 |---|---|---|---|
@@ -163,17 +163,17 @@ print(route["length"])  #=> 1031.6 (km, by road)
 ```py
 from scgraph import network_release
 
-network_release.TAG  # 'networks-2026.11.20-dev.1', the network release that this scgraph loads
+network_release.TAG  # 'networks-2026.11.20-dev.2', the network release that this scgraph loads
 info = GeoGraph.get_scgraph_info(europe.scgraph_file)
-info["content_sha256"]  # '4212a887e6fa1807...'
+info["content_sha256"]  # '5dafa1c37d57bb89...'
 info["attribution"]     # the credit line to cite with your results
 info["data_up_to"]      # '2026-11-02T00:59:53Z', the time of the newest source data
 
 # Later, on any machine: this call loads the same file, or raises a ValueError
 europe = GeoGraph.load_geograph(
     "europe",
-    version="networks-2026.11.20-dev.1",
-    content_sha256="4212a887e6fa18071a1eb886a6a6ca69831255f3e09ddb14b5b7bc8cfa1ca6ad",
+    version="networks-2026.11.20-dev.2",
+    content_sha256="5dafa1c37d57bb89aeab601c333c72feb8235c8cab24ac0b4cbf380aec26c899",
 )
 ```
 
