@@ -329,7 +329,8 @@ def build_metadata(
 
 def download_file(url: str, filename: str | os.PathLike) -> None:
     """Download `url` to `filename`. The function first logs the size of the file: at
-    WARNING above `LARGE_DOWNLOAD_BYTES`, at INFO below.
+    WARNING above `LARGE_DOWNLOAD_BYTES`, at INFO below. When the server gives the size, it
+    then logs at INFO the megabytes done at each tenth of the download.
 
     Raises:
         requests.HTTPError: The server refuses the request.
@@ -343,6 +344,15 @@ def download_file(url: str, filename: str | os.PathLike) -> None:
             url,
             size / 1e6,
         )
+        next_tenth = 1
         with open(filename, "wb") as file:
             for chunk in response.iter_content(chunk_size=1 << 20):
                 file.write(chunk)
+                # The raw stream counts the bytes received, as Content-Length does,
+                # also when requests decompresses them.
+                done = response.raw.tell()
+                if size and done >= next_tenth * size / 10:
+                    logger.info(
+                        "Downloaded %.1f of %.1f MB", done / 1e6, size / 1e6
+                    )
+                    next_tenth = done * 10 // size + 1

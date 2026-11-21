@@ -150,6 +150,7 @@ def fetch_released_file(
                         f"Failed to download '{url}'. "
                         f"HTTP status: {error.response.status_code}."
                     ) from error
+                logger.info("Decompressing %s.scgraph.gz", stem)
                 try:
                     with (
                         gzip.open(compressed) as source,
@@ -161,6 +162,7 @@ def fetch_released_file(
                         f"{url}: damaged download ({error})"
                     ) from error
                 compressed.unlink()  # frees the disk before the check
+                logger.info("Checking the content_sha256 of %s", file.name)
                 found = network_file.check_content(download)
             if tag == network_release.TAG:
                 recorded = network_release.CONTENT_SHA256[stem]

@@ -64,10 +64,12 @@ WHAT THE HEADER OF A DERIVED FILE RECORDS
 
 - `pipeline`: the pipeline of the parent file. The header has no `description`: the
   description of the parent file names modes that the derived file may not hold;
-- `sources`: the sources of the parent file that serve the derived file. A mode cites
-  the source of its node ids in the modes table. A source is removed when only
-  removed modes cite it. A source that no mode cites is kept, because the header
-  does not record the modes that use it;
+- `sources`: the sources of the parent file that serve the derived file. A mode uses
+  the source of its node ids, which the modes table names. The mode `airport` also
+  uses the source `flights`, because a flight joins two airports. A source is
+  removed when only removed modes use it. A source that no mode uses is kept,
+  because the header does not record what uses it. For example, the land mask of
+  the connectors uses Natural Earth;
 - `software`: the software that derived the file;
 - `derivation`: the `parent_content_sha256`, and the `modes`, the `bbox` and the
   `min_component_nodes` of the call.
@@ -119,6 +121,10 @@ __all__ = ["derive_network_file"]
 # `airport`) all stay. A route can then leave the bbox by sea or by air, and reach a
 # port or an airport outside it.
 LAND_MODES = ("road", "rail", "rail_terminal")
+# The source of the edges of a mode, when it is not the source of its node ids. The
+# flights of `step2_hub_connectors` join two airports: a file without the mode
+# `airport` holds no flight.
+_EDGE_SOURCE_OF_MODE = {"airport": "flights"}
 # The bbox of a call without a bbox: every point is inside it.
 _WHOLE_GLOBE = (-90, -180, 90, 180)
 # The networks that a network release derives from the file of `world_multimodal`.
@@ -297,9 +303,15 @@ def derive_network_file(
     if not keep_shapes:
         del graph["shape_offsets"], graph["shape_points"]
     kept_modes = [parent_metadata["modes"][row] for row in kept_mode_rows]
-    removed_sources = {
-        mode.get("source") for mode in parent_metadata["modes"]
-    } - {mode.get("source") for mode in kept_modes}
+
+    def find_used_sources(modes):
+        return {mode.get("source") for mode in modes} | {
+            _EDGE_SOURCE_OF_MODE.get(mode["name"]) for mode in modes
+        }
+
+    removed_sources = find_used_sources(
+        parent_metadata["modes"]
+    ) - find_used_sources(kept_modes)
     metadata = pipelines.build_metadata(
         **parent_metadata["pipeline"],
         sources=[
