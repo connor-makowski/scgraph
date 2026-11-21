@@ -41,7 +41,8 @@ scgraph/
   grid.py                        # GridGraph — 2D grid pathfinding
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   network_release.py             # The network release that this version of scgraph loads (written by utils/pin_network_release.py)
-  network_cache.py               # Internal: the names of the networks that load_geograph takes, and their downloads into the cache
+  network_cache.py               # Internal: the files of the released networks in the cache, and their download
+  built_in_geographs.py          # Internal: the seven networks of release 3.6.0, with their download
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
   pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md

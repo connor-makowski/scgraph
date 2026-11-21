@@ -137,6 +137,35 @@ DERIVED_NETWORKS: dict[str, dict] = {
     "north_asia": {"bbox": (40, 45, 78, 180)},
     "oceania": {"bbox": (-50, 110, 0, 180)},
 }
+# What a network release says of each derived network that keeps some modes of the
+# world. `describe_derived_network` writes the sentence of a network with a bbox.
+_MODE_NETWORK_DESCRIPTIONS = {
+    "world_sea": "Sea lanes and ports of the world",
+    "world_rail": "Railways and rail terminals of the world",
+}
+
+
+def describe_derived_network(name: str) -> str:
+    """Return the sentence that describes a derived network in a network release.
+
+    `GeoGraph.list_geographs` shows this sentence. It comes from the entry of the
+    network in `DERIVED_NETWORKS`, so it always gives the bbox that cut the network.
+
+    Args:
+        name: The name of a network of `DERIVED_NETWORKS`.
+
+    Returns:
+        The description of the network, in one sentence.
+    """
+    bbox = DERIVED_NETWORKS[name].get("bbox")
+    if bbox is None:
+        return _MODE_NETWORK_DESCRIPTIONS[name]
+    south, west, north, east = bbox
+    return (
+        f"The part of world_multimodal between latitudes {south} and {north} and "
+        f"longitudes {west} and {east}, with every sea lane, port and airport of "
+        "the world"
+    )
 
 
 def derive_network_file(

@@ -1,11 +1,11 @@
-"""The networks that `GeoGraph.load_geograph` loads, and their files in the cache.
+"""The files of the released networks in the cache directory.
 
 This module is internal. It holds three things:
 
-- the names of the networks: the seven built-in geographs of scgraph 3.6.0
-  (`BUILT_IN_GEOGRAPHS`) and the released networks (`RELEASED_GEOGRAPHS`);
-- the two downloads that put a network into the cache directory:
-  `fetch_built_in_geograph` and `fetch_released_file`;
+- `RELEASED_GEOGRAPHS`, the names of the released networks. `scgraph.network_release`
+  lists them, with what the network release says of each one;
+- `fetch_released_file`, which downloads the file of a released network into the
+  cache directory;
 - `find_cached_file`, which finds the network file of a build in the cache.
 
 The methods of `GeoGraph` call these functions. `ARCHITECTURE.md`, section 6, gives
@@ -19,7 +19,6 @@ import os
 import re
 import secrets
 import shutil
-import warnings
 import zlib
 from pathlib import Path
 
@@ -48,62 +47,6 @@ def find_cached_file(pointer: Path) -> Path | None:
     return file if file.is_file() else None
 
 
-GEOGRAPH_URL = (
-    "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs"
-)
-# The seven networks of scgraph 3.6.0, published as `.graphjson` files at `GEOGRAPH_URL`,
-# and what `list_geographs` says of each one. `superseded_by` names
-# the released network that covers the same need with newer data. That network may
-# hold more modes, and its results differ.
-BUILT_IN_GEOGRAPHS = {
-    "marnet": {
-        "description": "Sea lanes of the world (Eurostat SeaRoute)",
-        "superseded_by": "world_sea",
-    },
-    "north_america_rail": {
-        "description": "Class I railroads of North America",
-        "superseded_by": "north_america",
-    },
-    "oak_ridge_maritime": {
-        "description": "Sea lanes of the world (Oak Ridge National Laboratory, 2000)",
-        "superseded_by": "world_sea",
-    },
-    "us_freeway": {
-        "description": "Freeways of the United States",
-        "superseded_by": "north_america",
-    },
-    "world_highways_and_marnet": {
-        "description": "Highways of the world, joined to the sea lanes of marnet",
-        "superseded_by": "world_multimodal",
-    },
-    "world_highways": {
-        "description": "Highways of the world",
-        "superseded_by": "world_multimodal",
-    },
-    "world_railways": {
-        "description": "Railways of the world",
-        "superseded_by": "world_rail",
-    },
-}
-_WORLD_PART = (
-    "The part of world_multimodal between latitudes {} and {} and longitudes {} "
-    "and {}, with every sea lane, port and airport of the world"
-)
-# What `list_geographs` says of each released network
-RELEASED_DESCRIPTIONS = {
-    "world_multimodal": "Main roads, railways, sea lanes and regular flights of the "
-    "world, joined at ports, airports and rail terminals",
-    "world_sea": "Sea lanes and ports of the world",
-    "world_rail": "Railways and rail terminals of the world",
-    "europe": _WORLD_PART.format(34, 72, -25, 45),
-    "north_america": _WORLD_PART.format(7, 84, -170, -50),
-    "south_america": _WORLD_PART.format(-57, 13, -82, -34),
-    "africa": _WORLD_PART.format(-35, 38, -18, 52),
-    "west_south_asia": _WORLD_PART.format(5, 45, 25, 98),
-    "east_southeast_asia": _WORLD_PART.format(-11, 55, 92, 150),
-    "north_asia": _WORLD_PART.format(40, 78, 45, 180),
-    "oceania": _WORLD_PART.format(-50, 0, 110, 180),
-}
 # The names of the released networks: the networks of the network release that
 # `network_release` pins. load_geograph downloads them as network files. Each network
 # has two files: `network_release` lists the file without shapes under the name of
@@ -239,76 +182,3 @@ def fetch_released_file(
                 f"{file} has the content_sha256 {found}, not {content_sha256}"
             )
     return file
-
-
-def warn_deprecated_url(geograph_url: str, stacklevel: int = 3) -> None:
-    """Warn that `geograph_url` is deprecated, if the caller gave another URL than the
-    default one. The default `stacklevel` points the warning at the caller of the
-    function that calls this one."""
-    if geograph_url != GEOGRAPH_URL:
-        warnings.warn(
-            "`geograph_url` is deprecated. scgraph 5.0 removes it. To load your "
-            "own network, use `GeoGraph.load_from_graphjson` or "
-            "`GeoGraph.load_from_scgraph`.",
-            DeprecationWarning,
-            stacklevel=stacklevel,
-        )
-
-
-def warn_deprecated_load(name: str, geograph_url: str) -> None:
-    """Give the deprecation warnings of `load_geograph`: one for another
-    `geograph_url`, and one for a network of scgraph 3.6.0.
-
-    Args:
-        name: The name of the network to load.
-        geograph_url: The `geograph_url` of the call.
-    """
-    warn_deprecated_url(geograph_url, stacklevel=4)
-    if geograph_url == GEOGRAPH_URL and name in BUILT_IN_GEOGRAPHS:
-        replacement = BUILT_IN_GEOGRAPHS[name]["superseded_by"]
-        warnings.warn(
-            f"The network '{name}' of scgraph 3.6.0 is deprecated. scgraph 5.0 "
-            f"removes it. Use '{replacement}', a released network with newer "
-            "data. Its results differ (README, section Migrating from 3.6).",
-            DeprecationWarning,
-            stacklevel=3,
-        )
-
-
-def fetch_built_in_geograph(
-    name: str, cached_file: Path, geograph_url: str
-) -> None:
-    """Download the `.graphjson` file of a built-in geograph into the cache.
-
-    Args:
-        name: The name of the built-in geograph.
-        cached_file: The path of the file to write, in the cache.
-        geograph_url: The URL of the folder that holds `<name>.graphjson`.
-
-    Raises:
-        FileNotFoundError: The URL has no file of this name.
-        ConnectionError: The server answers with another error status.
-    """
-    url = f"{geograph_url}/{name}.graphjson"
-    response = requests.get(url, timeout=60)
-    if response.status_code == 404:
-        raise FileNotFoundError(
-            f"Geograph '{name}' not found at '{url}'. "
-            f"Check that the name is correct and the file exists in the scgraph GitHub repository."
-        )
-    if not response.ok:
-        raise ConnectionError(
-            f"Failed to download geograph '{name}' from '{url}'. "
-            f"HTTP status: {response.status_code}."
-        )
-    # The download is written next to the cache file, then moved onto it. A download that
-    # fails never leaves a part of a file under the name that later loads read.
-    download = cached_file.with_name(
-        f".{cached_file.name}.{os.getpid()}.{secrets.token_hex(4)}.download"
-    )
-    try:
-        download.write_bytes(response.content)
-        os.replace(download, cached_file)
-    except BaseException:
-        download.unlink(missing_ok=True)
-        raise
