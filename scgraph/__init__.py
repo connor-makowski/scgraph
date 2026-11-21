@@ -109,7 +109,7 @@ The output dictionary always contains:
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)`, then `save_as_scgraph` to load it faster later |
-| A result of scgraph 3.6.0, unchanged | a built-in geograph | `GeoGraph.load_geograph("marnet")` |
+| A result of scgraph 3.6.0, unchanged | a deprecated network of 3.6.0 | `GeoGraph.load_geograph("marnet")`, with a `DeprecationWarning` |
 
 `GeoGraph.list_geographs()` lists every network that `load_geograph` takes. For each network it gives what the network holds, and for a released network the size of its download. For a network of scgraph 3.6.0, `superseded_by` names the released network that covers the same need with newer data. The networks of 3.6.0 still load, with the same results.
 
@@ -183,18 +183,19 @@ The guide [From open data to a route](https://github.com/connor-makowski/scgraph
 
 The notebook [Routes on a multimodal network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb) draws routes of `oceania` on maps. It shows the kinds of transport that a route uses, the choice of the modes, and two limit cases.
 
-### Built-in Geographs
-These are the seven networks of scgraph 3.6.0. `load_geograph` still loads them, with the same results. All built-in geographs measure distances in kilometers and are downloaded on first use and cached locally.
+### Deprecated Networks of scgraph 3.6.0
 
-| Name | Load Key | Description | Attribution |
+These are the seven networks of scgraph 3.6.0. They are deprecated: `load_geograph` still loads them, with the same results as 3.6.0 and a `DeprecationWarning`, and scgraph 5.0 removes them. A released network replaces each one, with newer data. Its results differ, because the data differ. All seven networks measure distances in kilometers.
+
+| Name | Use instead | Description | Attribution |
 |---|---|---|---|
-| `marnet` | `GeoGraph.load_geograph("marnet")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
-| `oak_ridge_maritime` | `GeoGraph.load_geograph("oak_ridge_maritime")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
-| `north_america_rail` | `GeoGraph.load_geograph("north_america_rail")` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
-| `us_freeway` | `GeoGraph.load_geograph("us_freeway")` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
-| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_highways_and_marnet")` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
-| `world_highways` | `GeoGraph.load_geograph("world_highways")` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
-| `world_railways` | `GeoGraph.load_geograph("world_railways")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| `marnet` | `GeoGraph.load_geograph("world_sea")` | Maritime network | [searoute](https://github.com/genthalili/searoute-py) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/marnet.png) |
+| `oak_ridge_maritime` | `GeoGraph.load_geograph("world_sea")` | Maritime network (Oak Ridge National Laboratory) | [ORNL](https://www.ornl.gov/) / [Geocommons](http://geocommons.com/datasets?id=25) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/oak_ridge_maritime.png) |
+| `north_america_rail` | `GeoGraph.load_geograph("north_america", modes=["rail"])` | Class 1 rail network for North America | [USDOT ArcGIS](https://geodata.bts.gov/datasets/usdot::north-american-rail-network-lines-class-i-freight-railroads-view/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/north_america_rail.png) |
+| `us_freeway` | `GeoGraph.load_geograph("north_america", modes=["road"])` | Freeway network for the United States | [USDOT ArcGIS](https://hub.arcgis.com/datasets/esri::usa-freeway-system-over-1500k/about) · [Map](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/us_freeway.png) |
+| `world_highways_and_marnet` | `GeoGraph.load_geograph("world_multimodal", modes=["road", "sea", "port"])` | World highway network merged with the maritime network | [OpenStreetMap](https://www.openstreetmap.org/) / [searoute](https://github.com/genthalili/searoute-py) |
+| `world_highways` | `GeoGraph.load_geograph("world_multimodal", modes=["road"])` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
+| `world_railways` | `GeoGraph.load_geograph("world_rail")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
 ## Quick Start: OSMNx Integration
 
@@ -303,7 +304,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 GeoGraph provides built-in heuristics for A*:
 
 ```py
-my_geograph = GeoGraph.load_geograph("marnet")  # or any other geograph
+my_geograph = GeoGraph.load_geograph("world_sea")  # or any other network
 
 output = my_geograph.get_shortest_path(
     origin_node={"latitude": 42.29, "longitude": -85.58},
@@ -329,15 +330,15 @@ A* returns the shortest path if the heuristic never exceeds the real distance le
 ```py
 from scgraph import GeoGraph
 
-marnet_geograph = GeoGraph.load_geograph("marnet")
+world_sea = GeoGraph.load_geograph("world_sea")
 
-output = marnet_geograph.get_shortest_path(
+output = world_sea.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},      # Shanghai
     destination_node={"latitude": 32.08, "longitude": -81.09}, # Savannah, GA
     output_units='km',
 )
 
-print(output['length'])          # 19596.4653
+print(output['length'])          # 19264.1889
 print(output['coordinate_path']) # [[31.23, 121.47], ..., [32.08, -81.09]]
 ```
 
@@ -355,13 +356,13 @@ Supported `output_units`:
 Pass any algorithm name (or function) to `algorithm_fn`:
 
 ```py
-marnet_geograph = GeoGraph.load_geograph("marnet")
+world_sea = GeoGraph.load_geograph("world_sea")
 
-output = marnet_geograph.get_shortest_path(
+output = world_sea.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},
     destination_node={"latitude": 32.08, "longitude": -81.09},
     algorithm_fn='a_star',
-    algorithm_kwargs={"heuristic_fn": marnet_geograph.haversine},
+    algorithm_kwargs={"heuristic_fn": world_sea.haversine},
 )
 ```
 
@@ -374,17 +375,17 @@ For repeated queries from the same origin point (e.g., distribution center → m
 ```py
 from scgraph import GeoGraph
 
-marnet_geograph = GeoGraph.load_geograph("marnet")
+world_sea = GeoGraph.load_geograph("world_sea")
 
 # First call: computes and caches the shortest path tree (~same cost as dijkstra without an early termination)
-output1 = marnet_geograph.get_shortest_path(
+output1 = world_sea.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai
     destination_node={"latitude": 32.08, "longitude": -81.09}, # Savannah, GA
     algorithm_fn='cached_shortest_path',
 )
 
 # Subsequent calls to the same origin are near-instant (O(1) lookup)
-output2 = marnet_geograph.get_shortest_path(
+output2 = world_sea.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47}, # Shanghai (same)
     destination_node={"latitude": 51.50, "longitude": -0.13},  # London
     algorithm_fn='cached_shortest_path',
@@ -398,7 +399,7 @@ For all-pairs distance computation across a set of locations, use `distance_matr
 ```py
 from scgraph import GeoGraph
 
-us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
+north_america = GeoGraph.load_geograph("north_america", modes=["road"])
 
 cities = [
     {"latitude": 34.0522, "longitude": -118.2437},  # Los Angeles
@@ -407,13 +408,14 @@ cities = [
     {"latitude": 29.7604, "longitude": -95.3698},   # Houston
 ]
 
-matrix = us_freeway_geograph.distance_matrix(cities, output_units='km')
+matrix = north_america.distance_matrix(cities, output_units='km')
 # [
-#  [0.0,    4510.97, 3270.39, 2502.89],
-#  [4510.97, 0.0,   1288.47, 2637.58],
-#  [3270.39, 1288.47, 0.0,  1913.19],
-#  [2502.89, 2637.58, 1913.19, 0.0 ],
+#  [0.0,     4392.74, 3235.25, 2429.24],
+#  [4397.57, 0.0,     1269.29, 2562.51],
+#  [3229.21, 1262.71, 0.0,     1719.23],
+#  [2422.5,  2556.36, 1722.2,  0.0    ],
 # ]
+# The two directions differ a little: a one-way road is followed in its direction.
 ```
 
 For large matrices, throughput can approach 500 nanoseconds per distance query.
@@ -425,14 +427,14 @@ Sparse networks (highways, rail lines, shipping corridors) often contain long ch
 ```py
 from scgraph import GeoGraph
 
-us_freeway = GeoGraph.load_geograph("us_freeway")
+north_america = GeoGraph.load_geograph("north_america", modes=["road"])
 
-# Reduce the graph by bypassing pass-through chains (e.g. simplifies ~88% of nodes on us_freeway)
-us_freeway.reduce(iterations=1)
+# Reduce the graph by bypassing pass-through chains
+north_america.reduce()
 
 # All standard algorithms (dijkstra, bidirectional_dijkstra, a_star, etc.)
 # automatically execute on the reduced graph and expand paths back to original coordinates:
-output = us_freeway.get_shortest_path(
+output = north_america.get_shortest_path(
     origin_node={"latitude": 34.05, "longitude": -118.24},  # Los Angeles
     destination_node={"latitude": 40.71, "longitude": -74.01},  # New York City
     algorithm_fn='bidirectional_dijkstra',
@@ -453,7 +455,7 @@ To avoid upfront downloading, parsing, or memory overhead when defining multiple
 from scgraph import GeoGraph
 
 # Returns a LazyGeoGraph proxy immediately without downloading or parsing
-world_net = GeoGraph.load_geograph("world_highways_and_marnet", lazy=True)
+world_net = GeoGraph.load_geograph("world_multimodal", lazy=True)
 
 # The network is downloaded and instantiated only when first queried:
 output = world_net.get_shortest_path(
@@ -470,9 +472,9 @@ world_net.load()
 Control how origin/destination are connected to the graph:
 
 ```py
-marnet_geograph = GeoGraph.load_geograph("marnet")
+world_sea = GeoGraph.load_geograph("world_sea")
 
-output = marnet_geograph.get_shortest_path(
+output = world_sea.get_shortest_path(
     origin_node={"latitude": 31.23, "longitude": 121.47},
     destination_node={"latitude": 32.08, "longitude": -81.09},
     # Max search radius in degrees (default: 'auto')
@@ -486,8 +488,8 @@ output = marnet_geograph.get_shortest_path(
 
 | `node_addition_type` | Description |
 |---|---|
-| `'closest'` / `'kdclosest'` | Closest node (default) |
-| `'quadrant'` / `'kdquadrant'` | Closest node in each quadrant |
+| `'closest'` | Closest node (default) |
+| `'quadrant'` | Closest node in each quadrant |
 | `'all'` | All nodes within the bound |
 
 
@@ -508,14 +510,14 @@ For one of the seven networks of scgraph 3.6.0, the first load also converts the
 ```py
 from scgraph import GeoGraph
 
-# Load a geograph (downloads on first call, loads from cache after)
-marnet_geograph = GeoGraph.load_geograph("marnet")
+# Load a network (downloads on first call, loads from cache after)
+world_sea = GeoGraph.load_geograph("world_sea")
 
 # Optionally specify a custom cache directory
-marnet_geograph = GeoGraph.load_geograph("marnet", cache_dir="/path/to/cache")
+world_sea = GeoGraph.load_geograph("world_sea", cache_dir="/path/to/cache")
 
 # Never download: use only the cache (FileNotFoundError if the geograph is not there)
-marnet_geograph = GeoGraph.load_geograph("marnet", local_files_only=True)
+world_sea = GeoGraph.load_geograph("world_sea", local_files_only=True)
 
 # List all available geographs and whether each is cached locally (no network request)
 available = GeoGraph.list_geographs()
@@ -555,9 +557,9 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 
 | Parameter | Default | Description |
 |---|---|---|
-| `name` | required | Name of the built-in geograph (e.g. `'marnet'`, `'us_freeway'`), or of a released network (e.g. `'europe'`) |
+| `name` | required | Name of a released network (e.g. `'europe'`), or of a deprecated network of scgraph 3.6.0 (e.g. `'marnet'`) |
 | `cache_dir` | `None` | Custom directory for downloaded files; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
-| `geograph_url` | `'https://raw.githubusercontent.com/...'` | Base URL for fetching geographs. With another URL, every name loads `<name>.graphjson` from that URL |
+| `geograph_url` | `'https://raw.githubusercontent.com/...'` | Deprecated. Another URL loads `<name>.graphjson` from that URL, with a `DeprecationWarning`. Use `load_from_graphjson` or `load_from_scgraph` for your own files |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
 | `local_files_only` | `None` | Use only the cache, never download; defaults to `True` if `SCGRAPH_OFFLINE=1`, else `False` |
@@ -1024,20 +1026,20 @@ Contraction Hierarchies (CH) provide extremely fast query times after a one-time
 ```py
 from scgraph import GeoGraph
 
-us_freeway_geograph = GeoGraph.load_geograph("us_freeway")
+oceania_roads = GeoGraph.load_geograph("oceania", modes=["road"])
 
 # One-time preprocessing — only needed once per graph
-us_freeway_geograph.graph_object.create_contraction_hierarchy(
-    # Optionally: pass CH parameters here.
+oceania_roads.graph_object.create_contraction_hierarchy(
+    # Optionally: pass CH options here, by keyword (settled_limit, heuristic_fn).
 )
 
 # All subsequent queries use the fast CH algorithm
-output = us_freeway_geograph.get_shortest_path(
-    origin_node={"latitude": 34.05, "longitude": -118.24},  # Los Angeles
-    destination_node={"latitude": 40.71, "longitude": -74.01},  # New York
+output = oceania_roads.get_shortest_path(
+    origin_node={"latitude": -33.87, "longitude": 151.21},  # Sydney
+    destination_node={"latitude": -31.95, "longitude": 115.86},  # Perth
     algorithm_fn='contraction_hierarchy',
 )
-print(output['length'])
+print(output['length'])  # 3927.93 (km)
 ```
 
 A hierarchy can be saved and loaded again instead of being rebuilt. A hierarchy with transit nodes (`algorithm_fn='tnr'`) is built and saved the same way:
@@ -1045,15 +1047,16 @@ A hierarchy can be saved and loaded again instead of being rebuilt. A hierarchy 
 ```py
 from scgraph import CHGraph, TNRGraph
 
-graph = us_freeway_geograph.graph_object
+graph = oceania_roads.graph_object
 ch = graph.create_contraction_hierarchy()
-ch.save_as_chjson("us_freeway.chjson")
-ch = CHGraph.load_from_chjson("us_freeway.chjson")
-print(ch.get_shortest_path(0, 100)['length'])  # between two node ids
+ch.save_as_chjson("oceania_roads.chjson")
+ch = CHGraph.load_from_chjson("oceania_roads.chjson")
+# A hierarchy answers a query between two node ids:
+# ch.get_shortest_path(origin_id, destination_id)['length']
 
 tnr = graph.create_tnr_hierarchy()
-tnr.save_as_tnrjson("us_freeway.tnrjson")
-tnr = TNRGraph.load_from_tnrjson("us_freeway.tnrjson")
+tnr.save_as_tnrjson("oceania_roads.tnrjson")
+tnr = TNRGraph.load_from_tnrjson("oceania_roads.tnrjson")
 ```
 
 ---
@@ -1092,14 +1095,14 @@ To see how much work a load or a query did, show the DEBUG messages. Each step o
 
 ```py
 logging.getLogger("scgraph").setLevel(logging.DEBUG)
-marnet = GeoGraph.load_geograph("marnet")
-marnet.get_shortest_path(
+world_sea = GeoGraph.load_geograph("world_sea")
+world_sea.get_shortest_path(
     {"latitude": 31.23, "longitude": 121.47},
     {"latitude": 32.08, "longitude": -81.09},
 )
-# DEBUG:scgraph.geograph:read the network file: {'file': '.../marnet.scgraph', 'mapped': True, 'nodes': 11062, 'edges': 34698, 'duration_ms': 0.205}
-# DEBUG:scgraph.geograph:build the snapping index: {'nodes': 11062, 'sorted_for_the_index': False, 'duration_ms': 0.749}
-# DEBUG:scgraph.geograph:find the shortest path: {'algorithm': 'bidirectional_buckets', 'distance_units': 'km', 'origin_snap_distance': 64.979, 'destination_snap_distance': 109.566, 'node_scans': 12504}
+# DEBUG:scgraph.geograph:read the network file: {'file': '.../world_sea.scgraph', 'mapped': True, 'nodes': 43233, 'edges': 159174, 'duration_ms': 0.21}
+# DEBUG:scgraph.geograph:build the snapping index: {'nodes': 43233, 'sorted_for_the_index': False, 'duration_ms': 1.404}
+# DEBUG:scgraph.geograph:find the shortest path: {'algorithm': 'bidirectional_buckets', 'distance_units': 'km', 'origin_snap_distance': 1.698, 'destination_snap_distance': 0.729, 'node_scans': 47743}
 ```
 
 | Step | Values |
@@ -1148,6 +1151,27 @@ logging.getLogger("scgraph").setLevel(logging.DEBUG)
 - [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb) — Load a released network, draw routes by kind of transport, choose the modes
 - [Build the Network of a Region](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/build_a_region.ipynb) — Build Denmark from the newest OpenStreetMap extract, read its sources, compare it with the released network, check it
 - [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb) — Order nodes along a Hilbert curve, compare `SnapIndex` with `GeoKDTree`
+
+---
+
+# Migrating from 3.6 to 4.0
+
+Release 4.0 changes these calls of release 3.6.
+
+| What changes | What to do |
+|---|---|
+| The seven networks of 3.6 (`marnet`, `us_freeway`, ...) are deprecated. They still load, with the same results and a `DeprecationWarning` | Load the released network of the table *Deprecated Networks of scgraph 3.6.0*. Its lengths differ: Shanghai to Savannah is 19596.4653 km on `marnet` and 19264.1889 km on `world_sea` |
+| A network loaded by `load_geograph` numbers its nodes in another order | `geograph.node_ids[i]` gives the id that node `i` had in 3.6 |
+| `GeoGraph.get_shortest_path` takes its options by keyword | Write `get_shortest_path(origin, destination, output_units="mi")`, not `get_shortest_path(origin, destination, "mi")` |
+| `CHGraph`, `TNRGraph`, `create_contraction_hierarchy` and `create_tnr_hierarchy` take their options by keyword, with the same names in both builds | Write `TNRGraph(graph, num_transit_nodes=100)` |
+| `ch_graph_kwargs` and `tnr_graph_kwargs` have no effect and give a `DeprecationWarning` | Pass `settled_limit` and `heuristic_fn` |
+| A wrong argument raises a `ValueError`, not an `AssertionError` | Catch `ValueError` |
+| `reduce()` runs until no pass-through node is left (`iterations=-1`). Release 3.6 ran one pass | Pass `iterations=1` for one pass. Route lengths are the same |
+| `'kdclosest'` and `'kdquadrant'` are deprecated values of `node_addition_type` | Use `'closest'` and `'quadrant'`, which give the same results |
+| `geograph_url` is deprecated | Load your own file with `load_from_graphjson` or `load_from_scgraph` |
+| In pure Python, `get_path_weight` raises `ValueError` for a missing edge, and `bmssp` raises `PathNotFoundError` when no path exists | These are the exceptions of the C++ build |
+
+Release 5.0 removes what 4.0 deprecates.
 
 ---
 

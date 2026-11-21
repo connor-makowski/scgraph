@@ -74,8 +74,10 @@ class GridGraph:
                 - Cardinal directions are 1 unit away, diagonal directions are sqrt(2) units away
         """
         # Validate the inputs
-        assert x_size > 0, "x_size must be greater than 0"
-        assert y_size > 0, "y_size must be greater than 0"
+        if not (x_size > 0):
+            raise ValueError("x_size must be greater than 0")
+        if not (y_size > 0):
+            raise ValueError("y_size must be greater than 0")
 
         self.x_size = x_size
         self.y_size = y_size
@@ -178,8 +180,10 @@ class GridGraph:
             - Type: int
             - What: The index of the cell in the grid
         """
-        assert x >= 0 and x < self.x_size, "x coordinate is out of bounds"
-        assert y >= 0 and y < self.y_size, "y coordinate is out of bounds"
+        if not (x >= 0 and x < self.x_size):
+            raise ValueError("x coordinate is out of bounds")
+        if not (y >= 0 and y < self.y_size):
+            raise ValueError("y coordinate is out of bounds")
         return x + y * self.x_size
 
     def get_x_y(self, idx: int) -> tuple[int, int]:
@@ -201,7 +205,8 @@ class GridGraph:
             - Type: int
             - What: The y coordinate of the cell
         """
-        assert idx >= 0 and idx < len(self.graph), "idx is out of bounds"
+        if not (idx >= 0 and idx < len(self.graph)):
+            raise ValueError("idx is out of bounds")
         return idx % self.x_size, idx // self.x_size
 
     def __get_relative_shape_offsets__(
@@ -425,7 +430,7 @@ class GridGraph:
             node_y = int(y) + y_off
             try:
                 node_id = self.get_idx(node_x, node_y)
-            except AssertionError:
+            except ValueError:
                 continue
             if self.graph[node_id] == {}:
                 continue
@@ -732,6 +737,7 @@ class GridGraph:
         Function:
 
         - A staticmethod to import the graph from a file
+        - Only load a file that you trust: the file is a pickle, and loading it runs the code that it holds
 
         Arguments:
 

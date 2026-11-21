@@ -11,7 +11,7 @@ This guide is for people and for coding agents who change scgraph. *Getting Star
 - **Shortest path algorithms** — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A\*, BMSSP, Contraction Hierarchies (CH), Transit Node Routing (TNR)
 - **Graph reduction** — iterative degree-2 pass-through chain contraction with O(1) same-chain detection, boundary resolution, and transparent algorithm wrapping
 - **Geographic routing & lazy loading** — lat/lon node coordinates, automatic origin/destination snapping, lazy GeoGraph proxies, haversine/cheap-ruler distances
-- **Built-in networks** — maritime, rail, highway, and combined world networks (downloaded on demand); networks built from their online sources
+- **Networks** — released networks of the world (roads, railways, sea lanes, flights), downloaded on demand; networks built from their online sources; the seven networks of release 3.6.0, deprecated
 - **C++ acceleration** — optional compiled extension (nanobind); pure Python fallback always present
 - **Grid pathfinding** — 2D grid routing with obstacles and configurable connectivity
 
@@ -184,7 +184,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
 - A change to the public API edits `README.md` and the docstring of `scgraph/__init__.py` identically, in the same PR.
-- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. `_internal.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
+- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. Release 4.0 made the breaking changes of the README section *Migrating from 3.6 to 4.0*. What 4.0 deprecates is removed in 5.0 at the earliest. `_internal.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.

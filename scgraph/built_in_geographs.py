@@ -1,4 +1,4 @@
-"""The seven networks of scgraph 3.6.0, the built-in geographs.
+"""The seven networks of scgraph 3.6.0, the built-in geographs. They are deprecated.
 
 This module is internal. It holds all that scgraph knows of these networks, and
 nothing else:
@@ -6,13 +6,18 @@ nothing else:
 - `BUILT_IN_GEOGRAPHS`, their names. Each one has its description and the released
   network that covers the same need with newer data;
 - `GEOGRAPH_URL`, where their `.graphjson` files are published;
-- `fetch_built_in_geograph`, which downloads one of these files into the cache.
+- `fetch_built_in_geograph`, which downloads one of these files into the cache;
+- `warn_deprecated_load` and `warn_deprecated_url`, the deprecation warnings of
+  these networks and of `geograph_url`.
+
+scgraph 5.0 removes these networks: this module and its calls then go.
 
 `GeoGraph.load_geograph` and `GeoGraph.list_geographs` call this module.
 """
 
 import os
 import secrets
+import warnings
 from pathlib import Path
 
 import requests
@@ -54,6 +59,40 @@ BUILT_IN_GEOGRAPHS = {
         "superseded_by": "world_rail",
     },
 }
+
+
+def warn_deprecated_url(geograph_url: str, stacklevel: int = 3) -> None:
+    """Warn that `geograph_url` is deprecated, if the caller gave another URL than the
+    default one. The default `stacklevel` points the warning at the caller of the
+    function that calls this one."""
+    if geograph_url != GEOGRAPH_URL:
+        warnings.warn(
+            "`geograph_url` is deprecated. scgraph 5.0 removes it. To load your "
+            "own network, use `GeoGraph.load_from_graphjson` or "
+            "`GeoGraph.load_from_scgraph`.",
+            DeprecationWarning,
+            stacklevel=stacklevel,
+        )
+
+
+def warn_deprecated_load(name: str, geograph_url: str) -> None:
+    """Give the deprecation warnings of `load_geograph`: one for another
+    `geograph_url`, and one for a network of scgraph 3.6.0.
+
+    Args:
+        name: The name of the network to load.
+        geograph_url: The `geograph_url` of the call.
+    """
+    warn_deprecated_url(geograph_url, stacklevel=4)
+    if geograph_url == GEOGRAPH_URL and name in BUILT_IN_GEOGRAPHS:
+        replacement = BUILT_IN_GEOGRAPHS[name]["superseded_by"]
+        warnings.warn(
+            f"The network '{name}' of scgraph 3.6.0 is deprecated. scgraph 5.0 "
+            f"removes it. Use '{replacement}', a released network with newer "
+            "data. Its results differ (README, section Migrating from 3.6).",
+            DeprecationWarning,
+            stacklevel=3,
+        )
 
 
 def fetch_built_in_geograph(

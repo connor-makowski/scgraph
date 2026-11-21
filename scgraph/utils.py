@@ -12,6 +12,7 @@ import logging
 import time
 import platform
 import os
+import warnings
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from math import pi, sin, cos, asin
@@ -191,8 +192,10 @@ def distance_converter(
         - Type: str
         - What: units of the output distance (one of "mi", "km", "m", or "ft")
     """
-    assert input_units in ["mi", "km", "m", "ft"]
-    assert output_units in ["mi", "km", "m", "ft"]
+    if input_units not in ["mi", "km", "m", "ft"]:
+        raise ValueError("input_units must be one of 'mi', 'km', 'm' or 'ft'")
+    if output_units not in ["mi", "km", "m", "ft"]:
+        raise ValueError("output_units must be one of 'mi', 'km', 'm' or 'ft'")
     km_table = {"mi": 0.621371, "m": 1000, "ft": 3280.84, "km": 1}
     return (distance / km_table[input_units]) * km_table[output_units]
 
@@ -300,6 +303,11 @@ def adjacency_dict_to_list_tuples(
     - Type: list[list[tuple[int, int | float]]]
     - What: The converted graph in adjacency list representation
     """
+    warnings.warn(
+        "scgraph.utils.adjacency_dict_to_list_tuples is deprecated. scgraph 5.0 removes it.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if not graph:
         return []
 
@@ -326,6 +334,11 @@ def adjacency_list_tuples_to_dict(
     - Type: list[dict[int, int | float]]
     - What: The converted graph in adjacency dictionary representation
     """
+    warnings.warn(
+        "scgraph.utils.adjacency_list_tuples_to_dict is deprecated. scgraph 5.0 removes it.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if not graph:
         return []
 

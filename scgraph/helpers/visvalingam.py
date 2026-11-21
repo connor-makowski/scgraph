@@ -115,7 +115,8 @@ def visvalingam(
     - A simplified list of coordinates [x, y] of at least `min_points` long.
     """
     pct_to_keep = pct_to_keep / 100.0
-    assert 0 <= pct_to_keep <= 1, "pct_to_keep must be between 0 and 100"
+    if not (0 <= pct_to_keep <= 1):
+        raise ValueError("pct_to_keep must be between 0 and 100")
     nodes_to_keep = max(
         int(round((len(coords) - 2) * pct_to_keep)) + 2, min_points
     )

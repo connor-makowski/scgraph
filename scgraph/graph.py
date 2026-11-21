@@ -81,6 +81,7 @@ real distance 3 to node 3.
 weight -2 on the edge from node 2 to node 1, both return `[0, 2, 1, 3]` and the length 0.
 """
 
+import warnings
 from array import array
 from collections.abc import Callable
 from heapq import heappop, heappush
@@ -1328,6 +1329,7 @@ class GraphAlgorithms:
 
     def create_contraction_hierarchy(
         self,
+        *,
         heuristic_fn: Callable[[CHGraph, int], int | float] | None = None,
         ch_graph_kwargs: dict | None = None,
         settled_limit: int = 50,
@@ -1350,21 +1352,25 @@ class GraphAlgorithms:
             - What: The settled count limit for witness search
             - Default: 50
         """
-        if not hasattr(self, "__ch_graph__"):
-            ch_graph_kwargs = (
-                ch_graph_kwargs if ch_graph_kwargs is not None else dict()
+        if ch_graph_kwargs is not None:
+            warnings.warn(
+                "`ch_graph_kwargs` is deprecated and has no effect. Pass "
+                "`settled_limit` and `heuristic_fn`.",
+                DeprecationWarning,
+                stacklevel=2,
             )
+        if not hasattr(self, "__ch_graph__"):
             self.__ch_graph__ = CHGraph(
                 graph=self.search_graph,
                 inverse_graph=self.search_inverse_graph,
                 settled_limit=settled_limit,
                 heuristic_fn=self.wrap_heuristic(heuristic_fn),
-                **ch_graph_kwargs,
             )
         return self.__ch_graph__
 
     def create_tnr_hierarchy(
         self,
+        *,
         num_transit_nodes: int = 100,
         tnr_graph_kwargs: dict | None = None,
         settled_limit: int = 50,
@@ -1394,10 +1400,14 @@ class GraphAlgorithms:
             - What: A heuristic function for TNR/CH preprocessing
             - Default: None
         """
-        if not hasattr(self, "__tnr_graph__"):
-            tnr_graph_kwargs = (
-                tnr_graph_kwargs if tnr_graph_kwargs is not None else dict()
+        if tnr_graph_kwargs is not None:
+            warnings.warn(
+                "`tnr_graph_kwargs` is deprecated and has no effect. Pass "
+                "`settled_limit` and `heuristic_fn`.",
+                DeprecationWarning,
+                stacklevel=2,
             )
+        if not hasattr(self, "__tnr_graph__"):
             is_reduced = getattr(self, "is_reduced", None)
             if is_reduced is not None:
                 # Transit nodes are the last contracted, and reduced nodes are
@@ -1411,7 +1421,6 @@ class GraphAlgorithms:
                 settled_limit=settled_limit,
                 num_transit_nodes=num_transit_nodes,
                 heuristic_fn=self.wrap_heuristic(heuristic_fn),
-                **tnr_graph_kwargs,
             )
         return self.__tnr_graph__
 
@@ -1445,7 +1454,7 @@ class GraphAlgorithms:
             - What: If True, only returns the length of the path
             - Default: False
         """
-        self.create_tnr_hierarchy(50)
+        self.create_tnr_hierarchy(num_transit_nodes=50)
         return self.__tnr_graph__.search(
             origin_id, destination_id, length_only=length_only
         )

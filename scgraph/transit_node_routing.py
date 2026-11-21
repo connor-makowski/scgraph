@@ -66,6 +66,7 @@ candidate 8 + 0 + 0 is the shortest length.
 
 import json
 from heapq import heappush, heappop, heapify
+from collections.abc import Callable
 from scgraph.contraction_hierarchies import CHGraph
 from scgraph.graph_utils import normalize_node_input
 
@@ -544,8 +545,10 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
     def __init__(
         self,
         graph: list[dict[int, int | float]] | None = None,
+        *,
         num_transit_nodes: int = 100,
         settled_limit: int = 50,
+        heuristic_fn: Callable[[CHGraph, int], int | float] | None = None,
         inverse_graph: list[dict[int, int | float]] | None = None,
         **kwargs,
     ):
@@ -593,6 +596,7 @@ class TNRGraph(TNRGraphIO, TNRGraphPreprocessing, TNRGraphAlgorithms, CHGraph):
             super().__init__(
                 settled_limit=settled_limit,
                 graph=graph,
+                heuristic_fn=heuristic_fn,
                 inverse_graph=inverse_graph,
                 **kwargs,
             )
