@@ -13,7 +13,7 @@ WHAT IT ANSWERS
     polylines meet must be a node. Such a place is a "junction". The caller gives the ids
     of the junctions.
     `cut_polylines` gives the "pieces" of the polylines. A piece is the part of a polyline
-    between two consecutive nodes. Each piece becomes an arc.
+    between two consecutive nodes. Each piece becomes an edge.
 
 HOW A POLYLINE IS CUT
     A walk along a polyline cuts it at a vertex in three cases:
@@ -22,9 +22,9 @@ HOW A POLYLINE IS CUT
     3. the piece since the last cut is `max_km_between_nodes` long or longer.
     The first vertex starts the first piece. Each vertex where a piece starts or ends
     becomes a node. The vertices inside a piece become its "shape points". They give the
-    shape of the arc, but a route cannot start or end there.
+    shape of the edge, but a route cannot start or end there.
     Case 3 keeps a node every few kilometers. GeoGraph snaps an origin or a destination to
-    a node, so a long arc with no node would make it snap far from the road. A piece cut
+    a node, so a long edge with no node would make it snap far from the road. A piece cut
     in case 3 can be longer than the limit, by less than the length of its last segment.
     Example, with `max_km_between_nodes` = 2. Road A goes both ways. Its vertices 1 to 5
     are on the equator, at the longitudes 0, 0.01, 0.02, 0.03 and 0.04. Two consecutive
@@ -38,20 +38,20 @@ HOW A POLYLINE IS CUT
     The nodes are the vertices 1, 2, 4, 5 and 6. Vertex 3 is a shape point.
 
 HOW THE PIECES BECOME A GRAPH
-    1. A piece that starts and ends at the same node is dropped. Such an arc is never
+    1. A piece that starts and ends at the same node is dropped. Such an edge is never
        part of a shortest path.
-    2. A piece of a two-way polyline gives an arc in each direction. A piece of a one-way
-       polyline gives one arc. The reverse arc has the shape points in reverse order.
-    3. The graph keeps one arc from a node to another node: the shortest one. Among arcs
+    2. A piece of a two-way polyline gives an edge in each direction. A piece of a one-way
+       polyline gives one edge. The reverse edge has the shape points in reverse order.
+    3. The graph keeps one edge from a node to another node: the shortest one. Among edges
        of equal length, it keeps the first one.
     4. Each node gets an "index": its position in the lists that describe the graph,
        from 0. The indexes follow a Hilbert curve (`scgraph.helpers.hilbert`). Nodes
        that are close on the globe then get close indexes. `SnapIndex`, which finds the
-       node nearest to a point, needs this order. Two nodes at the same position on the
+       node closest to a point, needs this order. Two nodes at the same position on the
        curve are ordered by their point, then by their id. Thus the indexes do not
        depend on the order of the polylines.
     Example, with the roads above. The nodes get the indexes 0 to 4, in this order: the
-    vertices 1, 2, 6, 4 and 5. The graph has seven arcs: 0 <-> 1 (1.112 km), 1 <-> 3
+    vertices 1, 2, 6, 4 and 5. The graph has seven edges: 0 <-> 1 (1.112 km), 1 <-> 3
     (2.224 km, with the shape point [0, 0.02]), 3 <-> 4 (1.112 km), and 1 -> 2 (1.112 km,
     one way).
 """
@@ -120,12 +120,12 @@ def build_graph_from_polylines(
 
     Returns:
         `(graph, nodes, shapes, node_ids)`, where `i` and `j` are node indexes. `graph[i]`
-        maps each node `j` that an arc from node `i` reaches to the length of that arc,
+        maps each node `j` that an edge from node `i` reaches to the length of that edge,
         in kilometers. `nodes[i]` is the point of node `i`. `shapes[i][j]` is the list of
-        shape points of the arc from `i` to `j`, if the arc has any. `node_ids[i]` is the
+        shape points of the edge from `i` to `j`, if the edge has any. `node_ids[i]` is the
         id of the vertex that became node `i`.
     """
-    arcs = {}  # (origin id, destination id) -> (km, shape)
+    edges = {}  # (origin id, destination id) -> (km, shape)
     points = {}  # id of a node -> its point
     for polyline in polylines:
         vertex_points = dict(polyline[1])
@@ -137,12 +137,12 @@ def build_graph_from_polylines(
                 continue
             points[origin_id] = vertex_points[origin_id]
             points[destination_id] = vertex_points[destination_id]
-            # 2. One arc for each direction of travel. 3. Keep the shortest.
+            # 2. One edge for each direction of travel. 3. Keep the shortest.
             if direction >= 0:
-                _keep_shortest(arcs, (origin_id, destination_id), km, shape)
+                _keep_shortest(edges, (origin_id, destination_id), km, shape)
             if direction <= 0:
                 _keep_shortest(
-                    arcs, (destination_id, origin_id), km, shape[::-1]
+                    edges, (destination_id, origin_id), km, shape[::-1]
                 )
 
     # 4. Give each node its index, along the Hilbert curve
@@ -157,13 +157,13 @@ def build_graph_from_polylines(
     node_index = {node_id: i for i, node_id in enumerate(node_ids)}
     graph = [{} for _ in node_ids]
     shapes = [{} for _ in node_ids]
-    for (origin_id, destination_id), (km, shape) in arcs.items():
+    for (origin_id, destination_id), (km, shape) in edges.items():
         graph[node_index[origin_id]][node_index[destination_id]] = km
         if shape:
             shapes[node_index[origin_id]][node_index[destination_id]] = shape
     return graph, [points[node_id] for node_id in node_ids], shapes, node_ids
 
 
-def _keep_shortest(arcs, key, km, shape):
-    if key not in arcs or km < arcs[key][0]:
-        arcs[key] = (km, shape)
+def _keep_shortest(edges, key, km, shape):
+    if key not in edges or km < edges[key][0]:
+        edges[key] = (km, shape)

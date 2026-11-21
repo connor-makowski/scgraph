@@ -102,11 +102,11 @@ class ValidationResult:
 # ----------------------------------------------------------------------------
 
 
-def _find_route(
+def _find_path(
     network, origin, destination, with_path=False, from_tree=False
 ) -> dict | None:
     """Return the shortest route between two (latitude, longitude) points, or None
-    when no route joins them. Each point is snapped to its nearest node. The
+    when no route joins them. Each point is snapped to its closest node. The
     length includes the straight line from each point to its node.
     With `from_tree`, the shortest path tree of the origin is computed once and
     kept. The next routes from the same origin are read from that tree."""
@@ -122,13 +122,13 @@ def _find_route(
         return None
 
 
-def _find_route_km(network, origin, destination, **options) -> float | None:
-    route = _find_route(network, origin, destination, **options)
+def _find_path_km(network, origin, destination, **options) -> float | None:
+    route = _find_path(network, origin, destination, **options)
     return None if route is None else route["length"]
 
 
-def _find_nearest_node(network, point, mode=None) -> tuple:
-    """Return the distance in km from `point` to the nearest node, and the
+def _find_closest_node(network, point, mode=None) -> tuple:
+    """Return the distance in km from `point` to the closest node, and the
     coordinates of that node. With `mode`, only the nodes of that mode are
     candidates. When the network does not have that mode, all its nodes are
     candidates. This is the case of a published network and of a file with a
@@ -154,8 +154,8 @@ def _find_nearest_node(network, point, mode=None) -> tuple:
 def _check_road_distance(network, case) -> str | None:
     # The reference is a driving distance in each direction. A much longer route
     # shows a missing road. Two very different directions show a one-way error.
-    there = _find_route_km(network, case["origin"], case["destination"])
-    back = _find_route_km(network, case["destination"], case["origin"])
+    there = _find_path_km(network, case["origin"], case["destination"])
+    back = _find_path_km(network, case["destination"], case["origin"])
     if there is None or back is None:
         return "no road route"
     references = (
@@ -172,13 +172,13 @@ def _check_road_distance(network, case) -> str | None:
 
 def _check_crossing(network, case) -> str | None:
     # Each end must be close to a road. Without this check, a network with no
-    # road on an island would still pass: the route would start from the nearest
+    # road on an island would still pass: the route would start from the closest
     # road, on the other side of the water.
     for end in ("origin", "destination"):
-        km, _ = _find_nearest_node(network, case[end])
+        km, _ = _find_closest_node(network, case[end])
         if km > 5.0:
             return f"the {end} is {km:.1f} km from a road"
-    if _find_route_km(network, case["origin"], case["destination"]) is None:
+    if _find_path_km(network, case["origin"], case["destination"]) is None:
         return f"no road route ({case['reference']})"
 
 
@@ -186,9 +186,9 @@ def _check_coverage(network, case) -> str | None:
     # The origin is a large city. The destination is the main city of the same
     # landmass. A route between them shows that the city is on the main road
     # network, and not on a separate piece of it.
-    km, _ = _find_nearest_node(network, case["origin"])
+    km, _ = _find_closest_node(network, case["origin"])
     if km > 5.0:
-        return f"the nearest road is {km:.1f} km away"
+        return f"the closest road is {km:.1f} km away"
     # All the cities of a landmass have the same main city. Its shortest path
     # tree is computed once and serves them all. The tree of the previous landmass is
     # dropped first: on a world network, one tree takes about 150 MB.
@@ -197,7 +197,7 @@ def _check_coverage(network, case) -> str | None:
         network.graph_object.reset_cache()
         network.main_city_of_the_kept_tree = main_city
     if (
-        _find_route_km(network, main_city, case["origin"], from_tree=True)
+        _find_path_km(network, main_city, case["origin"], from_tree=True)
         is None
     ):
         return "no road route to the main city of the landmass"
@@ -207,12 +207,12 @@ def _check_rail_corridor(network, case) -> str | None:
     # A missing piece of track makes the route longer. A shorter route follows another line
     # (a high-speed line, a shortcut), so the lower limit is wider.
     (origin_km, origin), (destination_km, destination) = (
-        _find_nearest_node(network, case[end])
+        _find_closest_node(network, case[end])
         for end in ("origin", "destination")
     )
     if max(origin_km, destination_km) > 10.0:
         return f"the track is {max(origin_km, destination_km):.1f} km away"
-    km = _find_route_km(network, origin, destination)
+    km = _find_path_km(network, origin, destination)
     if km is None:
         return "no rail route"
     if not -0.20 <= km / float(case["reference"]) - 1 <= 0.10:
@@ -221,16 +221,16 @@ def _check_rail_corridor(network, case) -> str | None:
 
 def _check_sea_distance(network, case) -> str | None:
     # The route starts and ends at the port node of each port. When a port has no
-    # port node within 5 km, the route uses the nearest sea node instead. This
+    # port node within 5 km, the route uses the closest sea node instead. This
     # rule checks sea distances only. The river port rule reports a port that is
     # not joined to the sea.
     ends = []
     for end in ("origin", "destination"):
-        km, node = _find_nearest_node(network, case[end], "port")
+        km, node = _find_closest_node(network, case[end], "port")
         if km > 5.0:
-            _, node = _find_nearest_node(network, case[end], "sea")
+            _, node = _find_closest_node(network, case[end], "sea")
         ends.append(node)
-    km = _find_route_km(network, *ends)
+    km = _find_path_km(network, *ends)
     if km is None:
         return "no water route"
     # On a short route, the approach to each port is a large part of the
@@ -242,8 +242,8 @@ def _check_sea_distance(network, case) -> str | None:
 
 def _check_passage(network, case) -> str | None:
     # The case gives a box around the passage. The route is tested every 5 km,
-    # because one long straight arc can cross the box between two nodes.
-    route = _find_route(
+    # because one long straight edge can cross the box between two nodes.
+    route = _find_path(
         network, case["origin"], case["destination"], with_path=True
     )
     if route is None:
@@ -271,11 +271,11 @@ def _check_passage(network, case) -> str | None:
 def _check_river_port(network, case) -> str | None:
     # The origin is the port. The destination is a point at sea, at the mouth of
     # the river. A water route much longer than the straight line makes a detour.
-    join_km, port = _find_nearest_node(network, case["origin"], "port")
+    join_km, port = _find_closest_node(network, case["origin"], "port")
     if join_km > 5.0:
-        return f"the nearest port node is {join_km:.1f} km away"
-    _, sea = _find_nearest_node(network, case["destination"], "sea")
-    km = _find_route_km(network, port, sea)
+        return f"the closest port node is {join_km:.1f} km away"
+    _, sea = _find_closest_node(network, case["destination"], "sea")
+    km = _find_path_km(network, port, sea)
     if km is None:
         return "no water route to the sea"
     if km > 1.8 * haversine(port, sea):
@@ -283,7 +283,7 @@ def _check_river_port(network, case) -> str | None:
 
 
 def _check_route_length(network, case) -> str | None:
-    km = _find_route_km(network, case["origin"], case["destination"])
+    km = _find_path_km(network, case["origin"], case["destination"])
     if km is None:
         return "no route"
     if abs(km / float(case["reference"]) - 1) > (case.get("tolerance") or 0.05):
@@ -293,23 +293,23 @@ def _check_route_length(network, case) -> str | None:
 def _check_hub(network, case) -> str | None:
     # A hub that the pipeline left out, or a connector that it could not find, shows
     # as a route that leaves the hub by another mode: modes meet only at hubs, so the
-    # first arc of the route from a hub to the nearest node of a mode is the hub's
+    # first edge of the route from a hub to the closest node of a mode is the hub's
     # connector to that mode, when it has one.
-    km, hub = _find_nearest_node(network, case["origin"], case["hub_kind"])
+    km, hub = _find_closest_node(network, case["origin"], case["hub_kind"])
     if km > 5.0:
-        return f"the nearest {case['hub_kind']} is {km:.1f} km away"
+        return f"the closest {case['hub_kind']} is {km:.1f} km away"
     names = [mode["name"] for mode in network.modes]
     for mode in case["reference"].split():
         if mode == "air":
             first_mode = "airport"
-            km, end = _find_nearest_node(
+            km, end = _find_closest_node(
                 network, case["destination"], "airport"
             )
             if km > 5.0:
                 return f"the airport of the flight is {km:.1f} km away"
         else:
             first_mode = mode
-            _, end = _find_nearest_node(network, hub, mode)
+            _, end = _find_closest_node(network, hub, mode)
         try:
             path = network.get_shortest_path(
                 {"latitude": hub[0], "longitude": hub[1]},
@@ -419,7 +419,7 @@ def load_validation_cases(
 
 
 def _load_on_modes(network, modes: tuple) -> GeoGraph:
-    """Load the network file `network` with the nodes and arcs of `modes` only.
+    """Load the network file `network` with the nodes and edges of `modes` only.
     A GeoGraph is returned unchanged. The caller must then give only cases of the
     modes of that GeoGraph."""
     if isinstance(network, GeoGraph):

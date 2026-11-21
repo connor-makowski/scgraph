@@ -518,8 +518,8 @@ def build_way_pieces(
     way is cut at the junctions of its mode, and at the first point where a piece
     reaches `max_km_between_nodes` (`cut_polylines`). A way of the kind "ferries"
     is cut at its junctions only, not by length. Each piece of a ferry joins the
-    nodes nearest its two ends, if both are within FERRY_END_KM
-    (`build_ferry_arcs`). A ferry joins nodes of its own mode: the ends of the
+    nodes closest its two ends, if both are within FERRY_END_KM
+    (`build_ferry_edges`). A ferry joins nodes of its own mode: the ends of the
     pieces of that mode. A piece has the class that the select function gave to
     its way, if it gave one. With `work_dir`, the positions of the nodes and the
     pieces are kept in files of that folder, and a later call with the same
@@ -627,29 +627,29 @@ def build_way_pieces(
             longitudes = mode_pieces.ends[1::2]
             ids = (mode_pieces.origins, mode_pieces.destinations)
             near = NearNodes(latitudes, longitudes, scale=1e-7)
-            # The ferries of one class give the arcs of that class
-            arcs = []
+            # The ferries of one class give the edges of that class
+            edges = []
             for class_row, polylines in ferries[mode].items():
                 rows, ends, shapes, _ = build_graph_from_polylines(
                     polylines, junctions[mode], math.inf
                 )
-                arcs += (
-                    (*arc, class_row)
-                    for arc in build_ferry_arcs(
+                edges += (
+                    (*edge, class_row)
+                    for edge in build_ferry_edges(
                         rows,
                         ends,
                         shapes,
-                        partial(near.find_nearest, km=FERRY_END_KM),
+                        partial(near.find_closest, km=FERRY_END_KM),
                     )
                 )
-            for u, v, km, shape, class_row in arcs:
+            for u, v, km, shape, class_row in edges:
                 road = [
                     [latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)
                 ]
                 end_ids = ids[u % 2][u // 2], ids[v % 2][v // 2]
                 mode_pieces.append(*end_ids, km, 1, road, shape, class_row)
             mode_pieces.flush()
-            counts["arcs"] = len(arcs)
+            counts["edges"] = len(edges)
     if work_dir:
         # The marker is written after the last flush: it says that every piece is on
         # disk
@@ -686,22 +686,22 @@ def select_vehicle_ferries(tags: "osmium.osm.TagList") -> int | None:
     return None
 
 
-def build_ferry_arcs(
+def build_ferry_edges(
     ferries: list[dict[int, float]],
     ends: list[list[float]],
     shapes: list[dict[int, list[list[float]]]],
-    nearest: Callable,
+    closest: Callable,
 ) -> Iterator[tuple[int, int, float, list[list[float]]]]:
-    """Yield `(u, v, km, shape)` for each ferry arc that joins two road nodes.
+    """Yield `(u, v, km, shape)` for each ferry edge that joins two road nodes.
 
     `ferries`, `ends` and `shapes` are the graph of the ferries, as
-    `build_graph_from_polylines` returns it. `nearest(point)` returns `(km, road node)`
-    for an end of a ferry. An arc is kept when both its ends are within FERRY_END_KM of a
-    road node, and these two road nodes differ. `u` and `v` are these road nodes. `km` is
-    the length of the ferry route. `shape` starts and ends with the ends of the ferry,
-    unless they are the road nodes themselves.
+    `build_graph_from_polylines` returns it. `closest(point)` returns `(km, road node)`
+    for an end of a ferry. An edge is kept when both its ends are within FERRY_END_KM of
+    a road node, and these two road nodes differ. `u` and `v` are these road nodes. `km`
+    is the length of the ferry route. `shape` starts and ends with the ends of the
+    ferry, unless they are the road nodes themselves.
     """
-    road = [nearest(end) for end in ends]
+    road = [closest(end) for end in ends]
     for a, row in enumerate(ferries):
         for b, km in row.items():
             (to_u, u), (to_v, v) = road[a], road[b]

@@ -151,7 +151,7 @@ def fetch_released_file(
     Args:
         name: The name of a network of `RELEASED_GEOGRAPHS`.
         tag: The tag of the network release, or None for `network_release.TAG`.
-        shapes: False for the file without the shapes of the arcs.
+        shapes: False for the file without the shapes of the edges.
         content_sha256: The digest that the file must have, or None.
         cache_path: The cache directory.
         local_files_only: If True, the function never downloads.

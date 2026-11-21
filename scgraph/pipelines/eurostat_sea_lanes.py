@@ -6,9 +6,9 @@ Eurostat stores the ends of a lane cut at the antimeridian twice, at -180 and at
 Route, Northwest Passage) are dropped: no query can avoid a passage yet, and these are
 open only part of the year.
 
-`build_sea_lane_arrays` gives the same network as arrays, with the class of each arc, for a
-pipeline that joins the sea lanes to other modes. The class of an arc is the `pass` of
-its lane, for example `suez`. It is `open_sea` for a lane outside a passage.
+`build_sea_lane_arrays` gives the same network as arrays, with the class of each edge,
+for a pipeline that joins the sea lanes to other modes. The class of an edge is the
+`pass` of its lane, for example `suez`. It is `open_sea` for a lane outside a passage.
 """
 
 import contextlib
@@ -72,14 +72,14 @@ def build(files: dict[str, str]) -> GeoGraph:
 
 
 def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
-    """Build the sea lanes as the arrays of a graph, with the class of each arc.
+    """Build the sea lanes as the arrays of a graph, with the class of each edge.
 
-    The nodes and the arcs are those of the GeoGraph that `build` returns. The nodes
-    are in the order of the GeoGraph. The arcs of a node are sorted by head. `build`
-    makes one arc each way between two consecutive points of a lane. The two arcs have
+    The nodes and the edges are those of the GeoGraph that `build` returns. The nodes
+    are in the order of the GeoGraph. The edges of a node are sorted by head. `build`
+    makes one edge each way between two consecutive points of a lane. The two edges have
     the class of the lane.
 
-    Example: a lane with the `pass` value `suez` has the points A, B and C. The arcs
+    Example: a lane with the `pass` value `suez` has the points A, B and C. The edges
     A-B, B-A, B-C and C-B have the class `suez`.
 
     Args:
@@ -87,7 +87,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
 
     Returns:
         The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
-        it, with `arc_classes`. The arcs have no shape points.
+        it, with `edge_classes`. The edges have no shape points.
     """
     sea = build(files)
 
@@ -96,10 +96,10 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     ):  # a [latitude, longitude] point, in units of 1e-7 degree
         return round(point[0] * 1e7), round(point[1] * 1e7)
 
-    # The class row of an arc, by the points of its two ends. `load_from_geojson`
+    # The class row of an edge, by the points of its two ends. `load_from_geojson`
     # rounds each point of a lane with `format_coord_list`. No segment of the pinned
     # file is in two lines of different passages.
-    class_row_of_arc = {}
+    class_row_of_edge = {}
     for line, passage in _read_lines(files):
         points = [
             to_units(format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1])
@@ -107,7 +107,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         ]
         class_row = CLASS_ROWS[passage or "open_sea"]
         for a, b in zip(points, points[1:]):
-            class_row_of_arc[a, b] = class_row_of_arc[b, a] = class_row
+            class_row_of_edge[a, b] = class_row_of_edge[b, a] = class_row
     offsets, heads, weights = (
         step3_network_assembly.build_csr_from_adjacency_list(
             sea.graph_object.graph
@@ -122,10 +122,10 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
         "shape_points": array("i"),
         "node_ids": array("q", sea.node_ids),
-        "arc_classes": array(
+        "edge_classes": array(
             "B",
             (
-                class_row_of_arc[points[u], points[v]]
+                class_row_of_edge[points[u], points[v]]
                 for u in range(len(points))
                 for v in heads[offsets[u] : offsets[u + 1]]
             ),

@@ -4,7 +4,7 @@ This document explains how `scgraph` works inside: how a query runs, how a graph
 
 The [README](README.md) and the [API Documentation](https://connor-makowski.github.io/scgraph/scgraph.html) show how to use scgraph. [DEVELOPMENT.md](DEVELOPMENT.md) gives the rules of a contribution.
 
-**Words.** An **arc** joins one node to another, in one direction, and has a weight. The methods of release 3.6.0 call an arc an *edge* (`add_edge`, `remove_edge`). This document says *arc*, and keeps *edge* only in the names of these methods.
+**Words.** An **edge** joins one node to another, in one direction, and has a weight.
 
 ---
 
@@ -59,7 +59,7 @@ A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`,
 * **Join the modes (`steps.step2_hub_connectors`, `steps.step2_land_mask`)**:
   `step2_hub_connectors.join_networks_at_hubs` joins the networks of several modes at hubs: ports, airports and rail terminals. `step2_land_mask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
 * **Assemble the graph (`steps.step3_network_assembly`)**:
-  `step3_network_assembly.build_graph_from_pieces` stores the arcs as CSR arrays (`build_csr_from_arcs`). `step3_network_assembly.assemble_network` keeps the strongly connected components (`find_strongly_connected_components`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
+  `step3_network_assembly.build_graph_from_pieces` stores the edges as CSR arrays (`build_csr_from_edges`). `step3_network_assembly.assemble_network` keeps the strongly connected components (`find_strongly_connected_components`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
 * **Validate the network (`steps.step4_validation_cases`)**:
   `validate_network` checks a built network against cases. A case describes a known route of the real world, such as a driving distance or a published sea distance. The docstring of `steps/step4_validation_cases` lists the kinds of cases and their rules. With `validate=True`, `build_network_file` validates the built file, and a network that fails does not enter the cache.
 
@@ -80,15 +80,15 @@ In Python, a graph is a list of dictionaries. The index of a dictionary is the i
 ```python
 # graph[origin_node] = {destination_node: weight, ...}
 graph = [
-    {1: 4.5, 2: 7.2},  # Node 0 has an arc to node 1 (weight 4.5) and to node 2 (weight 7.2)
-    {2: 2.1},          # Node 1 has an arc to node 2 (weight 2.1)
-    {0: 7.2},          # Node 2 has an arc to node 0 (weight 7.2)
-    {},                # Node 3 has no outgoing arc
+    {1: 4.5, 2: 7.2},  # Node 0 has an edge to node 1 (weight 4.5) and to node 2 (weight 7.2)
+    {2: 2.1},          # Node 1 has an edge to node 2 (weight 2.1)
+    {0: 7.2},          # Node 2 has an edge to node 0 (weight 7.2)
+    {},                # Node 3 has no outgoing edge
 ]
 ```
 
-* **Directed arcs**: Every arc has one direction. A two-way road between `A` and `B` is two arcs: `graph[A][B] = w` and `graph[B][A] = w`.
-* **Node ids**: The nodes are numbered from `0` to `n - 1`. Every node has an entry in `graph`, even a node with no outgoing arc (`graph[u] = {}`).
+* **Directed edges**: Every edge has one direction. A two-way road between `A` and `B` is two edges: `graph[A][B] = w` and `graph[B][A] = w`.
+* **Node ids**: The nodes are numbered from `0` to `n - 1`. Every node has an entry in `graph`, even a node with no outgoing edge (`graph[u] = {}`).
 * **Reverse graph (`inverse_graph`)**: A bidirectional search also explores backward from the destination. It reads `inverse_graph[v] = {u: weight}`. scgraph builds this structure at the first query that needs it.
 * **`graph` and `search_graph`**:
   * `graph` is always the original graph.
@@ -104,13 +104,13 @@ In the C++ extension, [`CsrGraph`](scgraph/cpp/src/csr_graph.hpp) stores the sam
 Node IDs:      0         1      2   3
 Offsets:     [ 0,        2,     3,  4,  4 ]  (length: n + 1)
                │         │      │   │   │
-               └──┬───┘  └──┬─┘ └─┬─┘ └─┴─ (Node 3 has 0 arcs: 4 - 4 = 0)
+               └──┬───┘  └──┬─┘ └─┬─┘ └─┴─ (Node 3 has 0 edges: 4 - 4 = 0)
                   ▼         ▼     ▼
-Heads:       [ 1,   2,     2,     0   ]      (length: m = total arcs)
-Weights:     [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total arcs)
+Heads:       [ 1,   2,     2,     0   ]      (length: m = total edges)
+Weights:     [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 ```
 
-* **Reading the arcs of a node**: The arcs of node `u` are at the positions `offsets_[u]` to `offsets_[u + 1] - 1` of `heads_` and `weights_`.
+* **Reading the edges of a node**: The edges of node `u` are at the positions `offsets_[u]` to `offsets_[u + 1] - 1` of `heads_` and `weights_`.
 * **Mapped files (`mmap`)**: When scgraph opens a `.scgraph` network file, `CsrGraph` reads the arrays in the mapped file. It makes no copy.
 * **Edits**:
   * A CSR array is not edited in place. `add_node`, `add_edge` and `remove_edge` record their changes in a hash map (`RowEdits`).
@@ -123,7 +123,7 @@ A `GeoGraph` adds these attributes to its `Graph`:
 * **`nodes`**: The point of each node, as `[latitude, longitude]` in degrees.
 * **`node_ids`**: The id of each node in its source (for example its 64-bit OpenStreetMap id). A node added after the load gets a negative id.
 * **`node_modes`**: A byte array that gives the transport mode of each node, such as road, sea or port. Each node has one mode. The value is the row of that mode in `modes`, counted from 0.
-* **`intermediate_nodes`**: The shape of each arc: `intermediate_nodes[u][v] = [[lat, lon], ...]`. The shape of an arc is the list of points that draw it on a map between its two nodes.
+* **`intermediate_nodes`**: The shape of each edge: `intermediate_nodes[u][v] = [[lat, lon], ...]`. The shape of an edge is the list of points that draw it on a map between its two nodes.
 * **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. A network with several modes groups its nodes by mode first, in the order of `modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids. A search reads nearby parts of memory, and the snapping index is faster.
 
 ### What an Algorithm Takes and Returns
@@ -143,7 +143,7 @@ An algorithm returns a dictionary:
 Three algorithms of `Graph` prepare a structure once and then answer queries from it:
 
 * **`cached_shortest_path`**: `get_shortest_path_tree(origin_id)` runs Dijkstra from one origin to every node. `get_tree_path` reads one path from that tree. `cached_shortest_path` keeps the tree of each origin, so a second query from the same origin runs no search.
-* **`contraction_hierarchy`**: `create_contraction_hierarchy()` builds a `CHGraph` and stores it on the graph. The preprocessing contracts the nodes in order of importance and adds shortcut arcs. A query is a bidirectional Dijkstra search that only goes up in that order.
+* **`contraction_hierarchy`**: `create_contraction_hierarchy()` builds a `CHGraph` and stores it on the graph. The preprocessing contracts the nodes in order of importance and adds shortcut edges. A query is a bidirectional Dijkstra search that only goes up in that order.
 * **`tnr`**: `create_tnr_hierarchy()` builds a `TNRGraph`. A `TNRGraph` is a `CHGraph` with a set of transit nodes (the most important nodes) and a table of the distances between them. A long query reads the table instead of searching.
 
 `contraction_hierarchy` and `tnr` build their hierarchy at the first query if it does not exist. A hierarchy can be saved and loaded (`save_as_chjson` / `CHGraph.load_from_chjson`, `save_as_tnrjson` / `TNRGraph.load_from_tnrjson`).
@@ -156,7 +156,7 @@ Three algorithms of `Graph` prepare a structure once and then answer queries fro
 
 ```mermaid
 flowchart TD
-    A["1. Input Coordinates<br/>Origin & Destination (lat, lon)"] --> B["2. Network Snapping<br/>Find nearest candidate node(s) via SnapIndex"]
+    A["1. Input Coordinates<br/>Origin & Destination (lat, lon)"] --> B["2. Network Snapping<br/>Find closest candidate node(s) via SnapIndex"]
     B --> C["3. Shortest Path Search<br/>Run graph algorithm on search_graph"]
     C --> D["4. Path Expansion<br/>Restore compressed chain nodes if reduced"]
     D --> E["5. Output Assembly<br/>Apply access circuity, format geometry and units"]
@@ -167,9 +167,9 @@ The origin and the destination are dictionaries with `latitude` and `longitude` 
 
 ### 2. Network Snapping (`SnapIndex`)
 A `SnapIndex` finds the nodes that are near a point. It is a tree of bounding boxes, with 8 children per box. The option `node_addition_type` chooses the nodes that the point is connected to:
-* `'closest'`: the nearest node.
-* `'quadrant'`: the nearest node in each of the four quadrants around the point.
-* `'all'`: every node within `node_addition_lat_lon_bound` degrees of latitude and of longitude of the point. If there is none, the nearest node.
+* `'closest'`: the closest node.
+* `'quadrant'`: the closest node in each of the four quadrants around the point.
+* `'all'`: every node within `node_addition_lat_lon_bound` degrees of latitude and of longitude of the point. If there is none, the closest node.
 
 With `'quadrant'` or `'all'`, a point has several candidate nodes. During the search, the length of the straight leg from the point to a candidate is multiplied by `node_addition_circuity` (default: 4). Without this penalty, a route could reach a distant node in a straight line, for example across land in a sea network. With it, the route enters the network at a nearby node.
 
@@ -182,7 +182,7 @@ The selected algorithm (default: `bidirectional_buckets`) runs from the origin c
 * A search that counts its node scans (README, *Logging*) stores the count for its thread when it ends (`_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
 
 ### 4. Path Expansion
-If the search ran on a reduced graph, `run_with_reduced` replaces each contracted arc of the path by the nodes of its chain.
+If the search ran on a reduced graph, `run_with_reduced` replaces each contracted edge of the path by the nodes of its chain.
 
 ### 5. Length and Coordinates of the Result
 * **Length**: The search penalty is removed. The two straight legs (origin to its first node, last node to destination) are multiplied by `off_graph_circuity` (default: 1) and added to the `length` of the route. A value of `1.2` models winding streets, and `0` leaves the two legs out.
@@ -192,7 +192,7 @@ If the search ran on a reduced graph, `run_with_reduced` replaces each contracte
 
 ## 4. Graph Reduction
 
-A pass-through node offers no choice: a route that enters it can only go on to one other node. A chain is a run of such nodes. Graph reduction replaces a chain by one contracted arc with the sum of the weights. A search then visits fewer nodes, and every route keeps its exact length.
+A pass-through node offers no choice: a route that enters it can only go on to one other node. A chain is a run of such nodes. Graph reduction replaces a chain by one contracted edge with the sum of the weights. A search then visits fewer nodes, and every route keeps its exact length.
 
 `scgraph` has two reductions, for two moments:
 
@@ -214,15 +214,15 @@ flowchart TD
 
 `graph.reduce(iterations=-1)` reduces a `Graph` in memory:
 
-1. **Find the pass-through nodes**: a node with one arc in and one arc out, or with two neighbors joined both ways.
+1. **Find the pass-through nodes**: a node with one edge in and one edge out, or with two neighbors joined both ways.
 2. **Group them into chains**: `reduced_node_chain_ids` gives the chain of each node.
-3. **Connect the boundaries**: A boundary node is a kept node at the end of a chain. The reducer adds one contracted arc between the two boundary nodes of a chain. It also records the distance from each node of the chain to its boundary nodes.
+3. **Connect the boundaries**: A boundary node is a kept node at the end of a chain. The reducer adds one contracted edge between the two boundary nodes of a chain. It also records the distance from each node of the chain to its boundary nodes.
 4. **Answer a query (`run_with_reduced`)**:
    * **Both ends outside chains**: the search runs on the reduced graph.
    * **Origin inside a chain**: the origin becomes a dictionary of distances to the boundary nodes of its chain.
    * **Destination inside a chain**: the destination becomes a dictionary of distances from the boundary nodes of its chain.
    * **Both ends inside the same chain**: the query is answered on the nodes of the chain, without the reduced graph.
-   * **Path expansion**: `@Graph.algorithm` replaces each contracted arc of the result by the nodes of its chain.
+   * **Path expansion**: `@Graph.algorithm` replaces each contracted edge of the result by the nodes of its chain.
 
 `iterations=-1`, the default, repeats the passes until no pass-through node is left. `iterations=1` runs one pass.
 
@@ -231,15 +231,15 @@ flowchart TD
 ### Static CSR Contraction (`step3_network_assembly.contract_chains`)
 
 `contract_chains` works on the CSR arrays of a build:
-* It takes `(offsets, heads, weights, node_modes, max_km_between_nodes, arc_classes)` and returns a `ContractedGraph` namedtuple:
+* It takes `(offsets, heads, weights, node_modes, max_km_between_nodes, edge_classes)` and returns a `ContractedGraph` namedtuple:
   * `kept`: the indices of the kept nodes.
-  * `origins`, `heads`, `weights`: the contracted arcs.
-  * `member_offsets`, `members`: the indices of the input arcs that each contracted arc replaces.
+  * `origins`, `heads`, `weights`: the contracted edges.
+  * `member_offsets`, `members`: the indices of the input edges that each contracted edge replaces.
 * `node_modes` is optional. A chain is never contracted across two modes.
-* `arc_classes` is optional: the class of each arc. The header of `step3_network_assembly.py` gives its rule.
+* `edge_classes` is optional: the class of each edge. The header of `step3_network_assembly.py` gives its rule.
 * `max_km_between_nodes` cuts a chain into segments of about that length (default: no cut).
-* A segment that would create a self-loop or a duplicate arc is split at its midpoint.
-* `build_chain_shapes` gives each contracted arc the shape points of its members.
+* A segment that would create a self-loop or a duplicate edge is split at its midpoint.
+* `build_chain_shapes` gives each contracted edge the shape points of its members.
 
 ---
 
@@ -302,7 +302,7 @@ flowchart TD
 
 scgraph keeps the networks that it builds or downloads in a cache directory (default on Linux: `~/.cache/scgraph`). The module `scgraph/network_cache.py` holds the names of the networks that `load_geograph` takes, and the two downloads into the cache. The cache directory holds:
 * **Built networks**: `networks/<name>/<region>/<content_sha256>.scgraph` next to a `cache.json` that names the file and gives the download time.
-* **Network Releases**: `releases/<tag>/<name>.scgraph` is a network file that `load_geograph` downloaded from the network release `<tag>`. `<name>.no_shapes.scgraph` is the same network without arc shapes. A file gets this name only after its content is checked, so a later load does not check it again. The guide [scgraph/pipelines/README.md](scgraph/pipelines/README.md), Part 4, shows the steps of a load.
+* **Network Releases**: `releases/<tag>/<name>.scgraph` is a network file that `load_geograph` downloaded from the network release `<tag>`. `<name>.no_shapes.scgraph` is the same network without edge shapes. A file gets this name only after its content is checked, so a later load does not check it again. The guide [scgraph/pipelines/README.md](scgraph/pipelines/README.md), Part 4, shows the steps of a load.
 * **Atomic Writes**: A build writes into its work folder: `.work/<name>/<region>` of the cache directory, or the `work_dir` of the caller. It then moves the finished `.scgraph` file into the cache. The file arrives beside its final place and takes its name in one step. `cache.json` is written the same way, after the file. `cache.json` therefore always names a whole file. A build that succeeds removes its work folder. A build that fails keeps its work folder, with the downloaded sources. The next build resumes from it. `refresh=True` empties it first.
 * **Offline Operation**: With `SCGRAPH_OFFLINE=1` or `local_files_only=True`, scgraph makes no network request. It loads only what the cache holds.
 * **Cache Management**: `GeoGraph.clear_geograph_cache()` removes the cached networks. It leaves every other file of the directory in place.
@@ -311,7 +311,7 @@ scgraph keeps the networks that it builds or downloads in a cache directory (def
 
 ## 7. Network File Format
 
-A `.scgraph` file stores one network: its arcs, the points of its nodes and its metadata. scgraph reads and writes it with the Python standard library only.
+A `.scgraph` file stores one network: its edges, the points of its nodes and its metadata. scgraph reads and writes it with the Python standard library only.
 
 This section specifies `format_version` 1. A file built by `build_geograph` also records the version of scgraph that built it, in `metadata.software.scgraph`. For a released version, this section at the tag of that release is the specification that applies to the file.
 
@@ -390,11 +390,11 @@ The example shows one source. It leaves out the arrays of the modes, of the clas
 | `format_version` | `int` | Format specification version (currently `1`). See *Compatibility Between Versions* for when it changes. |
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
-| `metadata.units` | `str` | The unit of the arc weights (`km`, `m`, `mi`, `ft`). |
+| `metadata.units` | `str` | The unit of the edge weights (`km`, `m`, `mi`, `ft`). |
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. |
 | `metadata.node_order` | `str` | How the nodes are numbered. `"hilbert"`: along a 2D Hilbert space-filling curve. With several modes, the nodes are grouped by mode first, in the order of `metadata.modes`, then numbered along the curve within each mode. A read of one mode (`load_from_scgraph(modes=...)`) relies on this order. |
 | `metadata.modes` | `list[dict]` | The transport modes of the network. Each mode is a dict. `name` gives the name of the mode. When a source gave the node ids of the mode, `source` holds the name of that source in `sources`. A network with one mode has no `node_modes`: all its nodes are in that mode. If that mode has no name, the file has no `modes`. |
-| `metadata.classes` | `list[str]` | Only in a file with `arc_classes`: the names of the classes (docstring of `scgraph.pipelines`, *The classes*). |
+| `metadata.classes` | `list[str]` | Only in a file with `edge_classes`: the names of the classes (docstring of `scgraph.pipelines`, *The classes*). |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: its name, the region, and its `PIPELINE_VERSION`. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
 | `metadata.sources` | `list[dict]` | Data sources with attribution, licenses, URLs, file digests, and data timestamps. |
@@ -404,7 +404,7 @@ The example shows one source. It leaves out the arrays of the modes, of the clas
 
 ### Stored Binary Arrays
 
-A **point** is a place, given as one `[latitude, longitude]` pair. Its **coordinates** are its latitude and its longitude. A coordinate is one of these two numbers. A **node** is a vertex of the graph, numbered from `0` to $N - 1$. Its position is a point. The points of an arc between its two nodes are its **shape points**. They are not nodes: the search never visits them. The attribute `GeoGraph.intermediate_nodes` holds the shape points of each arc. `node_points` and `shape_points` are arrays of points: the latitude of a point, then its longitude. A file has $N$ nodes, $M$ arcs and $K$ shape points.
+A **point** is a place, given as one `[latitude, longitude]` pair. Its **coordinates** are its latitude and its longitude. A coordinate is one of these two numbers. A **node** is a vertex of the graph, numbered from `0` to $N - 1$. Its position is a point. The points of an edge between its two nodes are its **shape points**. They are not nodes: the search never visits them. The attribute `GeoGraph.intermediate_nodes` holds the shape points of each edge. `node_points` and `shape_points` are arrays of points: the latitude of a point, then its longitude. A file has $N$ nodes, $M$ edges and $K$ shape points.
 
 The latitude comes first, as in the axis order of `EPSG:4326`. GeoJSON uses the opposite order: `save_as_geojson` writes the longitude first. A latitude is from -90 to 90 degrees, and a longitude from -180 to 180 degrees (`GeoGraph.validate_nodes` checks both).
 
@@ -412,15 +412,15 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 
 | Array Name | Data Type | Dimensions | Description |
 | :--- | :--- | :--- | :--- |
-| `offsets` | `int32` | $N + 1$ | CSR row index. Arcs originating from node $u$ span index `offsets[u]` to `offsets[u+1] - 1`. |
-| `heads` | `int32` | $M$ | The destination node of each arc, from `0` to $N - 1$. |
-| `weights` | `float64` | $M$ | Cost / length of each arc. |
+| `offsets` | `int32` | $N + 1$ | CSR row index. Edges originating from node $u$ span index `offsets[u]` to `offsets[u+1] - 1`. |
+| `heads` | `int32` | $M$ | The destination node of each edge, from `0` to $N - 1$. |
+| `weights` | `float64` | $M$ | Cost / length of each edge. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
-| `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed arc polylines. |
-| `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior arc point, in the dtype of `node_points`. |
+| `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed edge polylines. |
+| `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior edge point, in the dtype of `node_points`. |
 | `node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). |
 | `node_modes` *(opt)* | `uint8` | $N$ | The mode of each node: the row of its mode in `metadata.modes`, counted from 0. Each node has one mode, so the value is an index, not a set of bits. A file has at most 256 modes. |
-| `arc_classes` *(opt)* | `uint8` | $M$ | The class of each arc: the row of its class in `metadata.classes`, counted from 0. A file has at most 256 classes. |
+| `edge_classes` *(opt)* | `uint8` | $M$ | The class of each edge: the row of its class in `metadata.classes`, counted from 0. A file has at most 256 classes. |
 
 For example, the first modes of `geofabrik_multimodal` are:
 
@@ -435,7 +435,7 @@ For example, the first modes of `geofabrik_multimodal` are:
 
 Its road nodes have the value `0` in `node_modes`, its rail nodes `1`, its sea nodes `2` and its ports `3`. The road nodes come first, then the rail nodes, then the sea nodes, then the ports. Each mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
 
-A pipeline may record the class of each arc in `arc_classes`. A program reads the name of a class from the header of the file. A later version of scgraph may give a class another row.
+A pipeline may record the class of each edge in `edge_classes`. A program reads the name of a class from the header of the file. A later version of scgraph may give a class another row.
 
 ### Coordinate Encoding (`int32` vs `float64`)
 
@@ -460,19 +460,19 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - `weights` has $M$ values.
    - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
    - Each node has one point. If the file has `node_ids` or `node_modes`, each node also has one id or one mode.
-   - If the file has `arc_classes`, each arc has one class.
+   - If the file has `edge_classes`, each edge has one class.
 
-   `node_points` and `shape_points` have the same dtype. If the file has `node_modes`, `metadata.modes` is a list. If the file has `arc_classes`, `metadata.classes` is a list.
+   `node_points` and `shape_points` have the same dtype. If the file has `node_modes`, `metadata.modes` is a list. If the file has `edge_classes`, `metadata.classes` is a list.
 6. If `read` copies the arrays into memory, it also checks each value:
    - the values of `offsets` do not decrease;
    - each head is a node;
    - the values of `shape_offsets` do not decrease;
    - each value of `node_modes` is a row of `metadata.modes`;
-   - each value of `arc_classes` is a row of `metadata.classes`.
+   - each value of `edge_classes` is a row of `metadata.classes`.
 
    `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer. In the C++ build, `load_from_scgraph` always maps the file. A mapped read does not check the values. The C++ graph checks the offsets and the heads when it is built.
 
-If `read` gets `modes`, it keeps only the nodes of these modes and the arcs between them. It first checks that each name is in `metadata.modes`. The function `select_arcs` then visits each arc of the kept nodes once. `scgraph/cpp/src/arc_selection.hpp` explains this function, and `scgraph/helpers/arc_selection.py` is its pure-Python version. `select_arcs` checks each value that it reads, as step 6 does, and it checks that the values of `node_modes` do not decrease. It writes new `offsets`, `heads` and `shape_offsets`, because their values change. Every other array keeps its values. A mapped read takes these values in place when they are consecutive in the file, and copies them otherwise. Each kept arc keeps its class, and `metadata.classes` stays the whole list.
+If `read` gets `modes`, it keeps only the nodes of these modes and the edges between them. It first checks that each name is in `metadata.modes`. The function `select_edges` then visits each edge of the kept nodes once. `scgraph/cpp/src/edge_selection.hpp` explains this function, and `scgraph/helpers/edge_selection.py` is its pure-Python version. `select_edges` checks each value that it reads, as step 6 does, and it checks that the values of `node_modes` do not decrease. It writes new `offsets`, `heads` and `shape_offsets`, because their values change. Every other array keeps its values. A mapped read takes these values in place when they are consecutive in the file, and copies them otherwise. Each kept edge keeps its class, and `metadata.classes` stays the whole list.
 
 `read` does not check the digest in bytes 8 to 39 (`content_sha256`). scgraph uses the digest as the name of a cached file. `network_file.check_content` computes the digest again, to find a file that was cut or changed after it was written. `load_geograph` calls it once, after a download.
 

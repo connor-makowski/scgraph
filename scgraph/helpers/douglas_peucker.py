@@ -115,15 +115,15 @@ def simplify_shapes(
     endpoint_coords: array | memoryview,
     tolerance_meters: float,
 ) -> tuple[array, array]:
-    """Simplify the shapes of many arcs with the Douglas-Peucker algorithm.
+    """Simplify the shapes of many edges with the Douglas-Peucker algorithm.
 
-    The shape of an arc is the list of points between its two nodes. The function
+    The shape of an edge is the list of points between its two nodes. The function
     drops a shape point when it is within `tolerance_meters` of the segment that joins
     the kept points around it. It measures this distance on a flat map around each
-    arc.
+    edge.
 
     Args:
-        shape_points: The shape points of all the arcs, as int32 values in units of
+        shape_points: The shape points of all the edges, as int32 values in units of
             1e-7 degree: the latitude of a point, then its longitude.
         shape_offsets: The int32 offsets of the shapes. The points of shape `i` are
             the points `shape_offsets[i]` to `shape_offsets[i + 1] - 1`.

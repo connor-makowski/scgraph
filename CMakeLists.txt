@@ -44,7 +44,7 @@ nanobind_add_module(
     scgraph/cpp/src/contraction_hierarchies.cpp
     scgraph/cpp/src/transit_node_routing.cpp
     scgraph/cpp/src/snap_index.cpp
-    scgraph/cpp/src/arc_selection.cpp
+    scgraph/cpp/src/edge_selection.cpp
 )
 # No fused multiply-add (ARM compilers fuse by default), so that the comparison of the
 # candidates in double rounds as the Python expression does and both SnapIndex versions give the

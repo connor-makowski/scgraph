@@ -16,9 +16,9 @@ Each route of the derived file is a route of the parent file, with the same leng
 WHAT IT READS
 
 A pipeline with several modes built the parent file, for example `osm_world_multimodal`.
-The file holds the mode of each node and the shape of each arc. Its coordinates are
+The file holds the mode of each node and the shape of each edge. Its coordinates are
 int32 values, in units of 1e-7 degree. `derive_network_file` maps the parent file, and
-copies into memory only the nodes and the arcs that it keeps.
+copies into memory only the nodes and the edges that it keeps.
 
 HOW A RUN GOES
 
@@ -26,14 +26,14 @@ HOW A RUN GOES
    land mode (`LAND_MODES`) must also be inside `bbox`. The bbox does not cut the
    other modes: their nodes all stay. A `modes` of None keeps every mode. A `bbox`
    of None cuts nothing.
-2. Cut the graph. An arc stays when its two ends are selected.
+2. Cut the graph. An edge stays when its two ends are selected.
 3. Keep each strongly connected component of at least `min_component_nodes` nodes.
-   An arc between two components is dropped. The chains are not contracted again: a
+   An edge between two components is dropped. The chains are not contracted again: a
    junction that lost a road in step 2 stays as a node.
 4. Write the derived file. Its nodes keep the order of the parent file: by mode, then
    along a Hilbert curve. Its modes table holds the kept modes only. As in every
    network file, a derived file with one mode has no `node_modes`. If the parent
-   file has `arc_classes`, each kept arc keeps its class, and the derived file holds
+   file has `edge_classes`, each kept edge keeps its class, and the derived file holds
    the whole list of classes.
 
 Example: a two-way road joins the nodes 1, 2 and 3 along the equator, with 3 km
@@ -45,20 +45,20 @@ gives the bbox (-1, -1, 1, 1) and `min_component_nodes=1`.
 - Step 1 selects the nodes 1, 2 and 3: they are road nodes inside the bbox. It
   selects the nodes 10, 20 and 21: the bbox does not cut their modes, and node 21 is
   outside it. Node 4 is a road node outside the bbox, so it is not selected.
-- Step 2 drops the two arcs between the nodes 2 and 4.
-- Step 3 keeps the six nodes. Every arc has an arc back, so they are one component.
+- Step 2 drops the two edges between the nodes 2 and 4.
+- Step 3 keeps the six nodes. Every edge has an edge back, so they are one component.
   Node 2 stays between the nodes 1 and 3.
 
-The derived file has 6 nodes and 10 arcs. Its route from node 1 to node 21 is
+The derived file has 6 nodes and 10 edges. Its route from node 1 to node 21 is
 3 + 3 + 1 + 11 + 5550 = 5568 km long, as in the parent file.
 
 WHY THE RESULT IS RIGHT
 
-The steps only remove nodes and arcs. Each arc of the derived file is an arc of the
+The steps only remove nodes and edges. Each edge of the derived file is an edge of the
 parent file, with its length. So each route of the derived file is a route of the
 parent file, with the same length. The parent file can hold a shorter route between
-the same two nodes. Such a route uses a node or an arc that the derived file does not
-hold: for example an arc between two kept components, which step 3 drops.
+the same two nodes. Such a route uses a node or an edge that the derived file does not
+hold: for example an edge between two kept components, which step 3 drops.
 
 WHAT THE HEADER OF A DERIVED FILE RECORDS
 
@@ -153,12 +153,12 @@ def derive_network_file(
 
     Args:
         parent_file: The network file to derive from. It holds several modes, the
-            shapes of its arcs, and int32 coordinates.
+            shapes of its edges, and int32 coordinates.
         derived_file: The path of the network file to write.
         modes: The names of the modes to keep. None keeps every mode.
         bbox: `(south, west, north, east)`, in degrees. A node of `LAND_MODES`
             outside the bbox is removed. None removes no node.
-        keep_shapes: False writes the same network without the shapes of its arcs.
+        keep_shapes: False writes the same network without the shapes of its edges.
         min_component_nodes: The smallest number of nodes of a kept strongly
             connected component. The default removes a node that the cut left
             alone, and keeps the roads of a small island.
@@ -168,7 +168,7 @@ def derive_network_file(
 
     Raises:
         ValueError: The south of the bbox is above its north, or its west is beyond
-            its east. Or the parent file has one mode only, no arc shapes, or
+            its east. Or the parent file has one mode only, no edge shapes, or
             float64 coordinates. Or `modes` names a mode that the parent file does
             not have. Or the derived file would hold no node.
     """
@@ -187,8 +187,8 @@ def derive_network_file(
         or network_file.get_coordinate_dtype(parent_arrays) != "int32"
     ):
         raise ValueError(
-            f"{parent_file} has one mode, no arc shapes or float64 coordinates: "
-            "a parent file needs several modes, arc shapes and int32 coordinates"
+            f"{parent_file} has one mode, no edge shapes or float64 coordinates: "
+            "a parent file needs several modes, edge shapes and int32 coordinates"
         )
     mode_names = [mode["name"] for mode in parent_metadata["modes"]]
     unknown = sorted(set(modes or ()) - set(mode_names))
@@ -203,7 +203,7 @@ def derive_network_file(
     with _log_step(
         logger,
         "select the nodes",
-        step3_network_assembly._count_nodes_and_arcs(parent_arrays),
+        step3_network_assembly._count_nodes_and_edges(parent_arrays),
     ) as counts:
         # 1. Select the nodes
         land_rows = {
@@ -229,12 +229,12 @@ def derive_network_file(
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
         graph = step3_network_assembly.renumber_nodes(parent_arrays, selected)
         counts.update(
-            step3_network_assembly._count_nodes_and_arcs(graph, "kept_")
+            step3_network_assembly._count_nodes_and_edges(graph, "kept_")
         )
     with _log_step(
         logger,
         "keep the strongly connected components",
-        step3_network_assembly._count_nodes_and_arcs(graph),
+        step3_network_assembly._count_nodes_and_edges(graph),
     ) as counts:
         # 3. Keep the strongly connected components
         kept_nodes, component_of_node = (
@@ -247,12 +247,12 @@ def derive_network_file(
                 f"{parent_file} has no component of {min_component_nodes} nodes "
                 "or more with these modes inside the bbox"
             )
-        # An arc between two components is dropped
+        # An edge between two components is dropped
         graph = step3_network_assembly.renumber_nodes(
             graph, kept_nodes, component_of_node
         )
         counts.update(
-            step3_network_assembly._count_nodes_and_arcs(graph, "kept_")
+            step3_network_assembly._count_nodes_and_edges(graph, "kept_")
         )
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
@@ -386,13 +386,13 @@ def derive_network_release_files(
     """Write the derived files of a network release into `output_dir`.
 
     A network release publishes each network as two files: `<name>.scgraph`, and
-    `<name>.no_shapes.scgraph` without the shapes of the arcs. The function writes
+    `<name>.no_shapes.scgraph` without the shapes of the edges. The function writes
     these two files for each derived network. Without `names`, it also writes
     `world_multimodal.no_shapes.scgraph`, the world file without its shapes.
 
     Args:
         world_file: The network file of `world_multimodal`, with the shapes of its
-            arcs.
+            edges.
         output_dir: The folder of the derived files. It must exist.
         names: The names of the derived networks to write, among `DERIVED_NETWORKS`.
             None writes every derived network.

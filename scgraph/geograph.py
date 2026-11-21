@@ -2,7 +2,7 @@
 
 - `GeoGraphIO` loads and saves networks (GeoJSON, graphjson, `.scgraph` files,
   OpenStreetMap, OSMnx), and loads or builds the networks of scgraph.
-- `GeoGraphModifiers` adds and removes nodes and arcs, by id or by coordinates.
+- `GeoGraphModifiers` adds and removes nodes and edges, by id or by coordinates.
 - `GeoGraphUtils` connects a point to nearby nodes and builds the coordinates of a path.
 - `GeoGraphDistanceCalculations` gives the haversine and cheap-ruler distances.
 - `GeoGraph` joins these classes and answers `get_shortest_path` between two points.
@@ -325,7 +325,7 @@ class GeoGraphIO:
         if all(map(eq, order, range(len(order)))):
             order = None  # already in that order: written as it is
         old = range(len(nodes)) if order is None else order
-        # In the order searches visit the arcs, so that the file gives the same paths
+        # In the order searches visit the edges, so that the file gives the same paths
         offsets, heads, weights = self.graph_object._csr(order)
         arrays = {
             "offsets": offsets,
@@ -345,12 +345,12 @@ class GeoGraphIO:
             for new, origin in enumerate(old):
                 # Nodes added after loading (add_coord_node, merges) have no shapes
                 row = shapes[origin] if origin < len(shapes) else {}
-                for arc in range(offsets[new], offsets[new + 1]):
-                    head = old[heads[arc]]
+                for edge in range(offsets[new], offsets[new + 1]):
+                    head = old[heads[edge]]
                     for latitude, longitude in row.get(head, ()):
                         if not (isfinite(latitude) and isfinite(longitude)):
                             raise ValueError(
-                                f"The shape of arc {origin} -> {head} has a point "
+                                f"The shape of edge {origin} -> {head} has a point "
                                 "that is not a finite number"
                             )
                         points.append(latitude)
@@ -393,7 +393,7 @@ class GeoGraphIO:
             - Converts the MultiLineString into a GeoGraph object
             - Numbers the nodes along a Hilbert curve (nodes close on the globe get close ids); without `max_km_between_nodes`, `node_ids[i]` is node i's id before this ordering (the numbering of earlier versions)
         - Note:
-            - All arcs read in will be undirected
+            - All edges read in will be undirected
 
 
         Required Arguments:
@@ -421,9 +421,9 @@ class GeoGraphIO:
             - Default: 3
         - `load_intermediate_nodes`
             - Type: bool
-            - What: Whether to keep the shape of each arc (its intermediate points) in the GeoGraph object
+            - What: Whether to keep the shape of each edge (its intermediate points) in the GeoGraph object
             - Default: True
-            - Note: Only used with `max_km_between_nodes`; otherwise every point is a node and arcs have no intermediate points.
+            - Note: Only used with `max_km_between_nodes`; otherwise every point is a node and edges have no intermediate points.
         - `silent`
             - Deprecated and without effect. scgraph reports its messages through `logging`.
         - `reduce_iterations`
@@ -436,7 +436,7 @@ class GeoGraphIO:
             - Default: False
         - `max_km_between_nodes`
             - Type: float | int | None
-            - What: If set, nodes are only the points where polylines meet or end, and a polyline is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`; the other points become the shape of the arcs, whose length is the length of their full polyline
+            - What: If set, nodes are only the points where polylines meet or end, and a polyline is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes`; the other points become the shape of the edges, whose length is the length of their full polyline
             - Default: None (every point is a node)
             - Note: Useful for sources with many points per line, such as rail or road networks, to keep the graph small
         """
@@ -517,8 +517,8 @@ class GeoGraphIO:
         - Load a GeoGraph from an OpenStreetMap file (`.osm.pbf`, `.osm` or `.osm.bz2`)
         - Needs the optional dependency `osmium`: `pip install scgraph[osm]`
         - Ways meet only where they share an OSM node: roads that cross on a bridge or in a tunnel are not connected
-        - Each arc has the length of its piece of way, in kilometers, so it is never shorter than the straight line between its ends
-        - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes`
+        - Each edge has the length of its piece of way, in kilometers, so it is never shorter than the straight line between its ends
+        - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
         - Not the graph of the `geofabrik_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
@@ -545,7 +545,7 @@ class GeoGraphIO:
             - Note: Give the tag keys that `select` keeps ways by, for example `("railway",)` for railway lines
         - `max_km_between_nodes`
             - Type: float | int | None
-            - What: Length in kilometers at which a way is cut into a new arc (at the next point of the way), so that origins and destinations can attach close to where they are
+            - What: Length in kilometers at which a way is cut into a new edge (at the next point of the way), so that origins and destinations can attach close to where they are
             - Default: None: `scgraph.pipelines.steps.step1_osm_ways.MAX_KM_BETWEEN_NODES` (2)
         - `largest_component`
             - Type: bool
@@ -554,7 +554,7 @@ class GeoGraphIO:
             - Note: Parts not connected to the largest one, such as islands without a road link, are dropped
         - `load_intermediate_nodes`
             - Type: bool
-            - What: Whether to keep the shape of each arc, to draw routes
+            - What: Whether to keep the shape of each edge, to draw routes
             - Default: True
         - `reduce_iterations`
             - Type: int
@@ -632,7 +632,7 @@ class GeoGraphIO:
         Function:
 
         - Load a GeoGraph from a JSON file that was saved using the `save_as_graphjson` method
-        - Arc shapes are read as the points between their arc's two nodes, from origin to destination: nodes they repeat (files saved by released versions) are dropped, a shape running from destination to origin is reversed, and an arc left without points has no shape
+        - Edge shapes are read as the points between their edge's two nodes, from origin to destination: nodes they repeat (files saved by released versions) are dropped, a shape running from destination to origin is reversed, and an edge left without points has no shape
 
         Required Arguments:
 
@@ -685,7 +685,7 @@ class GeoGraphIO:
                 {int(k): v for k, v in item.items()}
                 for item in data["intermediate_nodes"]
             ]
-            # Files saved by scgraph 3.0 to 3.6 repeat each arc's two nodes in its shape
+            # Files saved by scgraph 3.0 to 3.6 repeat each edge's two nodes in its shape
             _keep_interior_points(data["intermediate_nodes"], data["nodes"])
         geograph = GeoGraph(**data)
         geograph.reduce(reduce_iterations)
@@ -707,7 +707,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata `save_as_scgraph` wrote (`units`, `sources`, `modes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `arcs`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
+        - A dict: the metadata `save_as_scgraph` wrote (`units`, `sources`, `modes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
         info = network_file.get_scgraph_info(filename)
@@ -738,10 +738,10 @@ class GeoGraphIO:
         Function:
 
         - Load a GeoGraph from a binary network file saved with `save_as_scgraph`
-        - The file is checked before use: a damaged or foreign file raises a ValueError (in the C++ build, damaged arc shapes raise it when they are read)
+        - The file is checked before use: a damaged or foreign file raises a ValueError (in the C++ build, damaged edge shapes raise it when they are read)
         - In the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
-        - `intermediate_nodes` reads the file's arc shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
+        - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
@@ -766,7 +766,7 @@ class GeoGraphIO:
             - Default: False
         - `modes`
             - Type: list[str] | str | None
-            - What: The names of the modes to load (see `modes`): only their nodes and the arcs between them, in the order of the file; `modes` is the file's list, which `node_modes` indexes, and the file's metadata (sources, attribution, as `scgraph_info` gives it) stays the whole file's
+            - What: The names of the modes to load (see `modes`): only their nodes and the edges between them, in the order of the file; `modes` is the file's list, which `node_modes` indexes, and the file's metadata (sources, attribution, as `scgraph_info` gives it) stays the whole file's
             - Default: None (every mode)
         """
         if lazy:
@@ -781,7 +781,7 @@ class GeoGraphIO:
         filename = os.fspath(filename)
         if not filename.endswith(".scgraph"):
             raise ValueError("Filename must end with .scgraph")
-        # The C++ graph reads the arcs in place and checks them. The arcs are in the
+        # The C++ graph reads the edges in place and checks them. The edges are in the
         # mapped file, or in the new arrays of a selection of modes.
         mapped = Graph.__module__ == "scgraph.cpp"
         with _log_step(
@@ -791,7 +791,7 @@ class GeoGraphIO:
         ) as indicators:
             arrays, metadata = network_file.read(filename, mapped, modes)
             indicators["nodes"] = len(arrays["node_points"]) // 2
-            indicators["arcs"] = len(arrays["heads"])
+            indicators["edges"] = len(arrays["heads"])
         try:
             graph = (Graph._from_csr_in_place if mapped else Graph.from_csr)(
                 arrays["offsets"], arrays["heads"], arrays["weights"]
@@ -802,7 +802,7 @@ class GeoGraphIO:
             graph=graph,
             nodes=network_file.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
-                network_file.ArcShapes(arrays)
+                network_file.EdgeShapes(arrays)
                 if "shape_offsets" in arrays
                 else None
             ),
@@ -860,14 +860,14 @@ class GeoGraphIO:
         network_release: str | None = None,
         content_sha256: str | None = None,
         modes: list[str] | str | None = None,
-        shapes: bool = True,
+        load_intermediate_nodes: bool = True,
     ) -> "GeoGraph":
         """
         Function:
 
         - Load a built-in GeoGraph by name, using a local cache.
         - A network release is a set of networks that the maintainers of scgraph build from open sources and publish together under one tag. A network of a network release is a released network. The name of a released network, such as `europe`, `world_sea` or `world_multimodal`, loads that network. `list_geographs` gives every name, and the README describes each network (section *Network Releases*).
-        - For such a name, the first call downloads the network file, decompresses it, checks its content, then keeps it in the cache. Later calls read the cache without any network request. The arguments `version`, `content_sha256`, `modes` and `shapes` apply to these networks only.
+        - For such a name, the first call downloads the network file, decompresses it, checks its content, then keeps it in the cache. Later calls read the cache without any network request. The arguments `network_release`, `content_sha256`, `modes` and `load_intermediate_nodes` apply to these networks only.
         - The points below apply to the seven networks of scgraph 3.6.0 (`marnet`, `us_freeway`, ...), which are published as `.graphjson` files.
         - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
         - On subsequent calls, loads directly from cache without any network requests.
@@ -919,16 +919,16 @@ class GeoGraphIO:
             - Type: list[str] | str | None
             - What: The names of the modes to load, as in `load_from_scgraph`, for example `["road"]`
             - Default: None (every mode)
-        - `shapes`
+        - `load_intermediate_nodes`
             - Type: bool
-            - What: Whether to load the shapes of the arcs. The shape of an arc is the list of points that draw it on a map between its two nodes. False downloads a file of about half the size. The route lengths are the same, and a `coordinate_path` then goes in a straight line from node to node.
+            - What: Whether to load the shapes of the edges. The shape of an edge is the list of points that draw it on a map between its two nodes. False downloads a file of about half the size. The route lengths are the same, and a `coordinate_path` then goes in a straight line from node to node.
             - Default: True
 
         Raises:
 
         - `ValueError` if the downloaded file is damaged, or if it is not the file that scgraph records for the network release that it loads by default. The file does not enter the cache.
         - `ValueError` if the file does not have the digest of `content_sha256`, or if `network_release` is not a tag
-        - `ValueError` if `network_release`, `content_sha256`, `modes` or `shapes` is passed for a network that is not loaded from a network release
+        - `ValueError` if `network_release`, `content_sha256`, `modes` or `load_intermediate_nodes` is passed for a network that is not loaded from a network release
         - `FileNotFoundError` if the network release does not have the file, or with `local_files_only` if the file is not in the cache
         - `ConnectionError` if the server refuses the download
         """
@@ -944,7 +944,7 @@ class GeoGraphIO:
             "network_release": network_release,
             "content_sha256": content_sha256,
             "modes": modes,
-            "shapes": shapes,
+            "load_intermediate_nodes": load_intermediate_nodes,
         }
         if lazy:
             return LazyGeoGraph(lambda: GeoGraph._load_geograph(**options))
@@ -960,7 +960,7 @@ class GeoGraphIO:
         network_release: str | None,
         content_sha256: str | None,
         modes: list[str] | str | None,
-        shapes: bool,
+        load_intermediate_nodes: bool,
     ) -> "GeoGraph":
         """Load the network of `load_geograph` now. The arguments are those of
         `load_geograph`, which gives the deprecation warnings."""
@@ -977,7 +977,7 @@ class GeoGraphIO:
             released_file = network_cache.fetch_released_file(
                 name=name,
                 tag=network_release,
-                shapes=shapes,
+                shapes=load_intermediate_nodes,
                 content_sha256=content_sha256,
                 cache_path=cache_path,
                 local_files_only=local_files_only,
@@ -987,7 +987,12 @@ class GeoGraphIO:
                 reduce_iterations=reduce_iterations,
                 modes=modes,
             )
-        if (network_release, content_sha256, modes, shapes) != (
+        if (
+            network_release,
+            content_sha256,
+            modes,
+            load_intermediate_nodes,
+        ) != (
             None,
             None,
             None,
@@ -997,8 +1002,8 @@ class GeoGraphIO:
                 f"'{name}' is not loaded from a network release: its name is not in "
                 "the network release that this scgraph loads "
                 f"({pinned_network_release.TAG}), or `geograph_url` is given. "
-                "`network_release`, "
-                "`content_sha256`, `modes` and `shapes` do not apply to it"
+                "`network_release`, `content_sha256`, `modes` and "
+                "`load_intermediate_nodes` do not apply to it"
             )
         cache_path.mkdir(parents=True, exist_ok=True)
         cached_file = cache_path.joinpath(f"{name}.graphjson")
@@ -1091,7 +1096,7 @@ class GeoGraphIO:
             - With the default `geograph_url`, also:
                 - `kind`: str — `"released"` for a network of the network release, `"built-in"` for a network of scgraph 3.6.0
                 - `description`: str — what the network holds
-                - for `"released"`: `nodes`, `arcs`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
+                - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more modes (load it with `modes`), and its results differ
         """
         network_cache.warn_deprecated_url(geograph_url)
@@ -2182,7 +2187,7 @@ class GeoGraphModifiers:
         """
         Function:
 
-        - Add an arc to the graph
+        - Add an edge to the graph
 
         Required Arguments:
 
@@ -2409,9 +2414,9 @@ class _SortedSnapIndex:
 
 
 def _keep_interior_points(shapes, nodes):
-    # Arc shapes hold the points between the arc's two nodes, from origin to destination:
+    # Edge shapes hold the points between the edge's two nodes, from origin to destination:
     # reverse a shape that runs from the destination to the origin, remove the points
-    # equal to the origin at its start and to the destination at its end, and the arcs
+    # equal to the origin at its start and to the destination at its end, and the edges
     # left without points, as a network file has none (edits the shapes in place)
     for origin, row in enumerate(shapes):
         start = nodes[origin]
@@ -2529,8 +2534,8 @@ class GeoGraphUtils:
             - Type: str
             - What: The type of node addition to use
             - Options:
-                - 'closest' / 'kdclosest': Connect to the nearest node with the snapping index (`snap_index`)
-                - 'quadrant' / 'kdquadrant': Connect to nearest nodes in each quadrant with the snapping index (`snap_index`)
+                - 'closest' / 'kdclosest': Connect to the closest node with the snapping index (`snap_index`)
+                - 'quadrant' / 'kdquadrant': Connect to closest nodes in each quadrant with the snapping index (`snap_index`)
                 - 'all': Connect to every node inside the latitude/longitude bound
             - Notes:
                 - The snapping index searches the full graph; the bound applies only to 'all'
@@ -2709,7 +2714,7 @@ class GeoGraphUtils:
             and self.intermediate_nodes is not None
             and path
         ):
-            if isinstance(self.intermediate_nodes, network_file.ArcShapes):
+            if isinstance(self.intermediate_nodes, network_file.EdgeShapes):
                 return self.intermediate_nodes.coordinate_path(
                     path, coordinates
                 )
@@ -2954,8 +2959,8 @@ class GeoGraph(
             - Default: False
         - `intermediate_nodes`
             - Type: list of dicts of lists of [float, float]
-            - What: One dict per node, {destination: [[latitude, longitude], ...]}: the coordinates of each arc's shape, between its two nodes (not repeated), from origin to destination
-            - Note: Allows for more detailed path plotting along arcs without needing to increase the number of nodes in the graph
+            - What: One dict per node, {destination: [[latitude, longitude], ...]}: the coordinates of each edge's shape, between its two nodes (not repeated), from origin to destination
+            - Note: Allows for more detailed path plotting along edges without needing to increase the number of nodes in the graph
             - Default: None
         - `node_ids`
             - Type: list of ints | None
@@ -3061,7 +3066,7 @@ class GeoGraph(
     @property
     def snap_index(self) -> "SnapIndex | _SortedSnapIndex | GeoKDTree":
         """
-        The index that snaps coordinates to their nearest nodes (`closest_idx(point)`,
+        The index that snaps coordinates to their closest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
         the first snap, and again after nodes were added or removed.
 
@@ -3394,8 +3399,8 @@ class GeoGraph(
             - What: The snapping strategy used to connect off-graph origin and destination coordinates to the network
             - Default: 'closest'
             - Options:
-                - 'kdclosest' / 'closest': Snap to the single nearest node using `snap_index`
-                - 'kdquadrant' / 'quadrant': Snap to the nearest node in each spatial quadrant (up to 4 candidates)
+                - 'kdclosest' / 'closest': Snap to the single closest node using `snap_index`
+                - 'kdquadrant' / 'quadrant': Snap to the closest node in each spatial quadrant (up to 4 candidates)
                 - 'all': Snap to all nodes within the spatial bounding box
         - `node_addition_circuity`
             - Type: int | float
@@ -3539,7 +3544,7 @@ class GeoGraph(
                 units=self.geograph_units,
             )
 
-            # Snap the origin and destination to their nearest nodes in the graph
+            # Snap the origin and destination to their closest nodes in the graph
             origin_id = self.__snap_node__(
                 node=origin,
                 circuity=node_addition_circuity,
@@ -3659,7 +3664,7 @@ class GeoGraph(
         - `origin`, `destination`: the [latitude, longitude] of the two ends of the query
         - `origin_entries`, `destination_entries`: the graph nodes that each end was
           joined to, with the cost to reach each node
-        - The snapping distance of an end is the great-circle distance to its nearest
+        - The snapping distance of an end is the great-circle distance to its closest
           entry node, in the units of the geograph, without circuity
         - `node_scans` is present only if the query ran a search that counts them
         - A query builds this record only when DEBUG is on, and does not use `_log_step`:

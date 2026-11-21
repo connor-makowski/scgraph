@@ -10,7 +10,7 @@ rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
   missing: no open source counts them.
 - The network keeps each strongly connected component of at least 1,000 nodes, so an
   island with roads of its own is a separate network. A road or a railway is cut every
-  10 km, and a contracted arc ends at the first node where it reaches 10 km. Two nodes
+  10 km, and a contracted edge ends at the first node where it reaches 10 km. Two nodes
   along a road or a railway are then at most about 20 km apart.
 - Sources: the OpenStreetMap planet of the date in its URL, and the other sources of
   `geofabrik_multimodal`. The planet is read by HTTP byte ranges and never stored. The

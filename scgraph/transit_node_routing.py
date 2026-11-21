@@ -8,7 +8,7 @@ extends `CHGraph`. Its preprocessing first builds the hierarchy of
 `contraction_hierarchies.py`, then adds the data of this module. `Graph.tnr` builds a
 `TNRGraph` at its first query (`create_tnr_hierarchy`) and keeps it.
 
-Example: take the ring of `contraction_hierarchies.py`, with arcs both ways: 0-1: 2,
+Example: take the ring of `contraction_hierarchies.py`, with edges both ways: 0-1: 2,
 0-3: 3, 1-2: 6, 2-3: 7. The ranks of nodes 0 to 3 are 0, 1, 2 and 3. With
 `num_transit_nodes=2`, the route from node 0 to node 2 is `[0, 1, 2]`, of length 8.
 
@@ -36,7 +36,7 @@ HOW A RUN GOES
    length, the distance to s, plus `distance_table[(s, t)]`, plus the distance from t.
    The smallest candidate is the table length.
 3. The local search is the bidirectional upward search of `CHGraph`, with the table
-   length as its first best length. It does not scan the arcs of a transit node. It
+   length as its first best length. It does not scan the edges of a transit node. It
    gives a path only when it finds a route shorter than the table length.
 4. The search returns the path of the local search if there is one. Otherwise the
    table length is the answer. The table holds lengths only, so the path then comes
@@ -44,7 +44,7 @@ HOW A RUN GOES
    the length and runs no full search.
 
 Example: from 0 to 1, the best candidate is 3 + 0 + 5 = 8, through node 3 on both
-sides. The local search finds the arc from 0 to 1, of length 2, and returns `[0, 1]`.
+sides. The local search finds the edge from 0 to 1, of length 2, and returns `[0, 1]`.
 From 0 to 2, the candidates are 8 + 0 + 0 = 8 through node 2, and 3 + 7 + 0 = 10
 through nodes 3 and 2. The local search reaches node 2 at 8 too, which is not shorter.
 So the length is 8, and `CHGraph.search` gives the path `[0, 1, 2]`.
@@ -55,7 +55,7 @@ Every candidate is the length of a real route, so the answer is never too short.
 hierarchy has a shortest route that goes up in rank, then down. The transit nodes have
 the highest ranks, so two cases cover every such route. If its highest node is not a
 transit node, every node of the route ranks below the transit nodes. The local search
-then finds the route, because it never needs to scan the arcs of a transit node. If its
+then finds the route, because it never needs to scan the edges of a transit node. If its
 highest node is a transit node, its upward part meets a first transit node s. Its
 downward part meets a last transit node t. The access nodes give at most the length of
 the route up to s, and of the route from t. The table gives the exact distance from s

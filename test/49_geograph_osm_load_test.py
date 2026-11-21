@@ -69,8 +69,8 @@ def _km(a, b):
     return great_circle_km(_NODES[a], _NODES[b])
 
 
-def _arcs(geo):
-    """Arcs as {(osm id, osm id): length}, through the node coordinates."""
+def _edges(geo):
+    """Edges as {(osm id, osm id): length}, through the node coordinates."""
 
     def key(c):
         return (round(c[0], 7), round(c[1], 7))  # OSM stores 1e-7 degrees
@@ -98,36 +98,36 @@ def whole_network(osm_file):
 
 
 @pytest.fixture(scope="module")
-def arcs(whole_network):
-    return _arcs(whole_network)
+def edges(whole_network):
+    return _edges(whole_network)
 
 
-def test_load_from_osm_joins_ways_only_at_shared_nodes(arcs):
+def test_load_from_osm_joins_ways_only_at_shared_nodes(edges):
     # Ways 1 and 2 share node 2; the bridge (5-6) crosses way 1 without a shared node
-    assert {(1, 2), (2, 3), (2, 4), (5, 6)} <= set(arcs)
-    assert {arc for arc in arcs if 5 in arc} == {(5, 6), (6, 5)}
+    assert {(1, 2), (2, 3), (2, 4), (5, 6)} <= set(edges)
+    assert {edge for edge in edges if 5 in edge} == {(5, 6), (6, 5)}
 
 
-def test_load_from_osm_keeps_main_roads_by_default(arcs):
+def test_load_from_osm_keeps_main_roads_by_default(edges):
     # The residential way 4 (3-7) is left out; only the one-way primary way 5 reaches 7
-    assert {arc for arc in arcs if 7 in arc} == {(4, 7)}
+    assert {edge for edge in edges if 7 in edge} == {(4, 7)}
 
 
-def test_load_from_osm_does_not_join_across_a_missing_node(arcs):
+def test_load_from_osm_does_not_join_across_a_missing_node(edges):
     # Way 7 runs 20 -> 99 -> 21, node 99 is missing from the file
-    assert not any(20 in arc or 21 in arc for arc in arcs)
+    assert not any(20 in edge or 21 in edge for edge in edges)
 
 
-def test_an_arc_has_the_length_of_its_drawing(arcs):
-    # The arc from node 10 to node 12 passes node 11, which lies north of
+def test_an_edge_has_the_length_of_its_drawing(edges):
+    # The edge from node 10 to node 12 passes node 11, which lies north of
     # the straight line between them.
-    assert arcs[(10, 12)] == pytest.approx(_km(10, 11) + _km(11, 12))
+    assert edges[(10, 12)] == pytest.approx(_km(10, 11) + _km(11, 12))
 
 
-def test_a_long_way_is_cut_at_the_first_point_2_km_from_its_start(arcs):
+def test_a_long_way_is_cut_at_the_first_point_2_km_from_its_start(edges):
     # Way 6 runs 10, 11, 12, 13. Along the way, node 11 is 1.2 km from node
     # 10 and node 12 is 2.5 km from it: the way is cut at node 12.
-    assert {arc for arc in arcs if 12 in arc} == {
+    assert {edge for edge in edges if 12 in edge} == {
         (10, 12),
         (12, 10),
         (12, 13),
@@ -135,13 +135,13 @@ def test_a_long_way_is_cut_at_the_first_point_2_km_from_its_start(arcs):
     }
 
 
-def test_default_select_follows_one_way_streets_in_their_legal_direction(arcs):
+def test_default_select_follows_one_way_streets_in_their_legal_direction(edges):
     # Way 5 (4-7) has oneway=yes. Way 8 (30-31) has oneway=-1: traffic runs
     # against its drawing. Way 9 (40-41) is a piece of a roundabout and way
     # 10 (50-51) is a motorway: both are one way without a oneway tag.
     ends_of_one_way_streets = {4, 7, 30, 31, 40, 41, 50, 51}
 
-    assert {arc for arc in arcs if set(arc) <= ends_of_one_way_streets} == {
+    assert {edge for edge in edges if set(edge) <= ends_of_one_way_streets} == {
         (4, 7),
         (31, 30),
         (40, 41),
@@ -161,11 +161,11 @@ def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
         largest_component=False,
     )
 
-    arcs = _arcs(network)
+    edges = _edges(network)
     # Way 8 joins nodes 30 and 31. It is a primary road with oneway=-1.
-    assert {arc for arc in arcs if 30 in arc} == {(30, 31), (31, 30)}
+    assert {edge for edge in edges if 30 in edge} == {(30, 31), (31, 30)}
     # Way 10, from node 50 to node 51, is the only motorway of the file.
-    assert not any(50 in arc or 51 in arc for arc in arcs)
+    assert not any(50 in edge or 51 in edge for edge in edges)
 
 
 def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
@@ -184,9 +184,9 @@ def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):
 
     # Way 1 (1-2-3) has the key highway only. The ferry way 11 (60-61) has
     # the key route only: the default tag_keys would leave it out.
-    arcs = _arcs(network)
-    assert (1, 2) in arcs
-    assert (60, 61) in arcs
+    edges = _edges(network)
+    assert (1, 2) in edges
+    assert (60, 61) in edges
 
 
 # A pipeline gives its selects to `locate_ways` by mode, then by kind of way:
@@ -280,7 +280,7 @@ def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
     # Ways 1 and 2 (nodes 1 to 4, two-way) are the largest part where every node
     # reaches every other; node 7 is only reached by a one-way street
     geo = GeoGraph.load_from_osm(osm_file)
-    assert {node for arc in _arcs(geo) for node in arc} == {1, 2, 3, 4}
+    assert {node for edge in _edges(geo) for node in edge} == {1, 2, 3, 4}
     assert dict(zip(geo.node_ids, map(tuple, geo.nodes))) == {
         ref: _NODES[ref] for ref in (1, 2, 3, 4)
     }

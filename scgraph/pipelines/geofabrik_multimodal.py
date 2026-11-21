@@ -8,14 +8,14 @@ OpenStreetMap planet. It calls the `build` of this module.
 WHAT THE NETWORK HOLDS
 
 - A distance is in km along the network. There are no times and no costs: a user
-  derives them from the km and the class of each arc.
+  derives them from the km and the class of each edge.
 - Roads. The network holds the motorway, trunk and primary roads, and their links.
   One-way roads are followed in their legal direction.
 - Vehicle ferries. A vehicle ferry joins two road nodes, both ways, with the length
   of its route. The pipeline reads as a ferry each way tagged `route=ferry` or
   `route=shuttle_train` (a train that carries cars and lorries, as in the Channel
   Tunnel). It leaves out a ferry closed to motor vehicles (`motor_vehicle=no` or
-  `motorcar=no`). Each end of a ferry joins the nearest road node, if that node is
+  `motorcar=no`). Each end of a ferry joins the closest road node, if that node is
   within 2 km. A ferry with an end farther than 2 km from every road node is left
   out. A ferry drawn as several ways that meet at sea is left out too, because each
   of its parts has an end at sea.
@@ -43,7 +43,7 @@ HUBS AND CONNECTORS
 - Road connector, and rail connector. It is a straight line from the hub to a node
   within 20 km for a road, or 10 km for a railway. The line crosses less than 3 km of
   water, or 10 km for an open roadstead (a port where ships anchor off the coast).
-  Among the nodes that fit, the hub takes the nearest one of the largest component.
+  Among the nodes that fit, the hub takes the closest one of the largest component.
   The connector weighs 1.2 times the length of the line, because a real road bends.
 - Sea connector. It is the shortest path over water from a port to a sea node, at
   most 2,500 km long. The path starts at a water cell within 6 km of the port. It
@@ -58,10 +58,10 @@ MODES AND CLASSES
   `port`, `airport` or `rail_terminal`. Each mode cites the source of its node ids:
   OpenStreetMap for roads and railways, the World Port Index number for a port, the
   OurAirports id for an airport, the Wikidata number for a rail terminal.
-- Each arc has a class. `arc_classes` gives its row in `classes`. A road arc has the
+- Each edge has a class. `edge_classes` gives its row in `classes`. A road edge has the
   `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
-  railway arc is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
-  arc has the name of its passage, for example `suez`, or `open_sea`. A flight is
+  railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
+  edge has the name of its passage, for example `suez`, or `open_sea`. A flight is
   `flight`. A connector to a road has the class `road_connector`, a connector to a
   railway `rail_connector`, and a connector to a sea lane `sea_connector`.
 
@@ -69,12 +69,12 @@ NODES AND SHAPES
 
 - The network of a region keeps its largest strongly connected component.
 - A chain is a run of nodes without a junction. The build contracts a chain into one
-  arc. A chain is never contracted across two modes or two classes.
-- A road or a railway is cut every 2 km, and a contracted arc ends at the first node
+  edge. A chain is never contracted across two modes or two classes.
+- A road or a railway is cut every 2 km, and a contracted edge ends at the first node
   where it reaches 2 km. Two nodes along a road or a railway are then at most about
   4 km apart. A sea lane is not cut, but its chains are contracted like those of a
   road.
-- The shape of each road, ferry or railway arc is simplified to within 50 m. Its
+- The shape of each road, ferry or railway edge is simplified to within 50 m. Its
   length is measured on the full shape.
 
 SOURCES AND LIMITS

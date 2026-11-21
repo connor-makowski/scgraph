@@ -57,13 +57,13 @@ scgraph/
     geojson.py                   # GeoJSON parsing and simplification
     visvalingam.py               # Visvalingam-Whyatt line simplification
     douglas_peucker.py           # Douglas-Peucker line simplification
-    polylines.py                 # Polylines to a graph: nodes where they end or meet, arcs with their shape
+    polylines.py                 # Polylines to a graph: nodes where they end or meet, edges with their shape
     hilbert.py                   # Hilbert-curve order of nodes
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
-    arc_selection.py             # Nodes and arcs of some modes of a file, pure-Python version of cpp/src/arc_selection.cpp
+    edge_selection.py            # Nodes and edges of some modes of a file, pure-Python version of cpp/src/edge_selection.cpp
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, arc_selection, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
+    │                            #   transit_node_routing, snap_index, edge_selection, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
     bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/

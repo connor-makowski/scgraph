@@ -15,11 +15,11 @@ of the repository describes them.
 
 ## The words
 
-- A **network** is a graph with a position for each node. An **arc** joins one node to
+- A **network** is a graph with a position for each node. An **edge** joins one node to
   another, in one direction, and has a length in km.
 - A **network file** stores one network, as `<name>.scgraph`. Its **header** is the first
   part of the file, which describes the network.
-- The **shape** of an arc is the list of points that draw the arc on a map between its two
+- The **shape** of an edge is the list of points that draw the edge on a map between its two
   nodes.
 - A **pipeline** is a Python module that builds a network from its sources. Its
   `PIPELINE_VERSION` is a number that its author raises when a change of the code changes the
@@ -105,8 +105,8 @@ from its log. Another day gives other numbers, because the extract changes every
   `airport`, `rail_terminal`).
 - A **hub** is a place where a route changes mode: a port, an airport or a rail terminal. A hub
   is one node.
-- A **connector** is the pair of arcs that joins a hub to the network of one mode.
-- The **class** of an arc is its category, for example `motorway`, `ferry`, `rail_main` or
+- A **connector** is the pair of edges that joins a hub to the network of one mode.
+- The **class** of an edge is its category, for example `motorway`, `ferry`, `rail_main` or
   `flight`. The docstring of `scgraph.pipelines` lists the classes.
 - A **chain** is a row of nodes that each have only two neighbors, as along a road with no
   junction.
@@ -142,10 +142,10 @@ flowchart TD
     A --> C["Step 3: read the sea lanes<br/>42,250 nodes"]
     B --> D["Step 4: tell land from water<br/>around the roads"]
     A --> D
-    B --> E["Step 5: join the networks at the hubs<br/>66,146 nodes, 195,274 arcs"]
+    B --> E["Step 5: join the networks at the hubs<br/>66,146 nodes, 195,274 edges"]
     C --> E
     D --> E
-    E --> F["Step 6: assemble the graph<br/>50,320 nodes, 171,999 arcs"]
+    E --> F["Step 6: assemble the graph<br/>50,320 nodes, 171,999 edges"]
     F --> G["Step 7: write the network file<br/>4.2 MB"]
     G --> H["Step 8: validate the network, 3 cases<br/>then move the file into the cache"]
 ```
@@ -170,7 +170,7 @@ Where to read more: `network_builder.py`, function `build_network_file`.
 
 `step1_osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline
 selects. It cuts each way at its junctions. It also cuts a way where a piece would be longer
-than `max_km_between_nodes` (2 km). A route starts at the node nearest to its origin, so a long
+than `max_km_between_nodes` (2 km). A route starts at the node closest to its origin, so a long
 road needs nodes along it. The function simplifies the shape of each piece to within 50 m.
 
 The pipeline reads the extract once, for its two modes. The log line of this step gives the
@@ -188,10 +188,10 @@ Each mode has its own junctions and its own pieces, so the roads and the railway
 A road and a railway can share a node of OpenStreetMap at a level crossing. The build makes
 one node for each mode there, so no route changes mode at a level crossing.
 
-The function also attaches the vehicle ferries to the roads (`step1_osm_ways.build_ferry_arcs`).
-A ferry is kept when each of its ends is within 2 km of a road node. The ferries give 12 arcs in
+The function also attaches the vehicle ferries to the roads (`step1_osm_ways.build_ferry_edges`).
+A ferry is kept when each of its ends is within 2 km of a road node. The ferries give 12 edges in
 this build, one for each direction. Two ferry routes join the same two road nodes, and a graph
-holds one arc from a node to another, the shorter one. So the file has 10 arcs of the class
+holds one edge from a node to another, the shorter one. So the file has 10 edges of the class
 `ferry`.
 
 Where to read more: the docstring at the top of `steps/step1_osm_ways.py`.
@@ -212,7 +212,7 @@ Where to read more: the docstring at the top of `steps/step2_land_mask.py`.
 
 #### Step 5. Join the networks at the hubs
 
-At this point the build holds three graphs with no arc between them: roads, railways and sea
+At this point the build holds three graphs with no edge between them: roads, railways and sea
 lanes. `step2_hub_connectors.join_networks_at_hubs` adds the hubs and their connectors.
 
 The tables give 242 hubs inside the raster, which is wider than Denmark.
@@ -229,10 +229,10 @@ terminal. The other hubs stay out.
 For example, the port of Arhus gets three connectors: 0.91 km to a rail node, 4.89 km to a road
 node and 0.99 km over water to a sea node.
 
-The step also joins each pair of airports that has regular flights, by one arc each way. Its
+The step also joins each pair of airports that has regular flights, by one edge each way. Its
 length is the great-circle distance.
 
-The result is one graph of 66,146 nodes and 195,274 arcs.
+The result is one graph of 66,146 nodes and 195,274 edges.
 
 Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 
@@ -240,7 +240,7 @@ Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 
 `step3_network_assembly.assemble_network` does three things.
 
-| Step | Nodes | Arcs |
+| Step | Nodes | Edges |
 |---|---|---|
 | the joined graph | 66,146 | 195,274 |
 | keep the largest strongly connected component | 63,784 | 192,735 |
@@ -249,7 +249,7 @@ Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 - **Keep the connected part.** In a strongly connected component, a route exists from every
   node to every other node. The step removes the rest, for example a road on a small island
   with no ferry.
-- **Contract the chains.** A chain becomes one arc with the length and the shape of the chain.
+- **Contract the chains.** A chain becomes one edge with the length and the shape of the chain.
   The route lengths do not change. A chain is never contracted across two modes or two
   classes, and a chain longer than `max_km_between_nodes` keeps nodes along it. In this
   build, 151 nodes stay because the class changes there.
@@ -282,7 +282,7 @@ Where to read more: the docstring of `steps/step4_validation_cases`.
 
 ### What comes out
 
-The file holds 50,320 nodes and 171,999 arcs.
+The file holds 50,320 nodes and 171,999 edges.
 
 | Mode | Nodes |
 |---|---|
@@ -321,9 +321,9 @@ file = build_network_file("geofabrik_multimodal", region="europe/denmark")  # th
 roads = GeoGraph.load_from_scgraph(file, modes=["road"])
 ```
 
-Each arc has a class. A two-way road gives two arcs, and the table counts the km of both.
+Each edge has a class. A two-way road gives two edges, and the table counts the km of both.
 
-| Classes | Arcs | km |
+| Classes | Edges | km |
 |---|---|---|
 | `motorway`, `motorway_link` | 2,198 | 2,845 |
 | `trunk`, `trunk_link` | 1,040 | 787 |
@@ -365,7 +365,7 @@ python -m scgraph.pipelines.derived_networks world_multimodal.scgraph derived oc
 
 The arguments are the world file, the output folder and the name of a derived network. The
 output folder must exist. The command writes `derived/oceania.scgraph`, and
-`derived/oceania.no_shapes.scgraph`: the same network without the shapes of its arcs. It
+`derived/oceania.no_shapes.scgraph`: the same network without the shapes of its edges. It
 prints the two paths. Without a name, the command writes the files of the ten derived
 networks, and the world file without shapes. In a network release, the workflow of Part 3
 runs the command this way, once.
@@ -374,10 +374,10 @@ The numbers below come from one derivation of `oceania` on 2026-11-20, on Linux,
 extension. The parent file is the `world_multimodal` of the network release
 `networks-2026.11.20-dev.2` (333.6 MB).
 
-| Step | Nodes | Arcs |
+| Step | Nodes | Edges |
 |---|---|---|
 | the parent file | 3,335,926 | 6,241,423 |
-| select the nodes and remove the other arcs | 125,616 | 338,310 |
+| select the nodes and remove the other edges | 125,616 | 338,310 |
 | keep the components of at least 10 nodes | 125,567 | 338,274 |
 
 - **Select the nodes.** The bbox of `oceania` is `(-50, 110, 0, 180)`. It selects the roads,
@@ -472,11 +472,11 @@ of 2026-11-19 took the world file of the network release before it.
 The network release `networks-2026.11.20-dev.2` holds 23 files.
 
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
-  with and without the shapes of its arcs. For example `oceania.scgraph.gz` (9.2 MB) and
+  with and without the shapes of its edges. For example `oceania.scgraph.gz` (9.2 MB) and
   `oceania.no_shapes.scgraph.gz` (3.5 MB). The shapes are half of a file or more. A user who
-  needs only the route lengths loads the file without them (`shapes=False`).
+  needs only the route lengths loads the file without them (`load_intermediate_nodes=False`).
 - `networks.json`, the index of the network release. It gives for each file its size, its
-  `content_sha256`, its number of nodes and of arcs, its sources and its credit line.
+  `content_sha256`, its number of nodes and of edges, its sources and its credit line.
 
 `utils/draft_network_release.py` compresses the files, and writes the index and the notes of the
 network release. The notes show a table of the files and the credit line of each file.
@@ -522,19 +522,19 @@ Where to read more: the comment at the top of `build_networks.yml`, and the docs
 ```py
 from scgraph import GeoGraph
 
-oceania = GeoGraph.load_geograph("oceania", shapes=False)
+oceania = GeoGraph.load_geograph("oceania", load_intermediate_nodes=False)
 sydney = {"latitude": -33.8688, "longitude": 151.2093}
 perth = {"latitude": -31.9523, "longitude": 115.8613}
 route = oceania.get_shortest_path(origin_node=sydney, destination_node=perth)
 route["length"]  # 3311.7 km: the route takes a flight
 
-roads = GeoGraph.load_geograph("oceania", shapes=False, modes=["road"])
+roads = GeoGraph.load_geograph("oceania", load_intermediate_nodes=False, modes=["road"])
 route = roads.get_shortest_path(origin_node=sydney, destination_node=perth)
 route["length"]  # 3930.3 km, by road
 ```
 
-`load_geograph` takes the name of a released network. `shapes=False` asks for the file
-without the shapes of the arcs, and `modes` for some modes only. The README of the repository
+`load_geograph` takes the name of a released network. `load_intermediate_nodes=False` asks for the file
+without the shapes of the edges, and `modes` for some modes only. The README of the repository
 lists the eleven networks, in section *Network Releases*. It also gives the other
 arguments, the way to read the credit line, and the way to load exactly the same file later.
 The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on maps.
@@ -558,7 +558,7 @@ flowchart TD
     M --> H
     B -- "yes" --> H{"Did the caller pass a content_sha256<br/>that the file does not have?"}
     H -- "yes" --> E3["ValueError"]
-    H -- "no" --> L["Read the file<br/>125,567 nodes, 338,274 arcs"]
+    H -- "no" --> L["Read the file<br/>125,567 nodes, 338,274 edges"]
     L --> G["A GeoGraph"]
 ```
 
@@ -591,7 +591,7 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 
 - **Another network derived from a released network.** `derive_network_file` takes any modes and any
   bbox. The parent file is in the cache after a load, and `scgraph_file` gives its path. The
-  parent file must have the shapes of its arcs.
+  parent file must have the shapes of its edges.
 
   ```py
   from scgraph import GeoGraph
@@ -602,6 +602,6 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
   iberia = GeoGraph.load_from_scgraph("iberia.scgraph")
   ```
 
-- **Another pipeline.** Copy the pipeline that is nearest to your need, and change its sources,
+- **Another pipeline.** Copy the pipeline that is closest to your need, and change its sources,
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.

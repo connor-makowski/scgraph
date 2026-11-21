@@ -4,13 +4,13 @@
 #include <stdexcept>
 #include <vector>
 
-// SnapIndex finds the node of a network that is nearest to a point of the globe. GeoGraph
+// SnapIndex finds the node of a network that is closest to a point of the globe. GeoGraph
 // uses it to snap the origin and the destination of a route to the network.
 //
 // WHAT IT ANSWERS
-//   closest_idx gives the nearest node. closest_idx_per_quadrant gives the nearest node to
+//   closest_idx gives the closest node. closest_idx_per_quadrant gives the closest node to
 //   the north-east of the point, to the north-west, to the south-east and to the south-west.
-//   "Nearest" means the shortest great-circle distance. The answers are exact, and ties go
+//   "Closest" means the shortest great-circle distance. The answers are exact, and ties go
 //   to the lowest node id.
 //   Example: nodes 0 = (0 N, 0 E), 1 = (0 N, 10 E), 2 = (10 N, 0 E), and the point
 //   (1 N, 1 E). closest_idx gives 0. closest_idx_per_quadrant gives no node to the
@@ -36,7 +36,7 @@
 // HOW DISTANCES ARE COMPARED
 //   A node at latitude a and longitude b is the point (cos a cos b, cos a sin b, sin a) of a
 //   sphere of radius 1, its "unit vector". The straight line between two unit vectors is a
-//   "chord". A longer great-circle distance gives a longer chord, so the nearest node is the
+//   "chord". A longer great-circle distance gives a longer chord, so the closest node is the
 //   node with the shortest chord. The index compares squared chords: they need no square
 //   root and no trigonometry.
 //   Example: (0 N, 0 E) is (1, 0, 0) and (0 N, 90 E) is (0, 1, 0). Their squared chord is
@@ -65,9 +65,9 @@
 //   2. In the leaf, compute the squared chord to each node. The lowest one is the first
 //      best distance.
 //   3. Drop from the stack the boxes whose lower bound is above the best distance (plus
-//      the margin of WHY THE ANSWERS ARE EXACT), and order the others, the nearest on top.
-//   4. Open the boxes that remain, the nearest first. A group puts on the stack each
-//      child whose lower bound is not above the best distance, the nearest on top. A leaf
+//      the margin of WHY THE ANSWERS ARE EXACT), and order the others, the closest on top.
+//   4. Open the boxes that remain, the closest first. A group puts on the stack each
+//      child whose lower bound is not above the best distance, the closest on top. A leaf
 //      is scanned as in step 2, and may give a better best node. A box is dropped if a
 //      node nearer than its lower bound was found since it was stacked.
 //   Example: a point in Paris on a network of the world. The first descent follows the
@@ -152,10 +152,10 @@ public:
     // Throws node_order_error if the nodes are scattered (see above)
     SnapIndex(Points points, int node_count, std::shared_ptr<const void> owner);
 
-    // Id of the node nearest to the point (latitude and longitude in degrees)
+    // Id of the node closest to the point (latitude and longitude in degrees)
     int closest_idx(double latitude, double longitude) const;
 
-    // Id of the nearest node in each quadrant around the point: out = {north-east,
+    // Id of the closest node in each quadrant around the point: out = {north-east,
     // north-west, south-east, south-west}, -1 for a quadrant without node.
     // In the .cpp, quadrant out[t] is bit 1 << t of a set of quadrants
     void closest_idx_per_quadrant(double latitude, double longitude, int out[4]) const;
@@ -187,7 +187,7 @@ private:
         float bounds[BOUNDS][FANOUT];
     };
     struct Query;
-    struct Nearest;
+    struct Closest;
     struct Visit;
 
     Points points_;                      // by node id, read in place
@@ -199,8 +199,8 @@ private:
     std::vector<Group> groups_;
     std::vector<int> level_start_;
 
-    void scan_leaf(int leaf, const Query& query, Nearest& nearest) const;
+    void scan_leaf(int leaf, const Query& query, Closest& closest) const;
     void scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Query& query,
-                                Nearest* nearest) const;
-    int confirm_nearest(const Query& query, const Nearest& nearest) const;
+                                Closest* closest) const;
+    int confirm_closest(const Query& query, const Closest& closest) const;
 };

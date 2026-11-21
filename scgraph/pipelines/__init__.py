@@ -44,7 +44,7 @@ WHAT A PIPELINE MODULE HOLDS
       file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
       order). The weights are in km. `modes` is the modes table (see below).
       `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
-      `arc_classes`, the class of each arc (see *The classes*). The runner then
+      `edge_classes`, the class of each edge (see *The classes*). The runner then
       writes the names of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
@@ -84,7 +84,7 @@ with one mode gives `[{"name": None}]`.
 
 THE CLASSES
 
-The class of an arc is its category in the source: a motorway, a vehicle ferry, a
+The class of an edge is its category in the source: a motorway, a vehicle ferry, a
 main railway line, a sea passage. `CLASSES` holds the names of the classes:
 
 - roads: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
@@ -96,7 +96,7 @@ main railway line, a sea passage. `CLASSES` holds the names of the classes:
   and `suez`, and `sea_connector`;
 - `flight`.
 
-The purpose of a class is one speed for all its arcs. So the connectors of a hub have
+The purpose of a class is one speed for all its edges. So the connectors of a hub have
 classes of their own: a sea connector can be 2,500 km long. No class has the name of
 a mode.
 
@@ -105,7 +105,7 @@ returns the direction of a way: 1, -1 or 0. It may return a pair in its place: t
 direction and the name of a class, for example `(1, "motorway")`. A pipeline of your
 own uses the names of `CLASSES` only.
 
-A network file holds the class of each arc (`ARCHITECTURE.md`, section 7), and
+A network file holds the class of each edge (`ARCHITECTURE.md`, section 7), and
 `network_file.read` returns it. A GeoGraph does not hold the classes.
 
 HOW TO RUN A PIPELINE
@@ -130,7 +130,7 @@ each step:
    junctions and its own pieces, so a road never joins a railway. The function
    cuts each way at the junctions of its mode, and where a piece reaches
    `max_km_between_nodes`. It simplifies the shape of each piece to within 50 m. It
-   attaches the ferries to road nodes (`step1_osm_ways.build_ferry_arcs`).
+   attaches the ferries to road nodes (`step1_osm_ways.build_ferry_edges`).
 2. Join the modes. `step2_hub_connectors.join_networks_at_hubs` joins the networks of
    several modes at hubs: ports, airports and rail terminals. `step2_land_mask.LandMask` tells land
    from water for the connectors of a hub.
@@ -172,8 +172,8 @@ the derivation.
 Two builds give the same file, byte for byte, when they have the same pipeline, the
 same sources, the same version of scgraph, the same backend, and the same platform
 with the same C library or macOS version. A test checks this. The C++ build and the
-pure-Python build give the same nodes, the same arcs and the same lengths. Two
-things may differ: the order of the arcs of a node, and the choice between two
+pure-Python build give the same nodes, the same edges and the same lengths. Two
+things may differ: the order of the edges of a node, and the choice between two
 routes of the same length. A test checks this with `eurostat_sea_lanes` and
 `geofabrik_multimodal`, on small inputs. Between two platforms, a few lengths or
 shape points may differ in the last bit, because the math libraries differ.
@@ -274,7 +274,7 @@ CLASSES = (
     "sea_connector",
     "flight",
 )
-# The row of each class: the value that `arc_classes` holds for an arc of the class
+# The row of each class: the value that `edge_classes` holds for an edge of the class
 CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
 # In bytes. A larger download is logged at WARNING, which shows without a logging
 # setup.

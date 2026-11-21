@@ -9,7 +9,7 @@ distances. The search raises `PathNotFoundError` when no route exists.
 `Graph.contraction_hierarchy` builds a `CHGraph` from `search_graph` at its first query
 and keeps it.
 
-Example: four nodes form a ring, with arcs both ways: 0-1: 2, 0-3: 3, 1-2: 6, 2-3: 7.
+Example: four nodes form a ring, with edges both ways: 0-1: 2, 0-3: 3, 1-2: 6, 2-3: 7.
 The shortest route from node 1 to node 3 is `[1, 0, 3]`, of length 5.
 
 HOW THE DATA IS STORED
@@ -17,11 +17,11 @@ HOW THE DATA IS STORED
 The preprocessing contracts the nodes one at a time. To contract a node v is to remove
 it from the graph that is left. For two neighbours u and w of v, the contraction adds a
 shortcut when the route u, v, w may be the only shortest route from u to w. A shortcut
-is an arc from u to w with the length of this route. `ranks[v]` is the position of v in
+is an edge from u to w with the length of this route. `ranks[v]` is the position of v in
 the order of contraction, from 0. `shortcuts[(u, w)]` is the node v that the shortcut
-from u to w skips. `forward_graph[u]` holds the arcs from u to the nodes of higher rank,
-shortcuts included. `backward_graph[w]` holds the arcs into w from the nodes of higher
-rank, and `backward_graph[w][u]` is the weight of the arc from u to w.
+from u to w skips. `forward_graph[u]` holds the edges from u to the nodes of higher rank,
+shortcuts included. `backward_graph[w]` holds the edges into w from the nodes of higher
+rank, and `backward_graph[w][u]` is the weight of the edge from u to w.
 
 Example: the order is 0, 1, 2, 3. The contraction of node 0 adds the shortcuts from 1 to
 3 and from 3 to 1, of length 5, so `shortcuts` is `{(1, 3): 0, (3, 1): 0}`.
@@ -30,16 +30,16 @@ Example: the order is 0, 1, 2, 3. The contraction of node 0 adds the shortcuts f
 HOW A RUN GOES
 
 Order. A priority queue holds the nodes that are not contracted. The first key of a node
-is its number of arcs in and out. The node at the head of the queue gets a new value,
+is its number of edges in and out. The node at the head of the queue gets a new value,
 `heuristic_fn(self, node)`, unless its value is up to date. If this value is above the
 next key in the queue, the node goes back with this value. Otherwise, the node is
 contracted and gets the next rank. A contraction marks the neighbours of the node for a
 new value. By default, `default_heuristic` gives the number of shortcuts needed, minus
-the number of arcs in and out of the node, plus the number of its arcs to or from
+the number of edges in and out of the node, plus the number of its edges to or from
 contracted nodes.
 
 Witness search. For a node v and a route u, v, w, a witness is another route from u to w
-that is not longer. An arc from u to w that is not longer is a witness. Otherwise a
+that is not longer. An edge from u to w that is not longer is a witness. Otherwise a
 Dijkstra search from u, which avoids v and the contracted nodes, looks for one. It goes
 no further than the longest route through v that it checks. It also stops after it has
 scanned `settled_limit` nodes (default 50). A shortcut is added when this search finds
@@ -51,11 +51,11 @@ destination and reads `backward_graph`. They take one step each in turn. When on
 lowers the distance of a node that the other side has reached, the sum of the two
 distances is a candidate length. A side stops when the distance it takes from its queue
 is above the best length. `__unpack_shortcut__` then replaces each shortcut from u to w
-by the arcs from u to v and from v to w, with v = `shortcuts[(u, w)]`, and repeats this
-on the two arcs.
+by the edges from u to v and from v to w, with v = `shortcuts[(u, w)]`, and repeats this
+on the two edges.
 
 Example: every node starts with the key 4, and node 0 comes first by its id. Its value
-is 2 shortcuts - 2 arcs in - 2 arcs out = -2. This value is not above the next key, 4,
+is 2 shortcuts - 2 edges in - 2 edges out = -2. This value is not above the next key, 4,
 so node 0 gets rank 0. The witness search from node 1 looks no further than 5, and the
 route 1, 2, 3 has the length 13, so the shortcut from 1 to 3 is added. Node 1 then gets
 the value -4 and rank 1, node 2 rank 2, and node 3 rank 3. From 1 to 3, the forward
@@ -66,7 +66,7 @@ through node 1, and the result is `[0, 1, 2]`, of length 8.
 
 WHY THE RESULT IS RIGHT
 
-A shortcut has the length of a route through a contracted node, so every arc of the
+A shortcut has the length of a route through a contracted node, so every edge of the
 hierarchy stands for a route of the original graph. The contractions keep the shortest
 distances between the nodes that are left. A witness search that stops early only adds
 shortcuts that are not needed. So for each pair of nodes, a shortest route exists that
