@@ -70,6 +70,12 @@ def main(tag: str) -> None:
         network["file"].removesuffix(".scgraph.gz"): network
         for network in response.json()["networks"]
     }
+    # Each time as black writes it, between double quotes, or None. The module
+    # then needs no formatting.
+    data_up_to = {
+        name: f'"{file["data_up_to"]}"' if file["data_up_to"] else "None"
+        for name, file in files.items()
+    }
     networks = "\n".join(
         f'    "{name}": {{\n'
         f'        "nodes": {files[name]["nodes"]},\n'
@@ -77,7 +83,7 @@ def main(tag: str) -> None:
         f'        "download_mb": {files[name]["compressed_bytes"] / 1e6:.1f},\n'
         f'        "download_mb_without_shapes": '
         f'{files[name + ".no_shapes"]["compressed_bytes"] / 1e6:.1f},\n'
-        f'        "data_up_to": {files[name]["data_up_to"]!r},\n'
+        f'        "data_up_to": {data_up_to[name]},\n'
         f'        "description": {files[name]["description"]!r},\n'
         f"    }},"
         for name in sorted(files)

@@ -12,24 +12,31 @@ from scgraph.pipelines import derived_networks
 # A road joins the nodes 1, 2 and 3 along the equator. A second road goes
 # from node 2 to node 4, two degrees north. Node 10 is a port. It joins node
 # 3 to the sea lane from node 20 to node 21, which is at 50 degrees east.
+# A flight joins the airports 30 and 31.
 ROAD_NODES = {1: [0, 0], 2: [0, 0.03], 3: [0, 0.06], 4: [2, 0.03]}
 PORT_NODES = {10: [0, 0.07]}
 SEA_NODES = {20: [-0.1, 0.07], 21: [-0.1, 50]}
-NODES = ROAD_NODES | PORT_NODES | SEA_NODES
+AIRPORT_NODES = {30: [0.5, 0.5], 31: [0.5, 40]}
+NODES = ROAD_NODES | PORT_NODES | SEA_NODES | AIRPORT_NODES
 # Each link is (node, node, km), and gives one edge each way.
 ROAD_LINKS = [(1, 2, 3.0), (2, 3, 3.0), (2, 4, 222.0)]
 PORT_AND_SEA_LINKS = [(3, 10, 1.0), (10, 20, 11.0), (20, 21, 5550.0)]
+FLIGHT_LINKS = [(30, 31, 4392.0)]
 # The road from node 1 to node 2 bends at this point: the only edge shape.
 BEND = [0.01, 0.015]
 MODES = [
     {"name": "road", "source": "osm"},
     {"name": "port", "source": "ports"},
     {"name": "sea", "source": "sea"},
+    {"name": "airport", "source": "airports"},
 ]
-# No mode cites the source `land`, as in a multimodal pipeline.
-SOURCES = [{"name": name} for name in ("osm", "ports", "sea", "land")]
-# The bbox (south, west, north, east) holds the nodes 1, 2 and 3. Node 4 and
-# node 21 are outside it.
+# No mode names the sources `flights` and `land`, as in a multimodal pipeline.
+SOURCES = [
+    {"name": name}
+    for name in ("osm", "ports", "sea", "airports", "flights", "land")
+]
+# The bbox (south, west, north, east) holds the nodes 1, 2, 3 and 30. The
+# nodes 4, 21 and 31 are outside it.
 BBOX = (-1, -1, 1, 1)
 
 
@@ -39,7 +46,7 @@ def parent_file(tmp_path_factory):
     pipeline writes."""
     position = {node: u for u, node in enumerate(NODES)}
     graph, shapes = [{} for _ in NODES], [{} for _ in NODES]
-    for a, b, km in ROAD_LINKS + PORT_AND_SEA_LINKS:
+    for a, b, km in ROAD_LINKS + PORT_AND_SEA_LINKS + FLIGHT_LINKS:
         graph[position[a]][position[b]] = graph[position[b]][position[a]] = km
     shapes[position[1]][position[2]] = shapes[position[2]][position[1]] = [BEND]
     path = str(tmp_path_factory.mktemp("parent") / "parent.scgraph")
@@ -48,7 +55,7 @@ def parent_file(tmp_path_factory):
         nodes=list(NODES.values()),
         intermediate_nodes=shapes,
         node_ids=list(NODES),
-        node_modes=[0] * 4 + [1] + [2] * 2,  # rows of MODES, as NODES
+        node_modes=[0] * 4 + [1] + [2] * 2 + [3] * 2,  # rows of MODES
         modes=MODES,
         coordinate_dtype="int32",
     ).save_as_scgraph(
@@ -103,20 +110,32 @@ def test_a_derived_file_holds_only_the_nodes_of_the_modes_asked(sea_file):
     assert _nodes_by_mode(sea_file) == {"port": [10], "sea": [20, 21]}
 
 
-def test_a_derived_file_cites_only_the_sources_that_serve_its_modes(sea_file):
+def test_a_derived_file_cites_only_the_sources_that_serve_it(sea_file):
     sources = GeoGraph.get_scgraph_info(sea_file)["sources"]
 
-    # Only the mode `road`, which is removed, cites `osm`.
+    # Only the modes `road` and `airport`, which are removed, use `osm`,
+    # `airports` and `flights`: a flight joins two airports.
     assert sources == [{"name": "ports"}, {"name": "sea"}, {"name": "land"}]
+
+
+def test_a_derived_file_with_airports_cites_the_source_of_the_flights(
+    bbox_file,
+):
+    sources = GeoGraph.get_scgraph_info(bbox_file)["sources"]
+
+    # The bbox removes no mode, so every source serves the file.
+    assert sources == SOURCES
 
 
 def test_a_bbox_cuts_the_roads_and_keeps_every_sea_node(bbox_file):
     # Node 4 is a road node north of the bbox. Node 21 is a sea node east of
-    # the bbox. Node 2 lost its road to node 4, and it stays.
+    # the bbox, and node 31 an airport east of it. Node 2 lost its road to
+    # node 4, and it stays.
     assert _nodes_by_mode(bbox_file) == {
         "road": [1, 2, 3],
         "port": [10],
         "sea": [20, 21],
+        "airport": [30, 31],
     }
 
 
@@ -142,7 +161,7 @@ def _name_each_edge(arrays):
 def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
     parent_file, tmp_path
 ):
-    # The parent file again, where each of the 12 edges has a class of its own.
+    # The parent file again, where each of the 14 edges has a class of its own.
     # The name of the class is the name of the edge.
     arrays, metadata = network_file.read(parent_file)
     class_names = _name_each_edge(arrays)
@@ -200,7 +219,7 @@ def test_the_header_of_a_derived_file_records_its_derivation(
 
 
 def test_a_derivation_that_keeps_no_node_is_refused(parent_file, tmp_path):
-    # The network of the parent file has 6 nodes. The smallest component that a
+    # The network of the parent file has 8 nodes. The smallest component that a
     # derivation keeps has 10 nodes, unless the call gives another size.
     with pytest.raises(ValueError, match="no component of 10 nodes"):
         derived_networks.derive_network_file(
