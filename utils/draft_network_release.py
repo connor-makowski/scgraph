@@ -27,6 +27,7 @@ import sys
 from pathlib import Path
 
 from scgraph import GeoGraph
+from scgraph.pipelines.derived_networks import describe_derived_network
 
 
 def read_previous_commits(previous: str | os.PathLike) -> dict[str, str]:
@@ -55,6 +56,23 @@ def compress(file: Path, compressed_file: Path) -> None:
         ) as packed,
     ):
         shutil.copyfileobj(source, packed)
+
+
+def describe_network(file: Path, info: dict) -> str:
+    """Return the sentence that describes the network of a file, for the index.
+
+    Args:
+        file: The network file. Its name starts with the name of the network.
+        info: What `GeoGraph.get_scgraph_info` returns for the file.
+
+    Returns:
+        For a derived network, the sentence of `describe_derived_network`. For a built
+        network, the first paragraph of the docstring of its pipeline, which the file
+        records as `description`.
+    """
+    if "derivation" in info:
+        return describe_derived_network(file.name.split(".")[0])
+    return " ".join(info["description"].split("\n\n")[0].split())
 
 
 def write_release_draft(
@@ -114,6 +132,7 @@ def write_release_draft(
                 },
                 # Only a derived file has a derivation: its parent, modes and bbox
                 "derivation": info.get("derivation"),
+                "description": describe_network(file, info),
             }
         )
     index = {"tag": tag, "networks": networks}

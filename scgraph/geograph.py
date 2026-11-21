@@ -8,8 +8,9 @@
 - `GeoGraph` joins these classes and answers `get_shortest_path` between two points.
 - `LazyGeoGraph` stands for a `GeoGraph` and loads it at its first use.
 
-Users reach this module through `scgraph.GeoGraph`. `scgraph/network_cache.py` holds
-the catalogue of networks and their downloads.
+Users reach this module through `scgraph.GeoGraph`. `scgraph/network_cache.py` downloads
+the released networks, and `scgraph/built_in_geographs.py` holds the seven networks
+of scgraph 3.6.0.
 """
 
 from scgraph.utils import (
@@ -27,7 +28,7 @@ from scgraph.utils import (
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph import network_cache, network_file
+from scgraph import built_in_geographs, network_cache, network_file
 from scgraph import network_release as pinned_network_release
 import hashlib
 import importlib
@@ -846,13 +847,15 @@ class GeoGraphIO:
             - Type: Path
             - What: The destination path in the cache to write the file to
         """
-        network_cache.fetch_built_in_geograph(name, cached_file, geograph_url)
+        built_in_geographs.fetch_built_in_geograph(
+            name, cached_file, geograph_url
+        )
 
     @staticmethod
     def load_geograph(
         name: str,
         cache_dir: str | os.PathLike | None = None,
-        geograph_url: str = network_cache.GEOGRAPH_URL,
+        geograph_url: str = built_in_geographs.GEOGRAPH_URL,
         reduce_iterations: int = 0,
         lazy: bool = False,
         *,
@@ -955,7 +958,7 @@ class GeoGraphIO:
         # the file of the caller.
         if (
             name in network_cache.RELEASED_GEOGRAPHS
-            and geograph_url == network_cache.GEOGRAPH_URL
+            and geograph_url == built_in_geographs.GEOGRAPH_URL
         ):
             released_file = network_cache.fetch_released_file(
                 name=name,
@@ -1048,7 +1051,7 @@ class GeoGraphIO:
     @staticmethod
     def list_geographs(
         cache_dir: str | os.PathLike | None = None,
-        geograph_url: str = network_cache.GEOGRAPH_URL,
+        geograph_url: str = built_in_geographs.GEOGRAPH_URL,
     ) -> list[dict]:
         """
         Function:
@@ -1088,13 +1091,13 @@ class GeoGraphIO:
         )
         available = sorted(
             {
-                *network_cache.BUILT_IN_GEOGRAPHS,
+                *built_in_geographs.BUILT_IN_GEOGRAPHS,
                 *network_cache.RELEASED_GEOGRAPHS,
             }
         )
         # As in load_geograph: another URL hosts `.graphjson` files only
         released = set(network_cache.RELEASED_GEOGRAPHS)
-        if geograph_url != network_cache.GEOGRAPH_URL:
+        if geograph_url != built_in_geographs.GEOGRAPH_URL:
             url = f"{geograph_url.rstrip('/')}/contents.txt"
             response = requests.get(url, timeout=60)
             if not response.ok:
@@ -1117,9 +1120,6 @@ class GeoGraphIO:
                 )
                 about = {
                     "kind": "released",
-                    "description": network_cache.RELEASED_DESCRIPTIONS.get(
-                        name, ""
-                    ),
                     **pinned_network_release.NETWORKS[name],
                 }
             else:
@@ -1128,9 +1128,9 @@ class GeoGraphIO:
                 about = (
                     {
                         "kind": "built-in",
-                        **network_cache.BUILT_IN_GEOGRAPHS[name],
+                        **built_in_geographs.BUILT_IN_GEOGRAPHS[name],
                     }
-                    if geograph_url == network_cache.GEOGRAPH_URL
+                    if geograph_url == built_in_geographs.GEOGRAPH_URL
                     else {}
                 )
             rows.append({"name": name, "cached": is_cached, **about})
@@ -1172,7 +1172,7 @@ class GeoGraphIO:
         from scgraph import pipelines
 
         if name is not None and name not in {
-            *network_cache.BUILT_IN_GEOGRAPHS,
+            *built_in_geographs.BUILT_IN_GEOGRAPHS,
             *network_cache.RELEASED_GEOGRAPHS,
             *pipelines.NAMES,
         }:
@@ -1202,7 +1202,7 @@ class GeoGraphIO:
 
         # Only what scgraph writes there, so that a folder given as the cache keeps the
         # user's own files; then the folder itself if nothing else is left
-        for published in network_cache.BUILT_IN_GEOGRAPHS:
+        for published in built_in_geographs.BUILT_IN_GEOGRAPHS:
             if name in (None, published) and region is None:
                 for suffix in (".graphjson", ".scgraph"):
                     remove(cache_path.joinpath(published + suffix))
@@ -1260,7 +1260,7 @@ class GeoGraphIO:
                 "file": str(file),
                 "bytes": file.stat().st_size,
             }
-            for name in network_cache.BUILT_IN_GEOGRAPHS
+            for name in built_in_geographs.BUILT_IN_GEOGRAPHS
             for suffix in (".graphjson", ".scgraph")
             if (file := cache_path.joinpath(name + suffix)).is_file()
         ]
