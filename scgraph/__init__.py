@@ -1077,7 +1077,7 @@ dist_mi = distance_converter(dist_km, input_units='km', output_units='mi')
 
 The library prints nothing. It reports through Python's `logging` module, on the logger `scgraph`. The parameters `silent` and `show_progress` no longer have an effect: remove them from your calls.
 
-To follow `build_geograph`, `load_from_geojson` and `get_multi_path_geojson`, show the INFO messages:
+To follow the first load of a released network, `build_geograph`, `load_from_geojson` and `get_multi_path_geojson`, show the INFO messages. A download then logs its progress at each tenth of its size:
 
 ```py
 import logging
