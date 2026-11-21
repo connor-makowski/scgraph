@@ -82,8 +82,8 @@ give the same results. The namespace `python` of this module gives them, for exa
 `step3_network_assembly.python.contract_chains`. The C++ version returns memoryviews, and the Python
 version returns `array`s.
 
-`build_csr_from_adjacency_list` and `keep_largest_strongly_connected_component` take
-the layout of a GeoGraph, for `load_from_osm`.
+`scgraph.helpers.components` holds the functions of strongly connected components, and
+those that take the layout of a GeoGraph.
 """
 
 import logging
@@ -104,21 +104,27 @@ try:
         build_csr_from_edges as _cpp_build_csr_from_edges,
         contract_chains as _cpp_contract_chains,
         simplify_shapes as _cpp_simplify_shapes,
-        find_strongly_connected_components as _cpp_strongly_connected_components,
     )
 except ImportError:
     _cpp_build_csr_from_edges = None
     _cpp_contract_chains = None
     _cpp_simplify_shapes = None
-    _cpp_strongly_connected_components = None
 
+from scgraph.helpers.components import (
+    _cpp_strongly_connected_components as _cpp_strongly_connected_components,
+    build_csr_from_adjacency_list,
+    find_strongly_connected_components as find_strongly_connected_components,
+    find_strongly_connected_components_python,
+    keep_largest_strongly_connected_component as keep_largest_strongly_connected_component,
+    keep_strongly_connected_components,
+)
 from scgraph.helpers.douglas_peucker import (
     _is_monotonically_increasing,
     simplify_shapes as simplify_shapes_python,
 )
 from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
 from scgraph.network_file import encode_coordinates
-from scgraph.utils import _log_step
+from scgraph._internal import log_step
 
 logger = logging.getLogger(__name__)
 
@@ -193,172 +199,6 @@ def build_csr_from_edges(
     ):
         return _cpp_build_csr_from_edges(origins, destinations, weights)
     return build_csr_from_edges_python(origins, destinations, weights)
-
-
-def find_strongly_connected_components_python(
-    offsets: Sequence[int], heads: Sequence[int]
-) -> tuple[array, array]:
-    """Pure-Python version of `find_strongly_connected_components`."""
-    n = len(offsets) - 1
-    if (
-        n < 0
-        or offsets[n] != len(heads)
-        or not _is_monotonically_increasing(offsets)
-    ):
-        raise ValueError("offsets must rise from 0 to the number of items")
-    if heads and not (0 <= min(heads) and max(heads) < n):
-        raise IndexError("head out of range")
-
-    def successors(node):
-        return iter(heads[offsets[node] : offsets[node + 1]])
-
-    # Kosaraju: order the nodes by the end of a depth-first search, then search the
-    # reverse graph from the last one finished
-    finished, seen = [], [False] * n
-    for first in range(n):
-        if seen[first]:
-            continue
-        seen[first] = True
-        stack = [(first, successors(first))]
-        while stack:
-            node, ahead = stack[-1]
-            successor = next(ahead, None)
-            if successor is None:
-                stack.pop()
-                finished.append(node)
-            elif not seen[successor]:
-                seen[successor] = True
-                stack.append((successor, successors(successor)))
-    reverse = [[] for _ in range(n)]
-    for origin in range(n):
-        for destination in successors(origin):
-            reverse[destination].append(origin)
-    component, count = [-1] * n, 0
-    for first in reversed(finished):
-        if component[first] != -1:
-            continue
-        component[first], stack = count, [first]
-        while stack:
-            for predecessor in reverse[stack.pop()]:
-                if component[predecessor] == -1:
-                    component[predecessor] = count
-                    stack.append(predecessor)
-        count += 1
-    # Number the components in the order of their smallest node
-    number, labels, sizes = [-1] * count, array("i", bytes(4 * n)), array("i")
-    for node in range(n):
-        if number[component[node]] == -1:
-            number[component[node]] = len(sizes)
-            sizes.append(0)
-        labels[node] = number[component[node]]
-        sizes[labels[node]] += 1
-    return labels, sizes
-
-
-def find_strongly_connected_components(
-    offsets: array | memoryview, heads: array | memoryview
-) -> tuple[array | memoryview, array | memoryview]:
-    """Find the strongly connected components of a graph, with Kosaraju's algorithm.
-
-    In a strongly connected component, every node can reach every other node along the
-    edges.
-
-    Args:
-        offsets: The CSR offsets of the graph, one more than its nodes (int32).
-        heads: The head of each edge (int32).
-
-    Returns:
-        `(labels, sizes)`. `labels[u]` is the number of the component of node `u`. The
-        components are numbered in the order of their lowest node. `sizes[c]` is the
-        number of nodes of component `c`.
-    """
-    if _cpp_strongly_connected_components is not None and isinstance(
-        offsets, (array, memoryview)
-    ):
-        return _cpp_strongly_connected_components(offsets, heads)
-    return find_strongly_connected_components_python(offsets, heads)
-
-
-def build_csr_from_adjacency_list(
-    adjacency_list: list[dict[int, int | float]],
-) -> tuple[array, array, array]:
-    """Store a graph in the layout of a GeoGraph as CSR arrays.
-
-    Args:
-        adjacency_list: For each node, a dict that gives the weight of the edge to each
-            head.
-
-    Returns:
-        `(offsets, heads, weights)`: int32, int32 and float64. The edges of a node are
-        sorted by head.
-    """
-    offsets, heads, weights = array("i", [0]), array("i"), array("d")
-    for row in adjacency_list:
-        for head in sorted(row):
-            heads.append(head)
-            weights.append(row[head])
-        offsets.append(len(heads))
-    return offsets, heads, weights
-
-
-def keep_strongly_connected_components(
-    offsets: array | memoryview,
-    heads: array | memoryview,
-    min_component_nodes: int | None = None,
-) -> tuple[array, array | memoryview]:
-    """Choose the nodes to keep, by strongly connected component.
-
-    A node outside the kept components is a one-way dead end, a place that no route can
-    enter, or a fragment that the border of an extract cut off.
-
-    Args:
-        offsets: The CSR offsets of the graph, one more than its nodes (int32).
-        heads: The head of each edge (int32).
-        min_component_nodes: The smallest number of nodes of a kept component. None keeps
-            only the largest component. Example: `osm_world_multimodal` gives 1000, so that
-            an island with roads of its own stays in the network.
-
-    Returns:
-        `(kept_nodes, labels)`. `kept_nodes` lists the kept nodes in rising order.
-        `labels[u]` is the number of the component of node `u`, kept or not.
-    """
-    labels, sizes = find_strongly_connected_components(offsets, heads)
-    if min_component_nodes is None:
-        largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
-        wanted = [c == largest for c in range(len(sizes))]
-    else:
-        wanted = [size >= min_component_nodes for size in sizes]
-    return array("i", (u for u, c in enumerate(labels) if wanted[c])), labels
-
-
-def keep_largest_strongly_connected_component(
-    graph: list[dict[int, int | float]],
-    nodes: list[list[float]],
-    shapes: list[dict[int, list[list[float]]]],
-    node_ids: list[int],
-) -> tuple[
-    list[dict[int, int | float]],
-    list[list[float]],
-    list[dict[int, list[list[float]]]],
-    list[int],
-]:
-    """Keep the largest strongly connected component of a graph in the layout of a
-    GeoGraph. Return `(graph, nodes, shapes, node_ids)` with the kept nodes only.
-    """
-    kept, _ = keep_strongly_connected_components(
-        *build_csr_from_adjacency_list(graph)[:2]
-    )
-    index = {old: new for new, old in enumerate(kept)}
-
-    def row(values):
-        return {index[v]: x for v, x in values.items() if v in index}
-
-    return (
-        [row(graph[u]) for u in kept],
-        [nodes[u] for u in kept],
-        [row(shapes[u]) for u in kept],
-        [node_ids[u] for u in kept],
-    )
 
 
 class ContractedGraph(NamedTuple):
@@ -804,7 +644,7 @@ def assemble_network(
     Returns:
         The arrays of the network file, as `network_file.write` takes them.
     """
-    with _log_step(
+    with log_step(
         logger,
         "keep the strongly connected components",
         _count_nodes_and_edges(graph),
@@ -817,7 +657,7 @@ def assemble_network(
         given, graph = graph, renumber_nodes(graph, *order)
         given.clear()  # freed now, not when the caller lets it go: one copy at a time
         counts.update(_count_nodes_and_edges(graph, "kept_"))
-    with _log_step(
+    with log_step(
         logger, "contract the chains", _count_nodes_and_edges(graph)
     ) as counts:
         modes, edge_classes = graph.get("node_modes"), graph.get("edge_classes")

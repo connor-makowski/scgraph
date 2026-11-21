@@ -18,27 +18,22 @@ from scgraph.utils import (
     distance_converter,
     get_line_path,
     cheap_ruler,
-    _warn_deprecated_parameter,
-    _log_step,
     get_lat_lon_bound_between_pts,
     resolve_cache_dir,
     earth_radius,
     radians_per_degree,
 )
+from scgraph._internal import warn_deprecated_parameter, log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph import built_in_geographs, network_cache, network_file
 from scgraph import network_release as pinned_network_release
 import hashlib
-import importlib
 import json
 import logging
 import warnings
 import os
-import re
-import requests
-import shutil
 import types
 from array import array
 from collections import Counter
@@ -441,7 +436,7 @@ class GeoGraphIO:
             - Default: None (every point is a node)
             - Note: Useful for sources with many points per line, such as rail or road networks, to keep the graph small
         """
-        _warn_deprecated_parameter("silent", silent)
+        warn_deprecated_parameter("silent", silent)
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_geojson(
@@ -536,7 +531,7 @@ class GeoGraphIO:
         - `select`
             - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
             - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
-            - Default: None: `scgraph.pipelines.steps.step1_osm_ways.select_main_roads` (motorway to primary and their links, one way where `scgraph.pipelines.steps.step1_osm_ways.get_way_direction(tags)` returns 1 or -1)
+            - Default: None: `scgraph.helpers.osm.select_main_roads` (motorway to primary and their links, one way where `scgraph.helpers.osm.get_way_direction(tags)` returns 1 or -1)
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -547,7 +542,7 @@ class GeoGraphIO:
         - `max_km_between_nodes`
             - Type: float | int | None
             - What: Length in kilometers at which a way is cut into a new edge (at the next point of the way), so that origins and destinations can attach close to where they are
-            - Default: None: `scgraph.pipelines.steps.step1_osm_ways.MAX_KM_BETWEEN_NODES` (2)
+            - Default: None: `scgraph.helpers.osm.MAX_KM_BETWEEN_NODES` (2)
         - `largest_component`
             - Type: bool
             - What: Whether to keep only the largest part of the network where every node can reach every other, so that origins and destinations are never placed on a one-way dead end or on a fragment cut by the border of the extract
@@ -584,10 +579,10 @@ class GeoGraphIO:
                     lazy=False,
                 )
             )
-        from scgraph.pipelines.steps.step3_network_assembly import (
+        from scgraph.helpers.components import (
             keep_largest_strongly_connected_component,
         )
-        from scgraph.pipelines.steps.step1_osm_ways import (
+        from scgraph.helpers.osm import (
             MAX_KM_BETWEEN_NODES,
             select_main_roads,
             read_osm,
@@ -785,7 +780,7 @@ class GeoGraphIO:
         # The C++ graph reads the edges in place and checks them. The edges are in the
         # mapped file, or in the new arrays of a selection of modes.
         mapped = Graph.__module__ == "scgraph.cpp"
-        with _log_step(
+        with log_step(
             logger,
             "read the network file",
             {"file": filename, "mapped": mapped},
@@ -1031,7 +1026,7 @@ class GeoGraphIO:
         }
         try:
             geograph.metadata = {"sources": [source]}
-            with _log_step(
+            with log_step(
                 logger, "convert the published network", {"name": name}
             ):
                 geograph.save_as_scgraph(str(converted))
@@ -1085,56 +1080,9 @@ class GeoGraphIO:
                 - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more modes (load it with `modes`), and its results differ
         """
-        cache_path = resolve_cache_dir(cache_dir)
-        release_folder = cache_path.joinpath(
-            "releases", pinned_network_release.TAG
+        return network_cache.list_networks(
+            cache_dir=cache_dir, geograph_url=geograph_url
         )
-        available = sorted(
-            {
-                *built_in_geographs.BUILT_IN_GEOGRAPHS,
-                *network_cache.RELEASED_GEOGRAPHS,
-            }
-        )
-        # As in load_geograph: another URL hosts `.graphjson` files only
-        released = set(network_cache.RELEASED_GEOGRAPHS)
-        if geograph_url != built_in_geographs.GEOGRAPH_URL:
-            url = f"{geograph_url.rstrip('/')}/contents.txt"
-            response = requests.get(url, timeout=60)
-            if not response.ok:
-                raise ConnectionError(
-                    f"Failed to fetch geograph list from '{url}'. "
-                    f"HTTP status: {response.status_code}."
-                )
-            released = set()
-            available = sorted(
-                line.removesuffix(".graphjson")
-                for line in response.text.splitlines()
-                if line.strip().endswith(".graphjson")
-            )
-        rows = []
-        for name in available:
-            if name in released:
-                is_cached = any(
-                    release_folder.joinpath(name + suffix).is_file()
-                    for suffix in (".scgraph", ".no_shapes.scgraph")
-                )
-                about = {
-                    "kind": "released",
-                    **pinned_network_release.NETWORKS[name],
-                }
-            else:
-                is_cached = cache_path.joinpath(f"{name}.graphjson").exists()
-                # Another URL hosts networks that scgraph does not know
-                about = (
-                    {
-                        "kind": "built-in",
-                        **built_in_geographs.BUILT_IN_GEOGRAPHS[name],
-                    }
-                    if geograph_url == built_in_geographs.GEOGRAPH_URL
-                    else {}
-                )
-            rows.append({"name": name, "cached": is_cached, **about})
-        return rows
 
     @staticmethod
     def clear_geograph_cache(
@@ -1169,59 +1117,9 @@ class GeoGraphIO:
             - What: With `name`, the region of the built network to remove (its sub-regions are kept)
             - Default: None: every region
         """
-        from scgraph import pipelines
-
-        if name is not None and name not in {
-            *built_in_geographs.BUILT_IN_GEOGRAPHS,
-            *network_cache.RELEASED_GEOGRAPHS,
-            *pipelines.NAMES,
-        }:
-            raise ValueError(f"Unknown network '{name}'")
-        if region is not None and (
-            name is None
-            or not re.fullmatch(r"[a-z0-9-]+(/[a-z0-9-]+)*", region)
-        ):
-            raise ValueError(f"Invalid region '{region}', or no name with it")
-        cache_path = resolve_cache_dir(cache_dir)
-        root = cache_path.joinpath("networks")
-
-        def left(function, path, excinfo):
-            # A file still open (Windows: a network loaded in this process) stays, as
-            # an orphan that a later clear removes; its folder then stays too
-            if function is not os.rmdir:
-                logger.warning("Left %s in the cache: %s", path, excinfo[1])
-
-        def remove(path):
-            try:
-                if path.is_dir():
-                    shutil.rmtree(path, onerror=left)
-                else:
-                    path.unlink(missing_ok=True)
-            except OSError as error:
-                left(None, path, (None, error, None))
-
-        # Only what scgraph writes there, so that a folder given as the cache keeps the
-        # user's own files; then the folder itself if nothing else is left
-        for published in built_in_geographs.BUILT_IN_GEOGRAPHS:
-            if name in (None, published) and region is None:
-                for suffix in (".graphjson", ".scgraph"):
-                    remove(cache_path.joinpath(published + suffix))
-        if name is None:
-            remove(root)
-            remove(cache_path.joinpath("releases"))
-            remove(cache_path.joinpath(".work"))  # failed or interrupted builds
-        elif region is None:
-            remove(root.joinpath(name))
-            for stem in (name, f"{name}.no_shapes"):
-                for file in cache_path.glob(f"releases/*/{stem}.scgraph"):
-                    remove(file)
-        else:
-            # Only this entry's files: a sub-region is an entry of its own, in a sub-folder
-            folder = root.joinpath(name, region)
-            for file in [*folder.glob("*.scgraph"), folder / "cache.json"]:
-                remove(file)
-        if cache_path.is_dir() and not any(cache_path.iterdir()):
-            cache_path.rmdir()
+        return network_cache.clear_cache(
+            cache_dir=cache_dir, name=name, region=region
+        )
 
     @staticmethod
     def get_cache_info(
@@ -1251,70 +1149,7 @@ class GeoGraphIO:
             - for `"released"` only: `network_release`, the tag of the network release
             - for `"built"` only: `pipeline_version` and `scgraph`, the versions of the network's pipeline and of scgraph that built it, read from the file (None if it can't be read)
         """
-        cache_path = resolve_cache_dir(cache_dir)
-        info = [
-            {
-                "kind": "published",
-                "name": name,
-                "region": None,
-                "file": str(file),
-                "bytes": file.stat().st_size,
-            }
-            for name in built_in_geographs.BUILT_IN_GEOGRAPHS
-            for suffix in (".graphjson", ".scgraph")
-            if (file := cache_path.joinpath(name + suffix)).is_file()
-        ]
-        for file in sorted(cache_path.glob("releases/*/*.scgraph")):
-            info.append(
-                {
-                    "kind": "released",
-                    "name": file.name.split(".")[0],
-                    "region": None,
-                    "file": str(file),
-                    "bytes": file.stat().st_size,
-                    "network_release": file.parent.name,
-                }
-            )
-        root = cache_path.joinpath("networks")
-        for pointer in sorted(
-            root.rglob("cache.json"), key=lambda pointer: pointer.parent
-        ):
-            file = network_cache.find_cached_file(pointer)
-            if file is None:
-                continue  # not cached
-            name, *region = pointer.parent.relative_to(root).parts
-            try:
-                header = network_file.get_scgraph_info(file)
-                versions = (
-                    header["pipeline"]["version"],
-                    header["software"]["scgraph"],
-                )
-            except (ValueError, KeyError, TypeError):
-                versions = None, None
-            info.append(
-                {
-                    "kind": "built",
-                    "name": name,
-                    "region": "/".join(region) or None,
-                    "file": str(file),
-                    "bytes": file.stat().st_size,
-                    "pipeline_version": versions[0],
-                    "scgraph": versions[1],
-                }
-            )
-        for work in sorted(cache_path.glob(".work/*")):
-            info.append(
-                {
-                    "kind": "building",
-                    "name": work.name,
-                    "region": None,
-                    "file": str(work),
-                    "bytes": sum(
-                        f.stat().st_size for f in work.rglob("*") if f.is_file()
-                    ),
-                }
-            )
-        return info
+        return network_cache.get_cache_info(cache_dir=cache_dir)
 
     @staticmethod
     def build_geograph(
@@ -1462,43 +1297,7 @@ class GeoGraphIO:
             - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
             - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
         """
-        from scgraph import pipelines
-
-        root = resolve_cache_dir(cache_dir).joinpath("networks")
-        listing = []
-        for name in pipelines.NAMES:
-            network = importlib.import_module(f"scgraph.pipelines.{name}")
-            needs_region = any(
-                "{region}" in source["url"]
-                for source in network.SOURCES.values()
-            )
-            folder = root.joinpath(name)
-            built = [
-                m
-                for m in folder.rglob("cache.json")
-                if network_cache.find_cached_file(m)
-            ]
-            listing.append(
-                {
-                    "name": name,
-                    "description": " ".join(
-                        network.__doc__.split("\n\n")[0].split()
-                    ),
-                    "credit": _joined(network, "credit"),
-                    "license": _joined(network, "license"),
-                    "needs_region": needs_region,
-                    "cached": bool(built),
-                    "cached_regions": (
-                        sorted(
-                            path.parent.relative_to(folder).as_posix()
-                            for path in built
-                        )
-                        if needs_region
-                        else []
-                    ),
-                }
-            )
-        return listing
+        return network_cache.list_buildable_networks(cache_dir=cache_dir)
 
     @staticmethod
     def load_from_osmnx_graph(
@@ -1577,7 +1376,7 @@ class GeoGraphIO:
             - Default: False
 
         """
-        _warn_deprecated_parameter("silent", silent)
+        warn_deprecated_parameter("silent", silent)
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_osmnx_graph(
@@ -1715,7 +1514,7 @@ class GeoGraphIO:
         - `output`: dict
             - Dictionary with the GeoJSON file content.
         """
-        _warn_deprecated_parameter("show_progress", show_progress)
+        warn_deprecated_parameter("show_progress", show_progress)
         assert isinstance(routes, list), "Routes must be a list"
         assert all(
             [isinstance(i, dict) for i in routes]
@@ -1825,12 +1624,14 @@ class GeoGraphModifiers:
         distance: float,
         symmetric: bool = False,
     ) -> None:
-        return self.graph_object.add_edge(
+        self.graph_object.add_edge(
             origin_id=origin_id,
             destination_id=destination_id,
             distance=distance,
             symmetric=symmetric,
         )
+        # `graph` may be a copy of the graph object. It is read again after a change.
+        self.graph = None
 
     def remove_node(
         self, symmetric_node: bool = False
@@ -1861,16 +1662,19 @@ class GeoGraphModifiers:
         self.nodes.pop()
         del self.node_modes[len(self.nodes) :]
         self.snap_index = None
+        self.graph = None
         return removed_edges
 
     def remove_edge(
         self, origin_id: int, destination_id: int, symmetric: bool = False
     ) -> int | float | None:
-        return self.graph_object.remove_edge(
+        removed_weight = self.graph_object.remove_edge(
             origin_id=origin_id,
             destination_id=destination_id,
             symmetric=symmetric,
         )
+        self.graph = None
+        return removed_weight
 
     def add_coord_edge(
         self,
@@ -2040,7 +1844,7 @@ class GeoGraphModifiers:
         - The id of the new node
 
         """
-        _warn_deprecated_parameter("silent", silent)
+        warn_deprecated_parameter("silent", silent)
         # Validate the inputs
         assert isinstance(coord_dict, dict), "Node must be a dictionary"
         assert "latitude" in coord_dict.keys(), "Node must have a latitude"
@@ -2086,6 +1890,7 @@ class GeoGraphModifiers:
         self.nodes.append(node)
         self.node_modes.append(mode_row)
         self.snap_index = None
+        self.graph = None
         return new_node_id
 
     def _get_mode_row(self, name: str | None) -> int:
@@ -2425,11 +2230,6 @@ def _is_date(text):
         return True
     except (TypeError, ValueError):
         return False
-
-
-def _joined(network, key):
-    """One field (credit, license) of the sources of a network, each value once."""
-    return "; ".join(dict.fromkeys(s[key] for s in network.SOURCES.values()))
 
 
 class GeoGraphUtils:
@@ -3006,7 +2806,7 @@ class GeoGraph(
         # keeps the index of the networks before the merge while it connects them); direct
         # edits of nodes are not detected
         if self.__snap_index__ is None:
-            with _log_step(
+            with log_step(
                 logger, "build the snapping index", {"nodes": len(self.nodes)}
             ) as indicators:
                 self.__snap_index__ = self._build_snap_index()
@@ -3100,7 +2900,7 @@ class GeoGraph(
         """
         if iterations == 0:
             return
-        with _log_step(
+        with log_step(
             logger, "reduce the graph", {"iterations": iterations}
         ) as indicators:
             self.graph_object.reduce(iterations)
@@ -3367,7 +3167,7 @@ class GeoGraph(
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
-        _warn_deprecated_parameter("silent", silent)
+        warn_deprecated_parameter("silent", silent)
         algorithm_name = (
             algorithm_fn if isinstance(algorithm_fn, str) else "custom"
         )
@@ -3575,7 +3375,7 @@ class GeoGraph(
         - The snapping distance of an end is the great-circle distance to its closest
           entry node, in the units of the geograph, without circuity
         - `node_scans` is present only if the query ran a search that counts them
-        - A query builds this record only when DEBUG is on, and does not use `_log_step`:
+        - A query builds this record only when DEBUG is on, and does not use `log_step`:
           a query must pay nothing for logging when DEBUG is off. It logs no duration,
           which the caller can measure around its own call
         """
@@ -3662,7 +3462,7 @@ class GeoGraph(
             ...
         ]
         """
-        _warn_deprecated_parameter("silent", silent)
+        warn_deprecated_parameter("silent", silent)
         failed_pairs = 0
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
         dist_multiplier = distance_converter(

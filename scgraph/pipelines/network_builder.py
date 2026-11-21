@@ -24,8 +24,8 @@ from pathlib import Path
 import requests
 
 from scgraph import network_file, pipelines
-from scgraph.geograph import GeoGraph, _joined
-from scgraph.network_cache import find_cached_file
+from scgraph.geograph import GeoGraph
+from scgraph.network_cache import find_cached_file, join_source_values
 from scgraph.utils import resolve_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -422,8 +422,8 @@ def build_network_file(
         logger.info(
             "Built %s. Credit: %s (%s)",
             name,
-            _joined(pipeline, "credit"),
-            _joined(pipeline, "license"),
+            join_source_values(pipeline, "credit"),
+            join_source_values(pipeline, "license"),
         )
     except (Exception, KeyboardInterrupt) as error:
         if work_dir is None and not any(

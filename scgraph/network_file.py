@@ -32,7 +32,7 @@ from operator import eq, index
 from types import MappingProxyType
 
 from scgraph.helpers.hilbert import NODE_ORDER
-from scgraph.utils import _is_sorted
+from scgraph._internal import is_sorted
 
 try:
     from scgraph.cpp import coordinate_lists as _coordinate_lists
@@ -834,7 +834,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
     require(len(arrays["weights"]) == m, "one weight per edge expected")
     if should_check_values:
         # The loops over the edges run in C (map, min, max), not in Python
-        require(_is_sorted(offsets), "invalid offsets")
+        require(is_sorted(offsets), "invalid offsets")
         require(
             not m or (min(heads) >= 0 and max(heads) < n),
             "edge to a missing node",
@@ -861,7 +861,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
         )
         # Mapped, each shape's offsets are checked where it is read (EdgeShapes)
         require(
-            not should_check_values or _is_sorted(shapes),
+            not should_check_values or is_sorted(shapes),
             "invalid shape offsets",
         )
     for name, what in (("node_ids", "node id"), ("node_modes", "node mode")):

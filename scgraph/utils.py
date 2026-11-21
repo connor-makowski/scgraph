@@ -3,7 +3,7 @@
 The module holds the distance functions (`haversine`, `cheap_ruler`,
 `distance_converter`), helpers on coordinates (`get_line_path`,
 `get_lat_lon_bound_between_pts`), the check of the C++ extension (`has_cpp`), the
-cache directory (`resolve_cache_dir`), and the helpers for logging (`_log_step`) and
+cache directory (`resolve_cache_dir`), and the helpers for logging (`log_step`) and
 deprecation warnings. `GeoGraph`, the helpers and the pipelines import it.
 """
 
@@ -12,13 +12,10 @@ import logging
 import time
 import platform
 import os
-import warnings
-from collections.abc import Callable, Iterable, Iterator, Sequence
-from contextlib import contextmanager
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from itertools import islice
 from math import pi, sin, cos, asin
-from operator import le
+from scgraph._internal import warn_deprecated
 
 # Constants for haversine and cheap ruler calculations
 earth_radius = {
@@ -246,61 +243,6 @@ def get_line_path(
     return linestring
 
 
-def _warn_deprecated(name: str, stacklevel: int = 3) -> None:
-    """
-    Warns that a function or a parameter of the former printing is deprecated. The
-    message sends the user to the README section Logging.
-
-    - `name`: the function or the parameter, as the message names it
-    - `stacklevel`: the default points the warning at the caller of the function that
-      calls this one
-    """
-    warnings.warn(
-        f"{name} is deprecated. scgraph reports its messages through the logging"
-        " module (README, section Logging)",
-        DeprecationWarning,
-        stacklevel=stacklevel,
-    )
-
-
-def _warn_deprecated_parameter(name: str, value: object) -> None:
-    """
-    Warns that the parameter `name`, which controlled printing, is deprecated, if the
-    caller gave it.
-
-    - `value`: the value of the parameter; None means that the caller did not give it
-    """
-    if value is not None:
-        _warn_deprecated(f"The parameter `{name}`", stacklevel=4)
-
-
-@contextmanager
-def _log_step(
-    step_logger: logging.Logger, step: str, indicators: dict
-) -> Iterator[dict]:
-    """
-    Logs at DEBUG how long a step took, with indicators of its work.
-
-    - `step_logger`: the logger of the calling module
-    - `step`: what the step does, in a few words, such as "reduce the graph"
-    - `indicators`: values known before the step, such as a number of nodes
-    - Yields a copy of `indicators`, which the step completes with the values it knows
-      at its end
-    - The log message shows the indicators and `duration_ms`. The log record keeps them
-      with `step` in its attribute `scgraph`, for a handler of the application
-    """
-    indicators = dict(indicators)
-    start = time.perf_counter()
-    yield indicators
-    indicators["duration_ms"] = round((time.perf_counter() - start) * 1000, 3)
-    step_logger.debug(
-        "%s: %s",
-        step,
-        indicators,
-        extra={"scgraph": {"step": step, **indicators}},
-    )
-
-
 def print_console(*args, silent: bool = False, **kwargs) -> None:
     """
     Deprecated. Logs a message at INFO, unless `silent` is true.
@@ -308,7 +250,7 @@ def print_console(*args, silent: bool = False, **kwargs) -> None:
     - `*args`: the parts of the message, joined by spaces
     - `**kwargs`: the other arguments of `print`, which are ignored
     """
-    _warn_deprecated("scgraph.utils.print_console")
+    warn_deprecated("scgraph.utils.print_console")
     if not silent:
         logger.info(" ".join(str(arg) for arg in args))
 
@@ -399,7 +341,7 @@ def validate(name: str, realized: object, expected: object) -> None:
 
     - The lengths in dictionaries are rounded to 3 decimals before the comparison
     """
-    _warn_deprecated("scgraph.utils.validate")
+    warn_deprecated("scgraph.utils.validate")
     # Custom length rounding for floating point precision issues
     if isinstance(realized, dict):
         if "length" in realized:
@@ -425,7 +367,7 @@ def time_test(
     Deprecated. Logs at INFO the time that `function(*args, **kwargs)` takes, in
     milliseconds.
     """
-    _warn_deprecated("scgraph.utils.time_test")
+    warn_deprecated("scgraph.utils.time_test")
     if args is None:
         args = ()
     if kwargs is None:
@@ -435,12 +377,6 @@ def time_test(
     logger.info(
         "%s: %sms", name, round((time.perf_counter() - start) * 1000, 4)
     )
-
-
-def _is_sorted(values: Iterable) -> bool:
-    """Return whether no value is smaller than the value before it."""
-    # `map` and `all` run the loop in C, not in Python.
-    return all(map(le, values, islice(values, 1, None)))
 
 
 def has_cpp() -> bool:
@@ -457,7 +393,7 @@ def cpp_check() -> None:
     Deprecated. Logs at INFO which build is installed. `has_cpp()` gives the same
     answer as a boolean.
     """
-    _warn_deprecated("scgraph.utils.cpp_check")
+    warn_deprecated("scgraph.utils.cpp_check")
     if has_cpp():
         logger.info("Using C++ & Python implementation of SCGraph.")
     else:

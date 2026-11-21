@@ -11,7 +11,7 @@ is sorted. The check of the order runs in C (`map`), not in a Python loop.
 from array import array
 from bisect import bisect_left
 
-from scgraph.utils import _is_sorted
+from scgraph._internal import is_sorted
 
 # The highest value of an int32, the type of the offsets of a network file
 INT32_MAX = 2**31 - 1
@@ -58,7 +58,7 @@ def select_edges(
         raise ValueError("invalid shape offsets")
 
     # 1. Find the nodes of each mode
-    if not _is_sorted(node_modes) or (
+    if not is_sorted(node_modes) or (
         node_count and node_modes[-1] >= mode_count
     ):
         raise ValueError("unsorted or unknown node modes")
@@ -79,7 +79,7 @@ def select_edges(
         if (
             mode_offsets[0] < 0
             or mode_offsets[-1] > edge_count
-            or not _is_sorted(mode_offsets)
+            or not is_sorted(mode_offsets)
         ):
             raise ValueError("invalid offsets")
         _add_run(node_runs, first, last)

@@ -44,7 +44,8 @@ scgraph/
   network_cache.py               # Internal: the files of the released networks in the cache, and their download
   built_in_geographs.py          # Internal: the seven networks of release 3.6.0, with their download
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
-  utils.py                       # Distance math, coordinate helpers, caching, logging and deprecation helpers
+  utils.py                       # Distance math, coordinate helpers, has_cpp and the cache directory
+  _internal.py                   # Internal: deprecation warnings, the log of a step, the check of a sorted array
   pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
     geofabrik_multimodal.py      # Roads, railways, sea lanes and flights of one Geofabrik region
     osm_world_multimodal.py      # The same network for the world, from the OpenStreetMap planet
@@ -59,6 +60,8 @@ scgraph/
     visvalingam.py               # Visvalingam-Whyatt line simplification
     douglas_peucker.py           # Douglas-Peucker line simplification
     polylines.py                 # Polylines to a graph: nodes where they end or meet, edges with their shape
+    osm.py                       # The ways of an OpenStreetMap file to a graph, for load_from_osm and the pipelines
+    components.py                # Strongly connected components; keeps the largest one, for load_from_osm and the pipelines
     hilbert.py                   # Hilbert-curve order of nodes
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
     edge_selection.py            # Nodes and edges of some modes of a file, pure-Python version of cpp/src/edge_selection.cpp
@@ -168,7 +171,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
 - **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Code that has a C++ kernel calls it when the extension is built.
-- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `utils._log_step` (README, *Logging*).
+- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `_internal.log_step` (README, *Logging*).
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
 - **Public API**: The public names are the names of the README and of the `__all__` of each module (README, *Public API*). A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
@@ -181,7 +184,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
 - A change to the public API edits `README.md` and the docstring of `scgraph/__init__.py` identically, in the same PR.
-- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. `utils._warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
+- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. `_internal.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.

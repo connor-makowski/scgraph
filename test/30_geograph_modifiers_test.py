@@ -70,6 +70,27 @@ def test_add_coord_node_grows_graph():
     assert len(g.graph_object.graph) == 5
 
 
+def test_graph_shows_a_node_and_an_edge_added_to_the_geograph():
+    g = _fresh()
+    new_id = g.add_coord_node(
+        coord_dict={"latitude": 0.5, "longitude": 0.5}, auto_edge=False
+    )
+    g.add_edge(origin_id=0, destination_id=new_id, distance=7)
+
+    assert g.graph[0] == {1: 100, 2: 200, new_id: 7}
+    assert g.graph[new_id] == {}
+
+
+def test_graph_drops_an_edge_and_a_node_removed_from_the_geograph():
+    g = _fresh()
+    # A read before the changes: the next read must show them.
+    g.graph  # noqa: B018 (reading it keeps a copy of the graph)
+    g.remove_edge(origin_id=0, destination_id=1)
+    g.remove_node(symmetric_node=True)
+
+    assert g.graph == [{2: 200}, {0: 100}, {0: 200}]
+
+
 def test_add_coord_node_isolated_path_unchanged():
     g = _fresh()
     g.add_coord_node(

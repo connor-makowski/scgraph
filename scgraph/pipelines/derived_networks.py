@@ -109,7 +109,7 @@ from scgraph.pipelines.steps.step4_validation_cases import (
     load_validation_cases,
     validate_network,
 )
-from scgraph.utils import _log_step
+from scgraph._internal import log_step
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +229,7 @@ def derive_network_file(
         for row, name in enumerate(mode_names)
         if modes is None or name in modes
     ]
-    with _log_step(
+    with log_step(
         logger,
         "select the nodes",
         step3_network_assembly._count_nodes_and_edges(parent_arrays),
@@ -260,7 +260,7 @@ def derive_network_file(
         counts.update(
             step3_network_assembly._count_nodes_and_edges(graph, "kept_")
         )
-    with _log_step(
+    with log_step(
         logger,
         "keep the strongly connected components",
         step3_network_assembly._count_nodes_and_edges(graph),

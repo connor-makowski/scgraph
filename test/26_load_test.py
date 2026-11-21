@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import requests
 
-from scgraph import GeoGraph, geograph
+from scgraph import GeoGraph
 
 
 def test_list_geographs_returns_list():
@@ -148,7 +149,7 @@ def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
             b'{"type": "GeoGraph"' + b" " * 1000,
         )
 
-    monkeypatch.setattr(geograph.requests, "get", lambda *a, **k: Response())
+    monkeypatch.setattr(requests, "get", lambda *a, **k: Response())
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_FSIZE)
     resource.setrlimit(resource.RLIMIT_FSIZE, (500, hard_limit))
     try:
@@ -252,7 +253,7 @@ def requested(monkeypatch):
 
     urls = []
     monkeypatch.setattr(
-        geograph.requests,
+        requests,
         "get",
         lambda url, **kwargs: urls.append(url) or OneNodeGeograph(),
     )
@@ -318,7 +319,7 @@ def test_list_geographs_reads_contents_txt_of_another_url(
 
     requested = []
     monkeypatch.setattr(
-        geograph.requests,
+        requests,
         "get",
         lambda url, **kwargs: requested.append(url) or ContentsTxt(),
     )
