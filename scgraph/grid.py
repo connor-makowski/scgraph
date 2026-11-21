@@ -1,3 +1,12 @@
+"""Shortest paths on a 2D grid of cells, some of them blocked.
+
+`GridGraph` turns a grid into a `Graph`. A node is a cell, and an edge is an allowed move
+to a nearby cell (`conn_data`, by default the 8 neighbours). A move is refused when the
+moving `shape` would cross a blocked cell. `get_shortest_path` connects each end point
+to a nearby cell that has moves, and runs a search of `Graph` (`dijkstra_buckets` by
+default). Users reach it through `scgraph.GridGraph`.
+"""
+
 from collections.abc import Callable
 from typing import Literal
 from scgraph import Graph

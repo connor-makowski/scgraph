@@ -21,32 +21,32 @@ void bind_pipelines(nb::module_& m) {
         const int64_t m = (int64_t)origins.shape(0);
         if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m)
             throw std::invalid_argument("one destination and one weight per origin expected");
-        auto t = assembly::build_csr_from_arcs(origins.data(), destinations.data(), weights.data(), m);
+        auto t = assembly::build_csr_from_edges(origins.data(), destinations.data(), weights.data(), m);
         return nb::make_tuple(owned_view(std::move(t.node_ids)), owned_view(std::move(t.offsets)),
                               owned_view(std::move(t.heads)), owned_view(std::move(t.weights)),
                               owned_view(std::move(t.kept)));
     };
-    m.def("build_csr_from_arcs", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"));
+    m.def("build_csr_from_edges", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"));
     auto bind_scc = [](Int32Array offsets, Int32Array heads) {
-        auto c = assembly::strongly_connected_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
+        auto c = assembly::find_strongly_connected_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
                                                          (int64_t)heads.shape(0));
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
     };
-    m.def("strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
+    m.def("find_strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
     m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Uint8Array> node_modes,
-                                double max_km_between_nodes, std::optional<Uint8Array> arc_classes) {
+                                double max_km_between_nodes, std::optional<Uint8Array> edge_classes) {
         const int64_t n = (int64_t)offsets.shape(0) - 1;
         if (weights.shape(0) != heads.shape(0) || (node_modes && (int64_t)node_modes->shape(0) != n)
-            || (arc_classes && arc_classes->shape(0) != heads.shape(0)))
-            throw std::invalid_argument("expected one weight and one class per arc, and one mode per node");
+            || (edge_classes && edge_classes->shape(0) != heads.shape(0)))
+            throw std::invalid_argument("expected one weight and one class per edge, and one mode per node");
         auto c = assembly::contract_chains(offsets.data(), heads.data(), weights.data(),
                                            node_modes ? node_modes->data() : nullptr, n, (int64_t)heads.shape(0), max_km_between_nodes,
-                                           arc_classes ? arc_classes->data() : nullptr);
+                                           edge_classes ? edge_classes->data() : nullptr);
         return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
                               owned_view(std::move(c.heads)), owned_view(std::move(c.weights)),
                               owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
     }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("node_modes") = nb::none(),
-       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("arc_classes") = nb::none());
+       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("edge_classes") = nb::none());
     m.def("simplify_shapes", [](Int32Array shape_points, Int32Array shape_offsets, Int32Array endpoint_coords, double tolerance_meters) {
         const int64_t shapes = (int64_t)shape_offsets.shape(0) - 1;
         if (shape_points.shape(0) % 2 || (int64_t)endpoint_coords.shape(0) != 4 * shapes)

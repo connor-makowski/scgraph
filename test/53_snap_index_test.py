@@ -38,7 +38,7 @@ def _chord2(a, b):
     return sum((u - v) ** 2 for u, v in zip(xyz(a), xyz(b)))
 
 
-def _is_nearest(nodes, point, ids, found):
+def _is_closest(nodes, point, ids, found):
     # found is a node of ids at the smallest distance, or None if ids is empty. The
     # same distance up to rounding, or up to 1e-24 (micrometres: the same place under
     # two names, as longitudes -180 and 180)
@@ -185,14 +185,14 @@ def _from_units(implementation, nodes):
 
 def _check_answers(nodes, index):
     """Compare the answers of `index` with a search of every node, for each
-    point of `_queries`: the nearest node, then the nearest node of each
+    point of `_queries`: the closest node, then the closest node of each
     quadrant."""
     everything = list(range(len(nodes)))
     for point in _queries(nodes):
-        assert _is_nearest(nodes, point, everything, index.closest_idx(point))
+        assert _is_closest(nodes, point, everything, index.closest_idx(point))
         found = index.closest_idx_per_quadrant(point)
         for name, ids in _quadrants(nodes, point).items():
-            assert _is_nearest(nodes, point, ids, found[name])
+            assert _is_closest(nodes, point, ids, found[name])
 
 
 @both_snap_index_classes
@@ -200,7 +200,7 @@ def _check_answers(nodes, index):
     "network", [n for n in _networks() if n not in SCATTERED]
 )
 @pytest.mark.parametrize("builder", [_from_points, _from_array, _from_units])
-def test_snap_index_finds_the_nearest_node(implementation, network, builder):
+def test_snap_index_finds_the_closest_node(implementation, network, builder):
     index, nodes, _reused = builder(implementation, _networks()[network])
     _check_answers(nodes, index)
 
@@ -222,7 +222,7 @@ def test_snap_index_gives_the_lowest_id_of_nodes_at_the_same_place(
 
 # The ordered network has a node at longitude 180 and a node at longitude
 # -180, on the equator: the same place under two names. A network often has
-# such a pair, with no arc between the two nodes. A point snaps to the node
+# such a pair, with no edge between the two nodes. A point snaps to the node
 # whose longitude has its sign.
 @both_snap_index_classes
 @pytest.mark.parametrize("builder", [_from_points, _from_array, _from_units])
@@ -272,7 +272,7 @@ both_geographs = pytest.mark.parametrize(
 
 
 @both_geographs
-def test_geograph_snaps_to_the_nearest_node_whatever_the_order_of_its_nodes(
+def test_geograph_snaps_to_the_closest_node_whatever_the_order_of_its_nodes(
     name, request
 ):
     geograph = request.getfixturevalue(name)

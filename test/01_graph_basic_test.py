@@ -159,25 +159,64 @@ def test_disconnected_dijkstra_buckets(disconnected_graph):
     )
 
 
-def test_empty_graph_validation_raises():
+def test_empty_graph_validation_raises(graph_class):
     with pytest.raises(ValueError):
-        Graph([]).validate(check_symmetry=True, check_connected=True)
+        graph_class([]).validate(check_symmetry=True, check_connected=True)
 
 
-def test_link_to_a_missing_node_raises_at_construction_or_at_validation():
+def test_link_to_a_missing_node_raises_at_construction_or_at_validation(
+    graph_class,
+):
     # The only node of this graph has a link to node 5, which does not exist.
     # The C++ class raises when the graph is built. The Python class raises
     # when the graph is validated.
     graph_with_a_link_to_a_missing_node = [{5: 1}]
 
     with pytest.raises(ValueError):
-        Graph(graph_with_a_link_to_a_missing_node).validate()
+        graph_class(graph_with_a_link_to_a_missing_node).validate()
 
 
-def test_dijkstra_raises_path_not_found_between_two_parts_of_a_graph():
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        "dijkstra",
+        "bidirectional_dijkstra",
+        "dijkstra_buckets",
+        "bidirectional_buckets",
+        "dijkstra_negative",
+        "a_star",
+        "bellman_ford",
+        "bmssp",
+        "cached_shortest_path",
+    ],
+)
+def test_a_search_raises_path_not_found_between_two_parts_of_a_graph(
+    graph_class, algorithm
+):
     # Nodes 0 and 1 are linked, and nodes 2 and 3 are linked. No link joins
     # the two pairs.
-    graph_in_two_parts = Graph([{1: 1.0}, {0: 1.0}, {3: 1.0}, {2: 1.0}])
+    graph_in_two_parts = graph_class([{1: 1.0}, {0: 1.0}, {3: 1.0}, {2: 1.0}])
+    search = getattr(graph_in_two_parts, algorithm)
 
     with pytest.raises(PathNotFoundError):
-        graph_in_two_parts.dijkstra(origin_id=0, destination_id=3)
+        search(origin_id=0, destination_id=3)
+
+
+def test_get_path_weight_raises_for_a_path_that_uses_a_missing_link(
+    graph_class,
+):
+    # The graph has the links 0 -> 1 and 1 -> 2, and no link 0 -> 2.
+    graph = graph_class([{1: 1.0}, {2: 1.0}, {}])
+
+    with pytest.raises(ValueError, match="No edge from node 0 to node 2"):
+        graph.get_path_weight([0, 2])
+
+
+def test_bmssp_takes_the_option_of_the_constant_degree_graph(graph_class):
+    graph = graph_class(_GRAPH_DATA)
+
+    found = graph.bmssp(
+        origin_id=0, destination_id=5, use_constant_degree_graph=False
+    )
+
+    assert found["length"] == 10

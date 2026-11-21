@@ -8,14 +8,14 @@ OpenStreetMap planet. It calls the `build` of this module.
 WHAT THE NETWORK HOLDS
 
 - A distance is in km along the network. There are no times and no costs: a user
-  derives them from the km and the class of each arc.
+  derives them from the km and the class of each edge.
 - Roads. The network holds the motorway, trunk and primary roads, and their links.
   One-way roads are followed in their legal direction.
 - Vehicle ferries. A vehicle ferry joins two road nodes, both ways, with the length
   of its route. The pipeline reads as a ferry each way tagged `route=ferry` or
   `route=shuttle_train` (a train that carries cars and lorries, as in the Channel
   Tunnel). It leaves out a ferry closed to motor vehicles (`motor_vehicle=no` or
-  `motorcar=no`). Each end of a ferry joins the nearest road node, if that node is
+  `motorcar=no`). Each end of a ferry joins the closest road node, if that node is
   within 2 km. A ferry with an end farther than 2 km from every road node is left
   out. A ferry drawn as several ways that meet at sea is left out too, because each
   of its parts has an end at sea.
@@ -43,7 +43,7 @@ HUBS AND CONNECTORS
 - Road connector, and rail connector. It is a straight line from the hub to a node
   within 20 km for a road, or 10 km for a railway. The line crosses less than 3 km of
   water, or 10 km for an open roadstead (a port where ships anchor off the coast).
-  Among the nodes that fit, the hub takes the nearest one of the largest component.
+  Among the nodes that fit, the hub takes the closest one of the largest component.
   The connector weighs 1.2 times the length of the line, because a real road bends.
 - Sea connector. It is the shortest path over water from a port to a sea node, at
   most 2,500 km long. The path starts at a water cell within 6 km of the port. It
@@ -58,10 +58,10 @@ MODES AND CLASSES
   `port`, `airport` or `rail_terminal`. Each mode cites the source of its node ids:
   OpenStreetMap for roads and railways, the World Port Index number for a port, the
   OurAirports id for an airport, the Wikidata number for a rail terminal.
-- Each arc has a class. `arc_classes` gives its row in `classes`. A road arc has the
+- Each edge has a class. `edge_classes` gives its row in `classes`. A road edge has the
   `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
-  railway arc is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
-  arc has the name of its passage, for example `suez`, or `open_sea`. A flight is
+  railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
+  edge has the name of its passage, for example `suez`, or `open_sea`. A flight is
   `flight`. A connector to a road has the class `road_connector`, a connector to a
   railway `rail_connector`, and a connector to a sea lane `sea_connector`.
 
@@ -69,12 +69,12 @@ NODES AND SHAPES
 
 - The network of a region keeps its largest strongly connected component.
 - A chain is a run of nodes without a junction. The build contracts a chain into one
-  arc. A chain is never contracted across two modes or two classes.
-- A road or a railway is cut every 2 km, and a contracted arc ends at the first node
+  edge. A chain is never contracted across two modes or two classes.
+- A road or a railway is cut every 2 km, and a contracted edge ends at the first node
   where it reaches 2 km. Two nodes along a road or a railway are then at most about
   4 km apart. A sea lane is not cut, but its chains are contracted like those of a
   road.
-- The shape of each road, ferry or railway arc is simplified to within 50 m. Its
+- The shape of each road, ferry or railway edge is simplified to within 50 m. Its
   length is measured on the full shape.
 
 SOURCES AND LIMITS
@@ -106,7 +106,7 @@ from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.pipelines.steps import step2_hub_connectors
 from scgraph.pipelines.steps.step2_land_mask import LandMask
 from scgraph.pipelines.steps import step3_network_assembly
-from scgraph.utils import _log_step
+from scgraph._internal import log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
@@ -146,7 +146,7 @@ MODES = [
 ]
 # The land mask covers the roads of the region and this margin around them, in
 # degrees. A sea connector runs inside the mask.
-MARGIN = 2
+MARGIN_DEGREES = 2
 
 download = (
     step1_osm_ways.download
@@ -261,7 +261,7 @@ def build(
         )
     del pieces  # the graphs hold their own arrays
     # 2. The sea lanes, with the passage of each lane as its class
-    with _log_step(logger, "read the sea lanes", {}) as counts:
+    with log_step(logger, "read the sea lanes", {}) as counts:
         sea = eurostat_sea_lanes.build_sea_lane_arrays(
             {"sea_lanes": files["sea"]}
         )
@@ -269,10 +269,10 @@ def build(
     # 3. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
     latitudes, longitudes = node_points[0::2], node_points[1::2]
-    south = max(-90, min(latitudes) * 1e-7 - MARGIN)
-    west = max(-180, min(longitudes) * 1e-7 - MARGIN)
-    north = min(90, max(latitudes) * 1e-7 + MARGIN)
-    east = min(180, max(longitudes) * 1e-7 + MARGIN)
+    south = max(-90, min(latitudes) * 1e-7 - MARGIN_DEGREES)
+    west = max(-180, min(longitudes) * 1e-7 - MARGIN_DEGREES)
+    north = min(90, max(latitudes) * 1e-7 + MARGIN_DEGREES)
+    east = min(180, max(longitudes) * 1e-7 + MARGIN_DEGREES)
     # `join_networks_at_hubs` frees the roads. Delete the views, so that nothing here keeps them
     del node_points, latitudes, longitudes
     mask = LandMask.from_natural_earth(
@@ -289,7 +289,7 @@ def build(
         hub for hub in region_hubs if mask.get_cell(*hub.point) is not None
     ]
     # 5. Join the networks at the hubs, and the airports by their flights
-    with _log_step(
+    with log_step(
         logger, "join at the hubs", {"hubs": len(region_hubs)}
     ) as counts:
         graph, joined = step2_hub_connectors.join_networks_at_hubs(

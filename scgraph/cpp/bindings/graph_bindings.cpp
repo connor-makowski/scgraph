@@ -22,7 +22,7 @@
 #include "../src/contraction_hierarchies.hpp"
 #include "../src/transit_node_routing.hpp"
 #include "../src/snap_index.hpp"
-#include "../src/arc_selection.hpp"
+#include "../src/edge_selection.hpp"
 #include "ndarray_types.hpp"
 
 namespace nb = nanobind;
@@ -99,7 +99,7 @@ static nb::object coordinate_lists(CoordinateArray<T> node_points, nb::list ids)
     return result;
 }
 
-// `coordinates` (one per node of `path`) with the shape of each arc of the path between them
+// `coordinates` (one per node of `path`) with the shape of each edge of the path between them
 template <typename T>
 static nb::object shape_path(Int32Array offsets, Int32Array heads, Int32Array shape_offsets, CoordinateArray<T> shape_points,
                              nb::list path, nb::list coordinates) {
@@ -111,7 +111,7 @@ static nb::object shape_path(Int32Array offsets, Int32Array heads, Int32Array sh
     const int64_t m = (int64_t)heads.shape(0);
     const int64_t k = (int64_t)shape_points.shape(0) / 2;
     if ((int64_t)shape_offsets.shape(0) != m + 1)
-        throw std::invalid_argument("one shape offset per arc, plus one, expected");
+        throw std::invalid_argument("one shape offset per edge, plus one, expected");
     const Py_ssize_t count = PyList_Size(path.ptr());
     if (PyList_Size(coordinates.ptr()) != count)
         throw std::invalid_argument("one point per path node expected");
@@ -129,12 +129,12 @@ static nb::object shape_path(Int32Array offsets, Int32Array heads, Int32Array sh
         if (destination == -1 && PyErr_Occurred()) throw nb::python_error();
         // Nodes added after loading (add_coord_node) have no shapes
         if (origin >= 0 && origin < n) {
-            const int64_t first_arc = off[origin], last_arc = off[origin + 1];
-            if (first_arc < 0 || first_arc > last_arc || last_arc > m)
+            const int64_t first_edge = off[origin], last_edge = off[origin + 1];
+            if (first_edge < 0 || first_edge > last_edge || last_edge > m)
                 throw std::invalid_argument("invalid offsets");
-            for (int64_t arc = first_arc; arc < last_arc; ++arc) {
-                if (head[arc] != destination) continue;
-                const int64_t first = start[arc], last = start[arc + 1];
+            for (int64_t edge = first_edge; edge < last_edge; ++edge) {
+                if (head[edge] != destination) continue;
+                const int64_t first = start[edge], last = start[edge + 1];
                 if (first < 0 || first > last || last > k)
                     throw std::invalid_argument("invalid shape offsets");
                 for (int64_t p = first; p < last; ++p) {
@@ -174,10 +174,10 @@ static std::unique_ptr<SnapIndex> snap_index_from_array(CoordinateArray<T> node_
     return std::make_unique<SnapIndex>(node_points.data(), int(node_points.shape(0) / 2), owner);
 }
 
-// A Graph from arcs stored by origin: copied, or read in place and kept alive (in_place)
+// A Graph from edges stored by origin: copied, or read in place and kept alive (in_place)
 static std::unique_ptr<Graph> csr_graph(Int32Array offsets, Int32Array heads, DoubleArray weights, bool in_place) {
     if (offsets.shape(0) < 1 || heads.shape(0) != weights.shape(0)) {
-        throw std::invalid_argument("expected one offset per node plus one and one weight per arc");
+        throw std::invalid_argument("expected one offset per node plus one and one weight per edge");
     }
     std::shared_ptr<const void> owner;
     if (in_place) {
@@ -189,15 +189,15 @@ static std::unique_ptr<Graph> csr_graph(Int32Array offsets, Int32Array heads, Do
     return graph;
 }
 
-// The arcs by origin (offsets, heads, weights), in the order searches visit them, as
+// The edges by origin (offsets, heads, weights), in the order searches visit them, as
 // read-only memoryviews of the graph's own arrays: the capsule's copy of the handle keeps
 // them alive after the graph is edited or deleted. With an order (order[new] = old), the
 // rows of the nodes in that order, heads renumbered, in one new copy
 static nb::tuple graph_csr(const Graph& graph, std::optional<std::vector<int32_t>> order) {
-    auto* arcs = new CsrGraph(graph.arcs());
-    nb::capsule owner(arcs, [](void* arcs) noexcept { delete static_cast<CsrGraph*>(arcs); });
+    auto* edges = new CsrGraph(graph.edges());
+    nb::capsule owner(edges, [](void* edges) noexcept { delete static_cast<CsrGraph*>(edges); });
     if (order) {
-        const int n = arcs->size();
+        const int n = edges->size();
         std::vector<int32_t> new_id(n, -1), offsets{0}, heads;
         std::vector<double> weights;
         if (order->size() != static_cast<size_t>(n)) throw nb::index_error("order must list every node once");
@@ -206,23 +206,23 @@ static nb::tuple graph_csr(const Graph& graph, std::optional<std::vector<int32_t
             if (old < 0 || old >= n || new_id[old] != -1) throw nb::index_error("order must list every node once");
             new_id[old] = i;
         }
-        heads.reserve(arcs->arcs());
-        weights.reserve(arcs->arcs());
+        heads.reserve(edges->edges());
+        weights.reserve(edges->edges());
         for (int32_t old : *order) {
-            for (const auto& [head, weight] : (*arcs)[old]) {
+            for (const auto& [head, weight] : (*edges)[old]) {
                 heads.push_back(new_id[head]);
                 weights.push_back(weight);
             }
-            // At most the graph's arc count, which fits in int32 (CsrGraph)
+            // At most the graph's edge count, which fits in int32 (CsrGraph)
             offsets.push_back(static_cast<int32_t>(heads.size()));
         }
-        *arcs = CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
+        *edges = CsrGraph(std::move(offsets), std::move(heads), std::move(weights));
     }
     auto view = [&](auto values) {
         using Value = typename decltype(values)::element_type;
         return nb::ndarray<nb::memview, Value, nb::ndim<1>>(values.data(), {values.size()}, owner);
     };
-    return nb::make_tuple(view(arcs->all_offsets()), view(arcs->all_heads()), view(arcs->all_weights()));
+    return nb::make_tuple(view(edges->all_offsets()), view(edges->all_heads()), view(edges->all_weights()));
 }
 
 // reduced_graph_connections or reduced_inverse_graph_connections as a list: None or
@@ -295,36 +295,36 @@ NB_MODULE(cpp, m) {
        "(latitude then longitude of each node, int32 in 1e-7 degree or float64 degrees) and a list of "
        "ids (negative ids count from the end); a route's coordinates for NodePoints.take");
 
-    m.def("select_arcs", [](Int32Array offsets, Int32Array heads, Uint8Array node_modes,
+    m.def("select_edges", [](Int32Array offsets, Int32Array heads, Uint8Array node_modes,
                             std::vector<bool> is_mode_kept, std::optional<Int32Array> shape_offsets) {
-        ArcSelection selection = select_arcs(
+        EdgeSelection selection = select_edges(
             {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
             {node_modes.data(), node_modes.shape(0)}, is_mode_kept,
             shape_offsets ? std::span(shape_offsets->data(), shape_offsets->shape(0)) : std::span<const int32_t>());
         return nb::make_tuple(
             owned_view(std::move(selection.offsets)), owned_view(std::move(selection.heads)),
             shape_offsets ? owned_view(std::move(selection.shape_offsets)) : nb::none(),
-            selection.node_runs, selection.arc_runs, selection.shape_point_runs);
+            selection.node_runs, selection.edge_runs, selection.shape_point_runs);
     }, nb::arg("offsets"), nb::arg("heads"), nb::arg("node_modes"), nb::arg("is_mode_kept"),
        nb::arg("shape_offsets") = nb::none(),
-       "The nodes of the kept modes of a network file and the arcs between them, as (offsets, heads, "
-       "shape_offsets, node_runs, arc_runs, shape_point_runs); explained in scgraph/cpp/src/arc_selection.hpp, "
-       "same result as scgraph.helpers.arc_selection.select_arcs");
+       "The nodes of the kept modes of a network file and the edges between them, as (offsets, heads, "
+       "shape_offsets, node_runs, edge_runs, shape_point_runs); explained in scgraph/cpp/src/edge_selection.hpp, "
+       "same result as scgraph.helpers.edge_selection.select_edges");
 
     m.def("shape_path", &shape_path<double>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));
     m.def("shape_path", &shape_path<int32_t>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"),
-          "A route's coordinates with the shapes of its arcs, in one C loop, from a network file's arrays "
+          "A route's coordinates with the shapes of its edges, in one C loop, from a network file's arrays "
           "(shape points int32 in 1e-7 degree or float64 degrees) and one [latitude, longitude] per path "
-          "node; for ArcShapes.coordinate_path");
+          "node; for EdgeShapes.coordinate_path");
 
     // Raised by SnapIndex when the nodes are too scattered; a ValueError for callers
     nb::exception<node_order_error>(m, "NodeOrderError", PyExc_ValueError);
     nb::exception<PathNotFoundException>(m, "PathNotFoundError", PyExc_RuntimeError);
     nb::exception<NegativeCycleException>(m, "NegativeCycleError", PyExc_RuntimeError);
     nb::class_<SnapIndex>(m, "SnapIndex",
-        "Nearest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
+        "Closest node of a point on the sphere, for snapping to a GeoGraph (exact, ties to the lowest id)")
         .def("__init__", [](SnapIndex* self, nb::handle points) {
             auto owned = std::make_shared<std::vector<double>>();
             nb::sequence seq = nb::borrow<nb::sequence>(points);
@@ -347,14 +347,14 @@ NB_MODULE(cpp, m) {
         .def("closest_idx", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             return self.closest_idx(la, lo);
-        }, nb::arg("point"), "Id of the indexed point nearest to point; point is a [latitude, longitude] pair")
+        }, nb::arg("point"), "Id of the indexed point closest to point; point is a [latitude, longitude] pair")
         .def("closest_idx_per_quadrant", [](const SnapIndex& self, nb::handle point) {
             auto [la, lo] = read_point(point);
             int out[4];
             self.closest_idx_per_quadrant(la, lo, out);
             return quadrant_dict(out);
         }, nb::arg("point"),
-           "Id of the nearest indexed point in each quadrant around point, as a dict with the keys 'ne', 'nw', 'se', 'sw' (None if the quadrant is empty)");
+           "Id of the closest indexed point in each quadrant around point, as a dict with the keys 'ne', 'nw', 'se', 'sw' (None if the quadrant is empty)");
 
     // Graph class
     nb::class_<Graph>(m, "Graph")
@@ -382,7 +382,7 @@ NB_MODULE(cpp, m) {
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
              "Same as graph")
         .def("_csr", &graph_csr, nb::arg("order") = nb::none(),
-             "The graph (unreduced) as arcs by origin: int32 offsets and heads, float64 weights, in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows in that order, heads renumbered (one copy)")
+             "The graph (unreduced) as edges by origin: int32 offsets and heads, float64 weights, in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows in that order, heads renumbered (one copy)")
         .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
              "Get the inverse of the graph: every edge reversed")
         .def_prop_ro("search_graph", [](const Graph& self) -> std::vector<std::unordered_map<int, double>> {
@@ -617,7 +617,7 @@ NB_MODULE(cpp, m) {
         .def_static("from_csr", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
             return csr_graph(offsets, heads, weights, false);
         }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"),
-           "Create a Graph from its arcs stored by origin (compressed sparse rows), as in a .scgraph network file")
+           "Create a Graph from its edges stored by origin (compressed sparse rows), as in a .scgraph network file")
         // For load_from_scgraph: arrays that the graph reads in place and keeps alive
         .def_static("_from_csr_in_place", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
             return csr_graph(offsets, heads, weights, true);
@@ -630,11 +630,16 @@ NB_MODULE(cpp, m) {
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using Bellman-Ford algorithm")
 
+        // The C++ search does not use `use_constant_degree_graph`. The binding takes
+        // it so that a call written for the pure-Python build also runs with the
+        // extension.
         .def("bmssp", [](Graph& self,
                          const NodeIdVariant& origin_id,
-                         const NodeIdVariant& destination_id) -> nb::dict {
+                         const NodeIdVariant& destination_id,
+                         bool /*use_constant_degree_graph*/) -> nb::dict {
             return graph_result_to_dict(self.bmssp(origin_id, destination_id));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
+           nb::arg("use_constant_degree_graph") = true,
            "Find shortest path using BMSSP algorithm (falls back to Dijkstra in C++ backend)")
 
         // Cached shortest path

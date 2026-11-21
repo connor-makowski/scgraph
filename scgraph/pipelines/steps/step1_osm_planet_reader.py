@@ -10,8 +10,7 @@ import sys
 import time
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter, Retry
 
 logger = logging.getLogger(__name__)
 _MAX_RETRIES = 10  # the failures in a row that one range may have

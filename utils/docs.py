@@ -65,27 +65,12 @@ def generate_docs(version):
         )
 
 
-# Build __init__.py from README
+# The docstring of __init__.py repeats the README. The code after the docstring holds
+# the public names of the package, and stays as it is.
 readme = (root / "README.md").read_text()
-
-init_setup = """
-from scgraph.graph_reducer import algorithm
-
-try:
-    from scgraph.cpp import Graph, CHGraph
-    # Assign the python algorithm function to the cpp graph class
-    Graph.algorithm = staticmethod(algorithm)
-except ImportError:
-    from scgraph.graph import Graph
-    from scgraph.contraction_hierarchies import CHGraph
-
-from scgraph.geograph import GeoGraph
-from scgraph.grid import GridGraph
-"""
-
-scgraph.write_text(
-    f'r"""\n{readme}\n"""\n\n{init_setup}'
-)
+docstring_end = '\n"""\n'
+code = scgraph.read_text().split(docstring_end, 1)[1]
+scgraph.write_text(f'r"""\n{readme}{docstring_end}{code}')
 
 # Update the versions manifest loaded dynamically by client-side JS
 update_versions_manifest()

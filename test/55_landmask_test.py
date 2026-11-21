@@ -33,7 +33,7 @@ def _find_shortest_route_over_water(mask, port, target):
     """The oracle of the water paths: Dijkstra on a graph of the water cells
     and of the cell of `target`. Two cells that touch, by a side or by a
     corner, are joined by the great-circle distance between their centres. The
-    route starts at the water cell nearest to `port`.
+    route starts at the water cell closest to `port`.
 
     It gives `first_cell`, `leg_km` (from the port to the centre of that
     cell), `target_cell` and `km` (the leg plus the route between the cells).
@@ -143,7 +143,7 @@ def test_a_water_path_is_the_shortest_route_over_water_from_the_port(
     )
 
     assert km == pytest.approx(route_around_the_island.km, rel=1e-6)
-    # The points go from the water cell nearest to the port to the target
+    # The points go from the water cell closest to the port to the target
     assert points[0] == coast.get_cell_centre(
         route_around_the_island.first_cell
     )

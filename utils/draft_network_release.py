@@ -27,6 +27,7 @@ import sys
 from pathlib import Path
 
 from scgraph import GeoGraph
+from scgraph.pipelines.derived_networks import describe_derived_network
 
 
 def read_previous_commits(previous: str | os.PathLike) -> dict[str, str]:
@@ -55,6 +56,23 @@ def compress(file: Path, compressed_file: Path) -> None:
         ) as packed,
     ):
         shutil.copyfileobj(source, packed)
+
+
+def describe_network(file: Path, info: dict) -> str:
+    """Return the sentence that describes the network of a file, for the index.
+
+    Args:
+        file: The network file. Its name starts with the name of the network.
+        info: What `GeoGraph.get_scgraph_info` returns for the file.
+
+    Returns:
+        For a derived network, the sentence of `describe_derived_network`. For a built
+        network, the first paragraph of the docstring of its pipeline, which the file
+        records as `description`.
+    """
+    if "derivation" in info:
+        return describe_derived_network(file.name.split(".")[0])
+    return " ".join(info["description"].split("\n\n")[0].split())
 
 
 def write_release_draft(
@@ -105,7 +123,7 @@ def write_release_draft(
                         "content_sha256",
                         "format_version",
                         "nodes",
-                        "arcs",
+                        "edges",
                         "data_up_to",
                         "attribution",
                         "pipeline",
@@ -114,6 +132,7 @@ def write_release_draft(
                 },
                 # Only a derived file has a derivation: its parent, modes and bbox
                 "derivation": info.get("derivation"),
+                "description": describe_network(file, info),
             }
         )
     index = {"tag": tag, "networks": networks}
@@ -137,7 +156,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
     rows = [
         f"| `{network['file']}` | {network['compressed_bytes'] / 1e6:.1f} MB "
         f"| {network['bytes'] / 1e6:.1f} MB "
-        f"| {network['nodes']:,} | {network['arcs']:,} "
+        f"| {network['nodes']:,} | {network['edges']:,} "
         f"| {network['status']} | `{network['content_sha256'][:16]}` |"
         for network in networks
     ]
@@ -158,7 +177,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
             "port and airport of the world. A route of such a file stays inside "
             "the rectangle on land, so it can be longer than in the world file. A "
             "file with `no_shapes` in its name holds the same network without the "
-            "shapes of its arcs. The lengths of its routes are the same.",
+            "shapes of its edges. The lengths of its routes are the same.",
             "",
             f"A new file comes from commit {commit}. The world network passed the "
             "validation cases of its pipeline when it was built. A derived file "
@@ -175,7 +194,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
             "its `content_sha256`. `networks.json` holds the full digests, the "
             "rectangle of each derived file and the commit of each file.",
             "",
-            "| File | Download | Decompressed | Nodes | Arcs | Status | `content_sha256` |",
+            "| File | Download | Decompressed | Nodes | Edges | Status | `content_sha256` |",
             "|---|---|---|---|---|---|---|",
             *rows,
             "",

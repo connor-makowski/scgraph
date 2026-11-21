@@ -3,7 +3,7 @@
 WHAT IT ANSWERS
 
 `LandMask.is_on_land` tells whether a point is on land. `LandMask.find_water_path`
-gives the shortest path over water from a point to the nearest of a set of cells.
+gives the shortest path over water from a point to the closest of a set of cells.
 `step2_hub_connectors.join_networks_at_hubs` uses it for the sea connector of a port.
 
 HOW THE MASK IS STORED
@@ -20,7 +20,7 @@ Example: a mask starts at latitude 56 and longitude 10, with 240 cells per degre
 HOW A SEARCH RUNS
 
 1. Find the cell of the start. A start outside the raster has no path.
-2. Find the first cell of the path: the cell nearest to the start that is water or a
+2. Find the first cell of the path: the cell closest to the start that is water or a
    target. It must be within `start_on_land_km` of the start. The straight line from
    the start to this cell is the first leg of the path. A port is often drawn on
    land, so the path needs this leg.
@@ -40,7 +40,7 @@ and one diagonal step is 1.58 km long.
 WHY THE RESULT IS RIGHT
 
 Dijkstra's algorithm settles the cells in rising order of length, so the first target
-settled is the nearest one over water. The path goes from cell centre to cell centre.
+settled is the closest one over water. The path goes from cell centre to cell centre.
 Its length is the length on this grid, not the exact shortest length over water.
 
 THE C++ VERSION
@@ -104,7 +104,7 @@ def find_water_path_cells(
     north_km: float,
     max_cells: int,
 ) -> tuple[float, list[int]] | None:
-    """Find the shortest path over water from a start cell to the nearest target cell.
+    """Find the shortest path over water from a start cell to the closest target cell.
 
     The function runs Dijkstra's algorithm on the cells. A step goes from a cell to one of
     its 8 neighbours. It enters a water cell (bit 0) or a target cell only.
@@ -227,8 +227,8 @@ class LandMask:
         def xy(ring):  # cell centres at integers
             return [(x * k - west - 0.5, y * k - south - 0.5) for x, y in ring]
 
-        for burn, polygon in [(1, p) for p in _parts(land)] + [
-            (0, p) for p in _parts(lakes)
+        for burn, polygon in [(1, p) for p in _read_parts(land)] + [
+            (0, p) for p in _read_parts(lakes)
         ]:
             cross = {}  # row -> x where the polygon's edges cross its centre
             for ring in map(xy, polygon):
@@ -250,7 +250,7 @@ class LandMask:
                 span = sum((1 << b) - (1 << a) for a, b in zip(c[::2], c[1::2]))
                 v = v | span >> 8 * lo if burn else v & ~(span >> 8 * lo)
                 bits[at] = v.to_bytes(hi - lo, "little")
-        for line in map(xy, _parts(rivers)):
+        for line in map(xy, _read_parts(rivers)):
             for (x1, y1), (x2, y2) in zip(line, line[1:]):
                 n = math.ceil(max(abs(x2 - x1), abs(y2 - y1))) + 1
                 for t in range(n + 1):
@@ -287,7 +287,7 @@ class LandMask:
         max_km: float,
         start_on_land_km: float = 6,
     ) -> tuple[float, list[list[float]]] | None:
-        """Find the shortest path over water from `start` to the nearest cell of `targets`.
+        """Find the shortest path over water from `start` to the closest cell of `targets`.
 
         Args:
             start: The point, `[latitude, longitude]`.
@@ -326,7 +326,7 @@ class LandMask:
         return first[0] + found[0], [self.get_cell_centre(c) for c in found[1]]
 
 
-def _parts(filename):
+def _read_parts(filename):
     """Yield the polygons or the lines of a GeoJSON file."""
     with open(filename, encoding="utf-8") as file:
         for feature in json.load(file)["features"]:

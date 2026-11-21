@@ -145,7 +145,7 @@ jobs:
         with:
           name: world
           path: files
-      # Each derived network gives two files: with the shapes of its arcs, and
+      # Each derived network gives two files: with the shapes of its edges, and
       # without them. The command also writes the world file without shapes.
       - name: Derive and validate each network
         run: |

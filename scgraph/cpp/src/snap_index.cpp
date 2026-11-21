@@ -63,7 +63,7 @@ inline double squared_chord(const UnitVector& a, const UnitVector& b) {
     return dx * dx + dy * dy + dz * dz;
 }
 
-// The nearest float below or equal to a value, and above or equal to it. Boxes are rounded
+// The closest float below or equal to a value, and above or equal to it. Boxes are rounded
 // with them, outward, so that a box always contains its nodes
 inline float round_down(double value) {
     float f = float(value);
@@ -131,20 +131,20 @@ struct SnapIndex::Query {
     }
 };
 
-// What a search has found so far for one answer: the nearest node, or the nearest node of
+// What a search has found so far for one answer: the closest node, or the closest node of
 // one quadrant. All distances are float squared chords.
 //
 // A float squared chord differs a little from the exact one. So the search keeps every node
-// that may be the nearest, the "candidates", and confirm_nearest compares them in double at
+// that may be the closest, the "candidates", and confirm_closest compares them in double at
 // the end. `reach` is the limit for a candidate and for a box: 3 CHORD_MARGIN above the
 // lowest float chord found, one margin for each of these facts.
 // - The float chord of the best node found is at most 1 margin below its exact chord.
-// - The float chord of the exact nearest node is at most 1 margin above its exact chord.
+// - The float chord of the exact closest node is at most 1 margin above its exact chord.
 // - The lower bound of the box that holds this node is not above its float chord: boxes
 //   are rounded outward, and both values are computed by the same float operations. The
 //   third margin is for a compiler that would not round both in the same way.
 // A larger factor makes a search visit more boxes and candidates, with the same answers
-struct SnapIndex::Nearest {
+struct SnapIndex::Closest {
     struct Candidate {
         float squared_chord;
         int node;
@@ -306,11 +306,11 @@ SnapIndex::SnapIndex(Points points, int node_count, std::shared_ptr<const void> 
     } while (child_count > 1);
 }
 
-// ---- nearest node ---------------------------------------------------------------------
+// ---- closest node ---------------------------------------------------------------------
 
 int SnapIndex::closest_idx(double latitude, double longitude) const {
     const Query query(latitude, longitude);
-    Nearest nearest;
+    Closest closest;
     // The visits still to make, the next one on top. The first descent leaves at most
     // FANOUT - 1 visits per level. Step 4 may then open the visit of the highest level
     // first. Each level below it then adds at most FANOUT - 1 visits again
@@ -318,55 +318,55 @@ int SnapIndex::closest_idx(double latitude, double longitude) const {
     int stack_size = 0;
     float lower_bound[FANOUT];
 
-    // 1. First descent: from the root down to one leaf, by the nearest child at each
+    // 1. First descent: from the root down to one leaf, by the closest child at each
     // level. The other children go on the stack
     int position = 0;
     for (int level = int(level_start_.size()) - 1; level > LEAF_LEVEL; --level) {
         const Group& group = groups_[size_t(level_start_[level]) + position];
         for (int k = 0; k < FANOUT; k += 4)
             store4(lower_bound + k, query.squared_chord_to_boxes(group, k));
-        int nearest_child = 0;
+        int closest_child = 0;
         for (int k = 1; k < FANOUT; ++k)
-            if (lower_bound[k] < lower_bound[nearest_child]) nearest_child = k;
+            if (lower_bound[k] < lower_bound[closest_child]) closest_child = k;
         for (int k = 0; k < FANOUT; ++k)
-            if (k != nearest_child && lower_bound[k] <= FAR)  // not an unused slot
+            if (k != closest_child && lower_bound[k] <= FAR)  // not an unused slot
                 stack[stack_size++] = {lower_bound[k], level - 1, position * FANOUT + k, 0};
-        position = position * FANOUT + nearest_child;
+        position = position * FANOUT + closest_child;
     }
     // 2. The leaf gives a first best distance
-    scan_leaf(position, query, nearest);
+    scan_leaf(position, query, closest);
 
     // 3. Drop the stacked visits that this distance puts out of reach, and order the
-    // others, the nearest on top. Few stay when the point is near the network. `kept` is
+    // others, the closest on top. Few stay when the point is near the network. `kept` is
     // never above i, so the visits not yet read stay intact. The test is written so that
     // a query that is not a number, which makes every comparison false, keeps no visit
     int kept = 0;
     for (int i = 0; i < stack_size; ++i) {
         const Visit visit = stack[i];
-        if (!(visit.lower_bound <= nearest.reach)) continue;
+        if (!(visit.lower_bound <= closest.reach)) continue;
         Visit::push_in_order(stack, 0, kept, visit);
     }
     stack_size = kept;
 
-    // 4. Open the boxes within reach, the nearest first
+    // 4. Open the boxes within reach, the closest first
     while (stack_size > 0) {
         const Visit visit = stack[--stack_size];
         // A node nearer than this box may have been found since the visit was stacked
-        if (visit.lower_bound > nearest.reach) continue;
+        if (visit.lower_bound > closest.reach) continue;
         if (visit.level == LEAF_LEVEL) {
-            scan_leaf(visit.position, query, nearest);
+            scan_leaf(visit.position, query, closest);
             continue;
         }
         const Group& group = groups_[size_t(level_start_[visit.level]) + visit.position];
         // The children whose box is within reach, as bits: bit k for child k
         int children = 0;
-        const Float4 reach = fill4(nearest.reach);
+        const Float4 reach = fill4(closest.reach);
         for (int k = 0; k < FANOUT; k += 4) {
             const Float4 lower_bounds = query.squared_chord_to_boxes(group, k);
             store4(lower_bound + k, lower_bounds);
             children |= lane_bits(lower_bounds <= reach) << k;
         }
-        // Stack them in order, the nearest on top. `rest &= rest - 1` clears the lowest
+        // Stack them in order, the closest on top. `rest &= rest - 1` clears the lowest
         // bit set, so the loop takes each child once
         const int first = stack_size;
         for (unsigned rest = unsigned(children); rest != 0; rest &= rest - 1) {
@@ -376,11 +376,11 @@ int SnapIndex::closest_idx(double latitude, double longitude) const {
                 {lower_bound[k], visit.level - 1, visit.position * FANOUT + k, 0});
         }
     }
-    return confirm_nearest(query, nearest);
+    return confirm_closest(query, closest);
 }
 
 // Looks at the nodes of a leaf: keeps as candidates those within reach of the best node
-void SnapIndex::scan_leaf(int leaf, const Query& query, Nearest& nearest) const {
+void SnapIndex::scan_leaf(int leaf, const Query& query, Closest& closest) const {
     const Leaf& vectors = leaves_[leaf];
     float squared_chords[LEAF];
     Float4 lowest4_so_far = fill4(UNUSED);
@@ -394,20 +394,20 @@ void SnapIndex::scan_leaf(int leaf, const Query& query, Nearest& nearest) const 
     }
     const float lowest = lowest4(lowest4_so_far);
     // A query that is not a number makes every comparison false, and stops here
-    if (!(lowest <= nearest.reach)) return;
-    if (lowest < nearest.best) nearest.improve(lowest);
+    if (!(lowest <= closest.reach)) return;
+    if (lowest < closest.best) closest.improve(lowest);
     // The usual case is one slot within reach, the lowest. An unused slot is never within
     // reach
-    for (uint32_t rest = nearest.slots_within_reach(squared_chords); rest != 0;
+    for (uint32_t rest = closest.slots_within_reach(squared_chords); rest != 0;
          rest &= rest - 1) {
         const int slot = std::countr_zero(rest);
-        nearest.add(squared_chords[slot], leaf * LEAF + slot);
+        closest.add(squared_chords[slot], leaf * LEAF + slot);
     }
 }
 
 // The answer of a search: the candidate with the lowest squared chord in double, and the
 // lowest id among equal ones. Returns -1 if the search found no node
-int SnapIndex::confirm_nearest(const Query& query, const Nearest& nearest) const {
+int SnapIndex::confirm_closest(const Query& query, const Closest& closest) const {
     auto exact = [&](int node) {
         return squared_chord(query.unit_vector,
                              to_unit_vector(points_.latitude(node), points_.longitude(node)));
@@ -415,9 +415,9 @@ int SnapIndex::confirm_nearest(const Query& query, const Nearest& nearest) const
     // With one candidate, the usual case, no distance is computed in double
     int only_candidate = -1, found = -1;
     double found_chord = INF;
-    auto consider = [&](const Nearest::Candidate& candidate) {
+    auto consider = [&](const Closest::Candidate& candidate) {
         // A candidate kept early may be out of reach of the best node found since
-        if (candidate.squared_chord > nearest.reach) return;
+        if (candidate.squared_chord > closest.reach) return;
         if (only_candidate < 0) {
             only_candidate = candidate.node;
             return;
@@ -432,12 +432,12 @@ int SnapIndex::confirm_nearest(const Query& query, const Nearest& nearest) const
             found = candidate.node;
         }
     };
-    for (int i = 0; i < nearest.candidate_count; ++i) consider(nearest.candidates[i]);
-    for (const Nearest::Candidate& candidate : nearest.more_candidates) consider(candidate);
+    for (int i = 0; i < closest.candidate_count; ++i) consider(closest.candidates[i]);
+    for (const Closest::Candidate& candidate : closest.more_candidates) consider(candidate);
     return found >= 0 ? found : only_candidate;
 }
 
-// ---- nearest node per quadrant --------------------------------------------------------
+// ---- closest node per quadrant --------------------------------------------------------
 
 void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int out[4]) const {
     const Query query(latitude, longitude);
@@ -450,7 +450,7 @@ void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int 
     const Bound y_most_west = query.x >= 0.0f ? MIN_Y : MAX_Y;
     const Bound x_most_west = query.y >= 0.0f ? MAX_X : MIN_X;
 
-    Nearest nearest[4];  // one per quadrant
+    Closest closest[4];  // one per quadrant
     // The visits still to make, the next one on top. Opening a group takes 1 visit off
     // the stack and puts at most FANOUT visits on it
     Visit stack[MAX_LEVELS * FANOUT];
@@ -461,11 +461,11 @@ void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int 
         // The quadrants that this box may hold and for which it is still within reach
         int wanted_quadrants = 0;
         for (int t = 0; t < 4; ++t)
-            wanted_quadrants |= int(visit.lower_bound <= nearest[t].reach) << t;
+            wanted_quadrants |= int(visit.lower_bound <= closest[t].reach) << t;
         wanted_quadrants &= visit.quadrants;
         if (wanted_quadrants == 0) continue;
         if (visit.level == LEAF_LEVEL) {
-            scan_leaf_per_quadrant(visit.position, wanted_quadrants, query, nearest);
+            scan_leaf_per_quadrant(visit.position, wanted_quadrants, query, closest);
             continue;
         }
         const Group& group = groups_[size_t(level_start_[visit.level]) + visit.position];
@@ -476,7 +476,7 @@ void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int 
         int children_for[4] = {0, 0, 0, 0};
         Float4 reach[4];
         for (int t = 0; t < 4; ++t)
-            reach[t] = fill4((wanted_quadrants >> t & 1) ? nearest[t].reach : -1.0f);
+            reach[t] = fill4((wanted_quadrants >> t & 1) ? closest[t].reach : -1.0f);
         for (int k = 0; k < FANOUT; k += 4) {
             const Float4 lower_bounds = query.squared_chord_to_boxes(group, k);
             store4(lower_bound + k, lower_bounds);
@@ -493,7 +493,7 @@ void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int 
             children_for[2] |= lane_bits((lower_bounds <= reach[2]) & south & east) << k;
             children_for[3] |= lane_bits((lower_bounds <= reach[3]) & south & west) << k;
         }
-        // Stack the children in order, the nearest on top
+        // Stack the children in order, the closest on top
         const int first = stack_size;
         const int children =
             children_for[0] | children_for[1] | children_for[2] | children_for[3];
@@ -507,13 +507,13 @@ void SnapIndex::closest_idx_per_quadrant(double latitude, double longitude, int 
                 {lower_bound[k], visit.level - 1, visit.position * FANOUT + k, quadrants});
         }
     }
-    for (int t = 0; t < 4; ++t) out[t] = confirm_nearest(query, nearest[t]);
+    for (int t = 0; t < 4; ++t) out[t] = confirm_closest(query, closest[t]);
 }
 
 // Looks at the nodes of a leaf for the quadrants in `wanted_quadrants` (bits): for each
 // one, keeps as candidates the nodes of the quadrant within reach of its best node
 void SnapIndex::scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Query& query,
-                                       Nearest* nearest) const {
+                                       Closest* closest) const {
     const Leaf& vectors = leaves_[leaf];
     const Float4 unused = fill4(UNUSED);
     // For each quadrant: the slots whose node may lie in it by the float tests (bit i for
@@ -538,9 +538,9 @@ void SnapIndex::scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Que
     }
     for (int t = 0; t < 4; ++t) {
         if (!(wanted_quadrants >> t & 1)) continue;
-        Nearest& quadrant_nearest = nearest[t];
+        Closest& quadrant_closest = closest[t];
         const float lowest = lowest4(lowest4_in[t]);
-        if (!(lowest <= quadrant_nearest.reach)) continue;
+        if (!(lowest <= quadrant_closest.reach)) continue;
         // Keeps the node of a slot if the rule in double confirms its quadrant
         auto consider = [&](int slot) {
             const int node = leaf * LEAF + slot;
@@ -548,20 +548,20 @@ void SnapIndex::scan_leaf_per_quadrant(int leaf, int wanted_quadrants, const Que
                 quadrants_of_node(points_.latitude(node), points_.longitude(node),
                                   query.latitude, query.longitude);
             if (!(quadrants >> t & 1)) return;
-            if (squared_chords[slot] < quadrant_nearest.best)
-                quadrant_nearest.improve(squared_chords[slot]);
-            quadrant_nearest.add(squared_chords[slot], node);
+            if (squared_chords[slot] < quadrant_closest.best)
+                quadrant_closest.improve(squared_chords[slot]);
+            quadrant_closest.add(squared_chords[slot], node);
         };
-        // The nearest slot first: it is the first slot of the quadrant that holds `lowest`.
+        // The closest slot first: it is the first slot of the quadrant that holds `lowest`.
         // Once it is confirmed, the reach shrinks to its distance, and the rule in double
         // is not computed for the other slots of the leaf, unless they tie with it
-        uint32_t from_nearest = slots_in[t];
-        while (squared_chords[std::countr_zero(from_nearest)] != lowest)
-            from_nearest &= from_nearest - 1;
-        const int nearest_slot = std::countr_zero(from_nearest);
-        consider(nearest_slot);
-        const uint32_t other_slots = quadrant_nearest.slots_within_reach(squared_chords) &
-                                     slots_in[t] & ~(uint32_t(1) << nearest_slot);
+        uint32_t from_closest = slots_in[t];
+        while (squared_chords[std::countr_zero(from_closest)] != lowest)
+            from_closest &= from_closest - 1;
+        const int closest_slot = std::countr_zero(from_closest);
+        consider(closest_slot);
+        const uint32_t other_slots = quadrant_closest.slots_within_reach(squared_chords) &
+                                     slots_in[t] & ~(uint32_t(1) << closest_slot);
         for (uint32_t rest = other_slots; rest != 0; rest &= rest - 1)
             consider(std::countr_zero(rest));
     }

@@ -1,8 +1,17 @@
+"""Read and simplify GeoJSON files of lines.
+
+`simplify_geojson` rounds the coordinates, simplifies each line, and merges all lines
+into one MultiLineString. `parse_geojson` turns such a file into a graph: a node at
+each point, and edges both ways between consecutive points, with their haversine length.
+`GeoGraph.load_from_geojson` calls both functions, and users can call them directly.
+"""
+
 import json
 import logging
 import os
 
-from scgraph.utils import _warn_deprecated_parameter, hard_round, haversine
+from scgraph.utils import hard_round, haversine
+from scgraph._internal import warn_deprecated_parameter
 from scgraph.helpers.douglas_peucker import douglas_peucker
 from scgraph.helpers.visvalingam import visvalingam
 from collections.abc import Callable, Sequence
@@ -90,7 +99,7 @@ def simplify_geojson(
         - If `filename_out` is provided, this will be written into a GeoJSON file.
         - Note: Always returns a GeometryCollection with a single MultiLineString containing all cleaned coordinates.
     """
-    _warn_deprecated_parameter("silent", silent)
+    warn_deprecated_parameter("silent", silent)
     data = json.load(open(filename_in, "r"))
     if data["type"] == "FeatureCollection":
         features = data["features"]
@@ -194,7 +203,7 @@ def parse_geojson(
     Returns:
         list: List of cleaned coordinates as a single MultiLineString.
     """
-    _warn_deprecated_parameter("silent", silent)
+    warn_deprecated_parameter("silent", silent)
     single_multi_line = simplify_geojson(
         filename_in=filename_in,
         filename_out=None,

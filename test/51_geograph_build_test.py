@@ -141,7 +141,7 @@ _FILES = {
 def _build_tangled_lines_gpkg():
     """80 lines through 60 points, drawn at random with a fixed seed, as the
     bytes of a GeoPackage of sea lanes. The lines share points, so a node has
-    several arcs: the order in which a build writes them shows in the file."""
+    several edges: the order in which a build writes them shows in the file."""
     rng = random.Random(3)
     points = [[rng.uniform(0, 0.3), rng.uniform(0, 0.3)] for _ in range(60)]
     lines = [rng.sample(points, rng.randint(2, 6)) for _ in range(80)]
@@ -830,7 +830,7 @@ def test_a_network_built_twice_from_the_same_sources_is_the_same_file(
 
 
 # The pure-Python build and the C++ build give the same nodes, and the same
-# arcs with the same lengths. The order of the arcs of a node may differ.
+# edges with the same lengths. The order of the edges of a node may differ.
 @pytest.mark.parametrize("name, region", _NETWORKS_OF_BOTH_KINDS)
 def test_a_network_built_in_pure_python_is_the_same_graph(
     tmp_path, source, name, region
@@ -969,7 +969,7 @@ def test_list_buildable_geographs_matches_the_names_build_geograph_takes(
 # - Ferry 4 runs from 0.1 km off node 2 to 0.1 km off node 3 in 5.3 km. It is
 #   closed to cars.
 # - Ferry 5 ends 0.2 km from node 3 and starts at node 30, 3.6 km from the
-#   nearest road node. Its route is 4.2 km long.
+#   closest road node. Its route is 4.2 km long.
 # - Ferry 6 runs from 0.1 km off node 1 to 0.1 km off node 2 in 2.3 km. Road 1
 #   joins the same nodes in 1.1 km.
 # - Ferry 7 is a shuttle train for cars (`route=shuttle_train`, as in the
@@ -1057,8 +1057,8 @@ def _by_osm_ids(geograph, rows):
     }
 
 
-def test_a_car_ferry_joins_the_road_nodes_nearest_its_two_ends(strait_network):
-    arcs = _by_osm_ids(strait_network, strait_network.graph_object.graph)
+def test_a_car_ferry_joins_the_road_nodes_closest_its_two_ends(strait_network):
+    edges = _by_osm_ids(strait_network, strait_network.graph_object.graph)
     shapes = _by_osm_ids(strait_network, strait_network.intermediate_nodes)
 
     # From node 1: road 1 to node 2, then ferry 3. The ferry counts for the
@@ -1066,7 +1066,7 @@ def test_a_car_ferry_joins_the_road_nodes_nearest_its_two_ends(strait_network):
     # ferry 4, 5 or 6 by mistake would give another length. Ferry 4 is closed
     # to cars, and ferry 5 starts far from any road: both are shorter than
     # ferry 3. Ferry 6 is longer than road 1, which joins the same nodes.
-    assert arcs[(1, 3)] == pytest.approx(
+    assert edges[(1, 3)] == pytest.approx(
         _strait_km(1, 2) + _strait_km(10, 11, 3)
     )
     # After node 2, the drawing goes to the start of ferry 3, then along it.
@@ -1076,12 +1076,12 @@ def test_a_car_ferry_joins_the_road_nodes_nearest_its_two_ends(strait_network):
 def test_a_ferry_that_starts_inside_a_road_cuts_the_road_at_that_node(
     strait_network,
 ):
-    arcs = _by_osm_ids(strait_network, strait_network.graph_object.graph)
+    edges = _by_osm_ids(strait_network, strait_network.graph_object.graph)
 
     # Node 5 is a middle point of road 2 and the start of ferry 7. The ferry
-    # joins it to node 1, the road node nearest its other end.
-    assert arcs[(5, 1)] == pytest.approx(_strait_km(5, 50))
-    assert arcs[(3, 5)] == pytest.approx(_strait_km(3, 5))
+    # joins it to node 1, the road node closest its other end.
+    assert edges[(5, 1)] == pytest.approx(_strait_km(5, 50))
+    assert edges[(3, 5)] == pytest.approx(_strait_km(3, 5))
 
 
 # With a work folder, the build keeps the pieces of the ways in files and
@@ -1102,7 +1102,7 @@ def test_ferries_are_attached_the_same_way_with_a_work_folder(tmp_path):
 # The select functions of `geofabrik_multimodal` give the class of each way.
 # The fixture of that pipeline has no ferry. So this test runs the two steps
 # of a build that cut the ways of the strait and store them.
-def test_a_ferry_arc_and_a_shuttle_train_arc_have_their_own_classes(tmp_path):
+def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
     pytest.importorskip("osmium")
     strait_file = tmp_path / "strait.osm"
     strait_file.write_bytes(_FILES["/strait.osm"])
@@ -1120,11 +1120,11 @@ def test_a_ferry_arc_and_a_shuttle_train_arc_have_their_own_classes(tmp_path):
 
     ids, offsets = graph["node_ids"], graph["offsets"]
     class_names = {
-        (ids[u], ids[graph["heads"][arc]]): pipelines.CLASSES[
-            graph["arc_classes"][arc]
+        (ids[u], ids[graph["heads"][edge]]): pipelines.CLASSES[
+            graph["edge_classes"][edge]
         ]
         for u in range(len(ids))
-        for arc in range(offsets[u], offsets[u + 1])
+        for edge in range(offsets[u], offsets[u + 1])
     }
     # Road 1 joins the nodes 1 and 2. Ferry 3 joins the nodes 2 and 3. The
     # shuttle train 7 joins the nodes 5 and 1.
@@ -1183,7 +1183,7 @@ def coast_network(coast_cache):
 
 
 # The select functions of the pipeline of main roads give no class.
-def test_a_pipeline_whose_selects_give_no_class_builds_no_arc_classes(
+def test_a_pipeline_whose_selects_give_no_class_builds_no_edge_classes(
     tmp_path, source
 ):
     pytest.importorskip("osmium")
@@ -1193,7 +1193,7 @@ def test_a_pipeline_whose_selects_give_no_class_builds_no_arc_classes(
 
     arrays, metadata = network_file.read(path)
 
-    assert "arc_classes" not in arrays
+    assert "edge_classes" not in arrays
     assert "classes" not in metadata
 
 
@@ -1300,7 +1300,7 @@ def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
         # Roads: the main road in 2 pieces and the fragment. Railways: the line
         # in 2 pieces, the branch, the second track and the crossover.
         "read and cut the ways": {"pieces": 8},
-        "attach the ferries": {"arcs": 0},
+        "attach the ferries": {"edges": 0},
         # The 2 ends of the sea lane
         "read the sea lanes": {"nodes": 2},
         # 5 ports, 4 airports and 1 rail terminal. 5 of them reach two networks.
@@ -1311,20 +1311,20 @@ def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
             "rail_terminal": 1,
         },
         # 5 road nodes, 6 rail nodes, 2 sea nodes and 5 hubs. The road fragment
-        # of 2 nodes and 2 arcs is left out.
+        # of 2 nodes and 2 edges is left out.
         "keep the strongly connected components": {
             "nodes": 18,
-            "arcs": 38,
+            "edges": 38,
             "kept_nodes": 16,
-            "kept_arcs": 36,
+            "kept_edges": 36,
         },
         # Two rail nodes only join two tracks: the south end of the line and
         # the south end of the second track. Their chains are contracted.
         "contract the chains": {
             "nodes": 16,
-            "arcs": 36,
+            "edges": 36,
             "kept_nodes": 14,
-            "kept_arcs": 32,
+            "kept_edges": 32,
         },
     }
 
@@ -1364,7 +1364,8 @@ def _points_of(network, mode):
 
 # (0, 0) is a node of the road and of the railway branch in the OSM file. The two
 # networks must stay apart there: a route changes mode only at a hub. So each
-# network has its own node at (0, 0), and no arc joins a road node to a rail node.
+# network has its own node at (0, 0), and no edge joins a road node to a rail
+# node.
 def test_roads_and_railways_stay_apart_at_a_level_crossing(coast_network):
     modes = _mode_names(coast_network)
 
@@ -1372,8 +1373,8 @@ def test_roads_and_railways_stay_apart_at_a_level_crossing(coast_network):
     assert [0, 0] in _points_of(coast_network, "rail")
     assert not any(
         {modes[u], modes[v]} == {"road", "rail"}
-        for u, arcs in enumerate(coast_network.graph_object.graph)
-        for v in arcs
+        for u, edges in enumerate(coast_network.graph_object.graph)
+        for v in edges
     )
 
 
@@ -1398,8 +1399,8 @@ def test_each_hub_joins_the_modes_it_serves(coast_network):
     ids = list(coast_network.node_ids)
 
     reached = {
-        (modes[u], ids[u]): sorted({modes[v] for v in arcs})
-        for u, arcs in enumerate(coast_network.graph_object.graph)
+        (modes[u], ids[u]): sorted({modes[v] for v in edges})
+        for u, edges in enumerate(coast_network.graph_object.graph)
         if modes[u] in ("port", "airport", "rail_terminal")
     }
 
@@ -1421,7 +1422,7 @@ def test_each_hub_joins_the_modes_it_serves(coast_network):
 # The test reads the classes from the network file. The roads of the coast
 # are primary roads. Its railways have no `usage` tag, and its sea lane is
 # outside a passage.
-def test_each_arc_has_the_class_of_its_way_its_connector_or_its_flight(
+def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
     coast_cache,
 ):
     path = network_builder.build_network_file(
@@ -1434,11 +1435,11 @@ def test_each_arc_has_the_class_of_its_way_its_connector_or_its_flight(
     arrays, metadata = network_file.read(path)
 
     modes = [metadata["modes"][row]["name"] for row in arrays["node_modes"]]
-    classes = {}  # the modes of the two ends of an arc -> the classes found
+    classes = {}  # the modes of the two ends of an edge -> the classes found
     for u, mode in enumerate(modes):
-        for arc in range(arrays["offsets"][u], arrays["offsets"][u + 1]):
-            ends = tuple(sorted((mode, modes[arrays["heads"][arc]])))
-            class_name = metadata["classes"][arrays["arc_classes"][arc]]
+        for edge in range(arrays["offsets"][u], arrays["offsets"][u + 1]):
+            ends = tuple(sorted((mode, modes[arrays["heads"][edge]])))
+            class_name = metadata["classes"][arrays["edge_classes"][edge]]
             classes.setdefault(ends, set()).add(class_name)
     assert classes == {
         ("road", "road"): {"primary"},
@@ -1473,7 +1474,7 @@ def test_a_railway_line_takes_its_class_from_highspeed_then_from_usage(
     assert geofabrik_multimodal.select_rail_with_class(tags) == (0, class_name)
 
 
-def test_the_arcs_of_a_lane_of_a_passage_have_the_class_of_the_passage(
+def test_the_edges_of_a_lane_of_a_passage_have_the_class_of_the_passage(
     tmp_path,
 ):
     # Along longitude 32: a lane of the Suez Canal from latitude 30 to 31,
@@ -1487,11 +1488,11 @@ def test_the_arcs_of_a_lane_of_a_passage_have_the_class_of_the_passage(
 
     latitudes = [round(value * 1e-7) for value in sea["node_points"][0::2]]
     classes = {
-        (latitudes[u], latitudes[sea["heads"][arc]]): pipelines.CLASSES[
-            sea["arc_classes"][arc]
+        (latitudes[u], latitudes[sea["heads"][edge]]): pipelines.CLASSES[
+            sea["edge_classes"][edge]
         ]
         for u in range(len(latitudes))
-        for arc in range(sea["offsets"][u], sea["offsets"][u + 1])
+        for edge in range(sea["offsets"][u], sea["offsets"][u + 1])
     }
     assert classes == {
         (30, 31): "suez",

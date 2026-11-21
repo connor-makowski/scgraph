@@ -1,7 +1,7 @@
 """A small index of the nodes of a network by their position.
 
 A build asks "which nodes are near this point?" in two places. `step1_osm_ways` joins
-each end of a ferry to the nearest road node. `step2_hub_connectors` joins a hub to a
+each end of a ferry to the closest road node. `step2_hub_connectors` joins a hub to a
 node of a road or of a railway. `NearNodes` answers without one Python object per
 node, so it also serves the network of the world.
 """
@@ -70,10 +70,10 @@ class NearNodes:
                     if d <= km:
                         yield d, i
 
-    def find_nearest(
+    def find_closest(
         self, point: Sequence[float], km: float
     ) -> tuple[float, int | None]:
-        """Return `(km, node)` for the node nearest to `point` within `km`, or
+        """Return `(km, node)` for the node closest to `point` within `km`, or
         `(inf, None)` when there is none. When two nodes are as near, the lower one is
         returned.
         """

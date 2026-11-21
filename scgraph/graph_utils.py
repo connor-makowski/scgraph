@@ -1,3 +1,12 @@
+"""Helpers shared by `Graph`, `CHGraph` and `TNRGraph`.
+
+`GraphUtils` holds the graph and its inverse, checks the inputs of a search, rebuilds a
+path from its predecessors, validates a graph and keeps the cache of shortest path
+trees. `GraphModifiers` adds and removes nodes and edges (`add_node`, `add_edge`,
+`remove_node`, `remove_edge`). `normalize_node_input` turns an origin or a destination
+into a dict of node ids and distances.
+"""
+
 import threading
 from array import array
 from typing import Literal
@@ -40,8 +49,8 @@ class GraphUtils:
     def _csr(
         self, order: list[int] | None = None
     ) -> tuple[array, array, array]:
-        """The graph (unreduced) as arcs by origin: int32 offsets and heads, float64
-        weights, in the order in which searches visit the arcs (the C++ backend gives
+        """The graph (unreduced) as edges by origin: int32 offsets and heads, float64
+        weights, in the order in which searches visit the edges (the C++ backend gives
         views of its own arrays). With `order` (order[new] = old), the rows of the nodes
         in that order, their heads renumbered.
         """
@@ -166,9 +175,15 @@ class GraphUtils:
 
         - The total weight of the path as an int or float
         """
-        return sum(
-            self.__graph__[path[i]][path[i + 1]] for i in range(len(path) - 1)
-        )
+        total = 0
+        for origin, destination in zip(path, path[1:]):
+            try:
+                total += self.__graph__[origin][destination]
+            except KeyError:
+                raise ValueError(
+                    f"No edge from node {origin} to node {destination}"
+                ) from None
+        return total
 
     @staticmethod
     def __reconstruct_path__(
@@ -492,7 +507,7 @@ class GraphUtils:
 
         Returns:
 
-        - The adjacency dictionary for the specified node: the weight of each arc by the id of its destination node
+        - The adjacency dictionary for the specified node: the weight of each edge by the id of its destination node
         - Note: The pure-Python build returns the graph's own dictionary, with the weights as they were given; the C++ build returns a copy with float weights. Do not modify the result
 
         Raises:
@@ -519,7 +534,7 @@ class GraphModifiers:
 
         - `node_dict`:
             - Type: dict[int, int | float]
-            - What: Arcs leaving this node.
+            - What: Edges leaving this node.
                 - A dictionary where the keys are destination node ids and the values are the distances to those nodes
             - Default: An empty dictionary
         - `symmetric`:

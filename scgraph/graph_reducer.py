@@ -1,3 +1,86 @@
+"""Graph reduction: hide the pass-through nodes of a graph and search what is left.
+
+WHAT IT ANSWERS
+
+`reduce()` builds a smaller graph that gives the same shortest lengths. A pass-through
+node offers no choice. A shortest route that enters it has one way to leave it. A node
+is a pass-through node in two cases. In the first case, it has edges to exactly one
+other node, and edges from at least one node. In the second case, it has edges to
+exactly two other nodes, and every node with an edge into it is one of these two. An
+edge from a node to itself does not count. After `reduce()`, the decorator `algorithm`
+answers each query on the reduced graph and returns the path in the original graph.
+
+Example: this graph has six nodes, with edges both ways.
+    0-4: 2, 4-5: 3, 5-1: 4, 0-2: 6, 0-3: 6, 1-2: 6, 1-3: 6, 2-3: 6
+Nodes 4 and 5 have two neighbours each, so they are pass-through nodes. Nodes 0 to 3
+have three neighbours each, so they stay.
+
+HOW THE DATA IS STORED
+
+`is_reduced[u]` is True for a pass-through node, a "reduced" node. The other nodes are
+"kept". A chain is a group of reduced nodes joined by edges, and
+`reduced_node_chain_ids[u]` gives its number. A boundary node of a chain is a kept node
+with an edge to or from the chain. `reduced_graph[a][b]` is the length of the shortest
+route from node a to a kept node b whose inner nodes are all reduced. Node a is kept or
+reduced, so the row of a reduced node lists the boundary nodes that it leads to.
+`reduced_inverse_graph[b][a]` is the length of the same kind of route from a kept node
+a to node b. The original `graph` does not change.
+
+The hidden nodes of an edge of `reduced_graph` are the reduced nodes of its route.
+`__hidden_next__[x][b]` is the node after x on the route from x to b, and
+`__hidden_previous__[x][a]` is the node before x on the route from a to x.
+`reduced_graph_connections[a][b]` lists the hidden nodes of the edge from a to b. It is
+built from these pointers at its first read.
+
+Example: `is_reduced` is True for nodes 4 and 5 only, and they form chain 0.
+`reduced_graph[0]` is `{2: 6, 3: 6, 1: 9}`, and the edge from 0 to 1 hides `[4, 5]`.
+`reduced_graph[4]` is `{0: 2, 1: 7}`. `reduced_inverse_graph[5]` is `{0: 5, 1: 4}`.
+
+HOW A RUN GOES
+
+1. The first pass marks the pass-through nodes.
+2. Each later pass looks again at the kept nodes next to a reduced node. It counts as
+   neighbours the kept nodes that a node reaches through reduced nodes. With
+   `iterations=-1`, the default, the passes go on until one marks no new node.
+   `iterations=1` runs one pass.
+3. The reducer numbers the chains.
+4. A Dijkstra search from each kept node goes through reduced nodes and stops at kept
+   nodes. A second search on the reversed edges ends at each kept node. These searches
+   fill `reduced_graph`, `reduced_inverse_graph` and the pointers.
+
+Example of step 2: take the graph 0-1: 2, 1-2: 3, 2-3: 4, 0-3: 10, 0-4: 6, 4-3: 5,
+with edges both ways. The first pass reduces nodes 1, 2 and 4. Every route from node 0
+through reduced nodes then ends at node 3, so the second pass reduces node 0.
+
+`run_with_reduced` handles four cases.
+- An origin node and a destination node are in the same chain. `dijkstra_on_graph`
+  then searches the original graph, whatever the algorithm asked.
+- The origin is reduced. A search in one direction starts at it and reads its row of
+  `reduced_graph`. A bidirectional search starts instead from the boundary nodes in this
+  row, with their distances as start distances.
+- The destination is reduced. It is replaced by the boundary nodes of its row of
+  `reduced_inverse_graph`, with their distances as exit distances.
+- Both ends are kept. The search runs on the reduced graph as it is.
+`contraction_hierarchy` and `tnr` search their own hierarchy. `expand_path` then puts
+the hidden nodes back between each pair of nodes of the path. When the destination is
+reduced, the nodes from the last boundary node to the destination are added.
+
+Example: `dijkstra(origin_id=4, destination_id=1)` reads `reduced_graph[4]` and finds
+the path `[4, 1]` of length 7. `__hidden_next__[4][1]` is 5, so the result is
+`[4, 5, 1]`. From node 2 to node 5, the destination becomes `{0: 5, 1: 4}`. The search
+reaches node 1 at 6, for a total of 10, and the result is `[2, 1, 5]`.
+
+WHY THE RESULT IS RIGHT
+
+A route between two kept nodes splits at its kept nodes into pieces whose inner nodes
+are reduced. `reduced_graph` holds the shortest such piece between each pair of nodes,
+so a search on it finds the shortest length. The hidden nodes follow a shortest piece
+too, so the expanded path has this length. A start or an end inside a chain adds the
+exact length of a piece to a boundary node. Two nodes of one chain may be joined by a
+route that never leaves the chain, so this case searches the original graph. Example:
+the edge from 0 to 1 has the length 9 = 2 + 3 + 4 of the route 0, 4, 5, 1.
+"""
+
 import gc
 import inspect
 from collections.abc import Callable

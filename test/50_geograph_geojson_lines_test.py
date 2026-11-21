@@ -50,42 +50,44 @@ def _by_end_points(geograph, rows):
 
 
 @pytest.fixture(scope="module")
-def arcs(geograph):
-    """The length of each arc, by the points of its two ends."""
+def edges(geograph):
+    """The length of each edge, by the points of its two ends."""
     return _by_end_points(geograph, geograph.graph_object.graph)
 
 
-def test_two_lines_are_joined_at_a_point_that_both_have(arcs):
+def test_two_lines_are_joined_at_a_point_that_both_have(edges):
     # The branch line leaves from (0, 0.01), a point of the straight line.
-    # The straight line is cut there into two arcs.
-    arcs_at_shared_point = {arc for arc in arcs if arc[0] == (0, 0.01)}
+    # The straight line is cut there into two edges.
+    edges_at_shared_point = {edge for edge in edges if edge[0] == (0, 0.01)}
 
-    assert arcs_at_shared_point == {
+    assert edges_at_shared_point == {
         ((0, 0.01), (0, 0)),
         ((0, 0.01), (0, 0.02)),
         ((0, 0.01), (0.01, 0.01)),
     }
 
 
-def test_two_lines_that_cross_without_a_shared_point_are_not_joined(arcs):
+def test_two_lines_that_cross_without_a_shared_point_are_not_joined(edges):
     south_end, north_end = (-0.005, 0.015), (0.005, 0.015)
-    arcs_of_crossing_line = {
-        arc for arc in arcs if south_end in arc or north_end in arc
+    edges_of_crossing_line = {
+        edge for edge in edges if south_end in edge or north_end in edge
     }
 
-    assert arcs_of_crossing_line == {
+    assert edges_of_crossing_line == {
         (south_end, north_end),
         (north_end, south_end),
     }
 
 
-def test_a_long_line_is_cut_at_the_first_point_max_km_from_its_start(arcs):
+def test_a_long_line_is_cut_at_the_first_point_max_km_from_its_start(edges):
     # The bend is 1.2 km from the start: no cut. The next point is 2.4 km
     # from the start: the line is cut there. The end is 1.1 km further.
     points_of_long_line = (LONG_START, LONG_BEND, LONG_CUT, LONG_END)
-    arcs_of_long_line = {arc for arc in arcs if arc[0] in points_of_long_line}
+    edges_of_long_line = {
+        edge for edge in edges if edge[0] in points_of_long_line
+    }
 
-    assert arcs_of_long_line == {
+    assert edges_of_long_line == {
         (LONG_START, LONG_CUT),
         (LONG_CUT, LONG_START),
         (LONG_CUT, LONG_END),
@@ -93,12 +95,12 @@ def test_a_long_line_is_cut_at_the_first_point_max_km_from_its_start(arcs):
     }
 
 
-def test_an_arc_has_the_length_and_the_shape_of_its_line(geograph, arcs):
+def test_an_edge_has_the_length_and_the_shape_of_its_line(geograph, edges):
     shapes = _by_end_points(geograph, geograph.intermediate_nodes)
 
-    # The arc from the start of the long line to its cut passes the bend,
+    # The edge from the start of the long line to its cut passes the bend,
     # which lies north of the straight line between them.
-    assert arcs[(LONG_START, LONG_CUT)] == pytest.approx(
+    assert edges[(LONG_START, LONG_CUT)] == pytest.approx(
         great_circle_km(LONG_START, LONG_BEND)
         + great_circle_km(LONG_BEND, LONG_CUT)
     )

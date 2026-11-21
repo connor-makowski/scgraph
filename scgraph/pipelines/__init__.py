@@ -8,6 +8,15 @@ copy and adapt. The guide `README.md` of this package follows a network from its
 sources to its use: the build step by step, the derivation, the network release and the
 load.
 
+WHAT IS STABLE
+
+scgraph keeps these names working from one release to the next: the contract below,
+the three pipeline modules, `network_builder.build_network_file`,
+`derived_networks.derive_network_file`, and the names in the `__all__` of
+`steps.step1_osm_ways` and of `steps.step4_validation_cases`. The other functions of
+`steps` are internal. A copy of a pipeline of scgraph that calls them follows one
+version of scgraph.
+
 WHAT A PIPELINE MODULE HOLDS
 
 - Its docstring. The first paragraph describes the network, and
@@ -35,7 +44,7 @@ WHAT A PIPELINE MODULE HOLDS
       file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
       order). The weights are in km. `modes` is the modes table (see below).
       `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
-      `arc_classes`, the class of each arc (see *The classes*). The runner then
+      `edge_classes`, the class of each edge (see *The classes*). The runner then
       writes the names of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
@@ -47,7 +56,7 @@ WHAT A PIPELINE MODULE HOLDS
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
 
-The runner reads no other name. Names such as `MODES`, `MARGIN` or
+The runner reads no other name. Names such as `MODES`, `MARGIN_DEGREES` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.
 
 THE DOWNLOAD FUNCTIONS
@@ -75,7 +84,7 @@ with one mode gives `[{"name": None}]`.
 
 THE CLASSES
 
-The class of an arc is its category in the source: a motorway, a vehicle ferry, a
+The class of an edge is its category in the source: a motorway, a vehicle ferry, a
 main railway line, a sea passage. `CLASSES` holds the names of the classes:
 
 - roads: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
@@ -87,7 +96,7 @@ main railway line, a sea passage. `CLASSES` holds the names of the classes:
   and `suez`, and `sea_connector`;
 - `flight`.
 
-The purpose of a class is one speed for all its arcs. So the connectors of a hub have
+The purpose of a class is one speed for all its edges. So the connectors of a hub have
 classes of their own: a sea connector can be 2,500 km long. No class has the name of
 a mode.
 
@@ -96,7 +105,7 @@ returns the direction of a way: 1, -1 or 0. It may return a pair in its place: t
 direction and the name of a class, for example `(1, "motorway")`. A pipeline of your
 own uses the names of `CLASSES` only.
 
-A network file holds the class of each arc (`ARCHITECTURE.md`, section 7), and
+A network file holds the class of each edge (`ARCHITECTURE.md`, section 7), and
 `network_file.read` returns it. A GeoGraph does not hold the classes.
 
 HOW TO RUN A PIPELINE
@@ -111,7 +120,7 @@ network enters the cache only if it passes its cases.
 THE STEPS OF A BUILD
 
 A build runs steps, such as "read and cut the ways" or "contract the chains". Each
-step logs one line at DEBUG, with its counts and its duration (`utils._log_step`).
+step logs one line at DEBUG, with its counts and its duration (`_internal.log_step`).
 The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for
 each step:
 
@@ -121,7 +130,7 @@ each step:
    junctions and its own pieces, so a road never joins a railway. The function
    cuts each way at the junctions of its mode, and where a piece reaches
    `max_km_between_nodes`. It simplifies the shape of each piece to within 50 m. It
-   attaches the ferries to road nodes (`step1_osm_ways.build_ferry_arcs`).
+   attaches the ferries to road nodes (`step1_osm_ways.build_ferry_edges`).
 2. Join the modes. `step2_hub_connectors.join_networks_at_hubs` joins the networks of
    several modes at hubs: ports, airports and rail terminals. `step2_land_mask.LandMask` tells land
    from water for the connectors of a hub.
@@ -133,9 +142,9 @@ each step:
    file against the cases of `VALIDATION`.
 
 A graph has two layouts in the steps. From `step3_network_assembly.build_graph_from_pieces` on, a
-graph is a dict of the arrays of the network file. `step1_osm_ways.read_osm` and
-`step3_network_assembly.keep_largest_strongly_connected_component` use the layout of a GeoGraph,
-because `load_from_osm` calls them.
+graph is a dict of the arrays of the network file. `scgraph.helpers.osm.read_osm` and
+`scgraph.helpers.components.keep_largest_strongly_connected_component` use the layout of a
+GeoGraph, because `load_from_osm` calls them.
 
 WHAT THE NETWORK FILE RECORDS
 
@@ -163,8 +172,8 @@ the derivation.
 Two builds give the same file, byte for byte, when they have the same pipeline, the
 same sources, the same version of scgraph, the same backend, and the same platform
 with the same C library or macOS version. A test checks this. The C++ build and the
-pure-Python build give the same nodes, the same arcs and the same lengths. Two
-things may differ: the order of the arcs of a node, and the choice between two
+pure-Python build give the same nodes, the same edges and the same lengths. Two
+things may differ: the order of the edges of a node, and the choice between two
 routes of the same length. A test checks this with `eurostat_sea_lanes` and
 `geofabrik_multimodal`, on small inputs. Between two platforms, a few lengths or
 shape points may differ in the last bit, because the math libraries differ.
@@ -211,6 +220,7 @@ import it when they are called: `load_from_osm`, `build_geograph`,
 of a network release.
 """
 
+import importlib.metadata
 import inspect
 import logging
 import os
@@ -222,6 +232,8 @@ import requests
 from scgraph.utils import has_cpp
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["CLASSES", "NAMES", "download_file"]
 
 NAMES = (
     "eurostat_sea_lanes",
@@ -262,11 +274,11 @@ CLASSES = (
     "sea_connector",
     "flight",
 )
-# The row of each class: the value that `arc_classes` holds for an arc of the class
+# The row of each class: the value that `edge_classes` holds for an edge of the class
 CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
 # In bytes. A larger download is logged at WARNING, which shows without a logging
 # setup.
-LARGE_DOWNLOAD = 100e6
+LARGE_DOWNLOAD_BYTES = 100e6
 
 
 def build_metadata(
@@ -290,8 +302,12 @@ def build_metadata(
         A dict with `pipeline`, `sources` and `software`, and with `description` when
         one is given.
     """
-    from scgraph.geograph import GeoGraph
-
+    try:
+        scgraph_version = importlib.metadata.version("scgraph")
+    except (
+        importlib.metadata.PackageNotFoundError
+    ):  # run from a source tree that is not installed
+        scgraph_version = "unknown"
     libc = " ".join(platform.libc_ver()).strip()
     macos = platform.mac_ver()[0]
     system = f"macOS {macos}" if macos else libc
@@ -299,7 +315,7 @@ def build_metadata(
         "pipeline": {"name": name, "region": region, "version": version},
         "sources": sources,
         "software": {
-            "scgraph": GeoGraph._get_scgraph_version(),
+            "scgraph": scgraph_version,
             "backend": "cpp" if has_cpp() else "python",
             "platform": f"{sysconfig.get_platform()} {system}".strip(),
         },
@@ -313,7 +329,7 @@ def build_metadata(
 
 def download_file(url: str, filename: str | os.PathLike) -> None:
     """Download `url` to `filename`. The function first logs the size of the file: at
-    WARNING above `LARGE_DOWNLOAD`, at INFO below. When the server gives the size, it
+    WARNING above `LARGE_DOWNLOAD_BYTES`, at INFO below. When the server gives the size, it
     then logs at INFO the megabytes done at each tenth of the download.
 
     Raises:
@@ -323,7 +339,7 @@ def download_file(url: str, filename: str | os.PathLike) -> None:
         response.raise_for_status()
         size = int(response.headers.get("Content-Length", 0))
         logger.log(
-            logging.WARNING if size > LARGE_DOWNLOAD else logging.INFO,
+            logging.WARNING if size > LARGE_DOWNLOAD_BYTES else logging.INFO,
             "Downloading %s (%.1f MB)",
             url,
             size / 1e6,

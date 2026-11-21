@@ -234,7 +234,7 @@ def test_a_river_port_fails_when_no_node_is_near_the_port(two_towns):
 
     result = validate_network(two_towns, [a_case("river_ports", origin=port)])
 
-    assert result.failures[0]["error"] == "the nearest port node is 6.7 km away"
+    assert result.failures[0]["error"] == "the closest port node is 6.7 km away"
 
 
 # The tests of the hub rule use a network of eight nodes:
@@ -246,7 +246,7 @@ def test_a_river_port_fails_when_no_node_is_near_the_port(two_towns):
 # - Three airports. The flight from the west airport to the east airport is
 #   219 km long. The two flights through the middle airport add up to 312 km.
 #
-# A link is an arc in each direction, as long as the great circle between its
+# A link is an edge in each direction, as long as the great circle between its
 # two nodes.
 HUB_NODES = {
     "port": ("port", (0, 0)),

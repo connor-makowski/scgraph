@@ -12,8 +12,8 @@ from scgraph.helpers.hilbert import hilbert_order
 from scgraph.utils import has_cpp
 
 # The small network has four nodes, listed in Hilbert order. Node 0 has a
-# one-way arc to node 2 and a two-way arc with node 1, with an integer weight.
-# Node 3 has no arc. Only the arc from 0 to 1 has a shape.
+# one-way edge to node 2 and a two-way edge with node 1, with an integer weight.
+# Node 3 has no edge. Only the edge from 0 to 1 has a shape.
 SMALL_GRAPH = [{2: 1.25, 1: 5}, {0: 5}, {}, {}]
 SMALL_NODES = [[0.0, 0.0], [0.0, 0.01], [0.01, 0.0], [1.0, 1.0]]
 # In floating point, 0.0029 * 1e7 is just below 29000. A file that stores
@@ -44,7 +44,7 @@ def _small(node_ids=None):
 
 
 def _route_0_to_1(geograph):
-    # Through the arc 0 -> 1, which has a shape
+    # Through the edge 0 -> 1, which has a shape
     return geograph.get_shortest_path(
         origin_node={"latitude": 0, "longitude": 0},
         destination_node={"latitude": 0, "longitude": 0.01},
@@ -301,7 +301,7 @@ def test_a_file_loaded_on_one_mode_has_the_nodes_of_that_mode_only(
 
 def test_a_file_loaded_on_one_mode_routes_on_that_mode(road_and_sea_file):
     # The destination is a sea node of the file. On roads only, the route
-    # ends at the road node nearest to it, (0, 1).
+    # ends at the road node closest to it, (0, 1).
     roads = GeoGraph.load_from_scgraph(
         road_and_sea_file, lazy=True, modes="road"
     )
@@ -486,7 +486,7 @@ def test_a_route_on_a_loaded_network_passes_the_points_of_the_shapes(
                     {},
                 ]
             },
-            "arc 0 -> 1",
+            "edge 0 -> 1",
             id="a shape point",
         ),
     ],
@@ -554,7 +554,7 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
 
     info = GeoGraph.get_scgraph_info(path)
 
-    assert (info["nodes"], info["arcs"]) == (4, 3)
+    assert (info["nodes"], info["edges"]) == (4, 3)
     assert info["units"] == "mi"
     assert info["coordinate_dtype"] == "int32"
     assert info["shapes"] is True
@@ -583,8 +583,8 @@ def test_a_mode_must_name_a_source_of_the_metadata(tmp_path):
 
 # Four nodes: west, north, south and east. Two routes of the same length go
 # from west to east, through north or through south. The two graphs differ
-# only by the order in which the arcs of west and east are listed. A search
-# visits the arcs in that order, and a network file keeps it.
+# only by the order in which the edges of west and east are listed. A search
+# visits the edges in that order, and a network file keeps it.
 WEST_NORTH_SOUTH_EAST = [[0.0, 0.0], [0.01, 0.01], [-0.01, 0.01], [0.0, 0.02]]
 NORTH_LISTED_FIRST = [
     {1: 1.0, 2: 1.0},
@@ -628,22 +628,22 @@ def test_a_network_file_gives_the_route_of_the_graph_where_two_tie(
     assert _route_west_to_east(loaded) == _route_west_to_east(geograph)
 
 
-# A file says `symmetric` when each arc has a reverse arc of its weight. In
-# the one-way cycle, each node has one arc out and one arc in, and no arc has
-# a reverse arc. In the last graph, node 0 has arcs to 2 and 3 and arcs back
-# from 1, 2 and 3: the arc from 1 to 0 has no reverse arc.
+# A file says `symmetric` when each edge has a reverse edge of its weight. In
+# the one-way cycle, each node has one edge out and one edge in, and no edge has
+# a reverse edge. In the last graph, node 0 has edges to 2 and 3 and edges back
+# from 1, 2 and 3: the edge from 1 to 0 has no reverse edge.
 @pytest.mark.parametrize(
     "graph, symmetric",
     [
         pytest.param(
             [{1: 1.0, 2: 1.0}, {0: 1.0}, {0: 1.0}],
             True,
-            id="each arc has a reverse arc of its weight",
+            id="each edge has a reverse edge of its weight",
         ),
         pytest.param(
             [{1: 2.0}, {0: 3.0}],
             False,
-            id="a reverse arc has another weight",
+            id="a reverse edge has another weight",
         ),
         pytest.param(
             [{1: 1.0}, {2: 1.0}, {0: 1.0}], False, id="a one-way cycle"
@@ -651,7 +651,7 @@ def test_a_network_file_gives_the_route_of_the_graph_where_two_tie(
         pytest.param(
             [{2: 1.0, 3: 1.0}, {0: 1.0}, {0: 1.0}, {0: 1.0}],
             False,
-            id="one arc to a hub has no reverse arc",
+            id="one edge to a hub has no reverse edge",
         ),
     ],
 )
@@ -665,7 +665,7 @@ def test_a_file_says_whether_its_graph_is_symmetric(tmp_path, graph, symmetric):
 
 # The tests below write a file from arrays with `network_file.write`, as a
 # pipeline does. This is the way to write a file that `save_as_scgraph` would
-# never write. The arcs are stored by origin: the arcs of node u go to
+# never write. The edges are stored by origin: the edges of node u go to
 # heads[offsets[u]:offsets[u + 1]].
 ROAD_AND_PORT = [
     {"name": "road", "source": "roads"},
@@ -675,7 +675,7 @@ ROAD_AND_PORT = [
 
 def _two_road_nodes_and_a_port():
     """The arrays of a network of three nodes: two road nodes joined both
-    ways, and a port without arcs. The first node id is beyond 32 bits."""
+    ways, and a port without edges. The first node id is beyond 32 bits."""
     return {
         "offsets": array("i", [0, 1, 2, 2]),
         "heads": array("i", [1, 0]),
@@ -735,9 +735,9 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
             id="node points and shape points of two dtypes",
         ),
         pytest.param(
-            {"arc_classes": array("B", [0])},
-            "one arc class per arc",
-            id="fewer arc classes than arcs",
+            {"edge_classes": array("B", [0])},
+            "one edge class per edge",
+            id="fewer edge classes than edges",
         ),
     ],
 )
@@ -753,13 +753,13 @@ def test_a_file_whose_arrays_do_not_fit_together_is_refused(
 
 
 # A value of `node_modes` is a row of the list `modes` of the metadata, and a
-# value of `arc_classes` is a row of the list `classes`.
+# value of `edge_classes` is a row of the list `classes`.
 @pytest.mark.parametrize("missing_list", ["modes", "classes"])
 def test_a_file_with_rows_and_without_their_list_is_refused(
     tmp_path, missing_list
 ):
     path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port() | {"arc_classes": array("B", [0, 0])}
+    arrays = _two_road_nodes_and_a_port() | {"edge_classes": array("B", [0, 0])}
     metadata = {"modes": ROAD_AND_PORT, "classes": ["motorway"]}
     del metadata[missing_list]
     network_file.write(path, arrays, metadata)
@@ -771,7 +771,7 @@ def test_a_file_with_rows_and_without_their_list_is_refused(
 # `load_from_scgraph(modes=...)` loads the nodes of some modes only. It finds
 # them without reading the whole file, so the file must list its nodes mode by
 # mode. It checks the arrays that it reads on the way. The file names one
-# class, so the only row of an arc class is 0. The case of an arc class beyond
+# class, so the only row of an edge class is 0. The case of an edge class beyond
 # the list is here, because a mapped read of the whole file does not check the
 # values of an array.
 @pytest.mark.parametrize(
@@ -799,13 +799,13 @@ def test_a_file_with_rows_and_without_their_list_is_refused(
         ),
         pytest.param(
             {"heads": array("i", [-1, 0])},
-            "arc to a missing node",
-            id="an arc to a node that does not exist",
+            "edge to a missing node",
+            id="an edge to a node that does not exist",
         ),
         pytest.param(
             {"heads": array("i", [1, 3])},
-            "arc to a missing node",
-            id="an arc to a node after the last node",
+            "edge to a missing node",
+            id="an edge to a node after the last node",
         ),
         pytest.param(
             {
@@ -817,8 +817,8 @@ def test_a_file_with_rows_and_without_their_list_is_refused(
         ),
         pytest.param(
             {
-                # The second arc now goes to the port: a load of the road
-                # reads the shape offsets of the first arc only.
+                # The second edge now goes to the port: a load of the road
+                # reads the shape offsets of the first edge only.
                 "heads": array("i", [1, 2]),
                 "shape_offsets": array("i", [0, 2, 1]),
                 "shape_points": array("d", [0.0, 0.0]),
@@ -827,9 +827,9 @@ def test_a_file_with_rows_and_without_their_list_is_refused(
             id="a shape that ends after the last shape point",
         ),
         pytest.param(
-            {"arc_classes": array("B", [0, 1])},
-            "invalid arc classes",
-            id="an arc class beyond the list of classes",
+            {"edge_classes": array("B", [0, 1])},
+            "invalid edge classes",
+            id="an edge class beyond the list of classes",
         ),
     ],
 )
@@ -855,24 +855,24 @@ def test_loading_a_mode_that_the_file_does_not_have_is_refused(tmp_path):
         GeoGraph.load_from_scgraph(path, modes=["rail"])
 
 
-ARC_CLASS_NAMES = ["connector", "motorway", "primary", "lane", "strait"]
+EDGE_CLASS_NAMES = ["connector", "motorway", "primary", "lane", "strait"]
 
 
 def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
     """Write a file of five nodes, listed mode by mode: the road nodes 10 and
     11, the port 20, the sea nodes 30 and 31. A node has its id as latitude
     and minus its id as longitude, stored as they are in `coordinate_typecode`
-    ("d" for float64, "i" for int32). The arcs, by origin:
+    ("d" for float64, "i" for int32). The edges, by origin:
 
         10 -> 11 (1 km)    11 -> 10 (1.5 km)    11 -> 20 (2 km)
         20 -> 30 (3 km)    30 -> 31 (4 km)      31 -> 20 (5 km)
         31 -> 30 (6 km)
 
-    The shape of an arc repeats the point (origin id, destination id): once
+    The shape of an edge repeats the point (origin id, destination id): once
     from 10 and 31, twice from 11 and 20, never from 30.
 
-    Each arc has a class, a row of ARC_CLASS_NAMES. The four arcs between two
-    road nodes or two sea nodes have a class each. The three arcs of the port
+    Each edge has a class, a row of EDGE_CLASS_NAMES. The four edges between two
+    road nodes or two sea nodes have a class each. The three edges of the port
     are connectors.
     """
     arrays = {
@@ -895,36 +895,36 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
             + [31, 20]
             + [31, 30],
         ),
-        "arc_classes": array("B", [1, 2, 0, 0, 3, 0, 4]),
+        "edge_classes": array("B", [1, 2, 0, 0, 3, 0, 4]),
     }
     if not with_node_ids:
         del arrays["node_ids"]
     names = [{"name": name} for name in ("road", "port", "sea")]
     network_file.write(
-        path, arrays, {"modes": names, "classes": ARC_CLASS_NAMES}
+        path, arrays, {"modes": names, "classes": EDGE_CLASS_NAMES}
     )
 
 
-# `network_file.read` gives the class of each arc, with the list of the names
+# `network_file.read` gives the class of each edge, with the list of the names
 # of the classes.
-def test_a_file_written_with_arc_classes_is_read_back_with_them(tmp_path):
+def test_a_file_written_with_edge_classes_is_read_back_with_them(tmp_path):
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
     arrays, metadata = network_file.read(path)
 
-    assert list(arrays["arc_classes"]) == [1, 2, 0, 0, 3, 0, 4]
-    assert metadata["classes"] == ARC_CLASS_NAMES
+    assert list(arrays["edge_classes"]) == [1, 2, 0, 0, 3, 0, 4]
+    assert metadata["classes"] == EDGE_CLASS_NAMES
 
 
-def test_reading_some_modes_keeps_the_class_of_each_kept_arc(tmp_path):
+def test_reading_some_modes_keeps_the_class_of_each_kept_edge(tmp_path):
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
     arrays, _ = network_file.read(path, modes=["road", "sea"])
 
-    # The kept arcs are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30.
-    assert list(arrays["arc_classes"]) == [1, 2, 3, 4]
+    # The kept edges are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30.
+    assert list(arrays["edge_classes"]) == [1, 2, 3, 4]
 
 
 def test_a_geograph_loaded_from_a_file_with_classes_is_saved_without_them(
@@ -938,11 +938,11 @@ def test_a_geograph_loaded_from_a_file_with_classes_is_saved_without_them(
     GeoGraph.load_from_scgraph(path).save_as_scgraph(saved_path)
 
     arrays, metadata = network_file.read(saved_path)
-    assert "arc_classes" not in arrays
+    assert "edge_classes" not in arrays
     assert "classes" not in metadata
 
 
-def test_loading_one_mode_gives_its_nodes_and_the_arcs_between_them(tmp_path):
+def test_loading_one_mode_gives_its_nodes_and_the_edges_between_them(tmp_path):
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
@@ -951,7 +951,7 @@ def test_loading_one_mode_gives_its_nodes_and_the_arcs_between_them(tmp_path):
     assert list(roads.node_ids) == [10, 11]
     assert roads.nodes == [[10, -10], [11, -11]]
     assert list(roads.node_modes) == [0, 0]
-    # The arc from 11 to the port is left out
+    # The edge from 11 to the port is left out
     assert roads.graph_object.graph == [{1: 1.0}, {0: 1.5}]
     assert [dict(shapes) for shapes in roads.intermediate_nodes] == [
         {1: [[10, 11]]},
@@ -972,7 +972,7 @@ def test_loading_two_modes_gives_their_nodes_in_the_order_of_the_file(
     assert geograph.nodes == [[10, -10], [11, -11], [30, -30], [31, -31]]
     assert list(geograph.node_modes) == [0, 0, 2, 2]
     # Without the port, the sea nodes move from the positions 3 and 4 to the
-    # positions 2 and 3. The arcs 11 -> 20 and 31 -> 20 are left out.
+    # positions 2 and 3. The edges 11 -> 20 and 31 -> 20 are left out.
     assert geograph.graph_object.graph == [
         {1: 1.0},
         {0: 1.5},
@@ -1306,17 +1306,17 @@ def _put_the_header_in_a_json_list(data):
     return _replace_header(data, [_read_header(data)])
 
 
-def _point_an_arc_to_a_node_that_does_not_exist(data):
+def _point_an_edge_to_a_node_that_does_not_exist(data):
     return _replace_int32(data, "heads", 0, 99)
 
 
-def _set_an_offset_past_the_arcs(data):
+def _set_an_offset_past_the_edges(data):
     return _replace_int32(data, "offsets", 1, 2**30)
 
 
 # A damaged file must be refused with a message that names the damage. It
 # must not be read as a wrong network. The last two damages are in the arrays
-# of the arcs: the C++ graph, which reads the file in place, finds them with
+# of the edges: the C++ graph, which reads the file in place, finds them with
 # its own message.
 @pytest.mark.parametrize(
     "damage, message",
@@ -1330,10 +1330,10 @@ def _set_an_offset_past_the_arcs(data):
         (_remove_the_list_of_arrays, "invalid header"),
         (_put_the_header_in_a_json_list, "invalid header"),
         (
-            _point_an_arc_to_a_node_that_does_not_exist,
-            "arc to a missing node|is not in the graph",
+            _point_an_edge_to_a_node_that_does_not_exist,
+            "edge to a missing node|is not in the graph",
         ),
-        (_set_an_offset_past_the_arcs, "invalid offsets|non-decreasing"),
+        (_set_an_offset_past_the_edges, "invalid offsets|non-decreasing"),
     ],
 )
 def test_a_damaged_file_is_refused(file_to_damage, damage, message):

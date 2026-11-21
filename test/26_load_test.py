@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import requests
 
-from scgraph import GeoGraph, geograph
+from scgraph import GeoGraph
 
 
 def test_list_geographs_returns_list():
@@ -148,7 +149,7 @@ def test_a_download_that_fails_while_written_leaves_nothing_in_the_cache(
             b'{"type": "GeoGraph"' + b" " * 1000,
         )
 
-    monkeypatch.setattr(geograph.requests, "get", lambda *a, **k: Response())
+    monkeypatch.setattr(requests, "get", lambda *a, **k: Response())
     soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_FSIZE)
     resource.setrlimit(resource.RLIMIT_FSIZE, (500, hard_limit))
     try:
@@ -252,7 +253,7 @@ def requested(monkeypatch):
 
     urls = []
     monkeypatch.setattr(
-        geograph.requests,
+        requests,
         "get",
         lambda url, **kwargs: urls.append(url) or OneNodeGeograph(),
     )
@@ -318,7 +319,7 @@ def test_list_geographs_reads_contents_txt_of_another_url(
 
     requested = []
     monkeypatch.setattr(
-        geograph.requests,
+        requests,
         "get",
         lambda url, **kwargs: requested.append(url) or ContentsTxt(),
     )
@@ -393,7 +394,7 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         ("built", "geofabrik_multimodal", "europe/france", "f.scgraph", 40),
         ("building", "geofabrik_multimodal", None, "geofabrik_multimodal", 50),
     ]
-    assert info[2]["version"] == "networks-1"
+    assert info[2]["network_release"] == "networks-1"
     # Versions read from the file; None for a file that can't be read
     assert (info[4]["pipeline_version"], info[4]["scgraph"]) == (3, "9.9")
     assert (info[5]["pipeline_version"], info[5]["scgraph"]) == (None, None)

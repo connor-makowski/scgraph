@@ -16,9 +16,10 @@
       "Read(./README.md)",
       "Edit(./README.md)",
       "Write(./README.md)",
-      "Bash(./run.sh test)",
-      "Bash(./run.sh test test/*.py)",
-      "Bash(./run.sh prettify)",
+      "Bash(uv run pytest)",
+      "Bash(uv run pytest test/*.py)",
+      "Bash(uv run utils/prettify.py)",
+      "Bash(uv run nox -s lint)",
       "Read(./.claude/**)",
       "Edit(./.claude/CLAUDE.md)",
       "Write(./.claude/CLAUDE.md)"

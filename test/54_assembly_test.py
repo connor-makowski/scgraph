@@ -25,38 +25,38 @@ both_backends = pytest.mark.parametrize(
 BIG = 2**40  # an id beyond 32 bits
 
 
-# Arcs between source ids, as (origin, destination, weight). The id 5 is on a
+# Edges between source ids, as (origin, destination, weight). The id 5 is on a
 # self-loop only, and -7 is a destination only.
-ARCS_WITH_PARALLELS_AND_LOOPS = [
+EDGES_WITH_PARALLELS_AND_LOOPS = [
     (BIG, 10, 2.0),
     (10, BIG, 1.0),
-    (BIG, 10, 1.5),  # shorter than arc 0
+    (BIG, 10, 1.5),  # shorter than edge 0
     (5, 5, 1.0),
-    (BIG, 10, 1.5),  # as short as arc 2
+    (BIG, 10, 1.5),  # as short as edge 2
     (BIG, -7, 4.0),
     (20, BIG, 3.0),
     (BIG, 20, 0.5),
-    (20, BIG, 3.5),  # longer than arc 6
-    (10, 10, 0.5),  # a self-loop on a node that has other arcs
+    (20, BIG, 3.5),  # longer than edge 6
+    (10, 10, 0.5),  # a self-loop on a node that has other edges
 ]
 
 
-def _columns(arcs):
-    """The origins, the destinations and the weights of `arcs`, as the three
-    arrays that `build_csr_from_arcs` takes."""
+def _columns(edges):
+    """The origins, the destinations and the weights of `edges`, as the three
+    arrays that `build_csr_from_edges` takes."""
     origins, destinations, weights = (
-        [arc[k] for arc in arcs] for k in range(3)
+        [edge[k] for edge in edges] for k in range(3)
     )
     return array("q", origins), array("q", destinations), array("d", weights)
 
 
-# The result of `build_csr_from_arcs` is (node ids, offsets, heads, weights,
+# The result of `build_csr_from_edges` is (node ids, offsets, heads, weights,
 # kept). The ids are sorted: 5 is not among them. The rows are those of -7 (no
-# arc), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each sorted by
-# destination. `kept` gives the input index of each stored arc. From BIG to
-# 10, arc 2 is kept: arc 0 is longer, and arc 4 is as short but comes later.
-# From 20 to BIG, arc 6 is kept.
-CSR_OF_THE_SHORTEST_ARCS = (
+# edge), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each sorted by
+# destination. `kept` gives the input index of each stored edge. From BIG to
+# 10, edge 2 is kept: edge 0 is longer, and edge 4 is as short but comes later.
+# From 20 to BIG, edge 6 is kept.
+CSR_OF_THE_SHORTEST_EDGES = (
     [-7, 10, 20, BIG],
     [0, 0, 1, 2, 5],
     [3, 3, 0, 1, 2],
@@ -67,24 +67,26 @@ CSR_OF_THE_SHORTEST_ARCS = (
 
 @both_backends
 @pytest.mark.parametrize(
-    "arcs, csr",
+    "edges, csr",
     [
         pytest.param(
-            ARCS_WITH_PARALLELS_AND_LOOPS,
-            CSR_OF_THE_SHORTEST_ARCS,
-            id="parallel arcs and self-loops",
+            EDGES_WITH_PARALLELS_AND_LOOPS,
+            CSR_OF_THE_SHORTEST_EDGES,
+            id="parallel edges and self-loops",
         ),
-        pytest.param([], ([], [0], [], [], []), id="no arcs"),
+        pytest.param([], ([], [0], [], [], []), id="no edges"),
     ],
 )
-def test_csr_from_arcs_stores_the_shortest_arcs_by_origin(backend, arcs, csr):
-    result = backend.build_csr_from_arcs(*_columns(arcs))
+def test_csr_from_edges_stores_the_shortest_edges_by_origin(
+    backend, edges, csr
+):
+    result = backend.build_csr_from_edges(*_columns(edges))
 
     assert tuple(map(list, result)) == csr
 
 
-def _random_arcs(seed):
-    # Few ids, so many self-loops and parallel arcs; integer weights, so ties
+def _random_edges(seed):
+    # Few ids, so many self-loops and parallel edges; integer weights, so ties
     rng = random.Random(seed)
     ids = [rng.randrange(-(2**62), 2**62) for _ in range(300)]
     return [
@@ -93,28 +95,28 @@ def _random_arcs(seed):
     ]
 
 
-# The expected arcs are found another way: the arcs that are not self-loops
-# are sorted by origin, destination, weight and input index. The first arc of
-# each pair (origin, destination) is then its shortest arc, and the first in
+# The expected edges are found another way: the edges that are not self-loops
+# are sorted by origin, destination, weight and input index. The first edge of
+# each pair (origin, destination) is then its shortest edge, and the first in
 # the input among equals.
 @both_backends
 @pytest.mark.parametrize("seed", range(3))
-def test_csr_from_random_arcs_keeps_the_first_shortest_arc_of_each_pair(
+def test_csr_from_random_edges_keeps_the_first_shortest_edge_of_each_pair(
     backend, seed
 ):
-    arcs = _random_arcs(seed)
-    sorted_arcs = sorted(
+    edges = _random_edges(seed)
+    sorted_edges = sorted(
         (origin, destination, weight, i)
-        for i, (origin, destination, weight) in enumerate(arcs)
+        for i, (origin, destination, weight) in enumerate(edges)
         if origin != destination
     )
     expected = [
-        next(arcs_of_pair)
-        for _pair, arcs_of_pair in groupby(sorted_arcs, lambda arc: arc[:2])
+        next(edges_of_pair)
+        for _pair, edges_of_pair in groupby(sorted_edges, lambda edge: edge[:2])
     ]
 
-    node_ids, offsets, heads, weights, kept = backend.build_csr_from_arcs(
-        *_columns(arcs)
+    node_ids, offsets, heads, weights, kept = backend.build_csr_from_edges(
+        *_columns(edges)
     )
 
     assert list(kept) == [i for _, _, _, i in expected]
@@ -166,7 +168,7 @@ def test_strongly_connected_components_groups_nodes_that_reach_each_other(
         heads.extend(row)
         offsets.append(len(heads))
     labels, sizes = map(
-        list, backend.strongly_connected_components(offsets, heads)
+        list, backend.find_strongly_connected_components(offsets, heads)
     )
     reach = [_reachable(rows, u) for u in range(len(rows))]
     assert all(
@@ -179,10 +181,10 @@ def test_strongly_connected_components_groups_nodes_that_reach_each_other(
     assert sizes == [labels.count(label) for label in range(len(sizes))]
 
 
-# A graph of 6 nodes in three components. Node 0 is alone: its one arc goes
+# A graph of 6 nodes in three components. Node 0 is alone: its one edge goes
 # to node 1, and none comes back. Nodes 1, 2 and 3 are joined both ways (1-2
-# and 2-3). Nodes 4 and 5 are joined both ways. The arcs are stored by origin:
-# the arcs of node u are HEADS[OFFSETS[u]:OFFSETS[u + 1]].
+# and 2-3). Nodes 4 and 5 are joined both ways. The edges are stored by origin:
+# the edges of node u are HEADS[OFFSETS[u]:OFFSETS[u + 1]].
 OFFSETS = array("i", [0, 1, 2, 4, 5, 6, 7])
 HEADS = array("i", [1, 2, 1, 3, 2, 5, 4])
 
@@ -248,24 +250,24 @@ def test_near_nodes_finds_every_node_within_a_distance(centre, km):
 
 
 @around_special_places
-def test_near_nodes_finds_the_nearest_node(centre):
+def test_near_nodes_finds_the_closest_node(centre):
     latitudes, longitudes = _scatter_nodes_around(centre)
-    nearest_km, nearest_node = min(
+    closest_km, closest_node = min(
         (great_circle_km(centre, [latitudes[i], longitudes[i]]), i)
         for i in range(len(latitudes))
     )
 
-    km, node = NearNodes(latitudes, longitudes).find_nearest(list(centre), 500)
+    km, node = NearNodes(latitudes, longitudes).find_closest(list(centre), 500)
 
-    assert node == nearest_node
-    assert km == pytest.approx(nearest_km)
+    assert node == closest_node
+    assert km == pytest.approx(closest_km)
 
 
-def test_near_nodes_finds_no_nearest_node_beyond_the_distance():
+def test_near_nodes_finds_no_closest_node_beyond_the_distance():
     # One node, one degree of latitude north of the point: 111 km away
     near_nodes = NearNodes(array("d", [1.0]), array("d", [0.0]))
 
-    assert near_nodes.find_nearest([0.0, 0.0], 100) == (math.inf, None)
+    assert near_nodes.find_closest([0.0, 0.0], 100) == (math.inf, None)
 
 
 # Four pieces of ways between five places, given by their source ids. A piece
@@ -282,23 +284,23 @@ POINTS_FROM_1_TO_2 = [[0.003, 0.003], [0.004, 0.006]]
 POINTS_FROM_2_TO_3 = [[0.003, 0.013], [0.004, 0.016]]
 
 
-def _by_node_ids(arrays, value_of_arc):
-    """One value per arc of the network arrays, as a dict. Its keys are the
+def _by_node_ids(arrays, value_of_edge):
+    """One value per edge of the network arrays, as a dict. Its keys are the
     pairs (id of the origin, id of the destination)."""
     ids, offsets, heads = (
         arrays[name] for name in ("node_ids", "offsets", "heads")
     )
     return {
-        (ids[u], ids[heads[arc]]): value_of_arc(arc)
+        (ids[u], ids[heads[edge]]): value_of_edge(edge)
         for u in range(len(ids))
-        for arc in range(offsets[u], offsets[u + 1])
+        for edge in range(offsets[u], offsets[u + 1])
     }
 
 
 @pytest.fixture(scope="module")
 def assembled(tmp_path_factory):
     """The arrays of the network built from the four pieces. The arguments
-    keep every component, even of one node, and cut no arc: no chain reaches
+    keep every component, even of one node, and cut no edge: no chain reaches
     100 km."""
     pieces = step3_network_assembly.PieceArrays(
         work_dir=tmp_path_factory.mktemp("pieces")
@@ -325,25 +327,27 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
     assembled,
 ):
     # The piece from 3 to 4 joins two components one way only: it is left
-    # out. Place 2 is between 1 and 3 only: it is contracted. The arc from 1
+    # out. Place 2 is between 1 and 3 only: it is contracted. The edge from 1
     # to 3 has the length of the two pieces, 1 km + 2 km.
-    arcs = _by_node_ids(assembled, lambda arc: assembled["weights"][arc])
+    edges = _by_node_ids(assembled, lambda edge: assembled["weights"][edge])
 
-    assert arcs == {(1, 3): 3.0, (3, 1): 3.0, (4, 5): 4.0, (5, 4): 4.0}
+    assert edges == {(1, 3): 3.0, (3, 1): 3.0, (4, 5): 4.0, (5, 4): 4.0}
 
 
-def _shape_points(arrays, arc):
-    """The points of the shape of `arc`, as (latitude, longitude) pairs in
+def _shape_points(arrays, edge):
+    """The points of the shape of `edge`, as (latitude, longitude) pairs in
     units of 1e-7 degree, the units of the network arrays."""
     points, starts = arrays["shape_points"], arrays["shape_offsets"]
-    flat = points[2 * starts[arc] : 2 * starts[arc + 1]]
+    flat = points[2 * starts[edge] : 2 * starts[edge + 1]]
     return list(zip(flat[0::2], flat[1::2]))
 
 
-def test_the_shape_of_a_contracted_arc_passes_through_the_contracted_node(
+def test_the_shape_of_a_contracted_edge_passes_through_the_contracted_node(
     assembled,
 ):
-    shapes = _by_node_ids(assembled, lambda arc: _shape_points(assembled, arc))
+    shapes = _by_node_ids(
+        assembled, lambda edge: _shape_points(assembled, edge)
+    )
 
     # The points of piece 1-2, then place 2, then the points of piece 2-3
     points_from_1_to_3 = [
@@ -354,11 +358,11 @@ def test_the_shape_of_a_contracted_arc_passes_through_the_contracted_node(
         (40000, 160000),
     ]
     assert shapes[1, 3] == points_from_1_to_3
-    # The reverse arc lists the same points from its own origin
+    # The reverse edge lists the same points from its own origin
     assert shapes[3, 1] == points_from_1_to_3[::-1]
 
 
-def test_an_assembled_arc_has_the_class_of_its_pieces(tmp_path):
+def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
     # The road 1-2-3-4 has pieces of 1 km, both ways. It is a primary road up
     # to place 3, then a trunk road. A class is a row of the classes table.
     primary, trunk = 5, 3
@@ -374,8 +378,8 @@ def test_an_assembled_arc_has_the_class_of_its_pieces(tmp_path):
         min_component_nodes=1,
     )
 
-    # Place 2 is contracted. Place 3 stays, and each arc has its class.
-    class_rows = _by_node_ids(arrays, lambda arc: arrays["arc_classes"][arc])
+    # Place 2 is contracted. Place 3 stays, and each edge has its class.
+    class_rows = _by_node_ids(arrays, lambda edge: arrays["edge_classes"][edge])
     assert class_rows == {
         (1, 3): primary,
         (3, 1): primary,
@@ -411,10 +415,11 @@ def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
 
 
 def _csr(one_way=(), two_way=()):
-    # (origin, destination, km) arcs, two_way ones in both directions, by origin
-    arcs = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]
-    columns = (array(t, c) for t, c in zip("qqd", zip(*arcs)))
-    return step3_network_assembly.python.build_csr_from_arcs(*columns)[1:4]
+    # (origin, destination, km) edges, two_way ones in both directions, by
+    # origin
+    edges = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]
+    columns = (array(t, c) for t, c in zip("qqd", zip(*edges)))
+    return step3_network_assembly.python.build_csr_from_edges(*columns)[1:4]
 
 
 def _two_way(*pairs):
@@ -423,7 +428,7 @@ def _two_way(*pairs):
 
 # Each case below is the four arguments of `contract_chains`: a graph as
 # (offsets, heads, km), the mode of each node or None, the length at which a
-# chain is cut, and the class of each arc or None. The arcs are 1 km long.
+# chain is cut, and the class of each edge or None. The edges are 1 km long.
 
 # Node 2 is between 1 and 3. Node 4 is a dead end off node 1.
 ROAD_WITH_A_DEAD_END = (
@@ -432,7 +437,7 @@ ROAD_WITH_A_DEAD_END = (
     math.inf,
     None,
 )
-# The chains 0-1-3 and 0-2-3 would give two arcs from 0 to 3. The first one
+# The chains 0-1-3 and 0-2-3 would give two edges from 0 to 3. The first one
 # contracts node 1. The second one keeps its middle node, 2.
 TWO_CHAINS_BETWEEN_THE_SAME_NODES = (
     _two_way((0, 1), (1, 3), (0, 2), (2, 3)),
@@ -440,7 +445,7 @@ TWO_CHAINS_BETWEEN_THE_SAME_NODES = (
     math.inf,
     None,
 )
-# The loop 0 -> 1 -> 2 -> 3 -> 0 would give an arc from 0 to 0. It keeps its
+# The loop 0 -> 1 -> 2 -> 3 -> 0 would give an edge from 0 to 0. It keeps its
 # middle node, 2.
 ONE_WAY_LOOP_OFF_A_ROAD = (
     _csr(
@@ -486,11 +491,11 @@ ONE_WAY_ROAD_OF_TWO_CLASSES = (
     math.inf,
     array("B", [0, 0, 1, 1]),
 )
-# The arcs of the road 0-1-2-3-4 are listed by origin, then by head: 0-1, 1-0,
-# 1-2, 2-1, 2-3, 3-2, 3-4, 4-3. Only the arc from 2 to 1 has the class 1. Arcs
-# of two classes enter node 1, and arcs of two classes leave node 2. The four
-# arcs of node 3 have the class 0.
-ROAD_WITH_ONE_ARC_OF_ANOTHER_CLASS = (
+# The edges of the road 0-1-2-3-4 are listed by origin, then by head: 0-1, 1-0,
+# 1-2, 2-1, 2-3, 3-2, 3-4, 4-3. Only the edge from 2 to 1 has the class 1. Edges
+# of two classes enter node 1, and edges of two classes leave node 2. The four
+# edges of node 3 have the class 0.
+ROAD_WITH_ONE_EDGE_OF_ANOTHER_CLASS = (
     _two_way((0, 1), (1, 2), (2, 3), (3, 4)),
     None,
     math.inf,
@@ -501,7 +506,7 @@ ROAD_WITH_ONE_ARC_OF_ANOTHER_CLASS = (
 # `contract_chains` gives first the nodes that it keeps.
 @both_backends
 @pytest.mark.parametrize(
-    "graph, modes, max_km, arc_classes, kept_nodes",
+    "graph, modes, max_km, edge_classes, kept_nodes",
     [
         pytest.param(
             *ROAD_WITH_A_DEAD_END,
@@ -541,19 +546,19 @@ ROAD_WITH_ONE_ARC_OF_ANOTHER_CLASS = (
         pytest.param(
             *ONE_WAY_ROAD_OF_TWO_CLASSES,
             [0, 2, 4],
-            id="a node between one-way arcs of two classes is kept",
+            id="a node between one-way edges of two classes is kept",
         ),
         pytest.param(
-            *ROAD_WITH_ONE_ARC_OF_ANOTHER_CLASS,
+            *ROAD_WITH_ONE_EDGE_OF_ANOTHER_CLASS,
             [0, 1, 2, 4],
-            id="a node is kept when one arc in or one arc out has another class",
+            id="a node is kept when one edge in or one edge out has another class",
         ),
     ],
 )
 def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
-    backend, graph, modes, max_km, arc_classes, kept_nodes
+    backend, graph, modes, max_km, edge_classes, kept_nodes
 ):
-    kept, *_ = backend.contract_chains(*graph, modes, max_km, arc_classes)
+    kept, *_ = backend.contract_chains(*graph, modes, max_km, edge_classes)
 
     assert list(kept) == kept_nodes
 
@@ -561,9 +566,9 @@ def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
 def _random_chains(seed):
     # Junctions 0-19 joined by chains of new nodes, both ways or one way (loops and
     # parallel chains among them), numbered at random, the same length both ways; a few
-    # nodes of another mode; one arc in ten of another class
+    # nodes of another mode; one edge in ten of another class
     rng = random.Random(seed)
-    ids, arcs, count = rng.sample(range(10**6), 400), ([], []), 20
+    ids, edges, count = rng.sample(range(10**6), 400), ([], []), 20
     for _ in range(60):
         size = rng.randrange(6)
         path = [
@@ -572,23 +577,23 @@ def _random_chains(seed):
             rng.randrange(20),
         ]
         count += size
-        arcs[rng.random() < 0.7].extend(
+        edges[rng.random() < 0.7].extend(
             (ids[u], ids[v], (0.1, 0.2, 0.3)[(u + v) % 3])
             for u, v in zip(path, path[1:])
             if u != v
         )
-    graph = _csr(*arcs)
+    graph = _csr(*edges)
     modes = array("B", (rng.random() < 0.05 for _ in range(len(graph[0]) - 1)))
     max_km = rng.choice([math.inf, 0.5])
-    arc_classes = array("B", (rng.random() < 0.1 for _ in graph[1]))
-    return graph, modes, max_km, arc_classes
+    edge_classes = array("B", (rng.random() < 0.1 for _ in graph[1]))
+    return graph, modes, max_km, edge_classes
 
 
 # The test below states what holds for any graph: it runs on the first seven
-# cases above and on six random graphs. A contracted arc is given by its
-# `members`: the arcs of the graph that it replaces, in travel order. The graphs
-# are taken without classes: classes only keep more nodes, and the test after
-# this one gives the random graphs their classes.
+# cases above and on six random graphs. A contracted edge is given by its
+# `members`: the edges of the graph that it replaces, in travel order. The
+# graphs are taken without classes: classes only keep more nodes, and the test
+# after this one gives the random graphs their classes.
 on_every_graph = pytest.mark.parametrize(
     "graph, modes, max_km",
     [
@@ -607,7 +612,7 @@ on_every_graph = pytest.mark.parametrize(
 )
 
 
-def _origin_of_each_arc(offsets):
+def _origin_of_each_edge(offsets):
     return [
         u
         for u in range(len(offsets) - 1)
@@ -615,7 +620,7 @@ def _origin_of_each_arc(offsets):
     ]
 
 
-def _members_of_each_arc(member_offsets, members):
+def _members_of_each_edge(member_offsets, members):
     return [
         list(members[start:end])
         for start, end in zip(member_offsets, member_offsets[1:])
@@ -624,58 +629,60 @@ def _members_of_each_arc(member_offsets, members):
 
 @both_backends
 @on_every_graph
-def test_contracted_arcs_replace_the_chains_of_the_graph(
+def test_contracted_edges_replace_the_chains_of_the_graph(
     backend, graph, modes, max_km
 ):
     offsets, heads, weights = graph
-    origin_of = _origin_of_each_arc(offsets)
+    origin_of = _origin_of_each_edge(offsets)
 
     kept, origins, ends, km, member_offsets, members = backend.contract_chains(
         *graph, modes, max_km
     )
 
-    # Every arc is a member of exactly one contracted arc
+    # Every edge is a member of exactly one contracted edge
     assert sorted(members) == list(range(len(heads)))
-    # The contracted arcs are sorted by origin then end, without twin or loop
+    # The contracted edges are sorted by origin then end, without twin or loop
     pairs = list(zip(origins, ends))
     assert pairs == sorted(set(pairs))
     assert all(origin != end for origin, end in pairs)
-    # A contracted arc follows its members between two kept nodes
-    members_of = _members_of_each_arc(member_offsets, members)
-    for origin, end, arcs in zip(origins, ends, members_of):
-        assert origin_of[arcs[0]] == kept[origin]
-        assert heads[arcs[-1]] == kept[end]
+    # A contracted edge follows its members between two kept nodes
+    members_of = _members_of_each_edge(member_offsets, members)
+    for origin, end, edges in zip(origins, ends, members_of):
+        assert origin_of[edges[0]] == kept[origin]
+        assert heads[edges[-1]] == kept[end]
         # Each member starts where the one before ends, at a contracted node
-        for arc, next_arc in zip(arcs, arcs[1:]):
-            assert heads[arc] == origin_of[next_arc]
-            assert heads[arc] not in kept
-    # A contracted arc has the length of its members
+        for edge, next_edge in zip(edges, edges[1:]):
+            assert heads[edge] == origin_of[next_edge]
+            assert heads[edge] not in kept
+    # A contracted edge has the length of its members
     assert list(km) == pytest.approx(
-        [sum(weights[arc] for arc in arcs) for arcs in members_of]
+        [sum(weights[edge] for edge in edges) for edges in members_of]
     )
     # The two directions of a chain have the same length to the last bit.
-    # `km_along` gives the length of each contracted arc by the nodes that it
-    # passes. A chain that has no reverse arc is compared with itself.
+    # `km_along` gives the length of each contracted edge by the nodes that it
+    # passes. A chain that has no reverse edge is compared with itself.
     km_along = {
-        (origin_of[arcs[0]], *(heads[arc] for arc in arcs)): length
-        for arcs, length in zip(members_of, km)
+        (origin_of[edges[0]], *(heads[edge] for edge in edges)): length
+        for edges, length in zip(members_of, km)
     }
     for nodes, length in km_along.items():
         assert km_along.get(nodes[::-1], length) == length
 
 
-# A contracted arc has one class: the class of each of its members.
+# A contracted edge has one class: the class of each of its members.
 @both_backends
-def test_the_members_of_a_contracted_arc_have_the_same_class(backend):
+def test_the_members_of_a_contracted_edge_have_the_same_class(backend):
     for seed in range(6):
-        graph, modes, max_km, arc_classes = _random_chains(seed)
+        graph, modes, max_km, edge_classes = _random_chains(seed)
 
         *_, member_offsets, members = backend.contract_chains(
-            *graph, modes, max_km, arc_classes
+            *graph, modes, max_km, edge_classes
         )
 
-        for arcs in _members_of_each_arc(member_offsets, members):
-            assert len({arc_classes[arc] for arc in arcs}) == 1, f"seed {seed}"
+        for edges in _members_of_each_edge(member_offsets, members):
+            assert (
+                len({edge_classes[edge] for edge in edges}) == 1
+            ), f"seed {seed}"
 
 
 # Both builds must give the same network file. Where a loop or a parallel
@@ -684,9 +691,9 @@ def test_the_members_of_a_contracted_arc_have_the_same_class(backend):
 @needs_the_cpp_extension
 def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel():
     for seed in range(6):
-        graph, modes, max_km, arc_classes = _random_chains(seed)
+        graph, modes, max_km, edge_classes = _random_chains(seed)
         without_classes = (*graph, modes, max_km)
-        for arguments in (without_classes, (*without_classes, arc_classes)):
+        for arguments in (without_classes, (*without_classes, edge_classes)):
             contracted = cpp.contract_chains(*arguments)
 
             assert list(map(list, contracted)) == list(

@@ -16,7 +16,7 @@ download that is not the published file.
 # The tag of the pinned network release
 TAG = "networks-2026.11.20-dev.2"
 # The `content_sha256` of each network file of this release. A key is the name of a
-# network. It ends with `.no_shapes` for the file without the shapes of the arcs.
+# network. It ends with `.no_shapes` for the file without the shapes of the edges.
 # `load_geograph` checks each file that it downloads from this release against its
 # value here.
 CONTENT_SHA256 = {
@@ -44,84 +44,96 @@ CONTENT_SHA256 = {
     "world_sea": "de354dff84af649763116b2234f2e9f73d2125c12a4e8d17efd52850dbd486ff",
 }
 # What `GeoGraph.list_geographs` says of each network of this release: its numbers of
-# nodes and of arcs, the size in MB of its download with and without the shapes of the
-# arcs, and the time of its newest source data (None when no source gives a time).
+# nodes and of edges, the size in MB of its download with and without the shapes of the
+# edges, the time of its newest source data (None when no source gives a time), and its
+# description.
 NETWORKS = {
     "africa": {
         "nodes": 374498,
-        "arcs": 758171,
+        "edges": 758171,
         "download_mb": 20.3,
         "download_mb_without_shapes": 9.9,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes -35 and 38 and longitudes -18 and 52, with every sea lane, port and airport of the world",
     },
     "east_southeast_asia": {
         "nodes": 844874,
-        "arcs": 1651243,
+        "edges": 1651243,
         "download_mb": 56.5,
         "download_mb_without_shapes": 22.6,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes -11 and 55 and longitudes 92 and 150, with every sea lane, port and airport of the world",
     },
     "europe": {
         "nodes": 1048594,
-        "arcs": 2071242,
+        "edges": 2071242,
         "download_mb": 60.4,
         "download_mb_without_shapes": 28.3,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes 34 and 72 and longitudes -25 and 45, with every sea lane, port and airport of the world",
     },
     "north_america": {
         "nodes": 706899,
-        "arcs": 1389147,
+        "edges": 1389147,
         "download_mb": 41.3,
         "download_mb_without_shapes": 19.0,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes 7 and 84 and longitudes -170 and -50, with every sea lane, port and airport of the world",
     },
     "north_asia": {
         "nodes": 182059,
-        "arcs": 461399,
+        "edges": 461399,
         "download_mb": 13.0,
         "download_mb_without_shapes": 5.1,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes 40 and 78 and longitudes 45 and 180, with every sea lane, port and airport of the world",
     },
     "oceania": {
         "nodes": 125567,
-        "arcs": 338274,
+        "edges": 338274,
         "download_mb": 9.2,
         "download_mb_without_shapes": 3.5,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes -50 and 0 and longitudes 110 and 180, with every sea lane, port and airport of the world",
     },
     "south_america": {
         "nodes": 273351,
-        "arcs": 583495,
+        "edges": 583495,
         "download_mb": 16.6,
         "download_mb_without_shapes": 7.4,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes -57 and 13 and longitudes -82 and -34, with every sea lane, port and airport of the world",
     },
     "west_south_asia": {
         "nodes": 544330,
-        "arcs": 1086945,
+        "edges": 1086945,
         "download_mb": 30.2,
         "download_mb_without_shapes": 14.5,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "The part of world_multimodal between latitudes 5 and 45 and longitudes 25 and 98, with every sea lane, port and airport of the world",
     },
     "world_multimodal": {
         "nodes": 3335926,
-        "arcs": 6241423,
+        "edges": 6241423,
         "download_mb": 196.9,
         "download_mb_without_shapes": 88.9,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "Roads, railways, sea lanes and flights of the world, joined at ports, airports and rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.",
     },
     "world_rail": {
         "nodes": 371303,
-        "arcs": 976474,
+        "edges": 976474,
         "download_mb": 28.9,
         "download_mb_without_shapes": 10.5,
         "data_up_to": "2026-11-02T00:59:53Z",
+        "description": "Railways and rail terminals of the world",
     },
     "world_sea": {
         "nodes": 43233,
-        "arcs": 159174,
+        "edges": 159174,
         "download_mb": 3.7,
         "download_mb_without_shapes": 1.2,
         "data_up_to": None,
+        "description": "Sea lanes and ports of the world",
     },
 }

@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-// Reading an arc must cost what reading a pair did: GCC does not inline these calls
+// Reading an edge must cost what reading a pair did: GCC does not inline these calls
 // inside the large search loops by itself (seen in the bucket searches)
 #if defined(_MSC_VER)
 #define SCGRAPH_INLINE __forceinline
@@ -15,14 +15,14 @@
 #define SCGRAPH_INLINE inline __attribute__((always_inline))
 #endif
 
-// One arc: `head` is the node it leads to. An aggregate, so that a loop over a row can
+// One edge: `head` is the node it leads to. An aggregate, so that a loop over a row can
 // name both members (`auto [node, distance]`)
-struct Arc {
+struct Edge {
     int head;
     double weight;
 };
 
-// The arcs of one node, read in place
+// The edges of one node, read in place
 class Row {
     const int32_t* heads_;
     const double* weights_;
@@ -35,7 +35,7 @@ public:
     struct iterator {
         const int32_t* head;
         const double* weight;
-        SCGRAPH_INLINE Arc operator*() const { return {*head, *weight}; }
+        SCGRAPH_INLINE Edge operator*() const { return {*head, *weight}; }
         SCGRAPH_INLINE iterator& operator++() {
             ++head;
             ++weight;
@@ -54,19 +54,19 @@ public:
 
     // A copy as pairs: the form of an edited row (RowEdits) and of the rows BMSSP reads
     std::vector<std::pair<int, double>> to_vector() const {
-        std::vector<std::pair<int, double>> arcs;
-        arcs.reserve(count_);
+        std::vector<std::pair<int, double>> edges;
+        edges.reserve(count_);
         for (int32_t i = 0; i < count_; ++i) {
-            arcs.emplace_back(heads_[i], weights_[i]);
+            edges.emplace_back(heads_[i], weights_[i]);
         }
-        return arcs;
+        return edges;
     }
 };
 
-// Arcs stored by origin, as in a .scgraph file (compressed sparse rows): the arcs of
+// Edges stored by origin, as in a .scgraph file (compressed sparse rows): the edges of
 // node u are heads_[offsets_[u]] .. heads_[offsets_[u + 1] - 1], with their weights. Read
 // only: edits go to RowEdits, and the next read packs them into new arrays (GraphUtils).
-// Offsets are 32-bit, as in the file: at most 2^31 - 1 arcs. The arrays are owned, or
+// Offsets are 32-bit, as in the file: at most 2^31 - 1 edges. The arrays are owned, or
 // borrowed (a mapped file) and kept alive by `owner_`
 class CsrGraph {
     struct Owned {
@@ -78,7 +78,7 @@ class CsrGraph {
     const int32_t* heads_ = nullptr;
     const double* weights_ = nullptr;
     int node_count_ = 0;
-    int64_t arc_count_ = 0;
+    int64_t edge_count_ = 0;
 
 public:
     CsrGraph() : CsrGraph(std::vector<int32_t>{0}, {}, {}) {}
@@ -93,29 +93,29 @@ public:
 
     // Arrays that `owner` keeps alive (a mapped file, for instance), already checked
     CsrGraph(std::shared_ptr<const void> owner, const int32_t* offsets, const int32_t* heads,
-             const double* weights, int node_count, int64_t arc_count)
+             const double* weights, int node_count, int64_t edge_count)
         : owner_(std::move(owner)),
           offsets_(offsets),
           heads_(heads),
           weights_(weights),
           node_count_(node_count),
-          arc_count_(arc_count) {}
+          edge_count_(edge_count) {}
 
     explicit CsrGraph(const std::vector<std::vector<std::pair<int, double>>>& rows) {
         std::vector<int32_t> offsets{0};
         offsets.reserve(rows.size() + 1);
-        size_t total_arcs = 0;
+        size_t total_edges = 0;
         for (const auto& row : rows) {
-            total_arcs += row.size();
-            if (total_arcs > INT32_MAX) {
-                throw std::length_error("a graph holds at most 2^31 - 1 arcs");
+            total_edges += row.size();
+            if (total_edges > INT32_MAX) {
+                throw std::length_error("a graph holds at most 2^31 - 1 edges");
             }
-            offsets.push_back(static_cast<int32_t>(total_arcs));
+            offsets.push_back(static_cast<int32_t>(total_edges));
         }
         std::vector<int32_t> heads;
         std::vector<double> weights;
-        heads.reserve(total_arcs);
-        weights.reserve(total_arcs);
+        heads.reserve(total_edges);
+        weights.reserve(total_edges);
         for (const auto& row : rows) {
             for (const auto& [head, weight] : row) {
                 heads.push_back(head);
@@ -138,12 +138,12 @@ public:
     }
 
     int size() const { return node_count_; }
-    int64_t arcs() const { return arc_count_; }
+    int64_t edges() const { return edge_count_; }
 
     // The whole arrays, in place
     std::span<const int32_t> all_offsets() const { return {offsets_, static_cast<size_t>(node_count_) + 1}; }
-    std::span<const int32_t> all_heads() const { return {heads_, static_cast<size_t>(arc_count_)}; }
-    std::span<const double> all_weights() const { return {weights_, static_cast<size_t>(arc_count_)}; }
+    std::span<const int32_t> all_heads() const { return {heads_, static_cast<size_t>(edge_count_)}; }
+    std::span<const double> all_weights() const { return {weights_, static_cast<size_t>(edge_count_)}; }
 
     void clear() { *this = CsrGraph(); }
 };
@@ -172,8 +172,8 @@ struct RowEdits {
         std::vector<int32_t> offsets{0}, heads;
         std::vector<double> weights;
         offsets.reserve(node_count + 1);
-        heads.reserve(base.arcs());
-        weights.reserve(base.arcs());
+        heads.reserve(base.edges());
+        weights.reserve(base.edges());
         for (int u = 0; u < node_count; ++u) {
             auto edited = rows.find(u);
             if (edited != rows.end()) {
@@ -185,7 +185,7 @@ struct RowEdits {
                 base[u].append_to(heads, weights);
             }
             if (heads.size() > INT32_MAX) {
-                throw std::length_error("a graph holds at most 2^31 - 1 arcs");
+                throw std::length_error("a graph holds at most 2^31 - 1 edges");
             }
             offsets.push_back(static_cast<int32_t>(heads.size()));
         }
@@ -208,17 +208,17 @@ public:
     std::vector<std::pair<int, double>>& operator[](int u) { return edits_.at(base_, u); }
 
     // Without copying the row of node u
-    bool has_arc(int u, int head) const {
+    bool has_edge(int u, int head) const {
         auto edited = edits_.rows.find(u);
         if (edited != edits_.rows.end()) {
-            for (const auto& arc : edited->second) {
-                if (arc.first == head) return true;
+            for (const auto& edge : edited->second) {
+                if (edge.first == head) return true;
             }
             return false;
         }
         if (u >= base_.size()) return false;
-        for (const auto& arc : base_[u]) {
-            if (arc.head == head) return true;
+        for (const auto& edge : base_[u]) {
+            if (edge.head == head) return true;
         }
         return false;
     }

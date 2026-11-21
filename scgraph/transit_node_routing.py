@@ -1,3 +1,69 @@
+"""Transit Node Routing (TNR): a contraction hierarchy with a table of distances.
+
+WHAT IT ANSWERS
+
+`TNRGraph.search` returns the shortest route between an origin and a destination, as
+`{"path": [...], "length": ...}`, with the same inputs as `CHGraph.search`. `TNRGraph`
+extends `CHGraph`. Its preprocessing first builds the hierarchy of
+`contraction_hierarchies.py`, then adds the data of this module. `Graph.tnr` builds a
+`TNRGraph` at its first query (`create_tnr_hierarchy`) and keeps it.
+
+Example: take the ring of `contraction_hierarchies.py`, with edges both ways: 0-1: 2,
+0-3: 3, 1-2: 6, 2-3: 7. The ranks of nodes 0 to 3 are 0, 1, 2 and 3. With
+`num_transit_nodes=2`, the route from node 0 to node 2 is `[0, 1, 2]`, of length 8.
+
+HOW THE DATA IS STORED
+
+`transit_nodes` is the set of the `num_transit_nodes` nodes of highest rank.
+`forward_access_nodes[u]` gives the access nodes of u. They are the transit nodes that
+an upward search from u reaches first, with their distances. This search reads
+`forward_graph` and does not go past a transit node. `backward_access_nodes[u]` does
+the same on `backward_graph`, for the routes that end at u. `distance_table[(s, t)]` is
+the shortest distance from the transit node s to the transit node t. A Dijkstra search
+on `original_graph` from each transit node fills the table.
+
+Example: the transit nodes are 3 and 2. `forward_access_nodes[0]` is `{3: 3, 2: 8}`,
+because the upward search reaches node 2 through node 1, at 2 + 6.
+`backward_access_nodes[1]` is `{3: 5, 2: 6}`. `backward_access_nodes[2]` is `{2: 0}`,
+because node 2 is a transit node itself. `distance_table[(3, 2)]` is 7.
+
+HOW A RUN GOES
+
+1. The search adds the start distance of each origin node to the distances of its
+   forward access nodes. It adds the exit distance of each destination node to the
+   distances of its backward access nodes.
+2. Each pair of a forward access node s and a backward access node t gives a candidate
+   length, the distance to s, plus `distance_table[(s, t)]`, plus the distance from t.
+   The smallest candidate is the table length.
+3. The local search is the bidirectional upward search of `CHGraph`, with the table
+   length as its first best length. It does not scan the edges of a transit node. It
+   gives a path only when it finds a route shorter than the table length.
+4. The search returns the path of the local search if there is one. Otherwise the
+   table length is the answer. The table holds lengths only, so the path then comes
+   from a full search of `CHGraph.search`. With `length_only=True`, the search returns
+   the length and runs no full search.
+
+Example: from 0 to 1, the best candidate is 3 + 0 + 5 = 8, through node 3 on both
+sides. The local search finds the edge from 0 to 1, of length 2, and returns `[0, 1]`.
+From 0 to 2, the candidates are 8 + 0 + 0 = 8 through node 2, and 3 + 7 + 0 = 10
+through nodes 3 and 2. The local search reaches node 2 at 8 too, which is not shorter.
+So the length is 8, and `CHGraph.search` gives the path `[0, 1, 2]`.
+
+WHY THE RESULT IS RIGHT
+
+Every candidate is the length of a real route, so the answer is never too short. The
+hierarchy has a shortest route that goes up in rank, then down. The transit nodes have
+the highest ranks, so two cases cover every such route. If its highest node is not a
+transit node, every node of the route ranks below the transit nodes. The local search
+then finds the route, because it never needs to scan the edges of a transit node. If its
+highest node is a transit node, its upward part meets a first transit node s. Its
+downward part meets a last transit node t. The access nodes give at most the length of
+the route up to s, and of the route from t. The table gives the exact distance from s
+to t. So the table length is not above the shortest length. Example: the shortest
+route 0, 1, 2 goes up to node 2, a transit node. Here s and t are both node 2, and the
+candidate 8 + 0 + 0 is the shortest length.
+"""
+
 import json
 from heapq import heappush, heappop, heapify
 from scgraph.contraction_hierarchies import CHGraph
