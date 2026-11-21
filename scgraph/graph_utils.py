@@ -1,3 +1,12 @@
+"""Helpers shared by `Graph`, `CHGraph` and `TNRGraph`.
+
+`GraphUtils` holds the graph and its inverse, checks the inputs of a search, rebuilds a
+path from its predecessors, validates a graph and keeps the cache of shortest path
+trees. `GraphModifiers` adds and removes nodes and arcs (`add_node`, `add_edge`,
+`remove_node`, `remove_edge`). `normalize_node_input` turns an origin or a destination
+into a dict of node ids and distances.
+"""
+
 import threading
 from array import array
 from typing import Literal
@@ -166,9 +175,15 @@ class GraphUtils:
 
         - The total weight of the path as an int or float
         """
-        return sum(
-            self.__graph__[path[i]][path[i + 1]] for i in range(len(path) - 1)
-        )
+        total = 0
+        for origin, destination in zip(path, path[1:]):
+            try:
+                total += self.__graph__[origin][destination]
+            except KeyError:
+                raise ValueError(
+                    f"No edge from node {origin} to node {destination}"
+                ) from None
+        return total
 
     @staticmethod
     def __reconstruct_path__(

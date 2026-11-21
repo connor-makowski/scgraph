@@ -10,8 +10,8 @@ is sorted. The check of the order runs in C (`map`), not in a Python loop.
 
 from array import array
 from bisect import bisect_left
-from itertools import islice
-from operator import le
+
+from scgraph.utils import _is_sorted
 
 # The highest value of an int32, the type of the offsets of a network file
 INT32_MAX = 2**31 - 1
@@ -30,7 +30,7 @@ def select_arcs(
     A "position" is the rank of a node, of an arc or of a shape point in the arrays of
     the file. A "run" (first, last) is the range of positions from first to last - 1.
 
-    Parameters:
+    Args:
         offsets: The arcs of node u are at the positions offsets[u] to
             offsets[u + 1] - 1 (int32).
         heads: The head of each arc, as the position of a node (int32).
@@ -136,7 +136,3 @@ def _add_run(runs, first, last):
         runs[-1] = (runs[-1][0], last)
     else:
         runs.append((first, last))
-
-
-def _is_sorted(values):
-    return all(map(le, values, islice(values, 1, None)))  # in C, not in Python

@@ -71,6 +71,9 @@ from scgraph import GeoGraph, PathNotFoundError
 from scgraph.utils import haversine
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["ValidationResult", "load_validation_cases", "validate_network"]
+
 CASES_DIR = Path(__file__).parent / "cases"
 
 
@@ -438,7 +441,7 @@ def validate_network(
     cases are the exception: when at most `MAX_SHARE_OF_FAILED_CITIES` of them
     fail, they all count as passed.
 
-    Parameters:
+    Args:
         network: The path of a network file, or a loaded GeoGraph. A file is read
             again for each set of modes, one at a time, to limit the memory used.
             The coverage rule resets the cache of trees of a loaded GeoGraph.

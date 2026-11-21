@@ -166,7 +166,7 @@ def test_strongly_connected_components_groups_nodes_that_reach_each_other(
         heads.extend(row)
         offsets.append(len(heads))
     labels, sizes = map(
-        list, backend.strongly_connected_components(offsets, heads)
+        list, backend.find_strongly_connected_components(offsets, heads)
     )
     reach = [_reachable(rows, u) for u in range(len(rows))]
     assert all(

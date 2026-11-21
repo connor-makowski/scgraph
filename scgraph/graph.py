@@ -1,3 +1,86 @@
+"""Shortest path searches on a graph held in memory.
+
+WHAT IT ANSWERS
+
+A search of `Graph` finds the shortest route from an origin to a destination. The
+origin is one node id, a set of node ids, or a dict that gives each origin node a start
+distance. The destination takes the same forms, with an exit distance for each node.
+A search returns `{"path": [...], "length": ...}`. The path lists the node ids from an
+origin node to a destination node. The length is the start distance, plus the weights
+of the arcs of the path, plus the exit distance. A search raises `PathNotFoundError`
+when no route exists. This text explains `dijkstra`, `dijkstra_buckets`, the two
+bidirectional searches and `a_star`.
+
+Example: in the graph `[{1: 4, 2: 1}, {3: 1}, {1: 2, 3: 5}, {}]`, node 0 has an arc of
+weight 4 to node 1 and an arc of weight 1 to node 2. `dijkstra(origin_id=0,
+destination_id=3)` returns the path `[0, 2, 1, 3]` and the length 4. With
+`origin_id={0: 0, 2: 0.5}` and `destination_id={3: 0, 1: 2}`, it returns `[2, 1, 3]`
+and 3.5.
+
+HOW THE DATA IS STORED
+
+`graph` is a list of dicts. `graph[u][v]` is the weight of the arc from node `u` to
+node `v`. Every node from 0 to n - 1 has a dict, even a node without arcs.
+`inverse_graph[v][u]` is the weight of the same arc, read from its head. It is built
+at its first read. The searches read `search_graph` and `search_inverse_graph`. These
+are `graph` and `inverse_graph`, or the reduced graph after `reduce()`
+(`graph_reducer.py`). Example: the graph above has the `inverse_graph`
+`[{}, {0: 4, 2: 2}, {0: 1}, {1: 1, 2: 5}]`.
+
+HOW A RUN GOES
+
+Dijkstra (`dijkstra`). A priority queue holds nodes by their distance from the origin.
+The search takes the nearest node from the queue and scans it. A scan reads the arcs
+of the node, and lowers the distance of each head that the arc reaches by a shorter
+route. When a destination node gets a lower distance, the search updates the best
+length. The search stops when the node taken from the queue is not nearer than the
+best length. Example: the search scans node 0, node 2 at distance 1, and node 1 at
+distance 3. Node 1 gives node 3 the distance 4, the best length. The next entry of the
+queue is at distance 4, so the search stops before it scans node 3.
+
+Buckets (`dijkstra_buckets`). The queue is a ring of buckets. A bucket holds the nodes
+whose distance falls in one range of width `bucket_width`. By default, the width is 8
+times the median arc weight. The search takes the buckets in order of distance, and
+scans the nodes of one bucket as one batch. These nodes are not sorted, so the search
+can scan a node twice. It stops when the best length is below the lowest distance of
+the current bucket. Example: with `bucket_width=2`, nodes 0 and 2 (distances 0 and 1)
+are in bucket 0, node 1 (distance 3) is in bucket 1, and node 3 (distance 4) is in
+bucket 2. The search stops at bucket 3, whose distances start at 6.
+
+Bidirectional (`bidirectional_dijkstra`). A forward search runs from the origin on
+`search_graph`. A backward search runs from the destination on `search_inverse_graph`.
+The side whose queue head is nearer scans the next node. When one side lowers the
+distance of a node that the other side has reached, the sum of the two distances is a
+candidate length. The search stops when the two queue heads add up to at least the
+best length. `bidirectional_buckets` applies this rule to its two current buckets.
+Example: the forward search scans nodes 0 and 2, and the backward search scans node 3.
+Node 1 is at 3 from the origin and at 1 from the destination, so the best length is 4.
+The queue heads are then at 4 and 1, and 4 + 1 is at least 4, so the search stops.
+
+A* (`a_star`). The key of a node is its distance from the origin plus
+`heuristic_fn(node, destination)`, an estimate of the distance that is left. The queue
+orders the nodes by their key. The search stops when the key taken from the queue is
+not below the best length. With more than
+`_MAX_DESTINATION_NODES_WITH_HEURISTIC` (4) destination nodes, the search calls no
+heuristic, and it scans the nodes in the order of Dijkstra. Example: the estimates of
+nodes 0 to 3 are 3, 1, 2 and 0. The search scans node 0 (key 3), node 2 (key 3) and
+node 1 (key 4). The best length is then 4, and the next key is 5, so the search stops.
+
+WHY THE RESULT IS RIGHT
+
+These searches need weights that are not negative. A route then never gets shorter
+when it goes on. So no route through a node in the queue is shorter than the queue
+head, and the search can stop once the head reaches the best length. In a
+bidirectional search, every route that the search has not found is at least as long
+as the sum of the two queue heads. A* gives the shortest path when the heuristic never
+exceeds the real distance that is left. Example: the estimate 2 of node 2 is below its
+real distance 3 to node 3.
+
+`bellman_ford` and `dijkstra_negative` accept negative weights. They raise
+`NegativeCycleError` when they find a cycle of negative length. Example: with the
+weight -2 on the arc from node 2 to node 1, both return `[0, 2, 1, 3]` and the length 0.
+"""
+
 from array import array
 from collections.abc import Callable
 from heapq import heappop, heappush
@@ -1153,9 +1236,17 @@ class GraphAlgorithms:
                 graph=self.search_graph,
                 use_constant_degree_graph=use_constant_degree_graph,
             )
-        output = self.__bmssp_graph__.solve(
-            origin_id=origin_id, destination_id=destination_id
-        )
+        try:
+            output = self.__bmssp_graph__.solve(
+                origin_id=origin_id, destination_id=destination_id
+            )
+        # BMSSPy raises a bare Exception when no path joins the two nodes.
+        except Exception as error:  # noqa: BLE001
+            if "not connected" not in str(error):
+                raise
+            raise PathNotFoundError(
+                "Something went wrong, the origin and destination nodes are not connected."
+            ) from error
         return {
             "path": output["path"],
             "length": output["length"],

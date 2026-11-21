@@ -227,8 +227,8 @@ class LandMask:
         def xy(ring):  # cell centres at integers
             return [(x * k - west - 0.5, y * k - south - 0.5) for x, y in ring]
 
-        for burn, polygon in [(1, p) for p in _parts(land)] + [
-            (0, p) for p in _parts(lakes)
+        for burn, polygon in [(1, p) for p in _read_parts(land)] + [
+            (0, p) for p in _read_parts(lakes)
         ]:
             cross = {}  # row -> x where the polygon's edges cross its centre
             for ring in map(xy, polygon):
@@ -250,7 +250,7 @@ class LandMask:
                 span = sum((1 << b) - (1 << a) for a, b in zip(c[::2], c[1::2]))
                 v = v | span >> 8 * lo if burn else v & ~(span >> 8 * lo)
                 bits[at] = v.to_bytes(hi - lo, "little")
-        for line in map(xy, _parts(rivers)):
+        for line in map(xy, _read_parts(rivers)):
             for (x1, y1), (x2, y2) in zip(line, line[1:]):
                 n = math.ceil(max(abs(x2 - x1), abs(y2 - y1))) + 1
                 for t in range(n + 1):
@@ -326,7 +326,7 @@ class LandMask:
         return first[0] + found[0], [self.get_cell_centre(c) for c in found[1]]
 
 
-def _parts(filename):
+def _read_parts(filename):
     """Yield the polygons or the lines of a GeoJSON file."""
     with open(filename, encoding="utf-8") as file:
         for feature in json.load(file)["features"]:

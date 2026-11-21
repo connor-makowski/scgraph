@@ -8,6 +8,15 @@ copy and adapt. The guide `README.md` of this package follows a network from its
 sources to its use: the build step by step, the derivation, the network release and the
 load.
 
+WHAT IS STABLE
+
+scgraph keeps these names working from one release to the next: the contract below,
+the three pipeline modules, `network_builder.build_network_file`,
+`derived_networks.derive_network_file`, and the names in the `__all__` of
+`steps.step1_osm_ways` and of `steps.step4_validation_cases`. The other functions of
+`steps` are internal. A copy of a pipeline of scgraph that calls them follows one
+version of scgraph.
+
 WHAT A PIPELINE MODULE HOLDS
 
 - Its docstring. The first paragraph describes the network, and
@@ -47,7 +56,7 @@ WHAT A PIPELINE MODULE HOLDS
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
 
-The runner reads no other name. Names such as `MODES`, `MARGIN` or
+The runner reads no other name. Names such as `MODES`, `MARGIN_DEGREES` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.
 
 THE DOWNLOAD FUNCTIONS
@@ -211,6 +220,7 @@ import it when they are called: `load_from_osm`, `build_geograph`,
 of a network release.
 """
 
+import importlib.metadata
 import inspect
 import logging
 import os
@@ -222,6 +232,8 @@ import requests
 from scgraph.utils import has_cpp
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["CLASSES", "NAMES", "download_file"]
 
 NAMES = (
     "eurostat_sea_lanes",
@@ -266,7 +278,7 @@ CLASSES = (
 CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
 # In bytes. A larger download is logged at WARNING, which shows without a logging
 # setup.
-LARGE_DOWNLOAD = 100e6
+LARGE_DOWNLOAD_BYTES = 100e6
 
 
 def build_metadata(
@@ -290,8 +302,12 @@ def build_metadata(
         A dict with `pipeline`, `sources` and `software`, and with `description` when
         one is given.
     """
-    from scgraph.geograph import GeoGraph
-
+    try:
+        scgraph_version = importlib.metadata.version("scgraph")
+    except (
+        importlib.metadata.PackageNotFoundError
+    ):  # run from a source tree that is not installed
+        scgraph_version = "unknown"
     libc = " ".join(platform.libc_ver()).strip()
     macos = platform.mac_ver()[0]
     system = f"macOS {macos}" if macos else libc
@@ -299,7 +315,7 @@ def build_metadata(
         "pipeline": {"name": name, "region": region, "version": version},
         "sources": sources,
         "software": {
-            "scgraph": GeoGraph._get_scgraph_version(),
+            "scgraph": scgraph_version,
             "backend": "cpp" if has_cpp() else "python",
             "platform": f"{sysconfig.get_platform()} {system}".strip(),
         },
@@ -313,7 +329,7 @@ def build_metadata(
 
 def download_file(url: str, filename: str | os.PathLike) -> None:
     """Download `url` to `filename`. The function first logs the size of the file: at
-    WARNING above `LARGE_DOWNLOAD`, at INFO below.
+    WARNING above `LARGE_DOWNLOAD_BYTES`, at INFO below.
 
     Raises:
         requests.HTTPError: The server refuses the request.
@@ -322,7 +338,7 @@ def download_file(url: str, filename: str | os.PathLike) -> None:
         response.raise_for_status()
         size = int(response.headers.get("Content-Length", 0))
         logger.log(
-            logging.WARNING if size > LARGE_DOWNLOAD else logging.INFO,
+            logging.WARNING if size > LARGE_DOWNLOAD_BYTES else logging.INFO,
             "Downloading %s (%.1f MB)",
             url,
             size / 1e6,

@@ -95,6 +95,16 @@ if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "GEOFABRIK",
+    "PLANET",
+    "download",
+    "download_streamed",
+    "get_way_direction",
+    "select_main_roads",
+    "select_vehicle_ferries",
+]
+
 # The OpenStreetMap extracts of Geofabrik, `{region}` being the path of an extract
 GEOFABRIK = {
     "url": "https://download.geofabrik.de/{region}-latest.osm.pbf",
@@ -181,7 +191,7 @@ def select_main_roads(tags: "osmium.osm.TagList") -> int | None:
 
 
 @contextmanager
-def _opened(source, entities):
+def _open_source(source, entities):
     # `source` is a path, or a source object. A source object gives a new input for
     # each pass, and the pass closes it at its end (see `locate_ways`).
     if isinstance(source, (str, os.PathLike)):
@@ -196,14 +206,14 @@ def _opened(source, entities):
     source.close()
 
 
-def _selected_ways(osmium, source, selects, tag_keys, *filters):
+def _select_ways(osmium, source, selects, tag_keys, *filters):
     """Yield `(mode, kind, direction, class_name, way)` for each way, once for each
     mode that keeps it. In a mode, a way goes to the first select function that keeps
     it, in the order of the dict. `class_name` is None when the select function returns
     a direction alone. osmium drops the ways that have none of `tag_keys`, and the ways
     that `filters` refuse, before Python sees them.
     """
-    with _opened(source, osmium.osm.WAY) as file:
+    with _open_source(source, osmium.osm.WAY) as file:
         ways = osmium.FileProcessor(file, osmium.osm.WAY)
         if tag_keys:
             ways = ways.with_filter(osmium.filter.KeyFilter(*tag_keys))
@@ -393,7 +403,7 @@ def locate_ways(
         kept_ways = array("q") if work_dir else None
         # The set and the repeats of the mode of the way that is read
         mode_seen_ids = mode_repeats = None
-        for mode, _, _, _, way in _selected_ways(
+        for mode, _, _, _, way in _select_ways(
             osmium, source, selects, tag_keys
         ):
             kept.add_way(way.id)
@@ -426,7 +436,7 @@ def locate_ways(
             open(nodes_file, "wb").close()
         store = osmium.index.create_map(node_store)
         with (
-            _opened(source, osmium.osm.NODE) as file,
+            _open_source(source, osmium.osm.NODE) as file,
             osmium.io.Reader(file, osmium.osm.NODE) as nodes,
         ):
             osmium.apply(
@@ -450,7 +460,7 @@ def locate_ways(
     # Third pass, as the polylines are read: the located pieces of the kept ways
     def polylines(locations):
         locations.ignore_errors()
-        for mode, kind, direction, class_name, way in _selected_ways(
+        for mode, kind, direction, class_name, way in _select_ways(
             osmium,
             source,
             selects,
@@ -458,7 +468,7 @@ def locate_ways(
             kept.id_filter(),
             locations,
         ):
-            for piece in _located_pieces(way.nodes):
+            for piece in _split_at_unlocated_nodes(way.nodes):
                 yield mode, kind, direction, class_name, piece
 
     return junctions, polylines(osmium.NodeLocationsForWays(store))
@@ -647,7 +657,7 @@ def build_way_pieces(
     return pieces
 
 
-def _located_pieces(way_nodes):
+def _split_at_unlocated_nodes(way_nodes):
     """Split a way where a node has no position: the node is missing from the file, for
     example outside an extract.
     """
@@ -776,7 +786,7 @@ class StreamedPbf:
                 raise ValueError(f"{url} changed or ignores byte ranges")
             return content
 
-        header = get(0, _blob(get(0, 1 << 16)))
+        header = get(0, _get_blob_length(get(0, 1 << 16)))
         blob = osmium.io.FileBuffer(header, "pbf")
         version = osmium.FileProcessor(blob).header.get(
             "osmosis_replication_timestamp"
@@ -791,7 +801,7 @@ class StreamedPbf:
                 found = window.find(b"\x0a\x07OSMData")
                 if found >= 0:
                     start = offset + found - 4
-                    end = start + _blob(get(start, start + 64))
+                    end = start + _get_blob_length(get(start, start + 64))
                     blob = osmium.io.FileBuffer(header + get(start, end), "pbf")
                     for first in osmium.FileProcessor(blob):
                         return start, end, "nwr".index(first.type_str())
@@ -907,7 +917,7 @@ _PLANET_READER_SCRIPT = str(
 )
 
 
-def _blob(data):
+def _get_blob_length(data):
     """Return the length of the PBF blob that `data` starts with, headers included. Its
     BlobHeader holds a type, then a datasize, as osmium and the planet files write it
     (no index).

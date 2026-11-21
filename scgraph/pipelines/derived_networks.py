@@ -113,6 +113,8 @@ from scgraph.utils import _log_step
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["derive_network_file"]
+
 # The modes that a bbox cuts. The nodes of the other modes (`sea`, `port`,
 # `airport`) all stay. A route can then leave the bbox by sea or by air, and reach a
 # port or an airport outside it.
@@ -182,7 +184,7 @@ def derive_network_file(
     parent_arrays, parent_metadata = network_file.read(parent_file, mapped=True)
     if (
         not {"node_modes", "shape_points"} <= set(parent_arrays)
-        or network_file.coordinate_dtype(parent_arrays) != "int32"
+        or network_file.get_coordinate_dtype(parent_arrays) != "int32"
     ):
         raise ValueError(
             f"{parent_file} has one mode, no arc shapes or float64 coordinates: "
@@ -225,7 +227,7 @@ def derive_network_file(
             ),
         )
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
-        graph = step3_network_assembly._renumbered(parent_arrays, selected)
+        graph = step3_network_assembly.renumber_nodes(parent_arrays, selected)
         counts.update(
             step3_network_assembly._count_nodes_and_arcs(graph, "kept_")
         )
@@ -246,7 +248,7 @@ def derive_network_file(
                 "or more with these modes inside the bbox"
             )
         # An arc between two components is dropped
-        graph = step3_network_assembly._renumbered(
+        graph = step3_network_assembly.renumber_nodes(
             graph, kept_nodes, component_of_node
         )
         counts.update(
@@ -286,7 +288,7 @@ def derive_network_file(
     return network_file.write(
         derived_file,
         graph,
-        network_file.header_metadata(
+        network_file.build_header_metadata(
             metadata,
             units=parent_metadata["units"],
             modes=kept_modes,

@@ -146,7 +146,7 @@ MODES = [
 ]
 # The land mask covers the roads of the region and this margin around them, in
 # degrees. A sea connector runs inside the mask.
-MARGIN = 2
+MARGIN_DEGREES = 2
 
 download = (
     step1_osm_ways.download
@@ -269,10 +269,10 @@ def build(
     # 3. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
     latitudes, longitudes = node_points[0::2], node_points[1::2]
-    south = max(-90, min(latitudes) * 1e-7 - MARGIN)
-    west = max(-180, min(longitudes) * 1e-7 - MARGIN)
-    north = min(90, max(latitudes) * 1e-7 + MARGIN)
-    east = min(180, max(longitudes) * 1e-7 + MARGIN)
+    south = max(-90, min(latitudes) * 1e-7 - MARGIN_DEGREES)
+    west = max(-180, min(longitudes) * 1e-7 - MARGIN_DEGREES)
+    north = min(90, max(latitudes) * 1e-7 + MARGIN_DEGREES)
+    east = min(180, max(longitudes) * 1e-7 + MARGIN_DEGREES)
     # `join_networks_at_hubs` frees the roads. Delete the views, so that nothing here keeps them
     del node_points, latitudes, longitudes
     mask = LandMask.from_natural_earth(

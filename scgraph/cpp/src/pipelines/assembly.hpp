@@ -186,7 +186,7 @@ struct Components {
     std::vector<int32_t> labels, sizes;
 };
 
-inline Components strongly_connected_components(const int32_t* offsets, const int32_t* heads, int64_t node_count,
+inline Components find_strongly_connected_components(const int32_t* offsets, const int32_t* heads, int64_t node_count,
                                                 int64_t arc_count) {
     check_offsets(offsets, node_count, arc_count);
     const int32_t n = static_cast<int32_t>(node_count);

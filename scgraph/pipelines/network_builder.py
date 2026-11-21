@@ -24,10 +24,13 @@ from pathlib import Path
 import requests
 
 from scgraph import network_file, pipelines
-from scgraph.geograph import GeoGraph, _cached_file, _joined
+from scgraph.geograph import GeoGraph, _joined
+from scgraph.network_cache import find_cached_file
 from scgraph.utils import resolve_cache_dir
 
 logger = logging.getLogger(__name__)
+
+__all__ = ["build_network_file"]
 
 # Written in networks/ of the cache: backup and archiving tools skip a tagged directory
 _CACHEDIR_TAG = (
@@ -168,7 +171,7 @@ def _should_build(
         if built_by is None:
             raise ValueError(
                 f"The cached {name} can't be read (damaged, or a file format other "
-                f"than {network_file.VERSION}): build it again without {_OFFLINE}"
+                f"than {network_file.FORMAT_VERSION}): build it again without {_OFFLINE}"
             )
         if stale:
             warnings.warn(
@@ -266,7 +269,7 @@ def _write_network(
     return network_file.write(
         str(filename),
         arrays,
-        network_file.header_metadata(
+        network_file.build_header_metadata(
             metadata, units="km", modes=modes, classes=classes
         ),
     )
@@ -370,7 +373,7 @@ def build_network_file(
     cache = resolve_cache_dir(cache_dir)
     folder = cache.joinpath("networks", name, region or "")
     # cache.json names the network file, which is named by its content
-    cached_file = _cached_file(folder.joinpath("cache.json"))
+    cached_file = find_cached_file(folder.joinpath("cache.json"))
     if not _should_build(
         pipeline, name, folder, cached_file, refresh, local_files_only
     ):

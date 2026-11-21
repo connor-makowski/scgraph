@@ -105,7 +105,7 @@ The output dictionary always contains:
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
 | One mode of transport of a larger network, for example the roads | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
-| The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", version=..., content_sha256=...)` |
+| The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)`, then `save_as_scgraph` to load it faster later |
 | A result of scgraph 3.6.0, unchanged | a built-in geograph | `GeoGraph.load_geograph("marnet")` |
@@ -155,7 +155,7 @@ print(route["length"])  #=> 1031.6 (km, by road)
 
 **A smaller download.** `shapes=False` downloads the file without the shapes. The route lengths are the same. The `coordinate_path` of a route then goes in a straight line from node to node.
 
-**The first load and the next ones.** The first load downloads the file, decompresses it and checks its content. If the download is damaged, `load_geograph` raises a `ValueError` and keeps no file. Every later load reads the cache and makes no network request. The cache keeps the files of each network release until `clear_geograph_cache` removes them. The section *Built-in Geographs: Cache Management* gives the place of the cache and the offline switch.
+**The first load and the next ones.** The first load downloads the file, decompresses it and checks its content. If the download is damaged, `load_geograph` raises a `ValueError` and keeps no file. Every later load reads the cache and makes no network request. The cache keeps the files of each network release until `clear_geograph_cache` removes them. The section *Cache Management* gives the place of the cache and the offline switch.
 
 **The same network later.** Each version of scgraph loads one network release, so the same version loads the same network on every machine. A later version of scgraph may load a newer network release. To load exactly the same network then, record the tag of the network release and the `content_sha256` of the file. The `content_sha256` is the SHA-256 digest of the content of a network file.
 
@@ -171,10 +171,12 @@ info["data_up_to"]      # '2026-11-02T00:59:53Z', the time of the newest source 
 # Later, on any machine: this call loads the same file, or raises a ValueError
 europe = GeoGraph.load_geograph(
     "europe",
-    version="networks-2026.11.20-dev.2",
+    network_release="networks-2026.11.20-dev.2",
     content_sha256="5dafa1c37d57bb89aeab601c333c72feb8235c8cab24ac0b4cbf380aec26c899",
 )
 ```
+
+**Licenses of the data.** The code of scgraph is under the MIT license. The data of a released network keeps the licenses of its sources: the roads and the railways come from OpenStreetMap (ODbL 1.0), the sea lanes from Eurostat SeaRoute (EUPL 1.2), and the flights table is under CC BY 4.0. A result that uses a released network cites the credit line of the file, `info["attribution"]` above. The header of the file lists each source with its license (`info["sources"]`).
 
 The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked, published and loaded.
 
@@ -287,7 +289,7 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | Scenario | Recommended Approach |
 |---|---|
 | Single query | `dijkstra`, `bidirectional_buckets` or `bidirectional_dijkstra` |
-| Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for 2–4x faster queries |
+| Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for faster queries |
 | Non-negative weights, single-direction search | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
@@ -492,9 +494,9 @@ output = marnet_geograph.get_shortest_path(
 
 # Loading GeoGraphs
 
-## Built-in Geographs: Cache Management
+## Cache Management
 
-Built-in geographs are downloaded from GitHub on first use and stored in a local cache. Subsequent loads only require reading from the local cache and do not require network access.
+`load_geograph` downloads a network from GitHub on first use and stores it in a local cache. Subsequent loads only require reading from the local cache and do not require network access.
 
 For one of the seven networks of scgraph 3.6.0, the first load also converts the downloaded `<name>.graphjson` into a binary network file, `<name>.scgraph`, beside it. Later loads read the binary file, which is much faster. The `.graphjson` is kept. The conversion changes three things:
 
@@ -558,8 +560,8 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading/fetching until the geograph is first accessed |
 | `local_files_only` | `None` | Use only the cache, never download; defaults to `True` if `SCGRAPH_OFFLINE=1`, else `False` |
-| `version` | `None` | For a released network: the tag of the network release, e.g. `'networks-2026.11.20'`; defaults to the network release of the installed scgraph (`scgraph.network_release.TAG`) |
-| `content_sha256` | `None` | For a released network: the `content_sha256` that the file must have (as `get_scgraph_info` gives it); another file raises a `ValueError`. With `version`, it loads exactly the same network again later |
+| `network_release` | `None` | For a released network: the tag of the network release, e.g. `'networks-2026.11.20'`; defaults to the network release of the installed scgraph (`scgraph.network_release.TAG`) |
+| `content_sha256` | `None` | For a released network: the `content_sha256` that the file must have (as `get_scgraph_info` gives it); another file raises a `ValueError`. With `network_release`, it loads exactly the same network again later |
 | `modes` | `None` | For a released network: the modes to load, e.g. `["road"]`; `None` loads every mode |
 | `shapes` | `True` | For a released network: `False` loads the file without the shapes of the arcs |
 
@@ -820,7 +822,7 @@ The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/conno
 | `save_as_graphjson(filename)` | Save as SCGraph JSON (compact, fast reload) |
 | `save_as_scgraph(filename)` | Save as a binary network file (fastest reload) |
 | `load_geograph(name)` | Load a built-in geograph by name (cached download) |
-| `build_geograph(name, region=None)` | Download the source of a reference network, build it and keep it in the cache |
+| `build_geograph(name, region=None)` | Download the sources of a network, build it and keep it in the cache |
 | `list_buildable_geographs()` | List the networks `build_geograph` builds, their credit and what is cached |
 | `get_cache_info()` | List what the cache holds on disk, with sizes and build versions |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
@@ -1142,36 +1144,50 @@ logging.getLogger("scgraph").setLevel(logging.DEBUG)
 - [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) — Add/remove nodes and edges
 - [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb) — Load a released network, draw routes by kind of transport, choose the modes
 - [Build the Network of a Region](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/build_a_region.ipynb) — Build Denmark from the newest OpenStreetMap extract, read its sources, compare it with the released network, check it
+- [Route Examples](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb) — Routes on the built-in networks of scgraph 3.6.0
+- [SCGraph with COIN-OR](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/coin_or.ipynb) — Distances of scgraph in an optimization model
+- [Hilbert Order and Spatial Indexing](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb) — How the order of the nodes makes snapping fast
+
+---
+
+# Public API
+
+The public names of scgraph are the names that this README uses. scgraph keeps them working from one release to the next, and announces a change with a `DeprecationWarning`.
+
+| For | Public names |
+|---|---|
+| Routes on a network | `scgraph.GeoGraph` and its methods, `scgraph.network_release.TAG` |
+| Your own graph or grid | `scgraph.Graph`, `scgraph.CHGraph`, `scgraph.TNRGraph`, `scgraph.GridGraph`, `scgraph.PathNotFoundError`, `scgraph.NegativeCycleError` |
+| Distances | `scgraph.utils`: `haversine`, `cheap_ruler`, `distance_converter`, `has_cpp` |
+| Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |
+| Network files | `scgraph.network_file`: `read`, `write`, `get_scgraph_info`, `check_content` |
+| Building a network | `scgraph.pipelines` and its three pipeline modules, `pipelines.network_builder.build_network_file`, `pipelines.derived_networks.derive_network_file`, `pipelines.steps.step1_osm_ways`, `pipelines.steps.step4_validation_cases` |
+| Snapping and node order | `scgraph.helpers.snap_index`: `SnapIndex`, `NodeOrderError`; `scgraph.helpers.hilbert.hilbert_order` |
+
+In these modules, `__all__` lists the public names. Every other module and name is internal: it can change in any release.
 
 ---
 
 # Development
 
-Contributions start from the `dev` branch. The current developer guide is [`DEVELOPMENT.md` on `dev`](https://github.com/connor-makowski/scgraph/blob/dev/DEVELOPMENT.md). You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
+Contributions start from the `dev` branch. You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/connor-makowski/scgraph.git
 cd scgraph
 git checkout dev
 uv sync --extra dev
+uv run pytest
 ```
 
-Dev dependencies are declared in `[project.optional-dependencies] dev` in `pyproject.toml`.
-
-| Command | Description |
-|---|---|
-| `uv run pytest` | Run all tests (about 850 tests, 1 to 2 minutes) |
-| `uv run pytest test/NN_*.py` | Run a specific test file |
-| `uv run nox` | Run tests (C++ then no-C++) across Python 3.11–3.14 |
-| `uv run nox -s tests-3.14` | Run both build variants on a single Python version |
-| `uv run utils/bench.py` | Run benchmarks (<30s), output `benchmark.md` |
-| `uv run utils/prettify.py` | Remove unused imports (ruff), format (black) |
-| `uv run nox -s lint` | Check the code with ruff and the types with pyrefly |
-
-For full developer documentation see [DEVELOPMENT.md](DEVELOPMENT.md). For how scgraph works inside, see [ARCHITECTURE.md](ARCHITECTURE.md).
+The developer guide, [`DEVELOPMENT.md` on `dev`](https://github.com/connor-makowski/scgraph/blob/dev/DEVELOPMENT.md), gives the commands and the rules of a contribution. [`ARCHITECTURE.md`](https://github.com/connor-makowski/scgraph/blob/dev/ARCHITECTURE.md) explains how scgraph works inside.
 
 ---
 
 ## Attributions and Thanks
 
 Originally inspired by [searoute](https://github.com/genthalili/searoute-py), including the use of one of their [datasets](https://github.com/genthalili/searoute-py/blob/main/searoute/data/marnet_densified_v2_old.geojson) that has been modified to work with this package.
+
+The released networks are built from [OpenStreetMap](https://www.openstreetmap.org/copyright) (© OpenStreetMap contributors), Eurostat SeaRoute, Natural Earth, the World Port Index, OurAirports, Wikidata, and flight data of OpenSky, the US Bureau of Transportation Statistics and Eurostat. [scgraph/pipelines/data/README.md](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/data/README.md) gives the license of each table.
+
+The C++ extension includes [bmssp](https://github.com/lcs147/bmssp) by Lucas Castro and Thailsson Clementino (MIT License), with parts under the Boost Software License. The two license texts are beside the file, in `scgraph/cpp/src/`.

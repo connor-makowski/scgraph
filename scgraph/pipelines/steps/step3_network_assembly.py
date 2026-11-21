@@ -74,7 +74,7 @@ loses node 1. The second chain keeps node 2.
 
 THE C++ VERSION
 
-`build_csr_from_arcs`, `strongly_connected_components`, `contract_chains` and
+`build_csr_from_arcs`, `find_strongly_connected_components`, `contract_chains` and
 `simplify_shapes` have a C++ version (`cpp/src/pipelines/assembly.hpp`), which a
 network of the planet needs. The functions of this module call it when the extension
 is built and the inputs are `array` or `memoryview` buffers. The pure-Python versions
@@ -104,7 +104,7 @@ try:
         build_csr_from_arcs as _cpp_build_csr_from_arcs,
         contract_chains as _cpp_contract_chains,
         simplify_shapes as _cpp_simplify_shapes,
-        strongly_connected_components as _cpp_strongly_connected_components,
+        find_strongly_connected_components as _cpp_strongly_connected_components,
     )
 except ImportError:
     _cpp_build_csr_from_arcs = None
@@ -117,7 +117,7 @@ from scgraph.helpers.douglas_peucker import (
     simplify_shapes as simplify_shapes_python,
 )
 from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
-from scgraph.network_file import extract_coordinates
+from scgraph.network_file import encode_coordinates
 from scgraph.utils import _log_step
 
 logger = logging.getLogger(__name__)
@@ -190,10 +190,10 @@ def build_csr_from_arcs(
     return build_csr_from_arcs_python(origins, destinations, weights)
 
 
-def strongly_connected_components_python(
+def find_strongly_connected_components_python(
     offsets: Sequence[int], heads: Sequence[int]
 ) -> tuple[array, array]:
-    """Pure-Python version of `strongly_connected_components`."""
+    """Pure-Python version of `find_strongly_connected_components`."""
     n = len(offsets) - 1
     if (
         n < 0
@@ -250,7 +250,7 @@ def strongly_connected_components_python(
     return labels, sizes
 
 
-def strongly_connected_components(
+def find_strongly_connected_components(
     offsets: array | memoryview, heads: array | memoryview
 ) -> tuple[array | memoryview, array | memoryview]:
     """Find the strongly connected components of a graph, with Kosaraju's algorithm.
@@ -271,7 +271,7 @@ def strongly_connected_components(
         offsets, (array, memoryview)
     ):
         return _cpp_strongly_connected_components(offsets, heads)
-    return strongly_connected_components_python(offsets, heads)
+    return find_strongly_connected_components_python(offsets, heads)
 
 
 def build_csr_from_adjacency_list(
@@ -317,7 +317,7 @@ def keep_strongly_connected_components(
         `(kept_nodes, labels)`. `kept_nodes` lists the kept nodes in rising order.
         `labels[u]` is the number of the component of node `u`, kept or not.
     """
-    labels, sizes = strongly_connected_components(offsets, heads)
+    labels, sizes = find_strongly_connected_components(offsets, heads)
     if min_component_nodes is None:
         largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)
         wanted = [c == largest for c in range(len(sizes))]
@@ -668,7 +668,7 @@ class PieceArrays:
             [x for point in points for x in point]
             for points in (endpoint_coords, shape_points)
         ]
-        ends, points = extract_coordinates(flat, "int32")
+        ends, points = encode_coordinates(flat, "int32")
         new["ends"].extend(ends)
         new["points"].extend(points)
         if class_row is not None:
@@ -809,7 +809,7 @@ def assemble_network(
             graph["heads"],
             min_component_nodes,
         )
-        given, graph = graph, _renumbered(graph, *order)
+        given, graph = graph, renumber_nodes(graph, *order)
         given.clear()  # freed now, not when the caller lets it go: one copy at a time
         counts.update(_count_nodes_and_arcs(graph, "kept_"))
     with _log_step(
@@ -853,10 +853,10 @@ def assemble_network(
         curve = hilbert_key(latitudes[u] * 1e-7, longitudes[u] * 1e-7)
         return (modes[u] << 2 * CURVE_ORDER | curve) << 32 | u
 
-    # One int per node, not a list; the sorted ints are freed before _renumbered
+    # One int per node, not a list; the sorted ints are freed before renumber_nodes
     keys = sorted(map(key, range(len(kept))))
     order, keys = array("i", (k & 0xFFFFFFFF for k in keys)), None
-    return _renumbered(graph, order)
+    return renumber_nodes(graph, order)
 
 
 def build_chain_shapes(
@@ -908,7 +908,7 @@ def _select_nodes(graph, nodes):
     return selected
 
 
-def _renumbered(graph, order, labels=None):
+def renumber_nodes(graph, order, labels=None):
     """Return `graph` with the nodes of `order` only. Node `order[i]` becomes node `i`, and
     the arcs of each node are sorted by head. With `labels`, an arc is kept only when its
     two ends have the same label. A kept arc keeps its shape, and its class if `graph`
@@ -959,7 +959,7 @@ def _count_nodes_and_arcs(graph, prefix=""):
 python = SimpleNamespace(
     build_csr_from_adjacency_list=build_csr_from_adjacency_list,
     build_csr_from_arcs=build_csr_from_arcs_python,
-    strongly_connected_components=strongly_connected_components_python,
+    find_strongly_connected_components=find_strongly_connected_components_python,
     contract_chains=contract_chains_python,
     simplify_shapes=simplify_shapes_python,
 )

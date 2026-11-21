@@ -28,11 +28,11 @@ void bind_pipelines(nb::module_& m) {
     };
     m.def("build_csr_from_arcs", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"));
     auto bind_scc = [](Int32Array offsets, Int32Array heads) {
-        auto c = assembly::strongly_connected_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
+        auto c = assembly::find_strongly_connected_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
                                                          (int64_t)heads.shape(0));
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
     };
-    m.def("strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
+    m.def("find_strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
     m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Uint8Array> node_modes,
                                 double max_km_between_nodes, std::optional<Uint8Array> arc_classes) {
         const int64_t n = (int64_t)offsets.shape(0) - 1;

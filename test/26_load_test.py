@@ -393,7 +393,7 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         ("built", "geofabrik_multimodal", "europe/france", "f.scgraph", 40),
         ("building", "geofabrik_multimodal", None, "geofabrik_multimodal", 50),
     ]
-    assert info[2]["version"] == "networks-1"
+    assert info[2]["network_release"] == "networks-1"
     # Versions read from the file; None for a file that can't be read
     assert (info[4]["pipeline_version"], info[4]["scgraph"]) == (3, "9.9")
     assert (info[5]["pipeline_version"], info[5]["scgraph"]) == (None, None)

@@ -1,3 +1,11 @@
+"""Read and simplify GeoJSON files of lines.
+
+`simplify_geojson` rounds the coordinates, simplifies each line, and merges all lines
+into one MultiLineString. `parse_geojson` turns such a file into a graph: a node at
+each point, and arcs both ways between consecutive points, with their haversine length.
+`GeoGraph.load_from_geojson` calls both functions, and users can call them directly.
+"""
+
 import json
 import logging
 import os

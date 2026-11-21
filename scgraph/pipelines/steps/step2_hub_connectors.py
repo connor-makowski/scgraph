@@ -50,7 +50,7 @@ from scgraph.pipelines.steps.near_nodes import NearNodes
 from scgraph.pipelines.steps.step3_network_assembly import (
     PieceArrays,
     build_graph_from_pieces,
-    strongly_connected_components,
+    find_strongly_connected_components,
 )
 from scgraph.utils import haversine
 
@@ -79,7 +79,7 @@ def copy_table(url: str, filename: str | os.PathLike) -> None:
         shutil.copyfile(DATA / Path(url).name, filename)
 
 
-def _table(
+def _describe_table(
     name: str, credit: str, license: str, license_url: str, version: str
 ):
     return {
@@ -94,21 +94,21 @@ def _table(
 
 # The sources of the hub tables, as a pipeline lists them in its SOURCES
 HUB_TABLES = {
-    "ports": _table(
+    "ports": _describe_table(
         "ports",
         "National Geospatial-Intelligence Agency, World Port Index (Pub. 150)",
         "LicenseRef-US-Government-Work",
         "https://msi.nga.mil/Publications/WPI",
         "UpdatedPub150.csv, SHA-256 315644f1e7796629",
     ),
-    "airports": _table(
+    "airports": _describe_table(
         "airports",
         "OurAirports",
         "LicenseRef-public-domain",
         "https://ourairports.com/data/",
         "airports.csv at commit 1cdbf9cbed1e47bed8f115ec173b91aeb999e44f",
     ),
-    "flights": _table(
+    "flights": _describe_table(
         "flights",
         "The OpenSky Network, flight list (Strohmeier et al., Earth Syst. Sci. "
         "Data 13, 357-366, 2021); US Bureau of Transportation Statistics, "
@@ -117,7 +117,7 @@ HUB_TABLES = {
         "https://zenodo.org/records/5815448",
         "flights of 2021: OpenSky v21.12; T-100 and Eurostat read on 2026-11-17",
     ),
-    "rail_terminals": _table(
+    "rail_terminals": _describe_table(
         "rail_terminals",
         "Wikidata",
         "CC0-1.0",
@@ -141,12 +141,12 @@ class Hub(NamedTuple):
     open_roadstead: bool = False
 
 
-def _rows(filename: str | os.PathLike) -> Iterator[dict]:
+def _read_rows(filename: str | os.PathLike) -> Iterator[dict]:
     with open(filename, newline="", encoding="utf-8") as file:
         yield from csv.DictReader(file)
 
 
-def _point(row: dict) -> list[float]:
+def _get_point(row: dict) -> list[float]:
     return [float(row["latitude"]), float(row["longitude"])]
 
 
@@ -156,19 +156,19 @@ def read_ports(filename: str | os.PathLike) -> list[Hub]:
         Hub(
             "port",
             int(row["id"]),
-            _point(row),
+            _get_point(row),
             ("road", "sea", "rail") if row["rail"] == "1" else ("road", "sea"),
             row["harbor_type"] == "Open Roadstead",
         )
-        for row in _rows(filename)
+        for row in _read_rows(filename)
     ]
 
 
 def read_airports(filename: str | os.PathLike) -> list[Hub]:
     """The airports of an airports table; an airport joins the road network."""
     return [
-        Hub("airport", int(row["id"]), _point(row), ("road",))
-        for row in _rows(filename)
+        Hub("airport", int(row["id"]), _get_point(row), ("road",))
+        for row in _read_rows(filename)
     ]
 
 
@@ -176,8 +176,8 @@ def read_rail_terminals(filename: str | os.PathLike) -> list[Hub]:
     """The terminals of a rail terminals table; a terminal joins the road and rail
     networks."""
     return [
-        Hub("rail_terminal", int(row["id"]), _point(row), ("road", "rail"))
-        for row in _rows(filename)
+        Hub("rail_terminal", int(row["id"]), _get_point(row), ("road", "rail"))
+        for row in _read_rows(filename)
     ]
 
 
@@ -185,7 +185,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
     """The two airport ids of each pair of airports with regular flights."""
     return [
         (int(row["airport_a"]), int(row["airport_b"]))
-        for row in _rows(filename)
+        for row in _read_rows(filename)
     ]
 
 
@@ -288,12 +288,12 @@ def join_networks_at_hubs(
             add(first[mode] + u, first[mode] + v, km, shape, class_row)
     # 2. The connectors of each hub, and its node if it reaches two modes
     connect = {
-        mode: _land_connector(layer, land_mask, CONNECTOR_KM[mode])
+        mode: _build_land_connector(layer, land_mask, CONNECTOR_KM[mode])
         for mode, layer in layers.items()
         if mode != "sea"
     }
     if "sea" in layers:
-        connect["sea"] = _sea_connector(layers["sea"], land_mask)
+        connect["sea"] = _build_sea_connector(layers["sea"], land_mask)
     connectors = (
         []
     )  # each hub, with the connectors it finds: mode -> (node, km, shape)
@@ -358,10 +358,12 @@ def join_networks_at_hubs(
     return joined, {kind: kinds.count(kind) for kind in dict.fromkeys(kinds)}
 
 
-def _land_connector(layer: _Layer, land_mask: "LandMask", max_km: float):
+def _build_land_connector(layer: _Layer, land_mask: "LandMask", max_km: float):
     """`connect(hub)` -> (node of `layer`, km, shape) or None, by the rule of the module
     docstring for road and rail."""
-    labels, sizes = strongly_connected_components(layer.offsets, layer.heads)
+    labels, sizes = find_strongly_connected_components(
+        layer.offsets, layer.heads
+    )
     components = array("i", (sizes[label] for label in labels))
     near = NearNodes(layer.latitudes, layer.longitudes, scale=1e-7)
 
@@ -372,14 +374,17 @@ def _land_connector(layer: _Layer, land_mask: "LandMask", max_km: float):
             (-components[u], km, u)
             for km, u in near.find_within(hub.point, max_km)
         ):
-            if _water_km(land_mask, hub.point, layer.point(u), km) < water_km:
+            if (
+                _measure_water_km(land_mask, hub.point, layer.point(u), km)
+                < water_km
+            ):
                 return u, CIRCUITY * km, []
         return None
 
     return connect
 
 
-def _sea_connector(layer: _Layer, land_mask: "LandMask"):
+def _build_sea_connector(layer: _Layer, land_mask: "LandMask"):
     """`connect(hub)` -> (sea node, km, path) or None: the shortest path over water
     from the hub to the cell of a sea node, then straight to that node."""
     cells = {}  # mask cell -> its first sea node
@@ -401,7 +406,7 @@ def _sea_connector(layer: _Layer, land_mask: "LandMask"):
     return connect
 
 
-def _water_km(land_mask, point_a, point_b, distance_km):
+def _measure_water_km(land_mask, point_a, point_b, distance_km):
     """km of water along the straight line point_a-point_b (`distance_km` long),
     sampled every 0.25 km."""
     n = max(1, math.ceil(distance_km / 0.25))

@@ -20,6 +20,8 @@ from collections.abc import Sequence
 from math import cos, inf, isfinite, radians, sin
 from operator import mul
 
+__all__ = ["NodeOrderError", "SnapIndex"]
+
 # Same values as the C++ index (snap_index.hpp, snap_index.cpp)
 LEAF = 32
 FANOUT = 8

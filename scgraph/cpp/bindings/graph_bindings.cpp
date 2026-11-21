@@ -630,11 +630,16 @@ NB_MODULE(cpp, m) {
         }, nb::arg("origin_id"), nb::arg("destination_id"),
            "Find shortest path using Bellman-Ford algorithm")
 
+        // The C++ search does not use `use_constant_degree_graph`. The binding takes
+        // it so that a call written for the pure-Python build also runs with the
+        // extension.
         .def("bmssp", [](Graph& self,
                          const NodeIdVariant& origin_id,
-                         const NodeIdVariant& destination_id) -> nb::dict {
+                         const NodeIdVariant& destination_id,
+                         bool /*use_constant_degree_graph*/) -> nb::dict {
             return graph_result_to_dict(self.bmssp(origin_id, destination_id));
         }, nb::arg("origin_id"), nb::arg("destination_id"),
+           nb::arg("use_constant_degree_graph") = true,
            "Find shortest path using BMSSP algorithm (falls back to Dijkstra in C++ backend)")
 
         // Cached shortest path

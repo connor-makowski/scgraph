@@ -3,7 +3,7 @@
 import math
 from array import array
 from collections.abc import Sequence
-from operator import le
+from scgraph.utils import _is_sorted
 
 # Metres per 1e-7 degree of latitude
 _METRES = 6371000.0 * math.pi / 1.8e9
@@ -11,7 +11,7 @@ _METRES = 6371000.0 * math.pi / 1.8e9
 
 def _is_monotonically_increasing(offsets):
     """Return True if offsets start at 0 and are monotonically non-decreasing."""
-    return offsets[0] == 0 and all(map(le, offsets, offsets[1:]))
+    return offsets[0] == 0 and _is_sorted(offsets)
 
 
 def perpendicular_distance(
@@ -19,15 +19,16 @@ def perpendicular_distance(
     start: Sequence[float],
     end: Sequence[float],
 ) -> float:
-    """Calculate the perpendicular distance from a 2D point to a line segment.
+    """Return the distance from a point to a line segment, in a plane.
 
-    Parameters:
-        point (tuple or list): [x, y] coordinates of the point.
-        start (tuple or list): [x, y] coordinates of the segment start.
-        end (tuple or list): [x, y] coordinates of the segment end.
+    Args:
+        point: The `[x, y]` coordinates of the point.
+        start: The `[x, y]` coordinates of the start of the segment.
+        end: The `[x, y]` coordinates of the end of the segment.
 
     Returns:
-        float: Shortest Euclidean distance from point to the segment.
+        The shortest Euclidean distance from the point to the segment, in the unit of
+        the coordinates.
     """
     dx = end[0] - start[0]
     dy = end[1] - start[1]
@@ -46,24 +47,25 @@ def douglas_peucker(
     tolerance: float = 0.0,
     min_points: int = 2,
 ) -> list[list[int | float]]:
-    """Simplify a linestring using the Ramer-Douglas-Peucker algorithm.
+    """Simplify a line with the Ramer-Douglas-Peucker algorithm.
 
-    Drops intermediate points that fall within `tolerance` perpendicular distance
-    of the line segment connecting the retained endpoints.
+    The function keeps the two ends of the line. It drops a point between them when
+    the point is within `tolerance` of the segment that joins the kept points around
+    it.
 
-    Parameters:
-        coords (list[list[int | float]]): List of [x, y] coordinates.
-        tolerance (float): Maximum perpendicular distance threshold. Points within
-            this distance of the chord are eliminated. Defaults to 0.0 (removes only
-            strictly colinear points).
-        min_points (int): Minimum number of points to keep in the simplified line
-            (default: 2, keeping at least endpoints).
+    Args:
+        coords: The `[x, y]` coordinates of the points of the line.
+        tolerance: The largest distance from a dropped point to the simplified line,
+            in the unit of the coordinates. The default, 0.0, drops only the points
+            that are exactly on a straight line.
+        min_points: The smallest number of points that the simplified line keeps.
+            The default, 2, keeps at least the two ends.
 
     Returns:
-        list[list[int | float]]: Simplified list of [x, y] coordinates.
+        The `[x, y]` coordinates of the kept points.
 
     Raises:
-        ValueError: If `tolerance < 0`.
+        ValueError: `tolerance` is negative.
     """
     if tolerance < 0:
         raise ValueError("tolerance must be >= 0")
@@ -113,30 +115,31 @@ def simplify_shapes(
     endpoint_coords: array | memoryview,
     tolerance_meters: float,
 ) -> tuple[array, array]:
-    """Simplify intermediate polyline shapes using the Douglas-Peucker algorithm.
+    """Simplify the shapes of many arcs with the Douglas-Peucker algorithm.
 
-    Drops intermediate shape points that fall within `tolerance_meters` metres of the
-    segment connecting the retained endpoints, calculated on a local flat-map
-    projection for each arc.
+    The shape of an arc is the list of points between its two nodes. The function
+    drops a shape point when it is within `tolerance_meters` of the segment that joins
+    the kept points around it. It measures this distance on a flat map around each
+    arc.
 
-    Parameters:
-        shape_points (array[int32]): Flat sequence of intermediate `[lat, lon]` pairs
-            encoded in 1e-7 degrees.
-        shape_offsets (array[int32]): Offsets indexing into `shape_points // 2` for each shape.
-            Shape `i` occupies slice `shape_offsets[i]:shape_offsets[i + 1]`.
-        endpoint_coords (array[int32]): Four coordinates per shape: origin latitude, origin
-            longitude, destination latitude, destination longitude in 1e-7 degrees.
-            These endpoints are always preserved.
-        tolerance_meters (float): Distance threshold in metres. Must be non-negative.
+    Args:
+        shape_points: The shape points of all the arcs, as int32 values in units of
+            1e-7 degree: the latitude of a point, then its longitude.
+        shape_offsets: The int32 offsets of the shapes. The points of shape `i` are
+            the points `shape_offsets[i]` to `shape_offsets[i + 1] - 1`.
+        endpoint_coords: Four int32 values for each shape, in units of 1e-7 degree:
+            the latitude and the longitude of the origin, then of the destination.
+            The function always keeps these two ends.
+        tolerance_meters: The largest distance from a dropped point to the simplified
+            shape, in meters. It is zero or more.
 
     Returns:
-        tuple[array[int32], array[int32]]:
-            A tuple of `(kept_points, kept_offsets)` containing the retained flat
-            coordinate pairs and their corresponding slice offsets.
+        `(kept_points, kept_offsets)`: the kept shape points and their offsets, in
+        the layout of `shape_points` and `shape_offsets`.
 
     Raises:
-        ValueError: If `tolerance_meters < 0`, coordinates are malformed, or offsets
-            do not monotonically increase from 0.
+        ValueError: `tolerance_meters` is negative, an array has the wrong length, or
+            the offsets do not start at 0 or decrease.
     """
     shapes = len(shape_offsets) - 1
     if not tolerance_meters >= 0:

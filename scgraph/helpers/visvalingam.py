@@ -1,3 +1,11 @@
+"""Simplification of a line by the Visvalingam-Whyatt algorithm.
+
+`visvalingam` removes, one at a time, the point whose triangle with its two neighbours
+has the smallest area. It stops when the number of points that `pct_to_keep` and
+`min_points` give is left. The two end points always stay. `simplify_geojson`
+(`helpers/geojson.py`) calls it, and users can import it from `scgraph.helpers`.
+"""
+
 from collections.abc import Sequence, Callable
 from heapq import heappush, heappop
 

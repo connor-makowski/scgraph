@@ -8,7 +8,7 @@ project(scgraph LANGUAGES CXX)
 # -----------------------------
 # Find Packages
 # -----------------------------
-find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
+find_package(Python 3.11 REQUIRED COMPONENTS Interpreter Development.Module)
 find_package(nanobind CONFIG REQUIRED)
 
 # -----------------------------

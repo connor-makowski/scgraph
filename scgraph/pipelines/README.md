@@ -567,7 +567,7 @@ C++ extension. The first load took 0.6 s, download included. The later load took
 found the file in the cache and made no request.
 
 - **Which network release.** `load_geograph` loads a network of the pinned network release,
-  which `scgraph/network_release.py` names. The argument `version` gives the tag of another
+  which `scgraph/network_release.py` names. The argument `network_release` gives the tag of another
   network release.
 - **Which checks after a download.** `network_file.check_content` computes the
   `content_sha256` of the decompressed file, and compares it with the one in the header of the
@@ -583,7 +583,7 @@ found the file in the cache and made no request.
   maps the file and does not copy it into memory.
 - **How long the cache keeps a file.** The cache keeps the files of each network release until
   `GeoGraph.clear_geograph_cache` removes them. The README of the repository gives the place
-  of the cache, in section *Built-in Geographs: Cache Management*.
+  of the cache, in section *Cache Management*.
 
 Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 
