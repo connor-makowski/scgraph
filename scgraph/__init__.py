@@ -1139,7 +1139,7 @@ logging.getLogger("scgraph").setLevel(logging.DEBUG)
 
 - [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb) — Load a released network, compute a route, draw it on a map, choose a network
 - [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb) — Load one mode at a time from a released network, compare three routes
-- [Shortest Tour of 14 Cities by Road](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/coin_or.ipynb) — Compute a distance matrix, solve the travelling salesman problem with PuLP
+- [Shortest Tour of 14 Cities by Road](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/travelling_salesman.ipynb) — Compute a distance matrix, solve the travelling salesman problem with PuLP
 - [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) — Load OSM data, solve for time and distance on bike networks
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb) — Export multiple routes as GeoJSON
 - [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) — Close a canal and open a new one: remove and add nodes and edges
