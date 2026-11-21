@@ -136,7 +136,7 @@ void GraphUtils::cycle_check(const std::vector<int>& predecessor_matrix, int nod
 
 void GraphUtils::ensure_inverse_graph() {
     if (inverse_graph_computed) return;
-    // Counting sort of the arcs by head: each inverse row lists its origins in
+    // Counting sort of the edges by head: each inverse row lists its origins in
     // increasing order
     const CsrGraph& g = graph();
     const int n = g.size();
@@ -401,7 +401,7 @@ std::unordered_map<int, double> GraphUtils::remove_node(bool symmetric_node) {
         }
     } else {
         for (int u = 0; u < graph.size(); ++u) {
-            if (!graph.has_arc(u, node_id)) {
+            if (!graph.has_edge(u, node_id)) {
                 continue;
             }
             auto& node_edges = graph[u];

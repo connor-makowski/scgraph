@@ -7,7 +7,7 @@ the leaves-per-query limit that refuses scattered nodes (NodeOrderError). The bo
 kept in double here, not rounded to float.
 
 Different: the search works in double throughout and compares distances exactly, so
-there is no float selection, no margin and no candidate to confirm. The nearest-node
+there is no float selection, no margin and no candidate to confirm. The closest-node
 search has no first descent: it runs step 4 of the header from the root. Each box also
 keeps the lowest and the highest latitude and longitude of its nodes. The per-quadrant
 search decides from these four values which quadrants a box may hold. The C++ index
@@ -86,7 +86,7 @@ def _box_quadrants(box, c: int, qlat: float, qlon: float, mask: int) -> int:
 
 class SnapIndex:
     """
-    Nearest node of a point on the sphere (exact, ties to the lowest id).
+    Closest node of a point on the sphere (exact, ties to the lowest id).
 
     - `SnapIndex(points)`: `points` is a sequence of [latitude, longitude] in degrees
     - `SnapIndex.from_array(node_points)`: the same, from one array that holds the latitude
@@ -95,8 +95,8 @@ class SnapIndex:
       into a float64 copy (the C++ index reads them in place)
     - The nodes must keep nearby nodes together, as a Hilbert curve does: a scattered order
       raises NodeOrderError, whose message says how to sort and map the answers back
-    - `closest_idx(point)`: id of the point nearest to `point`
-    - `closest_idx_per_quadrant(point)`: id of the nearest point in each quadrant around
+    - `closest_idx(point)`: id of the point closest to `point`
+    - `closest_idx_per_quadrant(point)`: id of the closest point in each quadrant around
       `point`, as a dict with the keys 'ne', 'nw', 'se', 'sw' (None if the quadrant is empty).
       A point is north if its latitude is >= the query's, south if <=, east if it lies within
       180 degrees of longitude eastwards, west likewise (as GeoKDTree)
@@ -186,7 +186,7 @@ class SnapIndex:
 
     @staticmethod
     def _bound(box, c: int, qx: float, qy: float, qz: float) -> float:
-        # Squared chord from the query to the nearest point of box c (0 if inside)
+        # Squared chord from the query to the closest point of box c (0 if inside)
         dx = box[0][c] - qx
         if dx < 0.0:
             dx = qx - box[1][c]

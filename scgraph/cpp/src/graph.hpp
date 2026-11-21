@@ -13,7 +13,7 @@
 #include "transit_node_routing.hpp"
 
 // Number of node scans of the last search in this thread. A node scan is one pass over the
-// arcs of one node. Dijkstra, A* and bucket searches count them. Empty if no such search
+// edges of one node. Dijkstra, A* and bucket searches count them. Empty if no such search
 // ran since reset_node_scans.
 void reset_node_scans();
 std::optional<size_t> get_last_node_scans();
@@ -42,7 +42,7 @@ private:
 public:
     // Constructor
     explicit Graph(const std::vector<std::unordered_map<int, double>>& graph_data, bool validate = false);
-    // Replace the adjacency with arcs stored by origin (CSR), as in a .scgraph file: read in
+    // Replace the adjacency with edges stored by origin (CSR), as in a .scgraph file: read in
     // place if an owner keeps them alive, else copied
     void load_csr(const int32_t* offsets, const int32_t* heads, const double* weights, int n, int64_t m,
                   std::shared_ptr<const void> owner = nullptr);

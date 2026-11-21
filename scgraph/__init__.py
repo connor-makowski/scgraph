@@ -128,7 +128,7 @@ route = europe.get_shortest_path(origin_node=paris, destination_node=berlin)
 print(route["length"])  #=> 909.028 (km: the shortest route takes a flight)
 ```
 
-**The networks.** Distances are in kilometers. The shape of an arc is the list of points that draw the arc on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.20-dev.2`.
+**The networks.** Distances are in kilometers. The shape of an edge is the list of points that draw the edge on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.20-dev.2`.
 
 | Name | What it holds | Download, with shapes | Without shapes |
 |---|---|---|---|
@@ -154,7 +154,7 @@ route = roads.get_shortest_path(origin_node=paris, destination_node=berlin)
 print(route["length"])  #=> 1031.6 (km, by road)
 ```
 
-**A smaller download.** `shapes=False` downloads the file without the shapes. The route lengths are the same. The `coordinate_path` of a route then goes in a straight line from node to node.
+**A smaller download.** `load_intermediate_nodes=False` downloads the file without the shapes. The route lengths are the same. The `coordinate_path` of a route then goes in a straight line from node to node.
 
 **The first load and the next ones.** The first load downloads the file, decompresses it and checks its content. If the download is damaged, `load_geograph` raises a `ValueError` and keeps no file. Every later load reads the cache and makes no network request. The cache keeps the files of each network release until `clear_geograph_cache` removes them. The section *Cache Management* gives the place of the cache and the offline switch.
 
@@ -523,7 +523,7 @@ available = GeoGraph.list_geographs()
 #     ...
 #     {"name": "europe", "cached": True, "kind": "released",
 #      "description": "The part of world_multimodal between latitudes 34 and 72 and longitudes -25 and 45, ...",
-#      "nodes": 1048594, "arcs": 2071242, "download_mb": 60.4, "download_mb_without_shapes": 28.3,
+#      "nodes": 1048594, "edges": 2071242, "download_mb": 60.4, "download_mb_without_shapes": 28.3,
 #      "data_up_to": "2026-11-02T00:59:53Z"},
 #     {"name": "marnet", "cached": False, "kind": "built-in",
 #      "description": "Sea lanes of the world (Eurostat SeaRoute)", "superseded_by": "world_sea"},
@@ -564,7 +564,7 @@ To use another directory for every call, set the environment variable `SCGRAPH_C
 | `network_release` | `None` | For a released network: the tag of the network release, e.g. `'networks-2026.11.20'`; defaults to the network release of the installed scgraph (`scgraph.network_release.TAG`) |
 | `content_sha256` | `None` | For a released network: the `content_sha256` that the file must have (as `get_scgraph_info` gives it); another file raises a `ValueError`. With `network_release`, it loads exactly the same network again later |
 | `modes` | `None` | For a released network: the modes to load, e.g. `["road"]`; `None` loads every mode |
-| `shapes` | `True` | For a released network: `False` loads the file without the shapes of the arcs |
+| `load_intermediate_nodes` | `True` | For a released network: `False` loads the file without the shapes of the edges |
 
 ## Building Networks from Their Sources
 
@@ -601,7 +601,7 @@ The region of `geofabrik_multimodal` is the path of a [Geofabrik extract](https:
 | Name | Network | Source |
 |---|---|---|
 | `eurostat_sea_lanes` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages left out (unlike the built-in `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
-| `geofabrik_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each arc has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
+| `geofabrik_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each edge has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
 | `osm_world_multimodal` | `geofabrik_multimodal` for the world (needs the C++ extension). This pipeline builds the released network `world_multimodal` | The sources of `geofabrik_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
 
 **Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for `geofabrik_multimodal`. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
@@ -622,13 +622,13 @@ A rebuild removes the old network file. On Windows, an old file that another pro
 
 **Saving.** `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory. Save an edited network elsewhere.
 
-**Networks of several modes.** `geofabrik_multimodal` and `osm_world_multimodal` join several modes of transport. Ports, airports and rail terminals join roads, railways, sea lanes and regular flights. Such a place is a hub, and a hub is one node. A connector is the pair of arcs that joins a hub to the network of one mode. The docstring of `geofabrik_multimodal` gives the rules of the connectors.
+**Networks of several modes.** `geofabrik_multimodal` and `osm_world_multimodal` join several modes of transport. Ports, airports and rail terminals join roads, railways, sea lanes and regular flights. Such a place is a hub, and a hub is one node. A connector is the pair of edges that joins a hub to the network of one mode. The docstring of `geofabrik_multimodal` gives the rules of the connectors.
 
 Each node has a mode, for example `road`, `sea` or `port`. `geo.node_modes[i]` gives the row of node `i` in `geo.modes`. That row names the mode and the source of the node ids (OpenStreetMap for roads). The file stores the nodes of each mode together. Routes use kilometers for every mode.
 
 In these networks, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
 
-The file of these networks also records the class of each arc, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `scgraph.network_file.read(file)` returns `(arrays, metadata)`, and the class of arc `a` is `metadata["classes"][arrays["arc_classes"][a]]`. The docstring of `scgraph.pipelines` lists the classes.
+The file of these networks also records the class of each edge, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `scgraph.network_file.read(file)` returns `(arrays, metadata)`, and the class of edge `a` is `metadata["classes"][arrays["edge_classes"][a]]`. The docstring of `scgraph.pipelines` lists the classes.
 
 **A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
@@ -636,7 +636,7 @@ The networks that `build_geograph` builds are not the built-in geographs of `loa
 
 `geofabrik_multimodal` has a node at every junction, and two nodes along a road or a railway are at most about 4 km apart (about 20 km in `osm_world_multimodal`). Sea lanes are not cut. `reduce_iterations=-1` removes the nodes that routing does not need.
 
-In these networks, the shape of each road, ferry or railway arc is simplified to within 50 m (Douglas–Peucker). Lengths are measured on the full shape.
+In these networks, the shape of each road, ferry or railway edge is simplified to within 50 m (Douglas–Peucker). Lengths are measured on the full shape.
 
 ### `build_geograph` Parameters
 
@@ -719,7 +719,7 @@ michigan_rail = GeoGraph.load_from_osm(
 )
 ```
 
-Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each arc has the length of its piece of way, in kilometers. A way is also cut at the first point where the arc since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below. `load_from_geojson` still loads such files.
+Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each edge has the length of its piece of way, in kilometers. A way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below. `load_from_geojson` still loads such files.
 
 ### `load_from_osm` Parameters
 
@@ -728,9 +728,9 @@ Ways meet only where they share an OSM node, so roads that cross on a bridge or 
 | `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`), or a source object (`scgraph.pipelines.steps.step1_osm_ways.locate_ways`) |
 | `select` | `None` (`scgraph.pipelines.steps.step1_osm_ways.select_main_roads`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.pipelines.steps.step1_osm_ways.MAIN_ROADS`), one way where `scgraph.pipelines.steps.step1_osm_ways.get_way_direction(tags)` returns `1` or `-1` |
 | `tag_keys` | `("highway",)` | Tag keys of which a way must have at least one to reach `select`, filtered in osmium (faster); `()` sends every way to `select` |
-| `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new arc, at the next point of the way |
+| `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new edge, at the next point of the way |
 | `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |
-| `load_intermediate_nodes` | `True` | Keep the shape of each arc, to draw routes |
+| `load_intermediate_nodes` | `True` | Keep the shape of each edge, to draw routes |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer loading until the geograph is first accessed |
 
@@ -806,13 +806,13 @@ my_geograph = GeoGraph.load_from_scgraph('my_geograph.scgraph')
 my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
-The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, modes, number of nodes and arcs, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
+The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, modes, number of nodes and edges, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
 
 **Coordinates.** Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node). The `coordinate_dtype` parameter of `save_as_scgraph` chooses the form: `"float64"`, `"int32"` or `"auto"` (the default). With `"auto"`, a GeoGraph keeps its own `coordinate_dtype`. It is `"int32"` for a network read from an int32 file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), and `"float64"` otherwise.
 
 **Mapped files.** In the C++ build, `load_from_scgraph` maps the file and reads it in place while the GeoGraph is alive. With `modes`, it copies only the arrays whose values are not consecutive in the file. On Windows, such a file can then be neither replaced nor deleted: `save_as_scgraph` onto it raises `PermissionError`.
 
-**Nodes and arc shapes read from the file.** A GeoGraph read from a network file (so also from `load_geograph` and `build_geograph`) reads its node coordinates and its arc shapes from the file:
+**Nodes and edge shapes read from the file.** A GeoGraph read from a network file (so also from `load_geograph` and `build_geograph`) reads its node coordinates and its edge shapes from the file:
 
 - `nodes` behaves as a list, but `nodes[i]` is a new list each time. To change a node, assign it: `nodes[i] = [latitude, longitude]`. `json.dumps`, `+`, `*`, `copy()`, `sort()` and ordering comparisons need `list(nodes)` first.
 - `intermediate_nodes[i]` is a new read-only mapping `{destination: shape}` each time. Editing a shape changes nothing, and assigning raises a `TypeError`. `copy.copy` and pickling give a list of dicts. `json.dumps` needs `[dict(row) for row in intermediate_nodes]`.
@@ -828,7 +828,7 @@ The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/conno
 | `get_cache_info()` | List what the cache holds on disk, with sizes and build versions |
 | `load_from_geojson(filename)` | Load from GeoJSON file |
 | `load_from_graphjson(filename)` | Load from SCGraph JSON |
-| `load_from_scgraph(filename, modes=None)` | Load from a binary network file (only the nodes of `modes` and the arcs between them, if given) |
+| `load_from_scgraph(filename, modes=None)` | Load from a binary network file (only the nodes of `modes` and the edges between them, if given) |
 | `get_scgraph_info(filename)` | Read what a binary network file holds, without loading it |
 | `load_from_osmnx_graph(osmnx_graph)` | Load from OSMNx graph object |
 | `load_from_osm(filename)` | Load from an OpenStreetMap file (needs `pip install scgraph[osm]`) |
@@ -1097,25 +1097,25 @@ marnet.get_shortest_path(
     {"latitude": 31.23, "longitude": 121.47},
     {"latitude": 32.08, "longitude": -81.09},
 )
-# DEBUG:scgraph.geograph:read the network file: {'file': '.../marnet.scgraph', 'mapped': True, 'nodes': 11062, 'arcs': 34698, 'duration_ms': 0.205}
+# DEBUG:scgraph.geograph:read the network file: {'file': '.../marnet.scgraph', 'mapped': True, 'nodes': 11062, 'edges': 34698, 'duration_ms': 0.205}
 # DEBUG:scgraph.geograph:build the snapping index: {'nodes': 11062, 'sorted_for_the_index': False, 'duration_ms': 0.749}
 # DEBUG:scgraph.geograph:find the shortest path: {'algorithm': 'bidirectional_buckets', 'distance_units': 'km', 'origin_snap_distance': 64.979, 'destination_snap_distance': 109.566, 'node_scans': 12504}
 ```
 
 | Step | Values |
 |---|---|
-| `read the network file` | `file`, `mapped`, `nodes`, `arcs`, `duration_ms` |
+| `read the network file` | `file`, `mapped`, `nodes`, `edges`, `duration_ms` |
 | `convert the published network` | `name`, `duration_ms` |
 | `build the snapping index` | `nodes`, `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
 
-- `node_scans` is the size of the search: the number of times it went over the arcs of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
-- `origin_snap_distance` and `destination_snap_distance` are the distances from each end of the query to its nearest node of the network, in `distance_units`.
+- `node_scans` is the size of the search: the number of times it went over the edges of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
+- `origin_snap_distance` and `destination_snap_distance` are the distances from each end of the query to its closest node of the network, in `distance_units`.
 - `kept_nodes` is the number of nodes left after the reduction.
 - `mapped` is true when the load maps the file and reads it in place. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
 
-`build_geograph` also logs one line for each step of the OSM pipelines, with its counts and `duration_ms`. A step that removes nodes logs the counts that it received and the counts that it kept (`kept_nodes`, `kept_arcs`).
+`build_geograph` also logs one line for each step of the OSM pipelines, with its counts and `duration_ms`. A step that removes nodes logs the counts that it received and the counts that it kept (`kept_nodes`, `kept_edges`).
 
 A program gets the same values as a dict, in the attribute `scgraph` of each log record. The key `step` of the dict names the step. The names of the values may change between versions.
 

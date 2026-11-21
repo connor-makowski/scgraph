@@ -3,7 +3,7 @@ v5.1.2.
 
 City cases: every Natural Earth populated place with POP_MAX >= 500,000 (POP_MAX: the
 largest population figure Natural Earth gives for the place, metropolitan where known).
-Each city gets a landmass: the Natural Earth land polygon that contains it (else the nearest
+Each city gets a landmass: the Natural Earth land polygon that contains it (else the closest
 one; its distance is recorded), with the Americas split at the Darien Gap (no road there):
 cities of South American countries form their own landmass. The landmass's main city is its
 most populous city (POP_MAX) in this list. The coverage rule of `step4_validation_cases` checks

@@ -14,7 +14,7 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
     std::vector<int32_t> offsets(n + 1, 0);
     for (int i = 0; i < n; ++i) {
         if (offsets[i] + graph_data[i].size() > INT32_MAX) {
-            throw std::length_error("a graph holds at most 2^31 - 1 arcs");
+            throw std::length_error("a graph holds at most 2^31 - 1 edges");
         }
         offsets[i + 1] = offsets[i] + (int32_t)graph_data[i].size();
     }
@@ -48,7 +48,7 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
 void Graph::load_csr(const int32_t* offsets, const int32_t* heads, const double* weights, int n, int64_t m,
                      std::shared_ptr<const void> owner) {
     if (n < 0 || offsets[0] != 0 || offsets[n] != m) {
-        throw std::invalid_argument("offsets must start at 0 and end at the number of arcs");
+        throw std::invalid_argument("offsets must start at 0 and end at the number of edges");
     }
     // Offsets first: heads are read only within [0, m)
     for (int u = 0; u < n; ++u) {

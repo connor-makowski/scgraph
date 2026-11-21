@@ -105,7 +105,7 @@ def write_release_draft(
                         "content_sha256",
                         "format_version",
                         "nodes",
-                        "arcs",
+                        "edges",
                         "data_up_to",
                         "attribution",
                         "pipeline",
@@ -137,7 +137,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
     rows = [
         f"| `{network['file']}` | {network['compressed_bytes'] / 1e6:.1f} MB "
         f"| {network['bytes'] / 1e6:.1f} MB "
-        f"| {network['nodes']:,} | {network['arcs']:,} "
+        f"| {network['nodes']:,} | {network['edges']:,} "
         f"| {network['status']} | `{network['content_sha256'][:16]}` |"
         for network in networks
     ]
@@ -158,7 +158,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
             "port and airport of the world. A route of such a file stays inside "
             "the rectangle on land, so it can be longer than in the world file. A "
             "file with `no_shapes` in its name holds the same network without the "
-            "shapes of its arcs. The lengths of its routes are the same.",
+            "shapes of its edges. The lengths of its routes are the same.",
             "",
             f"A new file comes from commit {commit}. The world network passed the "
             "validation cases of its pipeline when it was built. A derived file "
@@ -175,7 +175,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
             "its `content_sha256`. `networks.json` holds the full digests, the "
             "rectangle of each derived file and the commit of each file.",
             "",
-            "| File | Download | Decompressed | Nodes | Arcs | Status | `content_sha256` |",
+            "| File | Download | Decompressed | Nodes | Edges | Status | `content_sha256` |",
             "|---|---|---|---|---|---|---|",
             *rows,
             "",

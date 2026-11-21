@@ -7,14 +7,14 @@
 #include <utility>
 #include <vector>
 
-// Functions that assemble a network file from raw arcs, for a network too large for
+// Functions that assemble a network file from raw edges, for a network too large for
 // Python (the roads of the planet). Read the header of
 // scgraph/pipelines/steps/step3_network_assembly.py first: it explains the algorithms,
 // and the docstrings of the Python functions give the inputs and the results. Each
 // function here gives the same results as its pure-Python version.
 namespace assembly {
 
-// Arcs and ids are read at random positions: the memory of the one AHEAD is fetched while
+// Edges and ids are read at random positions: the memory of the one AHEAD is fetched while
 // the current one is handled
 constexpr int64_t AHEAD = 16;
 #if defined(__GNUC__) || defined(__clang__)
@@ -84,26 +84,26 @@ private:
     }
 };
 
-struct ArcTable {
+struct EdgeTable {
     std::vector<int64_t> node_ids;
     std::vector<int32_t> offsets, heads, kept;
     std::vector<double> weights;
 };
 
-inline ArcTable build_csr_from_arcs(const int64_t* origins, const int64_t* destinations,
-                              const double* weights, int64_t arc_count) {
-    if (arc_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 arcs");
+inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* destinations,
+                              const double* weights, int64_t edge_count) {
+    if (edge_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 edges");
     // The origins, then the destinations that are not origins (few: most nodes are both)
-    ArcTable table;
+    EdgeTable table;
     std::vector<int64_t>& ids = table.node_ids;
-    ids.reserve(arc_count);
-    for (int64_t a = 0; a < arc_count; ++a) {
+    ids.reserve(edge_count);
+    for (int64_t a = 0; a < edge_count; ++a) {
         if (origins[a] != destinations[a]) ids.push_back(origins[a]);
     }
     sort_unique(ids);
     {
         std::vector<int64_t> others;
-        IdIndex(ids).find_each(destinations, arc_count, [&](int64_t a, int64_t position) {
+        IdIndex(ids).find_each(destinations, edge_count, [&](int64_t a, int64_t position) {
             if (origins[a] != destinations[a] && position < 0) others.push_back(destinations[a]);
         });
         sort_unique(others);
@@ -116,52 +116,52 @@ inline ArcTable build_csr_from_arcs(const int64_t* origins, const int64_t* desti
     if (static_cast<int64_t>(ids.size()) > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 nodes");
     const int32_t n = static_cast<int32_t>(ids.size());
 
-    // Arcs by position, self-loops marked -1
-    std::vector<int32_t> tails(arc_count, -1), heads(arc_count, -1);
+    // Edges by position, self-loops marked -1
+    std::vector<int32_t> tails(edge_count, -1), heads(edge_count, -1);
     const IdIndex index(ids);
-    index.find_each(origins, arc_count, [&](int64_t a, int64_t position) {
+    index.find_each(origins, edge_count, [&](int64_t a, int64_t position) {
         if (origins[a] != destinations[a]) tails[a] = static_cast<int32_t>(position);
     });
-    index.find_each(destinations, arc_count, [&](int64_t a, int64_t position) {
+    index.find_each(destinations, edge_count, [&](int64_t a, int64_t position) {
         if (origins[a] != destinations[a]) heads[a] = static_cast<int32_t>(position);
     });
 
-    // Arcs by tail (a counting sort), each packed as head << 32 | input index, then each
+    // Edges by tail (a counting sort), each packed as head << 32 | input index, then each
     // row sorted: by head, then input index. Rows are short and in one place
     std::vector<int32_t> start(static_cast<size_t>(n) + 1, 0);
-    for (int64_t a = 0; a < arc_count; ++a) {
-        if (a + AHEAD < arc_count && tails[a + AHEAD] >= 0) ASSEMBLY_PREFETCH(&start[tails[a + AHEAD] + 1]);
+    for (int64_t a = 0; a < edge_count; ++a) {
+        if (a + AHEAD < edge_count && tails[a + AHEAD] >= 0) ASSEMBLY_PREFETCH(&start[tails[a + AHEAD] + 1]);
         if (tails[a] >= 0) ++start[tails[a] + 1];
     }
     for (int32_t u = 0; u < n; ++u) start[u + 1] += start[u];
-    std::vector<uint64_t> arcs(start[n]);
-    for (int64_t a = 0; a < arc_count; ++a) {
-        if (a + 2 * AHEAD < arc_count && tails[a + 2 * AHEAD] >= 0) ASSEMBLY_PREFETCH(&start[tails[a + 2 * AHEAD]]);
-        if (a + AHEAD < arc_count && tails[a + AHEAD] >= 0) ASSEMBLY_PREFETCH(&arcs[start[tails[a + AHEAD]]]);
-        if (tails[a] >= 0) arcs[start[tails[a]]++] = static_cast<uint64_t>(heads[a]) << 32 | a;
+    std::vector<uint64_t> edges(start[n]);
+    for (int64_t a = 0; a < edge_count; ++a) {
+        if (a + 2 * AHEAD < edge_count && tails[a + 2 * AHEAD] >= 0) ASSEMBLY_PREFETCH(&start[tails[a + 2 * AHEAD]]);
+        if (a + AHEAD < edge_count && tails[a + AHEAD] >= 0) ASSEMBLY_PREFETCH(&edges[start[tails[a + AHEAD]]]);
+        if (tails[a] >= 0) edges[start[tails[a]]++] = static_cast<uint64_t>(heads[a]) << 32 | a;
     }
     // Free them (assigning {} would keep the memory)
     std::vector<int32_t>().swap(tails);
     std::vector<int32_t>().swap(heads);
 
     // Now start[u] is where row u ends; offsets overwrite it, behind the reads. Of
-    // parallel arcs, keep the shortest, the first in the input on a tie
-    table.heads.reserve(arcs.size());
-    table.weights.reserve(arcs.size());
-    table.kept.reserve(arcs.size());
+    // parallel edges, keep the shortest, the first in the input on a tie
+    table.heads.reserve(edges.size());
+    table.weights.reserve(edges.size());
+    table.kept.reserve(edges.size());
     int32_t begin = 0;
     for (int32_t u = 0; u < n; ++u) {
         const int32_t end = start[u];
         start[u] = static_cast<int32_t>(table.heads.size());
-        std::sort(arcs.begin() + begin, arcs.begin() + end);
-        for (int64_t i = begin + AHEAD; i < end + AHEAD && i < static_cast<int64_t>(arcs.size()); ++i) {
-            ASSEMBLY_PREFETCH(&weights[static_cast<uint32_t>(arcs[i])]);
+        std::sort(edges.begin() + begin, edges.begin() + end);
+        for (int64_t i = begin + AHEAD; i < end + AHEAD && i < static_cast<int64_t>(edges.size()); ++i) {
+            ASSEMBLY_PREFETCH(&weights[static_cast<uint32_t>(edges[i])]);
         }
         for (int32_t i = begin; i < end;) {
-            const uint32_t head = arcs[i] >> 32;
-            uint32_t best = static_cast<uint32_t>(arcs[i]);
-            for (++i; i < end && arcs[i] >> 32 == head; ++i) {
-                const uint32_t a = static_cast<uint32_t>(arcs[i]);
+            const uint32_t head = edges[i] >> 32;
+            uint32_t best = static_cast<uint32_t>(edges[i]);
+            for (++i; i < end && edges[i] >> 32 == head; ++i) {
+                const uint32_t a = static_cast<uint32_t>(edges[i]);
                 if (weights[a] < weights[best]) best = a;
             }
             table.heads.push_back(head);
@@ -187,37 +187,37 @@ struct Components {
 };
 
 inline Components find_strongly_connected_components(const int32_t* offsets, const int32_t* heads, int64_t node_count,
-                                                int64_t arc_count) {
-    check_offsets(offsets, node_count, arc_count);
+                                                int64_t edge_count) {
+    check_offsets(offsets, node_count, edge_count);
     const int32_t n = static_cast<int32_t>(node_count);
-    for (int64_t a = 0; a < arc_count; ++a) {
+    for (int64_t a = 0; a < edge_count; ++a) {
         if (heads[a] < 0 || heads[a] >= n) throw std::out_of_range("head out of range");
     }
     // Kosaraju: order the nodes by the end of a depth-first search, then search the
     // reverse graph from the last one finished
     std::vector<int32_t> finished;
     std::vector<char> seen(n, 0);
-    std::vector<std::pair<int32_t, int32_t>> path;  // node, its next arc
+    std::vector<std::pair<int32_t, int32_t>> path;  // node, its next edge
     for (int32_t first = 0; first < n; ++first) {
         if (seen[first]) continue;
         seen[first] = 1;
         path.push_back({first, offsets[first]});
         while (!path.empty()) {
-            const auto [node, arc] = path.back();
-            if (arc == offsets[node + 1]) {
+            const auto [node, edge] = path.back();
+            if (edge == offsets[node + 1]) {
                 path.pop_back();
                 finished.push_back(node);
                 continue;
             }
-            path.back().second = arc + 1;
-            if (!seen[heads[arc]]) {
-                seen[heads[arc]] = 1;
-                path.push_back({heads[arc], offsets[heads[arc]]});
+            path.back().second = edge + 1;
+            if (!seen[heads[edge]]) {
+                seen[heads[edge]] = 1;
+                path.push_back({heads[edge], offsets[heads[edge]]});
             }
         }
     }
-    std::vector<int32_t> reverse_start(static_cast<size_t>(n) + 1, 0), reverse(arc_count);
-    for (int64_t a = 0; a < arc_count; ++a) ++reverse_start[heads[a] + 1];
+    std::vector<int32_t> reverse_start(static_cast<size_t>(n) + 1, 0), reverse(edge_count);
+    for (int64_t a = 0; a < edge_count; ++a) ++reverse_start[heads[a] + 1];
     for (int32_t u = 0; u < n; ++u) reverse_start[u + 1] += reverse_start[u];
     std::vector<int32_t> next(reverse_start.begin(), reverse_start.end() - 1);
     for (int32_t u = 0; u < n; ++u) {
@@ -263,12 +263,12 @@ struct Contracted {
 };
 
 // The same rules, in the same order of operations, as contract_chains_python in
-// assembly.py: the two versions give the same arcs and the same sums.
-// node_modes and arc_classes may be null: the graph then has no modes, or no classes.
+// assembly.py: the two versions give the same edges and the same sums.
+// node_modes and edge_classes may be null: the graph then has no modes, or no classes.
 inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
-                                  const uint8_t* node_modes, int64_t node_count, int64_t arc_count,
-                                  double max_km_between_nodes, const uint8_t* arc_classes) {
-    check_offsets(offsets, node_count, arc_count);
+                                  const uint8_t* node_modes, int64_t node_count, int64_t edge_count,
+                                  double max_km_between_nodes, const uint8_t* edge_classes) {
+    check_offsets(offsets, node_count, edge_count);
     const int32_t n = static_cast<int32_t>(node_count);
     std::vector<int32_t> indegree(n, 0), first(n, -1), second(n, -1);
     for (int32_t u = 0; u < n; ++u) {
@@ -282,7 +282,7 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         }
     }
     auto degree = [&](int32_t v) { return offsets[v + 1] - offsets[v]; };
-    auto arc = [&](int32_t u, int32_t v) {  // the index of arc u -> v
+    auto edge = [&](int32_t u, int32_t v) {  // the index of edge u -> v
         return static_cast<int32_t>(std::lower_bound(heads + offsets[u], heads + offsets[u + 1], v) - heads);
     };
     std::vector<char> chain(n), keep(n), seen(n, 0);
@@ -291,37 +291,37 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         // Predecessors are seen in rising order, so first < second
         const bool two_way = degree(v) == 2 && indegree[v] == 2 && first[v] == out[0] && second[v] == out[1];
         const bool one_way = degree(v) == 1 && indegree[v] == 1 && first[v] != out[0];
-        // All the arcs that leave v or enter v have one class: two arcs for a one-way node, four for a
-        // two-way node. Called for a pass-through node only, which has these arcs.
+        // All the edges that leave v or enter v have one class: two edges for a one-way node, four for a
+        // two-way node. Called for a pass-through node only, which has these edges.
         auto has_one_class = [&]() {
-            const uint8_t c = arc_classes[offsets[v]];
-            return arc_classes[arc(first[v], v)] == c &&
-                   (one_way || (arc_classes[offsets[v] + 1] == c && arc_classes[arc(second[v], v)] == c));
+            const uint8_t c = edge_classes[offsets[v]];
+            return edge_classes[edge(first[v], v)] == c &&
+                   (one_way || (edge_classes[offsets[v] + 1] == c && edge_classes[edge(second[v], v)] == c));
         };
         chain[v] = (two_way || one_way) &&
                    (!node_modes || (node_modes[out[0]] == node_modes[v] &&
                                     node_modes[two_way ? out[1] : first[v]] == node_modes[v])) &&
-                   (!arc_classes || has_one_class());
+                   (!edge_classes || has_one_class());
         keep[v] = !chain[v];
     }
     for (auto* unused : {&indegree, &first, &second}) std::vector<int32_t>().swap(*unused);
-    std::unordered_set<uint64_t> pairs;  // (origin, head) of the arcs made by contraction
-    auto exists = [&](int32_t u, int32_t v) {  // an input arc, or an arc made
+    std::unordered_set<uint64_t> pairs;  // (origin, head) of the edges made by contraction
+    auto exists = [&](int32_t u, int32_t v) {  // an input edge, or an edge made
         return pairs.count(static_cast<uint64_t>(u) << 32 | v) || std::binary_search(heads + offsets[u], heads + offsets[u + 1], v);
     };
-    // Each input arc is the member of one arc at most: reserved once, never copied as
+    // Each input edge is the member of one edge at most: reserved once, never copied as
     // they grow, and only the pages used are resident
-    struct Arc { int32_t u, v; double km; int32_t first, count; };
-    std::vector<Arc> arcs;
-    std::vector<int32_t> pool;  // the arcs' members, each arc's in a run
-    arcs.reserve(arc_count), pool.reserve(arc_count);
+    struct Edge { int32_t u, v; double km; int32_t first, count; };
+    std::vector<Edge> edges;
+    std::vector<int32_t> pool;  // the edges' members, each edge's in a run
+    edges.reserve(edge_count), pool.reserve(edge_count);
     auto add = [&](int32_t u, int32_t v, double km, int64_t first) {
-        arcs.push_back({u, v, km, static_cast<int32_t>(first), static_cast<int32_t>(pool.size() - first)});
+        edges.push_back({u, v, km, static_cast<int32_t>(first), static_cast<int32_t>(pool.size() - first)});
         pairs.insert(static_cast<uint64_t>(u) << 32 | v);
     };
     for (int32_t u = 0; u < n; ++u) {
         for (int32_t a = offsets[u]; a < offsets[u + 1]; ++a) {
-            if (keep[u] && keep[heads[a]]) pool.push_back(a), arcs.push_back({u, heads[a], weights[a], (int32_t)pool.size() - 1, 1});
+            if (keep[u] && keep[heads[a]]) pool.push_back(a), edges.push_back({u, heads[a], weights[a], (int32_t)pool.size() - 1, 1});
         }
     }
     std::vector<int32_t> nodes, path;
@@ -363,8 +363,8 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
             if (both) {  // members in travel order, summed from the canonical end
                 const int64_t backward = static_cast<int64_t>(pool.size());
                 km = 0;
-                for (int32_t k = i; k < j; ++k) km += weights[arc(nodes[k + 1], nodes[k])];
-                for (int32_t k = j - 1; k >= i; --k) pool.push_back(arc(nodes[k + 1], nodes[k]));
+                for (int32_t k = i; k < j; ++k) km += weights[edge(nodes[k + 1], nodes[k])];
+                for (int32_t k = j - 1; k >= i; --k) pool.push_back(edge(nodes[k + 1], nodes[k]));
                 add(e, b, km, backward);
             }
         }
@@ -384,18 +384,18 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
     for (int32_t v = 0; v < n; ++v) {
         if (keep[v]) position[v] = static_cast<int32_t>(result.kept.size()), result.kept.push_back(v);
     }
-    std::sort(arcs.begin(), arcs.end(), [](const Arc& x, const Arc& y) { return std::pair(x.u, x.v) < std::pair(y.u, y.v); });
-    // The members first, then the pool is freed; then the arcs' columns
+    std::sort(edges.begin(), edges.end(), [](const Edge& x, const Edge& y) { return std::pair(x.u, x.v) < std::pair(y.u, y.v); });
+    // The members first, then the pool is freed; then the edges' columns
     result.members.reserve(pool.size());
-    result.member_offsets.reserve(arcs.size() + 1);
+    result.member_offsets.reserve(edges.size() + 1);
     result.member_offsets.push_back(0);
-    for (const Arc& x : arcs) {
+    for (const Edge& x : edges) {
         result.members.insert(result.members.end(), pool.begin() + x.first, pool.begin() + x.first + x.count);
         result.member_offsets.push_back(static_cast<int32_t>(result.members.size()));
     }
     std::vector<int32_t>().swap(pool);
-    result.origins.reserve(arcs.size()), result.heads.reserve(arcs.size()), result.weights.reserve(arcs.size());
-    for (const Arc& x : arcs) {
+    result.origins.reserve(edges.size()), result.heads.reserve(edges.size()), result.weights.reserve(edges.size());
+    for (const Edge& x : edges) {
         result.origins.push_back(position[x.u]);
         result.heads.push_back(position[x.v]);
         result.weights.push_back(x.km);
@@ -428,7 +428,7 @@ inline Shapes simplify_shapes(const int32_t* points, int64_t point_count, const 
         const double kx = METRES * std::cos(end[0] * PI / 1.8e9);
         x.resize(last + 1);
         y.resize(last + 1);
-        // Local metres from the arc's origin, longitudes across the antimeridian unwrapped
+        // Local metres from the edge's origin, longitudes across the antimeridian unwrapped
         auto place = [&](int64_t i, int32_t latitude, int32_t longitude) {
             int64_t dlon = static_cast<int64_t>(longitude) - end[1];
             if (dlon > 1800000000) dlon -= 3600000000;

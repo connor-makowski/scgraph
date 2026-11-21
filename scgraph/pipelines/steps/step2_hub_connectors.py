@@ -1,33 +1,33 @@
 """Join hubs to the networks of several modes.
 
 A hub is a place where goods change mode: a port, an airport or a rail terminal. Each hub
-becomes one node. It joins the network of each mode it serves by one connector, an arc
+becomes one node. It joins the network of each mode it serves by one connector, an edge
 in each direction:
 
 - road or rail: a straight line to a node of that network, at most CONNECTOR_KM away.
   The line crosses less than WATER_KM of water (ROADSTEAD_WATER_KM for an open
-  roadstead). Among these nodes, the hub takes the nearest one of the largest
-  component, so that it does not join a road cut off from the network. The arc weighs
+  roadstead). Among these nodes, the hub takes the closest one of the largest
+  component, so that it does not join a road cut off from the network. The edge weighs
   CIRCUITY times the line, since a real road bends.
 - sea: the shortest path over water to a sea node, at most CONNECTOR_KM["sea"] long, on
-  the cells of a `LandMask`. The arc weighs the length of that path, plus the short
+  the cells of a `LandMask`. The edge weighs the length of that path, plus the short
   line from its last cell to the sea node.
 
 A port serves road and sea, and rail when its table says so. An airport serves road.
 Its flights count as a second network: two airports with regular flights between them
-are joined by an arc in each direction, with the great-circle length. A rail terminal
+are joined by an edge in each direction, with the great-circle length. A rail terminal
 serves road and rail.
 
 A hub that reaches fewer than two networks stays out: a port without a road would join
 the sea to nothing. The networks of two modes never share a node, so a route goes from
 one network to another only through a hub.
 
-When the networks have the class of each arc (`arc_classes`), the joined network has
+When the networks have the class of each edge (`edge_classes`), the joined network has
 it too. A connector then has the class of the mode that it reaches, for example
 `road_connector`, and a flight has the class `flight`.
 
 Example: the port of Arhus (World Port Index 30260, served by rail) lies 0.76 km from a
-rail node and 4.08 km from a road node, and the water path to the nearest sea node is
+rail node and 4.08 km from a road node, and the water path to the closest sea node is
 0.99 km long. Its node gets three connectors, each in both directions: 0.91 km to the
 railway (1.2 times 0.76), 4.90 km to the road (1.2 times 4.08) and 0.99 km to the sea.
 
@@ -192,7 +192,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
 class _Layer:
     """The network of one mode, from the network file's arrays
     (`step3_network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
-    node ids and its arcs, each with its class.
+    node ids and its edges, each with its class.
     """
 
     def __init__(self, network: dict):
@@ -216,14 +216,14 @@ class _Layer:
     def point(self, u: int) -> list[float]:
         return [self.latitudes[u] * 1e-7, self.longitudes[u] * 1e-7]
 
-    def arcs(self) -> Iterator[tuple[int, int, float, list, int | None]]:
-        """(origin, destination, km, shape, class row) of each arc. The points of the
+    def edges(self) -> Iterator[tuple[int, int, float, list, int | None]]:
+        """(origin, destination, km, shape, class row) of each edge. The points of the
         shape are in degrees.
         """
         network = self.network
         weights = network["weights"]
         starts, line = network["shape_offsets"], network["shape_points"]
-        arc_classes = network["arc_classes"]
+        edge_classes = network["edge_classes"]
         for u in range(len(self)):
             for a in range(self.offsets[u], self.offsets[u + 1]):
                 points = line[2 * starts[a] : 2 * starts[a + 1]]
@@ -231,7 +231,7 @@ class _Layer:
                     [x * 1e-7, y * 1e-7]
                     for x, y in zip(points[::2], points[1::2])
                 ]
-                yield u, self.heads[a], weights[a], shape, arc_classes[a]
+                yield u, self.heads[a], weights[a], shape, edge_classes[a]
 
 
 def join_networks_at_hubs(
@@ -249,19 +249,19 @@ def join_networks_at_hubs(
 
     Args:
         layers: The network of each mode, as the network file's arrays, with
-            `arc_classes`. The arrays are emptied.
+            `edge_classes`. The arrays are emptied.
         hubs: The hubs to join.
         land_mask: Land and water around the hubs. Its raster is released.
         modes: The names of the rows of the modes table: every layer and every kind
             of hub.
         flights: The two airport ids of each pair with regular flights.
-        work_dir: A folder that keeps the arcs in files. None keeps them in memory.
+        work_dir: A folder that keeps the edges in files. None keeps them in memory.
 
     Returns:
         The joined network as the network file's arrays, and the number of hubs
         joined of each kind. `node_modes` gives the row of each node in `modes`.
         `node_ids` keeps each layer's ids and gives each hub its id in its table.
-        `arc_classes` gives the row of each arc in `scgraph.pipelines.CLASSES`.
+        `edge_classes` gives the row of each edge in `scgraph.pipelines.CLASSES`.
     """
     layers = {mode: _Layer(network) for mode, network in layers.items()}
     # The class row of a connector, by the mode that it reaches, and of a flight
@@ -282,9 +282,9 @@ def join_networks_at_hubs(
     def add(u, v, km, shape, class_row):
         pieces.append(u, v, km, 1, [at(u), at(v)], shape, class_row)
 
-    # 1. The arcs of each layer, on node indices that follow each other
+    # 1. The edges of each layer, on node indices that follow each other
     for mode, layer in layers.items():
-        for u, v, km, shape, class_row in layer.arcs():
+        for u, v, km, shape, class_row in layer.edges():
             add(first[mode] + u, first[mode] + v, km, shape, class_row)
     # 2. The connectors of each hub, and its node if it reaches two modes
     connect = {
@@ -298,23 +298,23 @@ def join_networks_at_hubs(
         []
     )  # each hub, with the connectors it finds: mode -> (node, km, shape)
     for hub in hubs:
-        arcs = {
+        edges = {
             mode: connect[mode](hub) for mode in hub.modes if mode in connect
         }
         connectors.append(
-            (hub, {mode: arc for mode, arc in arcs.items() if arc})
+            (hub, {mode: edge for mode, edge in edges.items() if edge})
         )
     # A flight is kept when both its airports have a road connector
     reached = {
-        hub.id for hub, arcs in connectors if hub.kind == "airport" and arcs
+        hub.id for hub, edges in connectors if hub.kind == "airport" and edges
     }
     flights = [flight for flight in flights if set(flight) <= reached]
     flying = {a for flight in flights for a in flight}
     kinds, ids, airport = [], array("q"), {}
-    for hub, arcs in connectors:
+    for hub, edges in connectors:
         flies = hub.kind == "airport" and hub.id in flying
         if (
-            len(arcs) + flies < 2
+            len(edges) + flies < 2
         ):  # the flights count as a network of an airport
             continue
         h = n + len(points)
@@ -323,7 +323,7 @@ def join_networks_at_hubs(
         ids.append(hub.id)
         if hub.kind == "airport":
             airport[hub.id] = h
-        for mode, (u, km, shape) in arcs.items():
+        for mode, (u, km, shape) in edges.items():
             u += first[mode]
             add(h, u, km, shape, connector_row[mode])
             add(u, h, km, shape[::-1], connector_row[mode])
@@ -369,7 +369,7 @@ def _build_land_connector(layer: _Layer, land_mask: "LandMask", max_km: float):
 
     def connect(hub):
         water_km = ROADSTEAD_WATER_KM if hub.open_roadstead else WATER_KM
-        # Largest component first, then nearest
+        # Largest component first, then closest
         for _, km, u in sorted(
             (-components[u], km, u)
             for km, u in near.find_within(hub.point, max_km)

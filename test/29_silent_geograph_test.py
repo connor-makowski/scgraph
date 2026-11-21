@@ -1,7 +1,8 @@
 import pytest
 from scgraph import GeoGraph, PathNotFoundError
 
-# Two pairs of nodes far apart, with no arc between the pairs: no route joins them
+# Two pairs of nodes far apart, with no edge between the pairs: no route joins
+# them
 graph_in_two_parts = GeoGraph(
     nodes=[[0.0, 0.0], [0.1, 0.1], [50.0, 50.0], [50.1, 50.1]],
     graph=[{1: 15.0}, {0: 15.0}, {3: 15.0}, {2: 15.0}],

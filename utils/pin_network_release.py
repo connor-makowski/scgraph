@@ -40,15 +40,15 @@ download that is not the published file.
 # The tag of the pinned network release
 TAG = "{tag}"
 # The `content_sha256` of each network file of this release. A key is the name of a
-# network. It ends with `.no_shapes` for the file without the shapes of the arcs.
+# network. It ends with `.no_shapes` for the file without the shapes of the edges.
 # `load_geograph` checks each file that it downloads from this release against its
 # value here.
 CONTENT_SHA256 = {{
 {rows}
 }}
 # What `GeoGraph.list_geographs` says of each network of this release: its numbers of
-# nodes and of arcs, the size in MB of its download with and without the shapes of the
-# arcs, and the time of its newest source data (None when no source gives a time).
+# nodes and of edges, the size in MB of its download with and without the shapes of the
+# edges, and the time of its newest source data (None when no source gives a time).
 NETWORKS = {{
 {networks}
 }}
@@ -72,7 +72,7 @@ def main(tag: str) -> None:
     networks = "\n".join(
         f'    "{name}": {{\n'
         f'        "nodes": {files[name]["nodes"]},\n'
-        f'        "arcs": {files[name]["arcs"]},\n'
+        f'        "edges": {files[name]["edges"]},\n'
         f'        "download_mb": {files[name]["compressed_bytes"] / 1e6:.1f},\n'
         f'        "download_mb_without_shapes": '
         f'{files[name + ".no_shapes"]["compressed_bytes"] / 1e6:.1f},\n'

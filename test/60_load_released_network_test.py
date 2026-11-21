@@ -24,7 +24,7 @@ RELEASES_URL = "https://github.com/connor-makowski/scgraph/releases/download/"
 
 def _small_network():
     # Two road nodes, and one sea node joined to the second road node. The
-    # arc between the road nodes has a shape with one point.
+    # edge between the road nodes has a shape with one point.
     return GeoGraph(
         graph=[{1: 2.0}, {0: 2.0, 2: 3.0}, {1: 3.0}],
         nodes=[[0, 0], [0, 1], [1, 1]],
@@ -87,7 +87,7 @@ def releases(monkeypatch):
 @pytest.fixture(scope="module")
 def world_sea():
     # A real download of 1.2 MB from the pinned network release.
-    return GeoGraph.load_geograph("world_sea", shapes=False)
+    return GeoGraph.load_geograph("world_sea", load_intermediate_nodes=False)
 
 
 def test_first_load_downloads_the_network_file_of_the_network_release(
@@ -195,7 +195,7 @@ def test_each_network_of_3_6_0_names_the_released_network_that_supersedes_it(
 
 # Three tests below load the network lazily: the file is fetched at the first
 # use of the network, with the same arguments.
-def test_shapes_false_loads_the_network_without_the_shapes_of_its_arcs(
+def test_a_load_without_intermediate_nodes_has_no_edge_shapes(
     releases, cache, tmp_path
 ):
     releases.files[EUROPE_FILE_WITHOUT_SHAPES] = _compress_small_network(
@@ -203,7 +203,11 @@ def test_shapes_false_loads_the_network_without_the_shapes_of_its_arcs(
     )
 
     europe = GeoGraph.load_geograph(
-        "europe", str(cache), network_release=OTHER_TAG, shapes=False, lazy=True
+        "europe",
+        str(cache),
+        network_release=OTHER_TAG,
+        load_intermediate_nodes=False,
+        lazy=True,
     )
 
     # The file with shapes would add the point (0.5, 0.5).
@@ -218,7 +222,10 @@ def test_the_cache_keeps_the_file_with_shapes_and_the_file_without(
     )
     releases.files[EUROPE_FILE] = _compress_small_network(tmp_path)
     GeoGraph.load_geograph(
-        "europe", str(cache), network_release=OTHER_TAG, shapes=False
+        "europe",
+        str(cache),
+        network_release=OTHER_TAG,
+        load_intermediate_nodes=False,
     )
 
     europe = GeoGraph.load_geograph(
@@ -361,6 +368,8 @@ def test_the_arguments_of_a_network_release_are_refused_for_a_network_of_3_6_0(
     releases, cache
 ):
     with pytest.raises(ValueError, match="network release"):
-        GeoGraph.load_geograph("marnet", str(cache), shapes=False)
+        GeoGraph.load_geograph(
+            "marnet", str(cache), load_intermediate_nodes=False
+        )
 
     assert releases.requested == []

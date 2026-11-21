@@ -1,5 +1,5 @@
 # A square lattice of 12 x 12 nodes; each node is linked to its neighbors in
-# its row and in its column by arcs of length 1. The node at (row, column) has
+# its row and in its column by edges of length 1. The node at (row, column) has
 # the id `row * 12 + column`.
 SIDE = 12
 LATTICE = [
@@ -69,7 +69,7 @@ def test_a_star_returns_the_shortest_path_when_the_heuristic_is_not_consistent(
     )
 
     # The distance left from node 1 to node 5 is 3.0: a heuristic of 2.9 never
-    # exceeds the distance left. The heuristic drops by 2.9 along the arc
+    # exceeds the distance left. The heuristic drops by 2.9 along the edge
     # 1 -> 3, which is 1 long: it is not consistent, and the search first
     # reaches node 3 by the long route.
     def high_at_node_1(node, destination):

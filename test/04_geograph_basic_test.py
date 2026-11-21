@@ -198,7 +198,7 @@ def test_route_between_two_points_far_from_the_network_is_a_straight_line():
     geograph = _geograph_with_link_shapes()
 
     # The two points are 0.01 degree apart and about 12 degrees away from the
-    # nearest node: the route does not enter the network.
+    # closest node: the route does not enter the network.
     route = geograph.get_shortest_path(
         origin_node={"latitude": 10, "longitude": 10},
         destination_node={"latitude": 10, "longitude": 10.01},

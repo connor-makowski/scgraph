@@ -62,8 +62,8 @@ protected:
         }
         return packed_graph;
     }
-    void set_graph(CsrGraph arcs) {
-        packed_graph = std::move(arcs);
+    void set_graph(CsrGraph edges) {
+        packed_graph = std::move(edges);
         edits = RowEdits();
     }
     // The rows, to edit
@@ -108,8 +108,8 @@ public:
     // The number of nodes, without packing pending edits
     int size() const { return edits.has_edits() ? edits.node_count : packed_graph.size(); }
     const std::vector<std::unordered_map<int, double>> get_graph() const;
-    // The arcs by origin, pending edits packed
-    const CsrGraph& arcs() const { return graph(); }
+    // The edges by origin, pending edits packed
+    const CsrGraph& edges() const { return graph(); }
     std::vector<std::unordered_map<int, double>> get_inverse_graph();
     const std::unordered_map<int, TreeData>& get_cache() const { return cache; }
     void set_cache(std::unordered_map<int, TreeData> new_cache) { cache = std::move(new_cache); }

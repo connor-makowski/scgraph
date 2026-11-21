@@ -16,10 +16,10 @@ ROAD_NODES = {1: [0, 0], 2: [0, 0.03], 3: [0, 0.06], 4: [2, 0.03]}
 PORT_NODES = {10: [0, 0.07]}
 SEA_NODES = {20: [-0.1, 0.07], 21: [-0.1, 50]}
 NODES = ROAD_NODES | PORT_NODES | SEA_NODES
-# Each link is (node, node, km), and gives one arc each way.
+# Each link is (node, node, km), and gives one edge each way.
 ROAD_LINKS = [(1, 2, 3.0), (2, 3, 3.0), (2, 4, 222.0)]
 PORT_AND_SEA_LINKS = [(3, 10, 1.0), (10, 20, 11.0), (20, 21, 5550.0)]
-# The road from node 1 to node 2 bends at this point: the only arc shape.
+# The road from node 1 to node 2 bends at this point: the only edge shape.
 BEND = [0.01, 0.015]
 MODES = [
     {"name": "road", "source": "osm"},
@@ -126,27 +126,27 @@ def test_a_route_of_a_derived_file_has_its_length_in_the_parent_file(bbox_file):
     assert _km_from_node_1_to_node_21(bbox_file) == pytest.approx(5568.0)
 
 
-def _name_each_arc(arrays):
-    """A name for each arc of the arrays of a network, in the order of the
-    arcs: "1-2" for the arc from node 1 to node 2."""
+def _name_each_edge(arrays):
+    """A name for each edge of the arrays of a network, in the order of the
+    edges: "1-2" for the edge from node 1 to node 2."""
     ids, offsets, heads = (
         arrays[name] for name in ("node_ids", "offsets", "heads")
     )
     return [
-        f"{ids[u]}-{ids[heads[arc]]}"
+        f"{ids[u]}-{ids[heads[edge]]}"
         for u in range(len(ids))
-        for arc in range(offsets[u], offsets[u + 1])
+        for edge in range(offsets[u], offsets[u + 1])
     ]
 
 
-def test_a_derived_file_keeps_the_class_of_each_arc_and_the_list_of_classes(
+def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
     parent_file, tmp_path
 ):
-    # The parent file again, where each of the 12 arcs has a class of its own.
-    # The name of the class is the name of the arc.
+    # The parent file again, where each of the 12 edges has a class of its own.
+    # The name of the class is the name of the edge.
     arrays, metadata = network_file.read(parent_file)
-    class_names = _name_each_arc(arrays)
-    arrays["arc_classes"] = array("B", range(len(class_names)))
+    class_names = _name_each_edge(arrays)
+    arrays["edge_classes"] = array("B", range(len(class_names)))
     classed_file = str(tmp_path / "classed.scgraph")
     network_file.write(
         classed_file, arrays, metadata | {"classes": class_names}
@@ -157,12 +157,12 @@ def test_a_derived_file_keeps_the_class_of_each_arc_and_the_list_of_classes(
         classed_file, bbox_file, bbox=BBOX, min_component_nodes=1
     )
 
-    # The bbox removes node 4 and its two arcs, so the other arcs move up.
+    # The bbox removes node 4 and its two edges, so the other edges move up.
     arrays, metadata = network_file.read(bbox_file)
     assert metadata["classes"] == class_names
     assert [
-        class_names[row] for row in arrays["arc_classes"]
-    ] == _name_each_arc(arrays)
+        class_names[row] for row in arrays["edge_classes"]
+    ] == _name_each_edge(arrays)
 
 
 def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
@@ -325,7 +325,7 @@ def _write_small_world(path, pipeline_name):
     for u, v in links:
         graph[u][v] = graph[v][u] = 1.0
     shapes = [{} for _ in nodes]
-    shapes[0][1] = shapes[1][0] = [[50.001, 10.005]]  # one arc has a shape
+    shapes[0][1] = shapes[1][0] = [[50.001, 10.005]]  # one edge has a shape
     GeoGraph(
         graph=graph,
         nodes=nodes,

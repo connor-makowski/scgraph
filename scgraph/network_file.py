@@ -11,9 +11,9 @@ A file has these parts, in this order:
 5. the arrays, in little-endian order. The header gives the offset of each array,
    and each array starts at a multiple of 64 bytes.
 
-The arcs are stored by origin, in Compressed Sparse Row (CSR) arrays. The arcs of
+The edges are stored by origin, in Compressed Sparse Row (CSR) arrays. The edges of
 node `u` go to the nodes `heads[offsets[u]:offsets[u + 1]]`, in the order that a
-search visits them. `weights` holds the weight of each arc at the same positions.
+search visits them. `weights` holds the weight of each edge at the same positions.
 
 The public functions are `read`, `write`, `get_scgraph_info` and `check_content`.
 """
@@ -40,9 +40,9 @@ try:
 except ImportError:
     _coordinate_lists = _shape_path = None
 try:
-    from scgraph.cpp import select_arcs
+    from scgraph.cpp import select_edges
 except ImportError:
-    from scgraph.helpers.arc_selection import select_arcs
+    from scgraph.helpers.edge_selection import select_edges
 
 __all__ = ["check_content", "get_scgraph_info", "read", "write"]
 
@@ -50,9 +50,9 @@ MAGIC = b"SCGRAPH1"
 FORMAT_VERSION = 1
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
-# array name -> the dtypes it may have; shape_* hold the arc shapes, if any; node_ids and
+# array name -> the dtypes it may have; shape_* hold the edge shapes, if any; node_ids and
 # node_modes (optional): each node's id in its source and its row of metadata["modes"].
-# arc_classes (optional): each arc's row of metadata["classes"].
+# edge_classes (optional): each edge's row of metadata["classes"].
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `encode_coordinates`).
@@ -65,7 +65,7 @@ ARRAYS = {
     "shape_points": ("int32", "float64"),
     "node_ids": ("int32", "int64"),
     "node_modes": ("uint8",),
-    "arc_classes": ("uint8",),
+    "edge_classes": ("uint8",),
 }
 POINT_ARRAYS = ("node_points", "shape_points")
 _ALIGN = 64
@@ -137,7 +137,7 @@ RESERVED_METADATA_KEYS = frozenset(
         "content_sha256",
         "format_version",
         "nodes",
-        "arcs",
+        "edges",
         "coordinate_dtype",
         "shapes",
         "node_ids",
@@ -160,10 +160,10 @@ def build_header_metadata(
     Args:
         build_metadata: What built the network: the pipeline, the sources and the
             software (docstring of `scgraph.pipelines`).
-        units: The unit of the arc weights, such as "km".
+        units: The unit of the edge weights, such as "km".
         modes: The modes table: one dict for each mode, with its `name` and, if a
             source gave the node ids of the mode, the name of that `source`.
-        classes: The names of the classes, for a network with `arc_classes`.
+        classes: The names of the classes, for a network with `edge_classes`.
 
     Returns:
         The keys that scgraph sets itself (`crs`, `units`, `modes`, `classes`,
@@ -305,7 +305,7 @@ def read(
         mapped: If True, on a little-endian computer, the arrays are views of the
             file mapped into memory, not copies. The default is False.
         modes: The names of the modes to read. The arrays then hold only the nodes
-            of these modes and the arcs between them, in the order of the file. With
+            of these modes and the edges between them, in the order of the file. With
             `mapped`, an array is a view of the file when its values are consecutive
             in the file, and a new array otherwise. The default, None, reads every
             mode.
@@ -333,7 +333,7 @@ def read(
     if is_mode_kept is None:
         _check(filename, arrays, metadata, should_check_values=not mapped)
     else:
-        # The selection checks the values of the arcs, where it reads them
+        # The selection checks the values of the edges, where it reads them
         _check(filename, arrays, metadata, should_check_values=False)
         arrays = _select_modes(
             filename, arrays, metadata, is_mode_kept, in_place=mapped
@@ -349,8 +349,8 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
 
     Returns:
         The keys of the metadata of the file, then `content_sha256`,
-        `format_version`, `nodes`, `arcs`, `coordinate_dtype`, `shapes` and
-        `node_ids`. `nodes` and `arcs` are counts. `shapes` and `node_ids` say whether
+        `format_version`, `nodes`, `edges`, `coordinate_dtype`, `shapes` and
+        `node_ids`. `nodes` and `edges` are counts. `shapes` and `node_ids` say whether
         the file holds these arrays.
 
     Raises:
@@ -361,7 +361,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         **metadata,
         "format_version": FORMAT_VERSION,
         "nodes": len(arrays["node_points"]) // 2,
-        "arcs": len(arrays["heads"]),
+        "edges": len(arrays["heads"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
         "shapes": "shape_points" in arrays,
         "node_ids": "node_ids" in arrays,
@@ -463,13 +463,13 @@ def _read(filename, file, mapped, modes):
 
 
 def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
-    """The arrays of the nodes of the kept modes, and of the arcs between them.
+    """The arrays of the nodes of the kept modes, and of the edges between them.
 
     `arrays` holds the whole file, and `_check` has checked the lengths.
     `is_mode_kept` says, for each mode of the file, whether the read keeps it.
-    `select_arcs` computes the arrays whose values change. For the other arrays, it
+    `select_edges` computes the arrays whose values change. For the other arrays, it
     gives runs: the ranges of positions of the file that the selection keeps
-    (`scgraph/cpp/src/arc_selection.hpp` explains them). With `in_place`, an array
+    (`scgraph/cpp/src/edge_selection.hpp` explains them). With `in_place`, an array
     that keeps one run is a slice of the array of the file, not a copy."""
     node_count = len(arrays["offsets"]) - 1
     try:
@@ -478,9 +478,9 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
             heads,
             shape_offsets,
             node_runs,
-            arc_runs,
+            edge_runs,
             shape_point_runs,
-        ) = select_arcs(
+        ) = select_edges(
             arrays["offsets"],
             arrays["heads"],
             # Without node_modes, every node is in the first mode
@@ -495,8 +495,8 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
         selected["shape_offsets"] = shape_offsets
     # Each other array, the runs that it follows, and its values per position
     for name, runs, width in (
-        ("weights", arc_runs, 1),
-        ("arc_classes", arc_runs, 1),
+        ("weights", edge_runs, 1),
+        ("edge_classes", edge_runs, 1),
         ("node_points", node_runs, 2),
         ("node_ids", node_runs, 1),
         ("node_modes", node_runs, 1),
@@ -508,12 +508,12 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
         # The id of a node is its position in the file
         positions = chain.from_iterable(starmap(range, node_runs))
         selected["node_ids"] = array("q", positions)
-    if "arc_classes" in arrays:
+    if "edge_classes" in arrays:
         # `_check` does not read the classes of a mapped file. `translate` deletes
         # the valid classes in one pass in C: a byte that is left is not a class.
         valid = bytes(range(256))[: len(metadata["classes"])]
-        if bytes(selected["arc_classes"]).translate(None, valid):
-            raise ValueError(f"{filename}: invalid arc classes")
+        if bytes(selected["edge_classes"]).translate(None, valid):
+            raise ValueError(f"{filename}: invalid edge classes")
     return selected
 
 
@@ -533,7 +533,7 @@ def _take_runs(values, runs, in_place, width=1):
     return taken
 
 
-class ArcShapes(Sequence):
+class EdgeShapes(Sequence):
     """
     The `intermediate_nodes` of a GeoGraph read from a network file: for each origin, a
     read-only mapping {destination: shape}, read from the file's arrays when asked for
@@ -563,11 +563,11 @@ class ArcShapes(Sequence):
         heads, starts = self._heads, self._starts
         return MappingProxyType(
             {
-                heads[arc]: self._read_shape(starts[arc], starts[arc + 1])
-                for arc in range(
+                heads[edge]: self._read_shape(starts[edge], starts[edge + 1])
+                for edge in range(
                     self._offsets[origin], self._offsets[origin + 1]
                 )
-                if starts[arc + 1] != starts[arc]
+                if starts[edge + 1] != starts[edge]
             }
         )
 
@@ -585,7 +585,7 @@ class ArcShapes(Sequence):
         self, path: Sequence[int], coordinates: list[list[float]]
     ) -> list[list[float]]:
         """`coordinates` (one [latitude, longitude] per node of `path`) with the shape of
-        each arc of the path between them; in one C loop in the C++ build"""
+        each edge of the path between them; in one C loop in the C++ build"""
         if _shape_path is not None:
             return _shape_path(
                 self._offsets,
@@ -601,15 +601,17 @@ class ArcShapes(Sequence):
             origin, destination = path[i], path[i + 1]
             # Nodes added after loading (add_coord_node) have no shapes
             if origin < count:
-                for arc in range(offsets[origin], offsets[origin + 1]):
-                    if heads[arc] == destination:
-                        result += self._read_shape(starts[arc], starts[arc + 1])
+                for edge in range(offsets[origin], offsets[origin + 1]):
+                    if heads[edge] == destination:
+                        result += self._read_shape(
+                            starts[edge], starts[edge + 1]
+                        )
                         break
             result.append(coordinates[i + 1])
         return result
 
     def __eq__(self, other):
-        if not isinstance(other, (list, ArcShapes)):
+        if not isinstance(other, (list, EdgeShapes)):
             return NotImplemented
         return len(self) == len(other) and all(map(eq, self, other))
 
@@ -829,13 +831,13 @@ def _check(filename, arrays, metadata, should_check_values=True):
     offsets, heads = arrays["offsets"], arrays["heads"]
     n, m = len(offsets) - 1, len(heads)
     require(n >= 0 and offsets[0] == 0 and offsets[-1] == m, "invalid offsets")
-    require(len(arrays["weights"]) == m, "one weight per arc expected")
+    require(len(arrays["weights"]) == m, "one weight per edge expected")
     if should_check_values:
-        # The loops over the arcs run in C (map, min, max), not in Python
+        # The loops over the edges run in C (map, min, max), not in Python
         require(_is_sorted(offsets), "invalid offsets")
         require(
             not m or (min(heads) >= 0 and max(heads) < n),
-            "arc to a missing node",
+            "edge to a missing node",
         )
     require(len(arrays["node_points"]) == 2 * n, "one point per node expected")
     require(
@@ -857,7 +859,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
             and shapes[-1] == len(arrays["shape_points"]) // 2,
             "invalid shape offsets",
         )
-        # Mapped, each shape's offsets are checked where it is read (ArcShapes)
+        # Mapped, each shape's offsets are checked where it is read (EdgeShapes)
         require(
             not should_check_values or _is_sorted(shapes),
             "invalid shape offsets",
@@ -868,13 +870,13 @@ def _check(filename, arrays, metadata, should_check_values=True):
             f"one {what} per node expected",
         )
     require(
-        "arc_classes" not in arrays or len(arrays["arc_classes"]) == m,
-        "one arc class per arc expected",
+        "edge_classes" not in arrays or len(arrays["edge_classes"]) == m,
+        "one edge class per edge expected",
     )
     # Each value of these arrays is a row of a list of the metadata
     for name, what, key in (
         ("node_modes", "node modes", "modes"),
-        ("arc_classes", "arc classes", "classes"),
+        ("edge_classes", "edge classes", "classes"),
     ):
         if name in arrays:
             rows = metadata.get(key)
@@ -888,21 +890,21 @@ def _check(filename, arrays, metadata, should_check_values=True):
 
 
 def _is_symmetric(offsets, heads, weights):
-    # Return whether every arc has a reverse arc of the same weight.
+    # Return whether every edge has a reverse edge of the same weight.
     #
-    # The degree of a node is its number of arcs. For an arc u -> v, the function
-    # searches the row of v for the reverse arc, but only when v has at most the
+    # The degree of a node is its number of edges. For an edge u -> v, the function
+    # searches the row of v for the reverse edge, but only when v has at most the
     # degree of u. A hub is a node of high degree. With this rule, the function does
     # not read the long row of a hub once for each of its neighbors.
     #
-    # An arc to a node of higher degree is counted in `unmatched`. Its reverse arc is
+    # An edge to a node of higher degree is counted in `unmatched`. Its reverse edge is
     # found later, from the side of that node, and takes one from the count. A row
     # holds each head once, so the graph is symmetric when the count ends at zero.
     unmatched = 0
     for origin in range(len(offsets) - 1):
         degree = offsets[origin + 1] - offsets[origin]
-        for arc in range(offsets[origin], offsets[origin + 1]):
-            head = heads[arc]
+        for edge in range(offsets[origin], offsets[origin + 1]):
+            head = heads[edge]
             start, end = offsets[head], offsets[head + 1]
             if end - start > degree:
                 unmatched += 1
@@ -910,7 +912,7 @@ def _is_symmetric(offsets, heads, weights):
             unmatched -= end - start < degree
             for back in range(start, end):
                 if heads[back] == origin:
-                    if weights[back] != weights[arc]:
+                    if weights[back] != weights[edge]:
                         return False
                     break
             else:

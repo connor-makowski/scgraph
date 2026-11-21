@@ -135,11 +135,11 @@ def _small_digraphs(max_nodes):
     # unit weights
     graphs = []
     for n in range(1, max_nodes + 1):
-        arcs = list(itertools.permutations(range(n), 2))
+        edges = list(itertools.permutations(range(n), 2))
         relabellings = list(itertools.permutations(range(n)))
         seen = set()
-        for mask in range(1 << len(arcs)):
-            chosen = [arc for i, arc in enumerate(arcs) if mask >> i & 1]
+        for mask in range(1 << len(edges)):
+            chosen = [edge for i, edge in enumerate(edges) if mask >> i & 1]
             key = min(
                 tuple(sorted((p[a], p[b]) for a, b in chosen))
                 for p in relabellings
