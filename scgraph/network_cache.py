@@ -1,4 +1,4 @@
-"""The files of the released networks in the cache directory.
+"""The cache directory of scgraph: what it holds and how it is filled.
 
 This module is internal. It holds three things:
 
@@ -6,13 +6,16 @@ This module is internal. It holds three things:
   lists them, with what the network release says of each one;
 - `fetch_released_file`, which downloads the file of a released network into the
   cache directory;
-- `find_cached_file`, which finds the network file of a build in the cache.
+- `find_cached_file`, which finds the network file of a build in the cache;
+- the code of the cache methods of `GeoGraph`: `list_networks`, `clear_cache`,
+  `get_cache_info` and `list_buildable_networks`.
 
 The methods of `GeoGraph` call these functions. `ARCHITECTURE.md`, section 6, gives
 the layout of the cache directory.
 """
 
 import gzip
+import importlib
 import json
 import logging
 import os
@@ -25,7 +28,9 @@ from pathlib import Path
 import requests
 
 from scgraph import network_file, network_release
-from scgraph.utils import _log_step
+from scgraph import built_in_geographs
+from scgraph.utils import resolve_cache_dir
+from scgraph._internal import log_step
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +135,7 @@ def fetch_released_file(
         )
         compressed = download.with_name(f"{download.name}.gz")
         try:
-            with _log_step(
+            with log_step(
                 logger, "download the released network", {"url": url}
             ):
                 try:
@@ -182,3 +187,243 @@ def fetch_released_file(
                 f"{file} has the content_sha256 {found}, not {content_sha256}"
             )
     return file
+
+
+def join_source_values(pipeline, key: str) -> str:
+    """Return one field of the sources of a pipeline, such as `credit` or `license`,
+    as one string. Each value appears once."""
+    return "; ".join(dict.fromkeys(s[key] for s in pipeline.SOURCES.values()))
+
+
+def list_networks(
+    cache_dir: str | os.PathLike | None = None,
+    geograph_url: str = built_in_geographs.GEOGRAPH_URL,
+) -> list[dict]:
+    """List the networks that `GeoGraph.load_geograph` takes.
+
+    The docstring of `GeoGraph.list_geographs` gives the arguments and the result.
+    """
+    cache_path = resolve_cache_dir(cache_dir)
+    release_folder = cache_path.joinpath("releases", network_release.TAG)
+    available = sorted(
+        {
+            *built_in_geographs.BUILT_IN_GEOGRAPHS,
+            *RELEASED_GEOGRAPHS,
+        }
+    )
+    # As in load_geograph: another URL hosts `.graphjson` files only
+    released = set(RELEASED_GEOGRAPHS)
+    if geograph_url != built_in_geographs.GEOGRAPH_URL:
+        url = f"{geograph_url.rstrip('/')}/contents.txt"
+        response = requests.get(url, timeout=60)
+        if not response.ok:
+            raise ConnectionError(
+                f"Failed to fetch geograph list from '{url}'. "
+                f"HTTP status: {response.status_code}."
+            )
+        released = set()
+        available = sorted(
+            line.removesuffix(".graphjson")
+            for line in response.text.splitlines()
+            if line.strip().endswith(".graphjson")
+        )
+    rows = []
+    for name in available:
+        if name in released:
+            is_cached = any(
+                release_folder.joinpath(name + suffix).is_file()
+                for suffix in (".scgraph", ".no_shapes.scgraph")
+            )
+            about = {
+                "kind": "released",
+                **network_release.NETWORKS[name],
+            }
+        else:
+            is_cached = cache_path.joinpath(f"{name}.graphjson").exists()
+            # Another URL hosts networks that scgraph does not know
+            about = (
+                {
+                    "kind": "built-in",
+                    **built_in_geographs.BUILT_IN_GEOGRAPHS[name],
+                }
+                if geograph_url == built_in_geographs.GEOGRAPH_URL
+                else {}
+            )
+        rows.append({"name": name, "cached": is_cached, **about})
+    return rows
+
+
+def clear_cache(
+    cache_dir: str | os.PathLike | None = None,
+    *,
+    name: str | None = None,
+    region: str | None = None,
+) -> None:
+    """Remove what scgraph keeps in the cache directory.
+
+    The docstring of `GeoGraph.clear_geograph_cache` gives the arguments and the result.
+    """
+    from scgraph import pipelines
+
+    if name is not None and name not in {
+        *built_in_geographs.BUILT_IN_GEOGRAPHS,
+        *RELEASED_GEOGRAPHS,
+        *pipelines.NAMES,
+    }:
+        raise ValueError(f"Unknown network '{name}'")
+    if region is not None and (
+        name is None or not re.fullmatch(r"[a-z0-9-]+(/[a-z0-9-]+)*", region)
+    ):
+        raise ValueError(f"Invalid region '{region}', or no name with it")
+    cache_path = resolve_cache_dir(cache_dir)
+    root = cache_path.joinpath("networks")
+
+    def left(function, path, excinfo):
+        # A file still open (Windows: a network loaded in this process) stays, as
+        # an orphan that a later clear removes; its folder then stays too
+        if function is not os.rmdir:
+            logger.warning("Left %s in the cache: %s", path, excinfo[1])
+
+    def remove(path):
+        try:
+            if path.is_dir():
+                shutil.rmtree(path, onerror=left)
+            else:
+                path.unlink(missing_ok=True)
+        except OSError as error:
+            left(None, path, (None, error, None))
+
+    # Only what scgraph writes there, so that a folder given as the cache keeps the
+    # user's own files; then the folder itself if nothing else is left
+    for published in built_in_geographs.BUILT_IN_GEOGRAPHS:
+        if name in (None, published) and region is None:
+            for suffix in (".graphjson", ".scgraph"):
+                remove(cache_path.joinpath(published + suffix))
+    if name is None:
+        remove(root)
+        remove(cache_path.joinpath("releases"))
+        remove(cache_path.joinpath(".work"))  # failed or interrupted builds
+    elif region is None:
+        remove(root.joinpath(name))
+        for stem in (name, f"{name}.no_shapes"):
+            for file in cache_path.glob(f"releases/*/{stem}.scgraph"):
+                remove(file)
+    else:
+        # Only this entry's files: a sub-region is an entry of its own, in a sub-folder
+        folder = root.joinpath(name, region)
+        for file in [*folder.glob("*.scgraph"), folder / "cache.json"]:
+            remove(file)
+    if cache_path.is_dir() and not any(cache_path.iterdir()):
+        cache_path.rmdir()
+
+
+def get_cache_info(cache_dir: str | os.PathLike | None = None) -> list[dict]:
+    """List what the cache directory holds.
+
+    The docstring of `GeoGraph.get_cache_info` gives the arguments and the result.
+    """
+    cache_path = resolve_cache_dir(cache_dir)
+    info = [
+        {
+            "kind": "published",
+            "name": name,
+            "region": None,
+            "file": str(file),
+            "bytes": file.stat().st_size,
+        }
+        for name in built_in_geographs.BUILT_IN_GEOGRAPHS
+        for suffix in (".graphjson", ".scgraph")
+        if (file := cache_path.joinpath(name + suffix)).is_file()
+    ]
+    for file in sorted(cache_path.glob("releases/*/*.scgraph")):
+        info.append(
+            {
+                "kind": "released",
+                "name": file.name.split(".")[0],
+                "region": None,
+                "file": str(file),
+                "bytes": file.stat().st_size,
+                "network_release": file.parent.name,
+            }
+        )
+    root = cache_path.joinpath("networks")
+    for pointer in sorted(
+        root.rglob("cache.json"), key=lambda pointer: pointer.parent
+    ):
+        file = find_cached_file(pointer)
+        if file is None:
+            continue  # not cached
+        name, *region = pointer.parent.relative_to(root).parts
+        try:
+            header = network_file.get_scgraph_info(file)
+            versions = (
+                header["pipeline"]["version"],
+                header["software"]["scgraph"],
+            )
+        except (ValueError, KeyError, TypeError):
+            versions = None, None
+        info.append(
+            {
+                "kind": "built",
+                "name": name,
+                "region": "/".join(region) or None,
+                "file": str(file),
+                "bytes": file.stat().st_size,
+                "pipeline_version": versions[0],
+                "scgraph": versions[1],
+            }
+        )
+    for work in sorted(cache_path.glob(".work/*")):
+        info.append(
+            {
+                "kind": "building",
+                "name": work.name,
+                "region": None,
+                "file": str(work),
+                "bytes": sum(
+                    f.stat().st_size for f in work.rglob("*") if f.is_file()
+                ),
+            }
+        )
+    return info
+
+
+def list_buildable_networks(
+    cache_dir: str | os.PathLike | None = None,
+) -> list[dict]:
+    """List the networks that `GeoGraph.build_geograph` builds.
+
+    The docstring of `GeoGraph.list_buildable_geographs` gives the arguments and the result.
+    """
+    from scgraph import pipelines
+
+    root = resolve_cache_dir(cache_dir).joinpath("networks")
+    listing = []
+    for name in pipelines.NAMES:
+        network = importlib.import_module(f"scgraph.pipelines.{name}")
+        needs_region = any(
+            "{region}" in source["url"] for source in network.SOURCES.values()
+        )
+        folder = root.joinpath(name)
+        built = [m for m in folder.rglob("cache.json") if find_cached_file(m)]
+        listing.append(
+            {
+                "name": name,
+                "description": " ".join(
+                    network.__doc__.split("\n\n")[0].split()
+                ),
+                "credit": join_source_values(network, "credit"),
+                "license": join_source_values(network, "license"),
+                "needs_region": needs_region,
+                "cached": bool(built),
+                "cached_regions": (
+                    sorted(
+                        path.parent.relative_to(folder).as_posix()
+                        for path in built
+                    )
+                    if needs_region
+                    else []
+                ),
+            }
+        )
+    return listing

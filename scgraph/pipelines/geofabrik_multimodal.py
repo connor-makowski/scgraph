@@ -106,7 +106,7 @@ from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.pipelines.steps import step2_hub_connectors
 from scgraph.pipelines.steps.step2_land_mask import LandMask
 from scgraph.pipelines.steps import step3_network_assembly
-from scgraph.utils import _log_step
+from scgraph._internal import log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
@@ -261,7 +261,7 @@ def build(
         )
     del pieces  # the graphs hold their own arrays
     # 2. The sea lanes, with the passage of each lane as its class
-    with _log_step(logger, "read the sea lanes", {}) as counts:
+    with log_step(logger, "read the sea lanes", {}) as counts:
         sea = eurostat_sea_lanes.build_sea_lane_arrays(
             {"sea_lanes": files["sea"]}
         )
@@ -289,7 +289,7 @@ def build(
         hub for hub in region_hubs if mask.get_cell(*hub.point) is not None
     ]
     # 5. Join the networks at the hubs, and the airports by their flights
-    with _log_step(
+    with log_step(
         logger, "join at the hubs", {"hubs": len(region_hubs)}
     ) as counts:
         graph, joined = step2_hub_connectors.join_networks_at_hubs(

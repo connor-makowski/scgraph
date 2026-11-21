@@ -120,7 +120,7 @@ network enters the cache only if it passes its cases.
 THE STEPS OF A BUILD
 
 A build runs steps, such as "read and cut the ways" or "contract the chains". Each
-step logs one line at DEBUG, with its counts and its duration (`utils._log_step`).
+step logs one line at DEBUG, with its counts and its duration (`_internal.log_step`).
 The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for
 each step:
 
@@ -142,9 +142,9 @@ each step:
    file against the cases of `VALIDATION`.
 
 A graph has two layouts in the steps. From `step3_network_assembly.build_graph_from_pieces` on, a
-graph is a dict of the arrays of the network file. `step1_osm_ways.read_osm` and
-`step3_network_assembly.keep_largest_strongly_connected_component` use the layout of a GeoGraph,
-because `load_from_osm` calls them.
+graph is a dict of the arrays of the network file. `scgraph.helpers.osm.read_osm` and
+`scgraph.helpers.components.keep_largest_strongly_connected_component` use the layout of a
+GeoGraph, because `load_from_osm` calls them.
 
 WHAT THE NETWORK FILE RECORDS
 

@@ -3,7 +3,7 @@
 import math
 from array import array
 from collections.abc import Sequence
-from scgraph.utils import _is_sorted
+from scgraph._internal import is_sorted
 
 # Metres per 1e-7 degree of latitude
 _METRES = 6371000.0 * math.pi / 1.8e9
@@ -11,7 +11,7 @@ _METRES = 6371000.0 * math.pi / 1.8e9
 
 def _is_monotonically_increasing(offsets):
     """Return True if offsets start at 0 and are monotonically non-decreasing."""
-    return offsets[0] == 0 and _is_sorted(offsets)
+    return offsets[0] == 0 and is_sorted(offsets)
 
 
 def perpendicular_distance(
