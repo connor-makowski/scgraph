@@ -359,18 +359,20 @@ the ten derived networks of a network release, each with its modes or its bbox. 
 are `world_sea` and `oceania`.
 
 ```
+mkdir derived
 python -m scgraph.pipelines.derived_networks world_multimodal.scgraph derived oceania
 ```
 
 The arguments are the world file, the output folder and the name of a derived network. The
-command writes `derived/oceania.scgraph`, and `derived/oceania.no_shapes.scgraph`: the same
-network without the shapes of its arcs. It prints the two paths. Without a name, the command
-writes the files of the ten derived networks, and the world file without shapes. In a network
-release, the workflow of Part 3 runs the command this way, once.
+output folder must exist. The command writes `derived/oceania.scgraph`, and
+`derived/oceania.no_shapes.scgraph`: the same network without the shapes of its arcs. It
+prints the two paths. Without a name, the command writes the files of the ten derived
+networks, and the world file without shapes. In a network release, the workflow of Part 3
+runs the command this way, once.
 
 The numbers below come from one derivation of `oceania` on 2026-11-20, on Linux, with the C++
 extension. The parent file is the `world_multimodal` of the network release
-`networks-2026.11.20-dev.1` (333.6 MB).
+`networks-2026.11.20-dev.2` (333.6 MB).
 
 | Step | Nodes | Arcs |
 |---|---|---|
@@ -385,7 +387,7 @@ extension. The parent file is the `world_multimodal` of the network release
   in strongly connected components of fewer than 10 nodes. `derive_network_file` removes them. It
   does not contract the chains again: a junction that lost a road stays as a node.
 
-The derivation took 1.4 s. The derived file is 19.7 MB, and 7.0 MB without the shapes. Its
+The derivation took 1.3 s. The derived file is 19.7 MB, and 7.0 MB without the shapes. Its
 header records the `content_sha256` of the parent file, the modes and the bbox.
 
 The command checks the derived network against some cases of `world_multimodal` (`--no-validate`
@@ -407,7 +409,7 @@ Parts 1 and 2 for the world, then prepares the GitHub release.
 The date of the data is in the code, not in the tag. The constant `PLANET` of
 `steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
-`networks-2026.11.20-dev.1` holds the planet of 2026-11-02.
+`networks-2026.11.20-dev.2` holds the planet of 2026-11-02.
 
 ### What starts the run
 
@@ -448,12 +450,12 @@ flowchart TD
 
 | Job | Time when the world is built | Time when the world file is taken |
 |---|---|---|
-| 1. Check the tag | 5 s | 3 s |
-| 2. `world_multimodal` | 1 h 11 min | 41 s |
-| 3. Derive and draft | 3 min 28 s | 3 min 9 s |
+| 1. Check the tag | 9 s | 3 s |
+| 2. `world_multimodal` | 1 h 5 min | 41 s |
+| 3. Derive and draft | 4 min 28 s | 3 min 9 s |
 
-The times come from two runs: `networks-2026.11.20-dev.1`, which built the world, and
-`networks-2026.11.19-dev.2`, which took the world file of the network release before it.
+The times come from two runs. The run of `networks-2026.11.20-dev.2` built the world. A run
+of 2026-11-19 took the world file of the network release before it.
 
 - **Job 2 reads the planet from another server.** The workflow first replaces the planet URL
   of the code by a mirror that is faster from a machine of GitHub. The header of the world
@@ -467,7 +469,7 @@ The times come from two runs: `networks-2026.11.20-dev.1`, which built the world
 
 ### What a network release holds
 
-The network release `networks-2026.11.20-dev.1` holds 23 files.
+The network release `networks-2026.11.20-dev.2` holds 23 files.
 
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
   with and without the shapes of its arcs. For example `oceania.scgraph.gz` (9.2 MB) and
@@ -538,9 +540,9 @@ arguments, the way to read the credit line, and the way to load exactly the same
 The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on maps.
 
 The first call downloads
-`https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.20-dev.1/oceania.no_shapes.scgraph.gz`.
+`https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.20-dev.2/oceania.no_shapes.scgraph.gz`.
 The cache keeps the decompressed file as
-`releases/networks-2026.11.20-dev.1/oceania.no_shapes.scgraph`.
+`releases/networks-2026.11.20-dev.2/oceania.no_shapes.scgraph`.
 
 ```mermaid
 flowchart TD
