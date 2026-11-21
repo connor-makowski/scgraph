@@ -29,6 +29,16 @@ namespace nb = nanobind;
 using namespace nb::literals;
 
 // Helper function to convert GraphResult to dict
+// Warn that `name`, a dict of extra arguments, is deprecated and has no effect, if the
+// caller gave it. The pure-Python class gives the same warning.
+static void warn_deprecated_kwargs(const char* name, nb::handle value) {
+    if (value.is_none()) return;
+    std::string message = std::string("`") + name +
+        "` is deprecated and has no effect. Pass `settled_limit` and `heuristic_fn`.";
+    if (PyErr_WarnEx(PyExc_DeprecationWarning, message.c_str(), 1) < 0)
+        throw nb::python_error();
+}
+
 static nb::dict graph_result_to_dict(const GraphResult& r) {
     nb::dict d;
     d["path"] = r.path;
@@ -655,18 +665,35 @@ NB_MODULE(cpp, m) {
            "Get shortest path using cached tree if available")
 
         // Contraction Hierarchies
-        .def("create_contraction_hierarchy", &Graph::create_contraction_hierarchy,
-             nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
-             "Create a Contraction Hierarchies (CH) graph")
+        // The signatures of the two `create_` methods and of the two hierarchy classes
+        // are those of the pure-Python classes: the optional arguments are passed by
+        // keyword. A call then means the same in both builds.
+        .def("create_contraction_hierarchy", [](Graph& self,
+                                                std::function<double(CHGraph*, int)> heuristic_fn,
+                                                nb::handle ch_graph_kwargs,
+                                                int settled_limit) {
+            warn_deprecated_kwargs("ch_graph_kwargs", ch_graph_kwargs);
+            return self.create_contraction_hierarchy(heuristic_fn, settled_limit);
+        }, nb::kw_only(), nb::arg("heuristic_fn") = nullptr,
+           nb::arg("ch_graph_kwargs") = nb::none(), nb::arg("settled_limit") = 50,
+           "Create a Contraction Hierarchies (CH) graph")
         .def("contraction_hierarchy", [](Graph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
             return graph_result_to_dict(self.contraction_hierarchy(origin_id, destination_id, length_only));
         }, nb::arg("origin_id"), nb::arg("destination_id"), nb::arg("length_only") = false,
            "Get shortest path using Contraction Hierarchies")
 
         // Transit Node Routing
-        .def("create_tnr_hierarchy", &Graph::create_tnr_hierarchy,
-             nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr, nb::arg("settled_limit") = 50,
-             "Create a Transit Node Routing (TNR) graph")
+        .def("create_tnr_hierarchy", [](Graph& self,
+                                        int num_transit_nodes,
+                                        nb::handle tnr_graph_kwargs,
+                                        int settled_limit,
+                                        std::function<double(CHGraph*, int)> heuristic_fn) {
+            warn_deprecated_kwargs("tnr_graph_kwargs", tnr_graph_kwargs);
+            return self.create_tnr_hierarchy(num_transit_nodes, heuristic_fn, settled_limit);
+        }, nb::kw_only(), nb::arg("num_transit_nodes") = 100,
+           nb::arg("tnr_graph_kwargs") = nb::none(), nb::arg("settled_limit") = 50,
+           nb::arg("heuristic_fn") = nullptr,
+           "Create a Transit Node Routing (TNR) graph")
         .def("set_tnr_graph", &Graph::set_tnr_graph, nb::arg("tnr_graph"),
              "Set the TNRGraph object for the graph")
         .def("tnr", [](Graph& self, const NodeIdVariant& origin_id, const NodeIdVariant& destination_id, bool length_only) -> nb::dict {
@@ -676,8 +703,10 @@ NB_MODULE(cpp, m) {
 
     // CHGraph class
     nb::class_<CHGraph>(m, "CHGraph")
-        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, std::function<double(CHGraph*, int)>>(),
-             nb::arg("graph"), nb::arg("settled_limit") = 50, nb::arg("heuristic_fn") = nullptr,
+        .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, std::function<double(CHGraph*, int)>,
+                      const std::optional<std::vector<std::unordered_map<int, double>>>&>(),
+             nb::arg("graph"), nb::kw_only(), nb::arg("settled_limit") = 50,
+             nb::arg("heuristic_fn") = nullptr, nb::arg("inverse_graph") = nb::none(),
              "Initialize and preprocess a CHGraph")
         .def(nb::init<int, const std::vector<int>&, 
                       const std::vector<std::unordered_map<int, double>>&,
@@ -797,8 +826,11 @@ NB_MODULE(cpp, m) {
 
             // TNRGraph class
             nb::class_<TNRGraph, CHGraph>(m, "TNRGraph")
-                .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, int, std::function<double(CHGraph*, int)>>(),
-                     nb::arg("graph"), nb::arg("settled_limit") = 50, nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
+                .def(nb::init<const std::vector<std::unordered_map<int, double>>&, int, int, std::function<double(CHGraph*, int)>,
+                              const std::optional<std::vector<std::unordered_map<int, double>>>&>(),
+                     nb::arg("graph"), nb::kw_only(), nb::arg("settled_limit") = 50,
+                     nb::arg("num_transit_nodes") = 100, nb::arg("heuristic_fn") = nullptr,
+                     nb::arg("inverse_graph") = nb::none(),
                      "Initialize and preprocess a TNRGraph")
                 .def(nb::init<int, const std::vector<int>&, 
                       const std::vector<std::unordered_map<int, double>>&,

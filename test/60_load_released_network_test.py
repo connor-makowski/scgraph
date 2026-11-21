@@ -364,3 +364,16 @@ def test_the_arguments_of_a_network_release_are_refused_for_a_network_of_3_6_0(
         GeoGraph.load_geograph("marnet", str(cache), shapes=False)
 
     assert releases.requested == []
+
+
+def test_a_network_of_release_3_6_0_names_the_released_network_to_use(marnet):
+    with pytest.warns(DeprecationWarning, match="Use 'world_sea'"):
+        GeoGraph.load_geograph("marnet")
+
+
+def test_another_geograph_url_is_deprecated():
+    # A lazy load makes no request before the first use of the network.
+    with pytest.warns(DeprecationWarning, match="geograph_url"):
+        GeoGraph.load_geograph(
+            "marnet", geograph_url="https://example.invalid", lazy=True
+        )

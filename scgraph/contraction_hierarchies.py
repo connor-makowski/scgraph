@@ -912,6 +912,7 @@ class CHGraph(
     def __init__(
         self,
         graph: list[dict[int, int | float]] | None = None,
+        *,
         heuristic_fn: Callable[["CHGraph", int], int | float] | None = None,
         ranks: list[int] | None = None,
         forward_graph: list[dict[int, int | float]] | None = None,

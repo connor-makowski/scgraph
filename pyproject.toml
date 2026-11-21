@@ -109,6 +109,13 @@ dev = [
 testpaths = ["test"]
 pythonpath = ["test"]
 python_files = ["*_test.py"]
+# The tests of the networks and of the values that release 4.0 deprecates stay: they
+# check that these still give the results of 3.6.0. Their warnings are expected.
+filterwarnings = [
+    "ignore:The network .* of scgraph 3.6.0 is deprecated:DeprecationWarning",
+    "ignore:The node addition type .* is deprecated:DeprecationWarning",
+    "ignore:`geograph_url` is deprecated:DeprecationWarning",
+]
 
 [tool.uv]
 no-build-isolation-package = []

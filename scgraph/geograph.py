@@ -932,21 +932,38 @@ class GeoGraphIO:
         - `FileNotFoundError` if the network release does not have the file, or with `local_files_only` if the file is not in the cache
         - `ConnectionError` if the server refuses the download
         """
+        # The warnings come from this call, also for a lazy load that reads the network
+        # later.
+        network_cache.warn_deprecated_load(name, geograph_url)
+        options = {
+            "name": name,
+            "cache_dir": cache_dir,
+            "geograph_url": geograph_url,
+            "reduce_iterations": reduce_iterations,
+            "local_files_only": local_files_only,
+            "network_release": network_release,
+            "content_sha256": content_sha256,
+            "modes": modes,
+            "shapes": shapes,
+        }
         if lazy:
-            return LazyGeoGraph(
-                lambda: GeoGraph.load_geograph(
-                    name=name,
-                    cache_dir=cache_dir,
-                    geograph_url=geograph_url,
-                    reduce_iterations=reduce_iterations,
-                    lazy=False,
-                    local_files_only=local_files_only,
-                    network_release=network_release,
-                    content_sha256=content_sha256,
-                    modes=modes,
-                    shapes=shapes,
-                )
-            )
+            return LazyGeoGraph(lambda: GeoGraph._load_geograph(**options))
+        return GeoGraph._load_geograph(**options)
+
+    @staticmethod
+    def _load_geograph(
+        name: str,
+        cache_dir: str | os.PathLike | None,
+        geograph_url: str,
+        reduce_iterations: int,
+        local_files_only: bool | None,
+        network_release: str | None,
+        content_sha256: str | None,
+        modes: list[str] | str | None,
+        shapes: bool,
+    ) -> "GeoGraph":
+        """Load the network of `load_geograph` now. The arguments are those of
+        `load_geograph`, which gives the deprecation warnings."""
         if local_files_only is None:
             local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
         cache_path = resolve_cache_dir(cache_dir)
@@ -1077,6 +1094,7 @@ class GeoGraphIO:
                 - for `"released"`: `nodes`, `arcs`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more modes (load it with `modes`), and its results differ
         """
+        network_cache.warn_deprecated_url(geograph_url)
         cache_path = resolve_cache_dir(cache_dir)
         release_folder = cache_path.joinpath(
             "releases", pinned_network_release.TAG
@@ -1711,82 +1729,124 @@ class GeoGraphIO:
             - Dictionary with the GeoJSON file content.
         """
         _warn_deprecated_parameter("show_progress", show_progress)
-        assert isinstance(routes, list), "Routes must be a list"
-        assert all(
-            [isinstance(i, dict) for i in routes]
-        ), "Routes must be a list of dictionaries"
-        assert all(
-            [isinstance(i.get("geograph"), GeoGraph) for i in routes]
-        ), "All routes must have a 'geograph' key with a GeoGraph object"
-        assert all(
-            [isinstance(i.get("origin"), dict) for i in routes]
-        ), "All routes must have an 'origin' key with a dictionary"
-        assert all(
-            [isinstance(i.get("destination"), dict) for i in routes]
-        ), "All routes must have a 'destination' key with a dictionary"
-        assert all(
-            [isinstance(i.get("properties"), dict) for i in routes]
-        ), "All routes must have a 'properties' key with a dictionary"
-        assert all(
-            [
-                isinstance(i["origin"].get("latitude"), (int, float))
-                for i in routes
-            ]
-        ), "All origins must have a 'latitude' key with a number"
-        assert all(
-            [
-                isinstance(i["origin"].get("longitude"), (int, float))
-                for i in routes
-            ]
-        ), "All origins must have a 'longitude' key with a number"
-        assert all(
-            [
-                isinstance(i["destination"].get("latitude"), (int, float))
-                for i in routes
-            ]
-        ), "All destinations must have a 'latitude' key with a number"
-        assert all(
-            [
-                isinstance(i["destination"].get("longitude"), (int, float))
-                for i in routes
-            ]
-        ), "All destinations must have a 'longitude' key with a number"
-        assert all(
-            [
-                (
-                    i["origin"].get("latitude") >= -90
-                    and i["origin"].get("latitude") <= 90
-                )
-                for i in routes
-            ]
-        ), "All origin latitudes must be between -90 and 90"
-        assert all(
-            [
-                (
-                    i["origin"].get("longitude") >= -180
-                    and i["origin"].get("longitude") <= 180
-                )
-                for i in routes
-            ]
-        ), "All origin longitudes must be between -180 and 180"
-        assert all(
-            [
-                (
-                    i["destination"].get("latitude") >= -90
-                    and i["destination"].get("latitude") <= 90
-                )
-                for i in routes
-            ]
-        ), "All destination latitudes must be between -90 and 90"
-        assert all(
-            [
-                (
-                    i["destination"].get("longitude") >= -180
-                    and i["destination"].get("longitude") <= 180
-                )
-                for i in routes
-            ]
-        ), "All destination longitudes must be between -180 and 180"
+        if not (isinstance(routes, list)):
+            raise ValueError("Routes must be a list")
+        if not (all([isinstance(i, dict) for i in routes])):
+            raise ValueError("Routes must be a list of dictionaries")
+        if not (all([isinstance(i.get("geograph"), GeoGraph) for i in routes])):
+            raise ValueError(
+                "All routes must have a 'geograph' key with a GeoGraph object"
+            )
+        if not (all([isinstance(i.get("origin"), dict) for i in routes])):
+            raise ValueError(
+                "All routes must have an 'origin' key with a dictionary"
+            )
+        if not (all([isinstance(i.get("destination"), dict) for i in routes])):
+            raise ValueError(
+                "All routes must have a 'destination' key with a dictionary"
+            )
+        if not (all([isinstance(i.get("properties"), dict) for i in routes])):
+            raise ValueError(
+                "All routes must have a 'properties' key with a dictionary"
+            )
+        if not (
+            all(
+                [
+                    isinstance(i["origin"].get("latitude"), (int, float))
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError(
+                "All origins must have a 'latitude' key with a number"
+            )
+        if not (
+            all(
+                [
+                    isinstance(i["origin"].get("longitude"), (int, float))
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError(
+                "All origins must have a 'longitude' key with a number"
+            )
+        if not (
+            all(
+                [
+                    isinstance(i["destination"].get("latitude"), (int, float))
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError(
+                "All destinations must have a 'latitude' key with a number"
+            )
+        if not (
+            all(
+                [
+                    isinstance(i["destination"].get("longitude"), (int, float))
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError(
+                "All destinations must have a 'longitude' key with a number"
+            )
+        if not (
+            all(
+                [
+                    (
+                        i["origin"].get("latitude") >= -90
+                        and i["origin"].get("latitude") <= 90
+                    )
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError("All origin latitudes must be between -90 and 90")
+        if not (
+            all(
+                [
+                    (
+                        i["origin"].get("longitude") >= -180
+                        and i["origin"].get("longitude") <= 180
+                    )
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError(
+                "All origin longitudes must be between -180 and 180"
+            )
+        if not (
+            all(
+                [
+                    (
+                        i["destination"].get("latitude") >= -90
+                        and i["destination"].get("latitude") <= 90
+                    )
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError(
+                "All destination latitudes must be between -90 and 90"
+            )
+        if not (
+            all(
+                [
+                    (
+                        i["destination"].get("longitude") >= -180
+                        and i["destination"].get("longitude") <= 180
+                    )
+                    for i in routes
+                ]
+            )
+        ):
+            raise ValueError(
+                "All destination longitudes must be between -180 and 180"
+            )
 
         output = {"type": "FeatureCollection", "features": []}
         len_routes = len(routes)
@@ -1907,40 +1967,40 @@ class GeoGraphModifiers:
             - What: The circuity to apply to the distance calculation if distance is None
             - Default: 1
         """
-        assert isinstance(
-            origin_coord_dict, dict
-        ), "Origin node must be a dictionary"
-        assert isinstance(
-            destination_coord_dict, dict
-        ), "Destination node must be a dictionary"
-        assert (
-            "latitude" in origin_coord_dict.keys()
-        ), "Origin node must have a latitude"
-        assert (
-            "longitude" in origin_coord_dict.keys()
-        ), "Origin node must have a longitude"
-        assert (
-            "latitude" in destination_coord_dict.keys()
-        ), "Destination node must have a latitude"
-        assert (
-            "longitude" in destination_coord_dict.keys()
-        ), "Destination node must have a longitude"
-        assert (
+        if not (isinstance(origin_coord_dict, dict)):
+            raise ValueError("Origin node must be a dictionary")
+        if not (isinstance(destination_coord_dict, dict)):
+            raise ValueError("Destination node must be a dictionary")
+        if "latitude" not in origin_coord_dict.keys():
+            raise ValueError("Origin node must have a latitude")
+        if "longitude" not in origin_coord_dict.keys():
+            raise ValueError("Origin node must have a longitude")
+        if "latitude" not in destination_coord_dict.keys():
+            raise ValueError("Destination node must have a latitude")
+        if "longitude" not in destination_coord_dict.keys():
+            raise ValueError("Destination node must have a longitude")
+        if not (
             origin_coord_dict["latitude"] >= -90
             and origin_coord_dict["latitude"] <= 90
-        ), "Origin latitude must be between -90 and 90"
-        assert (
+        ):
+            raise ValueError("Origin latitude must be between -90 and 90")
+        if not (
             origin_coord_dict["longitude"] >= -180
             and origin_coord_dict["longitude"] <= 180
-        ), "Origin longitude must be between -180 and 180"
-        assert (
+        ):
+            raise ValueError("Origin longitude must be between -180 and 180")
+        if not (
             destination_coord_dict["latitude"] >= -90
             and destination_coord_dict["latitude"] <= 90
-        ), "Destination latitude must be between -90 and 90"
-        assert (
+        ):
+            raise ValueError("Destination latitude must be between -90 and 90")
+        if not (
             destination_coord_dict["longitude"] >= -180
             and destination_coord_dict["longitude"] <= 180
-        ), "Destination longitude must be between -180 and 180"
+        ):
+            raise ValueError(
+                "Destination longitude must be between -180 and 180"
+            )
         origin_node = [
             origin_coord_dict["latitude"],
             origin_coord_dict["longitude"],
@@ -2037,29 +2097,39 @@ class GeoGraphModifiers:
         """
         _warn_deprecated_parameter("silent", silent)
         # Validate the inputs
-        assert isinstance(coord_dict, dict), "Node must be a dictionary"
-        assert "latitude" in coord_dict.keys(), "Node must have a latitude"
-        assert "longitude" in coord_dict.keys(), "Node must have a longitude"
-        assert (
-            coord_dict["latitude"] >= -90 and coord_dict["latitude"] <= 90
-        ), "Latitude must be between -90 and 90"
-        assert (
+        if not (isinstance(coord_dict, dict)):
+            raise ValueError("Node must be a dictionary")
+        if "latitude" not in coord_dict.keys():
+            raise ValueError("Node must have a latitude")
+        if "longitude" not in coord_dict.keys():
+            raise ValueError("Node must have a longitude")
+        if not (coord_dict["latitude"] >= -90 and coord_dict["latitude"] <= 90):
+            raise ValueError("Latitude must be between -90 and 90")
+        if not (
             coord_dict["longitude"] >= -180 and coord_dict["longitude"] <= 180
-        ), "Longitude must be between -180 and 180"
+        ):
+            raise ValueError("Longitude must be between -180 and 180")
         node = [coord_dict["latitude"], coord_dict["longitude"]]
         if auto_edge:
-            assert circuity >= 1, "Circuity must be greater than or equal to 1"
-            assert node_addition_type in [
+            if not (circuity >= 1):
+                raise ValueError("Circuity must be greater than or equal to 1")
+            if node_addition_type not in [
                 "quadrant",
                 "all",
                 "closest",
                 "kdclosest",
                 "kdquadrant",
-            ], f"Invalid node addition type provided ({node_addition_type}), valid options are: ['kdclosest', 'closest', 'kdquadrant', 'quadrant', 'all']"
-            assert isinstance(
-                lat_lon_bound, (int, float)
-            ), "Lat_lon_bound must be a number"
-            assert lat_lon_bound > 0, "Lat_lon_bound must be greater than 0"
+            ]:
+                raise ValueError(
+                    f"Invalid node addition type provided ({node_addition_type}), valid options are: ['kdclosest', 'closest', 'kdquadrant', 'quadrant', 'all']"
+                )
+            node_addition_type = self.__get_node_addition_type__(
+                node_addition_type
+            )
+            if not (isinstance(lat_lon_bound, (int, float))):
+                raise ValueError("Lat_lon_bound must be a number")
+            if not (lat_lon_bound > 0):
+                raise ValueError("Lat_lon_bound must be greater than 0")
             # Get the distances to all relevant nodes
             node_dict = self.__get_node_distances__(
                 node=node,
@@ -2130,12 +2200,10 @@ class GeoGraphModifiers:
             - What: Whether to add the edge in both directions
             - Default: True
         """
-        assert origin_idx < len(
-            self.graph_object.graph
-        ), "Origin node does not exist"
-        assert destination_idx < len(
-            self.graph_object.graph
-        ), "Destination node does not exist"
+        if not (origin_idx < len(self.graph_object.graph)):
+            raise ValueError("Origin node does not exist")
+        if not (destination_idx < len(self.graph_object.graph)):
+            raise ValueError("Destination node does not exist")
         self.add_edge(
             origin_id=origin_idx,
             destination_id=destination_idx,
@@ -2492,9 +2560,10 @@ class GeoGraphUtils:
                 )
                 for idx in self.__get_quadrant_node_indices__(node)
             }
-        assert (
-            node_addition_type == "all"
-        ), f"Invalid node addition type provided ({node_addition_type})"
+        if not (node_addition_type == "all"):
+            raise ValueError(
+                f"Invalid node addition type provided ({node_addition_type})"
+            )
         # Get only bounded nodes
         # Find the only keep nodes that are within the bounding latitude
         top_lat = node[0] + lat_lon_bound
@@ -2558,10 +2627,13 @@ class GeoGraphUtils:
             - Default: "lat_lon"
         """
         if self.intermediate_nodes is not None:
-            assert sequence in [
+            if sequence not in [
                 "lat_lon",
                 "lon_lat",
-            ], f"Invalid sequence provided ({sequence}), valid options are: ['lat_lon', 'lon_lat']"
+            ]:
+                raise ValueError(
+                    f"Invalid sequence provided ({sequence}), valid options are: ['lat_lon', 'lon_lat']"
+                )
             out = self.intermediate_nodes[origin_idx].get(destination_idx, [])
             if sequence == "lon_lat":
                 out = [[point[1], point[0]] for point in out]
@@ -2705,12 +2777,12 @@ class GeoGraphUtils:
             off_graph_circuity = self.default_off_graph_circuity
         path = path_result.get("path")
         coordinate_path = path_result.get("coordinate_path")
-        assert (
-            path is not None
-        ), "path_result must contain a 'path' key; call get_shortest_path with output_path=True"
-        assert (
-            coordinate_path is not None
-        ), "path_result must contain a 'coordinate_path' key"
+        if not (path is not None):
+            raise ValueError(
+                "path_result must contain a 'path' key; call get_shortest_path with output_path=True"
+            )
+        if not (coordinate_path is not None):
+            raise ValueError("path_result must contain a 'coordinate_path' key")
 
         origin = coordinate_path[0]
         destination = coordinate_path[-1]
@@ -3120,36 +3192,55 @@ class GeoGraph(
 
         - None
         """
-        assert isinstance(
-            self.nodes, (list, network_file.NodePoints)
-        ), "Your nodes must be a list"
-        assert all(
-            [isinstance(i, list) for i in self.nodes]
-        ), "Your nodes must be a list of lists"
-        assert all(
-            [len(i) == 2 for i in self.nodes]
-        ), "Your nodes must be a list of lists where each sub list has a length of 2"
-        assert all(
-            [
-                (
-                    isinstance(i[0], (int, float))
-                    and isinstance(i[1], (int, float))
-                )
-                for i in self.nodes
-            ]
-        ), "Your nodes must be a list of lists where each sub list has a numeric latitude and longitude value"
-        assert all(
-            [
-                (i[0] >= -90 and i[0] <= 90 and i[1] >= -180 and i[1] <= 180)
-                for i in self.nodes
-            ]
-        ), "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
+        if not (isinstance(self.nodes, (list, network_file.NodePoints))):
+            raise ValueError("Your nodes must be a list")
+        if not (all([isinstance(i, list) for i in self.nodes])):
+            raise ValueError("Your nodes must be a list of lists")
+        if not (all([len(i) == 2 for i in self.nodes])):
+            raise ValueError(
+                "Your nodes must be a list of lists where each sub list has a length of 2"
+            )
+        if not (
+            all(
+                [
+                    (
+                        isinstance(i[0], (int, float))
+                        and isinstance(i[1], (int, float))
+                    )
+                    for i in self.nodes
+                ]
+            )
+        ):
+            raise ValueError(
+                "Your nodes must be a list of lists where each sub list has a numeric latitude and longitude value"
+            )
+        if not (
+            all(
+                [
+                    (
+                        i[0] >= -90
+                        and i[0] <= 90
+                        and i[1] >= -180
+                        and i[1] <= 180
+                    )
+                    for i in self.nodes
+                ]
+            )
+        ):
+            raise ValueError(
+                "Your nodes must be a list of lists where each sub list has a length of 2 with a latitude [-90,90] and longitude [-180,180] value"
+            )
 
     def __get_node_addition_type__(self, node_addition_type):
-        if node_addition_type == "kdclosest":
-            return "closest"
-        elif node_addition_type == "kdquadrant":
-            return "quadrant"
+        if node_addition_type in ("kdclosest", "kdquadrant"):
+            current = node_addition_type.removeprefix("kd")
+            warnings.warn(
+                f"The node addition type '{node_addition_type}' is deprecated. "
+                f"Use '{current}', which gives the same result.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            return current
         if node_addition_type not in ["closest", "quadrant", "all"]:
             raise ValueError(
                 "node_addition_type must be one of 'kdclosest', 'kdquadrant', 'closest', 'quadrant', or 'all'"
@@ -3198,17 +3289,18 @@ class GeoGraph(
         self,
         origin_node: dict[str, float],
         destination_node: dict[str, float],
+        *,
         output_units: str = "km",
         algorithm_fn: str | Callable = "bidirectional_buckets",
         algorithm_kwargs: dict | None = None,
         off_graph_circuity: float = 1,
-        node_addition_type: str = "kdclosest",
+        node_addition_type: str = "closest",
         node_addition_circuity: float = 4,
         output_coordinate_path: str = "list_of_lists",
         output_path: bool = False,
         node_addition_lat_lon_bound: float | Literal["auto"] = "auto",
         node_addition_math: str = "euclidean",
-        destination_node_addition_type: str = "kdclosest",
+        destination_node_addition_type: str = "closest",
         auto_lat_lon_bound_max: float = 2,
         silent: bool | None = None,
         length_only: bool = False,
@@ -3300,7 +3392,7 @@ class GeoGraph(
         - `node_addition_type`
             - Type: str
             - What: The snapping strategy used to connect off-graph origin and destination coordinates to the network
-            - Default: 'kdclosest'
+            - Default: 'closest'
             - Options:
                 - 'kdclosest' / 'closest': Snap to the single nearest node using `snap_index`
                 - 'kdquadrant' / 'quadrant': Snap to the nearest node in each spatial quadrant (up to 4 candidates)
@@ -3344,7 +3436,7 @@ class GeoGraph(
         - `destination_node_addition_type`
             - Type: str
             - What: The method to use when adding the destination node to the graph
-            - Default: 'kdclosest'
+            - Default: 'closest'
             - Options:
                 - 'kdclosest' / 'closest': Add the closest node with the snapping index (`snap_index`)
                 - 'kdquadrant' / 'quadrant': Add the closest node in each quadrant with the snapping index (`snap_index`)
