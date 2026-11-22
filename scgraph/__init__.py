@@ -1370,13 +1370,13 @@ world_sea.get_shortest_path(
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `edges`, `duration_ms` |
 | `convert the published network` | `name`, `duration_ms` |
-| `build the snapping index` | `nodes`, `node_modes` (only for the index of some node modes), `sorted_for_the_index`, `duration_ms` |
+| `build the snapping index` | `nodes`, `node_mode` (only for the index of one node mode), `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
 
 - `node_scans` is the size of the search: the number of times it went over the edges of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
 - `origin_snap_distance` and `destination_snap_distance` are the distances from each query point to the closest node that it snaps to, in `distance_units`.
-- The first query that snaps to some node modes builds the snapping index of the nodes of these node modes. Its record has `node_modes`, the names of these node modes.
+- The first query that snaps to a node mode builds the snapping index of the nodes of this node mode. Its record has `node_mode`, the name of this node mode.
 - `kept_nodes` is the number of nodes left after the reduction.
 - `mapped` is true when the load maps the file and reads it in place. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
 

@@ -184,7 +184,7 @@ The origin and the destination are dictionaries with `latitude` and `longitude` 
 ### 2. Network Snapping (`SnapIndex`)
 A `SnapIndex` finds the nodes that are near a point. It is a tree of bounding boxes, with 8 children per box.
 
-**The node modes.** `node_addition_modes` lists the node modes that a query point may snap to. Its default is `default_node_addition_modes`, which a network file gives: the roads, in a multimodal network that `scgraph.pipelines` built. With this default, a query point also snaps to a node without a named node mode. `add_coord_node` without `mode` adds such a node, so a default query can start at a node that the user added. A default node mode that no node of the geograph has does not count. Without any default node mode, a query point may snap to every node. The geograph has one `SnapIndex` of all its nodes. It builds one more `SnapIndex` for each set of node modes that a query uses, at the first such query.
+**The node modes.** `node_addition_modes` lists the node modes that a query point may snap to. Its default is `default_node_addition_modes`, which a network file gives: the roads, in a multimodal network that `scgraph.pipelines` built. With this default, a query point also snaps to a node without a named node mode. `add_coord_node` without `mode` adds such a node, so a default query can start at a node that the user added. A default node mode that no node of the geograph has does not count. Without any default node mode, a query point may snap to every node. The geograph has one `SnapIndex` of all its nodes. It builds one more `SnapIndex` for each node mode, at the first query that snaps to this node mode. A query point snaps to the closest node among the indexes of its node modes. The nodes of a network file are sorted by node mode, so the index of a node mode reads the points of its nodes in the file.
 
 **The nodes.** The option `node_addition_type` chooses the nodes that the point is connected to, among the nodes of these node modes:
 * `'closest'`: the closest node.
@@ -308,7 +308,7 @@ flowchart TD
         H["Hierarchical Indices<br/>CHGraph / TNRGraph"]
     end
     subgraph GEO["In-Memory Caches of a GeoGraph"]
-        S["SnapIndex of all nodes, one SnapIndex per set of node modes,<br/>Radian Coordinates"]
+        S["SnapIndex of all nodes, one SnapIndex per node mode,<br/>Radian Coordinates"]
         W["Classes lined up with the edges,<br/>one Graph for each metric"]
     end
     subgraph Triggers["Invalidation Triggers"]
@@ -336,7 +336,7 @@ flowchart TD
 | Cache | Built | Dropped |
 | :--- | :--- | :--- |
 | The snapping index of every node (`snap_index`), and the coordinates in radians | At the load of a network file, or at the first snap | When the nodes change: `add_coord_node`, `remove_node`, `remove_coord_node`, `merge_with_other_geograph` |
-| One snapping index for each set of node modes | At the first query that snaps to this set of node modes | With `snap_index` |
+| One snapping index for each node mode | At the first query that snaps to this node mode | With `snap_index` |
 | The edges (`offsets`, `heads`, lengths) | At the first read of an edge or of a metric | At the first read after an edit of `graph_object` (section 2, *Classes and Metrics*) |
 | The id of the class of each edge, lined up with the edges | At the first call that needs every class: `create_metric` from weights per km or from a function, `save_as_scgraph`, `get_edges` without a node | At the next of these calls after an edit of `graph_object` |
 | The `Graph` of each metric other than `length`, with its reduced graph, its trees and its hierarchies | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again |
