@@ -4519,16 +4519,21 @@ class GeoGraph(
             algorithm_kwargs["graph"] = graph_object.unreduced_graph
         elif isinstance(algorithm_fn, str):
             heuristic_fn = algorithm_kwargs.get("heuristic_fn")
-            # The function of this geograph that gives the bound of an A* search
-            bound_fn = (
-                getattr(heuristic_fn, "__func__", None)
-                if getattr(heuristic_fn, "__self__", None) is self
-                else None
+            # The methods `haversine` and `cheap_ruler` of scgraph, for this
+            # geograph: each gives a length between two of its nodes. The function
+            # of the caller is equal to one of them only when the caller passed
+            # this method of this geograph. A subclass that defines its own
+            # `haversine` passes another function, which is used as it is.
+            haversine_of_scgraph = types.MethodType(
+                GeoGraphDistanceCalculations.haversine, self
+            )
+            cheap_ruler_of_scgraph = types.MethodType(
+                GeoGraphDistanceCalculations.cheap_ruler, self
             )
             if (
                 algorithm_fn == "a_star"
                 and hasattr(graph_object, "a_star_great_circle")
-                and bound_fn is GeoGraphDistanceCalculations.haversine
+                and heuristic_fn == haversine_of_scgraph
             ):
                 # The built-in haversine heuristic is computed natively in the C++ build
                 latitudes, longitudes = self._get_node_radians()
@@ -4550,7 +4555,7 @@ class GeoGraph(
                 if (
                     is_metric_other_than_length
                     and algorithm_fn == "a_star"
-                    and bound_fn is GeoGraphDistanceCalculations.cheap_ruler
+                    and heuristic_fn == cheap_ruler_of_scgraph
                 ):
                     # `cheap_ruler` gives a length. The bound of the metric is this
                     # length times `min_weight_per_km`, as for `haversine` above.
