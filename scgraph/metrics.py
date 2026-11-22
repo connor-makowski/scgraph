@@ -1,48 +1,55 @@
 """The metrics of a GeoGraph: what a metric is, and how its weights are computed.
 
-This module is internal. `GeoGraph.create_metric` calls it, and a geograph keeps its
-metrics by name in `GeoGraph._metrics`.
+This module is internal. `GeoGraph.create_metric` calls it. A geograph keeps one
+`Metric` record for each metric other than `length`, by name, in
+`GeoGraph._metrics`. The weights of `length` are the lengths of its graph.
 
-A "metric" is one weight for every edge, under a name: an array of float64 values
-"by edge id". Its value at the position `i` is the weight of the edge of id `i`:
-the edge at the position `i` in the heads of the graph (`Graph._csr`). A search by a
-metric adds up these weights in place of the lengths. The lengths are the metric
-`length`, which the graph of the geograph holds. A `Metric` record holds each other
-metric. An edge is "closed" in a metric when its weight is infinity: no route by
-this metric takes it.
+WORDS
 
-The weights of a metric are computed in one of three ways:
+- A "metric" gives one weight to each edge, under a name such as `hours`. A search
+  by a metric adds these weights in place of the lengths.
+- An edge is "closed" in a metric when its weight is infinity. No route by this
+  metric takes it.
+- An "edge id" is the position of an edge in the arrays of a graph (`Graph._csr`).
+  The edges of the node `u` have the ids `offsets[u]` to `offsets[u + 1] - 1`, and
+  `heads[edge_id]` is the node that the edge goes to. An array "by edge id" has
+  one value for each edge, at the id of the edge.
+- A "class" is the category of an edge, such as `motorway`. Each class has an
+  "edge mode", such as `road`. A "class id" is the position of a class in
+  `GeoGraph.classes`, and the class id 255 means "no class".
+- A "weight per km" is the weight of 1 km of an edge.
+- A "hub" is a node whose node mode has a weight in `weight_at_hub`, such as a port.
+- An "off-graph leg" is the straight line between a query point and its node.
 
-- from weights per km: the weight per km of the class of an edge times its km,
-  plus the weight of each hub that the edge leaves or enters.
-  `GeoGraph.create_metric` gives the result of `resolve_weights_per_km` to the
-  kernel `compute_weights_from_km`;
-- as a weighted sum of other metrics (`compute_weights_from_sum`);
-- from a function of the caller, called once for each edge
-  (`compute_weights_from_function`). The caller gives the weight of 1 km of an
-  off-graph leg beside the function.
+HOW THE WEIGHTS ARE COMPUTED
 
-`copy_with_edge_weights` then returns a copy of the weights with the weights that
-the caller gives for some edges.
+- From weights per km. The weight of an edge is the weight per km of its class
+  times its km, plus the weight of each hub that the edge leaves or enters.
+  `resolve_weights_per_km` gives its arrays to the kernel `compute_weights_from_km`.
+- As a weighted sum of other metrics (`compute_weights_from_sum`).
+- From a function of the caller (`compute_weights_from_function`).
+
+`copy_with_edge_weights` then replaces the weights of the edges that the caller
+names. A "kernel" is a loop over all the edges, in C++ and in pure Python
+(`scgraph/helpers/metric_weights.py`). `scgraph/cpp/src/metric_weights.hpp`
+explains the two kernels of the metrics.
 
 THE RULE: A METRIC KEEPS THE WEIGHTS OF ITS CREATION
 
-An edit of the network removes every metric, and a metric that is created again
-changes no other metric. So no code moves the weights of a metric or computes them
-again: the caller creates the metric again.
+An edit of the network removes every metric other than `length`, and a metric that
+is created again changes no other metric. So no code corrects the weights of a
+metric after an edit: the caller creates the metric again.
 
-Example, a graph with the edges 0 -> 1, 0 -> 2 and 2 -> 0, with lengths of 10, 20
-and 20 km. The first two edges have the class `primary` and the third the class
-`motorway`. Both classes have the edge mode `road`. The weights per km
-`weight_per_km={"road": 0.02, "off_graph": 0.05}` and
-`class_weight_per_km={"motorway": 0.01}` give the metric `hours`, and the sum
-`{"hours": 30, "length": 0.5}` gives the metric `cost`:
+EXAMPLE
+
+A graph has the edges 0 -> 1, 0 -> 2 and 2 -> 0, with lengths of 10, 20 and 20 km.
+The first two edges have the class `primary` and the third the class `motorway`,
+both of the edge mode `road`. The metric `hours` has `weight_per_km={"road": 0.02,
+"off_graph": 0.05}` and `class_weight_per_km={"motorway": 0.01}`. The metric `cost`
+is the weighted sum `{"hours": 30, "length": 0.5}`:
 
     hours = [0.02 * 10, 0.02 * 20, 0.01 * 20] = [0.2, 0.4, 0.2]
     cost = [30 * 0.2 + 0.5 * 10, ...] = [11, 22, 16]
-
-The two kernels are explained in `scgraph/cpp/src/metric_weights.hpp`. Their
-pure-Python versions are in `scgraph/helpers/metric_weights.py`.
 """
 
 from array import array
@@ -70,15 +77,14 @@ class Metric:
     """A metric of a geograph other than `length`."""
 
     name: str
-    # Free text, or None: `h`, `EUR`, `kg CO2e`
+    # The unit of the weights as free text, such as `h` or `kg CO2e`, or None
     unit: str | None
-    # Where the weights come from, for a reader
+    # Where the weights come from, as free text, or None
     description: str | None
-    # One float64 weight for each edge, by edge id. Never changed in
-    # place: the graph of the metric reads this array.
+    # The float64 weight of each edge, by edge id. Never changed in place: the
+    # graph of the metric reads this array.
     weights: array | memoryview
-    # The weight of 1 km of an off-graph leg: the straight line between a query
-    # point and its node
+    # The weight of 1 km of an off-graph leg
     off_graph_weight_per_km: float
     # The result of `get_min_weight_per_km`. Computed at the first A* search.
     min_weight_per_km: float | None = None
@@ -86,7 +92,7 @@ class Metric:
     graph_object: "Graph | None" = None
 
     def get_row(self) -> dict:
-        """Return the row of the metric, as a network file stores it."""
+        """Return the row of the metric, as `GeoGraph.metrics` gives it."""
         row = {
             "name": self.name,
             "unit": self.unit,
@@ -96,10 +102,10 @@ class Metric:
         return {key: value for key, value in row.items() if value is not None}
 
     def get_min_weight_per_km(self, lengths: array | memoryview) -> float:
-        """Return the smallest weight of an open edge divided by its length, over
-        the edges longer than zero, or 0.0 without such an edge. A route of `d` km
-        by the metric weighs `d` times this value at least: it scales the bound of
-        an A* search by the metric."""
+        """Return the smallest weight of one unit of length: the weight of an edge
+        divided by its length, over the open edges longer than zero. Return 0.0
+        without such an edge. A route of the length `d` weighs `d` times this value
+        at least, so an A* search by the metric multiplies its bound by it."""
         if self.min_weight_per_km is None:
             # `compress` leaves out the edges of length zero. The loops run in C.
             ratios = map(
@@ -119,28 +125,24 @@ def resolve_weights_per_km(
     node_modes: list[dict],
     edge_class_ids: array | memoryview,
 ) -> tuple[array, array, float]:
-    """Turn `weight_per_km`, `class_weight_per_km` and `weight_at_hub` of
-    `GeoGraph.create_metric` into the arrays of the kernel
-    `compute_weights_from_km`: `class_weights_per_km`, `hub_weights`, and the
-    weight of 1 km of an off-graph leg.
-
-    The two arrays have one value for each of the 256 values of a class id. The
-    kernel therefore needs no rule for an edge without a class, whose class id is
-    255: `class_weights_per_km[255]` is the weight of 1 km of an off-graph leg,
-    and `hub_weights` is zero for the class id 255 at every hub. A class id that
-    is no class has the weight per km "not a number", which the kernel refuses.
+    """Return the arrays that the kernel `compute_weights_from_km` reads, from the
+    first three arguments, which `GeoGraph.create_metric` describes.
 
     A class takes the weight per km of its name in `class_weight_per_km`, else of
-    its edge mode in `weight_per_km`. `weight_per_km={"road": 0.02, ...}` with
-    `class_weight_per_km={"motorway": 0.01}` gives 0.01 to the motorways and 0.02
-    to the other classes of the edge mode `road`.
+    its edge mode in `weight_per_km` (see the example of the module docstring).
 
     Args:
-        classes: The row `{"name", "edge_mode"}` of each class. Empty for a
-            geograph without classes: every edge then has the class id 255.
+        classes: The row `{"name", "edge_mode"}` of each class (`GeoGraph.classes`).
         node_modes: The row of each node mode (`GeoGraph.node_modes`).
-        edge_class_ids: The class id of each edge: the position of the row of
-            its class in `classes`, or 255 for an edge without a class.
+        edge_class_ids: The class id of each edge, by edge id.
+
+    Returns:
+        `class_weights_per_km`, `hub_weights` and the weight of 1 km of an
+        off-graph leg. The arrays have values for each of the 256 values of a
+        class id. So the kernel needs no rule for an edge without a class: the
+        class id 255 has the weight per km of an off-graph leg, and no weight at
+        a hub. An id that is above the last class and below 255 has a weight per
+        km that is not a number, which the kernel refuses.
 
     Raises:
         ValueError: A dict has a key that it may not have, or lacks a weight per
@@ -236,17 +238,17 @@ def compute_weights_from_sum(
     lengths: array | memoryview,
     units_per_km: float,
 ) -> tuple[array | memoryview, float]:
-    """Return the weights of a weighted sum of metrics, and its weight of 1 km of
-    an off-graph leg: the same sum of the weights of 1 km of an off-graph leg of
-    the metrics.
+    """Return the weights of a weighted sum of metrics, and the weight of 1 km of
+    an off-graph leg in the sum. Each one is the sum of its value in each metric
+    times the coefficient of the metric.
 
     Args:
         weighted_sum_of: `{name of a metric: coefficient}`. `length` may be one of
             the metrics.
         metrics: The metrics of the geograph other than `length`, by name.
-        lengths: The length of each edge, in `geograph_units`: the weights of the
-            metric `length`.
-        units_per_km: 1 km in the unit of `lengths`.
+        lengths: The weights of the metric `length`, in `geograph_units`.
+        units_per_km: 1 km in the unit of `lengths`: the weight of 1 km of an
+            off-graph leg in the metric `length`.
 
     Raises:
         ValueError: The sum names no metric or an unknown metric, or a coefficient
@@ -282,13 +284,13 @@ def compute_weights_from_sum(
 def compute_weights_from_function(
     edge_weight_fn: Callable, edges: Iterable[dict]
 ) -> array:
-    """Return the weights that a function of the caller gives. The function is
-    called once for each edge, and for no other dict.
+    """Return the weight that a function of the caller gives to each edge, by edge
+    id. The function is called once for each edge.
 
     Args:
         edge_weight_fn: Takes the dict of an edge and returns its weight, or None
-            to close it.
-        edges: The dict of each edge, in the order of the edges (see
+            to close the edge.
+        edges: The dict of each edge, in the order of the edge ids (see
             `GeoGraph.get_edges`).
 
     Raises:
@@ -321,15 +323,15 @@ def _check_edge_modes(
 def parse_weight(
     weight: float | None, origin_id: int, destination_id: int
 ) -> float:
-    """Return the weight that a caller gives for an edge as a float: infinity for
-    None, which closes the edge.
+    """Return the weight that a caller gives to an edge, as a float. None gives
+    infinity, which closes the edge.
 
     Raises:
         ValueError: The weight is below zero or not a number. The message names the
             two nodes of the edge.
     """
     weight = inf if weight is None else float(weight)
-    # A comparison with a value that is not a number is false
+    # `not >=` also refuses a value that is not a number: it compares as false.
     if not weight >= 0.0:
         raise ValueError(
             f"The weight of the edge from node {origin_id} to node "
@@ -344,13 +346,12 @@ def copy_with_edge_weights(
     offsets: array | memoryview,
     heads: array | memoryview,
 ) -> array:
-    """Return a copy of the weights of a metric with the weights of some edges set.
+    """Return a copy of the weights of a metric with the weights of `edge_weights`.
 
     Args:
-        weights: One weight for each edge.
-        edge_weights: `{(origin id, destination id): weight}`. None closes the
-            edge.
-        offsets: The offsets of the edges, one for each node plus one.
+        weights: The weight of each edge, by edge id.
+        edge_weights: `{(origin id, destination id): weight}`. None closes an edge.
+        offsets: The id of the first edge of each node (see the module docstring).
         heads: The destination of each edge.
 
     Raises:
@@ -380,7 +381,7 @@ def parse_off_graph_weight_per_km(
     Raises:
         ValueError: The weight is not a finite number of zero or more.
     """
-    # A comparison with a value that is not a number is false
+    # The range test also refuses a value that is not a number.
     if (
         off_graph_weight_per_km is None
         or not 0 <= off_graph_weight_per_km < inf
@@ -397,7 +398,7 @@ def build_default_description(**arguments: object) -> str:
     """Return the description of a metric that the caller did not describe:
     the text of its `create_metric` call, for example
     `create_metric(weight_per_km={'road': 0.02, 'off_graph': 0.05},
-    edge_weights=<12 edges>)`. A function is written by its name."""
+    edge_weights=<12 edges>)`. The text gives a function by its name."""
     texts = []
     for key, value in arguments.items():
         if value is None:
