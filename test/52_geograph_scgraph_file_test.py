@@ -1021,6 +1021,21 @@ def test_a_geograph_loaded_from_a_file_with_classes_is_saved_with_them(
     assert metadata["classes"] == EDGE_CLASSES
 
 
+def test_a_geograph_loaded_from_a_file_with_a_metric_is_saved_with_it(tmp_path):
+    path, saved_path = (
+        str(tmp_path / name) for name in ("a.scgraph", "b.scgraph")
+    )
+    _write_road_port_and_sea(path, "d")
+
+    GeoGraph.load_from_scgraph(path).save_as_scgraph(saved_path)
+
+    # The save lists the sea node 31 before the sea node 30. The file ends
+    # with the edges 31 -> 20, 31 -> 30 and 30 -> 31, of 5, 6 and 4 km.
+    arrays, metadata = network_file.read(saved_path)
+    assert list(arrays["weights_toll"]) == [10, 15, 20, 30, 50, 60, 40]
+    assert metadata["metrics"] == [LENGTH_IN_KM, TOLL]
+
+
 def test_loading_one_mode_gives_its_nodes_and_the_edges_between_them(tmp_path):
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
