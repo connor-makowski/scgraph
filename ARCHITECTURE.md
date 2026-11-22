@@ -59,7 +59,7 @@ A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`,
 * **Join the networks (`steps.step2_hub_connectors`, `steps.step2_land_mask`)**:
   `step2_hub_connectors.join_networks_at_hubs` joins the networks of roads, of railways and of sea lanes at hubs: ports, airports and rail terminals. `step2_land_mask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
 * **Assemble the graph (`steps.step3_network_assembly`)**:
-  `step3_network_assembly.build_graph_from_pieces` stores the edges as CSR arrays (`build_csr_from_edges`). A graph holds one edge at most from a node to another. Of several edges between the same two nodes, the build keeps the shortest edge of each class. The shortest of them all stays one edge. The build splits each other kept edge at its middle, with a new node there. A primary road beside a shorter motorway between the same two junctions then stays in the network. `step3_network_assembly.assemble_network` keeps the strongly connected components (`find_strongly_connected_components`, in `scgraph/helpers/components.py`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
+  `step3_network_assembly.build_graph_from_pieces` stores the edges as CSR arrays (`build_csr_from_edges`). A graph holds one edge at most from a node to another. Of several edges between the same two nodes, the build keeps the shortest edge of each class. The shortest of them all stays one edge. The build splits each other kept edge at its middle, with a new node there. `step3_network_assembly.assemble_network` keeps the strongly connected components (`find_strongly_connected_components`, in `scgraph/helpers/components.py`), contracts the chains of pass-through nodes (`contract_chains`), and numbers the nodes along a Hilbert curve.
 * **Validate the network (`steps.step4_validation_cases`)**:
   `validate_network` checks a built network against cases. A case describes a known route of the real world, such as a driving distance or a published sea distance. The docstring of `steps/step4_validation_cases` lists the kinds of cases and their rules. With `validate=True`, `build_network_file` validates the built file, and a network that fails does not enter the cache.
 
@@ -128,23 +128,19 @@ A `GeoGraph` adds these attributes to its `Graph`:
 
 ### Classes and Metrics
 
-A `GeoGraph` also holds what a route by time, by cost or by CO2 needs: the classes and the metrics of its edges. They live in one `EdgeData` for each geograph (`scgraph/edge_data.py`). No other code reads its arrays. The docstring of `scgraph/edge_data.py` explains the arrays and what happens after an edit, with examples. The docstring of `scgraph/metrics.py` explains what a metric is and how its weights are computed.
+A `GeoGraph` also holds the class of each edge and the metrics of the network. `scgraph/edge_classes.py` holds the classes of the edges, and lines them up with the graph after an edit. `scgraph/metrics.py` holds the record of a metric, and computes its weights. `scgraph/geograph.py` holds the public methods, and the code that reads an edge, a path, its totals and its legs. The docstring of each of the first two modules gives an example with real values.
 
 * **The edges and their index**: `graph_object._csr()` gives the edges by origin, in three arrays: `offsets`, `heads` and the lengths. The index of an edge is its position in `heads`. An array is lined up with the edges when its value number `i` belongs to the edge of index `i`.
-* **`classes`**: The rows `{"name", "mode"}` of the classes. The `mode` of a class is its edge mode: `road`, `rail`, `sea` or `air`. An internal `uint8` array, lined up with the edges, gives the row of the class of each edge. A geograph made from a list of dictionaries has no classes.
-* **`metrics`**: The rows of the metrics, `length` first. The weights of `length` are those of `graph_object`. Each other metric is one record (`Metric`). The record holds a `float64` array of weights, lined up with the edges, and the rate of the access legs (`off_graph_per_km`). It also holds the arguments of the `create_metric` call that made the metric: `create_metric` computes the metric again when a metric that it uses is created again. A metric that a loader read, from a file or from a graph of OSMnx, has no such arguments.
-* **One `Graph` for each metric**: `get_graph_object(metric)` returns `graph_object` for `length`. For another metric, it builds a `Graph` from `offsets`, `heads` and the weights of the metric (`Graph.from_csr(..., copy=False)`), at the first query by this metric. In the C++ build, this graph reads the three arrays in place: the graphs of all the metrics share `offsets` and `heads`.
-* **`default_node_addition_modes`**: The node modes that a query point snaps to by default, as the network file names them, or `None` for every node. By default, a query point also snaps to a node without a named node mode (§3, *The node modes*).
+* **The classes**: `classes` gives the rows `{"name", "mode"}` of the classes. The `mode` of a class is its edge mode. A `uint8` array, lined up with the edges, gives the row of the class of each edge. A geograph made from a list of dictionaries has no classes.
+* **The metrics**: The geograph keeps its metrics in a dict by name. Each metric other than `length` is one record. The record holds a `float64` array of weights, lined up with the edges, and the rate of the access legs (`off_graph_per_km`). The weights of `length` are those of `graph_object`.
+* **One `Graph` for each metric**: `get_graph_object(metric)` returns `graph_object` for `length`. For another metric, it builds a `Graph` from `offsets`, `heads` and the weights of the metric, at the first query by this metric. In the C++ build, the graphs of all the metrics share `offsets` and `heads`. A search called on the graph of a metric returns the total of the metric under the key `length`.
 
-`create_metric` computes the weights of a metric at the call, in one of three ways. From tables, the kernel `compute_table_weights` gives each edge the rate of its class times its km. It adds the weight of the hub that the edge leaves and of the hub that it enters. An edge without a class weighs as an access leg: its km times the rate `"off_graph"` of the metric (`off_graph_per_km`). It pays no hub weight. As a weighted sum, the kernel `compute_weighted_sum` adds the weights of other metrics. From a function, scgraph calls the function once for each edge. The two kernels have a C++ version (`scgraph/cpp/src/metric_weights.hpp`) and a pure-Python version (`scgraph/helpers/metric_weights.py`).
+**The weights of a metric.** `create_metric` computes the weights once, at the call, in one of three ways: from rates, as a weighted sum, or with a function of an edge. The first two ways have a kernel each: `compute_weights_from_rates` and `compute_weighted_sum`. Each kernel has a C++ version (`scgraph/cpp/src/metric_weights.hpp`) and a pure-Python version (`scgraph/helpers/metric_weights.py`). `compute_weights_from_rates` weighs an edge without a class as an access leg: its km times `off_graph_per_km`. No metric depends on another. A weighted sum keeps the weights of its creation, and the caller creates it again to update it.
 
-A metric uses the metrics that its weights are computed from. A weighted sum uses the metrics that it sums. A metric made by a function uses every metric that the geograph has at its creation, because the function may read them. When a metric is created again, `create_metric` computes each metric that uses it again, in the order of their dependencies (`order_by_dependencies`). `remove_metric` refuses a metric that another metric uses.
+**After an edit.** An edit of the graph moves the edges, so an array is no longer lined up with them. One rule answers this: the classes are lined up again before any read, and the metrics are removed. scgraph computes no metric again. The caller creates the metrics again with `create_metric`.
 
-**After an edit.** An edit of the graph moves the edges, so the arrays are no longer lined up. The classes are lined up again, and the metrics are removed: the caller creates them again with `create_metric`. An edit is an exceptional operation, and scgraph computes nothing again after it. The classes stay because they are structure: a metric that is created again needs them.
-
-* **The metrics.** `add_edge`, `add_coord_edge`, `add_coord_node`, `add_haversine_edge`, `remove_edge`, `remove_node`, `remove_coord_node` and `merge_with_other_geograph` remove every metric other than `length` at the call, with the `Graph` of each metric. The geograph warns once with their names (`UserWarning`). A geograph without such a metric gets no warning.
-* **The classes.** Each `Graph` counts its edits (`_edit_count`). Before an `EdgeData` reads its arrays, it compares the graph and this count with the graph and the count of its last read. When one of the two differs, it reads the edges again and lines up the classes (`find_old_edge_indexes`). An edge that was there keeps its class. A new edge takes the class of its `add_` call, or no class.
-* **An edit made on `graph_object`**, or a `graph_object` that was replaced by another `Graph`, is seen by the same comparison. So its metrics are removed, with the same warning, at the next read of the classes or of the metrics. `merge_with_other_geograph` replaces `graph_object` itself. An assignment into the list of dictionaries of a graph does not change the count, so it is not seen.
+* **The classes.** Each `Graph` counts its edits (`_edit_count`). Before a read of the classes or of the metrics, the geograph compares the graph and this count with those of its last read. When one of the two differs, it reads the edges again and lines up the classes. An edge that was there keeps its class. A new edge takes the class of its `add_` call, or no class.
+* **The metrics.** Each edit method of a `GeoGraph`, such as `add_coord_node`, `remove_edge` or `merge_with_other_geograph`, removes every metric other than `length` at the call. The geograph warns once with their names (`UserWarning`). An edit made on `graph_object` directly is seen by the comparison of the counts. Its metrics are then removed at the next read, with the same warning. An assignment into the list of dictionaries of a graph does not change the count, so it is not seen.
 
 ### What an Algorithm Takes and Returns
 
@@ -188,17 +184,14 @@ The origin and the destination are dictionaries with `latitude` and `longitude` 
 ### 2. Network Snapping (`SnapIndex`)
 A `SnapIndex` finds the nodes that are near a point. It is a tree of bounding boxes, with 8 children per box.
 
-**The node modes.** `node_addition_modes` lists the node modes that a query point may snap to. Its default is `default_node_addition_modes`, which a network file gives: the roads, in a multimodal network that `scgraph.pipelines` built. With this default, a query point also snaps to a node without a named node mode. `add_coord_node` without `mode` adds such a node, so a default query can start at a node that the user added. A list of names keeps only the nodes of these node modes. A default node mode that no node of the geograph has does not count. Without any default node mode, a query point may snap to every node. The geograph has one `SnapIndex` of all its nodes. It builds one more `SnapIndex` for each set of node modes that a query uses, at the first such query. A network file stores the nodes of each node mode together, so the index of one node mode reads its points in the file.
+**The node modes.** `node_addition_modes` lists the node modes that a query point may snap to. Its default is `default_node_addition_modes`, which a network file gives: the roads, in a multimodal network that `scgraph.pipelines` built. With this default, a query point also snaps to a node without a named node mode. `add_coord_node` without `mode` adds such a node, so a default query can start at a node that the user added. A default node mode that no node of the geograph has does not count. Without any default node mode, a query point may snap to every node. The geograph has one `SnapIndex` of all its nodes. It builds one more `SnapIndex` for each set of node modes that a query uses, at the first such query.
 
 **The nodes.** The option `node_addition_type` chooses the nodes that the point is connected to, among the nodes of these node modes:
 * `'closest'`: the closest node.
 * `'quadrant'`: the closest node in each of the four quadrants around the point.
 * `'all'`: every node within `node_addition_lat_lon_bound` degrees of latitude and of longitude of the point. If there is none, the closest node.
 
-**The access legs.** An access leg is the straight line from a query point to one of its nodes. A query has two circuities, and each one multiplies the km of an access leg:
-
-* The search uses `node_addition_circuity` (default: 4). With `'quadrant'` or `'all'`, a point has several candidate nodes. Without this penalty, a route could reach a distant node in a straight line, for example across land in a sea network. With it, the route enters the network at a nearby node.
-* The result uses `off_graph_circuity` (default: 1). A value of `1.2` models winding streets, and `0` leaves the access legs out.
+**The access legs.** With `'quadrant'` or `'all'`, a point has several candidate nodes. The search multiplies the km of each access leg by `node_addition_circuity` (default: 4). Without this penalty, a route could reach a distant node in a straight line, for example across land in a sea network. With it, the route enters the network at a nearby node. The result multiplies the km of each access leg by `off_graph_circuity` (default: 1), in place of the penalty. A value of `1.2` models winding streets, and `0` leaves the access legs out.
 
 In a metric other than `length`, 1 km of access leg weighs `off_graph_per_km` of the metric. So the search weighs an access leg as its km times `node_addition_circuity` times `off_graph_per_km`. The result counts it as its km times `off_graph_circuity` times `off_graph_per_km`. Example: the metric `hours` gives 1 / 30 hour to 1 km of access leg. An access leg of 2 km then weighs 2 × 4 / 30 hour in the search, and 2 × 1 / 30 hour in the result.
 
@@ -206,7 +199,7 @@ In a metric other than `length`, 1 km of access leg weighs `off_graph_per_km` of
 If the straight line from origin to destination is not longer than the shortest connection of either point to the network, `scgraph` returns the straight line and runs no search. Both lengths include `node_addition_circuity`. This test compares lengths for every metric, so a metric whose access legs weigh nothing does not make every route direct.
 
 The selected algorithm (default: `bidirectional_buckets`) runs from the origin candidates to the destination candidates:
-* The search runs on the graph of the metric of the query: `get_graph_object(metric)`. It reads the `search_graph` of this graph: the reduced graph if `reduce()` was called, the original graph otherwise. `GeoGraph.reduce` reduces `graph_object` and the graph of each metric.
+* The search runs on the graph of the metric of the query: `get_graph_object(metric)`. It reads the `search_graph` of this graph: the reduced graph if `reduce()` was called, the original graph otherwise.
 * No search takes a closed edge. When every route needs one, the search raises `PathNotFoundError`.
 * `a_star` uses a distance to the destination as a lower bound. With `heuristic_fn=geograph.haversine`, the bound is the great-circle distance. The search computes it from the coordinates in radians, which the `GeoGraph` keeps. With `heuristic_fn=geograph.cheap_ruler`, the bound is the distance that `cheap_ruler` returns. For a metric other than `length`, the `GeoGraph` multiplies each of these two bounds by the smallest weight that the metric gives to 1 km of an open edge (`min_weight_per_km`). A route of `d` km weighs at least `d` times this value, so the bound stays below the real total. Another heuristic function is used as it is. The search stops when, for the node taken from the queue, the distance from the origin plus the lower bound reaches the length of the best route found. With more than 4 destination candidates, it computes no lower bound and scans the nodes as Dijkstra does.
 * A search that counts its node scans (README, *Logging*) stores the count for its thread when it ends (`_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
@@ -218,7 +211,7 @@ If the search ran on a reduced graph, `run_with_reduced` replaces each contracte
 * **Length**: `length` is the length of the route, for every metric: the lengths of its edges, plus the two access legs times `off_graph_circuity`. For the metric `length`, the search returns this value with the search penalty, and the penalty is removed. For another metric, `get_path_weight` adds up the lengths along the path.
 * **Totals**: On a geograph with metrics other than `length`, `metrics` gives the total of each one along the route: the weights of its edges, plus the two access legs. The total of the metric of the query is the value that the search returned, without the search penalty.
 * **Coordinates**: The `coordinate_path` is built from `nodes` and `intermediate_nodes`, in the requested format (`list_of_lists`, `list_of_dicts`, or GeoJSON).
-* **Legs**: With `output_legs=True`, `cut_legs` of `scgraph/edge_data.py` cuts the edges of the path where the edge mode of their class changes. Each part is a leg, with its length, its totals and its length on each class. An access leg, whose `mode` is `off_graph`, comes before the first leg and after the last one. `hubs` lists the node between two legs of the network. The lengths of the legs add up to `length`, and their totals to `metrics`.
+* **Legs**: With `output_legs=True`, the geograph cuts the edges of the path where the edge mode of their class changes. Each part is a leg, with its length, its totals and its length on each class. One access leg comes before the first leg, and one after the last leg. The lengths of the legs add up to `length`, and their totals to `metrics`.
 
 ---
 
@@ -258,7 +251,7 @@ flowchart TD
 
 `iterations=-1`, the default, repeats the passes until no pass-through node is left. `iterations=1` runs one pass.
 
-A `GeoGraph` has one `Graph` for each metric (section 2, *Classes and Metrics*). `GeoGraph.reduce` reduces `graph_object` and the graph of each metric, each with its own weights. A graph of a metric that is built later is reduced the same way. The pass-through nodes are the same in every graph, because they depend on the edges and not on the weights.
+`GeoGraph.reduce` reduces `graph_object` and the graph of each metric, each with its own weights (section 2, *Classes and Metrics*). A graph of a metric that is built later is reduced the same way. The pass-through nodes are the same in every graph, because they depend on the edges and not on the weights.
 
 ---
 
@@ -316,8 +309,7 @@ flowchart TD
     end
     subgraph GEO["In-Memory Caches of a GeoGraph"]
         S["SnapIndex of all nodes, one SnapIndex per set of node modes,<br/>Radian Coordinates"]
-        W["Edge arrays, with the classes and<br/>the weights of each metric lined up"]
-        MG["One Graph for each metric"]
+        W["Classes lined up with the edges,<br/>one Graph for each metric"]
     end
     subgraph Triggers["Invalidation Triggers"]
         M["Graph Modifications<br/>add_node, add_edge, remove_node, remove_edge"]
@@ -327,7 +319,6 @@ flowchart TD
     M --> C
     C --> RAM
     M --> W
-    W --> MG
     N --> S
 ```
 
@@ -346,10 +337,8 @@ flowchart TD
 | :--- | :--- | :--- |
 | The snapping index of every node (`snap_index`), and the coordinates in radians | At the load of a network file, or at the first snap | When the nodes change: `add_coord_node`, `remove_node`, `remove_coord_node`, `merge_with_other_geograph` |
 | One snapping index for each set of node modes | At the first query that snaps to this set of node modes | With `snap_index` |
-| The edges (`offsets`, `heads`, lengths), with the classes lined up with them | At the first use of the classes or of a metric | When `_edit_count` of `graph_object` changed, or when `graph_object` is replaced by another `Graph`: the edges are read again, the classes are lined up again and the metrics are removed |
-| The `Graph` of each metric other than `length` | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again, or a metric that it uses |
-
-The `Graph` of a metric has its own caches: its reduced graph, its trees and its hierarchies. They go with it. After an edit of the network, the caller creates the metric again, and builds again a hierarchy of its graph.
+| The edges (`offsets`, `heads`, lengths), with the classes lined up with them | At the first read of the classes or of a metric | At the first read after an edit of `graph_object` (section 2, *Classes and Metrics*) |
+| The `Graph` of each metric other than `length`, with its reduced graph, its trees and its hierarchies | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again |
 
 ### Persistent Filesystem Cache (`SCGRAPH_CACHE_DIR`)
 
@@ -364,7 +353,7 @@ scgraph keeps the networks that it builds or downloads in a cache directory (def
 
 ## 7. Network File Format
 
-A `.scgraph` file stores one network: its edges, the points of its nodes, its metrics and its metadata. scgraph reads and writes it with the Python standard library only.
+A `.scgraph` file stores one network: its edges, the points of its nodes, its metrics and its metadata. For a metric, the file stores the weights, and not the rates or the function that made them. scgraph reads and writes it with the Python standard library only.
 
 This section specifies `format_version` 1. A file built by `build_geograph` also records the version of scgraph that built it, in `metadata.software.scgraph`. For a released version, this section at the tag of that release is the specification that applies to the file.
 
@@ -494,17 +483,6 @@ Its road nodes have the value `0` in `node_modes`, its rail nodes `1`, its sea n
 
 A pipeline may record the class of each edge in `edge_classes`. A program reads the name of a class from the header of the file. A later version of scgraph may give a class another row.
 
-For example, a file with the metrics `length` and `travel_time` has these rows, and the arrays `weights_length` and `weights_travel_time`:
-
-```json
-"metrics": [
-  {"name": "length", "unit": "km"},
-  {"name": "travel_time", "unit": "s", "description": "Attribute travel_time of the OSMnx graph.", "off_graph_per_km": 240.0}
-]
-```
-
-`GeoGraph.save_as_scgraph` writes the weights of each metric of the geograph. The file holds the weights, and not the tables or the function that made them.
-
 ### Coordinate Encoding (`int32` vs `float64`)
 
 `scgraph` supports two coordinate encodings:
@@ -517,7 +495,7 @@ The function `network_file.read` reads a network file. It makes these checks, in
 
 1. The first 8 bytes are `SCGRAPH1`.
 2. The header is inside the file. The header is valid JSON.
-3. `format_version` is `1`. scgraph reads only this version. For another version, the error message gives the version of the file. A header with `metadata.units` and without `metadata.metrics` has the form of an earlier development version of scgraph. The error message then says to build or download the network again.
+3. `format_version` is `1`. scgraph reads only this version. For another version, the error message gives the version of the file.
 4. For each array that scgraph knows, and an array `weights_<name>` is one of them:
    - the dtype is one of the dtypes that the table above allows;
    - the offset is zero or more;

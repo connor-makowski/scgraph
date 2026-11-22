@@ -199,16 +199,12 @@ A ferry is kept when each of its ends is within 2 km of a road node. The ferries
 this build, one for each direction.
 
 `step3_network_assembly.build_graph_from_pieces` then stores the pieces of each node mode as a
-graph.
-A graph holds one edge at most from a node to another. Of several edges between the same two
-nodes, the function keeps the shortest edge of each class:
-
-- **Two edges of the same class.** The shorter one is kept. Two ferry routes of this build join
-  the same two road nodes, so the file has 10 edges of the class `ferry`.
-- **Two edges of two classes.** Both are kept. For example, a primary road and a shorter
-  motorway join the same two junctions. The motorway stays one edge. The primary road is split
-  at its middle, where the function puts a new node. A route by time can then choose between
-  the two roads. The new node gets an id below zero.
+graph. A graph holds one edge at most from a node to another. Of several edges between the same
+two nodes, the function keeps the shortest edge of each class. Two ferry routes of this build
+join the same two road nodes, so the file has 10 edges of the class `ferry`. Two edges of two
+classes are both kept. For example, a primary road and a shorter motorway join the same two
+junctions. The function splits the primary road at its middle, with a new node there. A route
+by time can then choose between the two roads.
 
 Where to read more: the docstrings at the top of `steps/step1_osm_ways.py` and of
 `steps/step3_network_assembly.py`.
@@ -305,10 +301,9 @@ describes one known fact of the real world. Most cases give two points and a ref
 for the route between them. This build has three cases, and all three pass. One of them says
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
-There is one kind of case for each rule, and each kind has its node modes. The two points of
-a case snap to nodes of these node modes: a road node for a road distance, any node for a hub.
-The `node_addition_modes` of the file do not count here. So a case of a hub starts at the node
-of its hub, also in a network whose query points snap to roads by default.
+Each kind of case has its node modes. The two points of a case snap to nodes of these node
+modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
+file do not count here.
 
 Then the runner moves the file into the cache. A network that fails a case does not enter the
 cache.
@@ -667,11 +662,7 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
   CLASSES = {"cycleway": "road", "towpath": "road", "ferry": "road"}
   ```
 
-  A name of `NODE_ADDITION_MODES` is a name of the modes table that `build` returns. The array
-  `edge_classes` holds the row of the class of each edge in `CLASSES`, counted from 0:
-  `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
-  `scgraph.pipelines.CLASSES`. A user then gives a rate to each class or to each edge mode of
-  these tables (`GeoGraph.create_metric`).
-
-  When `build` returns a GeoGraph, the runner reads neither name. The file then holds the
-  classes of this geograph, which its loader gave, and its `default_node_addition_modes`.
+  The array `edge_classes` holds the row of the class of each edge in `CLASSES`, counted from
+  0: `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
+  `scgraph.pipelines.CLASSES`. The docstring of `scgraph.pipelines` gives the contract of the
+  two names.
