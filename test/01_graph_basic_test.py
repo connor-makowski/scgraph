@@ -219,17 +219,19 @@ _SEARCHES_WITH_CODE_FOR_INFINITY = [
 def test_a_search_never_takes_an_edge_whose_weight_is_infinite(
     graph_class, algorithm
 ):
-    # The two edges between nodes 0 and 3 have an infinite weight. The detour
-    # 0 -> 1 -> 2 -> 3 costs 1 + 2 + 3 = 6.
-    graph_with_a_closed_shortcut = graph_class(
+    # The edges between nodes 0 and 3, 0 and 2, and 1 and 3 have an infinite
+    # weight: six of the twelve edges. The median weight of all the edges is
+    # then infinite, so a bucket search must set the width of its buckets from
+    # the other edges. The route 0 -> 1 -> 2 -> 3 costs 1 + 2 + 3 = 6.
+    graph_with_closed_shortcuts = graph_class(
         [
-            {1: 1.0, 3: math.inf},
-            {0: 1.0, 2: 2.0},
-            {1: 2.0, 3: 3.0},
-            {2: 3.0, 0: math.inf},
+            {1: 1.0, 2: math.inf, 3: math.inf},
+            {0: 1.0, 2: 2.0, 3: math.inf},
+            {0: math.inf, 1: 2.0, 3: 3.0},
+            {0: math.inf, 1: math.inf, 2: 3.0},
         ]
     )
-    search = getattr(graph_with_a_closed_shortcut, algorithm)
+    search = getattr(graph_with_closed_shortcuts, algorithm)
 
     found = search(origin_id=0, destination_id=3)
 
