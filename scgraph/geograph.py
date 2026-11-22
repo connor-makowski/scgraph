@@ -28,13 +28,7 @@ from scgraph._internal import warn_deprecated_parameter, log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph.edge_classes import (
-    NO_CLASS,
-    EdgeClasses,
-    find_edge_index,
-    iter_edges,
-    reorder_edge_values,
-)
+from scgraph.edge_classes import EdgeClasses, find_edge_index
 from scgraph.metrics import (
     Metric,
     check_off_graph_per_km,
@@ -308,17 +302,20 @@ class GeoGraphIO:
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
-        # The classes and the weights of the metrics, lined up with the edges. They
-        # are read before the header is built: an edge without a class may add its
-        # row to the classes.
-        classes, edge_values = None, {}
-        if self._edge_classes.edge_rows is not None or self._metrics:
-            edge_classes = self._line_up()
-            if edge_classes.edge_rows is not None:
-                classes = edge_classes.rows
-                edge_values["edge_classes"] = edge_classes.edge_rows
+        # The row of the class of each edge and its weight in each metric, lined
+        # up with the edges. A geograph without classes and without metrics does
+        # not read the arrays of its edges here.
+        classes, edge_value_arrays = None, {}
+        if self.classes or self._metrics:
+            geograph_offsets, geograph_heads, _ = self._read_edge_arrays()
+            file_classes, edge_classes = self._edge_classes.list_class_rows(
+                geograph_offsets, geograph_heads
+            )
+            if edge_classes is not None:
+                classes = file_classes
+                edge_value_arrays["edge_classes"] = edge_classes
             for name, metric_record in self._metrics.items():
-                edge_values[f"weights_{name}"] = metric_record.weights
+                edge_value_arrays[f"weights_{name}"] = metric_record.weights
         metadata = network_file.build_header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             modes=self.modes,
@@ -360,17 +357,16 @@ class GeoGraphIO:
         old = range(len(nodes)) if order is None else order
         # In the order searches visit the edges, so that the file gives the same paths
         offsets, heads, weights = self.graph_object._csr(order)
-        if order is not None and edge_values:
-            old_offsets = self._edge_classes.edge_arrays[0]
-            edge_values = {
-                key: reorder_edge_values(values, old_offsets, order)
-                for key, values in edge_values.items()
+        if order is not None and edge_value_arrays:
+            edge_value_arrays = {
+                name: _reorder_edge_values(edge_values, geograph_offsets, order)
+                for name, edge_values in edge_value_arrays.items()
             }
         arrays = {
             "offsets": offsets,
             "heads": heads,
             "weights_length": weights,
-            **edge_values,
+            **edge_value_arrays,
         }
         node_points = array("d", (value for i in old for value in nodes[i][:2]))
         # None: each node's id is its position
@@ -664,15 +660,13 @@ class GeoGraphIO:
             coordinate_dtype="int32",  # OSM's own: 1e-7 degree
         )
         if any(edge_class_names):
-            # As in a network file of a pipeline: every row of the classes table,
-            # then the row of no class when an edge needs it
-            edge_classes = geograph._line_up()
-            edge_classes.set_classes_by_name(
+            # As in a network file of a pipeline: every class of the classes table
+            geograph._edge_classes = EdgeClasses.build_from_class_names(
                 [
                     {"name": name, "mode": mode}
                     for name, mode in CLASSES.items()
                 ],
-                edge_classes.list_edge_values(edge_class_names),
+                edge_class_names,
             )
         geograph.reduce(reduce_iterations)
         return geograph
@@ -882,12 +876,14 @@ class GeoGraphIO:
         geograph.scgraph_file = filename
         geograph._length_unit = length_unit
         # The arrays of the file are the edges of the new graph, in the same order
-        geograph._edge_classes.set_edge_arrays(graph, edge_arrays)
+        geograph._set_edge_arrays(edge_arrays)
         if "edge_classes" in arrays:
-            geograph._edge_classes.rows = [
-                dict(row) for row in metadata["classes"]
-            ]
-            geograph._edge_classes.edge_rows = arrays["edge_classes"]
+            geograph._edge_classes = EdgeClasses(
+                metadata["classes"],
+                arrays["offsets"],
+                arrays["heads"],
+                arrays["edge_classes"],
+            )
         for row in metadata["metrics"][1:]:
             geograph._metrics[row["name"]] = Metric(
                 row["name"],
@@ -1576,21 +1572,34 @@ class GeoGraphIO:
             coordinate_dtype="int32" if coord_precision <= 7 else "float64",
             **kwargs,
         )
-        # The attributes of each edge, in the order of the edges
-        edge_classes = geograph._line_up()
-        edge_attributes = edge_classes.list_edge_values(kept_attributes)
-        highways = [data.get("highway") for data in edge_attributes]
-        # OSMnx gives a list to an edge that it made from ways of several values
-        highways = [
-            highway[0] if isinstance(highway, list) else highway
-            for highway in highways
+        # The name of the class of each edge that has a `highway` value, by its
+        # two nodes. OSMnx gives a list to an edge that it made from ways of
+        # several values.
+        edge_class_names = [
+            {
+                destination_id: (
+                    highway[0] if isinstance(highway, list) else highway
+                )
+                for destination_id, data in attributes_of_origin.items()
+                if (highway := data.get("highway")) is not None
+            }
+            for attributes_of_origin in kept_attributes
         ]
-        class_names = sorted(set(highways) - {None})
+        class_names = sorted(
+            set().union(*(names.values() for names in edge_class_names))
+        )
         if class_names:
-            edge_classes.set_classes_by_name(
+            geograph._edge_classes = EdgeClasses.build_from_class_names(
                 [{"name": name, "mode": "road"} for name in class_names],
-                highways,
+                edge_class_names,
             )
+        # The attributes of each edge, lined up with the edges
+        offsets, heads, _ = geograph._read_edge_arrays()
+        edge_attributes = [
+            attributes_of_origin[heads[edge_index]]
+            for origin_id, attributes_of_origin in enumerate(kept_attributes)
+            for edge_index in range(offsets[origin_id], offsets[origin_id + 1])
+        ]
         if weight_key == "travel_time":
             geograph._length_unit = "s"
         elif all("travel_time" in data for data in edge_attributes):
@@ -1830,7 +1839,7 @@ class GeoGraphModifiers:
         - `symmetric`: Whether to add the edge in both directions
         - `edge_class`: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError. With None, the edge has no class: a metric made from rates weighs it as an access leg (see `create_metric`)
         """
-        class_row = self._edge_classes.find_row(edge_class)
+        self._edge_classes.check_class(edge_class)
         self.graph_object.add_edge(
             origin_id=origin_id,
             destination_id=destination_id,
@@ -1840,7 +1849,7 @@ class GeoGraphModifiers:
         new_edges = [(origin_id, destination_id)]
         if symmetric:
             new_edges.append((destination_id, origin_id))
-        self._edge_classes.record_new_edges(new_edges, class_row)
+        self._edge_classes.set_class(new_edges, edge_class)
         self._remove_metrics()
         # `graph` may be a copy of the graph object. It is read again after a change.
         self.graph = None
@@ -1874,17 +1883,14 @@ class GeoGraphModifiers:
         )
         self.nodes.pop()
         removed_node_id = len(self.nodes)
-        if symmetric_node:
-            self._edge_classes.forget_new_edges(
-                nodes
-                for destination_id in removed_edges
-                for nodes in (
-                    (removed_node_id, destination_id),
-                    (destination_id, removed_node_id),
-                )
+        self._edge_classes.forget_added_edges(
+            edge
+            for destination_id in removed_edges
+            for edge in (
+                (removed_node_id, destination_id),
+                (destination_id, removed_node_id),
             )
-        else:
-            self._edge_classes.forget_new_edges_of_node(removed_node_id)
+        )
         self._remove_metrics()
         del self.node_modes[len(self.nodes) :]
         self.snap_index = None
@@ -1902,7 +1908,7 @@ class GeoGraphModifiers:
         removed_edges = [(origin_id, destination_id)]
         if symmetric:
             removed_edges.append((destination_id, origin_id))
-        self._edge_classes.forget_new_edges(removed_edges)
+        self._edge_classes.forget_added_edges(removed_edges)
         self._remove_metrics()
         self.graph = None
         return removed_weight
@@ -2104,7 +2110,7 @@ class GeoGraphModifiers:
             coord_dict["longitude"] >= -180 and coord_dict["longitude"] <= 180
         ):
             raise ValueError("Longitude must be between -180 and 180")
-        class_row = self._edge_classes.find_row(edge_class)
+        self._edge_classes.check_class(edge_class)
         node = [coord_dict["latitude"], coord_dict["longitude"]]
         if auto_edge:
             if not (circuity >= 1):
@@ -2144,16 +2150,16 @@ class GeoGraphModifiers:
         new_node_id = self.graph_object.add_node(
             node_dict=node_dict, symmetric=True
         )
-        self._edge_classes.record_new_edges(
+        self._edge_classes.set_class(
             (
-                nodes
+                edge
                 for destination_id in node_dict
-                for nodes in (
+                for edge in (
                     (new_node_id, destination_id),
                     (destination_id, new_node_id),
                 )
             ),
-            class_row,
+            edge_class,
         )
         self._remove_metrics()
         self.nodes.append(node)
@@ -2303,15 +2309,13 @@ class GeoGraphModifiers:
         original_other_modes = len(other_geograph.modes)
         if len(self.modes) + original_other_modes + 1 > 256:
             raise ValueError("A geograph has at most 256 modes")
-        # The class of each edge of the other geograph, read before this geograph
-        # gets the connection nodes. A node of the other geograph follows the nodes
-        # of this geograph and the connection nodes.
-        other_edge_rows = {}
-        if other_geograph._edge_classes.edge_rows is not None:
-            other_edge_rows = self._line_up().merge(
-                other_geograph._line_up(),
-                len(self.nodes) + len(connection_nodes),
-            )
+        # The classes of the edges of the other geograph, taken before the two
+        # geographs get the connection nodes. A node of the other geograph follows
+        # the nodes of this geograph and the connection nodes.
+        self._edge_classes.merge(
+            other_geograph._edge_classes,
+            first_node_id=len(self.nodes) + len(connection_nodes),
+        )
         # Connection nodes connect to the two networks as they were before
         # the merge, not to each other
         current_index = self.snap_index
@@ -2383,7 +2387,6 @@ class GeoGraphModifiers:
             for row in other_geograph.node_modes[:original_other_graph_length]
         )
         self.snap_index = None
-        self._edge_classes.new_edge_rows.update(other_edge_rows)
 
         # Clean up the other geograph to remove any appended nodes
         while len(other_geograph.nodes) > original_other_graph_length:
@@ -2410,6 +2413,27 @@ class GeoGraphModifiers:
                     node_connection_map[destination_idx]
                 ] = distance
         self.graph_object = Graph(graph=graph)
+
+
+def _reorder_edge_values(
+    edge_values: array | memoryview,
+    offsets: array | memoryview,
+    order: list[int],
+) -> array:
+    """Return an array lined up with the edges of a graph whose nodes are reordered.
+
+    Args:
+        edge_values: An array lined up with the edges.
+        offsets: The offsets of the edges before the nodes are reordered.
+        order: The nodes in their new order: `order[new id] = id`. A node keeps the
+            order of its edges, as `Graph._csr(order)` does.
+    """
+    edge_values = memoryview(edge_values)
+    reordered_edge_values = array(edge_values.format)
+    for origin_id in order:
+        first, last = offsets[origin_id], offsets[origin_id + 1]
+        reordered_edge_values.frombytes(edge_values[first:last].cast("B"))
+    return reordered_edge_values
 
 
 def _cut_legs(edges: list[dict]) -> list[dict]:
@@ -2897,7 +2921,7 @@ class GeoGraphUtils:
             )
             return (
                 self._get_path_total(path, metric)
-                + off_graph_km * self._get_metric(metric).off_graph_per_km
+                + off_graph_km * self._read_metric(metric).off_graph_per_km
             )
         if len(path) == 0:
             # Edge case: origin and destination map to the same graph node
@@ -3136,11 +3160,19 @@ class GeoGraph(
         self.metadata = {}
         # The network file that the geograph was read from, if any (load_from_scgraph)
         self.scgraph_file = None
-        # The classes of the edges (`scgraph/edge_classes.py`), and the metrics
-        # other than `length`, by name (`scgraph/metrics.py`). A method reads them
-        # after `_line_up`.
+        # The class of each edge (`scgraph/edge_classes.py`)
         self._edge_classes = EdgeClasses()
+        # The metrics other than `length`, by name (`scgraph/metrics.py`). A
+        # method reads them with `_read_metrics`: an edit of `graph_object`
+        # removes them.
         self._metrics = {}
+        # The offsets, the heads and the lengths of the edges of `graph_object`
+        # (`Graph._csr`), as `_read_edge_arrays` last read them. The "index" of an
+        # edge is its position in the heads. The graph and its count of edits at
+        # that time tell a later edit.
+        self._edge_arrays = None
+        self._edge_arrays_graph = None
+        self._edge_arrays_edit_count = None
         # The argument of the last `reduce`, for the graph of each metric
         self._reduce_iterations = None
         # The modes that a query point snaps to by default, as a network file names
@@ -3180,20 +3212,31 @@ class GeoGraph(
         without classes: a loader or a merge gives classes to a geograph.
         `get_edges` gives the class of each edge.
         """
-        # A new edge without a class adds its row at a line-up
-        if self._edge_classes.edge_rows is not None:
-            self._line_up()
-        return self._edge_classes.rows
+        return self._edge_classes.classes
 
-    def _line_up(self) -> EdgeClasses:
-        # The one rule of the classes and of the metrics: a method calls `_line_up`
-        # before it reads the class of an edge, the arrays of the edges or a
-        # metric. The caller may have edited `graph_object` since the last read.
-        # `_line_up` then lines the classes up with the edges, and removes the
-        # metrics: their weights were those of the edges before the edit.
-        if self._edge_classes.line_up(self.graph_object):
+    def _read_edge_arrays(self) -> tuple[array | memoryview, ...]:
+        # Return the offsets, the heads and the lengths of the edges of
+        # `graph_object`. The method reads them again when the graph or its count
+        # of edits has changed: the caller may have edited `graph_object` itself.
+        # It then removes the metrics: a metric has the weight of each edge at the
+        # index that the edge had before the edit.
+        graph = self.graph_object
+        if (
+            graph is not self._edge_arrays_graph
+            or graph._edit_count != self._edge_arrays_edit_count
+        ):
             self._remove_metrics()
-        return self._edge_classes
+            self._set_edge_arrays(graph._csr())
+        return self._edge_arrays
+
+    def _set_edge_arrays(
+        self, edge_arrays: tuple[array | memoryview, ...]
+    ) -> None:
+        # Keep the offsets, the heads and the lengths of the edges of
+        # `graph_object`, for `_read_edge_arrays`.
+        self._edge_arrays = edge_arrays
+        self._edge_arrays_graph = self.graph_object
+        self._edge_arrays_edit_count = self.graph_object._edit_count
 
     def _remove_metrics(self) -> None:
         # Remove every metric other than `length`, at an edit of the network, and
@@ -3206,16 +3249,18 @@ class GeoGraph(
             )
             self._metrics = {}
 
-    def _get_metrics(self) -> dict[str, Metric]:
-        # The metrics other than `length`, by name. A geograph without metrics is
-        # not lined up: this read costs it nothing.
+    def _read_metrics(self) -> dict[str, Metric]:
+        # Return the metrics other than `length`, by name. A geograph with
+        # metrics first reads its edges: an edit made on `graph_object` removes
+        # the metrics here.
         if self._metrics:
-            self._line_up()
+            self._read_edge_arrays()
         return self._metrics
 
-    def _get_metric(self, metric: str) -> Metric:
-        # The record of a metric other than `length`
-        metrics = self._get_metrics()
+    def _read_metric(self, metric: str) -> Metric:
+        # Return the record of a metric other than `length`, as `_read_metrics`
+        # reads it.
+        metrics = self._read_metrics()
         if metric not in metrics:
             raise ValueError(
                 f"Unknown metric {metric!r}: the metrics of this geograph are "
@@ -3476,7 +3521,7 @@ class GeoGraph(
         """
         return [{"name": "length", "unit": self._length_unit}] + [
             metric_record.get_row()
-            for metric_record in self._get_metrics().values()
+            for metric_record in self._read_metrics().values()
         ]
 
     def create_metric(
@@ -3545,23 +3590,30 @@ class GeoGraph(
                 "per_km needs lengths in km: the lengths of this geograph are in "
                 f"{self._length_unit!r}"
             )
-        edge_classes = self._line_up()
-        offsets, heads, lengths = edge_classes.edge_arrays
+        offsets, heads, lengths = self._read_edge_arrays()
         units_per_km = get_units_per_km(self.geograph_units)
         if per_km is not None:
-            edge_rows = edge_classes.edge_rows
-            if edge_rows is None:
+            classes, edge_classes = self._edge_classes.list_class_rows(
+                offsets, heads
+            )
+            if edge_classes is None:
                 # Every edge has the row 0: `per_km` is one rate for every edge
-                edge_rows = array("B", bytes(len(heads)))
+                edge_classes = array("B", bytes(len(heads)))
             # Nodes appended to `nodes` directly are in the first mode
             self.node_modes.extend(
                 bytes(len(offsets) - 1 - len(self.node_modes))
             )
-            *rates, off_graph_per_km = resolve_rates(
-                per_km, at_hub, edge_classes.rows, self.modes, edge_rows
+            class_rates_per_km, hub_weights, off_graph_per_km = resolve_rates(
+                per_km, at_hub, classes, self.modes, edge_classes
             )
             weights = compute_weights_from_rates(
-                offsets, heads, lengths, edge_rows, self.node_modes, *rates
+                offsets,
+                heads,
+                lengths,
+                edge_classes,
+                self.node_modes,
+                class_rates_per_km,
+                hub_weights,
             )
         elif weighted_sum_of is not None:
             weights, off_graph_per_km = compute_weights_from_sum(
@@ -3570,7 +3622,7 @@ class GeoGraph(
         else:
             weights, off_graph_per_km = compute_weights_from_function(
                 edge_weight_fn,
-                self._iter_edge_dicts(iter_edges(offsets)),
+                self._iter_edge_dicts(self._iter_edges()),
                 self._metrics,
                 units_per_km,
             )
@@ -3603,7 +3655,7 @@ class GeoGraph(
 
         - `name`: The name of a metric of `metrics`, other than `length`; an unknown name raises a ValueError
         """
-        self._get_metric(name)
+        self._read_metric(name)
         del self._metrics[name]
 
     def get_graph_object(self, metric: str = "length") -> Graph:
@@ -3620,9 +3672,9 @@ class GeoGraph(
         """
         if metric == "length":
             return self.graph_object
-        metric_record = self._get_metric(metric)
+        metric_record = self._read_metric(metric)
         if metric_record.graph_object is None:
-            offsets, heads, _ = self._line_up().edge_arrays
+            offsets, heads, _ = self._read_edge_arrays()
             # The graph reads the three arrays in place and keeps them alive
             graph = Graph.from_csr(
                 offsets, heads, metric_record.weights, copy=False
@@ -3704,43 +3756,56 @@ class GeoGraph(
         - `length` is in `geograph_units`. `class` is the name of the class of the edge and `mode` is the mode of that class; both are None for an edge without a class
         - `metrics` is a dictionary `{name: weight}`: the weight of the edge in each metric other than `length`; infinity for an edge that is closed in the metric
         """
-        edge_classes = self._line_up()
-        offsets = edge_classes.edge_arrays[0]
-        if origin_id is None:
-            origin_ids = None
-        elif 0 <= origin_id < len(offsets) - 1:
-            origin_ids = (origin_id,)
-        else:
+        offsets, heads, _ = self._read_edge_arrays()
+        if origin_id is not None and not 0 <= origin_id < len(offsets) - 1:
             raise ValueError(f"Node {origin_id} is not in the geograph")
-        class_row = edge_classes.find_row(edge_class)
-        edges = iter_edges(offsets, origin_ids)
-        if class_row is not None:
-            edge_rows = edge_classes.edge_rows
-            edges = (edge for edge in edges if edge_rows[edge[1]] == class_row)
+        self._edge_classes.check_class(edge_class)
+        edges = self._iter_edges(origin_id)
+        if edge_class is not None:
+            find_class = self._edge_classes.find_class
+            edges = (
+                (origin_id, edge_index)
+                for origin_id, edge_index in edges
+                if find_class(origin_id, heads[edge_index])["name"]
+                == edge_class
+            )
         return list(self._iter_edge_dicts(edges))
+
+    def _iter_edges(
+        self, origin_id: int | None = None
+    ) -> Iterator[tuple[int, int]]:
+        """Return each edge of one node, or every edge for None, as (origin id,
+        index of the edge), in the order of the edges."""
+        offsets = self._read_edge_arrays()[0]
+        origin_ids = (
+            range(len(offsets) - 1) if origin_id is None else (origin_id,)
+        )
+        return (
+            (origin_id, edge_index)
+            for origin_id in origin_ids
+            for edge_index in range(offsets[origin_id], offsets[origin_id + 1])
+        )
 
     def _iter_edge_dicts(
         self, edges: Iterable[tuple[int, int]]
     ) -> Iterator[dict]:
         """Yield the dictionary of each edge, as `get_edges` returns it. `edges`
         gives each edge as (origin id, index of the edge)."""
-        edge_classes = self._line_up()
-        _, heads, lengths = edge_classes.edge_arrays
-        rows, edge_rows = edge_classes.rows, edge_classes.edge_rows
+        _, heads, lengths = self._read_edge_arrays()
+        find_class = self._edge_classes.find_class
         weights_of_metrics = [
             (name, metric_record.weights)
             for name, metric_record in self._metrics.items()
         ]
         for origin_id, edge_index in edges:
-            edge_class = (
-                NO_CLASS if edge_rows is None else rows[edge_rows[edge_index]]
-            )
+            destination_id = heads[edge_index]
+            class_entry = find_class(origin_id, destination_id)
             yield {
                 "origin_id": origin_id,
-                "destination_id": heads[edge_index],
+                "destination_id": destination_id,
                 "length": lengths[edge_index],
-                "class": edge_class["name"],
-                "mode": edge_class["mode"],
+                "class": class_entry["name"],
+                "mode": class_entry["mode"],
                 "metrics": {
                     name: weights[edge_index]
                     for name, weights in weights_of_metrics
@@ -3748,8 +3813,8 @@ class GeoGraph(
             }
 
     def _find_path_edge_indexes(self, path: list[int]) -> list[int]:
-        # The index of each edge of a path, in the lined-up arrays
-        offsets, heads, _ = self._line_up().edge_arrays
+        # The index of each edge of a path
+        offsets, heads, _ = self._read_edge_arrays()
         edge_indexes = []
         for origin_id, destination_id in zip(path, path[1:]):
             edge_index = find_edge_index(
@@ -3766,9 +3831,9 @@ class GeoGraph(
     def _get_path_total(self, path: list[int], metric: str) -> float:
         # The total of a metric along the edges of a path. The metric may be
         # `length`.
-        lengths = self._line_up().edge_arrays[2]
+        lengths = self._read_edge_arrays()[2]
         weights = (
-            lengths if metric == "length" else self._get_metric(metric).weights
+            lengths if metric == "length" else self._read_metric(metric).weights
         )
         return sum(map(weights.__getitem__, self._find_path_edge_indexes(path)))
 
@@ -4271,8 +4336,8 @@ class GeoGraph(
                 if is_by_metric:
                     # A route of d km weighs d times `min_weight_per_km` at least.
                     # A radius times this value gives the bound of the metric.
-                    radius *= self._get_metric(metric).get_min_weight_per_km(
-                        self._line_up().edge_arrays[2]
+                    radius *= self._read_metric(metric).get_min_weight_per_km(
+                        self._read_edge_arrays()[2]
                     )
                 algorithm_fn = partial(
                     graph_object.a_star_great_circle,
@@ -4288,9 +4353,9 @@ class GeoGraph(
                 ):
                     # `cheap_ruler` gives a length. The bound of the metric is this
                     # length times `min_weight_per_km`, as for `haversine` above.
-                    min_weight_per_km = self._get_metric(
+                    min_weight_per_km = self._read_metric(
                         metric
-                    ).get_min_weight_per_km(self._line_up().edge_arrays[2])
+                    ).get_min_weight_per_km(self._read_edge_arrays()[2])
                     algorithm_kwargs["heuristic_fn"] = (
                         lambda origin_id, destination_id: min_weight_per_km
                         * heuristic_fn(origin_id, destination_id)
@@ -4370,7 +4435,7 @@ class GeoGraph(
                 # The search weighs an access leg by its km times the weight of
                 # 1 km. The test above compares lengths: a metric whose access
                 # legs weigh nothing must not make every route direct.
-                off_graph_per_unit = self._get_metric(
+                off_graph_per_unit = self._read_metric(
                     metric
                 ).off_graph_per_km / get_units_per_km(self.geograph_units)
                 direct_node_addition_length *= off_graph_per_unit
@@ -4442,7 +4507,7 @@ class GeoGraph(
             # Early return if only length is needed
             if length_only:
                 return {"length": output["length"]}
-            if self._get_metrics():
+            if self._read_metrics():
                 output["metrics"] = self._get_metric_totals(
                     output["path"], origin, destination, off_graph_circuity
                 )
@@ -4642,7 +4707,7 @@ class GeoGraph(
             # The total of a metric is not converted. An access leg weighs its km
             # times the weight of 1 km in the metric.
             dist_multiplier, output_units = 1, "km"
-            off_graph_per_unit = self._get_metric(
+            off_graph_per_unit = self._read_metric(
                 output_metric
             ).off_graph_per_km
         snap_index = (

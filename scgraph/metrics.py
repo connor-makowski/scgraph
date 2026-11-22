@@ -4,8 +4,9 @@ This module is internal. `GeoGraph.create_metric` calls it, and a geograph keeps
 metrics by name in `GeoGraph._metrics`.
 
 A "metric" is one weight for every edge, under a name: an array of float64 values,
-lined up with the edges (`scgraph/edge_classes.py`). A search by a metric adds up
-these weights in place of the lengths. The lengths are the metric `length`, which the
+"lined up with the edges". Its value number `i` is the weight of the edge of index
+`i`: the edge at the position `i` in the heads of the graph (`Graph._csr`). A search
+by a metric adds up these weights in place of the lengths. The lengths are the metric `length`, which the
 graph of the geograph holds. A `Metric` record holds each other metric. An edge is
 "closed" in a metric when its weight is infinity: no route by this metric takes it.
 
@@ -23,8 +24,8 @@ The weights of a metric are computed in one of three ways:
 THE RULE: A METRIC KEEPS THE WEIGHTS OF ITS CREATION
 
 An edit of the network removes every metric, and a metric that is created again
-changes no other metric. So no code lines up a metric or computes it again: the
-caller creates it again.
+changes no other metric. So no code moves the weights of a metric or computes them
+again: the caller creates the metric again.
 
 Example, a graph with the edges 0 -> 1, 0 -> 2 and 2 -> 0, with lengths of 10, 20
 and 20 km. The first two edges have the class `primary` and the third the class
@@ -119,10 +120,11 @@ def resolve_rates(
     0.02 to the other classes of the mode `road`.
 
     Args:
-        classes: The class rows. Empty for a geograph without classes: every edge
-            then has the row 0.
-        modes: The rows of the node modes.
-        edge_classes: The row of the class of each edge.
+        classes: The entry `{"name", "mode"}` of each class. Empty for a geograph
+            without classes: every edge then has the row 0.
+        modes: The entry of each node mode (`GeoGraph.modes`).
+        edge_classes: The row of the class of each edge: the position of the
+            entry of the class in `classes`.
 
     Raises:
         ValueError: A dict has a key that it may not have, or lacks a rate, or a
@@ -141,26 +143,27 @@ def resolve_rates(
                 "between a query point and its node"
             )
         off_graph_per_km = per_km["off_graph"]
-        class_rows = bytes(edge_classes)
-        rates = array("d")
-        for row, edge_class in enumerate(classes):
-            key = _find_key(per_km, edge_class)
+        count_edges_of_class_row = bytes(edge_classes).count
+        class_rates_per_km = array("d")
+        for class_row, class_entry in enumerate(classes):
+            key = _find_key(per_km, class_entry)
             if (
                 key is None
-                and edge_class["name"] is not None
-                and class_rows.count(row)
+                and class_entry["name"] is not None
+                and count_edges_of_class_row(class_row)
             ):
                 raise ValueError(
-                    f"per_km gives no rate for the class {edge_class['name']!r}, "
-                    f"which has edges: name it, or its mode {edge_class['mode']!r}"
+                    "per_km gives no rate for the class "
+                    f"{class_entry['name']!r}, which has edges: name it, or its "
+                    f"mode {class_entry['mode']!r}"
                 )
-            # Without a key, the class has no edge, or it is the row of no class:
-            # an edge without a class takes the rate of the access legs.
+            # Without a key, the class has no edge, or it is the class without a
+            # name: an edge without a class takes the rate of the access legs.
             rate = off_graph_per_km if key is None else per_km[key]
-            rates.append(inf if rate is None else rate)
+            class_rates_per_km.append(inf if rate is None else rate)
     else:
         off_graph_per_km = per_km
-        rates = array("d", [per_km]) * class_count
+        class_rates_per_km = array("d", [per_km]) * class_count
 
     mode_names = [mode.get("name") for mode in modes]
     hub_weights = array("d", bytes(8 * len(modes) * class_count))
@@ -171,8 +174,8 @@ def resolve_rates(
                 f"the modes of this geograph are {mode_names}"
             )
         _check_keys(weights_of_hub, f"at_hub[{hub_mode!r}]", classes, ())
-        for row, edge_class in enumerate(classes):
-            key = _find_key(weights_of_hub, edge_class)
+        for class_row, class_entry in enumerate(classes):
+            key = _find_key(weights_of_hub, class_entry)
             if key is None:
                 continue
             weight = weights_of_hub[key]
@@ -185,8 +188,8 @@ def resolve_rates(
             # Two modes may have the same name, after a merge
             for mode_row, mode_name in enumerate(mode_names):
                 if mode_name == hub_mode:
-                    hub_weights[mode_row * class_count + row] = weight
-    return rates, hub_weights, off_graph_per_km
+                    hub_weights[mode_row * class_count + class_row] = weight
+    return class_rates_per_km, hub_weights, off_graph_per_km
 
 
 def compute_weights_from_sum(
@@ -281,24 +284,31 @@ def compute_weights_from_function(
     return weights, off_graph_per_km
 
 
-def _find_key(values: dict, edge_class: dict) -> str | None:
+def _find_key(values_by_class: dict, class_entry: dict) -> str | None:
     # The key of a class in a dict of rates or of hub weights: its name, else the
     # mode of its edges, else None
-    for key in (edge_class["name"], edge_class["mode"]):
-        if key is not None and key in values:
+    for key in (class_entry["name"], class_entry["mode"]):
+        if key is not None and key in values_by_class:
             return key
     return None
 
 
 def _check_keys(
-    values: dict, argument: str, classes: list[dict], other_keys: tuple
+    values_by_class: dict,
+    argument: str,
+    classes: list[dict],
+    other_keys: tuple,
 ) -> None:
     # Refuse a key of a dict of rates or of hub weights that is no class, no mode
     # of edges and no other key. `argument` names the dict in the message.
-    known = {row[key] for row in classes for key in ("name", "mode")}
-    for key in values:
-        if key not in known and key not in other_keys:
-            edge_modes = sorted({row["mode"] for row in classes} - {None})
+    known_keys = {
+        class_entry[key] for class_entry in classes for key in ("name", "mode")
+    }
+    for key in values_by_class:
+        if key not in known_keys and key not in other_keys:
+            edge_modes = sorted(
+                {class_entry["mode"] for class_entry in classes} - {None}
+            )
             raise ValueError(
                 f"{argument} has the key {key!r}, which is no class and no "
                 "mode of the edges of this geograph: the modes of its edges are "

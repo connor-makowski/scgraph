@@ -37,7 +37,7 @@ scgraph/
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
   geograph.py                    # GeoGraph + LazyGeoGraph — snapping, loaders and savers, cache management, build_geograph, metrics, edges and legs of a path
-  edge_classes.py                # Internal: the classes of the edges, lined up with the graph after an edit
+  edge_classes.py                # Internal: the class of each edge, found by the two nodes of the edge
   metrics.py                     # Internal: the record of a metric, and how its weights are computed (rates, weighted sum, function)
   contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)

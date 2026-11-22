@@ -345,6 +345,14 @@ def test_the_other_edges_keep_their_classes_when_a_node_is_removed(network):
     }
 
 
+def test_the_edges_of_a_node_added_on_the_graph_object_have_no_class(network):
+    # The new node is the node 10.
+    network.graph_object.add_node({JUNCTION: 30.0}, symmetric=True)
+
+    classes = _get_class_of_each_edge(network)
+    assert [classes[10, JUNCTION], classes[JUNCTION, 10]] == [None, None]
+
+
 def test_a_merge_keeps_the_classes_of_both_geographs(network, ferry):
     # The connection node is the node 10. It joins the closest node of each
     # geograph: the west station and the first node of the ferry. The two
@@ -419,6 +427,46 @@ def test_a_node_added_with_a_class_gives_it_to_its_edges(network):
     ] == ["road_connector", "road_connector"]
 
 
+def test_a_merge_keeps_the_class_of_an_edge_that_was_added_to_the_other_geograph(
+    network, ferry
+):
+    # The new edge of the ferry has no class. It replaces the edge from the
+    # node 1 to the node 0.
+    ferry.add_edge(1, 0, 30.0)
+
+    network.merge_with_other_geograph(ferry, connection_nodes=[[0.5, 0.0]])
+
+    # The two nodes of the ferry become the nodes 11 and 12.
+    classes = _get_class_of_each_edge(network)
+    assert [classes[11, 12], classes[12, 11]] == ["ferry", None]
+
+
+def test_an_edge_added_without_a_class_adds_no_class_to_the_geograph(network):
+    network.add_edge(WEST_TOWN, PORT, 85.0, symmetric=True)
+
+    # A read of every edge reads the class of the two new edges.
+    network.get_edges()
+
+    assert network.classes == [
+        {"name": name, "mode": mode} for name, mode in CLASSES.items()
+    ]
+
+
+def test_a_saved_file_has_one_class_without_a_name_for_its_edges_without_a_class(
+    network, tmp_path
+):
+    network.add_edge(WEST_TOWN, PORT, 85.0, symmetric=True)
+    path = str(tmp_path / "saved.scgraph")
+
+    network.save_as_scgraph(path)
+
+    # A file stores a class for each edge: the two new edges have the last one.
+    assert GeoGraph.get_scgraph_info(path)["classes"] == [
+        *({"name": name, "mode": mode} for name, mode in CLASSES.items()),
+        {"name": None, "mode": None},
+    ]
+
+
 def test_a_merge_that_is_refused_changes_nothing(
     network_with_minutes, tmp_path
 ):
@@ -445,18 +493,21 @@ def test_a_merge_that_is_refused_changes_nothing(
 
 
 def test_a_geograph_with_256_classes_refuses_one_more_class(tmp_path):
-    # The ferry line, read from a network file with 256 classes: a geograph
-    # holds no more. The line has the last class.
+    # The ferry line, read from a network file with 256 classes: a network
+    # file holds no more. The line has the last class.
     classes = {f"class_{row}": "road" for row in range(256)}
     path = str(tmp_path / "256_classes.scgraph")
     _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_255")], classes)
     geograph_with_256_classes = GeoGraph.load_from_scgraph(path)
 
-    # An edge without a class has the class without a name: a 257th class.
+    # In a network file, an edge without a class has the class without a
+    # name: a 257th class.
     geograph_with_256_classes.add_edge(0, 1, 25.0)
 
     with pytest.raises(ValueError, match="256 classes"):
-        geograph_with_256_classes.get_edges()
+        geograph_with_256_classes.save_as_scgraph(
+            str(tmp_path / "257_classes.scgraph")
+        )
 
 
 # create_metric: the weights of a metric

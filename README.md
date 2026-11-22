@@ -1186,7 +1186,7 @@ The classes stay. `add_edge`, `add_coord_edge`, `add_coord_node` and `add_havers
 geograph.add_edge(origin_id=0, destination_id=5, distance=85, symmetric=True, edge_class="primary")
 ```
 
-Without `edge_class`, the new edge has no class: its `class` and its `mode` are `None`. An edge added on `graph_object` directly has no class either. A metric made from rates weighs an edge without a class as an access leg: its km times the rate `"off_graph"` of the metric. So a route by the metric can start at a node that you added. A function of an edge gets such an edge with the class `None` and the mode `None`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None` (see [Closing a Class or an Edge](#closing-a-class-or-an-edge)).
+Without `edge_class`, the new edge has no class: its `class` and its `mode` are `None`. An edge added on `graph_object` directly has the class that the geograph knows for its two nodes: the class of the edge that it replaces, and no class between two nodes that had no edge. A metric made from rates weighs an edge without a class as an access leg: its km times the rate `"off_graph"` of the metric. So a route by the metric can start at a node that you added. A function of an edge gets such an edge with the class `None` and the mode `None`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None` (see [Closing a Class or an Edge](#closing-a-class-or-an-edge)).
 
 To give the new edges the rate of a class, name the class. This call joins a new node to `europe` by edges of the class `road_connector`. A metric that you then create on `europe` gives them the rate of the edge mode `road`:
 

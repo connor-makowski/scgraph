@@ -18,6 +18,7 @@ import json
 import struct
 from array import array
 
+from scgraph.edge_classes import EdgeClasses
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_ROWS, CLASSES
@@ -98,7 +99,7 @@ def build(files: dict[str, str]) -> GeoGraph:
     node_of_point = {
         _to_units(point): node_id for node_id, point in enumerate(sea.nodes)
     }
-    class_names = [{} for _ in sea.nodes]
+    edge_class_names = [{} for _ in sea.nodes]
     for line, passage in lines:
         nodes = [
             node_of_point[
@@ -107,11 +108,12 @@ def build(files: dict[str, str]) -> GeoGraph:
             for lon_lat in line["coordinates"]
         ]
         for a, b in zip(nodes, nodes[1:]):
-            class_names[a][b] = class_names[b][a] = passage or "open_sea"
-    edge_classes = sea._line_up()
-    edge_classes.set_classes_by_name(
+            edge_class_names[a][b] = edge_class_names[b][a] = (
+                passage or "open_sea"
+            )
+    sea._edge_classes = EdgeClasses.build_from_class_names(
         [{"name": name, "mode": mode} for name, mode in CLASSES.items()],
-        edge_classes.list_edge_values(class_names),
+        edge_class_names,
     )
     return sea
 
