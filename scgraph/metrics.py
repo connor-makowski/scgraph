@@ -85,8 +85,8 @@ class Metric:
     weights: array | memoryview
     # The weight of 1 km of an off-graph leg
     off_graph_weight_per_km: float
-    # The result of `get_min_weight_per_km`. Computed at the first A* search.
-    min_weight_per_km: float | None = None
+    # The result of `get_min_weight_per_length_unit`, at the first A* search.
+    min_weight_per_length_unit: float | None = None
     # The Graph that a search by this metric runs on. Built at the first query.
     graph_object: "Graph | None" = None
 
@@ -100,20 +100,25 @@ class Metric:
         }
         return {key: value for key, value in row.items() if value is not None}
 
-    def get_min_weight_per_km(self, lengths: array | memoryview) -> float:
+    def get_min_weight_per_length_unit(
+        self, lengths: array | memoryview
+    ) -> float:
         """Return the smallest weight of one unit of length: the weight of an edge
         divided by its length, over the open edges longer than zero. Return 0.0
-        without such an edge. The total of a route of length `d` is `d` times this value
-        at least, so an A* search by the metric multiplies its bound by it."""
-        if self.min_weight_per_km is None:
+        without such an edge. The total of a route of length `d` is at least `d`
+        times this value, so an A* search by the metric multiplies its bound by it.
+        """
+        if self.min_weight_per_length_unit is None:
             # `compress` removes the edges of length zero. The loops run in C.
             ratios = map(
                 truediv,
                 compress(self.weights, lengths),
                 compress(lengths, lengths),
             )
-            self.min_weight_per_km = min(filter(isfinite, ratios), default=0.0)
-        return self.min_weight_per_km
+            self.min_weight_per_length_unit = min(
+                filter(isfinite, ratios), default=0.0
+            )
+        return self.min_weight_per_length_unit
 
 
 def resolve_weights_per_km(

@@ -4581,8 +4581,10 @@ class GeoGraph(
                 radius = earth_radius.get(self.geograph_units, 6371)
                 if is_metric_other_than_length:
                     # The total of a route of the length d is at least d times
-                    # `min_weight_per_km`. So the radius times it bounds the metric.
-                    radius *= self._read_metric(metric).get_min_weight_per_km(
+                    # `min_weight_per_length_unit`: the radius times it is the bound.
+                    radius *= self._read_metric(
+                        metric
+                    ).get_min_weight_per_length_unit(
                         self._read_edge_arrays()[2]
                     )
                 algorithm_fn = partial(
@@ -4598,12 +4600,14 @@ class GeoGraph(
                     and heuristic_fn == cheap_ruler_of_scgraph
                 ):
                     # `cheap_ruler` gives a length. The bound of the metric is this
-                    # length times `min_weight_per_km`, as for `haversine` above.
-                    min_weight_per_km = self._read_metric(
+                    # length times `min_weight_per_length_unit`, as for `haversine`.
+                    min_weight_per_length_unit = self._read_metric(
                         metric
-                    ).get_min_weight_per_km(self._read_edge_arrays()[2])
+                    ).get_min_weight_per_length_unit(
+                        self._read_edge_arrays()[2]
+                    )
                     algorithm_kwargs["heuristic_fn"] = (
-                        lambda origin_id, destination_id: min_weight_per_km
+                        lambda origin_id, destination_id: min_weight_per_length_unit
                         * heuristic_fn(origin_id, destination_id)
                     )
                 algorithm_fn = getattr(graph_object, algorithm_fn)
