@@ -798,6 +798,17 @@ def test_a_query_point_snaps_to_the_modes_that_the_network_file_names(network):
     assert route["path"][-1] == EAST_TOWN
 
 
+def test_a_query_point_snaps_to_a_node_that_the_user_added(network):
+    # The file names the mode `road` for the query points. The new node has
+    # no mode of the file. It is at the origin of the query, 0.1 degree west
+    # of the west town.
+    node_id = network.add_coord_node(WEST_POINT)
+
+    route = network.get_shortest_path(WEST_POINT, EAST_POINT, output_path=True)
+
+    assert route["path"][0] == node_id
+
+
 def test_a_query_point_snaps_to_a_node_added_after_an_earlier_query(network):
     # This query builds the snapping index of the rail nodes.
     network.get_shortest_path(

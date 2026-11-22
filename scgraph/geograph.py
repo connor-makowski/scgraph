@@ -3346,6 +3346,10 @@ class GeoGraph(
 
         - `node_addition_modes` is the argument of the query: names of `modes`, or None
           for the modes of `default_node_addition_modes`
+        - With None, a point also snaps to a node without a named mode: a node that
+          the user added. `add_coord_node` gives the mode without a name to its node,
+          and a node appended to `nodes` directly is not in `node_modes`. A list of
+          names keeps only the nodes of these modes
         - The default modes that no node has do not count. A geograph that read only
           the sea lanes of a file has no node of the default mode `road` of this file:
           a point then snaps to every node
@@ -3370,13 +3374,20 @@ class GeoGraph(
                 f"which are {mode_names}: got {node_addition_modes!r}"
             )
         modes = frozenset(node_addition_modes)
-        if modes not in self._mode_snap_indexes:
+        # The default modes and a list of the same names do not keep the same nodes
+        key = modes | {None} if is_default else modes
+        if key not in self._mode_snap_indexes:
             # One byte for each mode, then for each node: 1 for a node that a point
             # may snap to. The loops over the nodes run in C.
+            node_modes = bytes(self.node_modes)
             is_mode_kept = bytes(name in modes for name in mode_names)
-            is_node_kept = bytes(self.node_modes).translate(
-                is_mode_kept.ljust(256, b"\0")
-            )
+            is_node_kept = node_modes.translate(is_mode_kept.ljust(256, b"\0"))
+            if is_default and 1 in is_node_kept:
+                # Also the nodes without a named mode, which the user added
+                is_mode_kept = bytes(name in key for name in mode_names)
+                is_node_kept = node_modes.translate(
+                    is_mode_kept.ljust(256, b"\0")
+                ).ljust(len(self.nodes), b"\1")
             first, node_count = is_node_kept.find(1), is_node_kept.count(1)
             snap_index = None
             if node_count:
@@ -3396,8 +3407,8 @@ class GeoGraph(
                     indicators["sorted_for_the_index"] = (
                         snap_index.order is not node_ids
                     )
-            self._mode_snap_indexes[modes] = snap_index
-        snap_index = self._mode_snap_indexes[modes]
+            self._mode_snap_indexes[key] = snap_index
+        snap_index = self._mode_snap_indexes[key]
         if snap_index is None and not is_default:
             raise ValueError(
                 "node_addition_modes names no mode that a node of this geograph "
@@ -4499,7 +4510,7 @@ class GeoGraph(
         - `node_addition_modes`
             - Type: list of str | None
             - What: The names of the modes of nodes (see `modes`) that the origin and the destination may snap to: each one is connected only to nodes of these modes, for every `node_addition_type`
-            - Default: None (the modes of `default_node_addition_modes` that have a node in the geograph; every mode if there are none)
+            - Default: None (the modes of `default_node_addition_modes` that have a node in the geograph, and the nodes without a named mode, such as a node that `add_coord_node` added without `mode`; every mode if there are none)
             - Notes:
                 - EG: `geograph.get_shortest_path(origin_node, destination_node, node_addition_modes=["road"])` starts and ends the path on a road, also when a railway or a sea lane is closer
                 - An empty list, a name that is not in `modes`, or modes that no node has, raise a ValueError
@@ -4876,7 +4887,7 @@ class GeoGraph(
         - `node_addition_modes`
             - Type: list of str | None
             - What: The names of the modes of nodes (see `modes`) that the nodes of the matrix may snap to, as in `get_shortest_path`
-            - Default: None (the modes of `default_node_addition_modes` that have a node in the geograph; every mode if there are none)
+            - Default: None (as in `get_shortest_path`)
 
         Returns:
 
