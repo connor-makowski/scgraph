@@ -28,9 +28,17 @@ from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.metrics import (
+    Metric,
+    compute_min_weight_per_km,
+    compute_weights_by_sum,
+    compute_weights_by_tables,
+    describe_definition,
     find_edge_index,
+    find_sums_using,
     match_edges,
+    read_weight,
     reorder_edge_values,
+    set_edge_weights,
     take_edge_values,
 )
 from scgraph import built_in_geographs, network_cache, network_file
@@ -40,6 +48,7 @@ import json
 import logging
 import warnings
 import os
+import re
 import types
 from array import array
 from collections import Counter
@@ -2689,11 +2698,14 @@ class GeoGraphUtils:
         path_result: dict,
         off_graph_circuity: float | None = None,
         output_units: str = "km",
+        *,
+        metric: str = "length",
     ) -> float:
         """
         Function:
 
         - Compute the total weight of a pre-computed path in this geograph's units
+        - With `metric`, compute the total of this metric along the path: `geograph.get_path_weight(result, metric="hours")`
 
         - This allows computing the weight of a path optimized for one metric
           (e.g., time) using a different geograph's weights (e.g., distance),
@@ -2721,6 +2733,16 @@ class GeoGraphUtils:
             - What: Units for the returned weight value
             - Default: 'km'
 
+        - `metric`
+            - Type: str
+            - What: The name of a metric of `metrics`. The total is the weight in
+              this metric of the edges of the path, plus the weight of the
+              off-graph entry and exit segments: their km times
+              `off_graph_circuity` times the weight of 1 km in the metric
+            - Note: The total of a metric other than 'length' is not converted to
+              `output_units`. An unknown name raises a ValueError
+            - Default: 'length'
+
         Returns:
 
         - The total weight of the path in this geograph's edge units, converted
@@ -2740,6 +2762,11 @@ class GeoGraphUtils:
         origin = coordinate_path[0]
         destination = coordinate_path[-1]
 
+        if metric != "length":
+            self._get_metric(metric)
+            return self._get_metric_totals(
+                path, origin, destination, off_graph_circuity
+            )[metric]
         if len(path) == 0:
             # Edge case: origin and destination map to the same graph node
             total = haversine(
@@ -2984,6 +3011,11 @@ class GeoGraph(
         self._new_edge_classes = {}
         self._edge_arrays = None
         self._edge_arrays_edit_count = None
+        # The metrics other than `length`, by name. A weighted sum follows the
+        # metrics that it sums.
+        self._metrics = {}
+        # The argument of the last `reduce`, for the graph of each metric
+        self._reduce_iterations = None
         # The modes that a query point snaps to by default, as a network file names
         # them. None for every mode.
         self.default_node_addition_modes = None
@@ -3116,6 +3148,7 @@ class GeoGraph(
 
         - Reduce the graph by bypassing pass-through nodes and summing intermediate weights.
         - Precomputes and sets reduced graph structures on self.graph_object for faster queries.
+        - The graph of each metric is reduced the same way (see `get_graph_object`).
 
         Optional Arguments:
 
@@ -3137,6 +3170,10 @@ class GeoGraph(
             is_reduced = self.graph_object.is_reduced or []
             indicators["nodes"] = len(is_reduced)
             indicators["kept_nodes"] = len(is_reduced) - sum(is_reduced)
+        self._reduce_iterations = iterations
+        for metric in self._metrics.values():
+            if metric.graph_object is not None:
+                metric.graph_object.reduce(iterations)
 
     def _get_edge_arrays(self) -> tuple[array | memoryview, ...]:
         """
@@ -3199,8 +3236,288 @@ class GeoGraph(
             "length": lengths[edge_index],
             "class": edge_class["name"],
             "mode": edge_class["mode"],
-            "metrics": {},
+            "metrics": {
+                name: metric.weights[edge_index]
+                for name, metric in self._metrics.items()
+            },
         }
+
+    def _compute_metric(
+        self,
+        name: str,
+        unit: str | None,
+        description: str | None,
+        definition: dict,
+    ) -> Metric:
+        """
+        Returns a metric computed on the lined-up edges of the geograph.
+        `definition` holds the arguments `per_km`, `at_hub`, `weighted_sum_of`,
+        `edge_weight_fn` and `edge_weights` of a `create_metric` call, by name.
+        `scgraph/metrics.py` explains how the weights are computed.
+        """
+        offsets, heads, lengths = self._edge_arrays
+        # The length of 1 km of access leg, in the units of the geograph: the ratio
+        # of the two radiuses that `haversine` multiplies by
+        km_length = (
+            earth_radius.get(self.geograph_units, 6371) / earth_radius["km"]
+        )
+        if definition["per_km"] is not None:
+            if self.geograph_units != "km":
+                raise ValueError(
+                    "per_km needs a geograph whose lengths are in km: the "
+                    f"lengths of this geograph are in {self.geograph_units}"
+                )
+            edge_classes = self._edge_classes
+            if edge_classes is None:
+                # Every edge has the row 0, the only row of the table of rates
+                edge_classes = array("B", bytes(len(heads)))
+            # Nodes appended to `nodes` directly are in the first mode
+            self.node_modes.extend(
+                bytes(len(offsets) - 1 - len(self.node_modes))
+            )
+            weights, off_graph_per_km = compute_weights_by_tables(
+                definition["per_km"],
+                definition["at_hub"],
+                self.classes,
+                self.modes,
+                self._edge_arrays,
+                edge_classes,
+                self.node_modes,
+            )
+        elif definition["weighted_sum_of"] is not None:
+            weights, off_graph_per_km = compute_weights_by_sum(
+                name,
+                definition["weighted_sum_of"],
+                self._metrics,
+                lengths,
+                km_length,
+            )
+        else:
+            edge_weight_fn = definition["edge_weight_fn"]
+            weights = array(
+                "d",
+                (
+                    read_weight(
+                        edge_weight_fn(self._get_edge(origin_id, edge_index)),
+                        origin_id,
+                        heads[edge_index],
+                    )
+                    for origin_id in range(len(offsets) - 1)
+                    for edge_index in range(
+                        offsets[origin_id], offsets[origin_id + 1]
+                    )
+                ),
+            )
+            # The function gives the weight of 1 km of access leg, as of an edge
+            off_graph_per_km = edge_weight_fn(
+                {
+                    "origin_id": None,
+                    "destination_id": None,
+                    "length": km_length,
+                    "class": None,
+                    "mode": "off_graph",
+                    "metrics": {
+                        other_name: other.off_graph_per_km
+                        for other_name, other in self._metrics.items()
+                    },
+                }
+            )
+        if definition["edge_weights"]:
+            weights = set_edge_weights(
+                weights, offsets, heads, definition["edge_weights"]
+            )
+        # A comparison with a value that is not a number is false
+        if off_graph_per_km is None or not 0 <= off_graph_per_km < inf:
+            raise ValueError(
+                f"The weight of 1 km of access leg in the metric {name!r} must "
+                f"be a finite number of zero or more: got {off_graph_per_km!r}"
+            )
+        return Metric(
+            name,
+            unit,
+            description,
+            weights,
+            float(off_graph_per_km),
+            definition,
+        )
+
+    def _get_metric(self, name: str) -> Metric:
+        # The record of a metric other than `length`
+        if name not in self._metrics:
+            raise ValueError(
+                f"Unknown metric {name!r}: the metrics of this geograph are "
+                f"{['length', *self._metrics]}"
+            )
+        return self._metrics[name]
+
+    @property
+    def metrics(self) -> list[dict]:
+        """
+        The rows of the metrics of the geograph, as a network file stores them. The
+        first row is `length`, with the unit of the geograph. The row of another
+        metric has its `name`, its `unit` and its `description`, if it has them, and
+        `off_graph_per_km`: the weight of 1 km of the straight line between a point
+        of a query and its node. `create_metric` and `remove_metric` change the
+        metrics. Example: `[row["name"] for row in geograph.metrics]`.
+        """
+        return [{"name": "length", "unit": self.geograph_units}] + [
+            metric.get_row() for metric in self._metrics.values()
+        ]
+
+    def create_metric(
+        self,
+        name: str,
+        *,
+        per_km: float | dict | None = None,
+        at_hub: dict | None = None,
+        weighted_sum_of: dict[str, float] | None = None,
+        edge_weight_fn: Callable | None = None,
+        edge_weights: dict | None = None,
+        unit: str | None = None,
+        description: str | None = None,
+    ) -> None:
+        """
+        Function:
+
+        - Create a metric: one weight for each edge, under a name. `get_shortest_path(metric=name)` then finds the route with the smallest total of these weights
+        - The weights are computed at the call, in one of three ways: from tables (`per_km`, with `at_hub`), as a weighted sum of other metrics (`weighted_sum_of`), or by a function (`edge_weight_fn`). Exactly one of the three is given
+        - A metric of the same name is replaced, and each weighted sum that uses it is computed again
+        - Example: `geograph.create_metric("hours", per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, at_hub={"rail_terminal": {"rail": 4}}, unit="h")`
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of the metric: small letters, digits and `_`, starting with a letter; not `length`
+
+        Optional Arguments:
+
+        - `per_km`
+            - Type: int | float | dict | None
+            - What: The rate of each edge: the weight of an edge is its rate times its km
+            - A number is the rate of every edge, and of the access legs: the straight lines between the points of a query and their nodes
+            - A dict gives the rate of each class, under the name of the class or under the mode of its edges (the name wins), and the rate of the access legs under `"off_graph"`. A rate of None closes the edges of the class: no route by this metric takes them
+            - Note: With a dict, each class that has an edge needs a rate, and an edge without a class is closed
+            - Note: The lengths of the geograph must be in km
+        - `at_hub`
+            - Type: dict | None
+            - What: With `per_km`, the weight that an edge pays at a hub: `{mode of a node: {class or mode of an edge: weight}}`. A number is paid by an edge into a node of this mode and by an edge out of it. A pair is `(into the hub, out of the hub)`
+        - `weighted_sum_of`
+            - Type: dict | None
+            - What: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. An edge that is closed in one of the metrics is closed in the sum
+        - `edge_weight_fn`
+            - Type: callable | None
+            - What: A function that gets the dictionary of an edge (see `get_edges`) and returns its weight, or None to close it. It is called once for each edge, then once for 1 km of access leg: `{"origin_id": None, "destination_id": None, "length": 1 km in geograph_units, "class": None, "mode": "off_graph", "metrics": {name: weight of 1 km of access leg}}`
+        - `edge_weights`
+            - Type: dict | None
+            - What: `{(origin_id, destination_id): weight}`: the weight of these edges, which replaces the weight computed above. None closes an edge
+        - `unit`
+            - Type: str | None
+            - What: The unit of the weights, as free text
+        - `description`
+            - Type: str | None
+            - What: Where the weights come from, as free text
+            - Default: None (the text of this call)
+
+        Raises:
+
+        - `ValueError`: An argument breaks a rule above, or a weight is below zero or not a number: the message names the argument, or the two nodes of the first such edge
+        """
+        if (
+            not (
+                isinstance(name, str) and re.fullmatch("[a-z][a-z0-9_]*", name)
+            )
+            or name == "length"
+        ):
+            raise ValueError(
+                "The name of a metric has small letters, digits and '_', starts "
+                f"with a letter and is not 'length': got {name!r}"
+            )
+        if [per_km, weighted_sum_of, edge_weight_fn].count(None) != 2:
+            raise ValueError(
+                "create_metric takes exactly one of per_km, weighted_sum_of and "
+                "edge_weight_fn"
+            )
+        if at_hub is not None and per_km is None:
+            raise ValueError("at_hub goes with per_km")
+        # The geograph keeps its own copy of the arguments, to compute the metric again
+        definition = {
+            "per_km": deepcopy(per_km),
+            "at_hub": deepcopy(at_hub),
+            "weighted_sum_of": deepcopy(weighted_sum_of),
+            "edge_weight_fn": edge_weight_fn,
+            "edge_weights": deepcopy(edge_weights),
+        }
+        self._get_edge_arrays()
+        metric = self._compute_metric(
+            name,
+            unit,
+            description or describe_definition(definition),
+            definition,
+        )
+        # A new metric goes last, and so does each sum that uses it: a sum follows
+        # the metrics that it sums
+        self._metrics.pop(name, None)
+        self._metrics[name] = metric
+        for sum_name in find_sums_using(self._metrics, name):
+            old_sum = self._metrics.pop(sum_name)
+            self._metrics[sum_name] = self._compute_metric(
+                sum_name, old_sum.unit, old_sum.description, old_sum.definition
+            )
+
+    def remove_metric(self, name: str) -> None:
+        """
+        Function:
+
+        - Remove a metric that `create_metric` made, or that the geograph read from a file
+        - Example: `geograph.remove_metric("hours")`
+
+        Required Arguments:
+
+        - `name`
+            - Type: str
+            - What: The name of a metric of `metrics`, other than `length`; an unknown name, or a metric that a weighted sum uses, raises a ValueError
+        """
+        self._get_metric(name)
+        sums = find_sums_using(self._metrics, name)
+        if sums:
+            raise ValueError(
+                f"The metric {name!r} is used by the weighted sum {sums[0]!r}: "
+                "remove this sum first"
+            )
+        del self._metrics[name]
+
+    def get_graph_object(self, metric: str = "length") -> Graph:
+        """
+        Function:
+
+        - Get the `Graph` that a search by a metric runs on: the edges of the geograph, with the weights of the metric
+        - A search called on it returns the total of the metric under the key `length`
+        - For `length`, it is `graph_object`. For another metric, the graph is built at the first call and kept until the metric is created again. It is reduced when `graph_object` is reduced (see `reduce`)
+        - Example: `geograph.get_graph_object("hours").dijkstra(origin_id=0, destination_id=2)`
+
+        Optional Arguments:
+
+        - `metric`
+            - Type: str
+            - What: The name of a metric of `metrics`; an unknown name raises a ValueError
+            - Default: 'length'
+        """
+        if metric == "length":
+            return self.graph_object
+        offsets, heads, _ = self._get_edge_arrays()
+        record = self._get_metric(metric)
+        if record.graph_object is None:
+            # The graph reads the three arrays in place and keeps them alive
+            graph = Graph.from_csr(offsets, heads, record.weights, copy=False)
+            if self.graph_object.is_reduced is not None:
+                graph.reduce(
+                    -1
+                    if self._reduce_iterations is None
+                    else self._reduce_iterations
+                )
+            record.graph_object = graph
+        return record.graph_object
 
     def get_nodes(
         self,
@@ -3283,7 +3600,7 @@ class GeoGraph(
         - A list with one dictionary for each edge, by origin: `{"origin_id", "destination_id", "length", "class", "mode", "metrics"}`
         - `length` is in `geograph_units`
         - `class` is the name of the class of the edge and `mode` is the mode of that class; both are None for an edge without a class
-        - `metrics` is a dictionary of the other weights of the edge
+        - `metrics` is a dictionary `{name: weight}`: the weight of the edge in each metric other than `length`; infinity for an edge that is closed in the metric
         """
         offsets = self._get_edge_arrays()[0]
         node_count = len(offsets) - 1
@@ -3321,8 +3638,17 @@ class GeoGraph(
 
         - `ValueError`: The geograph has no edge between two consecutive nodes of the path
         """
+        return [
+            self._get_edge(origin_id, edge_index)
+            for origin_id, edge_index in zip(
+                path, self._get_path_edge_indexes(path)
+            )
+        ]
+
+    def _get_path_edge_indexes(self, path: list[int]) -> list[int]:
+        # The index of each edge of a path, in the lined-up arrays
         offsets, heads, _ = self._get_edge_arrays()
-        edges = []
+        edge_indexes = []
         for origin_id, destination_id in zip(path, path[1:]):
             edge_index = find_edge_index(
                 offsets, heads, origin_id, destination_id
@@ -3331,8 +3657,39 @@ class GeoGraph(
                 raise ValueError(
                     f"The path has no edge from node {origin_id} to node {destination_id}"
                 )
-            edges.append(self._get_edge(origin_id, edge_index))
-        return edges
+            edge_indexes.append(edge_index)
+        return edge_indexes
+
+    def _get_metric_totals(
+        self,
+        path: list[int],
+        origin: Sequence[float],
+        destination: Sequence[float],
+        off_graph_circuity: float,
+    ) -> dict[str, float]:
+        """
+        Returns the total of each metric other than `length` along a route.
+
+        - `path` holds the node ids of the route. `origin` and `destination` are the
+          two points of the query
+        - A total is the weight of each edge of the path, plus the two access legs.
+          An access leg weighs its km, times `off_graph_circuity`, times
+          `off_graph_per_km` of the metric. A route without a node is one access leg
+          from the origin to the destination
+        """
+        edge_indexes = self._get_path_edge_indexes(path)
+        if path:
+            off_graph_km = haversine(origin, self.nodes[path[0]]) + haversine(
+                self.nodes[path[-1]], destination
+            )
+        else:
+            off_graph_km = haversine(origin, destination)
+        off_graph_km *= off_graph_circuity
+        return {
+            name: sum(map(metric.weights.__getitem__, edge_indexes))
+            + off_graph_km * metric.off_graph_per_km
+            for name, metric in self._metrics.items()
+        }
 
     def validate_nodes(self) -> None:
         """
@@ -3464,6 +3821,7 @@ class GeoGraph(
         silent: bool | None = None,
         length_only: bool = False,
         get_intermediate_nodes: bool | None = None,
+        metric: str = "length",
         **kwargs,
     ) -> dict:
         """
@@ -3475,6 +3833,7 @@ class GeoGraph(
             - `id_path`: A list of node ids in the order they are visited
             - `path`: A list of nodes  (list of lat then long) in the order they are visited
             - `length`: The length of the path
+            - `metrics`: On a geograph that has metrics other than `length` (see `metrics`), a dictionary `{name: total}` with the total of each of these metrics along the path
 
          Required Arguments:
 
@@ -3605,11 +3964,20 @@ class GeoGraph(
         - `length_only`
             - Type: bool
             - What: If True, only returns the length of the path
+            - Note: With a `metric` other than 'length', only returns the total of this metric: `{"metrics": {metric: total}}`
             - Default: False
         - `get_intermediate_nodes`
             - Type: bool
             - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
             - Default: self.default_get_intermediate_nodes
+        - `metric`
+            - Type: str
+            - What: The name of the metric to minimise, a name of `metrics`: the path is the one with the smallest total of this metric. `length` in the result stays the length of the path
+            - Default: 'length'
+            - Notes:
+                - EG: `geograph.get_shortest_path(origin_node, destination_node, metric="hours")`
+                - The search runs on `get_graph_object(metric)`. An unknown name raises a ValueError
+                - An off-graph access leg weighs its km times the weight of 1 km in the metric (`off_graph_per_km` in `metrics`), with `node_addition_circuity` during pathfinding and with `off_graph_circuity` in the reported totals
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
@@ -3635,13 +4003,17 @@ class GeoGraph(
         algorithm_kwargs = (
             dict(algorithm_kwargs) if algorithm_kwargs is not None else dict()
         )
+        # The graph whose weights are those of the metric, and the record of a
+        # metric other than `length`
+        graph_object = self.get_graph_object(metric)
+        metric_record = None if metric == "length" else self._metrics[metric]
         if callable(algorithm_fn):
-            algorithm_kwargs["graph"] = self.graph_object.unreduced_graph
+            algorithm_kwargs["graph"] = graph_object.unreduced_graph
         elif isinstance(algorithm_fn, str):
             heuristic_fn = algorithm_kwargs.get("heuristic_fn")
             if (
                 algorithm_fn == "a_star"
-                and hasattr(self.graph_object, "a_star_great_circle")
+                and hasattr(graph_object, "a_star_great_circle")
                 and getattr(heuristic_fn, "__self__", None) is self
                 and getattr(heuristic_fn, "__func__", None)
                 is GeoGraphDistanceCalculations.haversine
@@ -3649,14 +4021,25 @@ class GeoGraph(
                 # The built-in haversine heuristic is computed natively in the C++ build
                 latitudes, longitudes = self._get_node_radians()
                 algorithm_kwargs.pop("heuristic_fn")
+                radius = earth_radius.get(self.geograph_units, 6371)
+                if metric_record is not None:
+                    # A route of d km weighs d times `min_weight_per_km` at least.
+                    # A radius times this value gives the bound of the metric.
+                    if metric_record.min_weight_per_km is None:
+                        metric_record.min_weight_per_km = (
+                            compute_min_weight_per_km(
+                                metric_record.weights, self._edge_arrays[2]
+                            )
+                        )
+                    radius *= metric_record.min_weight_per_km
                 algorithm_fn = partial(
-                    self.graph_object.a_star_great_circle,
+                    graph_object.a_star_great_circle,
                     latitudes=latitudes,
                     longitudes=longitudes,
-                    radius=earth_radius.get(self.geograph_units, 6371),
+                    radius=radius,
                 )
-            elif hasattr(self.graph_object, algorithm_fn):
-                algorithm_fn = getattr(self.graph_object, algorithm_fn)
+            elif hasattr(graph_object, algorithm_fn):
+                algorithm_fn = getattr(graph_object, algorithm_fn)
             else:
                 raise ValueError("algorithm_fn must be a string or callable")
         else:
@@ -3723,10 +4106,28 @@ class GeoGraph(
             min_entry_exit = min(
                 min(origin_id.values()), min(destination_id.values())
             )
+            is_direct = direct_node_addition_length <= min_entry_exit
+            if metric_record is not None:
+                # The search weighs an access leg by its km times the weight of
+                # 1 km. The test above compares lengths: a metric whose access
+                # legs weigh nothing must not make every route direct.
+                rate = metric_record.off_graph_per_km * (
+                    earth_radius["km"]
+                    / earth_radius.get(self.geograph_units, 6371)
+                )
+                direct_node_addition_length *= rate
+                origin_id = {
+                    node_id: length * rate
+                    for node_id, length in origin_id.items()
+                }
+                destination_id = {
+                    node_id: length * rate
+                    for node_id, length in destination_id.items()
+                }
 
             if logger.isEnabledFor(logging.DEBUG):
                 self.graph_object._reset_node_scans()
-            if direct_node_addition_length <= min_entry_exit:
+            if is_direct:
                 output = {
                     "path": [],
                     "length": direct_node_addition_length * circuity_ratio,
@@ -3760,6 +4161,20 @@ class GeoGraph(
                     destination_id,
                 )
 
+            if metric_record is not None:
+                # The search returned the total of the metric. `length` stays the
+                # length of the route.
+                metric_total = output["length"]
+                if length_only:
+                    return {"metrics": {metric: metric_total}}
+                output["length"] = self.get_path_weight(
+                    {
+                        "path": output["path"],
+                        "coordinate_path": [origin, destination],
+                    },
+                    off_graph_circuity=off_graph_circuity,
+                    output_units=self.geograph_units,
+                )
             # Convert the length to the desired output units
             output["length"] = distance_converter(
                 output["length"],
@@ -3769,6 +4184,12 @@ class GeoGraph(
             # Early return if only length is needed
             if length_only:
                 return {"length": output["length"]}
+            if self._metrics:
+                output["metrics"] = self._get_metric_totals(
+                    output["path"], origin, destination, off_graph_circuity
+                )
+                if metric_record is not None:
+                    output["metrics"][metric] = metric_total
 
             # Get the coordinate path
             output["coordinate_path"] = (

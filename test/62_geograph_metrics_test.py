@@ -1,12 +1,13 @@
-"""Tests of a multimodal network on a GeoGraph: its nodes, its edges and their
-classes."""
+"""Tests of a multimodal network on a GeoGraph: its nodes, its edges, their
+classes and its metrics."""
 
+import math
 from array import array
 from itertools import accumulate
 
 import pytest
 
-from scgraph import GeoGraph, network_file
+from scgraph import GeoGraph, PathNotFoundError, network_file
 
 # The network of these tests joins two towns on the equator, 0.7 degree of
 # longitude apart. A line of the drawing is one edge each way, with its km.
@@ -76,6 +77,56 @@ CLASS_OF_EACH_EDGE = {
     for a, b, _, edge_class in TWO_WAY_EDGES
     for nodes in ((a, b), (b, a))
 }
+KM_OF_EACH_EDGE = {
+    nodes: km for a, b, km, _ in TWO_WAY_EDGES for nodes in ((a, b), (b, a))
+}
+
+# The tables of the metric `minutes`: the minutes that 1 km takes. A lorry
+# drives at 40 km/h on a primary road, at 120 km/h on the motorway and at
+# 30 km/h on the other roads, which are the connectors. A train runs at
+# 240 km/h and a ship sails at 30 km/h. A lorry needs 4 minutes for 1 km of
+# the straight line between a query point and its node. Each rate is exact in
+# binary, so that an expected weight is exact.
+MINUTES_PER_KM = {
+    "road": 2.0,
+    "primary": 1.5,
+    "motorway": 0.5,
+    "rail": 0.25,
+    "sea": 2.0,
+    "off_graph": 4.0,
+}
+# The rate of each class in these tables: the name of a class wins over the
+# mode of its edges.
+MINUTES_PER_KM_OF_EACH_CLASS = {
+    "primary": 1.5,
+    "motorway": 0.5,
+    "road_connector": 2.0,
+    "rail_main": 0.25,
+    "rail_connector": 0.25,
+    "open_sea": 2.0,
+    "sea_connector": 2.0,
+}
+MINUTES_OF_EACH_EDGE = {
+    nodes: MINUTES_PER_KM_OF_EACH_CLASS[edge_class] * KM_OF_EACH_EDGE[nodes]
+    for nodes, edge_class in CLASS_OF_EACH_EDGE.items()
+}
+# Between the two towns, the railway is the fastest route: 2 × 2 + 1 × 0.25 +
+# 90 × 0.25 + 1 × 0.25 + 2 × 2 = 31 minutes, for 96 km. The motorway takes 50
+# minutes, and the primary road, the shortest route, 120 minutes.
+RAILWAY_PATH = [
+    WEST_TOWN,
+    WEST_TERMINAL,
+    WEST_STATION,
+    EAST_STATION,
+    EAST_TERMINAL,
+    EAST_TOWN,
+]
+# The two points of a query from the west to the east. Each point is on the
+# equator, 0.1 degree of longitude beyond its town, which is its closest node.
+# An access leg is 6371 km × 0.1 degree in radians = 11.12 km.
+WEST_POINT = {"latitude": 0.0, "longitude": -0.1}
+EAST_POINT = {"latitude": 0.0, "longitude": 0.8}
+ACCESS_LEG_KM = 6371 * math.radians(0.1)
 
 
 def _write_network(path, nodes, two_way_edges, classes):
@@ -122,6 +173,13 @@ def network(network_path):
 def _get_class_of_each_edge(geograph):
     return {
         (edge["origin_id"], edge["destination_id"]): edge["class"]
+        for edge in geograph.get_edges()
+    }
+
+
+def _get_weight_of_each_edge(geograph, metric):
+    return {
+        (edge["origin_id"], edge["destination_id"]): edge["metrics"][metric]
         for edge in geograph.get_edges()
     }
 
@@ -298,3 +356,406 @@ def test_a_save_keeps_the_default_node_addition_modes(network, tmp_path):
 
     saved = GeoGraph.load_from_scgraph(saved_path)
     assert saved.default_node_addition_modes == ["road"]
+
+
+def test_tables_give_each_edge_the_rate_of_its_class_times_its_km(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+
+    assert _get_weight_of_each_edge(network, "minutes") == MINUTES_OF_EACH_EDGE
+
+
+# A train waits at a rail terminal. One number is the wait on the way into
+# the terminal and on the way out. A pair is (into the hub, out of the hub).
+@pytest.mark.parametrize(
+    "wait, minutes_into_the_hub, minutes_out_of_the_hub",
+    [(15.0, 15.0, 15.0), ((10.0, 20.0), 10.0, 20.0)],
+)
+def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(
+    network, wait, minutes_into_the_hub, minutes_out_of_the_hub
+):
+    network.create_metric(
+        "minutes",
+        per_km=MINUTES_PER_KM,
+        at_hub={"rail_terminal": {"rail": wait}},
+    )
+
+    # The rail connector of 1 km between the west station and its terminal
+    # takes 0.25 minute. The road connector of 2 km between the terminal and
+    # the town takes 4 minutes: the table names no class of the mode `road`.
+    weights = _get_weight_of_each_edge(network, "minutes")
+    assert (
+        weights[WEST_STATION, WEST_TERMINAL],
+        weights[WEST_TERMINAL, WEST_STATION],
+        weights[WEST_TERMINAL, WEST_TOWN],
+    ) == (0.25 + minutes_into_the_hub, 0.25 + minutes_out_of_the_hub, 4.0)
+
+
+def _get_toll(edge):
+    """A toll of 7 on the motorway, and 0.25 for 1 km of access leg."""
+    if edge["mode"] == "off_graph":
+        return 0.25 * edge["length"]
+    return 7.0 if edge["class"] == "motorway" else 0.0
+
+
+def test_a_function_gives_its_result_to_each_edge(network):
+    network.create_metric("toll", edge_weight_fn=_get_toll)
+
+    assert _get_weight_of_each_edge(network, "toll") == {
+        nodes: 7.0 if edge_class == "motorway" else 0.0
+        for nodes, edge_class in CLASS_OF_EACH_EDGE.items()
+    }
+
+
+def test_edge_weights_set_the_weight_of_an_edge_and_none_closes_it(network):
+    network.create_metric(
+        "minutes",
+        per_km=MINUTES_PER_KM,
+        edge_weights={
+            (WEST_TOWN, EAST_TOWN): 75.0,
+            (EAST_TOWN, WEST_TOWN): None,
+        },
+    )
+
+    assert _get_weight_of_each_edge(network, "minutes") == {
+        **MINUTES_OF_EACH_EDGE,
+        (WEST_TOWN, EAST_TOWN): 75.0,
+        (EAST_TOWN, WEST_TOWN): math.inf,
+    }
+
+
+def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
+    network.create_metric(
+        "minutes", per_km=3.0, unit="min", description="Three minutes per km."
+    )
+    network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
+    network.create_metric("toll", edge_weight_fn=_get_toll)
+
+    # `off_graph_per_km` is the weight of 1 km of access leg. For the cost, it
+    # is 2 × 3 minutes + 0.5 × 1 km. A metric without a description gets the
+    # text of its call.
+    minutes, cost, toll = (
+        {"unit": "min", "description": "Three minutes per km."},
+        "create_metric(weighted_sum_of={'minutes': 2, 'length': 0.5})",
+        "create_metric(edge_weight_fn=_get_toll)",
+    )
+    assert network.metrics == [
+        {"name": "length", "unit": "km"},
+        {"name": "minutes", **minutes, "off_graph_per_km": 3.0},
+        {"name": "cost", "description": cost, "off_graph_per_km": 6.5},
+        {"name": "toll", "description": toll, "off_graph_per_km": 0.25},
+    ]
+
+
+def test_a_sum_follows_a_metric_that_is_created_again(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
+    network.create_metric("fare", weighted_sum_of={"cost": 3})
+
+    network.create_metric("minutes", per_km=1.0)
+
+    # At 1 minute per km, the cost of an edge is 2 × 1 + 0.5 = 2.5 times its
+    # km. The fare is 3 times the cost.
+    assert _get_weight_of_each_edge(network, "fare") == {
+        nodes: 7.5 * km for nodes, km in KM_OF_EACH_EDGE.items()
+    }
+
+
+def test_a_geograph_without_classes_takes_one_rate_for_every_edge():
+    geograph = GeoGraph(graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]])
+
+    geograph.create_metric("minutes", per_km=2.0)
+
+    assert _get_weight_of_each_edge(geograph, "minutes") == {(0, 1): 5.0}
+
+
+# Each call names something that the network lacks, or leaves out a rate that
+# the network needs: the call, and the name that the error gives. The network
+# has no class and no mode `canal`, no node of a mode `airport`, and no edge
+# from the junction to the port.
+@pytest.mark.parametrize(
+    "arguments, cause",
+    [
+        ({"per_km": {"road": 2.0, "rail": 0.25, "sea": 2.0}}, "off_graph"),
+        ({"per_km": {"road": 2.0, "rail": 0.25, "off_graph": 4.0}}, "open_sea"),
+        ({"per_km": {**MINUTES_PER_KM, "canal": 2.0}}, "canal"),
+        ({"per_km": 2.0, "at_hub": {"airport": {"road": 30.0}}}, "airport"),
+        ({"per_km": 2.0, "at_hub": {"port": {"canal": 30.0}}}, "canal"),
+        ({"per_km": 2.0, "at_hub": {"port": {"sea": None}}}, "None"),
+        ({"per_km": 2.0, "edge_weights": {(1, 7): 5.0}}, "node 1 to node 7"),
+    ],
+)
+def test_a_metric_that_does_not_fit_the_network_is_refused(
+    network, arguments, cause
+):
+    with pytest.raises(ValueError, match=cause):
+        network.create_metric("minutes", **arguments)
+
+
+def test_a_rate_per_km_is_refused_on_a_geograph_in_miles():
+    geograph = GeoGraph(
+        graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]], geograph_units="mi"
+    )
+
+    with pytest.raises(ValueError, match="km"):
+        geograph.create_metric("minutes", per_km=2.0)
+
+
+# `length` is the metric of the lengths. A name has small letters, digits and
+# `_`, and starts with a letter.
+@pytest.mark.parametrize("name", ["length", "Minutes", "2nd_class"])
+def test_a_metric_with_a_name_that_is_not_allowed_is_refused(network, name):
+    with pytest.raises(ValueError, match=name):
+        network.create_metric(name, per_km=2.0)
+
+
+# A call gives one of `per_km`, `weighted_sum_of` and `edge_weight_fn`, and
+# `at_hub` goes with `per_km`.
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {},
+        {"per_km": 2.0, "weighted_sum_of": {"length": 2}},
+        {"weighted_sum_of": {"length": 2}, "at_hub": {"port": {"sea": 30.0}}},
+    ],
+)
+def test_a_call_without_exactly_one_way_to_compute_is_refused(
+    network, arguments
+):
+    with pytest.raises(ValueError):
+        network.create_metric("minutes", **arguments)
+
+
+# The geograph has the metric `minutes` and its sum `cost`. Each call asks
+# for a sum of a metric that does not exist, of a metric times zero, of
+# itself, or of a sum that uses it.
+@pytest.mark.parametrize(
+    "name, weighted_sum_of",
+    [
+        ("fare", {"speed": 2}),
+        ("fare", {"minutes": 0}),
+        ("cost", {"cost": 2}),
+        ("minutes", {"cost": 2}),
+    ],
+)
+def test_a_sum_that_cannot_be_computed_is_refused(
+    network, name, weighted_sum_of
+):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("cost", weighted_sum_of={"minutes": 2})
+
+    with pytest.raises(ValueError):
+        network.create_metric(name, weighted_sum_of=weighted_sum_of)
+
+
+def _get_negative_toll(edge):
+    return -7.0 if edge["class"] == "motorway" else 0.0
+
+
+# Each call gives a weight below zero or not a number: to every edge, to the
+# motorway, to the edge from the junction to the east town. The error names
+# the first such edge.
+@pytest.mark.parametrize(
+    "arguments, edge",
+    [
+        ({"per_km": -2.0}, "node 0 to node 1"),
+        ({"edge_weight_fn": _get_negative_toll}, "node 0 to node 2"),
+        (
+            {"per_km": 2.0, "edge_weights": {(1, 2): math.nan}},
+            "node 1 to node 2",
+        ),
+    ],
+)
+def test_a_weight_below_zero_or_not_a_number_is_refused_with_its_edge(
+    network, arguments, edge
+):
+    with pytest.raises(ValueError, match=edge):
+        network.create_metric("toll", **arguments)
+
+
+def test_a_function_that_closes_the_access_legs_is_refused(network):
+    with pytest.raises(ValueError, match="access leg"):
+        network.create_metric("toll", edge_weight_fn=lambda edge: None)
+
+
+def test_a_route_by_a_metric_has_the_smallest_total_of_this_metric(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
+
+    route = network.get_shortest_path(
+        WEST_POINT,
+        EAST_POINT,
+        metric="minutes",
+        off_graph_circuity=2,
+        output_path=True,
+    )
+
+    # The railway: 31 minutes and 96 km, so a cost of 2 × 31 + 0.5 × 96 = 110.
+    # An access leg counts its km times the off-graph circuity, and not times
+    # the node addition circuity of the search, which is 4. 1 km of it takes
+    # 4 minutes and costs 2 × 4 + 0.5 = 8.5.
+    access_km = 2 * ACCESS_LEG_KM * 2
+    assert route["path"] == RAILWAY_PATH
+    assert route["length"] == pytest.approx(96 + access_km)
+    assert route["metrics"] == {
+        "minutes": pytest.approx(31 + access_km * 4.0),
+        "cost": pytest.approx(110 + access_km * 8.5),
+    }
+
+
+def test_access_legs_that_weigh_nothing_do_not_make_a_route_direct(network):
+    network.create_metric(
+        "minutes", per_km={**MINUTES_PER_KM, "off_graph": 0.0}
+    )
+
+    route = network.get_shortest_path(
+        WEST_POINT, EAST_POINT, metric="minutes", output_path=True
+    )
+
+    assert route["path"] == RAILWAY_PATH
+
+
+SEARCHES = (
+    "dijkstra bidirectional_dijkstra dijkstra_buckets bidirectional_buckets "
+    "dijkstra_negative a_star bellman_ford bmssp cached_shortest_path "
+    "contraction_hierarchy tnr"
+).split()
+
+
+@pytest.mark.parametrize("algorithm_fn", SEARCHES)
+def test_every_search_finds_the_best_route_by_a_metric(network, algorithm_fn):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+
+    route = network.get_shortest_path(
+        WEST_POINT, EAST_POINT, metric="minutes", algorithm_fn=algorithm_fn
+    )
+
+    assert route["metrics"]["minutes"] == pytest.approx(
+        31 + 2 * ACCESS_LEG_KM * 4.0
+    )
+
+
+def test_a_star_with_the_great_circle_bound_finds_the_best_route(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+
+    # The motorway reaches the east town in one edge and 50 minutes. The
+    # railway, the best route, has five edges. The bound of a node is its
+    # great-circle km to the destination times 0.25, the fewest minutes that
+    # 1 km of an edge takes. A bound in km would be above the 31 minutes of
+    # the railway, and the search would stop at the motorway.
+    route = network.get_shortest_path(
+        WEST_POINT,
+        EAST_POINT,
+        metric="minutes",
+        algorithm_fn="a_star",
+        algorithm_kwargs={"heuristic_fn": network.haversine},
+        output_path=True,
+    )
+
+    assert route["path"] == RAILWAY_PATH
+
+
+def test_length_only_with_a_metric_gives_the_total_of_this_metric_alone(
+    network,
+):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+
+    result = network.get_shortest_path(
+        WEST_POINT, EAST_POINT, metric="minutes", length_only=True
+    )
+
+    assert result == {
+        "metrics": {"minutes": pytest.approx(31 + 2 * ACCESS_LEG_KM * 4.0)}
+    }
+
+
+def test_get_path_weight_gives_the_total_of_a_metric_along_a_route(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    shortest_route = network.get_shortest_path(
+        WEST_POINT, EAST_POINT, output_path=True
+    )
+
+    minutes = network.get_path_weight(shortest_route, metric="minutes")
+
+    # The shortest route takes the primary road: 80 km at 1.5 minutes per km.
+    assert minutes == pytest.approx(120 + 2 * ACCESS_LEG_KM * 4.0)
+
+
+# The geograph has no metric `speed`.
+@pytest.mark.parametrize(
+    "method, arguments",
+    [
+        ("get_shortest_path", (WEST_POINT, EAST_POINT)),
+        ("get_path_weight", ({"path": [0], "coordinate_path": [[0, 0]]},)),
+    ],
+)
+def test_a_query_by_a_metric_that_the_geograph_lacks_is_refused(
+    network, method, arguments
+):
+    with pytest.raises(ValueError, match="speed"):
+        getattr(network, method)(*arguments, metric="speed")
+
+
+def test_a_route_by_a_metric_avoids_a_class_that_the_metric_closes(network):
+    network.create_metric("minutes", per_km={**MINUTES_PER_KM, "rail": None})
+
+    route = network.get_shortest_path(
+        WEST_POINT, EAST_POINT, metric="minutes", output_path=True
+    )
+
+    # Without the railway, the motorway is the fastest route.
+    assert route["path"] == [WEST_TOWN, EAST_TOWN]
+
+
+def test_a_closed_class_closes_an_edge_of_zero_km(network):
+    network.add_edge(WEST_TOWN, PORT, 0.0, edge_class="open_sea")
+
+    network.create_metric("minutes", per_km={**MINUTES_PER_KM, "sea": None})
+
+    # Infinity times 0 km is not a number: the edge weighs infinity.
+    weights = _get_weight_of_each_edge(network, "minutes")
+    assert weights[WEST_TOWN, PORT] == math.inf
+
+
+def test_a_route_that_needs_a_closed_edge_is_not_found(network):
+    network.create_metric("minutes", per_km={**MINUTES_PER_KM, "sea": None})
+
+    # The destination snaps to the open sea node, which only sea lanes reach.
+    with pytest.raises(PathNotFoundError):
+        network.get_shortest_path(
+            WEST_POINT, {"latitude": -0.065, "longitude": 2.5}, metric="minutes"
+        )
+
+
+def test_a_removed_metric_leaves_the_results_of_the_geograph(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+
+    network.remove_metric("minutes")
+
+    assert "metrics" not in network.get_shortest_path(WEST_POINT, EAST_POINT)
+
+
+# The sum `cost` uses the metric `minutes`. The geograph has no metric `speed`.
+@pytest.mark.parametrize("name", ["minutes", "speed"])
+def test_remove_metric_refuses_a_metric_that_it_cannot_remove(network, name):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("cost", weighted_sum_of={"minutes": 2})
+
+    with pytest.raises(ValueError, match=name):
+        network.remove_metric(name)
+
+
+def test_reduce_reduces_the_graph_of_each_metric_and_keeps_its_routes(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
+    # This query builds the graph of the minutes. The graph of the cost is
+    # built after the reduction.
+    route = network.get_shortest_path(WEST_POINT, EAST_POINT, metric="minutes")
+
+    network.reduce()
+
+    assert network.get_graph_object("minutes").reduced_graph is not None
+    assert network.get_graph_object("cost").reduced_graph is not None
+    assert (
+        network.get_shortest_path(WEST_POINT, EAST_POINT, metric="minutes")
+        == route
+    )

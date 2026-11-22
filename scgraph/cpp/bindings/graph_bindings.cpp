@@ -23,6 +23,7 @@
 #include "../src/transit_node_routing.hpp"
 #include "../src/snap_index.hpp"
 #include "../src/edge_selection.hpp"
+#include "../src/metric_weights.hpp"
 #include "ndarray_types.hpp"
 
 namespace nb = nanobind;
@@ -321,6 +322,33 @@ NB_MODULE(cpp, m) {
        "The nodes of the kept modes of a network file and the edges between them, as (offsets, heads, "
        "shape_offsets, node_runs, edge_runs, shape_point_runs); explained in scgraph/cpp/src/edge_selection.hpp, "
        "same result as scgraph.helpers.edge_selection.select_edges");
+
+    m.def("compute_table_weights", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
+                                     Uint8Array edge_classes, Uint8Array node_modes,
+                                     DoubleArray class_rates_per_km, DoubleArray weights_out_of_hub,
+                                     DoubleArray weights_into_hub) {
+        return owned_view(compute_table_weights(
+            {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
+            {lengths.data(), lengths.shape(0)}, {edge_classes.data(), edge_classes.shape(0)},
+            {node_modes.data(), node_modes.shape(0)},
+            {class_rates_per_km.data(), class_rates_per_km.shape(0)},
+            {weights_out_of_hub.data(), weights_out_of_hub.shape(0)},
+            {weights_into_hub.data(), weights_into_hub.shape(0)}));
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths"), nb::arg("edge_classes"),
+       nb::arg("node_modes"), nb::arg("class_rates_per_km"), nb::arg("weights_out_of_hub"),
+       nb::arg("weights_into_hub"),
+       "The weight of each edge from a rate per km for each class and the weights to leave and to enter "
+       "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
+       "scgraph.helpers.metric_weights.compute_table_weights");
+
+    m.def("compute_weighted_sum", [](std::vector<DoubleArray> weights_of_metrics, DoubleArray coefficients) {
+        std::vector<std::span<const double>> weights;
+        for (const auto& metric : weights_of_metrics) weights.emplace_back(metric.data(), metric.shape(0));
+        return owned_view(compute_weighted_sum(weights, {coefficients.data(), coefficients.shape(0)}));
+    }, nb::arg("weights_of_metrics"), nb::arg("coefficients"),
+       "The weight of each edge as the sum of its weight in each metric times the coefficient of the "
+       "metric; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
+       "scgraph.helpers.metric_weights.compute_weighted_sum");
 
     m.def("shape_path", &shape_path<double>, nb::arg("offsets"), nb::arg("heads"), nb::arg("shape_offsets"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));
