@@ -38,12 +38,12 @@ WHAT A PIPELINE MODULE HOLDS
   `PIPELINE_VERSION` differs.
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
-    - a GeoGraph. The example below does this.
+    - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
     - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
       file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
       order). `weights_length` holds km. `modes` is the modes table (see below).
-      The three pipelines of this package do this. `arrays` may hold
+      `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
       `edge_classes`, the class of each edge (see *The classes*). The runner then
       writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A

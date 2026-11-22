@@ -494,9 +494,7 @@ def test_a_failed_download_leaves_the_cached_network_and_says_how_to_load_it(
     assert len(cached.nodes) == 4
 
 
-def _lines_pipeline(
-    source, build=eurostat_sea_lanes.build_sea_lane_geograph, expected_km=2.22
-):
+def _lines_pipeline(source, build=eurostat_sea_lanes.build, expected_km=2.22):
     """A pipeline module of one's own, cached as "lines". It builds the network of
     /lines.gpkg. Its validation case is the route between the ends of the first
     line, (0, 0) and (0, 0.02) (lat, lon): 0.02 degree of the equator, 2.22 km. The
@@ -749,9 +747,9 @@ def test_the_file_of_a_pipeline_with_its_own_classes_table_names_those_classes(
     tmp_path, source
 ):
     def build_canals(files):
-        arrays, modes = eurostat_sea_lanes.build(files)
+        arrays = eurostat_sea_lanes.build_sea_lane_arrays(files)
         arrays["edge_classes"] = array("B", bytes(len(arrays["heads"])))
-        return arrays, modes
+        return arrays, [{"name": None}]
 
     pipeline = _lines_pipeline(source, build=build_canals)
     pipeline.CLASSES = {"canal": "inland_water"}
@@ -821,9 +819,9 @@ def _build_in_a_child_process(
     return folder / json.loads((folder / "cache.json").read_text())["file"]
 
 
-# The two kinds of network. eurostat_sea_lanes has one mode, and no shapes.
-# geofabrik_multimodal assembles several modes: its region "roads" is the file
-# /roads.osm of the local server.
+# The two kinds of pipeline. eurostat_sea_lanes returns a GeoGraph, which scgraph
+# then writes to a network file. geofabrik_multimodal returns the arrays of the
+# network file: its region "roads" is the file /roads.osm of the local server.
 _NETWORKS_OF_BOTH_KINDS = [
     pytest.param("eurostat_sea_lanes", None, id="eurostat_sea_lanes"),
     pytest.param(
@@ -1524,7 +1522,7 @@ def test_the_edges_of_a_lane_of_a_passage_have_the_class_of_the_passage(
         _sea_gpkg([([32, 30, 32, 31], "suez"), ([32, 31, 32, 32], None)])
     )
 
-    sea, _ = eurostat_sea_lanes.build({"sea_lanes": str(lanes)})
+    sea = eurostat_sea_lanes.build_sea_lane_arrays({"sea_lanes": str(lanes)})
 
     latitudes = [round(value * 1e-7) for value in sea["node_points"][0::2]]
     classes = {
@@ -1550,7 +1548,7 @@ def test_eurostat_sea_lanes_joins_a_lane_cut_at_the_antimeridian(tmp_path):
         _sea_gpkg([([179, 0, 180, 0], None), ([-180, 0, -179, 0], None)])
     )
 
-    geo = eurostat_sea_lanes.build_sea_lane_geograph({"sea_lanes": str(lanes)})
+    geo = eurostat_sea_lanes.build({"sea_lanes": str(lanes)})
 
     route = geo.get_shortest_path(
         origin_node={"latitude": 0, "longitude": 179},
@@ -1578,7 +1576,7 @@ def test_eurostat_sea_lanes_leaves_out_the_lanes_of_the_arctic_passages(
         )
     )
 
-    geo = eurostat_sea_lanes.build_sea_lane_geograph({"sea_lanes": str(lanes)})
+    geo = eurostat_sea_lanes.build({"sea_lanes": str(lanes)})
 
     route = geo.get_shortest_path(
         origin_node={"latitude": 75, "longitude": 100},
