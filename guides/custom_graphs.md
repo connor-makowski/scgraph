@@ -45,7 +45,7 @@ def custom_bidirectional_solver(self, origin_id: int | dict, destination_id: int
     ...
 ```
 
-[ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#5-adding-an-algorithm) says what the function receives and returns.
+[ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#5-adding-an-algorithm) describes what the function receives and returns.
 
 ## Custom GeoGraph
 
@@ -85,7 +85,7 @@ print(output)
 # Birmingham and Zaragoza are off the graph. The path joins them to London and to Madrid, their closest nodes
 ```
 
-**Classes of your own.** The **class** of an edge is its category, such as `motorway`. `edge_classes` gives the class of each edge, in the form of `graph`. An edge that `edge_classes` lacks has no class. `classes` gives each class with its **edge mode**, which says how its edges are travelled: `road`, `rail`, `sea` or `air`. A geograph holds 255 classes at most. A **metric** gives each edge a weight other than its length, under a name, such as its hours. A **weight per km** is the weight of 1 km of an edge in a metric. A metric gives a weight per km to an edge mode, and another one to a class:
+**Classes of your own.** The **class** of an edge is its category, such as `motorway`. `edge_classes` gives the class of each edge, in the form of `graph`. An edge that is not in `edge_classes` has no class. `classes` gives each class with its **edge mode**, which says how its edges are travelled: `road`, `rail`, `sea` or `air`. A geograph holds 255 classes at most. A **metric** gives each edge a weight other than its length, under a name, such as its hours. A **weight per km** is the weight of 1 km of an edge in a metric. A metric gives a weight per km to an edge mode, and another one to a class:
 
 ```py
 # Paris (0), Dijon (1) and Lyon (2): a motorway from Paris to Lyon, and a main road through Dijon
@@ -103,7 +103,7 @@ france.get_shortest_path(origin_node=paris, destination_node=lyon)["length"]  # 
 france.get_shortest_path(origin_node=paris, destination_node=lyon, metric="hours")["length"]  # 465: the motorway
 ```
 
-The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#saving-and-loading-files) says how to save a geograph to a file.
+The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#saving-and-loading-files) explains how to save a geograph to a file.
 
 ## Modifying a GeoGraph
 
@@ -139,7 +139,7 @@ world_sea.add_coord_node(coord_dict={"latitude": 43.0, "longitude": 6.0}, edge_c
 world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 100})
 ```
 
-Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly keeps the class of the edge that it replaces. Between two nodes that had no edge, it has no class. An **off-graph leg** is the straight line from the origin or the destination of a query to its node. A metric made from weights per km weighs an edge without a class as an off-graph leg. Its weight is its km times the weight per km of `off_graph`. So a route by the metric can start at a node that you added. A function of an edge gets such an edge with `None` as its `edge_class` and as its `edge_mode`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
+Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly keeps the class of the edge that it replaces. Between two nodes that had no edge, it has no class. An **off-graph leg** is the straight line from the origin or the destination of a query to its node. A metric made from weights per km gives an edge without a class the weight of an off-graph leg. This weight is its km times the weight per km of `off_graph`. So a route by the metric can start at a node that you added. A function of an edge receives such an edge with `None` as its `edge_class` and as its `edge_mode`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
 
 The [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) has more examples.
 

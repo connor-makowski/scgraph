@@ -19,7 +19,7 @@ SCGraph finds the shortest route between two points of the globe, by road, by ra
 pip install scgraph
 ```
 
-scgraph has an optional C++ extension, which makes it faster. Without a C++ compiler, the install falls back to pure Python, with the same results. This command installs the pure-Python version on purpose, on Linux, macOS and WSL2:
+scgraph has an optional C++ extension, which makes it faster. Without a C++ compiler, the install uses pure Python instead, with the same results. This command installs the pure-Python version on purpose, on Linux, macOS and WSL2:
 
 ```bash
 SCGRAPH_NO_BUILD=1 pip install --no-binary scgraph scgraph
@@ -79,7 +79,7 @@ for leg in route["legs"]:
     print(leg["mode"], round(leg["length"]), "km")
 ```
 
-The guide of the metrics says more in [The Legs of a Route](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#the-legs-of-a-route).
+The guide of the metrics gives more detail in [The Legs of a Route](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#the-legs-of-a-route).
 
 ### A Route by Time, by Cost or by CO2
 
@@ -109,7 +109,7 @@ cities = [paris, berlin, rome, madrid]
 matrix = roads.distance_matrix(cities)  # matrix[i][j]: the km by road from city i to city j
 ```
 
-The routing guide says more in [Distance Matrix](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#distance-matrix).
+The routing guide gives more detail in [Distance Matrix](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#distance-matrix).
 
 ### A Network of a Region, or of Your Own Data
 
@@ -124,7 +124,7 @@ nodes = [[51.5074, -0.1278], [48.8566, 2.3522], [40.4168, -3.7038]]  # London, P
 my_geograph = GeoGraph(nodes=nodes, graph=[{1: 344}, {0: 344, 2: 1053}, {1: 1053}])
 ```
 
-Two guides say more: [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#building-networks-from-their-sources) and [Your Own Graphs and Grids](https://github.com/connor-makowski/scgraph/blob/main/guides/custom_graphs.md).
+Two guides give more detail: [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#building-networks-from-their-sources) and [Your Own Graphs and Grids](https://github.com/connor-makowski/scgraph/blob/main/guides/custom_graphs.md).
 
 ### Faster Repeated Queries
 
@@ -137,7 +137,7 @@ for city in cities[1:]:  # many destinations from one origin
     roads.get_shortest_path(origin_node=cities[0], destination_node=city, algorithm_fn="cached_shortest_path")
 ```
 
-The routing guide says when to use each way in [Making Many Queries Fast](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#making-many-queries-fast).
+The routing guide explains when to use each way in [Making Many Queries Fast](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#making-many-queries-fast).
 
 ## Documentation
 
@@ -164,7 +164,7 @@ These notebooks open in Google Colab:
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb): export several routes as GeoJSON.
 - [Modifying A GeoGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb): close the Suez Canal with a metric, fix a sea lane, remove and add nodes and edges.
 - [Routes on a Multimodal Network](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multimodal_networks.ipynb): read the legs of a route, route by road only and by hours, draw the routes on a map.
-- [Trade-offs between Time, Cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb): sweep a weighted sum of two metrics, find several of the best trade-offs, draw them.
+- [Trade-offs between Time, Cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb): try several coefficients of a weighted sum of two metrics, find several of the best trade-offs, draw them.
 - [Build the Network of a Region](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/build_a_region.ipynb): build Denmark from the newest OpenStreetMap extract, read its sources, check it.
 - [Hilbert Order and Snapping Indexes](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/hilbert_and_spatial_indexing.ipynb): order nodes along a Hilbert curve, compare `SnapIndex` with `GeoKDTree`.
 

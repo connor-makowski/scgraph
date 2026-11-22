@@ -2,7 +2,7 @@
 
 This guide is for a user who routes on a network that exists, such as a network that scgraph publishes. After it, you can choose the options of a query, read its result, and make many queries fast.
 
-The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) says how to get a network. The [API documentation](https://connor-makowski.github.io/scgraph/scgraph.html) gives every parameter of each method.
+The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) explains how to get a network. The [API documentation](https://connor-makowski.github.io/scgraph/scgraph.html) gives every parameter of each method.
 
 ## Routing Options and Result Keys
 
@@ -64,11 +64,11 @@ The default is `None`. A query point then snaps to the node modes that the netwo
 - `'quadrant'`: the closest node in each of the four quadrants around the point (NE, NW, SE, SW).
 - `'all'`: every node within `node_addition_lat_lon_bound` degrees of the point. The default bound is `'auto'`.
 
-[ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-answering-a-geographic-query) explains how a search weighs the off-graph legs when a point has several nodes.
+[ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-answering-a-geographic-query) explains the weight of the off-graph legs in a search, when a point has several nodes.
 
 ## Choosing an Algorithm
 
-`algorithm_fn` names the algorithm of a query. The default, `'bidirectional_buckets'`, suits a single query on a geographic network. `n` is the number of nodes, `m` the number of edges, and `W` the number of buckets that the search goes over.
+`algorithm_fn` names the algorithm of a query. The default, `'bidirectional_buckets'`, is adapted to a single query on a geographic network. `n` is the number of nodes, `m` the number of edges, and `W` the number of buckets that the search scans.
 
 | `algorithm_fn` | Use it for | Time |
 |---|---|---|
@@ -92,7 +92,7 @@ In every algorithm, a weight of infinity (`float("inf")`) closes its edge: no pa
 
 One query needs no preparation. For many queries, choose a way by the form of your queries:
 
-| Your queries | Way | What it costs |
+| Your queries | Way | The work that it needs |
 |---|---|---|
 | Many destinations from one origin | `algorithm_fn='cached_shortest_path'` | The first query from an origin computes the tree of this origin |
 | Every pair of a list of places | `distance_matrix` | One tree for each place |
@@ -141,7 +141,7 @@ matrix[0][1]  # the km from Los Angeles to New York City
 
 `output_units` takes `km`, `m`, `mi` or `ft`. The two directions of a pair can differ a little: a one-way road is followed in its direction. A pair without a route has the distance `None`.
 
-The **total** of a metric along a route is the sum of the weights of its edges. With a metric, the matrix holds the totals of this metric. `output_metric` names another metric to read along the same routes:
+The **total** of a metric along a route is the sum of the weights of its edges. With a metric, the matrix holds the totals of this metric. `output_metric` names another metric, and the matrix holds its totals on the same routes:
 
 ```py
 north_america.create_metric("hours", weight_per_km={"road": 1 / 80, "off_graph": 1 / 30})
@@ -168,7 +168,7 @@ route = north_america.get_shortest_path(
 
 ### Lazy Loading
 
-Use `lazy=True` when a program names several networks and may not use them all. The loader then returns at once, and downloads nothing:
+Use `lazy=True` when a program names several networks and may not use them all. The loader then returns immediately, and downloads nothing:
 
 ```py
 europe = GeoGraph.load_geograph("europe", lazy=True)  # a LazyGeoGraph: nothing is loaded yet
@@ -247,7 +247,7 @@ dist_mi = distance_converter(dist_km, input_units="km", output_units="mi")
 
 scgraph prints nothing. It reports through the `logging` module of Python, on the logger `scgraph`.
 
-Show the INFO messages to follow a long call. These calls are the first load of a released network, `build_geograph`, `load_from_geojson` and `get_multi_path_geojson`. A download then logs its progress at each tenth of its size:
+Show the INFO messages to see the progress of a long call. These calls are the first load of a released network, `build_geograph`, `load_from_geojson` and `get_multi_path_geojson`. A download then logs its progress at each tenth of its size:
 
 ```py
 import logging

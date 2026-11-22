@@ -55,7 +55,7 @@ roads.get_shortest_path(origin_node=paris, destination_node=berlin)["length"]  #
 
 **The shortest route in km.** Between two distant places, the shortest route in km takes a flight, because a flight is a straight line. A **metric** gives each edge another weight than its length, such as its hours. The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) finds the fastest route or the cheapest route with a metric.
 
-**Where a route starts and ends.** A **query point** is the origin or the destination of a query. In a released network with roads, a query point snaps to its closest road node, so a route starts and ends on a road. The routing guide says how to change this in [Where a Query Point Snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps).
+**Where a route starts and ends.** A **query point** is the origin or the destination of a query. In a released network with roads, a query point snaps to its closest road node, so a route starts and ends on a road. The routing guide explains how to change this in [Where a Query Point Snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps).
 
 **A smaller download.** The shape of an edge is the list of points that draw the edge on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. `load_intermediate_nodes=False` downloads the file without the shapes. The route lengths are the same. The `coordinate_path` of a route then goes in a straight line from node to node.
 
@@ -277,7 +277,7 @@ GeoGraph.get_scgraph_info("my_network.scgraph")  # what the file holds, without 
 
 **What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each metric, the default metric (`default_metric`), and `default_node_addition_modes`. A `.graphjson` file and a GeoJSON file hold no class and no metric.
 
-**What a network file says about itself.** The header of a `.scgraph` file stores the pipeline, the sources with the time of their data, and the software of the build. `get_scgraph_info` reads it, with the credit line to cite (`attribution`) and the `content_sha256`. A geograph loaded from a file keeps this metadata (`geograph.metadata`) and the path of the file (`geograph.scgraph_file`). `save_as_scgraph` writes the metadata back unless given other `metadata`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) describes the format.
+**What a network file says about itself.** The header of a `.scgraph` file stores the pipeline, the sources with the time of their data, and the software of the build. `get_scgraph_info` reads it, with the credit line to cite (`attribution`) and the `content_sha256`. A geograph loaded from a file keeps this metadata (`geograph.metadata`) and the path of the file (`geograph.scgraph_file`). `save_as_scgraph` writes this metadata again unless given other `metadata`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) describes the format.
 
 **Where a file may be saved.** `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory. Save an edited network elsewhere.
 
