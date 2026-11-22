@@ -26,9 +26,8 @@ An `EdgeData` holds what a geograph knows of its edges, beside its graph:
   each edge. A geograph without classes has no row and no such array;
 - the metrics other than `length`, by name. A `Metric` record holds one weight for
   each edge (`scgraph/metrics.py`);
-- what the `add_` methods of the geograph gave for their new edges, by (origin id,
-  destination id): a class, and a weight in each metric that was read. The next
-  line-up uses them, then forgets them.
+- the class that the `add_` methods of the geograph gave to their new edges, by
+  (origin id, destination id). The next line-up uses them, then forgets them.
 
 Example, for the three edges above, with lengths of 10, 20 and 20 km. The row 4 is
 `{"name": "primary", "mode": "road"}`, the row 7 is the class `motorway`, and the
@@ -55,30 +54,29 @@ does not change the count. After such an assignment, the caller replaces
 
 An `EdgeData` keeps no reference to its geograph. Two objects that refer to each
 other are freed late, and a geograph may hold a large network. So a method that
-reads the edges takes the geograph as its first argument. It reads `graph_object`,
-`geograph_units` and the unit of the lengths, and `modes` and `node_modes` for a
-metric from tables. It extends `node_modes` for the nodes that a caller appended
-to `nodes` directly.
+reads the edges takes the geograph as its first argument. It reads `graph_object`
+and `geograph_units`, and `modes` and `node_modes` for a metric from tables. It
+extends `node_modes` for the nodes that a caller appended to `nodes` directly.
 
 AFTER AN EDIT
 
 An edit of the graph moves the edges: a new edge of node 0 takes the index 2, and
 the edge 2 -> 0 gets the index 3. An edge is known by its two nodes, because a graph
-holds one edge at most from a node to another. A line-up has five steps.
+holds one edge at most from a node to another. The weights of a metric are no
+longer lined up either, and the geograph does not compute them again: an edit
+removes the metrics, and the caller creates them again with `create_metric`. The
+classes stay, because a metric that is created again needs them. A line-up has four
+steps.
 
-1. It reads the three arrays of the graph again.
-2. `find_old_edge_indexes` gives, for each edge of the edited graph, its index
+1. It removes the metrics, and warns with their names. An edit method of the
+   geograph removes them at its call. So this step finds metrics only after an
+   edit made on `graph_object`, or after `graph_object` was replaced.
+2. It reads the three arrays of the graph again.
+3. `find_old_edge_indexes` gives, for each edge of the edited graph, its index
    before the edit, or -1 for a new edge.
-3. `take_edge_values` lines up the classes with the edited graph. An edge that was
+4. `take_edge_values` lines up the classes with the edited graph. An edge that was
    there keeps its class. A new edge takes the class of its `add_` call, or no
-   class.
-4. Each metric is lined up after the metrics that it uses. A metric that
-   `create_metric` made is computed again from the arguments of that call. A metric
-   that was read keeps the weight of each edge that was there. A new edge takes the
-   weight of its `add_` call. Without this weight, it weighs as an access leg: its
-   km times the rate `"off_graph"` of the metric (`off_graph_per_km`). When the
-   lengths of the geograph are in seconds, a new edge has no km: it is closed.
-5. It forgets what the `add_` calls gave.
+   class. The line-up then forgets what the `add_` calls gave.
 
 Example, after the edge 0 -> 2 is removed and the edge 1 -> 2 is added, with a
 length of 30 km:
@@ -87,9 +85,8 @@ length of 30 km:
     find_old_edge_indexes gives [0, -1, 2]
     take_edge_values([4, 4, 7], [0, -1, 2], 9) gives [4, 9, 7]
 
-Suppose that the metric `hours` was read from a file, with 0.05 hour for 1 km of
-access leg, and that the `add_` call gave no weight. The weights [0.2, 0.4, 0.2]
-become [0.2, 0.05 * 30, 0.2] = [0.2, 1.5, 0.2].
+The metric `hours` is removed: its weights [0.2, 0.4, 0.2] were those of the edges
+before the edit.
 
 THE LEGS OF A ROUTE
 
@@ -109,10 +106,9 @@ A leg starts at the node where the leg before it ends. The two road legs stay tw
 legs, because the railway is between them.
 """
 
+import warnings
 from array import array
 from collections.abc import Iterable, Iterator
-from dataclasses import replace
-from itertools import compress, count
 from math import inf
 from typing import TYPE_CHECKING
 
@@ -125,7 +121,6 @@ from scgraph.metrics import (
     compute_weights_by_tables,
     find_used_metrics,
     find_users,
-    order_by_dependencies,
     set_edge_weights,
 )
 from scgraph.utils import get_units_per_km
@@ -192,7 +187,7 @@ def find_old_edge_indexes(
 ) -> array:
     """Return the index that each edge of a graph had before the graph was edited.
 
-    The function reads each node once in Python: about 1 second for a million
+    The function reads each node once in Python: about 0.5 second for a million
     nodes. It is one function, so that a compiled kernel can replace it.
 
     Args:
@@ -339,47 +334,38 @@ class EdgeData:
         self._metrics = {}
         # What the `add_` methods gave for the edges that are not lined up yet, by
         # (origin id, destination id): the row of the class of the edge, or None for
-        # no class, and its weight in the metrics that were read, by name
+        # no class
         self._new_edge_classes = {}
-        self._new_edge_weights = {}
 
     # The line-up
 
-    def _line_up(
-        self, geograph: "GeoGraph", left_out_metrics: tuple[str, ...] = ()
-    ) -> tuple[array | memoryview, ...]:
-        """Line up the classes and the metrics with the edges of the graph, if the
-        graph was edited since the last line-up (module docstring, *After an edit*).
-
-        Args:
-            left_out_metrics: The names of the metrics that the line-up leaves as
-                they are. Only `create_metric` names some: the metric that it
-                replaces and the users of this metric, which it computes next.
+    def _line_up(self, geograph: "GeoGraph") -> tuple[array | memoryview, ...]:
+        """Line up the classes with the edges of the graph, if the graph was edited
+        since the last line-up (module docstring, *After an edit*). Such an edit
+        removes the metrics.
 
         Returns:
             The offsets, the heads and the lengths of the edges.
 
         Raises:
             ValueError: An edge without a class needs a row after 256 classes.
-            Exception: A metric cannot be computed again. The error leaves the
-                lined-up arrays as before the edit. Each later call raises it
-                again, until the metric is created again or removed.
         """
         graph = geograph.graph_object
         edit_count = graph._edit_count
         if graph is self._graph and edit_count == self._edit_count:
             return self._edge_arrays
-        # 1. The edges of the graph now
+        # 1. The metrics
+        self.remove_metrics()
+        # 2. The edges of the graph now
         edge_arrays = graph._csr()
         offsets, heads, _ = edge_arrays
         edge_classes = self._edge_classes
-        if edge_classes is not None or self._metrics:
-            # 2. The index that each edge had
+        if edge_classes is not None:
+            # 3. The index that each edge had
             old_edge_indexes = find_old_edge_indexes(
                 *self._edge_arrays[:2], offsets, heads
             )
-        if edge_classes is not None:
-            # 3. The classes
+            # 4. The classes
             names = [edge_class["name"] for edge_class in self.classes]
             no_class_row = names.index(None) if None in names else len(names)
             if no_class_row == _MAX_CLASS_COUNT:
@@ -403,104 +389,10 @@ class EdgeData:
                 self.classes.append(dict(_NO_CLASS))
             if edge_classes.typecode != "B":
                 edge_classes = array("B", edge_classes)
-        before = self._edge_arrays, self._edge_classes, self._metrics
         self._edge_arrays, self._edge_classes = edge_arrays, edge_classes
-        if self._metrics:
-            # 4. The metrics
-            try:
-                self._line_up_metrics(
-                    geograph, old_edge_indexes, left_out_metrics
-                )
-            except Exception:
-                self._edge_arrays, self._edge_classes, self._metrics = before
-                raise
-        # 5. The new edges are lined up
         self._new_edge_classes = {}
-        self._new_edge_weights = {}
         self._graph, self._edit_count = graph, edit_count
         return edge_arrays
-
-    def _line_up_metrics(
-        self,
-        geograph: "GeoGraph",
-        old_edge_indexes: array,
-        left_out_metrics: tuple[str, ...],
-    ) -> None:
-        # Step 4 of a line-up. It also drops the graph of each metric. A pair of
-        # nodes of `edge_weights` is dropped when the graph no longer has this
-        # edge. No metric that is lined up uses a metric of `left_out_metrics`.
-        offsets, heads, lengths = self._edge_arrays
-        # For the metrics that were read: the weights that the `add_` call of each
-        # new edge gave, by the index of the edge. An edge that was not there is
-        # new, also when no `add_` call made it. The loop over the edges runs in C.
-        weights_of_new_edges = {}
-        if any(record.definition is None for record in self._metrics.values()):
-            weights_of_new_edges = dict.fromkeys(
-                compress(count(), map((-1).__eq__, old_edge_indexes)), {}
-            )
-            for nodes, weights_of_call in self._new_edge_weights.items():
-                edge_index = find_edge_index(offsets, heads, *nodes)
-                if edge_index is not None:
-                    weights_of_new_edges[edge_index] = weights_of_call
-        # A length in seconds gives no km
-        has_km = geograph._length_unit != "s"
-        units_per_km = get_units_per_km(geograph.geograph_units)
-        metrics, self._metrics = self._metrics, {}
-        for name in order_by_dependencies(metrics):
-            metric_record = metrics[name]
-            if name in left_out_metrics:
-                self._metrics[name] = metric_record
-                continue
-            if metric_record.definition is None:
-                weights = take_edge_values(
-                    metric_record.weights, old_edge_indexes, inf
-                )
-                # A new edge without a weight weighs as an access leg of its km
-                off_graph_per_unit = (
-                    metric_record.off_graph_per_km / units_per_km
-                )
-                for edge_index, weights_of_call in weights_of_new_edges.items():
-                    if name in weights_of_call:
-                        weights[edge_index] = weights_of_call[name]
-                    elif has_km:
-                        weights[edge_index] = (
-                            lengths[edge_index] * off_graph_per_unit
-                        )
-                    else:
-                        weights[edge_index] = inf
-                self._metrics[name] = replace(
-                    metric_record,
-                    weights=weights,
-                    min_weight_per_km=None,
-                    graph_object=None,
-                )
-                continue
-            definition = dict(metric_record.definition)
-            if definition["edge_weights"]:
-                definition["edge_weights"] = {
-                    nodes: weight
-                    for nodes, weight in definition["edge_weights"].items()
-                    if find_edge_index(offsets, heads, *nodes) is not None
-                }
-            try:
-                self._metrics[name] = self._compute_metric(
-                    geograph,
-                    name,
-                    metric_record.unit,
-                    metric_record.description,
-                    definition,
-                    metric_record.used_metrics,
-                )
-            except Exception as error:
-                error.add_note(
-                    f"The geograph was edited, and it computes the metric {name!r} "
-                    f"again. To repair the geograph, create the metric {name!r} "
-                    "again with arguments that give a weight to each new edge, or "
-                    f"remove it with `remove_metric({name!r})`."
-                )
-                raise
-        # The metrics keep their order, which `metrics` and the results show
-        self._metrics = {name: self._metrics[name] for name in metrics}
 
     # What the loaders, the merge and the save give and take
 
@@ -664,8 +556,8 @@ class EdgeData:
 
     def list_file_classes(self, geograph: "GeoGraph") -> list[dict] | None:
         """Return the rows of the classes for the header of a network file, or None
-        on a geograph without classes. The classes and the metrics are lined up
-        first: the header of the file then says what `get_file_arrays` gives."""
+        on a geograph without classes. The classes are lined up first: the header
+        of the file then says what `get_file_arrays` gives."""
         if self._edge_classes is None and not self._metrics:
             return None
         # An edge without a class may add its row to `classes`
@@ -729,61 +621,19 @@ class EdgeData:
             )
         return names.index(edge_class)
 
-    def check_new_edge_weights(self, metrics: dict | None) -> dict[str, float]:
-        """Check the `metrics` of an `add_` call.
-
-        Args:
-            metrics: The weight of the new edges in the metrics that
-                `create_metric` did not make, by name. None as a weight closes the
-                edges. None for no weight.
-
-        Returns:
-            The weights as floats, by name. Infinity for None.
-
-        Raises:
-            ValueError: A name is not such a metric, or a weight is below zero or
-                not a number.
-        """
-        new_edge_weights = {}
-        for name, weight in (metrics or {}).items():
-            metric_record = self._metrics.get(name)
-            if metric_record is None or metric_record.definition is not None:
-                names = [
-                    other_name
-                    for other_name, other_record in self._metrics.items()
-                    if other_record.definition is None
-                ]
-                raise ValueError(
-                    f"metrics names {name!r}. An `add_` method takes a weight only "
-                    f"in a metric that `create_metric` did not make: {names}"
-                )
-            new_edge_weights[name] = inf if weight is None else float(weight)
-            # A comparison with a value that is not a number is false
-            if not new_edge_weights[name] >= 0:
-                raise ValueError(
-                    f"The weight of the new edge in the metric {name!r} is below "
-                    "zero or not a number"
-                )
-        return new_edge_weights
-
     def record_new_edges(
-        self,
-        edges: Iterable[tuple[int, int]],
-        class_row: int | None,
-        new_edge_weights: dict[str, float],
+        self, edges: Iterable[tuple[int, int]], class_row: int | None
     ) -> None:
-        """Keep what an `add_` call gave for its new edges, for the next line-up.
+        """Keep the class that an `add_` call gave to its new edges, for the next
+        line-up.
 
         Args:
             edges: The (origin id, destination id) of each new edge.
             class_row: The result of `find_class_row` for the call.
-            new_edge_weights: The result of `check_new_edge_weights` for the call.
         """
-        for nodes in edges:
-            if self._edge_classes is not None:
+        if self._edge_classes is not None:
+            for nodes in edges:
                 self._new_edge_classes[nodes] = class_row
-            if self._metrics:
-                self._new_edge_weights[nodes] = new_edge_weights
 
     def forget_new_edges(self, edges: Iterable[tuple[int, int]]) -> None:
         """Drop what an `add_` call gave for edges that the graph no longer has.
@@ -793,37 +643,47 @@ class EdgeData:
         """
         for nodes in edges:
             self._new_edge_classes.pop(nodes, None)
-            self._new_edge_weights.pop(nodes, None)
 
     def forget_new_edges_of_node(self, node_id: int) -> None:
         """Drop what an `add_` call gave for the edges of a node that the graph no
         longer has. The method reads each new edge: `forget_new_edges` is faster
         for a caller that knows the edges of the node."""
-        for new_edges in (self._new_edge_classes, self._new_edge_weights):
-            for nodes in [nodes for nodes in new_edges if node_id in nodes]:
-                del new_edges[nodes]
+        new_edges = self._new_edge_classes
+        for nodes in [nodes for nodes in new_edges if node_id in nodes]:
+            del new_edges[nodes]
 
     # The metrics
 
-    def has_metrics(self) -> bool:
-        """Return whether the geograph has a metric other than `length`."""
-        return bool(self._metrics)
+    def _get_metrics(self, geograph: "GeoGraph") -> dict[str, Metric]:
+        # The metrics other than `length`, by name. A geograph with metrics is
+        # lined up first, because an edit of its graph removes them. A geograph
+        # without metrics is not: this read costs it nothing.
+        if self._metrics:
+            self._line_up(geograph)
+        return self._metrics
 
-    def list_metric_rows(self) -> list[dict]:
+    def has_metrics(self, geograph: "GeoGraph") -> bool:
+        """Return whether the geograph has a metric other than `length`."""
+        return bool(self._get_metrics(geograph))
+
+    def list_metric_rows(self, geograph: "GeoGraph") -> list[dict]:
         """Return the row of each metric other than `length`, as a network file
         stores it."""
         return [
-            metric_record.get_row() for metric_record in self._metrics.values()
+            metric_record.get_row()
+            for metric_record in self._get_metrics(geograph).values()
         ]
 
-    def _get_metric_record(self, metric: str) -> Metric:
+    def _get_metric_record(self, geograph: "GeoGraph", metric: str) -> Metric:
         # The record of a metric other than `length`
-        if metric not in self._metrics:
+        metrics = self._get_metrics(geograph)
+        if metric not in metrics:
             raise ValueError(
                 f"Unknown metric {metric!r}: the metrics of this geograph are "
-                f"{['length', *self._metrics]}"
+                f"{['length', *metrics]}. An edit of the network removes the "
+                "metrics other than 'length'"
             )
-        return self._metrics[metric]
+        return metrics[metric]
 
     def create_metric(
         self,
@@ -848,16 +708,13 @@ class EdgeData:
             ValueError: An argument does not fit the network, or a weight is below
                 zero or not a number. No metric changes.
         """
+        self._line_up(geograph)
         used_metrics = find_used_metrics(self._metrics, name, definition)
         users = find_users(self._metrics, name)
-        state_before = dict(vars(self))
+        metrics_before = self._metrics
+        # A metric that is created again keeps its place among the metrics
+        self._metrics = dict(metrics_before)
         try:
-            # The call computes the metric of this name and its users from the new
-            # definition. The line-up leaves them out: after an edit, the
-            # definition that the call replaces may fit the graph no longer.
-            self._line_up(geograph, (name, *users))
-            # A metric that is created again keeps its place among the metrics
-            self._metrics = dict(self._metrics)
             self._metrics[name] = self._compute_metric(
                 geograph, name, unit, description, definition, used_metrics
             )
@@ -872,9 +729,8 @@ class EdgeData:
                     user_record.used_metrics,
                 )
         except Exception:
-            # No metric changes when one of them cannot be computed. The line-up
-            # is undone with them: it left out the metrics that the call computes.
-            vars(self).update(state_before)
+            # No metric changes when one of them cannot be computed
+            self._metrics = metrics_before
             raise
 
     def _compute_metric(
@@ -983,13 +839,13 @@ class EdgeData:
             used_metrics,
         )
 
-    def remove_metric(self, metric: str) -> None:
+    def remove_metric(self, geograph: "GeoGraph", metric: str) -> None:
         """Remove a metric.
 
         Raises:
             ValueError: The geograph has no such metric, or another metric uses it.
         """
-        self._get_metric_record(metric)
+        self._get_metric_record(geograph, metric)
         users = find_users(self._metrics, metric)
         if users:
             raise ValueError(
@@ -1001,8 +857,16 @@ class EdgeData:
         del self._metrics[metric]
 
     def remove_metrics(self) -> None:
-        """Remove every metric other than `length`."""
-        self._metrics = {}
+        """Remove every metric other than `length`, for an edit of the network, and
+        warn with their names. A geograph without such a metric gets no warning.
+        """
+        if self._metrics:
+            warnings.warn(
+                "An edit of the network removed its metrics "
+                f"{list(self._metrics)}. Create them again with `create_metric`.",
+                stacklevel=3,
+            )
+            self._metrics = {}
 
     def get_metric_graph(
         self,
@@ -1011,8 +875,8 @@ class EdgeData:
         reduce_iterations: int | None,
     ) -> Graph:
         """Return the `Graph` that a search by a metric runs on: the edges of the
-        geograph with the weights of the metric. It is built at the first call, and
-        again after a change of the metric or of the edges.
+        geograph with the weights of the metric. It is built at the first call
+        for the metric, and again after the metric is created again.
 
         Args:
             metric: The name of a metric other than `length`.
@@ -1023,7 +887,7 @@ class EdgeData:
             ValueError: The geograph has no such metric.
         """
         offsets, heads, _ = self._line_up(geograph)
-        metric_record = self._get_metric_record(metric)
+        metric_record = self._get_metric_record(geograph, metric)
         if metric_record.graph_object is None:
             # The graph reads the three arrays in place and keeps them alive
             graph = Graph.from_csr(
@@ -1042,13 +906,13 @@ class EdgeData:
             if metric_record.graph_object is not None:
                 metric_record.graph_object.reduce(iterations)
 
-    def get_off_graph_per_km(self, metric: str) -> float:
+    def get_off_graph_per_km(self, geograph: "GeoGraph", metric: str) -> float:
         """Return the weight of 1 km of access leg in a metric other than `length`.
 
         Raises:
             ValueError: The geograph has no such metric.
         """
-        return self._get_metric_record(metric).off_graph_per_km
+        return self._get_metric_record(geograph, metric).off_graph_per_km
 
     def weigh_access_leg(self, off_graph_km: float) -> dict[str, float]:
         """Return the weight of an access leg in each metric other than `length`.
@@ -1064,8 +928,8 @@ class EdgeData:
     def get_min_weight_per_km(self, geograph: "GeoGraph", metric: str) -> float:
         """Return the smallest weight of an open edge divided by its length, for a
         metric other than `length` (see `compute_min_weight_per_km`). It is computed
-        at the first call, and again after a change of the metric or of the edges.
-        """
+        at the first call for the metric, and again after the metric is created
+        again."""
         lengths = self._line_up(geograph)[2]
         metric_record = self._metrics[metric]
         if metric_record.min_weight_per_km is None:
@@ -1190,7 +1054,7 @@ class EdgeData:
         weights = (
             lengths
             if metric == "length"
-            else self._get_metric_record(metric).weights
+            else self._get_metric_record(geograph, metric).weights
         )
         return sum(
             map(

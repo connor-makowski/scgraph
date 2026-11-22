@@ -1,7 +1,8 @@
 """The metrics of a GeoGraph: what a metric is, and how its weights are computed.
 
 This module is internal. `scgraph/edge_data.py` calls it for `GeoGraph.create_metric`,
-and keeps each metric lined up with the edges of the graph.
+and removes the metrics when the graph is edited: the weights of a metric are those
+of the edges at its creation.
 
 A METRIC
 
@@ -86,7 +87,8 @@ class Metric:
     definition: dict | None = None
     # The names of the metrics that the weights were computed from: the metrics of
     # a weighted sum, other than `length`, or the metrics that a function could
-    # read. The geograph computes the metric again when one of them changes.
+    # read. The geograph computes the metric again when one of them is created
+    # again.
     used_metrics: tuple[str, ...] = ()
     # The smallest weight of an open edge divided by its length, over the edges
     # longer than zero. It scales the bound of an A* search. Computed at the first
@@ -281,7 +283,8 @@ def compute_weights_by_sum(
         if summed_name != "length" and summed_name not in metrics:
             raise ValueError(
                 f"weighted_sum_of names the unknown metric {summed_name!r}: the "
-                f"metrics of this geograph are {['length', *metrics]}"
+                f"metrics of this geograph are {['length', *metrics]}. An edit of "
+                "the network removes the metrics other than 'length'"
             )
         if not (isfinite(coefficient) and coefficient > 0):
             raise ValueError(

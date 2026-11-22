@@ -297,28 +297,3 @@ def test_a_geograph_in_seconds_read_from_a_file_keeps_its_unit_and_its_routes(
     # The bypass takes 100 s, and the avenue 60 s + 60 s.
     route = loaded.get_shortest_path(POINT_OF_WEST, POINT_OF_EAST)
     assert route["length"] == 100.0
-
-
-def _get_toll(edge):
-    return 2.0
-
-
-def test_an_edge_added_without_a_weight_is_closed_in_a_metric_read_with_lengths_in_seconds(
-    town_in_seconds, tmp_path
-):
-    # The file keeps the weights of the metric `toll`, and not its function:
-    # the loaded geograph cannot compute the toll of a new edge.
-    town_in_seconds.create_metric("toll", edge_weight_fn=_get_toll)
-    path = str(tmp_path / "town.scgraph")
-    town_in_seconds.save_as_scgraph(path)
-    loaded = GeoGraph.load_from_scgraph(path)
-    east, north = (list(loaded.node_ids).index(node) for node in (EAST, NORTH))
-
-    loaded.add_edge(east, north, 50.0)
-
-    # A length of 50 s gives no km to weigh the new edge as an access leg.
-    metrics_of_each_edge_of_east = {
-        edge["destination_id"]: edge["metrics"]
-        for edge in loaded.get_edges(origin_id=east)
-    }
-    assert metrics_of_each_edge_of_east[north] == {"toll": float("inf")}

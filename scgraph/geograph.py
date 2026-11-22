@@ -775,7 +775,7 @@ class GeoGraphIO:
         - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
         - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge; `default_node_addition_modes` holds the `node_addition_modes` of the file: the modes that the points of a query snap to by default (see `get_shortest_path`)
-        - `metrics` holds the metrics of the file. The geograph has their weights, not the call that made them. An edge added later takes the weight of its `add_` call (`metrics=`). Without this weight, it weighs as an access leg: its km times the rate `"off_graph"` of the metric (`off_graph_per_km` in `metrics`)
+        - `metrics` holds the metrics of the file, with their weights. An edit of the network removes them, as every metric other than `length` (see `add_edge`)
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones. On a file with `node_addition_modes`, the first query also builds the index of the nodes of these modes
@@ -1795,14 +1795,14 @@ class GeoGraphModifiers:
         symmetric: bool = False,
         *,
         edge_class: str | None = None,
-        metrics: dict[str, float] | None = None,
     ) -> None:
         """
         Function:
 
         - Add an edge to the geograph
-        - An edge that the geograph already has between the two nodes is replaced: the new edge has the distance, the class and the weights of this call
-        - Example: `geograph.add_edge(0, 7, 85.0, symmetric=True, edge_class="primary", metrics={"toll": 12.0})`
+        - An edge that the geograph already has between the two nodes is replaced: the new edge has the distance and the class of this call
+        - An edit of the network removes its metrics other than `length`: this method and the other methods that add or remove a node or an edge. The geograph warns with their names (a `UserWarning`). Create them again with `create_metric` after the edits
+        - Example: `geograph.add_edge(0, 7, 85.0, symmetric=True, edge_class="primary")`
 
         Required Arguments:
 
@@ -1827,14 +1827,8 @@ class GeoGraphModifiers:
             - What: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError
             - Default: None (on a geograph with classes, the edge gets the class without a name: `{"name": None, "mode": None}`)
             - Note: In a metric made from a `per_km` dict, an edge without a class weighs as an access leg: its km times the rate `"off_graph"` of the metric
-        - `metrics`
-            - Type: dict | None
-            - What: `{name of a metric: weight}`: the weight of the new edge in a metric that `create_metric` did not make, which the geograph cannot compute; None as a weight closes the edge. A metric made by `create_metric` is computed again for every edge, and may not be named here
-            - Default: None (in a metric that `create_metric` did not make, the new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric, which is `off_graph_per_km` in `metrics`)
-            - Note: When the lengths of the geograph are in seconds (`load_from_osmnx_graph` with `weight_key="travel_time"`), the new edge has no km: without a weight, it is closed in such a metric
         """
         class_row = self._edge_data.find_class_row(edge_class)
-        new_edge_weights = self._edge_data.check_new_edge_weights(metrics)
         self.graph_object.add_edge(
             origin_id=origin_id,
             destination_id=destination_id,
@@ -1844,7 +1838,8 @@ class GeoGraphModifiers:
         new_edges = [(origin_id, destination_id)]
         if symmetric:
             new_edges.append((destination_id, origin_id))
-        self._edge_data.record_new_edges(new_edges, class_row, new_edge_weights)
+        self._edge_data.record_new_edges(new_edges, class_row)
+        self._edge_data.remove_metrics()
         # `graph` may be a copy of the graph object. It is read again after a change.
         self.graph = None
 
@@ -1855,6 +1850,7 @@ class GeoGraphModifiers:
         Function:
 
         - Remove the last node of the geograph: its edges, its point and its mode
+        - As each edit of the network, it removes the metrics other than `length` (see `add_edge`)
 
         Optional Arguments:
 
@@ -1887,6 +1883,7 @@ class GeoGraphModifiers:
             )
         else:
             self._edge_data.forget_new_edges_of_node(removed_node_id)
+        self._edge_data.remove_metrics()
         del self.node_modes[len(self.nodes) :]
         self.snap_index = None
         self.graph = None
@@ -1904,6 +1901,7 @@ class GeoGraphModifiers:
         if symmetric:
             removed_edges.append((destination_id, origin_id))
         self._edge_data.forget_new_edges(removed_edges)
+        self._edge_data.remove_metrics()
         self.graph = None
         return removed_weight
 
@@ -1916,13 +1914,13 @@ class GeoGraphModifiers:
         circuity: float = 1,
         *,
         edge_class: str | None = None,
-        metrics: dict[str, float] | None = None,
     ) -> None:
         """
         Function:
 
         - Add an edge to the graph between two nodes specified by their coordinates
         - Finds the closest nodes in the graph to the provided coordinates and adds an edge between them
+        - As each edit of the network, it removes the metrics other than `length` (see `add_edge`)
 
         Required Arguments:
 
@@ -1953,10 +1951,6 @@ class GeoGraphModifiers:
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
             - Default: None (no class: a metric made from a `per_km` dict weighs the new edge as an access leg)
-        - `metrics`
-            - Type: dict | None
-            - What: The weight of the new edge in the metrics that `create_metric` did not make (see `add_edge`)
-            - Default: None (in such a metric, the new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric)
         """
         if not (isinstance(origin_coord_dict, dict)):
             raise ValueError("Origin node must be a dictionary")
@@ -2018,7 +2012,6 @@ class GeoGraphModifiers:
             distance=distance,
             symmetric=symmetric,
             edge_class=edge_class,
-            metrics=metrics,
         )
 
     def add_coord_node(
@@ -2034,7 +2027,6 @@ class GeoGraphModifiers:
         mode: str | None = None,
         *,
         edge_class: str | None = None,
-        metrics: dict[str, float] | None = None,
     ) -> int:
         """
         Function:
@@ -2042,6 +2034,7 @@ class GeoGraphModifiers:
         - Add a node to the network
         - Returns the id of the new node
         - Automatically updates the distance matrix to include distances to/from the new node (symmetric)
+        - As each edit of the network, it removes the metrics other than `length` (see `add_edge`)
 
         Required Arguments:
 
@@ -2089,10 +2082,6 @@ class GeoGraphModifiers:
             - Type: str | None
             - What: The name of the class of the new edges (see `add_edge`)
             - Default: None (no class: a metric made from a `per_km` dict weighs each new edge as an access leg)
-        - `metrics`
-            - Type: dict | None
-            - What: The weight of each new edge in the metrics that `create_metric` did not make (see `add_edge`)
-            - Default: None (in such a metric, each new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric)
 
         Returns:
 
@@ -2114,7 +2103,6 @@ class GeoGraphModifiers:
         ):
             raise ValueError("Longitude must be between -180 and 180")
         class_row = self._edge_data.find_class_row(edge_class)
-        new_edge_weights = self._edge_data.check_new_edge_weights(metrics)
         node = [coord_dict["latitude"], coord_dict["longitude"]]
         if auto_edge:
             if not (circuity >= 1):
@@ -2164,8 +2152,8 @@ class GeoGraphModifiers:
                 )
             ),
             class_row,
-            new_edge_weights,
         )
+        self._edge_data.remove_metrics()
         self.nodes.append(node)
         self.node_modes.append(mode_row)
         self.snap_index = None
@@ -2189,6 +2177,7 @@ class GeoGraphModifiers:
         - Remove the last coord node that was appended to the graph
         - Assumes that this node has symmetric flows
             - EG: If node A has a distance of 10 to node B, then node B has a distance of 10 to node A
+        - As each edit of the network, it removes the metrics other than `length` (see `add_edge`)
         """
         self.remove_node(symmetric_node=True)
 
@@ -2199,12 +2188,12 @@ class GeoGraphModifiers:
         symmetric: bool = True,
         *,
         edge_class: str | None = None,
-        metrics: dict[str, float] | None = None,
     ) -> None:
         """
         Function:
 
         - Add an edge to the graph
+        - As each edit of the network, it removes the metrics other than `length` (see `add_edge`)
 
         Required Arguments:
 
@@ -2225,10 +2214,6 @@ class GeoGraphModifiers:
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
             - Default: None (no class: a metric made from a `per_km` dict weighs the new edge as an access leg)
-        - `metrics`
-            - Type: dict | None
-            - What: The weight of the new edge in the metrics that `create_metric` did not make (see `add_edge`)
-            - Default: None (in such a metric, the new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric)
         """
         if not (origin_idx < len(self.graph_object.graph)):
             raise ValueError("Origin node does not exist")
@@ -2242,7 +2227,6 @@ class GeoGraphModifiers:
             ),
             symmetric=symmetric,
             edge_class=edge_class,
-            metrics=metrics,
         )
 
     def merge_with_other_geograph(
@@ -2263,7 +2247,7 @@ class GeoGraphModifiers:
         - This is useful for combining multiple geographs into one
         - This modifies the current geograph in place
         - The edges of both geographs keep their classes; a class of the other geograph is added to `classes`, unless a class has its name
-        - The merged geograph keeps `length` only: its other metrics are removed
+        - As each edit of the network, the merge removes the metrics other than `length` (see `add_edge`). It removes them from both geographs, because it adds the connection nodes to the other geograph and then removes them
 
         Required Arguments:
 
@@ -2325,9 +2309,6 @@ class GeoGraphModifiers:
             other_edge_classes = self._edge_data.merge_classes(
                 self, other_geograph, len(self.nodes) + len(connection_nodes)
             )
-        # The edges of the other geograph have no weight in these metrics. The
-        # metrics are removed after the checks: a refused merge changes nothing.
-        self._edge_data.remove_metrics()
         # Connection nodes connect to the two networks as they were before
         # the merge, not to each other
         current_index = self.snap_index
@@ -2873,7 +2854,9 @@ class GeoGraphUtils:
             )
             return self._edge_data.get_path_total(
                 self, path, metric
-            ) + off_graph_km * self._edge_data.get_off_graph_per_km(metric)
+            ) + off_graph_km * self._edge_data.get_off_graph_per_km(
+                self, metric
+            )
         if len(path) == 0:
             # Edge case: origin and destination map to the same graph node
             total = haversine(
@@ -3404,11 +3387,12 @@ class GeoGraph(
         metric has its `name`, its `unit` and its `description`, if it has them, and
         `off_graph_per_km`: the weight of 1 km of the straight line between a point
         of a query and its node. `create_metric` and `remove_metric` change the
-        metrics. Example: `[row["name"] for row in geograph.metrics]`.
+        metrics, and an edit of the network removes the metrics other than
+        `length`. Example: `[row["name"] for row in geograph.metrics]`.
         """
         return [
             {"name": "length", "unit": self._length_unit}
-        ] + self._edge_data.list_metric_rows()
+        ] + self._edge_data.list_metric_rows(self)
 
     def create_metric(
         self,
@@ -3428,7 +3412,7 @@ class GeoGraph(
         - Create a metric: one weight for each edge, under a name. `get_shortest_path(metric=name)` then finds the route with the smallest total of these weights
         - `create_metric` computes the weights at the call. A call gives exactly one of `per_km`, `weighted_sum_of` and `edge_weight_fn`
         - A metric of the same name is replaced, and each metric that uses it is computed again. A weighted sum uses the metrics that it sums. A metric made by `edge_weight_fn` uses every metric that the geograph has at this call, because the function may read them in the `metrics` of an edge
-        - After an edit of the geograph, the metric is computed again from the arguments of this call
+        - An edit of the network removes the metric: a node or an edge that is added or removed, or a merge. The geograph warns with the names of the removed metrics. Create the metric again after the edits
         - Example: `geograph.create_metric("hours", per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, at_hub={"rail_terminal": {"rail": 4}}, unit="h")`
 
         Required Arguments:
@@ -3524,7 +3508,7 @@ class GeoGraph(
             - Type: str
             - What: The name of a metric of `metrics`, other than `length`; an unknown name, or a metric that another metric uses (see `create_metric`), raises a ValueError
         """
-        self._edge_data.remove_metric(name)
+        self._edge_data.remove_metric(self, name)
 
     def get_graph_object(self, metric: str = "length") -> Graph:
         """
@@ -3532,7 +3516,7 @@ class GeoGraph(
 
         - Get the `Graph` that a search by a metric runs on: the edges of the geograph, with the weights of the metric
         - A search called on it returns the total of the metric under the key `length`
-        - For `length`, it is `graph_object`. For another metric, the graph is built at the first call and kept until the metric or the edges of the geograph change. It is reduced when `graph_object` is reduced (see `reduce`)
+        - For `length`, it is `graph_object`. For another metric, the graph is built at the first call and kept until the metric is created again or removed. It is reduced when `graph_object` is reduced (see `reduce`)
         - Example: `geograph.get_graph_object("hours").dijkstra(origin_id=0, destination_id=2)`
 
         Optional Arguments:
@@ -3776,7 +3760,7 @@ class GeoGraph(
                 coordinate_path=leg["coordinate_path"],
                 output_format=output_coordinate_path,
             )
-            if not self._edge_data.has_metrics():
+            if not self._edge_data.has_metrics(self):
                 del leg["metrics"]
         return legs, hubs
 
@@ -4245,7 +4229,7 @@ class GeoGraph(
                 # 1 km. The test above compares lengths: a metric whose access
                 # legs weigh nothing must not make every route direct.
                 off_graph_per_unit = self._edge_data.get_off_graph_per_km(
-                    metric
+                    self, metric
                 ) / get_units_per_km(self.geograph_units)
                 direct_node_addition_length *= off_graph_per_unit
                 origin_id = {
@@ -4316,7 +4300,7 @@ class GeoGraph(
             # Early return if only length is needed
             if length_only:
                 return {"length": output["length"]}
-            if self._edge_data.has_metrics():
+            if self._edge_data.has_metrics(self):
                 output["metrics"] = self._get_metric_totals(
                     output["path"], origin, destination, off_graph_circuity
                 )
@@ -4517,7 +4501,7 @@ class GeoGraph(
             # times the weight of 1 km in the metric.
             dist_multiplier, output_units = 1, "km"
             off_graph_per_unit = self._edge_data.get_off_graph_per_km(
-                output_metric
+                self, output_metric
             )
         snap_index = (
             self._get_mode_snap_index(node_addition_modes) or self.snap_index

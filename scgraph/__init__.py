@@ -562,9 +562,9 @@ europe = GeoGraph.load_from_scgraph("europe_with_metrics.scgraph")
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours")
 ```
 
-`save_as_scgraph` writes the weights of each metric, with its unit and a description. The description is the text of the `create_metric` call, or your own `description`. The file does not keep the tables or the function. So the loaded geograph cannot compute these metrics again. In each of them, an edge that you add to it weighs as an access leg: its km times the rate `"off_graph"` of the metric. To change this, create the metric again after your edits, or give the weights of the new edge: `add_edge(..., metrics={"hours": 2.5})`.
+`save_as_scgraph` writes the weights of each metric, with its unit and a description. The description is the text of the `create_metric` call, or your own `description`. The file does not keep the tables or the function.
 
-After an edit of the network, the geograph gives each edge its class and its weights again. It computes again the metrics that `create_metric` made on it. The next call that reads a class or a weight of a metric does this work: `get_edges`, `classes`, `output_legs`, a save, or a query whose result holds the total of each metric. A query by `length` on a geograph without a metric does not do it. The work takes about 1 second for a network of a million nodes, with the C++ extension. A metric made by a function adds the time of its creation.
+An edit of the network removes its metrics, also the metrics of a file: create them again after it (see [Modifying a GeoGraph](#modifying-a-geograph)).
 
 ### Metrics and Algorithms
 
@@ -588,7 +588,7 @@ route = oceania_roads.get_shortest_path(
 
 The build of a hierarchy takes time and memory, and both grow with the network. On a network as large as `europe`, the build takes minutes and gigabytes of memory.
 
-A search called on the graph of a metric returns the total of the metric under the key `length`. scgraph builds this graph again when the metric is created again or the network is edited. The new graph has no hierarchy.
+A search called on the graph of a metric returns the total of the metric under the key `length`. scgraph builds this graph again when the metric is created again, also after an edit of the network. The new graph has no hierarchy.
 
 ### `create_metric` Parameters
 
@@ -1252,23 +1252,26 @@ my_geograph.graph_object.add_edge(origin_id=0, destination_id=5, distance=1850, 
 my_geograph.remove_coord_node()
 ```
 
-`add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take two more keywords, for a geograph that has classes or metrics. This call is for a geograph loaded from OSMnx, which has the class `primary` and the metric `travel_time`:
+**An edit of the network removes its metrics: create them again after it.** scgraph warns with their names. An edit is a node or an edge that you add or remove, or a merge. A metric that a loader read is removed too. A geograph whose only metric is `length` gets no warning. A merge removes the metrics of both geographs. An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them: the warning comes then.
+
+The classes stay. `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take one more keyword, for a geograph that has classes. This call is for a geograph loaded from OSMnx, which has the class `primary`:
 
 ```py
-geograph.add_edge(origin_id=0, destination_id=5, distance=85, symmetric=True, edge_class="primary", metrics={"travel_time": 3400})
+geograph.add_edge(origin_id=0, destination_id=5, distance=85, symmetric=True, edge_class="primary")
 ```
 
 | Keyword | Default | Description |
 |---|---|---|
 | `edge_class` | `None` | The class of the new edge, a name of `geograph.classes`. Without it, the edge has no class: its `class` and its `mode` are `None` |
-| `metrics` | `None` | `{name: weight}`: the weight of the new edge in a metric that `create_metric` did not make. Without it, the edge weighs as an access leg in such a metric: its km times the rate `"off_graph"` of the metric (it is closed when the lengths of the geograph are in seconds). A metric that `create_metric` made is computed again for every edge, and is not named here |
 
-An edge added on `graph_object` directly, as above, has no class. The geograph gives each new edge its class and its weights at the next call that reads them (see [What a File Keeps](#what-a-file-keeps)).
+An edge added on `graph_object` directly has no class. After an edit, the geograph gives each edge its class again at the next call that reads a class (`get_edges`, `classes`, `output_legs`, a save) or that creates a metric. This work takes about 0.7 second on `europe`, a network of a million nodes, with the C++ extension. A query by `length` does not do it.
 
-A metric made from a `per_km` dict has no rate for an edge without a class. Such an edge weighs as an access leg: its km times the rate `"off_graph"` of the metric. So a route by the metric can start at a node that you added. To close such an edge, name it in `edge_weights` with `None` (see [Closing a Class or an Edge](#closing-a-class-or-an-edge)). To give the new edges the rate of a class, name the class. This call joins a new node to `europe` by edges of the class `road_connector`. A metric that `create_metric` made on `europe` then gives them the rate of the edge mode `road`:
+A metric made from a `per_km` dict has no rate for an edge without a class. Such an edge weighs as an access leg: its km times the rate `"off_graph"` of the metric. So a route by the metric can start at a node that you added. To close such an edge, name it in `edge_weights` with `None` (see [Closing a Class or an Edge](#closing-a-class-or-an-edge)). To give the new edges the rate of a class, name the class. This call joins a new node to `europe` by edges of the class `road_connector`. A metric that you then create on `europe` gives them the rate of the edge mode `road`:
 
 ```py
+# This edit removes the metric `hours` of `europe`, with a warning
 europe.add_coord_node(coord_dict={"latitude": 46.0, "longitude": 2.0}, edge_class="road_connector")
+europe.create_metric("hours", per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30})
 ```
 
 See the [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) for more examples.
@@ -1286,7 +1289,7 @@ road_geograph.merge_with_other_geograph(
 )
 ```
 
-The merged geograph keeps the lengths and the classes of both geographs. It keeps no other metric: create your metrics after the merge.
+The merged geograph keeps the lengths and the classes of both geographs. A merge is an edit: it removes the other metrics of both geographs, with a warning (see [Modifying a GeoGraph](#modifying-a-geograph)). Create your metrics after the merge.
 
 ---
 
