@@ -516,15 +516,77 @@ def test_a_merge_that_is_refused_changes_nothing(
     ]
 
 
-def test_a_network_file_with_a_256th_class_is_refused(tmp_path):
-    # The ferry line, in a network file with 256 classes. The class id 255 is
-    # the id of no class, so a network holds 255 classes at most.
-    classes = {f"class_{class_id}": "road" for class_id in range(256)}
-    path = str(tmp_path / "256_classes.scgraph")
-    _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_0")], classes)
+def test_the_constructor_gives_each_edge_the_class_that_edge_classes_names():
+    # Three nodes on the equator. The edge from the node 0 to the node 2 is
+    # in no dict of `edge_classes`.
+    classes = [
+        {"name": "ferry", "edge_mode": "sea"},
+        {"name": "motorway", "edge_mode": "road"},
+    ]
 
-    with pytest.raises(ValueError, match="255 classes"):
-        GeoGraph.load_from_scgraph(path)
+    geograph = GeoGraph(
+        graph=[{1: 30.0, 2: 50.0}, {0: 30.0}, {}],
+        nodes=[[0.0, 0.0], [0.0, 0.3], [0.0, 0.5]],
+        classes=classes,
+        edge_classes=[{1: "ferry"}, {0: "motorway"}, {}],
+    )
+
+    assert geograph.classes == classes
+    assert _get_class_of_each_edge(geograph) == {
+        (0, 1): "ferry",
+        (0, 2): None,
+        (1, 0): "motorway",
+    }
+
+
+# Each case gives arguments of the constructor for the ferry line, which has
+# one edge, from the node 0 to the node 1, and a word of the error.
+FERRY_CLASSES = [{"name": "ferry", "edge_mode": "road"}]
+REFUSED_CLASS_ARGUMENTS = {
+    "a class that classes lacks": (
+        {"classes": FERRY_CLASSES, "edge_classes": [{1: "motorway"}, {}]},
+        "edge_classes.*'motorway'",
+    ),
+    "a destination that is no edge of the graph": (
+        {"classes": FERRY_CLASSES, "edge_classes": [{}, {0: "ferry"}]},
+        "edge_classes.*from node 1 to node 0",
+    ),
+    "edge_classes without classes": (
+        {"edge_classes": [{1: "ferry"}, {}]},
+        "edge_classes needs classes",
+    ),
+    "a 256th class": (
+        {
+            "classes": [
+                {"name": f"class_{class_id}", "edge_mode": "road"}
+                for class_id in range(256)
+            ]
+        },
+        "255 classes",
+    ),
+    "not one dict for each node": (
+        {"classes": FERRY_CLASSES, "edge_classes": [{1: "ferry"}]},
+        "edge_classes.*one dict for each node",
+    ),
+    "a class without a name": (
+        {"classes": [{"edge_mode": "road"}]},
+        "classes.*name",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    REFUSED_CLASS_ARGUMENTS.values(),
+    ids=REFUSED_CLASS_ARGUMENTS,
+)
+def test_the_constructor_refuses_classes_that_do_not_fit_its_graph(
+    arguments, message
+):
+    with pytest.raises(ValueError, match=message):
+        GeoGraph(
+            graph=[{1: 30.0}, {}], nodes=[[1.0, 0.0], [1.0, 0.3]], **arguments
+        )
 
 
 # create_metric: the weights of a metric

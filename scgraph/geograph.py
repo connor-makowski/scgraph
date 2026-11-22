@@ -653,22 +653,24 @@ class GeoGraphIO:
                     graph, nodes, shapes, ids, edge_class_names
                 )
             )
+        class_arguments = {}
+        if any(edge_class_names):
+            # As in a network file of a pipeline: every class of the classes table
+            class_arguments = {
+                "classes": [
+                    {"name": name, "edge_mode": edge_mode}
+                    for name, edge_mode in CLASSES.items()
+                ],
+                "edge_classes": edge_class_names,
+            }
         geograph = GeoGraph(
             graph=graph,
             nodes=nodes,
             intermediate_nodes=shapes if load_intermediate_nodes else None,
             source_node_ids=ids,
             coordinate_dtype="int32",  # OSM's own: 1e-7 degree
+            **class_arguments,
         )
-        if any(edge_class_names):
-            # As in a network file of a pipeline: every class of the classes table
-            geograph._edge_classes = EdgeClasses.build_from_class_names(
-                [
-                    {"name": name, "edge_mode": edge_mode}
-                    for name, edge_mode in CLASSES.items()
-                ],
-                edge_class_names,
-            )
         geograph.reduce(reduce_iterations)
         return geograph
 
@@ -1566,14 +1568,6 @@ class GeoGraphIO:
                     1 / off_graph_speed_km_per_s
                 )
 
-        # TODO: Handle time based geograph units in a better way by default.
-        # See: self.geograph_units
-        geograph = GeoGraph(
-            graph=graph,
-            nodes=nodes,
-            coordinate_dtype="int32" if coord_precision <= 7 else "float64",
-            **kwargs,
-        )
         # The name of the class of each edge that has a `highway` value, by its
         # two nodes. OSMnx gives a list to an edge that it made from ways of
         # several values.
@@ -1591,10 +1585,18 @@ class GeoGraphIO:
             set().union(*(names.values() for names in edge_class_names))
         )
         if class_names:
-            geograph._edge_classes = EdgeClasses.build_from_class_names(
-                [{"name": name, "edge_mode": "road"} for name in class_names],
-                edge_class_names,
-            )
+            kwargs["classes"] = [
+                {"name": name, "edge_mode": "road"} for name in class_names
+            ]
+            kwargs["edge_classes"] = edge_class_names
+        # TODO: Handle time based geograph units in a better way by default.
+        # See: self.geograph_units
+        geograph = GeoGraph(
+            graph=graph,
+            nodes=nodes,
+            coordinate_dtype="int32" if coord_precision <= 7 else "float64",
+            **kwargs,
+        )
         # The attributes of each edge, lined up with the edges
         offsets, heads, _ = geograph._read_edge_arrays()
         edge_attributes = [
@@ -3060,6 +3062,8 @@ class GeoGraph(
         node_mode_ids: list[int] | None = None,
         node_modes: list[dict] | None = None,
         coordinate_dtype: Literal["float64", "int32"] = "float64",
+        classes: list[dict] | None = None,
+        edge_classes: list[dict[int, str]] | None = None,
     ) -> None:
         """
         Function:
@@ -3126,6 +3130,19 @@ class GeoGraph(
             - Type: str
             - What: The coordinate dtype `save_as_scgraph` uses by default, 'float64' or 'int32' (see there); loaders that round to 7 decimals or fewer, and int32 network files, give 'int32'
             - Default: 'float64'
+        - `classes`
+            - Type: list of dicts | None
+            - What: The classes of the edges, each a dict with its `name` (str) and the `edge_mode` of its edges; read back as `classes`
+            - Note: At most 255 classes; more raise a ValueError
+            - Example: `[{"name": "motorway", "edge_mode": "road"}, {"name": "ferry", "edge_mode": "sea"}]`
+            - Default: None (a geograph without classes)
+        - `edge_classes`
+            - Type: list of dicts | None
+            - What: One dict per node, {destination: name of a class}: the class of each edge, as a name of `classes`; `get_edges` reads it back as `edge_class`
+            - Note: An edge that its dict lacks has no class
+            - Note: A name that `classes` lacks, a destination that is no edge of `graph`, a list that has not one dict per node, or `edge_classes` without `classes` raises a ValueError
+            - Example: `[{1: "motorway"}, {0: "motorway", 2: "ferry"}, {1: "ferry"}]`
+            - Default: None (no edge has a class)
         - `default_off_graph_circuity`
             - Type: float | int
             - What: The physical distance multiplier applied to final off-graph access legs (origin -> entrance node and exit node -> destination) after the route is solved
@@ -3191,6 +3208,11 @@ class GeoGraph(
         # `_read_edge_class_ids` computed it. None before the first call and
         # after an edit.
         self._edge_class_ids = None
+        if classes is not None or edge_classes is not None:
+            offsets, heads, _ = self._read_edge_arrays()
+            self._edge_classes = EdgeClasses.build_from_class_names(
+                classes, edge_classes, offsets, heads
+            )
         # The argument of the last `reduce`, for the graph of each metric
         self._reduce_iterations = None
         # The node modes that a query point snaps to by default, as a network file names
@@ -3232,7 +3254,8 @@ class GeoGraph(
         """
         The rows of the classes of the edges: `{"name": ..., "edge_mode": ...}`, with
         the name of the class and the edge mode of its edges. The list is empty on a
-        geograph without classes: a loader or a merge gives classes to a geograph.
+        geograph without classes: a loader, the arguments `classes` and
+        `edge_classes` of the constructor, or a merge gives classes to a geograph.
         `get_edges` gives the class of each edge.
         """
         return self._edge_classes.classes

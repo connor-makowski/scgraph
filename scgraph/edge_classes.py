@@ -10,8 +10,9 @@ A "class" is the category of an edge, such as `motorway`. An `EdgeClasses` holds
   "class id" of a class is the position of its row in `classes`, counted from 0. A
   geograph holds 255 classes at most: the class id 255 is the id of no class. It
   is the class id of an edge without a class.
-- The "loaded edges": the edges of the graph that a loader read, with the class id
-  of each one. They are three arrays. The edges of the node `u` go to
+- The "loaded edges": the edges of the graph that a loader read or that the
+  constructor of the geograph got, with the class id of each one. They are three
+  arrays. The edges of the node `u` go to
   `heads[offsets[u]:offsets[u + 1]]`. The "edge id" of an edge is its position in
   `heads`, and `edge_class_ids` holds its class id at this position. No edit of the
   graph changes these arrays.
@@ -131,30 +132,83 @@ class EdgeClasses:
 
     @classmethod
     def build_from_class_names(
-        cls, classes: list[dict], edge_class_names: list[dict]
+        cls,
+        classes: list[dict] | None,
+        edge_classes: list[dict[int, str]] | None,
+        offsets: array | memoryview,
+        heads: array | memoryview,
     ) -> "EdgeClasses":
-        """Return the `EdgeClasses` of a loader that read the class of each edge as
-        a name.
+        """Return the `EdgeClasses` of a geograph whose constructor got the class
+        of each edge as a name. The edges of the graph become the loaded edges.
 
         Args:
-            classes: The row `{"name", "edge_mode"}` of each class.
-            edge_class_names: For each node, a dict from the destination of an edge
-                of this node to the name of the class of the edge, as
-                `intermediate_nodes` gives its shape. An edge that its dict lacks
-                has no class.
+            classes: The argument `classes` of `GeoGraph`: the row
+                `{"name", "edge_mode"}` of each class.
+            edge_classes: The argument `edge_classes` of `GeoGraph`: for each
+                node, a dict from the destination of an edge of this node to the
+                name of the class of the edge. An edge that its dict lacks has no
+                class. None gives a class to no edge.
+            offsets: The offsets of the edges of the graph, one for each node plus
+                one.
+            heads: The destination of each edge.
 
         Raises:
-            ValueError: The loader read more than 255 classes.
+            ValueError: `classes` is None, has more than 255 rows, or has a row
+                without a name or without an edge mode. `edge_classes` has not
+                one dict for each node, or names a destination that is no edge
+                of the graph, or a class that `classes` lacks.
         """
-        find_class_id = _list_class_names(classes).index
-        offsets, heads, edge_class_ids = array("i", [0]), array("i"), array("B")
-        for class_names_of_origin in edge_class_names:
-            heads.extend(class_names_of_origin)
-            edge_class_ids.extend(
-                map(find_class_id, class_names_of_origin.values())
+        if classes is None:
+            raise ValueError(
+                "edge_classes needs classes: the row {'name': ..., 'edge_mode': "
+                "...} of each class"
             )
-            offsets.append(len(heads))
-        return cls(classes, offsets, heads, edge_class_ids)
+        for class_row in classes:
+            if not (
+                isinstance(class_row, dict)
+                and isinstance(class_row.get("name"), str)
+                and "edge_mode" in class_row
+            ):
+                raise ValueError(
+                    "classes must give each class as a row {'name': ..., "
+                    f"'edge_mode': ...}}, with a string as name: got {class_row!r}"
+                )
+        node_count = len(offsets) - 1
+        if edge_classes is None:
+            edge_classes = [{}] * node_count
+        if len(edge_classes) != node_count:
+            raise ValueError(
+                "edge_classes must give one dict for each node: got "
+                f"{len(edge_classes)} dicts for {node_count} nodes"
+            )
+        class_names = _list_class_names(classes)
+        edge_class_ids = array("B")
+        for origin_id, class_names_of_origin in enumerate(edge_classes):
+            destination_ids = heads[offsets[origin_id] : offsets[origin_id + 1]]
+            for destination_id in class_names_of_origin:
+                if destination_id not in destination_ids:
+                    raise ValueError(
+                        f"edge_classes gives a class to the edge from node "
+                        f"{origin_id} to node {destination_id}, which is no "
+                        "edge of the graph"
+                    )
+            for destination_id in destination_ids:
+                class_name = class_names_of_origin.get(destination_id)
+                if class_name is None:
+                    edge_class_ids.append(NO_CLASS_ID)
+                elif class_name in class_names:
+                    edge_class_ids.append(class_names.index(class_name))
+                else:
+                    raise ValueError(
+                        f"edge_classes gives the class {class_name!r} to the "
+                        f"edge from node {origin_id} to node {destination_id}"
+                        ": classes has no row with this name"
+                    )
+        # The loaded edges are copies: the graph may change its own arrays at
+        # an edit.
+        return cls(
+            classes, array("i", offsets), array("i", heads), edge_class_ids
+        )
 
     def find_class(self, origin_id: int, destination_id: int) -> dict:
         """Return the row of the class of the edge from one node to another:
