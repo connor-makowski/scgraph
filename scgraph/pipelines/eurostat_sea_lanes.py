@@ -6,9 +6,12 @@ Eurostat stores the ends of a lane cut at the antimeridian twice, at -180 and at
 Route, Northwest Passage) are dropped: no query can avoid a passage yet, and these are
 open only part of the year.
 
-`build_sea_lane_arrays` gives the same network as arrays, with the class of each edge,
-for a pipeline that joins the sea lanes to other modes. The class of an edge is the
-`pass` of its lane, for example `suez`. It is `open_sea` for a lane outside a passage.
+The class of an edge is the `pass` of its lane, for example `suez`. It is `open_sea`
+for a lane outside a passage.
+
+`build_sea_lane_arrays` gives the same network as the arrays of a graph, for a pipeline
+that joins the sea lanes to other modes. `build_sea_lane_geograph` gives it as a
+GeoGraph, which holds no classes.
 """
 
 import contextlib
@@ -21,7 +24,7 @@ from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_ROWS
 from scgraph.pipelines.steps import step3_network_assembly
 
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2
 
 SOURCES = {
     "sea_lanes": {
@@ -63,7 +66,34 @@ def _read_lines(files):
     return lines
 
 
-def build(files: dict[str, str]) -> GeoGraph:
+def build(files: dict[str, str]) -> tuple[dict[str, array], list[dict]]:
+    """Build the sea lanes as the arrays of a network file, with the class of each
+    edge: the graph of `build_sea_lane_arrays`. Its nodes are in the order of a
+    network file, because `GeoGraph.load_from_geojson` numbers the nodes along the
+    Hilbert curve.
+
+    Args:
+        files: The path of the downloaded file of the source `sea_lanes`.
+
+    Returns:
+        `(arrays, modes)`: the arrays of the network file, and the modes table of a
+        network with one mode.
+    """
+    arrays = build_sea_lane_arrays(files)
+    # No edge has a shape point, so the file holds no shapes
+    del arrays["shape_offsets"], arrays["shape_points"]
+    return arrays, [{"name": None}]
+
+
+def build_sea_lane_geograph(files: dict[str, str]) -> GeoGraph:
+    """Build the sea lanes as a GeoGraph, without the class of each edge.
+
+    Args:
+        files: The path of the downloaded file of the source `sea_lanes`.
+
+    Returns:
+        The GeoGraph of the lanes, with one node for each point of a lane.
+    """
     lines = [line for line, _ in _read_lines(files)]
     geojson = files["sea_lanes"] + ".geojson"
     with open(geojson, "w") as file:
@@ -74,10 +104,10 @@ def build(files: dict[str, str]) -> GeoGraph:
 def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     """Build the sea lanes as the arrays of a graph, with the class of each edge.
 
-    The nodes and the edges are those of the GeoGraph that `build` returns. The nodes
-    are in the order of the GeoGraph. The edges of a node are sorted by head. `build`
-    makes one edge each way between two consecutive points of a lane. The two edges have
-    the class of the lane.
+    The nodes and the edges are those of the GeoGraph that `build_sea_lane_geograph`
+    returns. The nodes are in the order of the GeoGraph. The edges of a node are sorted
+    by head. There is one edge each way between two consecutive points of a lane. The
+    two edges have the class of the lane.
 
     Example: a lane with the `pass` value `suez` has the points A, B and C. The edges
     A-B, B-A, B-C and C-B have the class `suez`.
@@ -89,7 +119,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
         it, with `edge_classes`. The edges have no shape points.
     """
-    sea = build(files)
+    sea = build_sea_lane_geograph(files)
 
     def to_units(
         point,
@@ -117,7 +147,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     return {
         "offsets": offsets,
         "heads": heads,
-        "weights": weights,
+        "weights_length": weights,
         "node_points": array("i", (x for point in points for x in point)),
         "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
         "shape_points": array("i"),

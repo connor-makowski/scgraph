@@ -10,7 +10,7 @@ HOW A GRAPH IS STORED
 
 A graph is a dict of arrays, with the names of the network file. Node `u` has the edges
 `offsets[u]` to `offsets[u + 1] - 1`. Edge `a` goes to node `heads[a]` and is
-`weights[a]` km long. `node_points` holds the latitude, then the longitude of each
+`weights_length[a]` km long. `node_points` holds the latitude, then the longitude of each
 node, in units of 1e-7 degree. The shape points of edge `a` are
 `shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `node_ids` holds the id
 of each node in its source. `node_modes`, if the graph has several modes, holds the row
@@ -20,8 +20,8 @@ of each node in the modes table.
 table (`scgraph.pipelines.CLASSES`).
 
 Example: two nodes joined both ways by a trunk road of 1.5 km give
-`offsets = [0, 1, 2]`, `heads = [1, 0]` and `weights = [1.5, 1.5]`. `trunk` is row 2 of
-the classes table, so `edge_classes = [2, 2]`.
+`offsets = [0, 1, 2]`, `heads = [1, 0]` and `weights_length = [1.5, 1.5]`. `trunk` is
+row 2 of the classes table, so `edge_classes = [2, 2]`.
 
 HOW A RUN GOES
 
@@ -562,9 +562,9 @@ def build_graph_from_pieces(
         pieces: The pieces, as `step1_osm_ways.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
 
     Returns:
-        The graph as a dict of arrays: `offsets`, `heads`, `weights`, `node_points`,
-        `shape_offsets`, `shape_points` and `node_ids`, and `edge_classes` when the
-        pieces have classes. The module docstring describes them.
+        The graph as a dict of arrays: `offsets`, `heads`, `weights_length`,
+        `node_points`, `shape_offsets`, `shape_points` and `node_ids`, and
+        `edge_classes` when the pieces have classes. The module docstring describes them.
 
     Raises:
         ValueError: Every piece joins a node to itself. Or some pieces have a class
@@ -607,7 +607,7 @@ def build_graph_from_pieces(
     graph = {
         "offsets": offsets,
         "heads": heads,
-        "weights": weights,
+        "weights_length": weights,
         "node_points": node_points,
         "shape_offsets": shape_offsets,
         "shape_points": points,
@@ -665,7 +665,7 @@ def assemble_network(
             contract_chains(
                 graph["offsets"],
                 graph["heads"],
-                graph["weights"],
+                graph["weights_length"],
                 node_modes=modes,
                 max_km_between_nodes=max_km_between_nodes,
                 edge_classes=edge_classes,
@@ -680,7 +680,7 @@ def assemble_network(
         graph = {  # the graph before contraction is freed
             "offsets": array("i", accumulate(offsets)),
             "heads": heads,
-            "weights": weights,
+            "weights_length": weights,
             "shape_offsets": shape_offsets,
             "shape_points": points,
             **_select_nodes(graph, kept),
@@ -763,13 +763,13 @@ def renumber_nodes(graph, order, labels=None):
     for i, u in enumerate(order):
         new[u] = i
     offsets, heads, weights = (
-        graph[key] for key in ("offsets", "heads", "weights")
+        graph[key] for key in ("offsets", "heads", "weights_length")
     )
     starts, line = graph["shape_offsets"], graph["shape_points"]
     out = {
         "offsets": array("i", [0]),
         "heads": array("i"),
-        "weights": array("d"),
+        "weights_length": array("d"),
     }
     out["shape_offsets"], out["shape_points"] = array("i", [0]), array("i")
     edge_classes = graph.get("edge_classes")
@@ -781,7 +781,7 @@ def renumber_nodes(graph, order, labels=None):
         ):
             if v >= 0 and (labels is None or labels[u] == labels[heads[a]]):
                 out["heads"].append(v)
-                out["weights"].append(weights[a])
+                out["weights_length"].append(weights[a])
                 out["shape_points"].extend(
                     line[2 * starts[a] : 2 * starts[a + 1]]
                 )

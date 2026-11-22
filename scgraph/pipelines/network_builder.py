@@ -257,20 +257,32 @@ def _write_network(
     network: GeoGraph | tuple[dict, list[dict]],
     filename: Path,
     metadata: dict,
+    pipeline: types.ModuleType,
 ) -> str:
-    """Write the network that a `build` returned to `filename`, with the metadata of
-    the build in its header. Return the digest of the file."""
+    """Write the network that the `build` of `pipeline` returned to `filename`, with
+    the metadata of the build in its header. Return the digest of the file."""
     if isinstance(network, GeoGraph):
         # The file has the nodes of each mode in Hilbert order, so that nodes
         # close on the globe get close ids
         return network.save_as_scgraph(str(filename), metadata=metadata)
     arrays, modes = network  # the arrays of the file, already in that order
-    classes = pipelines.CLASSES if "edge_classes" in arrays else None
+    classes = None
+    if "edge_classes" in arrays:
+        # A value of `edge_classes` is a row of the classes table of the pipeline
+        classes = [
+            {"name": name, "mode": mode}
+            for name, mode in getattr(
+                pipeline, "CLASSES", pipelines.CLASSES
+            ).items()
+        ]
     return network_file.write(
         str(filename),
         arrays,
         network_file.build_header_metadata(
-            metadata, units="km", modes=modes, classes=classes
+            metadata,
+            modes=modes,
+            classes=classes,
+            node_addition_modes=getattr(pipeline, "NODE_ADDITION_MODES", None),
         ),
     )
 
@@ -413,7 +425,7 @@ def build_network_file(
         metadata = pipelines.build_metadata(
             name, region, pipeline.PIPELINE_VERSION, sources, pipeline.__doc__
         )
-        digest = _write_network(network, building, metadata)
+        digest = _write_network(network, building, metadata, pipeline)
         if validate:
             _validate_pipeline(pipeline, name, region, building)
         built_file = _move_into_cache(

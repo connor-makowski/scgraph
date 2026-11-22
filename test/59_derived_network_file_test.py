@@ -162,14 +162,13 @@ def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
     parent_file, tmp_path
 ):
     # The parent file again, where each of the 14 edges has a class of its own.
-    # The name of the class is the name of the edge.
+    # The name of the class is the name of the edge, and its mode is "road".
     arrays, metadata = network_file.read(parent_file)
     class_names = _name_each_edge(arrays)
+    classes = [{"name": name, "mode": "road"} for name in class_names]
     arrays["edge_classes"] = array("B", range(len(class_names)))
     classed_file = str(tmp_path / "classed.scgraph")
-    network_file.write(
-        classed_file, arrays, metadata | {"classes": class_names}
-    )
+    network_file.write(classed_file, arrays, metadata | {"classes": classes})
     bbox_file = str(tmp_path / "bbox.scgraph")
 
     derived_networks.derive_network_file(
@@ -178,10 +177,28 @@ def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
 
     # The bbox removes node 4 and its two edges, so the other edges move up.
     arrays, metadata = network_file.read(bbox_file)
-    assert metadata["classes"] == class_names
+    assert metadata["classes"] == classes
     assert [
         class_names[row] for row in arrays["edge_classes"]
     ] == _name_each_edge(arrays)
+
+
+def test_a_derived_file_keeps_the_modes_to_snap_to_that_it_holds(
+    parent_file, tmp_path
+):
+    # The parent file again, where a query point snaps to a road or a sea node.
+    arrays, metadata = network_file.read(parent_file)
+    metadata["node_addition_modes"] = ["road", "sea"]
+    snapping_file = str(tmp_path / "snapping.scgraph")
+    network_file.write(snapping_file, arrays, metadata)
+    sea_file = str(tmp_path / "sea.scgraph")
+
+    derived_networks.derive_network_file(
+        snapping_file, sea_file, modes=["sea", "port"], min_component_nodes=1
+    )
+
+    info = GeoGraph.get_scgraph_info(sea_file)
+    assert info["node_addition_modes"] == ["sea"]
 
 
 def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(

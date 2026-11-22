@@ -113,7 +113,7 @@ if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 2
+PIPELINE_VERSION = 3
 
 
 def _natural_earth(layer):
@@ -144,6 +144,8 @@ MODES = [
     {"name": "airport", "source": "airports"},
     {"name": "rail_terminal", "source": "rail_terminals"},
 ]
+# A query point snaps to a road node by default: a route starts and ends on a road
+NODE_ADDITION_MODES = ("road",)
 # The land mask covers the roads of the region and this margin around them, in
 # degrees. A sea connector runs inside the mask.
 MARGIN_DEGREES = 2

@@ -267,7 +267,7 @@ class GeoGraphIO:
             - What: What the file header says about how the network was built, so that it travels with the file: the build metadata, whose fields `scgraph.pipelines` and ARCHITECTURE.md (section "Network File Format") describe, for example its `sources`, each with a `name`; 'auto' writes the geograph's own `metadata` (read from the file it was loaded from), None writes none
             - Default: 'auto'
             - Note: Changes made to a geograph after loading are not recorded in it (its `content_sha256` changes); a merge adds the other geograph's `sources`
-            - Note: A key scgraph writes itself (`crs`, `units`, `modes`, `node_order`, ...), or a mode whose `source` names no entry of `sources` (also with None), raises a ValueError
+            - Note: A key scgraph writes itself (`crs`, `metrics`, `modes`, `node_order`, ...), or a mode whose `source` names no entry of `sources` (also with None), raises a ValueError
         - `coordinate_dtype`
             - Type: str
             - What: How coordinates are stored: 'float64' exactly, 'int32' rounded to 1e-7 degree (OSM's encoding, about 1 cm; 8 bytes less per node), 'auto' as the geograph's `coordinate_dtype`
@@ -286,8 +286,8 @@ class GeoGraphIO:
             )
         metadata = network_file.build_header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
-            units=self.geograph_units,
             modes=self.modes,
+            metrics=[{"name": "length", "unit": self.geograph_units}],
         )
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
@@ -326,7 +326,7 @@ class GeoGraphIO:
         arrays = {
             "offsets": offsets,
             "heads": heads,
-            "weights": weights,
+            "weights_length": weights,
         }
         node_points = array("d", (value for i in old for value in nodes[i][:2]))
         # None: each node's id is its position
@@ -703,7 +703,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata `save_as_scgraph` wrote (`units`, `sources`, `modes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
+        - A dict: the metadata of the file (`metrics`, `sources`, `modes`, `classes`, `node_addition_modes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `node_ids`
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
         info = network_file.get_scgraph_info(filename)
@@ -790,7 +790,7 @@ class GeoGraphIO:
             indicators["edges"] = len(arrays["heads"])
         try:
             graph = (Graph._from_csr_in_place if mapped else Graph.from_csr)(
-                arrays["offsets"], arrays["heads"], arrays["weights"]
+                arrays["offsets"], arrays["heads"], arrays["weights_length"]
             )
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
@@ -802,7 +802,7 @@ class GeoGraphIO:
                 if "shape_offsets" in arrays
                 else None
             ),
-            geograph_units=metadata.get("units", "km"),
+            geograph_units=metadata["metrics"][0]["unit"],
             node_ids=arrays.get("node_ids"),
             node_modes=arrays.get("node_modes"),
             modes=metadata.get("modes"),

@@ -329,7 +329,9 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
     # The piece from 3 to 4 joins two components one way only: it is left
     # out. Place 2 is between 1 and 3 only: it is contracted. The edge from 1
     # to 3 has the length of the two pieces, 1 km + 2 km.
-    edges = _by_node_ids(assembled, lambda edge: assembled["weights"][edge])
+    edges = _by_node_ids(
+        assembled, lambda edge: assembled["weights_length"][edge]
+    )
 
     assert edges == {(1, 3): 3.0, (3, 1): 3.0, (4, 5): 4.0, (5, 4): 4.0}
 

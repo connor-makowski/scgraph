@@ -38,14 +38,14 @@ WHAT A PIPELINE MODULE HOLDS
   `PIPELINE_VERSION` differs.
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
-    - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
+    - a GeoGraph. The example below does this.
     - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
       file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
-      order). The weights are in km. `modes` is the modes table (see below).
-      `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
+      order). `weights_length` holds km. `modes` is the modes table (see below).
+      The three pipelines of this package do this. `arrays` may hold
       `edge_classes`, the class of each edge (see *The classes*). The runner then
-      writes the names of `CLASSES` into the header of the network file.
+      writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
   them.
@@ -55,6 +55,11 @@ WHAT A PIPELINE MODULE HOLDS
   of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
+- `NODE_ADDITION_MODES`, optional: a tuple of names of the modes table. A query
+  point then snaps to a node of these modes by default. The runner writes them into
+  the header of a network that `build` returns as arrays.
+- `CLASSES`, optional: the classes table of the pipeline, in place of the table of
+  this package (see *The classes*).
 
 The runner reads no other name. Names such as `MODES`, `MARGIN_DEGREES` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.
@@ -85,16 +90,18 @@ with one mode gives `[{"name": None}]`.
 THE CLASSES
 
 The class of an edge is its category in the source: a motorway, a vehicle ferry, a
-main railway line, a sea passage. `CLASSES` holds the names of the classes:
+main railway line, a sea passage. `CLASSES` is the classes table: it gives the mode
+of the edges of each class, by the name of the class. The modes of the edges are
+`road`, `rail`, `sea` and `air`:
 
-- roads: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
+- `road`: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
   `primary_link`, `ferry`, `shuttle_train`, `road_connector`;
-- railways: `rail_highspeed`, `rail_main`, `rail_branch`, `rail_other`,
+- `rail`: `rail_highspeed`, `rail_main`, `rail_branch`, `rail_other`,
   `rail_connector`;
-- sea lanes: `open_sea` for a lane outside a passage, the passages `babelmandeb`,
+- `sea`: `open_sea` for a lane outside a passage, the passages `babelmandeb`,
   `bering`, `corinth`, `dover`, `gibraltar`, `kiel`, `magellan`, `malacca`, `panama`
   and `suez`, and `sea_connector`;
-- `flight`.
+- `air`: `flight`.
 
 The purpose of a class is one speed for all its edges. So the connectors of a hub have
 classes of their own: a sea connector can be 2,500 km long. No class has the name of
@@ -102,11 +109,16 @@ a mode.
 
 A pipeline records classes when its select functions give them. A select function
 returns the direction of a way: 1, -1 or 0. It may return a pair in its place: the
-direction and the name of a class, for example `(1, "motorway")`. A pipeline of your
-own uses the names of `CLASSES` only.
+direction and the name of a class, for example `(1, "motorway")`. A select function
+uses the names of `CLASSES` only.
 
-A network file holds the class of each edge (`ARCHITECTURE.md`, section 7), and
-`network_file.read` returns it. A GeoGraph does not hold the classes.
+A pipeline that fills `edge_classes` itself may define its own `CLASSES` dict in its
+module, with the same form. A value of `edge_classes` is then a row of that table,
+and the runner writes that table into the header.
+
+A network file holds the class of each edge and one row `{"name", "mode"}` for each
+class (`ARCHITECTURE.md`, section 7), and `network_file.read` returns them. A GeoGraph
+does not hold the classes.
 
 HOW TO RUN A PIPELINE
 
@@ -240,40 +252,41 @@ NAMES = (
     "geofabrik_multimodal",
     "osm_world_multimodal",
 )
-# The names of the classes (the docstring of this module, *The classes*)
-CLASSES = (
+# The mode of the edges of each class, by the name of the class (the docstring of this
+# module, *The classes*)
+CLASSES = {
     # Roads: the `highway` value of the way, or the `route` value of a vehicle ferry
-    "motorway",
-    "motorway_link",
-    "trunk",
-    "trunk_link",
-    "primary",
-    "primary_link",
-    "ferry",
-    "shuttle_train",
-    "road_connector",
+    "motorway": "road",
+    "motorway_link": "road",
+    "trunk": "road",
+    "trunk_link": "road",
+    "primary": "road",
+    "primary_link": "road",
+    "ferry": "road",
+    "shuttle_train": "road",
+    "road_connector": "road",
     # A high-speed line is `rail_highspeed`. Another line takes its class from its
     # `usage` value.
-    "rail_highspeed",
-    "rail_main",
-    "rail_branch",
-    "rail_other",
-    "rail_connector",
+    "rail_highspeed": "rail",
+    "rail_main": "rail",
+    "rail_branch": "rail",
+    "rail_other": "rail",
+    "rail_connector": "rail",
     # Sea lanes: `open_sea` outside a passage, then the passages of the source
-    "open_sea",
-    "babelmandeb",
-    "bering",
-    "corinth",
-    "dover",
-    "gibraltar",
-    "kiel",
-    "magellan",
-    "malacca",
-    "panama",
-    "suez",
-    "sea_connector",
-    "flight",
-)
+    "open_sea": "sea",
+    "babelmandeb": "sea",
+    "bering": "sea",
+    "corinth": "sea",
+    "dover": "sea",
+    "gibraltar": "sea",
+    "kiel": "sea",
+    "magellan": "sea",
+    "malacca": "sea",
+    "panama": "sea",
+    "suez": "sea",
+    "sea_connector": "sea",
+    "flight": "air",
+}
 # The row of each class: the value that `edge_classes` holds for an edge of the class
 CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
 # In bytes. A larger download is logged at WARNING, which shows without a logging

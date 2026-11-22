@@ -24,10 +24,11 @@ import os
 from scgraph.pipelines import geofabrik_multimodal as regional
 from scgraph.pipelines.steps import step1_osm_ways
 
-PIPELINE_VERSION = 2
+PIPELINE_VERSION = 3
 
 # The sources of the regional pipeline, with the planet in place of the extract
 SOURCES = {**regional.SOURCES, "osm": step1_osm_ways.PLANET}
+NODE_ADDITION_MODES = regional.NODE_ADDITION_MODES
 # The length in km at which a way is cut, and at which a chain is cut. A larger
 # value gives fewer nodes: with 10, the world network has about 3.3 million nodes.
 MAX_KM_BETWEEN_NODES = 10

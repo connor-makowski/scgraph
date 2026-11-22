@@ -34,7 +34,8 @@ HOW A RUN GOES
    along a Hilbert curve. Its modes table holds the kept modes only. As in every
    network file, a derived file with one mode has no `node_modes`. If the parent
    file has `edge_classes`, each kept edge keeps its class, and the derived file holds
-   the whole list of classes.
+   the whole list of classes. The derived file holds the lengths of the edges, and
+   no other metric of the parent file.
 
 Example: a two-way road joins the nodes 1, 2 and 3 along the equator, with 3 km
 between two nodes. A second two-way road goes from node 2 to node 4, which is two
@@ -71,6 +72,8 @@ WHAT THE HEADER OF A DERIVED FILE RECORDS
   because the header does not record what uses it. For example, the land mask of
   the connectors uses Natural Earth;
 - `software`: the software that derived the file;
+- `node_addition_modes`: those of the parent file that the derived file holds. The
+  header has no such key when none is left;
 - `derivation`: the `parent_content_sha256`, and the `modes`, the `bbox` and the
   `min_component_nodes` of the call.
 
@@ -326,14 +329,22 @@ def derive_network_file(
         "bbox": bbox,
         "min_component_nodes": min_component_nodes,
     }
+    node_addition_modes = [
+        name
+        for name in parent_metadata.get("node_addition_modes", [])
+        if modes is None or name in modes
+    ]
     return network_file.write(
         derived_file,
         graph,
         network_file.build_header_metadata(
             metadata,
-            units=parent_metadata["units"],
             modes=kept_modes,
+            # The derived file holds the lengths, and no other metric
+            metrics=parent_metadata["metrics"][:1],
             classes=parent_metadata.get("classes"),
+            # Without a kept mode among them, the derived file has no such key
+            node_addition_modes=node_addition_modes or None,
         ),
     )
 

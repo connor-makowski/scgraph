@@ -13,7 +13,13 @@ A file has these parts, in this order:
 
 The edges are stored by origin, in Compressed Sparse Row (CSR) arrays. The edges of
 node `u` go to the nodes `heads[offsets[u]:offsets[u + 1]]`, in the order that a
-search visits them. `weights` holds the weight of each edge at the same positions.
+search visits them. `weights_length` holds the length of each edge at the same
+positions.
+
+A metric is one weight for every edge, under a name. The header lists the metrics of
+the file in `metadata["metrics"]`, and `length` is the first one. The file holds one
+array `weights_<name>` for each metric. Example: a file with the metrics `length` and
+`travel_time` holds `weights_length` and `weights_travel_time`.
 
 The public functions are `read`, `write`, `get_scgraph_info` and `check_content`.
 """
@@ -53,13 +59,15 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # array name -> the dtypes it may have; shape_* hold the edge shapes, if any; node_ids and
 # node_modes (optional): each node's id in its source and its row of metadata["modes"].
 # edge_classes (optional): each edge's row of metadata["classes"].
+# weights_length: the length of each edge. The array `weights_<name>` of another metric
+# is not listed here: it has the dtype of weights_length (see `_get_dtypes`).
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `encode_coordinates`).
 ARRAYS = {
     "offsets": ("int32",),
     "heads": ("int32",),
-    "weights": ("float64",),
+    "weights_length": ("float64",),
     "node_points": ("int32", "float64"),
     "shape_offsets": ("int32",),
     "shape_points": ("int32", "float64"),
@@ -129,9 +137,10 @@ def _get_units_per_degree(values):
 RESERVED_METADATA_KEYS = frozenset(
     {
         "crs",
-        "units",
+        "metrics",
         "modes",
         "classes",
+        "node_addition_modes",
         "symmetric",
         "node_order",
         "content_sha256",
@@ -150,9 +159,10 @@ RESERVED_METADATA_KEYS = frozenset(
 def build_header_metadata(
     build_metadata: dict,
     *,
-    units: str,
     modes: list[dict],
-    classes: Sequence[str] | None = None,
+    metrics: list[dict] | None = None,
+    classes: list[dict] | None = None,
+    node_addition_modes: Sequence[str] | None = None,
 ) -> dict:
     """Return the metadata that `write` takes, for a network whose nodes are in the
     order of a network file: by mode, then along a Hilbert curve (`helpers.hilbert`).
@@ -160,14 +170,21 @@ def build_header_metadata(
     Args:
         build_metadata: What built the network: the pipeline, the sources and the
             software (docstring of `scgraph.pipelines`).
-        units: The unit of the edge weights, such as "km".
         modes: The modes table: one dict for each mode, with its `name` and, if a
             source gave the node ids of the mode, the name of that `source`.
-        classes: The names of the classes, for a network with `edge_classes`.
+        metrics: One row for each metric of the network, `length` first. A row
+            gives the `name` of the metric, its `unit` and its `description`. A
+            row other than `length` also gives `off_graph_per_km`: the weight of
+            1 km between a query point and its node. The default, None, is the
+            one row of lengths in km.
+        classes: One row for each class, for a network with `edge_classes`. A row
+            gives the `name` of the class and the `mode` of its edges.
+        node_addition_modes: The names of the modes that a query point snaps to
+            by default. None writes no such key.
 
     Returns:
-        The keys that scgraph sets itself (`crs`, `units`, `modes`, `classes`,
-        `node_order`), then the keys of `build_metadata`.
+        The keys that scgraph sets itself (`crs`, `metrics`, `modes`, `classes`,
+        `node_addition_modes`, `node_order`), then the keys of `build_metadata`.
 
     Raises:
         ValueError: `build_metadata` sets a key that scgraph writes itself, or a mode
@@ -185,11 +202,24 @@ def build_header_metadata(
                 f"Mode {mode} names no source: pass metadata with a source of "
                 f"that name in its 'sources'"
             )
+    if metrics is None:
+        metrics = [
+            {
+                "name": "length",
+                "unit": "km",
+                "description": "Length of each edge along its shape.",
+            }
+        ]
     return {
         "crs": "EPSG:4326",
-        "units": units,
+        "metrics": metrics,
         **({"modes": modes} if modes != [{"name": None}] else {}),
-        **({"classes": list(classes)} if classes is not None else {}),
+        **({"classes": classes} if classes is not None else {}),
+        **(
+            {"node_addition_modes": list(node_addition_modes)}
+            if node_addition_modes is not None
+            else {}
+        ),
         "node_order": NODE_ORDER,
         **build_metadata,
     }
@@ -204,11 +234,12 @@ def write(
 
     Args:
         filename: The path of the `.scgraph` file to write.
-        arrays: The arrays of the network, by name (`offsets`, `heads`, `weights`,
-            `node_points`, ...). `ARRAYS` gives the names and the dtypes that a file
-            may hold.
-        metadata: The metadata of the network (modes, sources, ...). It must be
-            serializable as JSON.
+        arrays: The arrays of the network, by name (`offsets`, `heads`,
+            `weights_length`, `node_points`, ...). `ARRAYS` gives the names and the
+            dtypes that a file may hold. The file may also hold one array
+            `weights_<name>` for each other metric.
+        metadata: The metadata of the network (metrics, modes, sources, ...), as
+            `build_header_metadata` returns it. It must be serializable as JSON.
 
     Returns:
         The `content_sha256` of the file: the SHA-256 digest of its content, in
@@ -220,7 +251,7 @@ def write(
             the file cannot be replaced.
     """
     symmetric = _is_symmetric(
-        arrays["offsets"], arrays["heads"], arrays["weights"]
+        arrays["offsets"], arrays["heads"], arrays["weights_length"]
     )
 
     header = {
@@ -231,13 +262,13 @@ def write(
     position = 0
     for name, values in arrays.items():
         size = memoryview(values).itemsize
+        dtypes = _get_dtypes(name)
         dtype = next(
-            (d for d in ARRAYS[name] if array(DTYPES[d]).itemsize == size),
-            None,
+            (d for d in dtypes if array(DTYPES[d]).itemsize == size), None
         )
         if dtype is None:
             raise TypeError(
-                f"Array '{name}' must hold {' or '.join(ARRAYS[name])} values"
+                f"Array '{name}' must hold {' or '.join(dtypes)} values"
             )
         shape = [len(values) // 2, 2] if name in POINT_ARRAYS else [len(values)]
         header["arrays"][name] = {
@@ -312,12 +343,14 @@ def read(
 
     Returns:
         `(arrays, metadata)`. `arrays` holds the arrays of the network by name
-        (`offsets`, `heads`, `weights`, ...). `metadata` holds the metadata of the
-        header, and the `content_sha256` of the file.
+        (`offsets`, `heads`, `weights_length`, ...), with the array `weights_<name>`
+        of each other metric. `metadata` holds the metadata of the header, and the
+        `content_sha256` of the file.
 
     Raises:
-        ValueError: The header or the layout of the arrays is not valid. `read` does
-            not check the digest (see `check_content`).
+        ValueError: The header or the layout of the arrays is not valid. Or an
+            earlier development version of scgraph wrote the file. `read` does not
+            check the digest (see `check_content`).
         FileNotFoundError: The file does not exist.
     """
     mapped = mapped and sys.byteorder == "little"
@@ -326,15 +359,18 @@ def read(
             arrays, metadata, is_mode_kept = _read(
                 filename, file, mapped, modes
             )
+        # A selection checks the values of the edges itself, where it reads them
+        _check(
+            filename,
+            arrays,
+            metadata,
+            should_check_values=not mapped and is_mode_kept is None,
+        )
     except ValueError:
         raise
     except (AttributeError, KeyError, OverflowError, TypeError) as error:
         raise ValueError(f"{filename}: invalid header ({error!r})") from error
-    if is_mode_kept is None:
-        _check(filename, arrays, metadata, should_check_values=not mapped)
-    else:
-        # The selection checks the values of the edges, where it reads them
-        _check(filename, arrays, metadata, should_check_values=False)
+    if is_mode_kept is not None:
         arrays = _select_modes(
             filename, arrays, metadata, is_mode_kept, in_place=mapped
         )
@@ -416,6 +452,13 @@ def _read(filename, file, mapped, modes):
             f"{filename} has format version {header.get('format_version')}; "
             f"this version of scgraph reads version {FORMAT_VERSION}"
         )
+    # A file of an earlier development version has `units` and no `metrics`. Without
+    # this message, the read would only say that an array is missing.
+    if "units" in header["metadata"] and "metrics" not in header["metadata"]:
+        raise ValueError(
+            f"{filename} has the format of an earlier development version of "
+            "scgraph: build or download the network again"
+        )
     is_mode_kept = None
     if modes is not None:
         modes = (modes,) if isinstance(modes, str) else modes
@@ -434,9 +477,10 @@ def _read(filename, file, mapped, modes):
         view = memoryview(mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ))
     arrays = {}
     for name, entry in header["arrays"].items():
-        if name not in ARRAYS:
+        dtypes = _get_dtypes(name)
+        if dtypes is None:
             continue  # added by a later version, not needed to read the graph
-        if entry["dtype"] not in ARRAYS[name]:
+        if entry["dtype"] not in dtypes:
             raise ValueError(f"{filename}: invalid array '{name}'")
         typecode = DTYPES[entry["dtype"]]
         values, count, start = (
@@ -495,7 +539,7 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
         selected["shape_offsets"] = shape_offsets
     # Each other array, the runs that it follows, and its values per position
     for name, runs, width in (
-        ("weights", edge_runs, 1),
+        *((name, edge_runs, 1) for name in arrays if _is_weights(name)),
         ("edge_classes", edge_runs, 1),
         ("node_points", node_runs, 2),
         ("node_ids", node_runs, 1),
@@ -822,7 +866,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
         if not condition:
             raise ValueError(f"{filename}: {what}")
 
-    required = {"offsets", "heads", "weights", "node_points"}
+    required = {"offsets", "heads", "weights_length", "node_points"}
     require(required <= set(arrays), "missing arrays")
     require(
         ("shape_offsets" in arrays) == ("shape_points" in arrays),
@@ -831,7 +875,25 @@ def _check(filename, arrays, metadata, should_check_values=True):
     offsets, heads = arrays["offsets"], arrays["heads"]
     n, m = len(offsets) - 1, len(heads)
     require(n >= 0 and offsets[0] == 0 and offsets[-1] == m, "invalid offsets")
-    require(len(arrays["weights"]) == m, "one weight per edge expected")
+    # Each metric has one row in the header and one array of weights
+    metrics = metadata["metrics"]
+    require(
+        metrics and metrics[0]["name"] == "length" and "unit" in metrics[0],
+        "the first metric must be length, with its unit",
+    )
+    weights_names = sorted(filter(_is_weights, arrays))
+    require(
+        sorted(f"weights_{row['name']}" for row in metrics) == weights_names,
+        "one array of weights per metric expected",
+    )
+    require(
+        all(len(arrays[name]) == m for name in weights_names),
+        "one weight per edge expected",
+    )
+    require(
+        all("off_graph_per_km" in row for row in metrics[1:]),
+        "a metric other than length must give off_graph_per_km",
+    )
     if should_check_values:
         # The loops over the edges run in C (map, min, max), not in Python
         require(is_sorted(offsets), "invalid offsets")
@@ -887,6 +949,18 @@ def _check(filename, arrays, metadata, should_check_values=True):
                 or max(arrays[name], default=-1) < len(rows),
                 f"invalid {what}",
             )
+    require(
+        "edge_classes" not in arrays
+        or all({"name", "mode"} <= set(row) for row in metadata["classes"]),
+        "each class must be a row with a name and a mode",
+    )
+    mode_names = [
+        mode["name"] for mode in metadata.get("modes") or [{"name": None}]
+    ]
+    require(
+        set(metadata.get("node_addition_modes", [])) <= set(mode_names),
+        "node_addition_modes names a mode that the file does not have",
+    )
 
 
 def _is_symmetric(offsets, heads, weights):
@@ -918,6 +992,17 @@ def _is_symmetric(offsets, heads, weights):
             else:
                 return False
     return unmatched == 0
+
+
+def _is_weights(name):
+    # Whether `name` is the array of the weights of a metric
+    return name.startswith("weights_")
+
+
+def _get_dtypes(name):
+    # The dtypes that the array `name` may have. None for an array that this version
+    # of scgraph does not know. The weights of every metric have the same dtype.
+    return ARRAYS.get("weights_length" if _is_weights(name) else name)
 
 
 def _count_values(shape):
