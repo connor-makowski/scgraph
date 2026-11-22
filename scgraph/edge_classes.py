@@ -53,15 +53,9 @@ _MAX_CLASS_COUNT = 256
 def iter_edges(
     offsets: array | memoryview, origin_ids: Iterable[int] | None = None
 ) -> Iterator[tuple[int, int]]:
-    """Yield each edge as (origin id, index of the edge), in the order of the edges.
-
-    Example: the offsets [0, 2, 2, 3] give (0, 0), (0, 1) and (2, 2).
-
-    Args:
-        offsets: The offsets of the edges, one for each node plus one.
-        origin_ids: The nodes whose edges are given, in this order. None for every
-            node.
-    """
+    """Yield each edge as (origin id, index of the edge), in the order of the edges:
+    the offsets [0, 2, 2, 3] give (0, 0), (0, 1) and (2, 2). `origin_ids` gives the
+    nodes whose edges are given, in this order: every node for None."""
     if origin_ids is None:
         origin_ids = range(len(offsets) - 1)
     for origin_id in origin_ids:
@@ -92,11 +86,8 @@ def find_old_edge_indexes(
     heads: array | memoryview,
 ) -> array:
     """Return the index that each edge of a graph had before the graph was edited,
-    or -1 for an edge that was not there (int64).
-
-    The function reads each node once in Python: about 0.5 second for a million
-    nodes. It is one function, so that a compiled kernel can replace it.
-    """
+    or -1 for an edge that was not there (int64). The function reads each node once
+    in Python: about 0.5 second for a million nodes."""
     old_edge_indexes = array("q")
     old_node_count = len(old_offsets) - 1
     for origin_id in range(len(offsets) - 1):
@@ -126,7 +117,7 @@ def reorder_edge_values(
 
     Args:
         values: An array lined up with the edges.
-        offsets: The offsets of the edges, one for each node plus one.
+        offsets: The offsets of the edges before the nodes are reordered.
         order: The nodes in their new order: `order[new id] = id`. A node keeps the
             order of its edges, as `Graph._csr(order)` does.
     """
@@ -171,7 +162,8 @@ class EdgeClasses:
         since the last line-up.
 
         Returns:
-            Whether the graph was edited. The geograph then removes its metrics.
+            Whether the method read the edges again: at its first call, and after
+            an edit. The geograph then removes its metrics.
 
         Raises:
             ValueError: An edge without a class needs a row after 256 classes.
@@ -272,7 +264,6 @@ class EdgeClasses:
         `EdgeClasses` are lined up.
 
         Args:
-            other: The classes of the geograph whose edges the merge adds.
             first_node_id: The id that the node 0 of the other geograph gets in the
                 merged graph. Each next node gets the next id.
 

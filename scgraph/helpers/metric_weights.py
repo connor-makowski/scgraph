@@ -1,7 +1,7 @@
 """
 Pure-Python version of the C++ kernels `compute_weights_from_rates` and
-`compute_weighted_sum`, with the same result, bit for bit. The kernels are described
-in `scgraph/cpp/src/metric_weights.hpp`. Read it first.
+`compute_weighted_sum`, with the same result, bit for bit. The kernels and their
+parameters are described in `scgraph/cpp/src/metric_weights.hpp`. Read it first.
 
 Same as in C++: the steps, the order of the operations on each weight, and the
 messages of the errors.
@@ -29,25 +29,9 @@ def compute_weights_from_rates(
     hub_weights: array | memoryview,
 ) -> array:
     """
-    Compute the weight of each edge from a rate for each class and from the weight
-    that it pays at a hub.
-
-    Args:
-        offsets: The edges of node u are at the positions offsets[u] to
-            offsets[u + 1] - 1 (int32).
-        heads: The node that each edge goes to (int32).
-        lengths: The km of each edge (float64).
-        edge_classes: The class of each edge, as a row of the classes (uint8).
-        node_modes: The mode of each node, as a row of the modes (uint8).
-        class_rates_per_km: The weight of 1 km of an edge of each class (float64).
-            Infinity closes the class.
-        hub_weights: The weight that an edge of the class c pays when it leaves a
-            node of the mode m, and when it goes to a node of the mode m, at the
-            position m * number of classes + c (float64).
-
-    Returns:
-        One float64 weight for each edge, of zero or more. Infinity for a closed
-        edge.
+    Compute the weight of each edge from the rate of its class and from the weight
+    that it pays at a hub: one float64 weight of zero or more for each edge, and
+    infinity for a closed edge.
 
     Raises:
         ValueError: The arrays do not fit together, or a weight is below zero or
@@ -131,17 +115,8 @@ def compute_weighted_sum(
 ) -> array:
     """
     Compute the weight of each edge as the sum of its weight in each metric times
-    the coefficient of the metric.
-
-    Args:
-        weights_of_metrics: The weights of each metric, one float64 value for each
-            edge.
-        coefficients: The coefficient of each metric, a finite number above zero
-            (float64).
-
-    Returns:
-        One float64 weight for each edge. Infinity for an edge that is closed in
-        one of the metrics.
+    the coefficient of the metric, in float64. An edge that is closed in one of the
+    metrics gets infinity.
 
     Raises:
         ValueError: The arrays do not fit together.
