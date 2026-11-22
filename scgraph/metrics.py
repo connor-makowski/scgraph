@@ -19,7 +19,8 @@ The weights of a metric are computed in one of three ways:
   kernel `compute_weights_from_km`;
 - as a weighted sum of other metrics (`compute_weights_from_sum`);
 - from a function of the caller, called once for each edge
-  (`compute_weights_from_function`).
+  (`compute_weights_from_function`). The caller gives the weight of 1 km of an
+  off-graph leg beside the function.
 
 `set_edge_weights` then writes the weights that the caller gives for some edges.
 
@@ -269,27 +270,21 @@ def compute_weights_from_sum(
 
 
 def compute_weights_from_function(
-    edge_weight_fn: Callable,
-    edges: Iterable[dict],
-    metrics: dict[str, Metric],
-    units_per_km: float,
-) -> tuple[array, float | None]:
-    """Return the weights that a function of the caller gives, and its weight of
-    1 km of an off-graph leg: the value of the function for 1 km of the mode
-    `off_graph`.
+    edge_weight_fn: Callable, edges: Iterable[dict]
+) -> array:
+    """Return the weights that a function of the caller gives. The function is
+    called once for each edge, and for no other dict.
 
     Args:
         edge_weight_fn: Takes the dict of an edge and returns its weight, or None
             to close it.
         edges: The dict of each edge, in the order of the edges (see
             `GeoGraph.get_edges`).
-        metrics: The metrics of the geograph other than `length`, by name.
-        units_per_km: 1 km in the unit of the lengths.
 
     Raises:
         ValueError: A weight is below zero or not a number.
     """
-    weights = array(
+    return array(
         "d",
         (
             check_weight(
@@ -298,20 +293,6 @@ def compute_weights_from_function(
             for edge in edges
         ),
     )
-    off_graph_weight_per_km = edge_weight_fn(
-        {
-            "origin_id": None,
-            "destination_id": None,
-            "length": units_per_km,
-            "edge_class": None,
-            "edge_mode": "off_graph",
-            "metric_weights": {
-                name: metric_record.off_graph_weight_per_km
-                for name, metric_record in metrics.items()
-            },
-        }
-    )
-    return weights, off_graph_weight_per_km
 
 
 def _check_edge_modes(
@@ -395,8 +376,7 @@ def check_off_graph_weight_per_km(
         raise ValueError(
             f"The weight of 1 km of an off-graph leg in the metric {name!r} "
             "must be a finite number of zero or more: got "
-            f"{off_graph_weight_per_km!r} (for a function: the value that it "
-            "returns for the mode 'off_graph')"
+            f"{off_graph_weight_per_km!r}"
         )
     return float(off_graph_weight_per_km)
 

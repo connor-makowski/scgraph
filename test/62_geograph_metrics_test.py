@@ -560,15 +560,21 @@ def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(network):
     ) == (0.25 + 15.0, 0.25 + 15.0, 4.0)
 
 
+# The toll of each class: 7 on the motorway. The dict has the classes of the
+# network only.
+TOLL_OF_EACH_CLASS = {**dict.fromkeys(CLASSES, 0.0), "motorway": 7.0}
+
+
 def _get_toll(edge):
-    """A toll of 7 on the motorway, and 0.25 for 1 km of an off-graph leg."""
-    if edge["edge_mode"] == "off_graph":
-        return 0.25 * edge["length"]
-    return 7.0 if edge["edge_class"] == "motorway" else 0.0
+    """The toll of the class of an edge. The function knows the edges of the
+    network only: it fails for a dict that is no edge of the network."""
+    return TOLL_OF_EACH_CLASS[edge["edge_class"]]
 
 
 def test_a_function_gives_its_result_to_each_edge(network):
-    network.create_metric("toll", edge_weight_fn=_get_toll)
+    network.create_metric(
+        "toll", edge_weight_fn=_get_toll, off_graph_weight_per_km=0.25
+    )
 
     assert _get_weight_of_each_edge(network, "toll") == {
         nodes: 7.0 if edge_class == "motorway" else 0.0
@@ -631,13 +637,18 @@ def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
         description="Three minutes per km.",
     )
     network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
-    network.create_metric("toll", edge_weight_fn=_get_toll)
+    network.create_metric(
+        "toll", edge_weight_fn=_get_toll, off_graph_weight_per_km=0.25
+    )
 
     # A metric without a description gets the text of its call.
     # `off_graph_weight_per_km` is the weight of 1 km of an off-graph leg. For
-    # the cost, it is 2 × 3 minutes + 0.5 × 1 km.
+    # the cost, it is 2 × 3 minutes + 0.5 × 1 km. For the toll, the call gives
+    # it.
     cost_call = "create_metric(weighted_sum_of={'minutes': 2, 'length': 0.5})"
-    toll_call = "create_metric(edge_weight_fn=_get_toll)"
+    toll_call = (
+        "create_metric(edge_weight_fn=_get_toll, off_graph_weight_per_km=0.25)"
+    )
     assert network.metrics == [
         {"name": "length", "unit": "km"},
         {
@@ -660,16 +671,21 @@ def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
 
 
 def _get_cost(edge):
-    """The cost of an edge, or of 1 km of an off-graph leg: 2 for each of its
-    minutes, and 0.5 for each of its km."""
+    """The cost of an edge: 2 for each of its minutes, and 0.5 for each of its
+    km."""
     return 2 * edge["metric_weights"]["minutes"] + 0.5 * edge["length"]
 
 
 # Each case computes the metric `cost` from the metric `minutes`: the
 # arguments of `create_metric`. The function reads the minutes of each edge.
+# It is called for the edges only: the call gives the cost of 1 km of an
+# off-graph leg, which takes 4 minutes.
 COSTS_FROM_THE_MINUTES = {
     "a weighted sum": {"weighted_sum_of": {"minutes": 2, "length": 0.5}},
-    "a function": {"edge_weight_fn": _get_cost},
+    "a function": {
+        "edge_weight_fn": _get_cost,
+        "off_graph_weight_per_km": 8.5,
+    },
 }
 
 
@@ -797,18 +813,31 @@ REFUSED_METRICS = {
     # names the first such edge.
     "a weight per km below zero": ({"weight_per_km": -2.0}, "node 0 to node 1"),
     "a function that gives a toll below zero": (
-        {"edge_weight_fn": _get_negative_toll},
+        {"edge_weight_fn": _get_negative_toll, "off_graph_weight_per_km": 0.0},
         "node 0 to node 2",
     ),
     "an edge weight that is not a number": (
         {"weight_per_km": 2.0, "edge_weights": {(1, 2): math.nan}},
         "node 1 to node 2",
     ),
-    # A function returns None to close an edge. It gets 1 km of an off-graph
-    # leg as an edge of the edge mode `off_graph`.
-    "a function that closes the off-graph legs": (
-        {"edge_weight_fn": lambda edge: None},
+    # A function is called for the edges only: the call gives the weight of
+    # 1 km of an off-graph leg, a finite number of zero or more. The two other
+    # ways give this weight themselves.
+    "a function without the weight of the off-graph legs": (
+        {"edge_weight_fn": _get_toll},
+        "edge_weight_fn needs off_graph_weight_per_km",
+    ),
+    "a function with a weight of the off-graph legs below zero": (
+        {"edge_weight_fn": _get_toll, "off_graph_weight_per_km": -0.25},
         "off-graph leg",
+    ),
+    "weights per km and the weight of the off-graph legs": (
+        {"weight_per_km": 2.0, "off_graph_weight_per_km": 4.0},
+        "off_graph_weight_per_km needs edge_weight_fn",
+    ),
+    "a sum and the weight of the off-graph legs": (
+        {"weighted_sum_of": {"length": 2}, "off_graph_weight_per_km": 4.0},
+        "off_graph_weight_per_km needs edge_weight_fn",
     ),
 }
 
@@ -1025,13 +1054,17 @@ def _get_twice_the_length(edge):
 
 def test_a_metric_of_a_geograph_in_miles_weighs_an_off_graph_leg_by_its_miles():
     # One edge of 2.5 miles. The metric `cost` is a weighted sum, and the
-    # metric `toll` is a function: each gives the weight 2 to 1 mile.
+    # metric `toll` is a function: each gives the weight 2 to 1 mile. The call
+    # of the function gives the weight of 1 km of an off-graph leg. 1 km is
+    # 3959 / 6371 mile: the radius of the Earth in miles and in km.
     geograph_in_miles = GeoGraph(
         graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]], geograph_units="mi"
     )
     geograph_in_miles.create_metric("cost", weighted_sum_of={"length": 2})
     geograph_in_miles.create_metric(
-        "toll", edge_weight_fn=_get_twice_the_length
+        "toll",
+        edge_weight_fn=_get_twice_the_length,
+        off_graph_weight_per_km=2 * 3959 / 6371,
     )
 
     route = geograph_in_miles.get_shortest_path(

@@ -429,7 +429,7 @@ The first leg and the last leg are the two off-graph legs: their `mode` is `off_
 |---|---|---|
 | Weights per km | `weight_per_km`, with `class_weight_per_km` and `weight_at_hub` | Each edge mode or each class has a weight per km, as in `hours` above |
 | A weighted sum | `weighted_sum_of` | A metric combines other metrics, for example a cost of the hours and of the km |
-| A function of an edge | `edge_weight_fn` | The weight of an edge is not a weight per km times its km |
+| A function of an edge | `edge_weight_fn`, with `off_graph_weight_per_km` | The weight of an edge is not a weight per km times its km |
 
 With each of the three ways, `edge_weights` gives the weights of chosen edges. Use it when a few edges differ from the others. These weights replace the computed ones.
 
@@ -442,10 +442,10 @@ def get_co2(edge):
     if edge["edge_mode"] == "air":
         return edge["length"] * (0.8 if edge["length"] < 1000 else 0.6)
     # None is the edge mode of an edge without a class, such as an edge that you add
-    kg_per_km = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1, None: 0.1}
+    kg_per_km = {"road": 0.1, "rail": 0.02, "sea": 0.01, None: 0.1}
     return edge["length"] * kg_per_km[edge["edge_mode"]]
 
-europe.create_metric("co2", edge_weight_fn=get_co2, unit="kg")
+europe.create_metric("co2", edge_weight_fn=get_co2, off_graph_weight_per_km=0.1, unit="kg")
 
 # The weights of chosen edges: each vehicle ferry takes twice its hours.
 # A sum of one metric with the coefficient 1 copies it
@@ -462,7 +462,7 @@ europe.create_metric(
 
 **A weighted sum.** scgraph computes a weighted sum once, at its creation. When you create `hours` again, create `euros` again too. A weighted sum can also trade one metric against another: `weighted_sum_of={"co2": 1, "hours": 10}` counts one hour as 10 kg of CO2. The notebook [Trade-offs between time, cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb) tries several coefficients, and draws the routes on charts and on a map.
 
-**The function.** The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `edge_class`, `edge_mode` and `metric_weights`. `metric_weights` holds the weight of the edge in each metric that exists at the call. scgraph calls the function once for each edge, so a function is slower than weights per km. It calls the function once more for the weight per km of the off-graph legs, with a length of 1 km and `off_graph` as the `edge_mode`.
+**The function.** The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `edge_class`, `edge_mode` and `metric_weights`. `metric_weights` holds the weight of the edge in each metric that exists at the call. scgraph calls the function once for each edge, so a function is slower than weights per km. It calls the function for the edges only: `off_graph_weight_per_km` gives the weight of 1 km of an off-graph leg.
 
 ### Closing a Class or an Edge
 
@@ -526,7 +526,8 @@ Each metric has its own graph: the edges of the network, with the weights of the
 | `class_weight_per_km` | `None` | With `weight_per_km`: `{name of a class: weight of 1 km}`. It replaces the weight per km of the edge mode of the class. `None` closes a class |
 | `weight_at_hub` | `None` | With `weight_per_km`: `{node mode of a hub: {edge mode: weight}}`. The weight is one number, paid by an edge that leaves the hub and by an edge that enters it |
 | `weighted_sum_of` | `None` | `{name of a metric: coefficient}`, with coefficients above zero; `length` can be one of the metrics. An edge that is closed in one of them is closed in the sum |
-| `edge_weight_fn` | `None` | A function that gets the dict of an edge and returns its weight, or `None` to close it |
+| `edge_weight_fn` | `None` | A function that gets the dict of an edge and returns its weight, or `None` to close it. It is called for the edges only, and needs `off_graph_weight_per_km` |
+| `off_graph_weight_per_km` | `None` | With `edge_weight_fn`: the weight of 1 km of an off-graph leg. The other ways refuse it: `weight_per_km` and `weighted_sum_of` give this weight themselves |
 | `edge_weights` | `None` | `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the computed one; `None` closes an edge |
 | `unit` | `None` | The unit of the weights, as free text |
 | `description` | `None` | Where the weights come from, as free text; by default, the text of the call |

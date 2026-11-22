@@ -3562,6 +3562,7 @@ class GeoGraph(
         weight_at_hub: dict | None = None,
         weighted_sum_of: dict[str, float] | None = None,
         edge_weight_fn: Callable | None = None,
+        off_graph_weight_per_km: float | None = None,
         edge_weights: dict | None = None,
         unit: str | None = None,
         description: str | None = None,
@@ -3587,7 +3588,8 @@ class GeoGraph(
         - `class_weight_per_km`: With `weight_per_km`, `{name of a class: weight of 1 km}`: the weight per km of the edges of this class, in place of the weight per km of their edge mode. None closes a class
         - `weight_at_hub`: With `weight_per_km`, the weight that an edge pays at a hub: `{node mode of a hub: {edge mode: weight}}`. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port
         - `weighted_sum_of`: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. The sum keeps its weights when one of these metrics is created again
-        - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, then once for 1 km of an off-graph leg: `{"origin_id": None, "destination_id": None, "length": 1 km in geograph_units, "edge_class": None, "edge_mode": "off_graph", "metric_weights": {name: weight of 1 km of an off-graph leg}}`
+        - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, and for the edges only. It needs `off_graph_weight_per_km`
+        - `off_graph_weight_per_km`: With `edge_weight_fn`, the weight of 1 km of an off-graph leg, a finite number of zero or more. The other ways refuse it: a number of `weight_per_km` is also the weight per km of the off-graph legs, a dict of `weight_per_km` has the key `"off_graph"`, and a sum adds the weights per km of the off-graph legs of its metrics
         - `edge_weights`: `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the weight computed above
         - `unit`: The unit of the weights, as free text
         - `description`: Where the weights come from, as free text; the text of this call when None
@@ -3627,6 +3629,27 @@ class GeoGraph(
                 "weight_per_km needs lengths in km: the lengths of this "
                 f"geograph are in {self._length_unit!r}"
             )
+        if edge_weight_fn is None:
+            if off_graph_weight_per_km is not None:
+                raise ValueError(
+                    "off_graph_weight_per_km needs edge_weight_fn: weight_per_km "
+                    "and weighted_sum_of give the weight of 1 km of an off-graph "
+                    "leg themselves"
+                )
+        elif off_graph_weight_per_km is None:
+            raise ValueError(
+                "edge_weight_fn needs off_graph_weight_per_km: the weight of 1 km "
+                "of an off-graph leg. The function is called for the edges only"
+            )
+        description = description or build_default_description(
+            weight_per_km=weight_per_km,
+            class_weight_per_km=class_weight_per_km,
+            weight_at_hub=weight_at_hub,
+            weighted_sum_of=weighted_sum_of,
+            edge_weight_fn=edge_weight_fn,
+            off_graph_weight_per_km=off_graph_weight_per_km,
+            edge_weights=edge_weights,
+        )
         offsets, heads, lengths = self._read_edge_arrays()
         units_per_km = get_units_per_km(self.geograph_units)
         if weight_per_km is not None:
@@ -3665,11 +3688,8 @@ class GeoGraph(
                 weighted_sum_of, self._metrics, lengths, units_per_km
             )
         else:
-            weights, off_graph_weight_per_km = compute_weights_from_function(
-                edge_weight_fn,
-                self._iter_edge_dicts(self._iter_edges()),
-                self._metrics,
-                units_per_km,
+            weights = compute_weights_from_function(
+                edge_weight_fn, self._iter_edge_dicts(self._iter_edges())
             )
         if edge_weights:
             weights = set_edge_weights(weights, edge_weights, offsets, heads)
@@ -3677,15 +3697,7 @@ class GeoGraph(
         self._metrics[name] = Metric(
             name,
             unit,
-            description
-            or build_default_description(
-                weight_per_km=weight_per_km,
-                class_weight_per_km=class_weight_per_km,
-                weight_at_hub=weight_at_hub,
-                weighted_sum_of=weighted_sum_of,
-                edge_weight_fn=edge_weight_fn,
-                edge_weights=edge_weights,
-            ),
+            description,
             weights,
             check_off_graph_weight_per_km(name, off_graph_weight_per_km),
         )
