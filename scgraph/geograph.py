@@ -49,7 +49,7 @@ import re
 import types
 from array import array
 from collections import Counter
-from itertools import compress, zip_longest
+from itertools import chain, zip_longest
 from math import inf, isfinite
 from operator import eq
 from copy import deepcopy
@@ -2480,7 +2480,7 @@ class _SortedSnapIndex:
     A snapping index over nodes in an order that is not the order of their ids, answering
     with the nodes' own ids. The nodes are every node in Hilbert order (an exact tie
     between two places goes to the node earlier on the curve, not to the lower id), or
-    the nodes of some node modes (`GeoGraph._get_node_mode_snap_index`).
+    the nodes of one node mode (`GeoGraph._get_snap_index_of_node_mode`).
     """
 
     def __init__(self, order: array | range, index: SnapIndex):
@@ -2500,6 +2500,56 @@ class _SortedSnapIndex:
             if p is not None:
                 found[quadrant] = self.order[p]
         return found
+
+
+class _NodeModeSnapIndexes:
+    """
+    The snapping indexes of several node modes, used as one index. Each index gives
+    its closest node, and the answer is the closest of these nodes.
+
+    Example: a point is 3 km from its closest road node and 1 km from its closest rail
+    node. The index of the road nodes gives the road node, the index of the rail nodes
+    gives the rail node, and `closest_idx` returns the rail node.
+
+    Two nodes at the same distance: the lowest id wins, as in one index.
+    """
+
+    def __init__(self, indexes: list[_SortedSnapIndex], nodes: Sequence):
+        # `nodes` are the nodes of the geograph: an answer of an index is a node id
+        self.indexes, self.nodes = indexes, nodes
+
+    @property
+    def order(self) -> Iterator[int]:
+        # The ids of the nodes of every index, as `_SortedSnapIndex.order`
+        return chain.from_iterable(index.order for index in self.indexes)
+
+    def _find_closest(self, point, node_ids: list[int | None]) -> int | None:
+        # The node closest to `point` among the answers of the indexes. An index
+        # answers None for a quadrant without a node.
+        return min(
+            (node_id for node_id in node_ids if node_id is not None),
+            key=lambda node_id: (
+                haversine(point, self.nodes[node_id]),
+                node_id,
+            ),
+            default=None,
+        )
+
+    def closest_idx(self, point) -> int:
+        return self._find_closest(
+            point, [index.closest_idx(point) for index in self.indexes]
+        )
+
+    def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
+        answers = [
+            index.closest_idx_per_quadrant(point) for index in self.indexes
+        ]
+        return {
+            quadrant: self._find_closest(
+                point, [answer[quadrant] for answer in answers]
+            )
+            for quadrant in ("ne", "nw", "se", "sw")
+        }
 
 
 def _keep_interior_points(shapes, nodes):
@@ -2588,7 +2638,9 @@ def _is_date(text):
 
 class GeoGraphUtils:
     def __get_quadrant_node_indices__(
-        self, node: list, node_mode_snap_index: "_SortedSnapIndex | None" = None
+        self,
+        node: list,
+        node_mode_snap_index: "_SortedSnapIndex | _NodeModeSnapIndexes | None" = None,
     ) -> set[int]:
         snap_index = node_mode_snap_index or self.snap_index
         indices = snap_index.closest_idx_per_quadrant(point=node)
@@ -2603,7 +2655,7 @@ class GeoGraphUtils:
         circuity: float,
         node_addition_type: str,
         lat_lon_bound: float,
-        node_mode_snap_index: "_SortedSnapIndex | None" = None,
+        node_mode_snap_index: "_SortedSnapIndex | _NodeModeSnapIndexes | None" = None,
     ) -> dict[int, float]:
         """
         Function:
@@ -2636,7 +2688,7 @@ class GeoGraphUtils:
         Optional Arguments:
 
         - `node_mode_snap_index`
-            - Type: _SortedSnapIndex | None
+            - Type: _SortedSnapIndex | _NodeModeSnapIndexes | None
             - What: The snapping index of the nodes of some node modes (see `_get_node_mode_snap_index`): only these nodes are selected
             - Default: None (every node may be selected)
 
@@ -2681,9 +2733,9 @@ class GeoGraphUtils:
             for node_idx, node_i in (
                 enumerate(self.nodes)
                 if node_mode_snap_index is None
-                else zip(
-                    node_mode_snap_index.order,
-                    map(self.nodes.__getitem__, node_mode_snap_index.order),
+                else (
+                    (node_id, self.nodes[node_id])
+                    for node_id in node_mode_snap_index.order
                 )
             )
             if node_i[0] >= bottom_lat
@@ -3370,8 +3422,9 @@ class GeoGraph(
         self.__snap_index__ = snap_index
         # Node coordinates in radians for the native A* heuristic, rebuilt with the index
         self.__node_radians__ = None
-        # The snapping index of the nodes of each set of node modes that a query used
-        # (see `_get_node_mode_snap_index`), rebuilt with the index
+        # The snapping index of the nodes of each node mode that a query used, by the
+        # name of the node mode (see `_get_snap_index_of_node_mode`). They are rebuilt
+        # with the index.
         self._node_mode_snap_indexes = {}
         if snap_index is None:
             self.__geokdtree__ = None
@@ -3381,7 +3434,7 @@ class GeoGraph(
     ) -> "SnapIndex | _SortedSnapIndex":
         """
         Builds the snapping index of the nodes, or of the nodes `node_ids` alone: a
-        range, or an array of ids in rising order. Nodes too scattered for the index are
+        range, or an array of ids in rising order (see `_find_node_ids`). Nodes too scattered for the index are
         indexed in Hilbert order, without a change of their ids.
         """
         nodes = self.nodes
@@ -3419,95 +3472,141 @@ class GeoGraph(
             index = SnapIndex([points[i] for i in order])
             if node_ids is not None:
                 # A position in `points` becomes the id of its node
-                order = array("q", map(node_ids.__getitem__, order))
+                order = array("q", [node_ids[i] for i in order])
             return _SortedSnapIndex(order, index)
 
     def _get_node_mode_snap_index(
         self, node_addition_modes: list[str] | None
-    ) -> "_SortedSnapIndex | None":
+    ) -> "_SortedSnapIndex | _NodeModeSnapIndexes | None":
         """
         Returns the snapping index of the nodes that a point of a query may snap to.
         Returns None when the point may snap to every node: `snap_index` is then the
         index.
 
+        The geograph has one snapping index for each node mode, built at the first query
+        that needs it (`_get_snap_index_of_node_mode`). A query point snaps to the
+        closest node among the indexes of its node modes.
+
         - `node_addition_modes` is the argument of the query: names of `node_modes`, or None
           for the node modes of `default_node_addition_modes`
         - With None, a point also snaps to a node without a named node mode: a node that
-          the user added. `add_coord_node` gives the node mode without a name to its
-          node, and a node appended to `nodes` directly is not in `node_mode_ids`. A
-          list of names keeps only the nodes of these node modes
+          the user added. A list of names keeps only the nodes of these node modes
         - The default node modes that no node has do not count. A geograph that read only
           the sea lanes of a file has no node of the default node mode `road` of this
           file: a point then snaps to every node
-        - The geograph keeps the index of each set of node modes. The setter of `snap_index`
-          drops these indexes when the nodes change
-        - The nodes of a network file are sorted by node mode. So the nodes of one node mode are
-          a range of node ids, and their index reads their points in the file
         - Raises a ValueError for a list with a name that is not in `node_modes`. It also
           raises for a list whose node modes have no node. An empty list is such a list
         """
-        is_default = node_addition_modes is None
-        if is_default:
-            node_addition_modes = self.default_node_addition_modes
-            if node_addition_modes is None:
+        if node_addition_modes is None:
+            snap_indexes = self._list_snap_indexes(
+                self.default_node_addition_modes or []
+            )
+            if not snap_indexes:
                 return None
-        node_mode_names = [mode.get("name") for mode in self.node_modes]
-        if not (
-            is_default
-            or set(node_addition_modes) <= set(node_mode_names) - {None}
-        ):
-            raise ValueError(
-                "node_addition_modes must be a list of node modes of this geograph, "
-                f"which are {node_mode_names}: got {node_addition_modes!r}"
-            )
-        node_modes = frozenset(node_addition_modes)
-        # The default node modes and a list of the same names do not keep the same nodes
-        key = node_modes | {None} if is_default else node_modes
-        if key not in self._node_mode_snap_indexes:
-            # One byte for each node mode, then for each node: 1 for a node that a point
-            # may snap to. The loops over the nodes run in C.
-            node_mode_ids = bytes(self.node_mode_ids)
-            is_node_mode_kept = bytes(
-                name in node_modes for name in node_mode_names
-            )
-            is_node_kept = node_mode_ids.translate(
-                is_node_mode_kept.ljust(256, b"\0")
-            )
-            if is_default and 1 in is_node_kept:
-                # Also the nodes without a named node mode, which the user added
-                is_node_mode_kept = bytes(
-                    name in key for name in node_mode_names
+            # The nodes without a named node mode
+            snap_indexes += self._list_snap_indexes([None])
+        else:
+            node_mode_names = [mode.get("name") for mode in self.node_modes]
+            if not set(node_addition_modes) <= set(node_mode_names) - {None}:
+                raise ValueError(
+                    "node_addition_modes must be a list of node modes of this geograph, "
+                    f"which are {node_mode_names}: got {node_addition_modes!r}"
                 )
-                is_node_kept = node_mode_ids.translate(
-                    is_node_mode_kept.ljust(256, b"\0")
-                ).ljust(len(self.nodes), b"\1")
-            first, node_count = is_node_kept.find(1), is_node_kept.count(1)
+            snap_indexes = self._list_snap_indexes(node_addition_modes)
+            if not snap_indexes:
+                raise ValueError(
+                    "node_addition_modes names no node mode that a node of this geograph "
+                    f"has: got {node_addition_modes!r}"
+                )
+        if len(snap_indexes) == 1:
+            return snap_indexes[0]
+        return _NodeModeSnapIndexes(snap_indexes, self.nodes)
+
+    def _list_snap_indexes(
+        self, node_modes: Iterable[str | None]
+    ) -> "list[_SortedSnapIndex]":
+        # The snapping index of each of these node modes that has a node. A name
+        # given twice counts once.
+        snap_indexes = [
+            self._get_snap_index_of_node_mode(node_mode)
+            for node_mode in dict.fromkeys(node_modes)
+        ]
+        return [
+            snap_index for snap_index in snap_indexes if snap_index is not None
+        ]
+
+    def _get_snap_index_of_node_mode(
+        self, node_mode: str | None
+    ) -> "_SortedSnapIndex | None":
+        """
+        Returns the snapping index of the nodes of one node mode, built at the first
+        call. Returns None for a node mode without a node.
+
+        - `node_mode` is a name of `node_modes`, or None for the nodes without a named
+          node mode
+        - The geograph keeps the index. The setter of `snap_index` drops it when the
+          nodes change
+        """
+        if node_mode not in self._node_mode_snap_indexes:
+            node_ids = self._find_node_ids(node_mode)
             snap_index = None
-            if node_count:
-                node_ids = (
-                    range(first, first + node_count)
-                    if is_node_kept.rfind(1) == first + node_count - 1
-                    else array(
-                        "q", compress(range(len(is_node_kept)), is_node_kept)
-                    )
-                )
+            if node_ids:
                 with log_step(
                     logger,
                     "build the snapping index",
-                    {"nodes": node_count, "node_modes": sorted(node_modes)},
+                    {"nodes": len(node_ids), "node_mode": node_mode},
                 ) as indicators:
                     snap_index = self._build_snap_index(node_ids)
                     indicators["sorted_for_the_index"] = (
                         snap_index.order is not node_ids
                     )
-            self._node_mode_snap_indexes[key] = snap_index
-        snap_index = self._node_mode_snap_indexes[key]
-        if snap_index is None and not is_default:
-            raise ValueError(
-                "node_addition_modes names no node mode that a node of this geograph "
-                f"has: got {node_addition_modes!r}"
-            )
-        return snap_index
+            self._node_mode_snap_indexes[node_mode] = snap_index
+        return self._node_mode_snap_indexes[node_mode]
+
+    def _find_node_ids(self, node_mode: str | None) -> range | array:
+        """
+        Returns the ids of the nodes of one node mode, in rising order. `node_mode` is
+        a name of `node_modes`, or None for the nodes without a named node mode.
+
+        - The nodes of a network file are sorted by node mode. So the nodes of one node
+          mode are a range of node ids, and their index reads their points in the file
+        - A merge or an added node breaks this order: the ids are then an array. A merge
+          can also give the same name to two rows of `node_modes`, and a geograph may
+          have no row for a name
+        - `add_coord_node` gives the node mode without a name to its node. A node
+          appended to `nodes` directly is not in `node_mode_ids`: it has no named
+          node mode either
+        """
+        wanted_node_mode_ids = [
+            node_mode_id
+            for node_mode_id, row in enumerate(self.node_modes)
+            if row.get("name") == node_mode
+        ]
+        appended_node_ids = (
+            range(len(self.node_mode_ids), len(self.nodes))
+            if node_mode is None
+            else range(0)
+        )
+        if not wanted_node_mode_ids:
+            return appended_node_ids
+        if len(wanted_node_mode_ids) == 1 and not appended_node_ids:
+            # `bytes` searches a value in C: a search in the array costs as much as
+            # the build of the index
+            node_mode_ids = bytes(self.node_mode_ids)
+            node_mode_id = wanted_node_mode_ids[0]
+            first = node_mode_ids.find(node_mode_id)
+            last = node_mode_ids.rfind(node_mode_id)
+            if node_mode_ids.count(node_mode_id) == last - first + 1:
+                return range(first, last + 1)
+        return array(
+            "q",
+            [
+                node_id
+                for node_id, node_mode_id in enumerate(self.node_mode_ids)
+                if node_mode_id in wanted_node_mode_ids
+            ]
+            + list(appended_node_ids),
+        )
 
     @property
     def geokdtree(self) -> "GeoKDTree":
@@ -3698,8 +3797,8 @@ class GeoGraph(
                     "B", bytes([network_file.NO_CLASS_ID]) * len(heads)
                 )
             # Nodes appended to `nodes` directly are in the first node mode
-            self.node_mode_ids.extend(
-                bytes(len(offsets) - 1 - len(self.node_mode_ids))
+            node_mode_ids = self.node_mode_ids + array(
+                "B", bytes(len(offsets) - 1 - len(self.node_mode_ids))
             )
             class_weights_per_km, hub_weights, off_graph_weight_per_km = (
                 resolve_weights_per_km(
@@ -3716,7 +3815,7 @@ class GeoGraph(
                 heads,
                 lengths,
                 edge_class_ids,
-                self.node_mode_ids,
+                node_mode_ids,
                 class_weights_per_km,
                 hub_weights,
             )
@@ -3932,7 +4031,9 @@ class GeoGraph(
         weights = (
             lengths if metric == "length" else self._read_metric(metric).weights
         )
-        return sum(map(weights.__getitem__, self._find_path_edge_ids(path)))
+        return sum(
+            weights[edge_id] for edge_id in self._find_path_edge_ids(path)
+        )
 
     def get_path_edges(self, path: list[int]) -> list[dict]:
         """
@@ -3969,7 +4070,7 @@ class GeoGraph(
         )
         edge_ids = self._find_path_edge_ids(path)
         return {
-            name: sum(map(metric_record.weights.__getitem__, edge_ids))
+            name: sum(metric_record.weights[edge_id] for edge_id in edge_ids)
             + off_graph_km * metric_record.off_graph_weight_per_km
             for name, metric_record in self._metrics.items()
         }
@@ -3994,37 +4095,63 @@ class GeoGraph(
         origin: Sequence[float],
         destination: Sequence[float],
         off_graph_circuity: float,
-        output_units: str,
-        output_coordinate_path: str,
         get_intermediate_nodes: bool,
     ) -> tuple[list[dict], list[dict]]:
         """Return the legs and the transfers of a route, as `get_shortest_path`
-        describes them. The edges of `path` make the legs on the network
-        (`_cut_legs`). An off-graph leg joins each point of the query to its node,
-        and weighs as in the totals of the route. A route without an edge is one
-        off-graph leg, through the node of its path if it has one."""
+        describes them. The lengths are in the units of the geograph, and each
+        coordinate path is a list of [latitude, longitude]: `_format_leg` gives a
+        leg the units and the format that the query asks. The edges of `path` make
+        the legs on the network (`_cut_legs`). An off-graph leg joins each point of
+        the query to its node (`_get_off_graph_legs`)."""
         legs = _cut_legs(self.get_path_edges(path))
-        transfers = [
-            {
-                "node_id": leg["path"][0],
-                "node_mode": self.node_modes[
-                    self.node_mode_ids[leg["path"][0]]
-                ].get("name"),
-            }
-            for leg in legs[1:]
-        ]
+        transfers = self._get_transfers(legs)
         for leg in legs:
             leg["coordinate_path"] = self.__get_coordinate_path__(
                 leg.pop("path"), get_intermediate_nodes=get_intermediate_nodes
             )
-        if legs:
+        off_graph_legs = self._get_off_graph_legs(
+            path, origin, destination, off_graph_circuity
+        )
+        return [off_graph_legs[0], *legs, *off_graph_legs[1:]], transfers
+
+    def _get_transfers(self, legs: list[dict]) -> list[dict]:
+        """Return the transfers of a route: the node where each leg on the network
+        starts, except the first leg. `legs` are the legs of `_cut_legs`, which
+        still have the node ids of their `path`."""
+        transfers = []
+        for leg in legs[1:]:
+            node_id = leg["path"][0]
+            node_mode = self.node_modes[self.node_mode_ids[node_id]]
+            transfers.append(
+                {"node_id": node_id, "node_mode": node_mode.get("name")}
+            )
+        return transfers
+
+    def _get_off_graph_legs(
+        self,
+        path: list[int],
+        origin: Sequence[float],
+        destination: Sequence[float],
+        off_graph_circuity: float,
+    ) -> list[dict]:
+        """Return the off-graph legs of a route, with the keys of a leg of
+        `_cut_legs` and a `coordinate_path` in place of `path`. A route with an
+        edge has two: from `origin` to the first node of `path`, and from its last
+        node to `destination`. A route without an edge is one off-graph leg,
+        through the node of its path if it has one. An off-graph leg weighs as in
+        the totals of the route (`_get_metric_totals`)."""
+        if len(path) > 1:
             off_graph_paths = [
                 [origin, self.nodes[path[0]]],
                 [self.nodes[path[-1]], destination],
             ]
         else:
             off_graph_paths = [
-                [origin, *map(self.nodes.__getitem__, path), destination]
+                [
+                    origin,
+                    *(self.nodes[node_id] for node_id in path),
+                    destination,
+                ]
             ]
         off_graph_legs = []
         for points in off_graph_paths:
@@ -4032,44 +4159,55 @@ class GeoGraph(
             off_graph_km = off_graph_circuity * sum(
                 haversine(start, end) for start, end in hops
             )
-            off_graph_leg = {
-                "mode": "off_graph",
-                "length": sum(
-                    haversine(
-                        start,
-                        end,
-                        circuity=off_graph_circuity,
-                        units=self.geograph_units,
-                    )
-                    for start, end in hops
-                ),
-                "metric_totals": {
-                    name: off_graph_km * metric_record.off_graph_weight_per_km
-                    for name, metric_record in self._metrics.items()
-                },
-                "class_lengths": {},
-                "coordinate_path": points,
-            }
-            off_graph_legs.append(off_graph_leg)
-        legs = [off_graph_legs[0], *legs, *off_graph_legs[1:]]
-        convert_length = partial(
-            distance_converter,
+            off_graph_legs.append(
+                {
+                    "mode": "off_graph",
+                    "length": sum(
+                        haversine(
+                            start,
+                            end,
+                            circuity=off_graph_circuity,
+                            units=self.geograph_units,
+                        )
+                        for start, end in hops
+                    ),
+                    "metric_totals": {
+                        name: off_graph_km
+                        * metric_record.off_graph_weight_per_km
+                        for name, metric_record in self._metrics.items()
+                    },
+                    "class_lengths": {},
+                    "coordinate_path": points,
+                }
+            )
+        return off_graph_legs
+
+    def _format_leg(
+        self, leg: dict, output_units: str, output_coordinate_path: str
+    ) -> None:
+        """Give a leg of `_get_legs` the form that a query asks: its lengths in
+        `output_units`, and its coordinate path in the format
+        `output_coordinate_path`. A geograph without a metric gives no
+        `metric_totals`. The leg is changed in place."""
+        leg["length"] = distance_converter(
+            leg["length"],
             input_units=self.geograph_units,
             output_units=output_units,
         )
-        for leg in legs:
-            leg["length"] = convert_length(leg["length"])
-            leg["class_lengths"] = {
-                name: convert_length(length)
-                for name, length in leg["class_lengths"].items()
-            }
-            leg["coordinate_path"] = self.__format_coordinates__(
-                coordinate_path=leg["coordinate_path"],
-                output_format=output_coordinate_path,
+        leg["class_lengths"] = {
+            name: distance_converter(
+                length,
+                input_units=self.geograph_units,
+                output_units=output_units,
             )
-            if not self._metrics:
-                del leg["metric_totals"]
-        return legs, transfers
+            for name, length in leg["class_lengths"].items()
+        }
+        leg["coordinate_path"] = self.__format_coordinates__(
+            coordinate_path=leg["coordinate_path"],
+            output_format=output_coordinate_path,
+        )
+        if not self._metrics:
+            del leg["metric_totals"]
 
     def validate_nodes(self) -> None:
         """
@@ -4383,7 +4521,7 @@ class GeoGraph(
             - Notes:
                 - EG: `geograph.get_shortest_path(origin_node, destination_node, node_addition_modes=["road"])` starts and ends the path on a road, also when a railway or a sea lane is closer
                 - An empty list, a name that is not in `node_modes`, or node modes that no node has, raise a ValueError
-                - The first query with a set of node modes builds the snapping index of their nodes. The geograph keeps it until its nodes change
+                - The first query that snaps to a node mode builds the snapping index of its nodes. The geograph keeps it until its nodes change
         - `output_legs`
             - Type: bool
             - What: Whether to output the legs of the path and its transfers, under the keys `legs` and `transfers` described above
@@ -4422,16 +4560,21 @@ class GeoGraph(
             algorithm_kwargs["graph"] = graph_object.unreduced_graph
         elif isinstance(algorithm_fn, str):
             heuristic_fn = algorithm_kwargs.get("heuristic_fn")
-            # The function of this geograph that gives the bound of an A* search
-            bound_fn = (
-                getattr(heuristic_fn, "__func__", None)
-                if getattr(heuristic_fn, "__self__", None) is self
-                else None
+            # The methods `haversine` and `cheap_ruler` of scgraph, for this
+            # geograph: each gives a length between two of its nodes. The function
+            # of the caller is equal to one of them only when the caller passed
+            # this method of this geograph. A subclass that defines its own
+            # `haversine` passes another function, which is used as it is.
+            haversine_of_scgraph = types.MethodType(
+                GeoGraphDistanceCalculations.haversine, self
+            )
+            cheap_ruler_of_scgraph = types.MethodType(
+                GeoGraphDistanceCalculations.cheap_ruler, self
             )
             if (
                 algorithm_fn == "a_star"
                 and hasattr(graph_object, "a_star_great_circle")
-                and bound_fn is GeoGraphDistanceCalculations.haversine
+                and heuristic_fn == haversine_of_scgraph
             ):
                 # The built-in haversine heuristic is computed natively in the C++ build
                 latitudes, longitudes = self._get_node_radians()
@@ -4453,7 +4596,7 @@ class GeoGraph(
                 if (
                     is_metric_other_than_length
                     and algorithm_fn == "a_star"
-                    and bound_fn is GeoGraphDistanceCalculations.cheap_ruler
+                    and heuristic_fn == cheap_ruler_of_scgraph
                 ):
                     # `cheap_ruler` gives a length. The bound of the metric is this
                     # length times `min_weight_per_km`, as for `haversine` above.
@@ -4648,10 +4791,10 @@ class GeoGraph(
                     origin,
                     destination,
                     off_graph_circuity,
-                    output_units,
-                    output_coordinate_path,
                     get_intermediate_nodes,
                 )
+                for leg in output["legs"]:
+                    self._format_leg(leg, output_units, output_coordinate_path)
             if not output_path:
                 del output["path"]
             return output
@@ -4813,11 +4956,11 @@ class GeoGraph(
                 input_units=self.geograph_units,
                 output_units=output_units,
             )
-            off_graph_weight_per_unit = 1
+            off_graph_units, off_graph_weight_per_unit = output_units, 1
         else:
             # The total of a metric is not converted. An off-graph leg weighs its km
             # times the weight of 1 km in the metric.
-            dist_multiplier, output_units = 1, "km"
+            dist_multiplier, off_graph_units = 1, "km"
             off_graph_weight_per_unit = self._read_metric(
                 output_metric
             ).off_graph_weight_per_km
@@ -4837,7 +4980,7 @@ class GeoGraph(
                     [node["latitude"], node["longitude"]],
                     self.nodes[node_idx],
                     circuity=off_graph_circuity,
-                    units=output_units,  # Store directly as output units since this is a post processing step
+                    units=off_graph_units,  # Store directly as output units since this is a post processing step
                 )
                 * off_graph_weight_per_unit
             )
