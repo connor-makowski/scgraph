@@ -1,3 +1,5 @@
+import math
+
 import pytest
 from scgraph import Graph, PathNotFoundError
 from helpers import assert_result
@@ -200,6 +202,58 @@ def test_a_search_raises_path_not_found_between_two_parts_of_a_graph(
 
     with pytest.raises(PathNotFoundError):
         search(origin_id=0, destination_id=3)
+
+
+# Every search of a graph, by the name of its method.
+_SEARCHES = [
+    "dijkstra",
+    "bidirectional_dijkstra",
+    "dijkstra_buckets",
+    "bidirectional_buckets",
+    "dijkstra_negative",
+    "a_star",
+    "bellman_ford",
+    "bmssp",
+    "cached_shortest_path",
+    "contraction_hierarchy",
+    "tnr",
+]
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES)
+def test_a_search_never_takes_an_edge_whose_weight_is_infinite(
+    graph_class, algorithm
+):
+    # The two edges between nodes 0 and 3 have an infinite weight. The detour
+    # 0 -> 1 -> 2 -> 3 costs 1 + 2 + 3 = 6.
+    graph_with_a_closed_shortcut = graph_class(
+        [
+            {1: 1.0, 3: math.inf},
+            {0: 1.0, 2: 2.0},
+            {1: 2.0, 3: 3.0},
+            {2: 3.0, 0: math.inf},
+        ]
+    )
+    search = getattr(graph_with_a_closed_shortcut, algorithm)
+
+    found = search(origin_id=0, destination_id=3)
+
+    assert_result(found, {"path": [0, 1, 2, 3], "length": 6})
+
+
+@pytest.mark.parametrize("algorithm", _SEARCHES)
+def test_a_search_raises_path_not_found_when_every_route_takes_an_infinite_edge(
+    graph_class, algorithm
+):
+    # Node 1 is the only neighbour of node 2, and the two edges between them
+    # have an infinite weight.
+    graph_with_a_closed_dead_end = graph_class(
+        [{1: 1.0}, {0: 1.0, 2: math.inf}, {1: math.inf}]
+    )
+    search = getattr(graph_with_a_closed_dead_end, algorithm)
+
+    with pytest.raises(PathNotFoundError):
+        search(origin_id=0, destination_id=2)
 
 
 def test_get_path_weight_raises_for_a_path_that_uses_a_missing_link(

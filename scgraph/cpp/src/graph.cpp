@@ -85,8 +85,8 @@ void Graph::reset_cache() {
 }
 
 // Width of the buckets of dijkstra_buckets and bidirectional_buckets: the given width, else
-// 8 times the median edge weight of the searched graph (1 if that median is 0), and never so
-// small that a bucket ring would exceed 2^16 + 1 buckets. Same rule as
+// 8 times the median finite edge weight of the searched graph (1 if that median is 0), and
+// never so small that a bucket ring would exceed 2^16 + 1 buckets. Same rule as
 // GraphUtils._get_bucket_width in graph_utils.py
 double Graph::resolve_bucket_width(const CsrGraph& g,
                                    std::optional<double> bucket_width, double max_weight) {
@@ -99,7 +99,13 @@ double Graph::resolve_bucket_width(const CsrGraph& g,
     } else {
         double& cache = (&g == &this->reduced_graph) ? reduced_bucket_width_cache_ : bucket_width_cache_;
         if (cache < 0.0) {
-            std::vector<double> weights(g.all_weights().begin(), g.all_weights().end());
+            std::vector<double> weights;
+            weights.reserve(g.all_weights().size());
+            for (double weight : g.all_weights()) {
+                if (std::isfinite(weight)) {
+                    weights.push_back(weight);
+                }
+            }
             double median = 0.0;
             if (!weights.empty()) {
                 auto mid = weights.begin() + weights.size() / 2;
@@ -790,6 +796,14 @@ GraphResult Graph::bidirectional_buckets(const NodeIdVariant& origin_id, const N
 
         auto origin_entries = get_node_entries(orig);
         auto dest_entries = get_node_entries(dest);
+        // A node at an infinite distance has no bucket. On a reduced graph, a boundary node
+        // gets this distance when its path to the node of the query takes an edge whose
+        // weight is infinite
+        auto is_at_infinite_distance = [](const std::pair<int, double>& entry) {
+            return !std::isfinite(entry.second);
+        };
+        std::erase_if(origin_entries, is_at_infinite_distance);
+        std::erase_if(dest_entries, is_at_infinite_distance);
         std::unordered_map<int, double> orig_map(origin_entries.begin(), origin_entries.end());
         std::unordered_map<int, double> dest_map(dest_entries.begin(), dest_entries.end());
 

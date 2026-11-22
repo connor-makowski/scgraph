@@ -92,7 +92,10 @@ def test_reduction_consistency(published):
 
 
 # Each graph catches reduction faults the others miss: two-way with unit
-# weights and chains reduced over several passes; weighted with ties; one-way.
+# weights and chains reduced over several passes; weighted with ties; one-way;
+# a ring with a chord, where the two edges between nodes 5 and 0 have an
+# infinite weight, so no search may take them. Its long edges between nodes 2
+# and 3 give the bucket searches a ring of three buckets.
 REDUCIBLE_GRAPHS = [
     [
         {1: 1, 6: 1},
@@ -126,6 +129,14 @@ REDUCIBLE_GRAPHS = [
         {3: 1, 2: 3},
         {4: 4, 2: 2},
         {0: 3, 5: 5},
+    ],
+    [
+        {1: 1, 3: 3, 5: float("inf")},
+        {0: 1, 2: 1},
+        {1: 1, 3: 40},
+        {0: 3, 2: 40, 4: 1},
+        {3: 1, 5: 1},
+        {0: float("inf"), 4: 1},
     ],
 ]
 

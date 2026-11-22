@@ -324,7 +324,8 @@ class GraphUtils:
         self,
         max_edge_weight: float | None,
     ) -> int:
-        """Infer and round up the maximum edge weight for bucket allocation."""
+        """Infer and round up the maximum edge weight for bucket allocation. An infinite
+        weight closes its edge, so the maximum is that of the finite weights."""
         if max_edge_weight is not None:
             return math.ceil(max_edge_weight)
         cached_max_edge_weight = getattr(self, "__max_edge_weight__", None)
@@ -333,7 +334,12 @@ class GraphUtils:
             max_edge_weight = max(
                 0,
                 max(
-                    (max(edges.values()) for edges in graph if edges),
+                    (
+                        weight
+                        for edges in graph
+                        for weight in edges.values()
+                        if math.isfinite(weight)
+                    ),
                     default=0,
                 ),
             )
@@ -347,8 +353,9 @@ class GraphUtils:
         max_edge_weight: int,
     ) -> float:
         """Width of the buckets of the bucket algorithms: the given width, else 8 times the
-        median edge weight of the graph (1 if that median is 0), never so small that a bucket
-        ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width (C++).
+        median finite edge weight of the graph (1 if that median is 0), never so small that a
+        bucket ring would exceed 2^16 + 1 buckets. Same rule as Graph::resolve_bucket_width
+        (C++).
         """
         if bucket_width is not None:
             if not (math.isfinite(bucket_width) and bucket_width > 0):
@@ -364,6 +371,7 @@ class GraphUtils:
                     for edges in self.search_graph
                     if edges
                     for w in edges.values()
+                    if math.isfinite(w)
                 )
                 median = weights[len(weights) // 2] if weights else 0
                 width = 8.0 * median if median > 0 else 1.0

@@ -1,6 +1,7 @@
 #include "graph_utils.hpp"
 #include <stdexcept>
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 std::vector<int> get_node_ids(const NodeIdVariant& node_id) {
@@ -166,10 +167,11 @@ void GraphUtils::ensure_inverse_graph() {
     inverse_graph_computed = true;
 }
 
+// An infinite weight closes its edge, so the maximum is that of the finite weights
 double GraphUtils::get_max_edge_weight() const {
     if (!max_edge_weight_computed) {
         for (double weight : graph().all_weights()) {
-            if (weight > max_edge_weight_cache) {
+            if (std::isfinite(weight) && weight > max_edge_weight_cache) {
                 max_edge_weight_cache = weight;
             }
         }

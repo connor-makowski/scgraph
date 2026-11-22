@@ -1,6 +1,7 @@
 #include <queue>
 #include <functional>
 #include <algorithm>
+#include <cmath>
 #include <tuple>
 #include "graph_reducer.hpp"
 #include "contraction_hierarchies.hpp"
@@ -342,8 +343,9 @@ void GraphReducer::reduce(int iterations) {
     this->reduced_graph = CsrGraph(reduced_graph);
     this->reduced_inverse_graph = CsrGraph(reduced_inverse_graph);
     has_reduced_graph = true;
+    // The maximum reads the finite weights only, as GraphUtils::get_max_edge_weight does
     for (double weight : this->reduced_graph.all_weights()) {
-        if (weight > reduced_max_edge_weight) {
+        if (std::isfinite(weight) && weight > reduced_max_edge_weight) {
             reduced_max_edge_weight = weight;
         }
     }
