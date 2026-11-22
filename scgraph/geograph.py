@@ -3762,8 +3762,8 @@ class GeoGraph(
                 # km for every edge
                 edge_class_ids = array("B", bytes(len(heads)))
             # Nodes appended to `nodes` directly are in the first node mode
-            self.node_mode_ids.extend(
-                bytes(len(offsets) - 1 - len(self.node_mode_ids))
+            node_mode_ids = self.node_mode_ids + array(
+                "B", bytes(len(offsets) - 1 - len(self.node_mode_ids))
             )
             class_weights_per_km, hub_weights, off_graph_weight_per_km = (
                 resolve_weights_per_km(
@@ -3780,7 +3780,7 @@ class GeoGraph(
                 heads,
                 lengths,
                 edge_class_ids,
-                self.node_mode_ids,
+                node_mode_ids,
                 class_weights_per_km,
                 hub_weights,
             )
@@ -3994,7 +3994,9 @@ class GeoGraph(
         weights = (
             lengths if metric == "length" else self._read_metric(metric).weights
         )
-        return sum(map(weights.__getitem__, self._find_path_edge_ids(path)))
+        return sum(
+            weights[edge_id] for edge_id in self._find_path_edge_ids(path)
+        )
 
     def get_path_edges(self, path: list[int]) -> list[dict]:
         """
@@ -4031,7 +4033,7 @@ class GeoGraph(
         )
         edge_ids = self._find_path_edge_ids(path)
         return {
-            name: sum(map(metric_record.weights.__getitem__, edge_ids))
+            name: sum(metric_record.weights[edge_id] for edge_id in edge_ids)
             + off_graph_km * metric_record.off_graph_weight_per_km
             for name, metric_record in self._metrics.items()
         }
@@ -4912,11 +4914,11 @@ class GeoGraph(
                 input_units=self.geograph_units,
                 output_units=output_units,
             )
-            off_graph_weight_per_unit = 1
+            off_graph_units, off_graph_weight_per_unit = output_units, 1
         else:
             # The total of a metric is not converted. An off-graph leg weighs its km
             # times the weight of 1 km in the metric.
-            dist_multiplier, output_units = 1, "km"
+            dist_multiplier, off_graph_units = 1, "km"
             off_graph_weight_per_unit = self._read_metric(
                 output_metric
             ).off_graph_weight_per_km
@@ -4936,7 +4938,7 @@ class GeoGraph(
                     [node["latitude"], node["longitude"]],
                     self.nodes[node_idx],
                     circuity=off_graph_circuity,
-                    units=output_units,  # Store directly as output units since this is a post processing step
+                    units=off_graph_units,  # Store directly as output units since this is a post processing step
                 )
                 * off_graph_weight_per_unit
             )
