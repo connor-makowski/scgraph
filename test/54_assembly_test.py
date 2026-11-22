@@ -52,12 +52,13 @@ def _columns(edges):
 
 
 # The result of `build_csr_from_edges` is (node ids, offsets, heads, weights,
-# kept, parallel). The ids are sorted: 5 is not among them. The rows are those
-# of -7 (no edge), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each
-# sorted by destination. `kept` gives the input index of each stored edge. From
-# BIG to 10, edge 2 is kept: edge 0 is longer, and edge 4 is as short but comes
-# later. From 20 to BIG, edge 6 is kept. `parallel` gives the edges 4 and 8:
-# each is the shortest edge of class 1 between its two nodes, and is not kept.
+# kept, parallel_edges). The ids are sorted: 5 is not among them. The rows are
+# those of -7 (no edge), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20),
+# each sorted by destination. `kept` gives the input index of each stored
+# edge. From BIG to 10, edge 2 is kept: edge 0 is longer, and edge 4 is as
+# short but comes later. From 20 to BIG, edge 6 is kept. `parallel_edges`
+# gives the edges 4 and 8: each is the shortest edge of class 1 between its
+# two nodes, and is not kept.
 CSR_OF_THE_SHORTEST_EDGES = (
     [-7, 10, 20, BIG],
     [0, 0, 1, 2, 5],
@@ -133,11 +134,11 @@ def test_csr_from_random_edges_finds_the_kept_and_the_parallel_edges(
         )
     }
 
-    node_ids, offsets, heads, weights, kept, parallel = (
+    node_ids, offsets, heads, weights, kept, parallel_edges = (
         backend.build_csr_from_edges(*_columns(edges))
     )
 
-    assert list(parallel) == sorted(shortest_of_each_class - set(kept))
+    assert list(parallel_edges) == sorted(shortest_of_each_class - set(kept))
     assert list(kept) == [i for _, _, _, i in expected]
     assert list(weights) == [weight for _, _, weight, _ in expected]
     stored_pairs = [

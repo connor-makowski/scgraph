@@ -278,7 +278,8 @@ def town_in_seconds():
     )
 
 
-# A table of `create_metric` gives the weight of 1 km of an edge.
+# The lengths of this geograph are seconds. A rate of `per_km` is for 1 km,
+# so the call is refused.
 def test_a_table_of_rates_is_refused_on_a_geograph_in_seconds(town_in_seconds):
     with pytest.raises(ValueError, match="in 's'"):
         town_in_seconds.create_metric("cost", per_km=2.0)
