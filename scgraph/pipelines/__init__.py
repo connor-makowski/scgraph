@@ -118,7 +118,7 @@ and the runner writes that table into the header.
 
 A network file holds the class of each edge and one row `{"name", "mode"}` for each
 class (`ARCHITECTURE.md`, section 7), and `network_file.read` returns them. A GeoGraph
-does not hold the classes.
+loaded from the file holds them: `GeoGraph.classes` and `GeoGraph.get_edges`.
 
 HOW TO RUN A PIPELINE
 

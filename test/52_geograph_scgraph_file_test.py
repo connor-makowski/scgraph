@@ -1004,7 +1004,7 @@ def test_reading_some_modes_keeps_the_weights_of_each_metric_of_a_kept_edge(
     assert list(arrays["weights_toll"]) == [10.0, 15.0, 40.0, 60.0]
 
 
-def test_a_geograph_loaded_from_a_file_with_classes_is_saved_without_them(
+def test_a_geograph_loaded_from_a_file_with_classes_is_saved_with_them(
     tmp_path,
 ):
     path, saved_path = (
@@ -1014,9 +1014,11 @@ def test_a_geograph_loaded_from_a_file_with_classes_is_saved_without_them(
 
     GeoGraph.load_from_scgraph(path).save_as_scgraph(saved_path)
 
+    # The save lists the sea node 31 before the sea node 30. The file ends
+    # with the edges 31 -> 20, 31 -> 30 and 30 -> 31.
     arrays, metadata = network_file.read(saved_path)
-    assert "edge_classes" not in arrays
-    assert "classes" not in metadata
+    assert list(arrays["edge_classes"]) == [1, 2, 0, 0, 0, 4, 3]
+    assert metadata["classes"] == EDGE_CLASSES
 
 
 def test_loading_one_mode_gives_its_nodes_and_the_edges_between_them(tmp_path):
@@ -1062,6 +1064,8 @@ def test_loading_two_modes_gives_their_nodes_in_the_order_of_the_file(
         {},
         {2: [[31, 30]]},
     ]
+    classes = [edge["class"] for edge in geograph.get_edges()]
+    assert classes == ["motorway", "primary", "lane", "strait"]
 
 
 # The typecode "i" stores a coordinate as an int32, in 1e-7 degree. The

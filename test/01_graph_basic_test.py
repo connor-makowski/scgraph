@@ -1,4 +1,5 @@
 import math
+from array import array
 
 import pytest
 from scgraph import Graph, PathNotFoundError
@@ -264,6 +265,20 @@ def test_get_path_weight_raises_for_a_path_that_uses_a_missing_link(
 
     with pytest.raises(ValueError, match="No edge from node 0 to node 2"):
         graph.get_path_weight([0, 2])
+
+
+def test_a_graph_made_from_arrays_does_not_follow_a_later_change_of_them(
+    graph_class,
+):
+    # Node 0 has one edge, to node 1.
+    weights = array("d", [2.5])
+    graph = graph_class.from_csr(
+        array("i", [0, 1, 1]), array("i", [1]), weights
+    )
+
+    weights[0] = 7.0
+
+    assert graph.get(0) == {1: 2.5}
 
 
 def test_bmssp_takes_the_option_of_the_constant_degree_graph(graph_class):

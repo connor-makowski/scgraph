@@ -184,13 +184,14 @@ static std::unique_ptr<SnapIndex> snap_index_from_array(CoordinateArray<T> node_
     return std::make_unique<SnapIndex>(node_points.data(), int(node_points.shape(0) / 2), owner);
 }
 
-// A Graph from edges stored by origin: copied, or read in place and kept alive (in_place)
-static std::unique_ptr<Graph> csr_graph(Int32Array offsets, Int32Array heads, DoubleArray weights, bool in_place) {
+// A Graph from edges stored by origin. With copy, the graph copies the three arrays.
+// Without it, the graph reads them in place and keeps them alive.
+static std::unique_ptr<Graph> csr_graph(Int32Array offsets, Int32Array heads, DoubleArray weights, bool copy) {
     if (offsets.shape(0) < 1 || heads.shape(0) != weights.shape(0)) {
         throw std::invalid_argument("expected one offset per node plus one and one weight per edge");
     }
     std::shared_ptr<const void> owner;
-    if (in_place) {
+    if (!copy) {
         owner = std::make_shared<std::tuple<Int32Array, Int32Array, DoubleArray>>(offsets, heads, weights);
     }
     auto graph = std::make_unique<Graph>(std::vector<std::unordered_map<int, double>>{});
@@ -387,6 +388,8 @@ NB_MODULE(cpp, m) {
              "Get the adjacency dictionary for a specific node")
         .def("size", &Graph::size,
              "Get the number of nodes in the graph")
+        .def_prop_ro("_edit_count", &Graph::edit_count,
+             "The number of calls of add_node, add_edge, remove_node and remove_edge that changed the graph")
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
@@ -624,14 +627,9 @@ NB_MODULE(cpp, m) {
            nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("radius"),
            "A* with the great-circle distance as heuristic, computed natively from node latitudes and longitudes in radians")
 
-        .def_static("from_csr", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
-            return csr_graph(offsets, heads, weights, false);
-        }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"),
-           "Create a Graph from its edges stored by origin (compressed sparse rows), as in a .scgraph network file")
-        // For load_from_scgraph: arrays that the graph reads in place and keeps alive
-        .def_static("_from_csr_in_place", [](Int32Array offsets, Int32Array heads, DoubleArray weights) {
-            return csr_graph(offsets, heads, weights, true);
-        }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"))
+        .def_static("from_csr", &csr_graph,
+           nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("copy") = true,
+           "Create a Graph from its edges stored by origin (compressed sparse rows), as in a .scgraph network file. With copy=False, the graph reads the three arrays in place and keeps them alive")
 
         .def("bellman_ford", [](Graph& self,
                                 const NodeIdVariant& origin_id,

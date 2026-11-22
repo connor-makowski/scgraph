@@ -1601,6 +1601,7 @@ class Graph(
         offsets: array | memoryview,
         heads: array | memoryview,
         weights: array | memoryview,
+        copy: bool = True,
     ) -> "Graph":
         """
         Function:
@@ -1616,6 +1617,13 @@ class Graph(
             - Type: sequence of ints (int32 array in the C++ backend), one per edge
         - `weights`
             - Type: sequence of floats (float64 array in the C++ backend), one per edge
+
+        Optional Arguments:
+
+        - `copy`
+            - Type: bool
+            - What: Whether the graph copies the three arrays. If False, the C++ backend reads the arrays in place and keeps them alive: do not modify them afterwards. The pure-Python backend always copies them
+            - Default: True
         """
         n = len(offsets) - 1
         if (

@@ -27,6 +27,12 @@ from scgraph._internal import warn_deprecated_parameter, log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
+from scgraph.metrics import (
+    find_edge_index,
+    match_edges,
+    reorder_edge_values,
+    take_edge_values,
+)
 from scgraph import built_in_geographs, network_cache, network_file
 from scgraph import network_release as pinned_network_release
 import hashlib
@@ -37,7 +43,8 @@ import os
 import types
 from array import array
 from collections import Counter
-from math import isfinite
+from itertools import zip_longest
+from math import inf, isfinite
 from operator import eq
 from copy import deepcopy
 from datetime import datetime
@@ -59,6 +66,9 @@ if (
     from geokdtree import GeoKDTree
 
 logger = logging.getLogger(__name__)
+
+# The row of `classes` for an edge without a class, on a geograph with classes
+_NO_CLASS = {"name": None, "mode": None}
 
 
 class GeoGraphIO:
@@ -242,7 +252,7 @@ class GeoGraphIO:
 
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
-        - Only the graph, the nodes, their ids and modes, their intermediate nodes and the GeoGraph defaults are saved
+        - Only the graph, the nodes, their ids and modes, their intermediate nodes, the classes of the edges, `default_node_addition_modes` and the GeoGraph defaults are saved
         - The nodes are written in Hilbert order within each mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `node_ids`
         - Coordinates that are not finite numbers raise a ValueError
 
@@ -284,10 +294,16 @@ class GeoGraphIO:
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
+        has_classes = self._edge_classes is not None
+        # Lined up before the header is built: an edge without a class may add its
+        # row to `classes`
+        edge_offsets = self._get_edge_arrays()[0] if has_classes else None
         metadata = network_file.build_header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             modes=self.modes,
             metrics=[{"name": "length", "unit": self.geograph_units}],
+            classes=self.classes if has_classes else None,
+            node_addition_modes=self.default_node_addition_modes,
         )
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
@@ -328,6 +344,14 @@ class GeoGraphIO:
             "heads": heads,
             "weights_length": weights,
         }
+        if has_classes:
+            arrays["edge_classes"] = (
+                self._edge_classes
+                if order is None
+                else reorder_edge_values(
+                    self._edge_classes, edge_offsets, order
+                )
+            )
         node_points = array("d", (value for i in old for value in nodes[i][:2]))
         # None: each node's id is its position
         node_ids = self.node_ids.array(order)
@@ -739,6 +763,7 @@ class GeoGraphIO:
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
+        - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge; `default_node_addition_modes` holds the `node_addition_modes` of the file
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones
@@ -788,10 +813,13 @@ class GeoGraphIO:
             arrays, metadata = network_file.read(filename, mapped, modes)
             indicators["nodes"] = len(arrays["node_points"]) // 2
             indicators["edges"] = len(arrays["heads"])
+        edge_arrays = (
+            arrays["offsets"],
+            arrays["heads"],
+            arrays["weights_length"],
+        )
         try:
-            graph = (Graph._from_csr_in_place if mapped else Graph.from_csr)(
-                arrays["offsets"], arrays["heads"], arrays["weights_length"]
-            )
+            graph = Graph.from_csr(*edge_arrays, copy=False)
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
@@ -814,6 +842,15 @@ class GeoGraphIO:
             if key not in network_file.RESERVED_METADATA_KEYS
         }
         geograph.scgraph_file = filename
+        # The arrays of the file are the edges of the new graph, in the same order
+        geograph._edge_arrays = edge_arrays
+        geograph._edge_arrays_edit_count = graph._edit_count
+        if "edge_classes" in arrays:
+            geograph.classes = [dict(row) for row in metadata["classes"]]
+            geograph._edge_classes = arrays["edge_classes"]
+        geograph.default_node_addition_modes = metadata.get(
+            "node_addition_modes"
+        )
         geograph.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
         # index is built now, not at the first query (an empty network has none)
@@ -1683,13 +1720,49 @@ class GeoGraphModifiers:
         destination_id: int,
         distance: float,
         symmetric: bool = False,
+        *,
+        edge_class: str | None = None,
     ) -> None:
+        """
+        Function:
+
+        - Add an edge to the geograph
+        - An edge that the geograph already has between the two nodes is replaced: the new edge has the distance and the class of this call
+
+        Required Arguments:
+
+        - `origin_id`
+            - Type: int
+            - What: The id of the origin node
+        - `destination_id`
+            - Type: int
+            - What: The id of the destination node
+        - `distance`
+            - Type: int | float
+            - What: The length of the edge, in `geograph_units`
+
+        Optional Arguments:
+
+        - `symmetric`
+            - Type: bool
+            - What: Whether to add the edge in both directions
+            - Default: False
+        - `edge_class`
+            - Type: str | None
+            - What: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError
+            - Default: None (on a geograph with classes, the edge gets the class without a name: `{"name": None, "mode": None}`)
+        """
+        class_row = self._get_class_row(edge_class)
         self.graph_object.add_edge(
             origin_id=origin_id,
             destination_id=destination_id,
             distance=distance,
             symmetric=symmetric,
         )
+        if self._edge_classes is not None:
+            self._new_edge_classes[origin_id, destination_id] = class_row
+            if symmetric:
+                self._new_edge_classes[destination_id, origin_id] = class_row
         # `graph` may be a copy of the graph object. It is read again after a change.
         self.graph = None
 
@@ -1743,6 +1816,8 @@ class GeoGraphModifiers:
         symmetric: bool = True,
         distance: float | None = None,
         circuity: float = 1,
+        *,
+        edge_class: str | None = None,
     ) -> None:
         """
         Function:
@@ -1775,6 +1850,10 @@ class GeoGraphModifiers:
             - Type: int | float
             - What: The circuity to apply to the distance calculation if distance is None
             - Default: 1
+        - `edge_class`
+            - Type: str | None
+            - What: The name of the class of the new edge (see `add_edge`)
+            - Default: None
         """
         if not (isinstance(origin_coord_dict, dict)):
             raise ValueError("Origin node must be a dictionary")
@@ -1835,6 +1914,7 @@ class GeoGraphModifiers:
             destination_id=closest_destination_idx,
             distance=distance,
             symmetric=symmetric,
+            edge_class=edge_class,
         )
 
     def add_coord_node(
@@ -1848,6 +1928,8 @@ class GeoGraphModifiers:
         silent: bool | None = None,
         temp_node: bool = False,
         mode: str | None = None,
+        *,
+        edge_class: str | None = None,
     ) -> int:
         """
         Function:
@@ -1898,6 +1980,10 @@ class GeoGraphModifiers:
             - Type: str | None
             - What: The name of the node's mode: the first mode of that name in `modes`, added if there is none
             - Default: None (the mode without a name)
+        - `edge_class`
+            - Type: str | None
+            - What: The name of the class of the new edges (see `add_edge`)
+            - Default: None
 
         Returns:
 
@@ -1918,6 +2004,7 @@ class GeoGraphModifiers:
             coord_dict["longitude"] >= -180 and coord_dict["longitude"] <= 180
         ):
             raise ValueError("Longitude must be between -180 and 180")
+        class_row = self._get_class_row(edge_class)
         node = [coord_dict["latitude"], coord_dict["longitude"]]
         if auto_edge:
             if not (circuity >= 1):
@@ -1957,6 +2044,10 @@ class GeoGraphModifiers:
         new_node_id = self.graph_object.add_node(
             node_dict=node_dict, symmetric=True
         )
+        if self._edge_classes is not None:
+            for destination_id in node_dict:
+                self._new_edge_classes[new_node_id, destination_id] = class_row
+                self._new_edge_classes[destination_id, new_node_id] = class_row
         self.nodes.append(node)
         self.node_modes.append(mode_row)
         self.snap_index = None
@@ -1973,6 +2064,18 @@ class GeoGraphModifiers:
         self.modes.append({"name": name})
         return len(self.modes) - 1
 
+    def _get_class_row(self, name: str | None) -> int | None:
+        # The row of the class named `name`. None stands for no class and gives None.
+        if name is None:
+            return None
+        for row, edge_class in enumerate(self.classes):
+            if edge_class["name"] == name:
+                return row
+        names = [edge_class["name"] for edge_class in self.classes]
+        raise ValueError(
+            f"Unknown class {name!r}: the classes of this geograph are {names}"
+        )
+
     def remove_coord_node(self) -> None:
         """
         Function:
@@ -1988,6 +2091,8 @@ class GeoGraphModifiers:
         origin_idx: int,
         destination_idx: int,
         symmetric: bool = True,
+        *,
+        edge_class: str | None = None,
     ) -> None:
         """
         Function:
@@ -2009,6 +2114,10 @@ class GeoGraphModifiers:
             - Type: bool
             - What: Whether to add the edge in both directions
             - Default: True
+        - `edge_class`
+            - Type: str | None
+            - What: The name of the class of the new edge (see `add_edge`)
+            - Default: None
         """
         if not (origin_idx < len(self.graph_object.graph)):
             raise ValueError("Origin node does not exist")
@@ -2021,6 +2130,7 @@ class GeoGraphModifiers:
                 self.nodes[origin_idx], self.nodes[destination_idx]
             ),
             symmetric=symmetric,
+            edge_class=edge_class,
         )
 
     def merge_with_other_geograph(
@@ -2040,6 +2150,7 @@ class GeoGraphModifiers:
         - Merge the current geograph with another geograph
         - This is useful for combining multiple geographs into one
         - This modifies the current geograph in place
+        - The edges of both geographs keep their classes; a class of the other geograph is added to `classes`, unless a class has its name
 
         Required Arguments:
 
@@ -2093,6 +2204,16 @@ class GeoGraphModifiers:
         original_other_modes = len(other_geograph.modes)
         if len(self.modes) + original_other_modes + 1 > 256:
             raise ValueError("A geograph has at most 256 modes")
+        # The edges of the other geograph and their classes, before it gets the
+        # connection nodes
+        other_edges = None
+        if other_geograph._edge_classes is not None:
+            other_offsets, other_heads, _ = other_geograph._get_edge_arrays()
+            other_edges = (
+                other_offsets,
+                other_heads,
+                other_geograph._edge_classes,
+            )
         # Connection nodes connect to the two networks as they were before
         # the merge, not to each other
         current_index = self.snap_index
@@ -2164,6 +2285,31 @@ class GeoGraphModifiers:
             for row in other_geograph.node_modes[:original_other_graph_length]
         )
         self.snap_index = None
+        if other_edges is not None:
+            other_offsets, other_heads, other_edge_classes = other_edges
+            if self._edge_classes is None:
+                # Every edge of this geograph is in the row 0: no class
+                self.classes = [dict(_NO_CLASS)]
+                self._edge_classes = array(
+                    "B", bytes(len(self._get_edge_arrays()[1]))
+                )
+            # The row in `classes` of each class of the other geograph
+            names = [edge_class["name"] for edge_class in self.classes]
+            class_rows = []
+            for edge_class in other_geograph.classes:
+                if edge_class["name"] not in names:
+                    names.append(edge_class["name"])
+                    self.classes.append(dict(edge_class))
+                class_rows.append(names.index(edge_class["name"]))
+            # A node of the other geograph follows the nodes of this geograph
+            for origin_id in range(original_other_graph_length):
+                for edge_index in range(
+                    other_offsets[origin_id], other_offsets[origin_id + 1]
+                ):
+                    self._new_edge_classes[
+                        graph_length + origin_id,
+                        graph_length + other_heads[edge_index],
+                    ] = class_rows[other_edge_classes[edge_index]]
 
         # Clean up the other geograph to remove any appended nodes
         while len(other_geograph.nodes) > original_other_graph_length:
@@ -2190,6 +2336,8 @@ class GeoGraphModifiers:
                     node_connection_map[destination_idx]
                 ] = distance
         self.graph_object = Graph(graph=graph)
+        # The edit count of the new graph object does not say that the edges changed
+        self._edge_arrays_edit_count = None
 
 
 class _SortedSnapIndex:
@@ -2254,7 +2402,7 @@ def _order_by_hilbert(geograph):
     if Graph.__module__ == "scgraph.cpp":
         # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
         # the new graph keeps instead of copying them again
-        graph = Graph._from_csr_in_place(*geograph.graph_object._csr(order))
+        graph = Graph.from_csr(*geograph.graph_object._csr(order), copy=False)
     else:
         # Renumbered dicts, sharing the graph's weight objects (from_csr would not)
         rows = geograph.graph_object.unreduced_graph
@@ -2829,6 +2977,16 @@ class GeoGraph(
         self.metadata = {}
         # The network file that the geograph was read from, if any (load_from_scgraph)
         self.scgraph_file = None
+        # The classes of the edges (see `_get_edge_arrays`). Only a loader gives
+        # classes to a geograph.
+        self.classes = []
+        self._edge_classes = None
+        self._new_edge_classes = {}
+        self._edge_arrays = None
+        self._edge_arrays_edit_count = None
+        # The modes that a query point snaps to by default, as a network file names
+        # them. None for every mode.
+        self.default_node_addition_modes = None
         self.modes = (
             [dict(mode) for mode in modes] if modes else [{"name": None}]
         )
@@ -2979,6 +3137,202 @@ class GeoGraph(
             is_reduced = self.graph_object.is_reduced or []
             indicators["nodes"] = len(is_reduced)
             indicators["kept_nodes"] = len(is_reduced) - sum(is_reduced)
+
+    def _get_edge_arrays(self) -> tuple[array | memoryview, ...]:
+        """
+        Returns the edges of the geograph: the offsets, the heads and the lengths of
+        `graph_object._csr()`. The edges of node `u` go to
+        `heads[offsets[u]:offsets[u + 1]]`.
+
+        - The geograph keeps the three arrays with the `_edit_count` of `graph_object`.
+          It reads them again when the count changed: after one of its own edits, or
+          after an edit made on `graph_object`
+        - `_edge_classes` holds the row in `classes` of each edge, or None on a
+          geograph without classes. This method lines it up with the new arrays
+          (`scgraph/metrics.py`). An edge that was there keeps its class. An edge of
+          an `add_` method has the class of that call, which `_new_edge_classes`
+          holds by (origin id, destination id): None stands for no class. Any other
+          new edge has no class
+        """
+        edit_count = self.graph_object._edit_count
+        if edit_count != self._edge_arrays_edit_count:
+            edge_arrays = self.graph_object._csr()
+            if self._edge_classes is not None:
+                offsets, heads, _ = edge_arrays
+                names = [edge_class["name"] for edge_class in self.classes]
+                no_class_row = (
+                    names.index(None) if None in names else len(names)
+                )
+                edge_classes = take_edge_values(
+                    self._edge_classes,
+                    match_edges(*self._edge_arrays[:2], offsets, heads),
+                    no_class_row,
+                )
+                for nodes, class_row in self._new_edge_classes.items():
+                    edge_index = find_edge_index(offsets, heads, *nodes)
+                    if edge_index is not None:
+                        edge_classes[edge_index] = (
+                            no_class_row if class_row is None else class_row
+                        )
+                # The row of no class is added when an edge needs it
+                if no_class_row == len(self.classes) and (
+                    no_class_row in edge_classes
+                ):
+                    self.classes.append(dict(_NO_CLASS))
+                self._edge_classes = edge_classes
+                self._new_edge_classes = {}
+            self._edge_arrays = edge_arrays
+            self._edge_arrays_edit_count = edit_count
+        return self._edge_arrays
+
+    def _get_edge(self, origin_id: int, edge_index: int) -> dict:
+        # The dict of the edge `edge_index` of the lined-up arrays (see `get_edges`)
+        _, heads, lengths = self._edge_arrays
+        edge_class = (
+            _NO_CLASS
+            if self._edge_classes is None
+            else self.classes[self._edge_classes[edge_index]]
+        )
+        return {
+            "origin_id": origin_id,
+            "destination_id": heads[edge_index],
+            "length": lengths[edge_index],
+            "class": edge_class["name"],
+            "mode": edge_class["mode"],
+            "metrics": {},
+        }
+
+    def get_nodes(
+        self,
+        mode: str | None = None,
+        bbox: Sequence[float] | None = None,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - Get the nodes of the geograph, or those of one mode or inside a bounding box
+
+        Optional Arguments:
+
+        - `mode`
+            - Type: str | None
+            - What: The name of a mode of `modes`: only the nodes of this mode are returned; an unknown name raises a ValueError
+            - Default: None (the nodes of every mode)
+        - `bbox`
+            - Type: sequence of four floats | None
+            - What: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned
+            - Default: None (the nodes at any place)
+
+        Returns:
+
+        - A list with one dictionary for each node, in the order of the node ids: `{"node_id", "latitude", "longitude", "mode"}`
+        - `mode` is the name of the mode of the node (None on a geograph without named modes)
+        """
+        mode_names = [row.get("name") for row in self.modes]
+        if mode is not None and mode not in mode_names:
+            raise ValueError(
+                f"Unknown mode {mode!r}: the modes of this geograph are {mode_names}"
+            )
+        south, west, north, east = (
+            (-inf, -inf, inf, inf) if bbox is None else bbox
+        )
+        nodes = []
+        # A node appended to `nodes` directly is in the first mode
+        for node_id, (point, mode_row) in enumerate(
+            zip_longest(self.nodes, self.node_modes, fillvalue=0)
+        ):
+            if (
+                mode in (None, mode_names[mode_row])
+                and south <= point[0] <= north
+                and west <= point[1] <= east
+            ):
+                nodes.append(
+                    {
+                        "node_id": node_id,
+                        "latitude": point[0],
+                        "longitude": point[1],
+                        "mode": mode_names[mode_row],
+                    }
+                )
+        return nodes
+
+    def get_edges(
+        self,
+        origin_id: int | None = None,
+        edge_class: str | None = None,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - Get the edges of the geograph, or those of one node or of one class
+        - With both arguments, only the edges that fit both are returned
+
+        Optional Arguments:
+
+        - `origin_id`
+            - Type: int | None
+            - What: The id of a node: only the edges that leave this node are returned; an id that is not in the geograph raises a ValueError
+            - Default: None (the edges of every node)
+        - `edge_class`
+            - Type: str | None
+            - What: The name of a class of `classes`: only the edges of this class are returned; an unknown name raises a ValueError
+            - Default: None (the edges of every class)
+
+        Returns:
+
+        - A list with one dictionary for each edge, by origin: `{"origin_id", "destination_id", "length", "class", "mode", "metrics"}`
+        - `length` is in `geograph_units`
+        - `class` is the name of the class of the edge and `mode` is the mode of that class; both are None for an edge without a class
+        - `metrics` is a dictionary of the other weights of the edge
+        """
+        offsets = self._get_edge_arrays()[0]
+        node_count = len(offsets) - 1
+        if origin_id is None:
+            origin_ids = range(node_count)
+        elif 0 <= origin_id < node_count:
+            origin_ids = (origin_id,)
+        else:
+            raise ValueError(f"Node {origin_id} is not in the geograph")
+        class_row = self._get_class_row(edge_class)
+        return [
+            self._get_edge(origin_id, edge_index)
+            for origin_id in origin_ids
+            for edge_index in range(offsets[origin_id], offsets[origin_id + 1])
+            if class_row is None or self._edge_classes[edge_index] == class_row
+        ]
+
+    def get_path_edges(self, path: list[int]) -> list[dict]:
+        """
+        Function:
+
+        - Get the edges of a path, in the order of the path
+
+        Required Arguments:
+
+        - `path`
+            - Type: list of ints
+            - What: The node ids of a path, as the `path` of `get_shortest_path` with `output_path=True`
+
+        Returns:
+
+        - A list with one dictionary for each pair of consecutive nodes of the path (see `get_edges`)
+
+        Raises:
+
+        - `ValueError`: The geograph has no edge between two consecutive nodes of the path
+        """
+        offsets, heads, _ = self._get_edge_arrays()
+        edges = []
+        for origin_id, destination_id in zip(path, path[1:]):
+            edge_index = find_edge_index(
+                offsets, heads, origin_id, destination_id
+            )
+            if edge_index is None:
+                raise ValueError(
+                    f"The path has no edge from node {origin_id} to node {destination_id}"
+                )
+            edges.append(self._get_edge(origin_id, edge_index))
+        return edges
 
     def validate_nodes(self) -> None:
         """
