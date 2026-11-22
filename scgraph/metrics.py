@@ -3,8 +3,8 @@
 This module is internal. `GeoGraph.create_metric` calls it, and a geograph keeps its
 metrics by name in `GeoGraph._metrics`.
 
-A "metric" is one weight for every edge, under a name: an array of float64 values,
-"lined up with the edges". Its value number `i` is the weight of the edge of id `i`:
+A "metric" is one weight for every edge, under a name: an array of float64 values
+"by edge id". Its value at the position `i` is the weight of the edge of id `i`:
 the edge at the position `i` in the heads of the graph (`Graph._csr`). A search by a
 metric adds up these weights in place of the lengths. The lengths are the metric
 `length`, which the graph of the geograph holds. A `Metric` record holds each other
@@ -74,7 +74,7 @@ class Metric:
     unit: str | None
     # Where the weights come from, for a reader
     description: str | None
-    # One float64 weight for each edge, lined up with the edges. Never changed in
+    # One float64 weight for each edge, by edge id. Never changed in
     # place: the graph of the metric reads this array.
     weights: array | memoryview
     # The weight of 1 km of an off-graph leg: the straight line between a query

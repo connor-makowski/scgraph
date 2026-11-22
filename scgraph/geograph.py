@@ -302,9 +302,9 @@ class GeoGraphIO:
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
             )
-        # The class id of each edge and its weight in each metric, lined up with
-        # the edges. A geograph without classes and without metrics does
-        # not read the arrays of its edges here.
+        # The class id of each edge and its weight in each metric, by edge id. A
+        # geograph without classes and without metrics does not read the arrays
+        # of its edges here.
         classes, edge_value_arrays = None, {}
         if self.classes or self._metrics:
             geograph_offsets = self._read_edge_arrays()[0]
@@ -1584,7 +1584,7 @@ class GeoGraphIO:
             coordinate_dtype="int32" if coord_precision <= 7 else "float64",
             **kwargs,
         )
-        # The attributes of each edge, lined up with the edges
+        # The attributes of each edge, by edge id
         offsets, heads, _ = geograph._read_edge_arrays()
         edge_attributes = [
             attributes_of_origin[heads[edge_id]]
@@ -2417,10 +2417,10 @@ def _reorder_edge_values(
     offsets: array | memoryview,
     order: list[int],
 ) -> array:
-    """Return an array lined up with the edges of a graph whose nodes are reordered.
+    """Return an array by edge id for a graph whose nodes are reordered.
 
     Args:
-        edge_values: An array lined up with the edges.
+        edge_values: An array by edge id: one value for each edge.
         offsets: The offsets of the edges before the nodes are reordered.
         order: The nodes in their new order: `order[new id] = id`. A node keeps the
             order of its edges, as `Graph._csr(order)` does.
@@ -3247,7 +3247,7 @@ class GeoGraph(
         self._edge_arrays = None
         self._edge_arrays_graph = None
         self._edge_arrays_edit_count = None
-        # The class id of each of these edges, lined up with them, as
+        # The class id of each of these edges, by edge id, as
         # `_read_edge_class_ids` computed it. None before the first call and
         # after an edit.
         self._edge_class_ids = None
@@ -3332,8 +3332,8 @@ class GeoGraph(
         self._edge_class_ids = edge_class_ids
 
     def _read_edge_class_ids(self) -> array | memoryview | None:
-        # Return the class id of each edge of `graph_object`, lined up with the
-        # edges: 255 for an edge without a class. Return None for a geograph
+        # Return the class id of each edge of `graph_object`, by edge id: 255
+        # for an edge without a class. Return None for a geograph
         # without classes. The array is computed at the first call after an
         # edit of the graph.
         offsets, heads, _ = self._read_edge_arrays()

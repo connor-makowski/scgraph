@@ -2,61 +2,58 @@
 
 This module is internal. Each `GeoGraph` has one `EdgeClasses`.
 
+WORDS
+
+- A "class" is the category of an edge, such as `motorway`. `classes` holds one
+  row `{"name", "edge_mode"}` for each class.
+- A "class id" is the position of a class in `classes`. The class id 255 means
+  "no class", so a geograph holds 255 classes at most.
+- An "edge id" is the position of an edge in the arrays of a graph. The edges of
+  the node `u` have the ids `offsets[u]` to `offsets[u + 1] - 1`, and
+  `heads[edge_id]` is the node that the edge goes to.
+
 WHAT IT HOLDS
 
-A "class" is the category of an edge, such as `motorway`. An `EdgeClasses` holds:
-
-- `classes`: one row `{"name", "edge_mode"}` for each class of the geograph. The
-  "class id" of a class is the position of its row in `classes`, counted from 0. A
-  geograph holds 255 classes at most: the class id 255 is the id of no class. It
-  is the class id of an edge without a class.
-- The "loaded edges": the edges of the graph that a loader read or that the
-  constructor of the geograph got, with the class id of each one. They are three
-  arrays. The edges of the node `u` go to
-  `heads[offsets[u]:offsets[u + 1]]`. The "edge id" of an edge is its position in
-  `heads`, and `edge_class_ids` holds its class id at this position. No edit of the
-  graph changes these arrays.
-- The "added edges": the class that an `add_` method of the geograph gave to an
-  edge, in a dict by (origin id, destination id).
+- The "loaded edges": the edges that a loader or the constructor gave, as the two
+  arrays above, with `edge_class_ids`: the class id of each of them. No edit of
+  the graph changes these three arrays.
+- The "added edges": a dict `{(origin id, destination id): class id}` of the
+  edges that an `add_` method of the geograph added.
 
 THE IDEA: AN EDGE IS KNOWN BY ITS TWO NODES
 
-An edit of the graph changes the edge id of an edge, and not its two nodes: the id
-of a node never changes. So `find_class` takes the two nodes of an edge. It gives
-the row of the class of the added edge of these nodes, else of their loaded edge.
-For an edge without a class, it gives the row `{"name": None, "edge_mode": None}`.
-An edit of the graph makes no answer out of date.
+An edit of the graph changes the id of an edge, but never the ids of its two
+nodes. So `find_class` takes the two nodes of an edge. It looks in the added
+edges, then in the loaded edges. An edge that is in neither has no class.
 
-A network file and the kernel of the weights per km need one array, lined up with
-the edges of the graph: the class id of each edge, at the edge id of the edge.
-`list_edge_class_ids` computes this array for the edges that a caller gives, node
-by node. A node that has no added edge, and whose edges go to the destinations of
-its loaded edges in the same order, takes the class ids of its loaded edges. Each
-edge of another node gets its class id as in `find_class`, by its two nodes. The
-geograph keeps the array until the graph is edited.
+A network file and the kernel of the weights per km need one array: the class id
+of each edge of the graph as it is now. `list_edge_class_ids` computes it node by
+node. A node that still has exactly its loaded edges copies their class ids. For
+another node, each edge is found by its two nodes, as in `find_class`.
 
-Example, a loader reads three nodes with the edges 0 -> 1, 0 -> 2 and 2 -> 0:
+EXAMPLE
 
-    classes = [{"name": "motorway", "edge_mode": "road"},
-               {"name": "primary", "edge_mode": "road"}]
-    offsets = [0, 2, 2, 3]    heads = [1, 2, 0]    edge_class_ids = [1, 1, 0]
+A loader reads three nodes, with the edges 0 -> 1, 0 -> 2 and 2 -> 0:
+
+    classes        = [motorway, primary]    the class ids 0 and 1
+    offsets        = [0, 2, 2, 3]
+    heads          = [1, 2, 0]
+    edge_class_ids = [1, 1, 0]
 
 `find_class(2, 0)` gives the row of `motorway`: the edge 2 -> 0 has the edge id 2,
-and the class id 0.
+and its class id is 0.
 
-Then the edge 0 -> 2 is removed. `add_edge` adds the edge 1 -> 2 with the class
-`motorway`, and `graph_object` adds the edge 1 -> 0 itself. The three arrays stay,
-and the added edges are `{(1, 2): 0}`, with the class id of `motorway`:
+Then the edge 0 -> 2 is removed, `add_edge` adds 1 -> 2 as a `motorway`, and the
+caller adds 1 -> 0 on `graph_object` directly. The loaded edges stay as they are,
+and the added edges are `{(1, 2): 0}`:
 
-    find_class(0, 1) gives the row of "primary"     the loaded edge of edge id 0
-    find_class(1, 2) gives the row of "motorway"    an added edge
-    find_class(1, 0) gives the row of no class      no added edge, no loaded edge
+    find_class(0, 1) gives the row of primary     a loaded edge
+    find_class(1, 2) gives the row of motorway    an added edge
+    find_class(1, 0) gives the row of no class    not loaded, not added
 
-The graph now has `offsets = [0, 1, 3, 4]` and `heads = [1, 2, 0, 0]`. For these
-arrays, `list_edge_class_ids` gives `edge_class_ids = [1, 0, 255, 0]`. The node 2
-has its loaded edge, so it takes the class id of this edge. The nodes 0 and 1 have
-other edges than their loaded edges: each of their edges is found by its two
-nodes. The edge 1 -> 0 has no class, so its class id is 255.
+The graph now has `heads = [1, 2, 0, 0]`, and `list_edge_class_ids` gives
+`[1, 0, 255, 0]`. The node 2 still has its loaded edge, and copies its class id.
+The nodes 0 and 1 changed, so each of their edges is found by its two nodes.
 """
 
 from array import array
