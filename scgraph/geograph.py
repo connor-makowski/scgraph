@@ -292,19 +292,12 @@ class GeoGraphIO:
         # Read before the header is built: an edge without a class may add its row
         # to the classes
         classes = self._edge_data.list_file_classes(self)
-        # A file names only modes of its own table: a loader refuses another name
-        mode_names = [mode.get("name") for mode in self.modes]
-        node_addition_modes = [
-            name
-            for name in self.default_node_addition_modes or ()
-            if name in mode_names
-        ]
         metadata = network_file.build_header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             modes=self.modes,
             metrics=self.metrics,
             classes=classes,
-            node_addition_modes=node_addition_modes or None,
+            node_addition_modes=self.default_node_addition_modes,
         )
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()

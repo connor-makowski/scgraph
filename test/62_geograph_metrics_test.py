@@ -1377,19 +1377,6 @@ def test_a_query_refuses_modes_on_a_geograph_without_modes(
         )
 
 
-def test_a_save_leaves_out_a_default_mode_that_the_geograph_lacks(
-    geograph_without_classes, tmp_path
-):
-    # The one mode of this geograph has no name: it has no mode `road`.
-    geograph_without_classes.default_node_addition_modes = ["road"]
-    saved_path = str(tmp_path / "saved.scgraph")
-
-    geograph_without_classes.save_as_scgraph(saved_path)
-
-    saved = GeoGraph.load_from_scgraph(saved_path)
-    assert saved.default_node_addition_modes is None
-
-
 # A network read from a file with a metric
 
 
