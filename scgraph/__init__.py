@@ -8,7 +8,7 @@ r"""
 
 ![scgraph](https://raw.githubusercontent.com/connor-makowski/scgraph/main/static/scgraph.png)
 
-SCGraph provides fast, flexible shortest path routing for road, rail, maritime, and custom networks. It ships with prebuilt geographic networks, supports arbitrary graph construction and OSMNx integration, and scales from simple point-to-point queries to massive distance matrices. It also supports graph reduction, lazy loading, optional C++ acceleration, and Contraction Hierarchy preprocessing for large-scale applications.
+SCGraph provides fast, flexible shortest path routing for road, rail, maritime, and custom networks. It ships with prebuilt geographic networks, supports arbitrary graph construction and OSMNx integration, and scales from simple point-to-point queries to massive distance matrices. It also supports graph reduction, lazy loading, optional C++ acceleration, and Contraction Hierarchy preprocessing for large-scale applications. A network can also be routed by time, by cost or by CO2, with metrics that you define.
 
 - **Docs**: https://connor-makowski.github.io/scgraph/scgraph.html
 - **Paper**: https://ssrn.com/abstract=5388845
@@ -97,6 +97,14 @@ The output dictionary always contains:
 | `length` | Distance along the shortest path in the requested `output_units` |
 | `coordinate_path` | List of `[latitude, longitude]` pairs making up the path |
 
+A query can add these keys:
+
+| Key | When | Description |
+|---|---|---|
+| `metrics` | The geograph has a metric other than `length` | The total of each of these metrics along the path, as `{name: total}` (see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)) |
+| `path` | `output_path=True` | The node ids of the path |
+| `legs`, `hubs` | `output_legs=True` | The parts of the path on one mode of transport, and the nodes where the mode changes |
+
 
 ### Which Network?
 
@@ -106,6 +114,7 @@ The output dictionary always contains:
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
 | One mode of transport of a larger network, for example the roads | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
+| Routes by time, by cost or by CO2 | a released network, with a metric | `geograph.create_metric("hours", per_km=...)`, then `get_shortest_path(..., metric="hours")`: see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2) |
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)`, then `save_as_scgraph` to load it faster later |
@@ -127,6 +136,8 @@ berlin = {"latitude": 52.52, "longitude": 13.405}
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin)
 print(route["length"])  #=> 909.028 (km: the shortest route takes a flight)
 ```
+
+This route is the shortest in km. The section [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2) finds the fastest route, the cheapest route, or the route with the least CO2.
 
 **The networks.** Distances are in kilometers. The shape of an edge is the list of points that draw the edge on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.20-dev.2`.
 
@@ -153,6 +164,8 @@ roads = GeoGraph.load_geograph("europe", modes=["road"])
 route = roads.get_shortest_path(origin_node=paris, destination_node=berlin)
 print(route["length"])  #=> 1031.6 (km, by road)
 ```
+
+**Where a route starts and ends.** A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point snaps to this node. In a released network with roads, a query point snaps to its closest road node, so a route starts and ends on a road. `node_addition_modes` chooses other modes: `europe.get_shortest_path(origin_node=paris, destination_node=berlin, node_addition_modes=["road", "rail"])`.
 
 **A smaller download.** `load_intermediate_nodes=False` downloads the file without the shapes. The route lengths are the same. The `coordinate_path` of a route then goes in a straight line from node to node.
 
@@ -197,6 +210,8 @@ These are the seven networks of scgraph 3.6.0. They are deprecated: `load_geogra
 | `world_highways` | `GeoGraph.load_geograph("world_multimodal", modes=["road"])` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 | `world_railways` | `GeoGraph.load_geograph("world_rail")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
+On `world_highways_and_marnet`, a query point snaps to its closest node, on a road or on a sea lane. On its replacement, a query point snaps to its closest road node. To snap to every mode as before, pass `node_addition_modes=["road", "sea", "port"]` to `get_shortest_path`.
+
 ## Quick Start: OSMNx Integration
 
 Route on any OpenStreetMap network (including bike, drive, and walk) using [OSMNx](https://osmnx.readthedocs.io/). This example finds the fastest and shortest bike paths between two points in Somerville and Cambridge, MA, then cross-evaluates each path's time and distance:
@@ -234,6 +249,8 @@ print(f"Distance-optimal path: {distance_path_time_s:.1f} s  |  {distance_result
 ```
 
 See the [OSMNx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) for a full example with folium map visualization.
+
+One geograph can also hold the lengths and the travel times: see [Loading from OSMNx](#loading-from-osmnx).
 
 ---
 
@@ -276,8 +293,8 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 |---|---|---|
 | `'dijkstra'` | Standard Dijkstra; general purpose, non-negative weights | O((n+m) log n) |
 | `'bidirectional_dijkstra'` | Bidirectional Dijkstra; simultaneous search from origin and destination | O((n+m) log n) |
-| `'dijkstra_buckets'` | Dijkstra with buckets of a width set from the graph; non-negative weights | O(n+m+W) |
-| `'bidirectional_buckets'` | Bidirectional Dijkstra (default for geographs) with buckets (Dial's algorithm); efficient for non-negative weights | O(n+m+W) |
+| `'dijkstra_buckets'` | Dijkstra with buckets of a width set from the finite weights of the graph; weights of zero or more | O(n+m+W) |
+| `'bidirectional_buckets'` | Bidirectional Dijkstra (default for geographs) with buckets (Dial's algorithm); efficient for weights of zero or more | O(n+m+W) |
 | `'dijkstra_negative'` | Dijkstra with cycle detection; supports negative weights | O(n·m) |
 | `'a_star'` | A* with optional heuristic; faster than Dijkstra with a good heuristic | O((n+m) log n) |
 | `'bellman_ford'` | Bellman-Ford; supports negative weights, slower than Dijkstra | O(n·m) |
@@ -286,17 +303,20 @@ All algorithms are available on `Graph` objects and accessible from `GeoGraph` v
 | `'contraction_hierarchy'` | Bidirectional Dijkstra on preprocessed CH graph; fast arbitrary queries | O(k log k) per query |
 | `'tnr'` | [Transit Node Routing](https://en.wikipedia.org/wiki/Transit_node_routing); extremely fast for global queries | O(1) per query (global) |
 
+In every algorithm, a weight of infinity (`float("inf")`) closes its edge: no path takes this edge. When every path between two nodes needs a closed edge, the query raises `PathNotFoundError`.
+
 ## Performance Guide
 
 | Scenario | Recommended Approach |
 |---|---|
 | Single query | `dijkstra`, `bidirectional_buckets` or `bidirectional_dijkstra` |
 | Sparse networks (road/rail/maritime) | Reduce with `geograph.reduce()` for faster queries |
-| Non-negative weights, single-direction search | `dijkstra_buckets` |
+| Weights of zero or more, single-direction search | `dijkstra_buckets` |
 | Repeated queries from one origin | `cached_shortest_path` |
 | Large distance matrix (same graph) | `distance_matrix` method |
 | Many arbitrary queries on a fixed graph | `contraction_hierarchy` or `tnr` |
 | Graph with negative weights | `dijkstra_negative` |
+| Routes by time, cost or CO2 | Any algorithm, with `metric=...` (see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)) |
 | Fast app startup / multi-network loading | `GeoGraph.load_geograph(..., lazy=True)` |
 
 ## Heuristic Functions (for A*)
@@ -319,7 +339,7 @@ output = my_geograph.get_shortest_path(
 | `my_geograph.haversine` | Great-circle distance heuristic (accurate), in `geograph_units`; computed natively by `get_shortest_path` A* in the C++ build |
 | `my_geograph.cheap_ruler` | Fast approximate distance (Mapbox method), in `geograph_units` |
 
-A* returns the shortest path if the heuristic never exceeds the real distance left to the destination. When the destination is connected to more than 4 nodes of the graph (for example with `destination_node_addition_type='all'`), A* does not call the heuristic and searches as Dijkstra does.
+A* returns the shortest path if the heuristic never exceeds the real distance left to the destination. With a `metric` other than `length`, the heuristic must never exceed the total of this metric left to the destination. scgraph scales `my_geograph.haversine` for this: it multiplies the distance by the smallest weight that the metric gives to 1 km of an edge. It does not scale `my_geograph.cheap_ruler` or a function of your own. When the destination is connected to more than 4 nodes of the graph (for example with `destination_node_addition_type='all'`), A* does not call the heuristic and searches as Dijkstra does.
 
 ---
 
@@ -350,6 +370,207 @@ Supported `output_units`:
 | `m` | Meters |
 | `mi` | Miles |
 | `ft` | Feet |
+
+## Routes by Time, Cost and CO2
+
+A network gives each edge a length. A **metric** gives each edge another weight, under a name: its hours, its cost, its kg of CO2. You create a metric on a geograph, then you name it in a query. The route is then the one with the smallest total of this metric.
+
+```py
+from scgraph import GeoGraph
+
+europe = GeoGraph.load_geograph("europe")
+
+# Hours: a speed for each mode of transport, and a wait at each hub
+europe.create_metric(
+    "hours",
+    per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30},
+    at_hub={"port": {"sea": 12}, "airport": {"air": 3}, "rail_terminal": {"rail": 4}},
+    unit="h",
+)
+
+paris = {"latitude": 48.8566, "longitude": 2.3522}
+berlin = {"latitude": 52.52, "longitude": 13.405}
+route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours")
+route["length"]   # the km of the fastest route
+route["metrics"]  # {'hours': ...}: its hours
+```
+
+- **The rates are examples.** scgraph ships no speed, no cost and no emission factor: you give your own.
+- **Classes and modes.** Each edge of a released network has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. Each class has a **mode**: `road`, `rail`, `sea` or `air`. `europe.classes` lists the classes with their modes.
+- **`per_km`** gives a **rate** to each mode: the weight of 1 km of an edge. Here a rate is a number of hours: `1 / 70` is one hour for 70 km. A class can have its own rate, which wins over the rate of its mode: `"motorway": 1 / 90`.
+- **`"off_graph"`** is the rate of the straight lines that join the origin and the destination to the network.
+- **`at_hub`** adds a weight at a **hub**: a port, an airport or a rail terminal. The first key is the mode of the hub node: `port`, `airport` or `rail_terminal`. The second key is a mode or a class of edges. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches. A pair gives two values: `(1, 2)` is 1 hour for an edge into the hub and 2 hours for an edge out of it.
+- **The result.** `length` is always the length of the route. `metrics` holds the total of each metric of the geograph along the route. With `length_only=True`, a query by a metric returns the total of this metric alone: `{'metrics': {'hours': ...}}`.
+
+### The Legs of a Route
+
+A **leg** is a part of a route on one mode. `output_legs=True` returns the legs, and the hubs where the route changes mode:
+
+```py
+route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_legs=True)
+for leg in route["legs"]:
+    print(leg["mode"], round(leg["length"]), "km", round(leg["metrics"]["hours"], 1), "h")
+# off_graph ... km ... h
+# road ... km ... h
+# ...
+# off_graph ... km ... h
+route["hubs"]  # for example [{'node_id': ..., 'mode': 'airport'}, ...]
+```
+
+The first leg and the last leg have the mode `off_graph`: they are the straight lines between the two query points and the network. A leg also holds `class_lengths`, its length on each class, and its `coordinate_path`.
+
+### Four Ways to Give the Weights
+
+| Way | Arguments | Use it when |
+|---|---|---|
+| Tables | `per_km`, with `at_hub` | Each mode or each class has a rate per km |
+| A weighted sum | `weighted_sum_of` | A metric combines other metrics, for example a cost of the hours and of the km |
+| A function of an edge | `edge_weight_fn` | The weight of an edge is not a rate times its km |
+| Weights of named edges | `edge_weights`, with one of the three above | A few edges differ from the others |
+
+```py
+# Tables: kg of CO2 for one tonne of freight
+europe.create_metric(
+    "co2",
+    per_km={"road": 0.1, "rail": 0.02, "sea": 0.01, "air": 0.6, "off_graph": 0.1},
+    unit="kg",
+)
+
+# A weighted sum: 30 euros for each hour and 0.5 euro for each km
+europe.create_metric("euros", weighted_sum_of={"hours": 30, "length": 0.5}, unit="EUR")
+
+# A function of an edge: a short flight emits more for each km than a long flight
+def get_co2(edge):
+    if edge["mode"] == "air":
+        return edge["length"] * (0.8 if edge["length"] < 1000 else 0.6)
+    rates = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1}
+    return edge["length"] * rates[edge["mode"]]
+
+europe.create_metric("co2", edge_weight_fn=get_co2, unit="kg")
+
+# Weights of named edges: each vehicle ferry takes twice its hours
+ferries = europe.get_edges(edge_class="ferry")
+europe.create_metric(
+    "hours_with_slow_ferries",
+    weighted_sum_of={"hours": 1},
+    edge_weights={
+        (edge["origin_id"], edge["destination_id"]): 2 * edge["metrics"]["hours"]
+        for edge in ferries
+    },
+)
+```
+
+A metric created again under the same name replaces the first one, as `co2` here. The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `class`, `mode` and `metrics`. `metrics` holds the weight of the edge in each metric that exists. scgraph calls the function once for each edge, so a function is slower than tables. It also calls the function once for 1 km off the graph, with the mode `off_graph`.
+
+### Closing a Class or an Edge
+
+A rate of `None` closes a class: no route by this metric takes an edge of this class. The Suez Canal is the class `suez` of the sea lanes:
+
+```py
+world_sea = GeoGraph.load_geograph("world_sea")
+world_sea.create_metric("km_without_suez", per_km={"sea": 1, "suez": None, "off_graph": 1})
+
+rotterdam = {"latitude": 51.95, "longitude": 4.14}
+singapore = {"latitude": 1.26, "longitude": 103.82}
+by_the_canal = world_sea.get_shortest_path(origin_node=rotterdam, destination_node=singapore)
+around_africa = world_sea.get_shortest_path(
+    origin_node=rotterdam, destination_node=singapore, metric="km_without_suez"
+)
+around_africa["length"] > by_the_canal["length"]  # True
+```
+
+The network is not edited. A query by `length`, or by another metric, still takes the canal. To close one edge, name it in `edge_weights`: `edge_weights={(origin_id, destination_id): None}`. When every route between two query points needs a closed edge, the query raises `PathNotFoundError`.
+
+### Trading One Metric Against Another
+
+A weighted sum trades two metrics. In the metric below, one hour is worth `kg_per_hour` kg of CO2. A sweep of this coefficient can give several routes:
+
+```py
+for kg_per_hour in (1, 10, 100):
+    europe.create_metric("score", weighted_sum_of={"co2": 1, "hours": kg_per_hour})
+    route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="score")
+    print(kg_per_hour, round(route["metrics"]["hours"], 1), "h", round(route["metrics"]["co2"]), "kg")
+```
+
+Each route of the sweep is a best trade-off: no other route has fewer hours and less CO2. The sweep does not give every best trade-off: it misses a route that is the best for no coefficient.
+
+### Where a Route Starts and Ends
+
+A query point, the origin or the destination, snaps to a node of the network. In a released network with roads, it snaps to its closest road node (`europe.default_node_addition_modes` is `['road']`). `node_addition_modes` names the modes of the nodes that a query point may snap to, among the modes of `europe.modes`: `road`, `rail`, `sea`, `port`, `airport` and `rail_terminal`. Here a route may also start or end at a rail node:
+
+```py
+route = europe.get_shortest_path(
+    origin_node=paris, destination_node=berlin, metric="hours", node_addition_modes=["road", "rail"]
+)
+```
+
+The straight line between a query point and its node is an **access leg**. An access leg weighs its km times the rate `"off_graph"` of the metric. So `"off_graph": 1 / 30` covers the access legs at 30 km/h.
+
+### Reading the Network
+
+```py
+europe.classes  # [{'name': 'motorway', 'mode': 'road'}, ...]
+europe.metrics  # [{'name': 'length', 'unit': 'km'}, {'name': 'hours', 'unit': 'h', ...}, ...]
+
+# The airports around Paris: bbox is (south, west, north, east) in degrees
+europe.get_nodes(mode="airport", bbox=(48, 1, 50, 4))
+# [{'node_id': ..., 'latitude': ..., 'longitude': ..., 'mode': 'airport'}, ...]
+
+# The edges of one class, or the edges that leave one node: get_edges(origin_id=...)
+europe.get_edges(edge_class="ferry")
+# [{'origin_id': ..., 'destination_id': ..., 'length': ..., 'class': 'ferry', 'mode': 'road',
+#   'metrics': {'hours': ..., ...}}, ...]
+
+# The edges of a route, in its order
+route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_path=True)
+europe.get_path_edges(route["path"])
+
+# The total of one metric along a route that you already have
+europe.get_path_weight(route, metric="co2")
+```
+
+### What a File Keeps
+
+```py
+europe.save_as_scgraph("europe_with_metrics.scgraph")
+europe = GeoGraph.load_from_scgraph("europe_with_metrics.scgraph")
+route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours")
+```
+
+`save_as_scgraph` writes the weights of each metric, with its unit and a description. The description is the text of the `create_metric` call, or your own `description`. The file does not keep the tables or the function. So the loaded geograph cannot compute these metrics again. An edge that you add to it is closed in each of them. To change this, create the metric again after your edits, or give the weights of the new edge: `add_edge(..., metrics={"hours": 2.5})`.
+
+A geograph computes again the metrics that `create_metric` made on it, after each edit of the network. The first query after the edit does this work, which can take seconds on a large network.
+
+### Metrics and Algorithms
+
+Each metric has its own graph: the edges of the network, with the weights of the metric. A query by a metric searches this graph. So every `algorithm_fn` works with every metric, and each graph has its own cached trees and its own hierarchy. `reduce()` reduces the graph of each metric.
+
+`get_graph_object(metric)` returns the graph of a metric, for example to build a hierarchy once (see [Contraction Hierarchies](#contraction-hierarchies)):
+
+```py
+hours_graph = europe.get_graph_object("hours")
+hours_graph.create_contraction_hierarchy()
+route = europe.get_shortest_path(
+    origin_node=paris, destination_node=berlin, metric="hours", algorithm_fn="contraction_hierarchy"
+)
+```
+
+A search called on this graph returns the total of the metric under the key `length`. The graph of a metric is built again, without its hierarchy, when the metric is created again or the network is edited.
+
+### `create_metric` Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `name` | required | Name of the metric: small letters, digits and `_`, starting with a letter; not `length`. A metric that has this name is replaced |
+| `per_km` | `None` | One rate for every edge and for the access legs (a number), or a dict of rates: by class, by mode, and `"off_graph"` for the access legs. A rate of `None` closes a class. The lengths of the geograph must be in km |
+| `at_hub` | `None` | With `per_km`: `{mode of a hub: {class or mode of an edge: weight}}`. An edge into the hub pays the weight, and so does an edge out of it. A pair is `(into the hub, out of the hub)` |
+| `weighted_sum_of` | `None` | `{name of a metric: coefficient}`, with coefficients above zero; `length` can be one of the metrics. An edge that is closed in one of them is closed in the sum |
+| `edge_weight_fn` | `None` | A function that gets the dict of an edge and returns its weight, or `None` to close it |
+| `edge_weights` | `None` | `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the computed one; `None` closes an edge |
+| `unit` | `None` | The unit of the weights, as free text |
+| `description` | `None` | Where the weights come from, as free text; by default, the text of the call |
+
+A call gives exactly one of `per_km`, `weighted_sum_of` and `edge_weight_fn`. A dict of `per_km` gives a rate for `"off_graph"` and for each class that has an edge, by its name or by its mode. A geograph without classes, such as one made from your own graph, takes one number as `per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. `remove_metric(name)` removes a metric.
 
 ## Choosing an Algorithm
 
@@ -420,6 +641,25 @@ matrix = north_america.distance_matrix(cities, output_units='km')
 
 For large matrices, throughput can approach 500 nanoseconds per distance query.
 
+With a [metric](#routes-by-time-cost-and-co2), the matrix holds the totals of this metric. `output_metric` names another metric to read along the same routes:
+
+```py
+north_america.create_metric("hours", per_km={"road": 1 / 80, "off_graph": 1 / 30})
+hours = north_america.distance_matrix(cities, metric="hours")
+km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours", output_metric="length")
+```
+
+### `distance_matrix` Parameters
+
+| Parameter | Default | Description |
+|---|---|---|
+| `nodes` | required | The query points, as a list of dicts with the keys `latitude` and `longitude` |
+| `off_graph_circuity` | `1` | Multiplier of the straight line between a query point and its node |
+| `output_units` | `'km'` | Unit of the lengths of the matrix; ignored when the matrix holds another metric than `length` |
+| `metric` | `'length'` | The metric that each route minimises |
+| `output_metric` | `None` | The metric that the matrix holds; `None` is the metric of `metric`. With another metric, the call is slower: it reads the path of each pair |
+| `node_addition_modes` | `None` | The modes of the nodes that a query point may snap to, as in `get_shortest_path` |
+
 ## Graph Reduction
 
 Sparse networks (highways, rail lines, shipping corridors) often contain long chains of pass-through nodes with only two connections (degree 2). Graph reduction compresses these chains into single composite edges while preserving exact distances and full path reconstruction:
@@ -446,6 +686,7 @@ Key features of graph reduction:
 - **Zero inaccuracy**: Paths and lengths are guaranteed to be mathematically identical to the unreduced graph.
 - **Same-chain routing**: If origin and destination fall on the same contracted chain, the original graph is used with the standard dijkstra algorithm.
 - **Iterative reduction**: By default, `reduce()` repeats passes until a pass reduces nothing (simplifying sub-chains created after initial contraction); pass `iterations=1` for a single pass.
+- **Every metric**: `reduce()` also reduces the graph of each [metric](#routes-by-time-cost-and-co2) of the geograph.
 
 ## Lazy Loading
 
@@ -491,6 +732,8 @@ output = world_sea.get_shortest_path(
 | `'closest'` | Closest node (default) |
 | `'quadrant'` | Closest node in each quadrant |
 | `'all'` | All nodes within the bound |
+
+`node_addition_modes` limits these nodes to some modes, for each `node_addition_type`: `node_addition_modes=["road"]` joins the origin and the destination to road nodes only. The default is `None`: the modes that the network file names (`default_node_addition_modes`, roads for a released network with roads), or else every mode. A mode that the geograph does not have raises a `ValueError`.
 
 
 ---
@@ -606,9 +849,9 @@ The region of `geofabrik_multimodal` is the path of a [Geofabrik extract](https:
 | `geofabrik_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its mode, and each edge has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
 | `osm_world_multimodal` | `geofabrik_multimodal` for the world (needs the C++ extension). This pipeline builds the released network `world_multimodal` | The sources of `geofabrik_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
 
-**Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for `geofabrik_multimodal`. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [EDGEHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/EDGEHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
+**Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for `geofabrik_multimodal`. The folder holds the network file, named by the SHA-256 of its content, and a `cache.json` that names this file. The downloaded sources are deleted once the network is built. A build that fails keeps its work folder, `.work/` in the cache directory, with the downloaded sources. The next build resumes from this folder. `refresh=True` empties it first. `GeoGraph.clear_geograph_cache()` removes it. scgraph also writes a `CACHEDIR.TAG` in `networks/`, so that backup tools that honour it skip the built networks. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
 
-**What a network file says about itself.** The file stores the pipeline, the sources with the time of their data, and the software that built it. `GeoGraph.get_scgraph_info(file)` reads this metadata, with the credit line to cite (`attribution`) and the newest data time (`data_up_to`). The fields are listed in the docstring of `scgraph.pipelines` and in [EDGEHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/EDGEHITECTURE.md#7-network-file-format).
+**What a network file says about itself.** The file stores the pipeline, the sources with the time of their data, and the software that built it. `GeoGraph.get_scgraph_info(file)` reads this metadata, with the credit line to cite (`attribution`) and the newest data time (`data_up_to`). The fields are listed in the docstring of `scgraph.pipelines` and in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format).
 
 **When a network is built again.** A network is built again in three cases:
 
@@ -628,9 +871,11 @@ A rebuild removes the old network file. On Windows, an old file that another pro
 
 Each node has a mode, for example `road`, `sea` or `port`. `geo.node_modes[i]` gives the row of node `i` in `geo.modes`. That row names the mode and the source of the node ids (OpenStreetMap for roads). The file stores the nodes of each mode together. Routes use kilometers for every mode.
 
-In these networks, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
+In these networks, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To find the fastest route or the cheapest route, create a metric ([Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)). To route on some modes only, load the file with these modes and the hubs that join them: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`. Without a hub mode, the networks of two modes have no link.
 
-The file of these networks also records the class of each edge, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `scgraph.network_file.read(file)` returns `(arrays, metadata)`, and the class of edge `a` is `metadata["classes"][arrays["edge_classes"][a]]`. The docstring of `scgraph.pipelines` lists the classes.
+The file of these networks also records the class of each edge, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `geo.classes` lists the classes, each with the mode of its edges, and `geo.get_edges()` gives the class of each edge. A metric gives a rate to each class or to each mode. The docstring of `scgraph.pipelines` lists the classes.
+
+These networks also name the modes that a query point snaps to: the roads (`geo.default_node_addition_modes`).
 
 **A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
@@ -677,6 +922,22 @@ output = ann_arbor_geograph.get_shortest_path(
 print(output['length'])
 ```
 
+The geograph keeps the `highway` value of each edge as its class, of the mode `road`. When every edge has a `travel_time`, the geograph also keeps it as the [metric](#routes-by-time-cost-and-co2) `travel_time`, in seconds. One geograph then gives the shortest path and the fastest path:
+
+```py
+osmnx_graph = ox.add_edge_travel_times(ox.add_edge_speeds(osmnx_graph))
+ann_arbor_geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph, off_graph_travel_speed=30)
+
+fastest = ann_arbor_geograph.get_shortest_path(
+    origin_node={"latitude": 42.2808, "longitude": -83.7430},
+    destination_node={"latitude": 42.2622, "longitude": -83.7482},
+    metric="travel_time",
+)
+print(fastest['length'], fastest['metrics']['travel_time'])  # its km, then its seconds
+```
+
+OSMnx can give several edges from one node to another. The geograph keeps the shortest one, with its class and its travel time. So the metric `travel_time` holds the time of the shortest edge, which may not be the fastest.
+
 ### `load_from_osmnx_graph` Parameters
 
 | Parameter | Default | Description |
@@ -684,8 +945,8 @@ print(output['length'])
 | `osmnx_graph` | required | An OSMNx graph object |
 | `coord_precision` | `5` | Decimal places for lat/lon coordinates |
 | `weight_precision` | `3` | Decimal places for edge weights |
-| `weight_key` | `'length'` | Edge attribute to use as weight (`'length'` or `'travel_time'`) |
-| `off_graph_travel_speed` | `None` | Speed (km/h) for off-graph connections; used to convert time-based weights to distances |
+| `weight_key` | `'length'` | Edge attribute that gives the lengths of the geograph: `'length'` (kilometers) or `'travel_time'` (seconds). With `'travel_time'`, the geograph has no metric `travel_time`: its lengths are the times |
+| `off_graph_travel_speed` | `None` | Speed (km/h) between a query point and its node. With `weight_key='length'`, it gives the rate off the graph of the metric `travel_time`: 3600 / speed seconds per km, or 240 for `None` (15 km/h). With `weight_key='travel_time'`, it sets `default_off_graph_circuity` and `default_node_addition_circuity` to 3600 / speed, or to 0 and 240 for `None` |
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
 | `silent` | `None` | Deprecated and without effect. scgraph reports its messages through `logging`. |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
@@ -721,6 +982,14 @@ michigan_rail = GeoGraph.load_from_osm(
 )
 ```
 
+Each edge has the class that `select` gives to its way. The default `select` gives the `highway` value of the way, so a [metric](#routes-by-time-cost-and-co2) can give a rate to each kind of road:
+
+```py
+michigan_roads.create_metric("minutes", per_km={"motorway": 60 / 110, "road": 60 / 80, "off_graph": 60 / 30})
+```
+
+To give classes with your own `select`, return a pair in place of the direction: the direction and the name of a class of `scgraph.pipelines.CLASSES`, for example `(0, "rail_main")`. A `select` that returns directions alone, as the railway example above, gives a geograph without classes.
+
 Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each edge has the length of its piece of way, in kilometers. A way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes` (2 km by default). The earlier pipeline (osmium-tool, a GeoJSON export and Mapshaper), which the paper refers to, is kept below. `load_from_geojson` still loads such files.
 
 ### `load_from_osm` Parameters
@@ -728,7 +997,7 @@ Ways meet only where they share an OSM node, so roads that cross on a bridge or 
 | Parameter | Default | Description |
 |---|---|---|
 | `filename` | required | Path of the OSM file (`.osm.pbf`, `.osm` or `.osm.bz2`), or a source object (`scgraph.pipelines.steps.step1_osm_ways.locate_ways`) |
-| `select` | `None` (`scgraph.pipelines.steps.step1_osm_ways.select_main_roads`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out; the default keeps main roads (`scgraph.pipelines.steps.step1_osm_ways.MAIN_ROADS`), one way where `scgraph.pipelines.steps.step1_osm_ways.get_way_direction(tags)` returns `1` or `-1` |
+| `select` | `None` (`scgraph.pipelines.geofabrik_multimodal.select_main_roads_with_class`) | Gives, from the tags of a way, its direction (`1` or `-1`: one way along or against its drawing, `0`: both ways) or `None` to leave it out. In place of the direction, it may give a pair: the direction and the class of the way, a name of `scgraph.pipelines.CLASSES`. The default keeps main roads (`scgraph.pipelines.steps.step1_osm_ways.MAIN_ROADS`), each with its `highway` value as its class, one way where `scgraph.pipelines.steps.step1_osm_ways.get_way_direction(tags)` returns `1` or `-1` |
 | `tag_keys` | `("highway",)` | Tag keys of which a way must have at least one to reach `select`, filtered in osmium (faster); `()` sends every way to `select` |
 | `max_km_between_nodes` | `2` | Length in kilometers at which a way is cut into a new edge, at the next point of the way |
 | `largest_component` | `True` | Keep only the largest part where every node can reach every other, so that no origin or destination lands on a one-way dead end or a fragment cut by the border of the extract |
@@ -808,7 +1077,9 @@ my_geograph = GeoGraph.load_from_scgraph('my_geograph.scgraph')
 my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
-The `.scgraph` format is described in [EDGEHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/EDGEHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, modes, number of nodes and edges, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
+The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, modes, classes, metrics, `node_addition_modes`, number of nodes and edges, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
+
+**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their modes, and the shapes of the edges. It also holds the class of each edge, the weights of each [metric](#routes-by-time-cost-and-co2), and the modes that a query point snaps to (`default_node_addition_modes`). A `.graphjson` file and a GeoJSON file hold no class and no metric.
 
 **Coordinates.** Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node). The `coordinate_dtype` parameter of `save_as_scgraph` chooses the form: `"float64"`, `"int32"` or `"auto"` (the default). With `"auto"`, a GeoGraph keeps its own `coordinate_dtype`. It is `"int32"` for a network read from an int32 file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), and `"float64"` otherwise.
 
@@ -946,6 +1217,19 @@ my_geograph.graph_object.add_edge(origin_id=0, destination_id=5, distance=1850, 
 my_geograph.remove_coord_node()
 ```
 
+`add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take two more keywords, for a geograph that has classes or metrics. This call is for a geograph loaded from OSMnx, which has the class `primary` and the metric `travel_time`:
+
+```py
+geograph.add_edge(origin_id=0, destination_id=5, distance=85, symmetric=True, edge_class="primary", metrics={"travel_time": 3400})
+```
+
+| Keyword | Default | Description |
+|---|---|---|
+| `edge_class` | `None` | The class of the new edge, a name of `geograph.classes`. Without it, the edge has no class: its `class` and its `mode` are `None` |
+| `metrics` | `None` | `{name: weight}`: the weight of the new edge in a metric that the geograph read from a file or from OSMnx. Without it, the edge is closed in such a metric. A metric that `create_metric` made is computed again for every edge, and is not named here |
+
+An edge added on `graph_object` directly, as above, has no class. The geograph lines up its classes and its metrics with the new edges at the next query (see [What a File Keeps](#what-a-file-keeps)).
+
 See the [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) for more examples.
 
 ## Merging Two GeoGraphs
@@ -960,6 +1244,8 @@ road_geograph.merge_with_other_geograph(
     circuity_to_other_geograph=1.2,
 )
 ```
+
+The merged geograph keeps the lengths and the classes of both geographs. It keeps no other metric: create your metrics after the merge.
 
 ---
 
@@ -1042,6 +1328,8 @@ output = oceania_roads.get_shortest_path(
 print(output['length'])  # 3927.93 (km)
 ```
 
+A hierarchy belongs to one metric. `oceania_roads.graph_object` is the graph of the lengths. For another metric, build the hierarchy on `oceania_roads.get_graph_object(metric)`, and pass `metric` to `get_shortest_path` ([Metrics and Algorithms](#metrics-and-algorithms)).
+
 A hierarchy can be saved and loaded again instead of being rebuilt. A hierarchy with transit nodes (`algorithm_fn='tnr'`) is built and saved the same way:
 
 ```py
@@ -1109,12 +1397,13 @@ world_sea.get_shortest_path(
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `edges`, `duration_ms` |
 | `convert the published network` | `name`, `duration_ms` |
-| `build the snapping index` | `nodes`, `sorted_for_the_index`, `duration_ms` |
+| `build the snapping index` | `nodes`, `modes` (only for the index of some modes), `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
 
 - `node_scans` is the size of the search: the number of times it went over the edges of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
-- `origin_snap_distance` and `destination_snap_distance` are the distances from each end of the query to its closest node of the network, in `distance_units`.
+- `origin_snap_distance` and `destination_snap_distance` are the distances from each end of the query to the closest node that it snaps to, in `distance_units`.
+- The first query that snaps to some modes builds the snapping index of the nodes of these modes. Its record has `modes`, the names of these modes.
 - `kept_nodes` is the number of nodes left after the reduction.
 - `mapped` is true when the load maps the file and reads it in place. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
 
@@ -1182,6 +1471,7 @@ The public names of scgraph are the names that this README uses. scgraph keeps t
 | For | Public names |
 |---|---|
 | Routes on a network | `scgraph.GeoGraph` and its methods, `scgraph.network_release.TAG` |
+| Metrics, classes and modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `classes`, `modes` and `default_node_addition_modes` |
 | Your own graph or grid | `scgraph.Graph`, `scgraph.CHGraph`, `scgraph.TNRGraph`, `scgraph.GridGraph`, `scgraph.PathNotFoundError`, `scgraph.NegativeCycleError` |
 | Distances | `scgraph.utils`: `haversine`, `cheap_ruler`, `distance_converter`, `has_cpp` |
 | Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |
@@ -1205,7 +1495,7 @@ uv sync --extra dev
 uv run pytest
 ```
 
-The developer guide, [`DEVELOPMENT.md` on `dev`](https://github.com/connor-makowski/scgraph/blob/dev/DEVELOPMENT.md), gives the commands and the rules of a contribution. [`EDGEHITECTURE.md`](https://github.com/connor-makowski/scgraph/blob/dev/EDGEHITECTURE.md) explains how scgraph works inside.
+The developer guide, [`DEVELOPMENT.md` on `dev`](https://github.com/connor-makowski/scgraph/blob/dev/DEVELOPMENT.md), gives the commands and the rules of a contribution. [`ARCHITECTURE.md`](https://github.com/connor-makowski/scgraph/blob/dev/ARCHITECTURE.md) explains how scgraph works inside.
 
 ---
 

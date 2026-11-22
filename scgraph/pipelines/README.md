@@ -170,8 +170,8 @@ Where to read more: `network_builder.py`, function `build_network_file`.
 
 `step1_osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline
 selects. It cuts each way at its junctions. It also cuts a way where a piece would be longer
-than `max_km_between_nodes` (2 km). A route starts at the node closest to its origin, so a long
-road needs nodes along it. The function simplifies the shape of each piece to within 50 m.
+than `max_km_between_nodes` (2 km). A route starts at the road node closest to its origin, so a
+long road needs nodes along it. The function simplifies the shape of each piece to within 50 m.
 
 The pipeline reads the extract once, for its two modes. The log line of this step gives the
 sum of the two counts: 26,457 pieces.
@@ -190,11 +190,21 @@ one node for each mode there, so no route changes mode at a level crossing.
 
 The function also attaches the vehicle ferries to the roads (`step1_osm_ways.build_ferry_edges`).
 A ferry is kept when each of its ends is within 2 km of a road node. The ferries give 12 edges in
-this build, one for each direction. Two ferry routes join the same two road nodes, and a graph
-holds one edge from a node to another, the shorter one. So the file has 10 edges of the class
-`ferry`.
+this build, one for each direction.
 
-Where to read more: the docstring at the top of `steps/step1_osm_ways.py`.
+`step3_network_assembly.build_graph_from_pieces` then stores the pieces of each mode as a graph.
+A graph holds one edge at most from a node to another. Of several edges between the same two
+nodes, the function keeps the shortest edge of each class:
+
+- **Two edges of the same class.** The shorter one is kept. Two ferry routes of this build join
+  the same two road nodes, so the file has 10 edges of the class `ferry`.
+- **Two edges of two classes.** Both are kept. For example, a primary road and a shorter
+  motorway join the same two junctions. The motorway stays one edge. The primary road is split
+  at its middle, where the function puts a new node. A route by time can then choose between
+  the two roads. The new node gets an id below zero.
+
+Where to read more: the docstrings at the top of `steps/step1_osm_ways.py` and of
+`steps/step3_network_assembly.py`.
 
 #### Step 3. Read the sea lanes
 
@@ -246,13 +256,18 @@ Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 | keep the largest strongly connected component | 63,784 | 192,735 |
 | contract the chains | 50,320 | 171,999 |
 
+These counts come from the build of 2026-11-20. That build kept one edge between two nodes,
+the shortest one. A build of today keeps the shortest edge of each class (step 2), so it can
+count a few more nodes and edges.
+
 - **Keep the connected part.** In a strongly connected component, a route exists from every
   node to every other node. The step removes the rest, for example a road on a small island
   with no ferry.
 - **Contract the chains.** A chain becomes one edge with the length and the shape of the chain.
   The route lengths do not change. A chain is never contracted across two modes or two
   classes, and a chain longer than `max_km_between_nodes` keeps nodes along it. In this
-  build, 151 nodes stay because the class changes there.
+  build, 151 nodes stay because the class changes there. The node in the middle of a split
+  road (step 2) also stays.
 - **Order the nodes.** The nodes are sorted by mode, then along a Hilbert curve. Nodes that are
   near on the map are then near in the file, so a search reads nearby memory.
 
@@ -261,8 +276,16 @@ Where to read more: the docstring at the top of `steps/step3_network_assembly.py
 #### Step 7. The runner writes the network file
 
 The runner writes the arrays to one file of 4.2 MB, in its work folder. The header of the file
-records the pipeline, each source with its version and its license, the software of the build,
-and the names of the classes.
+records the pipeline, each source with its version and its license, and the software of the
+build. It also records three things that a query uses:
+
+- `metrics`: the metrics of the file. A built file has one metric, `length`, in km. A user
+  adds other metrics on the loaded network (`GeoGraph.create_metric`).
+- `classes`: one row for each class, with its name and the mode of its edges, such as
+  `{"name": "motorway", "mode": "road"}`.
+- `node_addition_modes`: the modes that a query point snaps to by default. This pipeline
+  names `road`, so a route starts and ends on a road.
+
 `GeoGraph.get_scgraph_info(file)` reads this back.
 
 Where to read more: the docstring of `scgraph.pipelines`, part *What the network file
@@ -293,9 +316,8 @@ The file holds 50,320 nodes and 171,999 edges.
 | `airport` | 10 |
 | `rail_terminal` | 1 |
 
-A route may use every mode. From the center of Aarhus to the center of Copenhagen, the shortest
-route in this file is 188.1 km. It takes a railway, a sea lane, a road, then a railway again,
-and it changes mode at three ports.
+A route may use every mode. It starts and ends at a road node, and it changes mode at hubs.
+`output_legs=True` returns the part of the route on each mode, and the hubs between them.
 
 `GeoGraph.build_geograph` calls the runner, then loads the file. It builds nothing when the
 cache holds the file.
@@ -305,10 +327,12 @@ from scgraph import GeoGraph
 
 denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
 route = denmark.get_shortest_path(
-    {"latitude": 56.1629, "longitude": 10.2039},
-    {"latitude": 55.6761, "longitude": 12.5683},
+    {"latitude": 56.1629, "longitude": 10.2039},  # the center of Aarhus
+    {"latitude": 55.6761, "longitude": 12.5683},  # the center of Copenhagen
+    output_legs=True,
 )
-route["length"]  # 188.1
+route["length"]  # the km of the shortest route
+[(leg["mode"], round(leg["length"])) for leg in route["legs"]]  # the modes that it takes
 ```
 
 To keep some modes only, load the file with `modes`. With the roads alone, the route between
@@ -345,7 +369,8 @@ network `world_multimodal`. The pipeline differs from `geofabrik_multimodal` in 
   The roads of an island then stay in the file.
 
 A shortest route counts km only, in every mode. A long route therefore often takes a flight.
-Part 4 loads some modes only.
+Part 4 loads some modes only. The README of the repository, section *Routes by Time, Cost and
+CO2*, gives each mode a speed or a cost, and finds the fastest or the cheapest route.
 
 ## Part 2. Derive a network from a network file
 
@@ -389,6 +414,10 @@ extension. The parent file is the `world_multimodal` of the network release
 
 The derivation took 1.3 s. The derived file is 19.7 MB, and 7.0 MB without the shapes. Its
 header records the `content_sha256` of the parent file, the modes and the bbox.
+
+A derived file keeps the length and the class of each edge. It keeps the modes of
+`node_addition_modes` that it holds. So a query point snaps to a road node in `oceania`. `world_sea`
+holds no road, and a query point snaps to its closest node of any mode.
 
 The command checks the derived network against some cases of `world_multimodal` (`--no-validate`
 skips this check): the cases whose two points are inside the bbox, on modes that the file holds.
@@ -605,3 +634,22 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 - **Another pipeline.** Copy the pipeline that is closest to your need, and change its sources,
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.
+
+- **The classes and the default modes of your pipeline.** A pipeline module can define two
+  more names. The runner reads them when `build` returns the arrays of the network file.
+
+  ```py
+  # A query point snaps to a node of these modes by default
+  NODE_ADDITION_MODES = ("road",)
+  # The mode of the edges of each class, by the name of the class
+  CLASSES = {"cycleway": "road", "towpath": "road", "ferry": "road"}
+  ```
+
+  A name of `NODE_ADDITION_MODES` is a name of the modes table that `build` returns. The array
+  `edge_classes` holds the row of the class of each edge in `CLASSES`, counted from 0:
+  `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
+  `scgraph.pipelines.CLASSES`. A user then gives a rate to each class or to each mode of these
+  tables (`GeoGraph.create_metric`).
+
+  When `build` returns a GeoGraph, the runner reads neither name. The file then holds the
+  classes of this geograph, which its loader gave, and its `default_node_addition_modes`.

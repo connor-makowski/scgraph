@@ -11,6 +11,7 @@ This guide is for people and for coding agents who change scgraph. *Getting Star
 - **Shortest path algorithms** — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A\*, BMSSP, Contraction Hierarchies (CH), Transit Node Routing (TNR)
 - **Graph reduction** — iterative degree-2 pass-through chain contraction with O(1) same-chain detection, boundary resolution, and transparent algorithm wrapping
 - **Geographic routing & lazy loading** — lat/lon node coordinates, automatic origin/destination snapping, lazy GeoGraph proxies, haversine/cheap-ruler distances
+- **Metrics** — named weights of the edges (time, cost, CO2) from tables, sums or a function; routes by a metric, legs of a route, closed classes
 - **Networks** — released networks of the world (roads, railways, sea lanes, flights), downloaded on demand; networks built from their online sources; the seven networks of release 3.6.0, deprecated
 - **C++ acceleration** — optional compiled extension (nanobind); pure Python fallback always present
 - **Grid pathfinding** — 2D grid routing with obstacles and configurable connectivity
@@ -24,7 +25,7 @@ Winner of the 2025 MIT Prize for Open Data. Zero external runtime dependencies b
 1. Install Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 2. Get the code and switch to the `dev` branch: `git clone https://github.com/connor-makowski/scgraph.git`, `cd scgraph`, `git checkout dev`.
 3. Install the package and its dev dependencies: `uv sync --extra dev`. This also compiles the C++ extension if a compiler is present. If the root-owned `build/` directory causes a permission error, run `sudo rm -rf build/cp314-cp314-linux_x86_64`, then install again.
-4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,000 tests with the C++ extension (about 770 in pure Python), in 1 to 2 minutes, all passed or skipped.
+4. Run the tests: `uv run pytest`. The tests download the built-in networks, so they need Internet. Expect about 1,190 tests with the C++ extension (about 940 in pure Python), in 1 to 2 minutes, all passed or skipped.
 5. Check that the C++ extension was built: `uv run python -c "from scgraph.utils import has_cpp; print(has_cpp())"` prints `True`. If it prints `False`, see *C++ Extension* below.
 6. Before each commit, run `uv run utils/prettify.py`, then `uv run nox -s lint`. On a clean checkout, the formatter changes no file. Read *Contribution Workflow* before your first PR.
 
@@ -35,7 +36,8 @@ scgraph/
   __init__.py                    # Exports: Graph, CHGraph, TNRGraph, GeoGraph, GridGraph, PathNotFoundError, NegativeCycleError
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
-  geograph.py                    # GeoGraph + LazyGeoGraph — snapping, loaders and savers, cache management, build_geograph
+  geograph.py                    # GeoGraph + LazyGeoGraph — snapping, loaders and savers, cache management, build_geograph, classes and metrics
+  metrics.py                     # Internal: the metrics of a GeoGraph, the arrays lined up with its edges, the legs of a route
   contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
@@ -56,18 +58,16 @@ scgraph/
     steps/                       # step1_osm_ways, step1_osm_planet_reader, step2_hub_connectors, step2_land_mask,
     │                            #   step3_network_assembly, step4_validation_cases, near_nodes (ARCHITECTURE.md §1)
   helpers/
-    geojson.py                   # GeoJSON parsing and simplification
-    visvalingam.py               # Visvalingam-Whyatt line simplification
-    douglas_peucker.py           # Douglas-Peucker line simplification
+    geojson.py, visvalingam.py, douglas_peucker.py  # GeoJSON parsing; line simplification (Visvalingam-Whyatt, Douglas-Peucker)
     polylines.py                 # Polylines to a graph: nodes where they end or meet, edges with their shape
     osm.py                       # The ways of an OpenStreetMap file to a graph, for load_from_osm and the pipelines
     components.py                # Strongly connected components; keeps the largest one, for load_from_osm and the pipelines
     hilbert.py                   # Hilbert-curve order of nodes
     snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
-    edge_selection.py            # Nodes and edges of some modes of a file, pure-Python version of cpp/src/edge_selection.cpp
+    edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from tables or as a sum)
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
-    │                            #   transit_node_routing, snap_index, edge_selection, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
+    │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
     bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
@@ -100,7 +100,7 @@ CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3
 
 ## Core Architecture
 
-[ARCHITECTURE.md](ARCHITECTURE.md) explains how scgraph works inside: the data model and the hierarchies (§2), the steps of a geographic query (§3), graph reduction (§4), plugging in an algorithm (§5), caches (§6), the `.scgraph` file (§7). The [README](README.md) gives every algorithm with its use (*Algorithm Reference*) and the parameters of the loaders.
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how scgraph works inside: the data model, the classes, the metrics and the hierarchies (§2), the steps of a geographic query (§3), graph reduction (§4), plugging in an algorithm (§5), caches (§6), the `.scgraph` file (§7). The [README](README.md) gives every algorithm with its use (*Algorithm Reference*) and the parameters of the loaders.
 
 ### Key Classes
 
@@ -108,12 +108,12 @@ CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3
 |---|---|---|
 | `Graph` | `graph.py` | A graph of node ids: the algorithms, `reduce()`, the decorator `@Graph.algorithm`, the shortest path trees |
 | `GraphReducer` | `graph_reducer.py` | Contracts chains of pass-through nodes and expands a path back to the original nodes (ARCHITECTURE.md §4) |
-| `GeoGraph`, `LazyGeoGraph` | `geograph.py` | A `Graph` (attribute `graph_object`) with a point for each node: snapping, loaders and savers, cache, network builds |
+| `GeoGraph`, `LazyGeoGraph` | `geograph.py` | A `Graph` (attribute `graph_object`) with a point for each node: snapping, loaders and savers, cache, network builds. It holds the class of each edge and the metrics, with one `Graph` for each metric (`get_graph_object`) |
 | `CHGraph`, `TNRGraph` | `contraction_hierarchies.py`, `transit_node_routing.py` | Hierarchies built once for fast queries (ARCHITECTURE.md §2, *Trees and Hierarchies*) |
 | `GridGraph` | `grid.py` | A 2D grid with obstacles, with 4 or 8 directions |
 | `GraphUtils`, `GraphModifiers` | `graph_utils.py` | Input validation and path reconstruction; adding and removing nodes and edges |
 
-Each class has a C++ version in `scgraph/cpp/src/` when the extension is built, except `GeoGraph` and `GridGraph`.
+Each class has a C++ version in `scgraph/cpp/src/` when the extension is built, except `GeoGraph` and `GridGraph`. The two kernels of `create_metric` have one too (`metric_weights`).
 
 ### C++ Extension
 
@@ -135,7 +135,7 @@ Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_featu
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
 - `scgraph/pipelines/steps/step4_validation_cases/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.network_builder NAME --validate` (add `--local-files-only` to check a network in the cache without a download)
 
-**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors
+**Rough groupings:** `00` C++ extension check · `01–02` core `Graph` algorithms · `04–11` `GeoGraph` with built-in networks + I/O · `12–14` `GridGraph` · `15–22` specialized (negative cycles, helpers, merge, cache of trees, distance matrix, BMSSP) · `23–31` CH and TNR, save/load, buckets, modifiers, caches · `32–33`, `40–43` graph reduction · `35–39` CH/TNR edge cases, lazy loading, reduce defaults, bidirectional Dijkstra · `44–47` buckets, origin dicts, static shortest path, dict weights · `48–50` OSMNx, OSM and GeoJSON loaders · `51–61` network builds, `.scgraph` files, snapping index, assembly, land mask, validation, logging, A* search, derived network files, released networks, argument errors · `62` classes, metrics and legs of a `GeoGraph`
 
 **Test pattern:**
 ```python
