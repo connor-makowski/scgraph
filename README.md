@@ -95,7 +95,7 @@ for leg in route["legs"]:
     print(leg["mode"], round(leg["metric_totals"]["euros"]), "euros")
 ```
 
-The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) adds weights by class, weighted sums, functions of an edge and closed canals.
+The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) adds weighted sums, functions of an edge and closed canals.
 
 ### A Distance Matrix
 
@@ -158,7 +158,7 @@ The routing guide says when to use each way in [Making Many Queries Fast](https:
 These notebooks open in Google Colab:
 
 - [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb): load a released network, compute a route, draw it on a map, choose a network.
-- [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb): keep each route on one edge mode with a metric, compare three routes.
+- [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb): keep each route on the sea, on the roads or on the railways with a metric, compare three routes.
 - [Shortest Tour of 14 Cities by Road](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/travelling_salesman.ipynb): compute a distance matrix, solve the travelling salesman problem with PuLP.
 - [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb): load OSM data, solve for time and distance on bike networks.
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb): export several routes as GeoJSON.
@@ -175,7 +175,7 @@ The public names of scgraph are the names of the table below. They keep working 
 | For | Public names |
 |---|---|
 | Routes on a network | `scgraph.GeoGraph` and its methods, `scgraph.network_release.TAG` |
-| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `classes`, `modes` and `default_node_addition_modes` |
+| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `default_metric`, `classes`, `modes` and `default_node_addition_modes` |
 | Your own graph or grid | `scgraph.Graph`, `scgraph.CHGraph`, `scgraph.TNRGraph`, `scgraph.GridGraph`, `scgraph.PathNotFoundError`, `scgraph.NegativeCycleError` |
 | Distances | `scgraph.utils`: `haversine`, `cheap_ruler`, `distance_converter`, `has_cpp` |
 | Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |

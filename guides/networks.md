@@ -183,11 +183,23 @@ fastest = ann_arbor.get_shortest_path(origin_node=origin, destination_node=desti
 print(fastest["length"], fastest["metric_totals"]["travel_time"])  # its km, then its seconds
 ```
 
-The geograph keeps the `highway` value of each edge as its class. Each class has an **edge mode**, which says how its edges are travelled: here `road`. When every edge has a `travel_time`, the geograph also keeps it as the metric `travel_time`, in seconds. One geograph then gives the shortest path and the fastest path. `off_graph_travel_speed` is the speed in km/h between a query point and its node.
+The `length` of an edge is always its distance, in km. When every edge has a `travel_time`, the geograph keeps it as the metric `travel_time`, in seconds. One geograph then gives the shortest route and the fastest route. `off_graph_travel_speed` is the speed in km/h between a query point and its node.
+
+The geograph also keeps the `highway` value of each edge as its class. Each class has an **edge mode**, which says how its edges are travelled: here `road`.
+
+**The default metric.** The **default metric** of a geograph is the metric of a query that names no metric. `geograph.default_metric` gives its name. `weight_key` sets it for an OSMnx geograph: `'length'`, the default, or `'travel_time'`.
+
+```py
+# With weight_key="travel_time", a query that names no metric finds the fastest route
+by_time = GeoGraph.load_from_osmnx_graph(osmnx_graph, weight_key="travel_time", off_graph_travel_speed=30)
+by_time.default_metric  # 'travel_time'
+fastest = by_time.get_shortest_path(origin_node=origin, destination_node=destination)
+print(fastest["length"], fastest["metric_totals"]["travel_time"])  # still its km, then its seconds
+```
 
 OSMnx can give several edges from one node to another. The geograph keeps the shortest one, with its class and its travel time. So the metric `travel_time` holds the time of the shortest edge, which may not be the fastest.
 
-With `weight_key='travel_time'`, the lengths of the geograph are the travel times, in seconds, and it has no metric. The [OSMnx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) compares the fastest route and the shortest route on a bike network, and draws them.
+The [OSMnx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) compares the fastest route and the shortest route on a bike network, and draws them.
 
 ## Loading an OpenStreetMap File
 

@@ -30,7 +30,7 @@ route["metric_totals"]  # {'hours': ...}: its hours
 - **Leg.** A **leg** is a part of a route on one edge mode. The mode of a leg is this edge mode.
 - **Off the graph.** A **query point** is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. Its mode is `off_graph`. The total of a route counts its two off-graph legs. The routing guide says [where a query point snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps).
 - **Class.** Each edge of `europe` has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. So does each edge of the other networks that scgraph publishes. Each class has one edge mode.
-- **Hub.** A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. A **hub** is a port, an airport or a rail terminal: its node mode is `port`, `airport` or `rail_terminal`.
+- **Hub.** A **hub** is a port, an airport or a rail terminal. A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. The node mode of a hub is one of the last three.
 
 Each of the three dicts of the call has one kind of key:
 
@@ -39,6 +39,8 @@ Each of the three dicts of the call has one kind of key:
 - **`weight_at_hub`.** It adds a weight at a hub. Its first key is the node mode of the hub, and its second key is an edge mode. Only the edges of this edge mode pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches.
 
 **The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
+
+**The default metric.** A query that names no metric uses the **default metric** of the geograph: `geograph.default_metric`. It is `length`, except for an OSMnx geograph loaded with `weight_key="travel_time"`. The guide of the networks shows this case in [Loading from OSMnx](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#loading-from-osmnx).
 
 ## The Legs of a Route
 
