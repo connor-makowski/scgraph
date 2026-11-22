@@ -5,7 +5,7 @@
 
 // The two kernels of this file compute a "metric" of a network: one weight for each edge,
 // under a name such as `hours` or `cost`. GeoGraph.create_metric calls them, and a search
-// then adds up these weights in place of the lengths.
+// then adds these weights in place of the lengths.
 //
 // WHAT THEY ANSWER
 //   compute_weights_from_km gives the weight of each edge from its km, from a weight per km

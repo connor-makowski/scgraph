@@ -1,16 +1,16 @@
 """
-Pure-Python version of the C++ kernels `compute_weights_from_km` and
-`compute_weighted_sum`, with the same result, bit for bit. This module is internal. The
-kernels and their parameters are described in `scgraph/cpp/src/metric_weights.hpp`. Read
-it first.
+Pure-Python version of the two C++ kernels that compute the weight of each edge in a
+metric: `compute_weights_from_km` and `compute_weighted_sum`. This module is internal.
+`scgraph/cpp/src/metric_weights.hpp` explains the kernels, their parameters and their
+steps. Read it first.
 
-Same as in C++: the steps, the order of the operations on each weight, and the
-messages of the errors.
+Both versions make the same operations on each weight, in the same order. So they
+return the same weights, bit for bit.
 
-Different: a pass over all the edges runs in C (`map`, `compress`, `translate`), not
-in a Python loop. Step 1 multiplies every edge, then writes infinity on the edges of
-a closed class. Steps 2 and 3 visit only the edges that leave or enter a hub. Step 4
-checks the weights at the end.
+This version differs in one way: a pass over all the edges runs in C (`map`,
+`compress`, `translate`), not in a Python loop. Step 1 multiplies every edge, then
+writes infinity on the edges of a closed class. Steps 2 and 3 visit only the edges
+that leave or enter a hub. Step 4 checks the weights at the end.
 """
 
 from array import array
@@ -30,13 +30,13 @@ def compute_weights_from_km(
     hub_weights: array | memoryview,
 ) -> array:
     """
-    Compute the weight of each edge from the weight per km of its class and from the
-    weight that it pays at a hub: one float64 weight of zero or more for each edge, and
-    infinity for a closed edge.
+    Return the float64 weight of each edge, in the order of the edge ids: the weight
+    per km of its class times its km, plus the weight of each hub that it leaves or
+    enters. A closed edge has the weight infinity.
 
     Raises:
-        ValueError: The arrays do not fit together, or a weight is below zero or
-            not a number.
+        ValueError: The lengths of the arrays do not agree, or a weight is below zero
+            or not a number.
     """
     node_count, edge_count = len(offsets) - 1, len(heads)
     class_count = len(class_weights_per_km)
@@ -105,7 +105,7 @@ def compute_weights_from_km(
             "an edge has a class without a weight per km, or a node has a node mode without hub weights"
         ) from None
 
-    # 4. A comparison with a value that is not a number is false
+    # 4. `0.0 <= weight` is false for a weight that is not a number.
     if not all(map((0.0).__le__, weights)):
         edge_id = next(
             i for i, weight in enumerate(weights) if not weight >= 0.0
@@ -123,12 +123,12 @@ def compute_weighted_sum(
     coefficients: array | memoryview,
 ) -> array:
     """
-    Compute the weight of each edge as the sum of its weight in each metric times
-    the coefficient of the metric, in float64. An edge that is closed in one of the
-    metrics gets infinity.
+    Return the float64 weight of each edge in a weighted sum of metrics: the sum of
+    its weight in each metric times the coefficient of the metric. An edge that is
+    closed in one of the metrics has the weight infinity.
 
     Raises:
-        ValueError: The arrays do not fit together.
+        ValueError: The lengths of the arrays do not agree.
     """
     if not weights_of_metrics or len(coefficients) != len(weights_of_metrics):
         raise ValueError(

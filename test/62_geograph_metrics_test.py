@@ -333,7 +333,7 @@ def test_reading_a_node_mode_a_class_a_node_or_an_edge_that_the_network_lacks_is
 def test_the_other_edges_keep_their_classes_when_the_graph_object_removes_an_edge(
     network,
 ):
-    # The motorway is the second edge of each town: the edges after it move.
+    # The motorway is the second edge of each town: the next edges change ids.
     network.graph_object.remove_edge(WEST_TOWN, EAST_TOWN, symmetric=True)
 
     assert _get_class_of_each_edge(network) == {
@@ -414,7 +414,7 @@ def test_an_added_edge_has_the_class_of_its_call(
     getattr(network, method)(*arguments, edge_class="primary")
 
     # The railway was there: it keeps its class. The new edge of the west
-    # town moves the edges of every node after it.
+    # town changes the edge ids of every node after it.
     classes = _get_class_of_each_edge(network)
     assert [
         classes[edge]
