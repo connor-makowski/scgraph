@@ -72,7 +72,7 @@ the call that derives a network.
 
 1. **How do eleven networks stay consistent? One network is built from the sources, and every
    other network is derived from it.** A build of the world reads the whole OpenStreetMap
-   planet, which takes about an hour. A derivation downloads nothing and takes seconds. All the
+   planet, which takes more than an hour. A derivation downloads nothing and takes seconds. All the
    networks of one network release therefore hold the same data (Part 2).
 2. **How does a user know what a file holds? A network file records where it comes from.**
    A user can then cite the sources and name the exact file behind a result. Step 7 of Part 1
@@ -364,7 +364,7 @@ The pipeline `osm_world_multimodal` runs the same steps on the whole planet. It 
 network `world_multimodal`. The pipeline differs from `geofabrik_multimodal` in three points:
 
 - It reads the planet file by HTTP byte ranges, and never stores it.
-- It cuts a road or a railway every 10 km, not every 2 km. This gives about 3.3 million nodes.
+- It cuts a road or a railway every 10 km, not every 2 km. This gives about 3.4 million nodes.
 - It keeps each strongly connected component of at least 1,000 nodes, not only the largest.
   The roads of an island then stay in the file.
 
@@ -395,15 +395,15 @@ prints the two paths. Without a name, the command writes the files of the ten de
 networks, and the world file without shapes. In a network release, the workflow of Part 3
 runs the command this way, once.
 
-The numbers below come from one derivation of `oceania` on 2026-11-20, on Linux, with the C++
+The numbers below come from one derivation of `oceania` on 2026-11-22, on Linux, with the C++
 extension. The parent file is the `world_multimodal` of the network release
-`networks-2026.11.20-dev.2` (333.6 MB).
+`networks-2026.11.22-dev.2` (335.4 MB).
 
 | Step | Nodes | Edges |
 |---|---|---|
-| the parent file | 3,335,926 | 6,241,423 |
-| select the nodes and remove the other edges | 125,616 | 338,310 |
-| keep the components of at least 10 nodes | 125,567 | 338,274 |
+| the parent file | 3,376,285 | 6,313,226 |
+| select the nodes and remove the other edges | 125,953 | 339,046 |
+| keep the components of at least 10 nodes | 125,904 | 339,010 |
 
 - **Select the nodes.** The bbox of `oceania` is `(-50, 110, 0, 180)`. It selects the roads,
   the railways and the rail terminals inside it. The sea lanes, the ports and the airports of
@@ -412,7 +412,7 @@ extension. The parent file is the `world_multimodal` of the network release
   in strongly connected components of fewer than 10 nodes. `derive_network_file` removes them. It
   does not contract the chains again: a junction that lost a road stays as a node.
 
-The derivation took 1.3 s. The derived file is 19.7 MB, and 7.0 MB without the shapes. Its
+The derivation took 1.5 s. The derived file is 19.7 MB, and 7.1 MB without the shapes. Its
 header records the `content_sha256` of the parent file, the modes and the bbox.
 
 A derived file keeps the length and the class of each edge. It keeps the modes of
@@ -438,7 +438,7 @@ Parts 1 and 2 for the world, then prepares the GitHub release.
 The date of the data is in the code, not in the tag. The constant `PLANET` of
 `steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
-`networks-2026.11.20-dev.2` holds the planet of 2026-11-02.
+`networks-2026.11.22-dev.2` holds the planet of 2026-11-02.
 
 ### What starts the run
 
@@ -479,12 +479,12 @@ flowchart TD
 
 | Job | Time when the world is built | Time when the world file is taken |
 |---|---|---|
-| 1. Check the tag | 9 s | 3 s |
-| 2. `world_multimodal` | 1 h 5 min | 41 s |
-| 3. Derive and draft | 4 min 28 s | 3 min 9 s |
+| 1. Check the tag | 7 s | 3 s |
+| 2. `world_multimodal` | 1 h 35 min | 41 s |
+| 3. Derive and draft | 4 min 25 s | 3 min 9 s |
 
-The times come from two runs. The run of `networks-2026.11.20-dev.2` built the world. A run
-of 2026-11-19 took the world file of the network release before it.
+The times come from two runs. The run of `networks-2026.11.22-dev.2`, on 2026-11-22, built the
+world. A run of 2026-11-19 took the world file of the network release before it.
 
 - **Job 2 reads the planet from another server.** The workflow first replaces the planet URL
   of the code by a mirror that is faster from a machine of GitHub. The header of the world
@@ -498,7 +498,7 @@ of 2026-11-19 took the world file of the network release before it.
 
 ### What a network release holds
 
-The network release `networks-2026.11.20-dev.2` holds 23 files.
+The network release `networks-2026.11.22-dev.2` holds 23 files.
 
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
   with and without the shapes of its edges. For example `oceania.scgraph.gz` (9.2 MB) and
@@ -522,10 +522,16 @@ The run ends with a draft.
    GitHub release also starts the workflow that publishes scgraph on PyPI. That workflow skips
    a tag that starts with `networks-`.
 3. **Pin the network release.** The maintainer runs
-   `python utils/pin_network_release.py TAG`. The script writes the tag and the
-   `content_sha256` of each file into `scgraph/network_release.py`. A PR brings this module
-   into `dev`.
-4. **Reach the users.** An install from `dev` loads the new network release at once. A user of
+   `python utils/pin_network_release.py TAG`. The script writes the tag, the `content_sha256`
+   of each file and the counts of each network into `scgraph/network_release.py`. It writes
+   the module as the formatter keeps it, so `utils/prettify.py` changes no line. A PR brings
+   this module into `dev`.
+4. **Update the documents.** The README of the repository names the pinned network release,
+   with the sizes of its files and one `content_sha256`. Its examples show lengths on the
+   released networks. In the same PR, the maintainer runs these examples again, and updates
+   the tag, the sizes, the counts and each length that changed. The maintainer also updates
+   the numbers of Parts 2 to 4 of this guide.
+5. **Reach the users.** An install from `dev` loads the new network release at once. A user of
    PyPI gets it with the next version of scgraph.
 
 Two checks protect a published file. Job 1 stops a run whose tag is already published. And
@@ -569,9 +575,9 @@ arguments, the way to read the credit line, and the way to load exactly the same
 The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on maps.
 
 The first call downloads
-`https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.20-dev.2/oceania.no_shapes.scgraph.gz`.
+`https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph.gz`.
 The cache keeps the decompressed file as
-`releases/networks-2026.11.20-dev.2/oceania.no_shapes.scgraph`.
+`releases/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph`.
 
 ```mermaid
 flowchart TD
@@ -580,20 +586,20 @@ flowchart TD
     O -- "yes" --> E1["FileNotFoundError"]
     O -- "no" --> D{"Does the server give the file?<br/>3.5 MB, compressed"}
     D -- "no" --> E4["FileNotFoundError or ConnectionError"]
-    D -- "yes" --> U["Decompress it<br/>7.0 MB"]
+    D -- "yes" --> U["Decompress it<br/>7.1 MB"]
     U --> K{"Is the content whole?<br/>Is its content_sha256 the one in network_release.py?"}
     K -- "no" --> E2["Delete the file, ValueError"]
     K -- "yes" --> M["Move the file into the cache"]
     M --> H
     B -- "yes" --> H{"Did the caller pass a content_sha256<br/>that the file does not have?"}
     H -- "yes" --> E3["ValueError"]
-    H -- "no" --> L["Read the file<br/>125,567 nodes, 338,274 edges"]
+    H -- "no" --> L["Read the file<br/>125,904 nodes, 339,010 edges"]
     L --> G["A GeoGraph"]
 ```
 
-The numbers come from one first load and one later load on 2026-11-20, on a laptop with the
-C++ extension. The first load took 0.6 s, download included. The later load took 0.01 s: it
-found the file in the cache and made no request.
+The numbers come from one first load and one later load on 2026-11-22, on Linux, with the C++
+extension. The first load took 2.7 s, download included. The later load took 0.01 s: it found
+the file in the cache and made no request.
 
 - **Which network release.** `load_geograph` loads a network of the pinned network release,
   which `scgraph/network_release.py` names. The argument `network_release` gives the tag of another

@@ -138,20 +138,20 @@ print(route["length"])  #=> 909.028 (km: the shortest route takes a flight)
 
 This route is the shortest in km. The section [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2) finds the fastest route, the cheapest route, or the route with the least CO2.
 
-**The networks.** Distances are in kilometers. The shape of an edge is the list of points that draw the edge on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.20-dev.2`.
+**The networks.** Distances are in kilometers. The shape of an edge is the list of points that draw the edge on a map between its two nodes. Each network has a file with the shapes and a smaller file without them. The sizes are those of the network release `networks-2026.11.22-dev.2`.
 
 | Name | What it holds | Download, with shapes | Without shapes |
 |---|---|---|---|
-| `world_multimodal` | The main roads, the railways, the sea lanes and the regular flights of the world. Ports, airports and rail terminals join them | 196.9 MB | 88.9 MB |
+| `world_multimodal` | The main roads, the railways, the sea lanes and the regular flights of the world. Ports, airports and rail terminals join them | 197.8 MB | 90.0 MB |
 | `world_sea` | The sea lanes and the ports of the world | 3.7 MB | 1.2 MB |
-| `world_rail` | The railways and the rail terminals of the world | 28.9 MB | 10.5 MB |
-| `europe` | Latitudes 34 to 72, longitudes -25 to 45 | 60.4 MB | 28.3 MB |
-| `north_america` | Latitudes 7 to 84, longitudes -170 to -50 | 41.3 MB | 19.0 MB |
-| `south_america` | Latitudes -57 to 13, longitudes -82 to -34 | 16.6 MB | 7.4 MB |
-| `africa` | Latitudes -35 to 38, longitudes -18 to 52 | 20.3 MB | 9.9 MB |
-| `west_south_asia` | Latitudes 5 to 45, longitudes 25 to 98 | 30.2 MB | 14.5 MB |
-| `east_southeast_asia` | Latitudes -11 to 55, longitudes 92 to 150 | 56.5 MB | 22.6 MB |
-| `north_asia` | Latitudes 40 to 78, longitudes 45 to 180 | 13.0 MB | 5.1 MB |
+| `world_rail` | The railways and the rail terminals of the world | 29.1 MB | 10.7 MB |
+| `europe` | Latitudes 34 to 72, longitudes -25 to 45 | 60.5 MB | 28.5 MB |
+| `north_america` | Latitudes 7 to 84, longitudes -170 to -50 | 41.4 MB | 19.1 MB |
+| `south_america` | Latitudes -57 to 13, longitudes -82 to -34 | 16.7 MB | 7.5 MB |
+| `africa` | Latitudes -35 to 38, longitudes -18 to 52 | 20.3 MB | 10.0 MB |
+| `west_south_asia` | Latitudes 5 to 45, longitudes 25 to 98 | 30.4 MB | 14.7 MB |
+| `east_southeast_asia` | Latitudes -11 to 55, longitudes 92 to 150 | 56.7 MB | 23.0 MB |
+| `north_asia` | Latitudes 40 to 78, longitudes 45 to 180 | 13.1 MB | 5.1 MB |
 | `oceania` | Latitudes -50 to 0, longitudes 110 to 180 | 9.2 MB | 3.5 MB |
 
 A network named for a part of the world is a part of `world_multimodal`. It holds the roads, the railways and the rail terminals inside its rectangle. It also holds every sea lane, port and airport of the world, so a route can leave the rectangle by sea or by air.
@@ -175,17 +175,17 @@ print(route["length"])  #=> 1031.6 (km, by road)
 ```py
 from scgraph import network_release
 
-network_release.TAG  # 'networks-2026.11.20-dev.2', the network release that this scgraph loads
+network_release.TAG  # 'networks-2026.11.22-dev.2', the network release that this scgraph loads
 info = GeoGraph.get_scgraph_info(europe.scgraph_file)
-info["content_sha256"]  # '5dafa1c37d57bb89...'
+info["content_sha256"]  # '63ea4f4f4d125c7d...'
 info["attribution"]     # the credit line to cite with your results
 info["data_up_to"]      # '2026-11-02T00:59:53Z', the time of the newest source data
 
 # Later, on any machine: this call loads the same file, or raises a ValueError
 europe = GeoGraph.load_geograph(
     "europe",
-    network_release="networks-2026.11.20-dev.2",
-    content_sha256="5dafa1c37d57bb89aeab601c333c72feb8235c8cab24ac0b4cbf380aec26c899",
+    network_release="networks-2026.11.22-dev.2",
+    content_sha256="63ea4f4f4d125c7da7c416a5511f9f71d632830468fae5355555f31eca777e3c",
 )
 ```
 
@@ -767,7 +767,7 @@ available = GeoGraph.list_geographs()
 #     ...
 #     {"name": "europe", "cached": True, "kind": "released",
 #      "description": "The part of world_multimodal between latitudes 34 and 72 and longitudes -25 and 45, ...",
-#      "nodes": 1048594, "edges": 2071242, "download_mb": 60.4, "download_mb_without_shapes": 28.3,
+#      "nodes": 1056450, "edges": 2085191, "download_mb": 60.5, "download_mb_without_shapes": 28.5,
 #      "data_up_to": "2026-11-02T00:59:53Z"},
 #     {"name": "marnet", "cached": False, "kind": "built-in",
 #      "description": "Sea lanes of the world (Eurostat SeaRoute)", "superseded_by": "world_sea"},
