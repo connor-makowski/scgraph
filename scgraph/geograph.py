@@ -35,8 +35,9 @@ from scgraph.metrics import (
     cut_legs,
     describe_definition,
     find_edge_index,
-    find_sums_using,
+    find_users,
     match_edges,
+    order_by_dependencies,
     read_weight,
     reorder_edge_values,
     set_edge_weights,
@@ -3532,9 +3533,17 @@ class GeoGraph(
             self._edge_arrays_edit_count = edit_count
         return self._edge_arrays
 
-    def _get_edge(self, origin_id: int, edge_index: int) -> dict:
-        # The dict of the edge `edge_index` of the lined-up arrays (see `get_edges`)
+    def _get_edge(
+        self,
+        origin_id: int,
+        edge_index: int,
+        metrics: dict[str, Metric] | None = None,
+    ) -> dict:
+        # The dict of the edge `edge_index` of the lined-up arrays (see `get_edges`).
+        # `metrics` holds the metrics of the dict, by name: None for every metric.
         _, heads, lengths = self._edge_arrays
+        if metrics is None:
+            metrics = self._metrics
         edge_class = (
             _NO_CLASS
             if self._edge_classes is None
@@ -3548,7 +3557,7 @@ class GeoGraph(
             "mode": edge_class["mode"],
             "metrics": {
                 name: metric.weights[edge_index]
-                for name, metric in self._metrics.items()
+                for name, metric in metrics.items()
             },
         }
 
@@ -3558,8 +3567,8 @@ class GeoGraph(
         drops the graph of each metric. `old_edge_indexes` is the result of
         `match_edges` for the edit.
 
-        - A metric with a definition is computed again. A pair of its `edge_weights`
-          that is no longer an edge is dropped
+        - A metric with a definition is computed again, after the metrics that it
+          uses. A pair of its `edge_weights` that is no longer an edge is dropped
         - A metric without a definition keeps the weight of each edge that was there.
           An edge of an `add_` method takes the weight of that call, which
           `_new_edge_metrics` holds by (origin id, destination id). Any other new edge
@@ -3567,7 +3576,8 @@ class GeoGraph(
         """
         offsets, heads, _ = self._edge_arrays
         metrics, self._metrics = self._metrics, {}
-        for name, metric in metrics.items():
+        for name in order_by_dependencies(metrics):
+            metric = metrics[name]
             if metric.definition is None:
                 weights = take_edge_values(
                     metric.weights, old_edge_indexes, inf
@@ -3592,7 +3602,11 @@ class GeoGraph(
                 }
             try:
                 self._metrics[name] = self._compute_metric(
-                    name, metric.unit, metric.description, definition
+                    name,
+                    metric.unit,
+                    metric.description,
+                    definition,
+                    metric.used_metrics,
                 )
             except Exception as error:
                 error.add_note(
@@ -3600,6 +3614,8 @@ class GeoGraph(
                     f"again. `remove_metric({name!r})` removes the metric."
                 )
                 raise
+        # The metrics keep their order, which `metrics` and the results show
+        self._metrics = {name: self._metrics[name] for name in metrics}
 
     def _compute_metric(
         self,
@@ -3607,11 +3623,14 @@ class GeoGraph(
         unit: str | None,
         description: str | None,
         definition: dict,
+        used_metrics: tuple[str, ...],
     ) -> Metric:
         """
         Returns a metric computed on the lined-up edges of the geograph.
         `definition` holds the arguments `per_km`, `at_hub`, `weighted_sum_of`,
         `edge_weight_fn` and `edge_weights` of a `create_metric` call, by name.
+        `used_metrics` names the metrics that the metric uses: a function reads
+        these metrics, and no other, in the `metrics` of an edge.
         `scgraph/metrics.py` explains how the weights are computed.
         """
         offsets, heads, lengths = self._edge_arrays
@@ -3653,11 +3672,17 @@ class GeoGraph(
             )
         else:
             edge_weight_fn = definition["edge_weight_fn"]
+            read_metrics = {
+                used_name: self._metrics[used_name]
+                for used_name in used_metrics
+            }
             weights = array(
                 "d",
                 (
                     read_weight(
-                        edge_weight_fn(self._get_edge(origin_id, edge_index)),
+                        edge_weight_fn(
+                            self._get_edge(origin_id, edge_index, read_metrics)
+                        ),
                         origin_id,
                         heads[edge_index],
                     )
@@ -3676,8 +3701,8 @@ class GeoGraph(
                     "class": None,
                     "mode": "off_graph",
                     "metrics": {
-                        other_name: other.off_graph_per_km
-                        for other_name, other in self._metrics.items()
+                        used_name: used_metric.off_graph_per_km
+                        for used_name, used_metric in read_metrics.items()
                     },
                 }
             )
@@ -3698,6 +3723,7 @@ class GeoGraph(
             weights,
             float(off_graph_per_km),
             definition,
+            used_metrics,
         )
 
     def _get_metric(self, name: str) -> Metric:
@@ -3741,7 +3767,7 @@ class GeoGraph(
 
         - Create a metric: one weight for each edge, under a name. `get_shortest_path(metric=name)` then finds the route with the smallest total of these weights
         - The weights are computed at the call, in one of three ways: from tables (`per_km`, with `at_hub`), as a weighted sum of other metrics (`weighted_sum_of`), or by a function (`edge_weight_fn`). Exactly one of the three is given
-        - A metric of the same name is replaced, and each weighted sum that uses it is computed again
+        - A metric of the same name is replaced, and each metric that uses it is computed again. A weighted sum uses the metrics that it sums. A metric made by `edge_weight_fn` uses every metric that the geograph has at this call, because the function may read them in the `metrics` of an edge
         - After an edit of the geograph, the metric is computed again from the arguments of this call
         - Example: `geograph.create_metric("hours", per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, at_hub={"rail_terminal": {"rail": 4}}, unit="h")`
 
@@ -3810,21 +3836,47 @@ class GeoGraph(
             "edge_weights": deepcopy(edge_weights),
         }
         self._get_edge_arrays()
-        metric = self._compute_metric(
-            name,
-            unit,
-            description or describe_definition(definition),
-            definition,
-        )
-        # A new metric goes last, and so does each sum that uses it: a sum follows
-        # the metrics that it sums
-        self._metrics.pop(name, None)
-        self._metrics[name] = metric
-        for sum_name in find_sums_using(self._metrics, name):
-            old_sum = self._metrics.pop(sum_name)
-            self._metrics[sum_name] = self._compute_metric(
-                sum_name, old_sum.unit, old_sum.description, old_sum.definition
+        users = find_users(self._metrics, name)
+        if weighted_sum_of is not None:
+            used_metrics = tuple(
+                summed_name
+                for summed_name in weighted_sum_of
+                if summed_name != "length"
             )
+        elif edge_weight_fn is not None:
+            # The function may read every metric in the `metrics` of an edge. A
+            # metric that uses this one is computed after it: the function does
+            # not get it.
+            used_metrics = tuple(
+                other_name
+                for other_name in self._metrics
+                if other_name != name and other_name not in users
+            )
+        else:
+            used_metrics = ()
+        metrics_before = dict(self._metrics)
+        try:
+            # A metric that is created again keeps its place in `metrics`
+            self._metrics[name] = self._compute_metric(
+                name,
+                unit,
+                description or describe_definition(definition),
+                definition,
+                used_metrics,
+            )
+            for user_name in users:
+                user = self._metrics[user_name]
+                self._metrics[user_name] = self._compute_metric(
+                    user_name,
+                    user.unit,
+                    user.description,
+                    user.definition,
+                    user.used_metrics,
+                )
+        except Exception:
+            # No metric changes when one of them cannot be computed
+            self._metrics = metrics_before
+            raise
 
     def remove_metric(self, name: str) -> None:
         """
@@ -3837,14 +3889,16 @@ class GeoGraph(
 
         - `name`
             - Type: str
-            - What: The name of a metric of `metrics`, other than `length`; an unknown name, or a metric that a weighted sum uses, raises a ValueError
+            - What: The name of a metric of `metrics`, other than `length`; an unknown name, or a metric that another metric uses (see `create_metric`), raises a ValueError
         """
         self._get_metric(name)
-        sums = find_sums_using(self._metrics, name)
-        if sums:
+        users = find_users(self._metrics, name)
+        if users:
             raise ValueError(
-                f"The metric {name!r} is used by the weighted sum {sums[0]!r}: "
-                "remove this sum first"
+                f"The metric {name!r} is used by the metric {users[0]!r}: remove "
+                f"{users[0]!r} first. A weighted sum uses the metrics that it "
+                "sums, and a metric made by edge_weight_fn uses every metric that "
+                "the geograph had at its creation"
             )
         del self._metrics[name]
 
@@ -4842,9 +4896,13 @@ class GeoGraph(
         warn_deprecated_parameter("silent", silent)
         failed_pairs = 0
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
-        graph_object = self.get_graph_object(metric)
         if output_metric is None:
             output_metric = metric
+        if output_metric != "length":
+            # The weights of the output metric are read below: the geograph lines
+            # them up with its edges first
+            self._get_edge_arrays()
+        graph_object = self.get_graph_object(metric)
         if output_metric == "length":
             dist_multiplier = distance_converter(
                 distance=1,

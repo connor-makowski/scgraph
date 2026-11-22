@@ -460,9 +460,27 @@ def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
     ]
 
 
-def test_a_sum_follows_a_metric_that_is_created_again(network):
+def _get_cost(edge):
+    """The cost of an edge, or of 1 km of access leg: 2 for each of its
+    minutes, and 0.5 for each of its km."""
+    return 2 * edge["metrics"]["minutes"] + 0.5 * edge["length"]
+
+
+# The metric `cost` uses the metric `minutes`: as a weighted sum, then as a
+# function that reads the minutes of each edge.
+@pytest.mark.parametrize(
+    "cost",
+    [
+        {"weighted_sum_of": {"minutes": 2, "length": 0.5}},
+        {"edge_weight_fn": _get_cost},
+    ],
+    ids=["a weighted sum", "a function"],
+)
+def test_a_metric_that_uses_another_follows_it_when_it_is_created_again(
+    network, cost
+):
     network.create_metric("minutes", per_km=MINUTES_PER_KM)
-    network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
+    network.create_metric("cost", **cost)
     network.create_metric("fare", weighted_sum_of={"cost": 3})
 
     network.create_metric("minutes", per_km=1.0)
@@ -1049,6 +1067,35 @@ def test_distance_matrix_gives_the_totals_of_another_metric_than_its_routes(
             ]
         )
         for row in routes
+    ]
+
+
+def test_distance_matrix_by_an_output_metric_follows_an_edit_of_the_network(
+    network,
+):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    points = [WEST_POINT, EAST_POINT]
+
+    # The west town lists the new road after its other edges. So each edge of
+    # the nodes after the west town gets a new index.
+    network.add_edge(
+        WEST_TOWN, PORT, 80.0, symmetric=True, edge_class="primary"
+    )
+
+    matrix = network.distance_matrix(points, output_metric="minutes")
+
+    # The shortest route between the two towns is still the primary road
+    # through the junction: the new road ends at the port, 3 km further.
+    assert matrix == [
+        pytest.approx(
+            [
+                network.get_shortest_path(origin, destination)["metrics"][
+                    "minutes"
+                ]
+                for destination in points
+            ]
+        )
+        for origin in points
     ]
 
 

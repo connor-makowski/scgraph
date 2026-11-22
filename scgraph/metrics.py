@@ -36,6 +36,12 @@ A geograph computes the weights of a metric in one of three ways.
 
 `set_edge_weights` then writes the weights that the caller gives for some edges.
 
+A metric "uses" the metrics that its weights are computed from. A weighted sum uses
+the metrics that it sums. A function may read the weight of an edge in each metric
+that the geograph has at that time, so the metric of a function uses all of them.
+When a metric is created again, the geograph computes each of its users again
+(`find_users`), each one after the metrics that it uses (`order_by_dependencies`).
+
 Example, on the three edges above, with lengths of 10, 20 and 20 km. The row 4 is the
 class `primary`, of the mode `road`, and the row 7 is the class `motorway`. The
 tables `per_km={"primary": 0.02, "motorway": 0.01, "off_graph": 0.05}` give the
@@ -115,6 +121,10 @@ class Metric:
     # The arguments of the `create_metric` call that made the metric, by name. None
     # for a metric that was read from a file: the geograph cannot compute it again.
     definition: dict | None = None
+    # The names of the metrics that the weights were computed from: the metrics of
+    # a weighted sum, other than `length`, or the metrics that a function could
+    # read. The geograph computes the metric again when one of them changes.
+    used_metrics: tuple[str, ...] = ()
     # The smallest weight of an open edge divided by its length, over the edges
     # longer than zero. It scales the bound of an A* search. Computed at the first
     # such search.
@@ -292,11 +302,11 @@ def compute_weights_by_sum(
             coefficient is not a finite number above zero.
     """
     if name in weighted_sum_of or not set(weighted_sum_of).isdisjoint(
-        find_sums_using(metrics, name)
+        find_users(metrics, name)
     ):
         raise ValueError(
             f"The metric {name!r} would use itself: weighted_sum_of names it, or "
-            "a sum that uses it"
+            "a metric that uses it"
         )
     weights_of_metrics, off_graph_per_km = [], 0.0
     for summed_name, coefficient in weighted_sum_of.items():
@@ -429,26 +439,55 @@ def compute_min_weight_per_km(
     return min(filter(isfinite, ratios), default=0.0)
 
 
-def find_sums_using(metrics: dict[str, Metric], name: str) -> list[str]:
-    """Return the weighted sums that use a metric, directly or through another sum.
+def order_by_dependencies(metrics: dict[str, Metric]) -> list[str]:
+    """Return the names of the metrics, each one after the metrics that it uses.
+
+    Example: `cost` is a sum of `hours`, and `fare` is a sum of `cost`. The order
+    is `hours`, `cost`, `fare`, also when the dict lists `fare` first.
 
     Args:
-        metrics: The metrics by name. A weighted sum follows the metrics that it
-            sums.
-        name: The name of the metric.
+        metrics: The metrics by name. No metric uses itself, directly or through
+            another metric: `create_metric` refuses such a metric.
 
     Returns:
-        The names of the sums, in the order of `metrics`: a sum follows the sums
-        that it uses.
+        Every name of `metrics`. Two metrics that do not use each other keep the
+        order of `metrics`.
     """
-    used = {name}
-    sums = []
-    for other_name, metric in metrics.items():
-        summed = (metric.definition or {}).get("weighted_sum_of") or ()
-        if other_name != name and used.intersection(summed):
-            used.add(other_name)
-            sums.append(other_name)
-    return sums
+    ordered = {}
+
+    def add_after_its_metrics(name: str) -> None:
+        if name not in ordered:
+            for used_name in metrics[name].used_metrics:
+                add_after_its_metrics(used_name)
+            ordered[name] = None
+
+    for name in metrics:
+        add_after_its_metrics(name)
+    return list(ordered)
+
+
+def find_users(metrics: dict[str, Metric], name: str) -> list[str]:
+    """Return the metrics that use a metric, directly or through another metric.
+
+    Example: `cost` is a sum of `hours`, and `fare` is a sum of `cost`. The users
+    of `hours` are `cost` and `fare`.
+
+    Args:
+        metrics: The metrics by name.
+        name: The name of the metric. It may be a name that `metrics` lacks.
+
+    Returns:
+        The names of the users, each one after the metrics that it uses.
+    """
+    used_names = {name}
+    users = []
+    for other_name in order_by_dependencies(metrics):
+        if other_name != name and used_names.intersection(
+            metrics[other_name].used_metrics
+        ):
+            used_names.add(other_name)
+            users.append(other_name)
+    return users
 
 
 def describe_definition(definition: dict) -> str:
