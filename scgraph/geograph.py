@@ -4056,37 +4056,63 @@ class GeoGraph(
         origin: Sequence[float],
         destination: Sequence[float],
         off_graph_circuity: float,
-        output_units: str,
-        output_coordinate_path: str,
         get_intermediate_nodes: bool,
     ) -> tuple[list[dict], list[dict]]:
         """Return the legs and the transfers of a route, as `get_shortest_path`
-        describes them. The edges of `path` make the legs on the network
-        (`_cut_legs`). An off-graph leg joins each point of the query to its node,
-        and weighs as in the totals of the route. A route without an edge is one
-        off-graph leg, through the node of its path if it has one."""
+        describes them. The lengths are in the units of the geograph, and each
+        coordinate path is a list of [latitude, longitude]: `_format_leg` gives a
+        leg the units and the format that the query asks. The edges of `path` make
+        the legs on the network (`_cut_legs`). An off-graph leg joins each point of
+        the query to its node (`_get_off_graph_legs`)."""
         legs = _cut_legs(self.get_path_edges(path))
-        transfers = [
-            {
-                "node_id": leg["path"][0],
-                "node_mode": self.node_modes[
-                    self.node_mode_ids[leg["path"][0]]
-                ].get("name"),
-            }
-            for leg in legs[1:]
-        ]
+        transfers = self._get_transfers(legs)
         for leg in legs:
             leg["coordinate_path"] = self.__get_coordinate_path__(
                 leg.pop("path"), get_intermediate_nodes=get_intermediate_nodes
             )
-        if legs:
+        off_graph_legs = self._get_off_graph_legs(
+            path, origin, destination, off_graph_circuity
+        )
+        return [off_graph_legs[0], *legs, *off_graph_legs[1:]], transfers
+
+    def _get_transfers(self, legs: list[dict]) -> list[dict]:
+        """Return the transfers of a route: the node where each leg on the network
+        starts, except the first leg. `legs` are the legs of `_cut_legs`, which
+        still have the node ids of their `path`."""
+        transfers = []
+        for leg in legs[1:]:
+            node_id = leg["path"][0]
+            node_mode = self.node_modes[self.node_mode_ids[node_id]]
+            transfers.append(
+                {"node_id": node_id, "node_mode": node_mode.get("name")}
+            )
+        return transfers
+
+    def _get_off_graph_legs(
+        self,
+        path: list[int],
+        origin: Sequence[float],
+        destination: Sequence[float],
+        off_graph_circuity: float,
+    ) -> list[dict]:
+        """Return the off-graph legs of a route, with the keys of a leg of
+        `_cut_legs` and a `coordinate_path` in place of `path`. A route with an
+        edge has two: from `origin` to the first node of `path`, and from its last
+        node to `destination`. A route without an edge is one off-graph leg,
+        through the node of its path if it has one. An off-graph leg weighs as in
+        the totals of the route (`_get_metric_totals`)."""
+        if len(path) > 1:
             off_graph_paths = [
                 [origin, self.nodes[path[0]]],
                 [self.nodes[path[-1]], destination],
             ]
         else:
             off_graph_paths = [
-                [origin, *map(self.nodes.__getitem__, path), destination]
+                [
+                    origin,
+                    *(self.nodes[node_id] for node_id in path),
+                    destination,
+                ]
             ]
         off_graph_legs = []
         for points in off_graph_paths:
@@ -4094,44 +4120,55 @@ class GeoGraph(
             off_graph_km = off_graph_circuity * sum(
                 haversine(start, end) for start, end in hops
             )
-            off_graph_leg = {
-                "mode": "off_graph",
-                "length": sum(
-                    haversine(
-                        start,
-                        end,
-                        circuity=off_graph_circuity,
-                        units=self.geograph_units,
-                    )
-                    for start, end in hops
-                ),
-                "metric_totals": {
-                    name: off_graph_km * metric_record.off_graph_weight_per_km
-                    for name, metric_record in self._metrics.items()
-                },
-                "class_lengths": {},
-                "coordinate_path": points,
-            }
-            off_graph_legs.append(off_graph_leg)
-        legs = [off_graph_legs[0], *legs, *off_graph_legs[1:]]
-        convert_length = partial(
-            distance_converter,
+            off_graph_legs.append(
+                {
+                    "mode": "off_graph",
+                    "length": sum(
+                        haversine(
+                            start,
+                            end,
+                            circuity=off_graph_circuity,
+                            units=self.geograph_units,
+                        )
+                        for start, end in hops
+                    ),
+                    "metric_totals": {
+                        name: off_graph_km
+                        * metric_record.off_graph_weight_per_km
+                        for name, metric_record in self._metrics.items()
+                    },
+                    "class_lengths": {},
+                    "coordinate_path": points,
+                }
+            )
+        return off_graph_legs
+
+    def _format_leg(
+        self, leg: dict, output_units: str, output_coordinate_path: str
+    ) -> None:
+        """Give a leg of `_get_legs` the form that a query asks: its lengths in
+        `output_units`, and its coordinate path in the format
+        `output_coordinate_path`. A geograph without a metric gives no
+        `metric_totals`. The leg is changed in place."""
+        leg["length"] = distance_converter(
+            leg["length"],
             input_units=self.geograph_units,
             output_units=output_units,
         )
-        for leg in legs:
-            leg["length"] = convert_length(leg["length"])
-            leg["class_lengths"] = {
-                name: convert_length(length)
-                for name, length in leg["class_lengths"].items()
-            }
-            leg["coordinate_path"] = self.__format_coordinates__(
-                coordinate_path=leg["coordinate_path"],
-                output_format=output_coordinate_path,
+        leg["class_lengths"] = {
+            name: distance_converter(
+                length,
+                input_units=self.geograph_units,
+                output_units=output_units,
             )
-            if not self._metrics:
-                del leg["metric_totals"]
-        return legs, transfers
+            for name, length in leg["class_lengths"].items()
+        }
+        leg["coordinate_path"] = self.__format_coordinates__(
+            coordinate_path=leg["coordinate_path"],
+            output_format=output_coordinate_path,
+        )
+        if not self._metrics:
+            del leg["metric_totals"]
 
     def validate_nodes(self) -> None:
         """
@@ -4707,10 +4744,10 @@ class GeoGraph(
                     origin,
                     destination,
                     off_graph_circuity,
-                    output_units,
-                    output_coordinate_path,
                     get_intermediate_nodes,
                 )
+                for leg in output["legs"]:
+                    self._format_leg(leg, output_units, output_coordinate_path)
             if not output_path:
                 del output["path"]
             return output
