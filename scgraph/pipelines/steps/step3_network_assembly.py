@@ -13,8 +13,8 @@ A graph is a dict of arrays, with the names of the network file. Node `u` has th
 `weights_length[a]` km long. `node_points` holds the latitude, then the longitude of each
 node, in units of 1e-7 degree. The shape points of edge `a` are
 `shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `node_ids` holds the id
-of each node in its source. `node_modes`, if the graph has several modes, holds the row
-of each node in the modes table.
+of each node in its source. A node that step 1 adds has an id below zero. `node_modes`,
+if the graph has several modes, holds the row of each node in the modes table.
 
 `edge_classes`, if the pieces have classes, holds the row of each edge in the classes
 table (`scgraph.pipelines.CLASSES`).
@@ -28,7 +28,11 @@ HOW A RUN GOES
 1. `build_graph_from_pieces` makes one edge from a one-way piece and two edges from a
    two-way piece. An edge has the class of its piece. `build_csr_from_edges` stores the
    edges by origin. It drops an edge from a node to itself. Of several edges between the
-   same two nodes, it keeps the shortest.
+   same two nodes, it keeps the shortest. In a graph with classes, the shortest edge of
+   each other class is a "parallel edge". `build_graph_from_pieces` splits the piece of
+   each parallel edge in two halves, with a new node between them (*How a piece is
+   split*). It then stores the edges again. So one edge at most goes from a node to
+   another, and the shortest edge of each class stays in the graph.
 2. `keep_strongly_connected_components` keeps the largest strongly connected
    component, or each component of at least a given number of nodes. In such a
    component, every node can reach every other node. An edge between two components
@@ -50,6 +54,13 @@ HOW A RUN GOES
 5. `assemble_network` numbers the nodes by mode, then along a Hilbert curve. A network file
    has this order.
 
+Example of step 1: a motorway of 3 km and a primary road of 4 km join the junctions 10
+and 20, both ways. The motorway is shorter, so its two edges are kept. The two edges of
+the primary road are parallel edges. The primary road is split at its middle, where the
+new node -1 is. The graph has the nodes -1, 10 and 20. It has two motorway edges of 3 km
+between 10 and 20. It has four primary edges of 2 km: from 10 to -1, from -1 to 20, and
+their reverses. Without the split, the graph would lose the primary road.
+
 Example of step 3: the road 0-4-3-2-1-5 has edges of 1 km, both ways, and
 `max_km_between_nodes` is 2. The walk starts at node 0 and cuts at node 3, then at
 node 1. The nodes 0, 1, 3 and 5 are kept. The edges 0-3 and 3-1 are 2 km long, and the
@@ -62,12 +73,34 @@ removed. The contracted edges between 0 and 2 are motorway edges of 2 km, and th
 contracted edges between 2 and 4 are primary edges of 2 km. A node is removed only when
 all its edges have one class. With a primary edge from 2 to 1 only, node 1 is kept too.
 
+HOW A PIECE IS SPLIT
+
+A piece is split when one of its edges is a parallel edge. A two-way piece is split in
+both directions. The middle of a piece with `k` shape points is its shape point number
+`k // 2`, counted from 0. The middle of a piece without a shape point is the point
+halfway between its two ends. The new node is at the middle. Each half has the class and
+the direction of the piece. The polyline of a half is the line through its two ends and
+its shape points. The two halves share the length of the piece in proportion to the
+great-circle lengths of their polylines. The new nodes get the ids below zero and below
+every id of the pieces: -1, then -2, when no piece has a negative id.
+
+Example: the primary road above goes from junction 10 at (0, 0) to junction 20 at
+(0, 0.03). Its shape points are (0.01, 0.01), (0.01, 0.015) and (0.01, 0.02). Its
+middle is shape point number 1, (0.01, 0.015). The half from 10 keeps the shape point
+(0.01, 0.01), and the half to 20 keeps (0.01, 0.02). The polylines of the two halves
+have the same length, so each half is 2 km long.
+
 WHY THE RESULT IS RIGHT
+
+The two halves of a split piece have its length together, so step 1 does not change the
+length of a route. Each half has the new node at one end, and no other piece has this
+node. So the second run of `build_csr_from_edges` drops no half.
 
 A pass-through node offers no choice, so step 3 does not change the length of a route
 between two kept nodes. Step 3 never makes an edge from a node to itself, nor a second
 edge between two nodes. When a chain would give one, the function keeps the middle
-node of the chain.
+node of the chain. So step 3 keeps the new node of a split piece: the kept edge already
+joins the two ends of its chain.
 
 Example: the chains 0-1-3 and 0-2-3 would give two edges from 0 to 3. The first chain
 loses node 1. The second chain keeps node 2.
@@ -124,6 +157,7 @@ from scgraph.helpers.douglas_peucker import (
 )
 from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
 from scgraph.network_file import encode_coordinates
+from scgraph.utils import haversine
 from scgraph._internal import log_step
 
 logger = logging.getLogger(__name__)
@@ -133,10 +167,15 @@ def build_csr_from_edges_python(
     origins: Sequence[int],
     destinations: Sequence[int],
     weights: Sequence[int | float],
-) -> tuple[array, array, array, array, array]:
+    edge_classes: Sequence[int] | None = None,
+) -> tuple[array, array, array, array, array, array]:
     """Pure-Python version of `build_csr_from_edges`."""
-    if not len(origins) == len(destinations) == len(weights):
-        raise ValueError("one destination and one weight per origin expected")
+    if not len(origins) == len(destinations) == len(weights) or (
+        edge_classes is not None and len(edge_classes) != len(origins)
+    ):
+        raise ValueError(
+            "one destination, one weight and one class per origin expected"
+        )
     best = (
         {}
     )  # (origin, destination) -> input index of the shortest edge so far
@@ -146,6 +185,18 @@ def build_csr_from_edges_python(
             and weights[i] < weights[best.setdefault(edge, i)]
         ):
             best[edge] = i
+    # (origin, destination, class) -> input index of the shortest edge so far
+    best_of_class = {}
+    classes = () if edge_classes is None else edge_classes
+    for i, edge in enumerate(zip(origins, destinations, classes)):
+        if (
+            edge[0] != edge[1]
+            and weights[i] < weights[best_of_class.setdefault(edge, i)]
+        ):
+            best_of_class[edge] = i
+    parallel = sorted(
+        i for edge, i in best_of_class.items() if best[edge[:2]] != i
+    )
     node_ids = array("q", sorted({id for edge in best for id in edge}))
     position = {id: u for u, id in enumerate(node_ids)}
     rows = [[] for _ in node_ids]
@@ -163,6 +214,7 @@ def build_csr_from_edges_python(
         heads,
         array("d", (weights[i] for i in kept)),
         kept,
+        array("i", parallel),
     )
 
 
@@ -170,7 +222,9 @@ def build_csr_from_edges(
     origins: array | memoryview,
     destinations: array | memoryview,
     weights: array | memoryview,
+    edge_classes: array | memoryview | None = None,
 ) -> tuple[
+    array | memoryview,
     array | memoryview,
     array | memoryview,
     array | memoryview,
@@ -183,22 +237,31 @@ def build_csr_from_edges(
         origins: The id of the origin of each edge in its source (int64).
         destinations: The id of the destination of each edge (int64).
         weights: The length of each edge (float64).
+        edge_classes: The row of the class of each edge (uint8), or None for edges
+            without classes.
 
     Returns:
-        `(node_ids, offsets, heads, weights, kept)`. `node_ids` (int64) lists the ids of
-        the ends, sorted, each once. Node `u` is the id at position `u`. The edges of
-        node `u` are `heads[offsets[u]:offsets[u + 1]]` (int32), sorted by head, with
-        their `weights`. `kept[a]` (int32) is the input index of edge `a`: the caller
-        finds the shape of the edge with it. The function drops an edge from a node to
-        itself, and an id that has only such edges gives no node. Of several edges
-        between the same two nodes, the function keeps the shortest, and the first of
-        the input when two are as short.
+        `(node_ids, offsets, heads, weights, kept, parallel)`. `node_ids` (int64) lists
+        the ids of the ends, sorted, each once. Node `u` is the id at position `u`. The
+        edges of node `u` are `heads[offsets[u]:offsets[u + 1]]` (int32), sorted by
+        head, with their `weights`. `kept[a]` (int32) is the input index of edge `a`:
+        the caller finds the shape of the edge with it. The function drops an edge from
+        a node to itself, and an id that has only such edges gives no node. Of several
+        edges between the same two nodes, the function keeps the shortest, and the first
+        of the input when two are as short. `parallel` (int32) lists the input indices
+        of the parallel edges, in rising order. A parallel edge is the shortest edge of
+        its class between its two nodes, by the same rule, and it is not the kept edge.
+        Without `edge_classes`, `parallel` is empty.
     """
     if _cpp_build_csr_from_edges is not None and isinstance(
         origins, (array, memoryview)
     ):
-        return _cpp_build_csr_from_edges(origins, destinations, weights)
-    return build_csr_from_edges_python(origins, destinations, weights)
+        return _cpp_build_csr_from_edges(
+            origins, destinations, weights, edge_classes
+        )
+    return build_csr_from_edges_python(
+        origins, destinations, weights, edge_classes
+    )
 
 
 class ContractedGraph(NamedTuple):
@@ -550,13 +613,107 @@ class PieceArrays:
         self._starts = [0]
 
 
+def _list_edges(pieces, skipped=frozenset()):
+    """List the edges of `pieces`: two for a two-way piece, and one for a one-way piece
+    in its direction. A piece of `skipped` gives no edge.
+
+    Returns:
+        Six arrays, with one value for each edge: the index of its piece, 1 if it goes
+        against its piece and 0 otherwise, the id of its origin, the id of its
+        destination, its length in km, and the row of its class. The last one is None
+        when the pieces have no class.
+    """
+    piece, back = array("i"), array("b")
+    for i, direction in enumerate(pieces.directions):
+        if i in skipped:
+            continue
+        for reverse in (0, 1) if direction == 0 else (int(direction < 0),):
+            piece.append(i)
+            back.append(reverse)
+    ends, class_rows = (pieces.origins, pieces.destinations), None
+    if len(pieces.class_rows):
+        class_rows = array("B", (pieces.class_rows[i] for i in piece))
+    return [
+        piece,
+        back,
+        array("q", (ends[b][i] for i, b in zip(piece, back))),
+        array("q", (ends[1 - b][i] for i, b in zip(piece, back))),
+        array("d", (pieces.km[i] for i in piece)),
+        class_rows,
+    ]
+
+
+def _split_pieces(pieces, split, first_new_id):
+    """Split pieces in two halves, by the rule of the module docstring (*How a piece is
+    split*).
+
+    Args:
+        pieces: The pieces, with their classes.
+        split: The indices of the pieces to split.
+        first_new_id: The id of the new node of the first split piece. Each next new
+            node gets the id below.
+
+    Returns:
+        The halves, as pieces kept in memory. The pieces `2 * j` and `2 * j + 1` are the
+        halves of piece `split[j]`: from its origin to the new node, then from the new
+        node to its destination.
+    """
+    halves = PieceArrays(tolerance_meters=None)
+    for j, i in enumerate(split):
+        first, last = pieces.offsets[i], pieces.offsets[i + 1]
+        units = [  # the latitude, then the longitude of each point, in 1e-7 degree
+            *pieces.ends[4 * i : 4 * i + 2],
+            *pieces.points[2 * first : 2 * last],
+            *pieces.ends[4 * i + 2 : 4 * i + 4],
+        ]
+        # The points of the piece in degrees: its origin, its shape points, its
+        # destination
+        line = [
+            [latitude * 1e-7, longitude * 1e-7]
+            for latitude, longitude in zip(units[0::2], units[1::2])
+        ]
+        if len(line) == 2:
+            # No shape point: the middle is the point halfway between the two ends
+            line.insert(1, [(a + b) / 2 for a, b in zip(*line)])
+        middle = len(line) // 2  # shape point number k // 2 is point 1 + k // 2
+        lengths = [haversine(p, q) for p, q in zip(line, line[1:])]
+        # fsum gives the same sum on every version of Python
+        total, km = math.fsum(lengths), pieces.km[i]
+        first_km = km * math.fsum(lengths[:middle]) / total if total else km / 2
+        new_id, direction = first_new_id - j, pieces.directions[i]
+        class_row = pieces.class_rows[i]
+        halves.append(
+            pieces.origins[i],
+            new_id,
+            first_km,
+            direction,
+            [line[0], line[middle]],
+            line[1:middle],
+            class_row,
+        )
+        halves.append(
+            new_id,
+            pieces.destinations[i],
+            km - first_km,
+            direction,
+            [line[middle], line[-1]],
+            line[middle + 1 : -1],
+            class_row,
+        )
+    halves.flush()
+    return halves
+
+
 def build_graph_from_pieces(
     pieces: PieceArrays,
 ) -> dict[str, array | memoryview]:
     """Build a graph from the pieces of ways.
 
     A two-way piece gives two edges, and a one-way piece gives one edge in its
-    direction. Of several edges between the same two nodes, the shortest is kept.
+    direction. Of several edges between the same two nodes, the shortest is kept. In a
+    graph with classes, the piece of the shortest edge of each other class is split in
+    two halves, with a new node between them. The module docstring gives the rule
+    (*How a run goes*, step 1, and *How a piece is split*).
 
     Args:
         pieces: The pieces, as `step1_osm_ways.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
@@ -573,33 +730,44 @@ def build_graph_from_pieces(
     pieces.flush()
     if len(pieces.class_rows) not in (0, len(pieces.km)):
         raise ValueError("Some pieces have a class and the others have none")
-    piece, back = array("i"), array("b")
-    for i, direction in enumerate(pieces.directions):
-        for reverse in (0, 1) if direction == 0 else (int(direction < 0),):
-            piece.append(i)
-            back.append(reverse)
-    ends = pieces.origins, pieces.destinations
-    node_ids, offsets, heads, weights, kept = build_csr_from_edges(
-        array("q", (ends[b][i] for i, b in zip(piece, back))),
-        array("q", (ends[1 - b][i] for i, b in zip(piece, back))),
-        array("d", (pieces.km[i] for i in piece)),
+    piece, back, *columns = _list_edges(pieces)
+    node_ids, offsets, heads, weights, kept, parallel = build_csr_from_edges(
+        *columns
     )
     if not len(node_ids):
         raise ValueError("The pieces join no two points: every one is a loop")
+    # The new nodes get the ids below zero and below every id of the pieces
+    split = sorted({piece[e] for e in parallel})
+    halves = _split_pieces(pieces, split, min(0, node_ids[0]) - 1)
+    # The edges below this index are edges of `pieces`. The others are edges of `halves`.
+    first_edge_of_halves = len(piece)
+    if split:
+        # The edges are stored again, with the halves in place of the split pieces.
+        # This run gets no classes, so it splits nothing more. With classes, the
+        # second shortest edge of the class of a split piece would be parallel.
+        piece = back = columns = None  # freed before the edges are listed again
+        piece, back, *columns = _list_edges(pieces, set(split))
+        first_edge_of_halves = len(piece)
+        for column, more in zip((piece, back, *columns), _list_edges(halves)):
+            column.extend(more)
+        node_ids, offsets, heads, weights, kept, _ = build_csr_from_edges(
+            *columns[:3]
+        )
     node_points = array("i", bytes(8 * len(node_ids)))
     points, shape_offsets = array("i"), array("i", [0])
     for u in range(len(node_ids)):
         for a in range(offsets[u], offsets[u + 1]):
             i, b = piece[kept[a]], back[kept[a]]
-            e = pieces.ends[4 * i : 4 * i + 4]
+            table = pieces if kept[a] < first_edge_of_halves else halves
+            e = table.ends[4 * i : 4 * i + 4]
             # e holds the points of the two ends of the piece, in the order of the
             # piece. For an edge that goes against the piece, the ends swap.
             origin, destination = (e[2:], e[:2]) if b else (e[:2], e[2:])
             v = heads[a]
             node_points[2 * u], node_points[2 * u + 1] = origin
             node_points[2 * v], node_points[2 * v + 1] = destination
-            first, last = pieces.offsets[i], pieces.offsets[i + 1]
-            line = array("i", pieces.points[2 * first : 2 * last])
+            first, last = table.offsets[i], table.offsets[i + 1]
+            line = array("i", table.points[2 * first : 2 * last])
             if b:  # its points from the destination
                 line[0::2], line[1::2] = line[-2::-2], line[-1::-2]
             points.extend(line)
@@ -613,10 +781,8 @@ def build_graph_from_pieces(
         "shape_points": points,
         "node_ids": node_ids,
     }
-    if len(pieces.class_rows):
-        graph["edge_classes"] = array(
-            "B", (pieces.class_rows[piece[i]] for i in kept)
-        )
+    if columns[3] is not None:
+        graph["edge_classes"] = array("B", (columns[3][i] for i in kept))
     return graph
 
 

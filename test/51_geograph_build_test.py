@@ -16,6 +16,7 @@ import tempfile
 import threading
 import types
 import typing
+from array import array
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -741,6 +742,26 @@ def test_a_pipeline_module_gives_the_last_part_of_its_name_to_its_network(
     assert geo.metadata["pipeline"]["name"] == "lines"
 
 
+# A pipeline of one's own may have classes that scgraph does not know. Here the
+# two lines of /lines.gpkg are canals: every edge has row 0 of the table of the
+# pipeline.
+def test_the_file_of_a_pipeline_with_its_own_classes_table_names_those_classes(
+    tmp_path, source
+):
+    def build_canals(files):
+        arrays, modes = eurostat_sea_lanes.build(files)
+        arrays["edge_classes"] = array("B", bytes(len(arrays["heads"])))
+        return arrays, modes
+
+    pipeline = _lines_pipeline(source, build=build_canals)
+    pipeline.CLASSES = {"canal": "inland_water"}
+
+    file = network_builder.build_network_file(pipeline, cache_dir=tmp_path)
+
+    canal = {"name": "canal", "mode": "inland_water"}
+    assert GeoGraph.get_scgraph_info(file)["classes"] == [canal]
+
+
 def test_a_pipeline_module_named_like_a_built_in_network_is_refused(tmp_path):
     # Its network would take the place of the network of scgraph in the cache.
     namesake = types.ModuleType("my_pipelines.eurostat_sea_lanes")
@@ -896,13 +917,16 @@ def test_a_region_without_a_railway_builds_without_rail_nodes(
 
     assert _points_of(strait, "rail") == []
     # The road nodes 1, 2, 3, 5 and 4 of the strait. Node 2 stays a node: it
-    # joins a road to a ferry, which are two classes.
+    # joins a road to a ferry, which are two classes. Ferry 6 joins the nodes 1
+    # and 2, as road 1 does. Each of its two directions is split at node 41.
     assert _points_of(strait, "road") == [
         [0, 0],
         [0, 0.01],
         [0, 0.06],
         [0, 0.065],
         [0, 0.07],
+        [0.01, 0.005],
+        [0.01, 0.005],
     ]
 
 

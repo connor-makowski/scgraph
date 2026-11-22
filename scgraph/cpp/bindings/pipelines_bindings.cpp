@@ -17,16 +17,20 @@ namespace nb = nanobind;
 
 void bind_pipelines(nb::module_& m) {
     // Assembly kernels (contracts in scgraph/pipelines/steps/step3_network_assembly.py)
-    auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights) {
+    auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights,
+                       std::optional<Uint8Array> edge_classes) {
         const int64_t m = (int64_t)origins.shape(0);
-        if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m)
-            throw std::invalid_argument("one destination and one weight per origin expected");
-        auto t = assembly::build_csr_from_edges(origins.data(), destinations.data(), weights.data(), m);
+        if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m
+            || (edge_classes && (int64_t)edge_classes->shape(0) != m))
+            throw std::invalid_argument("one destination, one weight and one class per origin expected");
+        auto t = assembly::build_csr_from_edges(origins.data(), destinations.data(), weights.data(), m,
+                                                edge_classes ? edge_classes->data() : nullptr);
         return nb::make_tuple(owned_view(std::move(t.node_ids)), owned_view(std::move(t.offsets)),
                               owned_view(std::move(t.heads)), owned_view(std::move(t.weights)),
-                              owned_view(std::move(t.kept)));
+                              owned_view(std::move(t.kept)), owned_view(std::move(t.parallel)));
     };
-    m.def("build_csr_from_edges", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"));
+    m.def("build_csr_from_edges", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"),
+          nb::arg("edge_classes") = nb::none());
     auto bind_scc = [](Int32Array offsets, Int32Array heads) {
         auto c = assembly::find_strongly_connected_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
                                                          (int64_t)heads.shape(0));

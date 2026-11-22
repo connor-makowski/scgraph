@@ -86,12 +86,16 @@ private:
 
 struct EdgeTable {
     std::vector<int64_t> node_ids;
-    std::vector<int32_t> offsets, heads, kept;
+    // parallel: the input index of each parallel edge, in rising order (the Python
+    // docstring of build_csr_from_edges says what a parallel edge is)
+    std::vector<int32_t> offsets, heads, kept, parallel;
     std::vector<double> weights;
 };
 
+// edge_classes is null for edges without classes: parallel is then empty
 inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* destinations,
-                              const double* weights, int64_t edge_count) {
+                              const double* weights, int64_t edge_count,
+                              const uint8_t* edge_classes = nullptr) {
     if (edge_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 edges");
     // The origins, then the destinations that are not origins (few: most nodes are both)
     EdgeTable table;
@@ -144,11 +148,14 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
     std::vector<int32_t>().swap(tails);
     std::vector<int32_t>().swap(heads);
 
-    // Now start[u] is where row u ends; offsets overwrite it, behind the reads. Of
-    // parallel edges, keep the shortest, the first in the input on a tie
+    // Now start[u] is where row u ends; offsets overwrite it, behind the reads. Of the
+    // edges between the same two nodes, keep the shortest, the first in the input on a tie
     table.heads.reserve(edges.size());
     table.weights.reserve(edges.size());
     table.kept.reserve(edges.size());
+    // The shortest edge so far of each class between two nodes, -1 for a class without
+    // an edge. A class is one byte, so 256 entries hold every class
+    std::vector<int64_t> shortest_of_class(256, -1);
     int32_t begin = 0;
     for (int32_t u = 0; u < n; ++u) {
         const int32_t end = start[u];
@@ -158,6 +165,7 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
             ASSEMBLY_PREFETCH(&weights[static_cast<uint32_t>(edges[i])]);
         }
         for (int32_t i = begin; i < end;) {
+            const int32_t first = i;
             const uint32_t head = edges[i] >> 32;
             uint32_t best = static_cast<uint32_t>(edges[i]);
             for (++i; i < end && edges[i] >> 32 == head; ++i) {
@@ -167,9 +175,23 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
             table.heads.push_back(head);
             table.kept.push_back(best);
             table.weights.push_back(weights[best]);
+            if (!edge_classes || i - first < 2) continue;
+            // The edges first to i - 1 join the same two nodes, in input order. The
+            // shortest of each class is parallel, except the kept edge
+            for (int32_t j = first; j < i; ++j) {
+                const uint32_t a = static_cast<uint32_t>(edges[j]);
+                int64_t& shortest = shortest_of_class[edge_classes[a]];
+                if (shortest < 0 || weights[a] < weights[shortest]) shortest = a;
+            }
+            for (int32_t j = first; j < i; ++j) {
+                int64_t& shortest = shortest_of_class[edge_classes[static_cast<uint32_t>(edges[j])]];
+                if (shortest >= 0 && shortest != best) table.parallel.push_back(static_cast<int32_t>(shortest));
+                shortest = -1;  // each class once, and the table is empty for the next two nodes
+            }
         }
         begin = end;
     }
+    std::sort(table.parallel.begin(), table.parallel.end());
     start[n] = static_cast<int32_t>(table.heads.size());
     table.offsets = std::move(start);
     return table;

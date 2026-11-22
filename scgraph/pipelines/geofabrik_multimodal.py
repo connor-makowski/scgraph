@@ -57,7 +57,8 @@ MODES AND CLASSES
 - Each node has its mode (`node_modes`, rows of `modes`): `road`, `rail`, `sea`,
   `port`, `airport` or `rail_terminal`. Each mode cites the source of its node ids:
   OpenStreetMap for roads and railways, the World Port Index number for a port, the
-  OurAirports id for an airport, the Wikidata number for a rail terminal.
+  OurAirports id for an airport, the Wikidata number for a rail terminal. A node with
+  a negative id is in no source: the build added it (*Nodes and shapes*).
 - Each edge has a class. `edge_classes` gives its row in `classes`. A road edge has the
   `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
   railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
@@ -76,6 +77,10 @@ NODES AND SHAPES
   road.
 - The shape of each road, ferry or railway edge is simplified to within 50 m. Its
   length is measured on the full shape.
+- One edge at most goes from a node to another. Of several roads from one junction
+  to another, the build keeps the shortest of each class. The shortest of all joins
+  the two junctions. Each other one passes through a node that the build adds at its
+  middle, with a negative id. The same rule holds for ferries and railways.
 
 SOURCES AND LIMITS
 

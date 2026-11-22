@@ -25,43 +25,46 @@ both_backends = pytest.mark.parametrize(
 BIG = 2**40  # an id beyond 32 bits
 
 
-# Edges between source ids, as (origin, destination, weight). The id 5 is on a
-# self-loop only, and -7 is a destination only.
+# Edges between source ids, as (origin, destination, weight, class). The id 5
+# is on a self-loop only, and -7 is a destination only.
 EDGES_WITH_PARALLELS_AND_LOOPS = [
-    (BIG, 10, 2.0),
-    (10, BIG, 1.0),
-    (BIG, 10, 1.5),  # shorter than edge 0
-    (5, 5, 1.0),
-    (BIG, 10, 1.5),  # as short as edge 2
-    (BIG, -7, 4.0),
-    (20, BIG, 3.0),
-    (BIG, 20, 0.5),
-    (20, BIG, 3.5),  # longer than edge 6
-    (10, 10, 0.5),  # a self-loop on a node that has other edges
+    (BIG, 10, 2.0, 0),
+    (10, BIG, 1.0, 0),
+    (BIG, 10, 1.5, 0),  # shorter than edge 0
+    (5, 5, 1.0, 0),
+    (BIG, 10, 1.5, 1),  # as short as edge 2, and of another class
+    (BIG, -7, 4.0, 0),
+    (20, BIG, 3.0, 0),
+    (BIG, 20, 0.5, 0),
+    (20, BIG, 3.5, 1),  # longer than edge 6, and of another class
+    (10, 10, 0.5, 1),  # a self-loop on a node that has other edges
+    (BIG, 10, 3.0, 1),  # longer than edge 4, and of the same class
 ]
 
 
 def _columns(edges):
-    """The origins, the destinations and the weights of `edges`, as the three
-    arrays that `build_csr_from_edges` takes."""
-    origins, destinations, weights = (
-        [edge[k] for edge in edges] for k in range(3)
-    )
-    return array("q", origins), array("q", destinations), array("d", weights)
+    """The origins, the destinations, the weights and the classes of `edges`,
+    as the four arrays that `build_csr_from_edges` takes."""
+    return [
+        array(typecode, [edge[k] for edge in edges])
+        for k, typecode in enumerate("qqdB")
+    ]
 
 
 # The result of `build_csr_from_edges` is (node ids, offsets, heads, weights,
-# kept). The ids are sorted: 5 is not among them. The rows are those of -7 (no
-# edge), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each sorted by
-# destination. `kept` gives the input index of each stored edge. From BIG to
-# 10, edge 2 is kept: edge 0 is longer, and edge 4 is as short but comes later.
-# From 20 to BIG, edge 6 is kept.
+# kept, parallel). The ids are sorted: 5 is not among them. The rows are those
+# of -7 (no edge), 10 (to BIG), 20 (to BIG) and BIG (to -7, 10 and 20), each
+# sorted by destination. `kept` gives the input index of each stored edge. From
+# BIG to 10, edge 2 is kept: edge 0 is longer, and edge 4 is as short but comes
+# later. From 20 to BIG, edge 6 is kept. `parallel` gives the edges 4 and 8:
+# each is the shortest edge of class 1 between its two nodes, and is not kept.
 CSR_OF_THE_SHORTEST_EDGES = (
     [-7, 10, 20, BIG],
     [0, 0, 1, 2, 5],
     [3, 3, 0, 1, 2],
     [1.0, 3.0, 4.0, 1.5, 0.5],
     [1, 6, 5, 2, 7],
+    [4, 8],
 )
 
 
@@ -74,7 +77,7 @@ CSR_OF_THE_SHORTEST_EDGES = (
             CSR_OF_THE_SHORTEST_EDGES,
             id="parallel edges and self-loops",
         ),
-        pytest.param([], ([], [0], [], [], []), id="no edges"),
+        pytest.param([], ([], [0], [], [], [], []), id="no edges"),
     ],
 )
 def test_csr_from_edges_stores_the_shortest_edges_by_origin(
@@ -86,39 +89,55 @@ def test_csr_from_edges_stores_the_shortest_edges_by_origin(
 
 
 def _random_edges(seed):
-    # Few ids, so many self-loops and parallel edges; integer weights, so ties
+    # Few ids, so many self-loops and edges between the same two nodes; integer
+    # weights, so ties
     rng = random.Random(seed)
     ids = [rng.randrange(-(2**62), 2**62) for _ in range(300)]
-    return [
+    edges = [
         (rng.choice(ids), rng.choice(ids), float(rng.randint(1, 5)))
         for _ in range(5000)
     ]
+    return [(*edge, rng.randrange(3)) for edge in edges]  # three classes
 
 
 # The expected edges are found another way: the edges that are not self-loops
 # are sorted by origin, destination, weight and input index. The first edge of
 # each pair (origin, destination) is then its shortest edge, and the first in
-# the input among equals.
+# the input among equals. The same sort, with the class after the destination,
+# gives the shortest edge of each class of a pair. Such an edge is parallel
+# when it is not the kept edge of its pair.
 @both_backends
 @pytest.mark.parametrize("seed", range(3))
-def test_csr_from_random_edges_keeps_the_first_shortest_edge_of_each_pair(
+def test_csr_from_random_edges_finds_the_kept_and_the_parallel_edges(
     backend, seed
 ):
     edges = _random_edges(seed)
     sorted_edges = sorted(
         (origin, destination, weight, i)
-        for i, (origin, destination, weight) in enumerate(edges)
+        for i, (origin, destination, weight, _class) in enumerate(edges)
         if origin != destination
     )
     expected = [
         next(edges_of_pair)
         for _pair, edges_of_pair in groupby(sorted_edges, lambda edge: edge[:2])
     ]
+    sorted_by_class = sorted(
+        (origin, destination, class_row, weight, i)
+        for i, (origin, destination, weight, class_row) in enumerate(edges)
+        if origin != destination
+    )
+    shortest_of_each_class = {
+        next(edges_of_class)[-1]
+        for _class, edges_of_class in groupby(
+            sorted_by_class, lambda edge: edge[:3]
+        )
+    }
 
-    node_ids, offsets, heads, weights, kept = backend.build_csr_from_edges(
-        *_columns(edges)
+    node_ids, offsets, heads, weights, kept, parallel = (
+        backend.build_csr_from_edges(*_columns(edges))
     )
 
+    assert list(parallel) == sorted(shortest_of_each_class - set(kept))
     assert list(kept) == [i for _, _, _, i in expected]
     assert list(weights) == [weight for _, _, weight, _ in expected]
     stored_pairs = [
@@ -397,6 +416,77 @@ def test_pieces_with_and_without_a_class_are_refused():
 
     with pytest.raises(ValueError, match="have a class and the others"):
         step3_network_assembly.build_graph_from_pieces(pieces)
+
+
+# Two junctions are on the equator, at the longitudes 0 and 0.03. A primary
+# road of 4 km joins them both ways. A motorway of 3 km goes one way, from the
+# second junction to the first. Each test below gives its shape points to the
+# primary road. A class is a row of the classes table.
+MOTORWAY, PRIMARY = 0, 4
+
+
+def _motorway_and_primary_road(points_of_primary_road, junctions=(10, 20)):
+    pieces = step3_network_assembly.PieceArrays(tolerance_meters=None)
+    ends = [[0, 0], [0, 0.03]]
+    pieces.append(*junctions, 3.0, -1, ends, [], MOTORWAY)
+    pieces.append(*junctions, 4.0, 0, ends, points_of_primary_road, PRIMARY)
+    return step3_network_assembly.build_graph_from_pieces(pieces)
+
+
+def test_a_longer_road_of_another_class_between_two_junctions_is_split():
+    # From 20 to 10 the motorway is shorter, so its edge joins the junctions.
+    # The primary road is split in both directions. Its shape point is at one
+    # third of its way from 10 to 20. The new node -1 is there, so the two
+    # halves are 4/3 km and 8/3 km long.
+    graph = _motorway_and_primary_road([[0, 0.01]])
+
+    edges = _by_node_ids(
+        graph,
+        lambda edge: (
+            graph["edge_classes"][edge],
+            graph["weights_length"][edge],
+        ),
+    )
+    assert edges == {
+        (20, 10): (MOTORWAY, 3.0),
+        (10, -1): (PRIMARY, pytest.approx(4 / 3)),
+        (-1, 20): (PRIMARY, pytest.approx(8 / 3)),
+        (20, -1): (PRIMARY, pytest.approx(8 / 3)),
+        (-1, 10): (PRIMARY, pytest.approx(4 / 3)),
+    }
+
+
+def test_the_new_node_of_a_split_road_has_an_id_below_every_other_id():
+    # A source may give ids below zero: here the junction -7
+    graph = _motorway_and_primary_road([], junctions=(-7, 20))
+
+    assert list(graph["node_ids"]) == [-8, -7, 20]
+
+
+# A road is split at its middle shape point, or halfway between its two ends
+# when it has no shape point. The expected values are the shape points from 10
+# to the new node, the new node, and the shape points from the new node to 20,
+# in units of 1e-7 degree.
+@pytest.mark.parametrize(
+    "points_of_primary_road, expected",
+    [
+        pytest.param(
+            [[0.01, 0.01], [0.01, 0.015], [0.01, 0.02]],
+            ([(100000, 100000)], (100000, 150000), [(100000, 200000)]),
+            id="three shape points",
+        ),
+        pytest.param([], ([], (0, 150000), []), id="no shape point"),
+    ],
+)
+def test_a_road_is_split_at_its_middle_point_and_its_halves_keep_the_others(
+    points_of_primary_road, expected
+):
+    graph = _motorway_and_primary_road(points_of_primary_road)
+
+    shapes = _by_node_ids(graph, lambda edge: _shape_points(graph, edge))
+    # The new node has the lowest id, so it is node 0
+    new_node = tuple(graph["node_points"][0:2])
+    assert (shapes[10, -1], new_node, shapes[-1, 20]) == expected
 
 
 def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
