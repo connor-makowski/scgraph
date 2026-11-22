@@ -1,10 +1,22 @@
 """Shortest paths on geographic and supply chain networks.
 
-The README of the project is the guide of this package. It is at
-https://github.com/connor-makowski/scgraph#readme. The documentation site shows it
-on this page: pdoc reads the line below and puts the README in its place.
+The README of the project is the entry page of this package. It is at
+https://github.com/connor-makowski/scgraph#readme. Four guides, in `guides/`, each
+cover one task, and `MIGRATING.md` lists the changes since release 3.6. The
+documentation site shows them on this page: pdoc reads each line below and puts the
+file in its place.
 
 .. include:: ../README.md
+
+.. include:: ../guides/routing.md
+
+.. include:: ../guides/time_cost_co2.md
+
+.. include:: ../guides/networks.md
+
+.. include:: ../guides/custom_graphs.md
+
+.. include:: ../MIGRATING.md
 """
 
 import logging
