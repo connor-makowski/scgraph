@@ -794,11 +794,24 @@ def test_a_closed_class_closes_an_edge_of_zero_km(network):
     assert weights[WEST_TOWN, PORT] == math.inf
 
 
+def test_a_route_by_a_metric_warns_of_a_new_edge_that_the_metric_closes(
+    network,
+):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    # The new road has no class. The tables of the metric give a rate to each
+    # class, so the metric closes the road in its two directions.
+    network.add_edge(WEST_TOWN, PORT, 80.0, symmetric=True)
+
+    with pytest.warns(UserWarning, match="'minutes' closes 2 edge"):
+        network.get_shortest_path(WEST_POINT, EAST_POINT, metric="minutes")
+
+
 def test_a_route_that_needs_a_closed_edge_is_not_found(network):
     network.create_metric("minutes", per_km={**MINUTES_PER_KM, "sea": None})
 
     # The destination snaps to the open sea node, which only sea lanes reach.
-    with pytest.raises(PathNotFoundError):
+    # The message names the metric: a route by the length exists.
+    with pytest.raises(PathNotFoundError, match="by the metric 'minutes'"):
         network.get_shortest_path(
             WEST_POINT,
             {"latitude": -0.065, "longitude": 2.5},

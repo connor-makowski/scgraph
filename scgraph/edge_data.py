@@ -95,9 +95,11 @@ A leg starts at the node where the leg before it ends. The two road legs stay tw
 legs, because the railway is between them.
 """
 
+import warnings
 from array import array
 from collections.abc import Iterable, Iterator
 from dataclasses import replace
+from itertools import compress, count
 from math import inf
 from typing import TYPE_CHECKING
 
@@ -887,6 +889,8 @@ class EdgeData:
                     for nodes in definition["edge_weights"]
                 ],
             )
+        if isinstance(definition["per_km"], dict):
+            self._warn_of_closed_edges_without_class(name, weights)
         # A comparison with a value that is not a number is false
         if off_graph_per_km is None or not 0 <= off_graph_per_km < inf:
             raise ValueError(
@@ -904,6 +908,34 @@ class EdgeData:
             definition,
             used_metrics,
         )
+
+    def _warn_of_closed_edges_without_class(
+        self, name: str, weights: array | memoryview
+    ) -> None:
+        # A `per_km` dict gives a rate to a class, so it closes an edge without a
+        # class. Such an edge often comes from an `add_` call without `edge_class`:
+        # a route by the metric then ignores the new edge, and nothing else says
+        # why.
+        names = [edge_class["name"] for edge_class in self.classes]
+        if None not in names:
+            return
+        # One byte for each row of the classes, then for each edge: 1 for an edge
+        # without a class. The loop over the edges runs in C.
+        is_no_class_row = bytes(row == names.index(None) for row in range(256))
+        is_without_class = bytes(self._edge_classes).translate(is_no_class_row)
+        closed_count = sum(
+            weights[edge_index] == inf
+            for edge_index in compress(count(), is_without_class)
+        )
+        if closed_count:
+            warnings.warn(
+                f"The metric {name!r} closes {closed_count} edge(s) without a "
+                "class: a per_km dict gives a rate to a class. Pass edge_class= "
+                "to the add_ call that makes such an edge, or use a number for "
+                "per_km.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def remove_metric(self, metric: str) -> None:
         """Remove a metric.

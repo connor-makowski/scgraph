@@ -3440,7 +3440,7 @@ class GeoGraph(
             - What: The rate of each edge: the weight of an edge is its rate times its km
             - A number is the rate of every edge, and of the access legs: the straight lines between the points of a query and their nodes
             - A dict gives the rate of each class, under the name of the class or under the mode of its edges (the name wins), and the rate of the access legs under `"off_graph"`. A rate of None closes the edges of the class: no route by this metric takes them
-            - Note: With a dict, each class that has an edge needs a rate, and an edge without a class is closed
+            - Note: With a dict, each class that has an edge needs a rate, and an edge without a class is closed. The call warns (UserWarning) with the count of such edges, and so does each computation of the metric after an edit: pass `edge_class` to the `add_` call that makes such an edge, or use a number
             - Note: The lengths of the geograph must be in km: another `geograph_units`, or lengths in seconds (`load_from_osmnx_graph` with `weight_key="travel_time"`), raise a ValueError
         - `at_hub`
             - Type: dict | None
@@ -4076,6 +4076,7 @@ class GeoGraph(
             - Notes:
                 - EG: `geograph.get_shortest_path(origin_node, destination_node, metric="hours")`
                 - The search runs on `get_graph_object(metric)`. An unknown name raises a ValueError
+                - When no route by the metric joins the two points, the PathNotFoundError names the metric: an edge that is closed in the metric cannot be taken
                 - With `algorithm_fn='a_star'`, the bound of `geograph.haversine` or of `geograph.cheap_ruler` is a length: the geograph multiplies it by the smallest weight of 1 km of an edge in the metric. Another `heuristic_fn` is used as it is: it must give a lower bound of the total of the metric between two nodes
                 - An off-graph access leg weighs its km times the weight of 1 km in the metric (`off_graph_per_km` in `metrics`), with `node_addition_circuity` during pathfinding and with `off_graph_circuity` in the reported totals
         - `node_addition_modes`
@@ -4352,6 +4353,13 @@ class GeoGraph(
             return output
 
         except PathNotFoundError as error:
+            if is_by_metric:
+                raise PathNotFoundError(
+                    f"No route by the metric {metric!r} joins the two points. An "
+                    "edge that is closed in this metric cannot be taken: check the "
+                    "rates of the metric, and `node_addition_modes`, which names "
+                    "the node modes that the points snap to."
+                ) from error
             error.add_note(
                 "This is likely caused by a disconnect in the graph. Setting"
                 " destination_node_addition_type='all' and"
