@@ -844,6 +844,12 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
             "build or download the network again",
             id="the class rows of an earlier development version",
         ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {"classes": [{"name": None, "edge_mode": None}]},
+            "build or download the network again",
+            id="a class without a name of an earlier development version",
+        ),
     ],
 )
 def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(

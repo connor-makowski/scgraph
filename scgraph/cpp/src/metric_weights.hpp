@@ -49,6 +49,17 @@
 //   road and 1 / 25 = 0.04 hour by sea. With 3 node modes and 2 classes, `hub_weights` has 6
 //   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the node mode 1, has values.
 //
+// AN EDGE WITHOUT A CLASS
+//   The class id 255 is the id of no class. The kernels have no rule for it: the caller
+//   gives it a weight per km and hub weights, as to a class. GeoGraph.create_metric gives
+//   C = 256 values, one for each value of a class id. class_weights_per_km[255] is the
+//   weight of 1 km between a query point and its node, and hub_weights[m * 256 + 255] is
+//   zero for every node mode m. A value that is the id of no class has a weight per km that
+//   is not a number, so step 4 below refuses an edge with such an id.
+//   Example: with the 2 classes above and 0.1 hour for 1 km off the graph,
+//   class_weights_per_km holds 0.02, 0.04, then 253 values that are not a number, then 0.1.
+//   An edge of 4 km without a class weighs 0.1 * 4 = 0.4 hour, also from or to the port.
+//
 // HOW A WEIGHT IS COMPUTED FROM THE KM
 //   For the edge e of the class c, from the node u to the node v:
 //   1. Start with the weight per km of the class times the km of the edge. For a closed

@@ -135,7 +135,7 @@ A `GeoGraph` also holds the class of each edge and the metrics of the network. `
 * **The metrics**: The geograph keeps its metrics in a dict by name. Each metric other than `length` is one record. The record holds a `float64` array of weights, lined up with the edges, and the weight per km of the off-graph legs (`off_graph_weight_per_km`). The weights of `length` are those of `graph_object`.
 * **One `Graph` for each metric**: `get_graph_object(metric)` returns `graph_object` for `length`. For another metric, it builds a `Graph` from `offsets`, `heads` and the weights of the metric, at the first query by this metric. In the C++ build, the graphs of all the metrics share `offsets` and `heads`. A search called on the graph of a metric returns the total of the metric under the key `length`.
 
-**The weights of a metric.** `create_metric` computes the weights once, at the call, in one of three ways: from weights per km, as a weighted sum, or with a function of an edge. The first two ways have a kernel each: `compute_weights_from_km` and `compute_weighted_sum`. Each kernel has a C++ version (`scgraph/cpp/src/metric_weights.hpp`) and a pure-Python version (`scgraph/helpers/metric_weights.py`). `compute_weights_from_km` weighs an edge without a class as an off-graph leg: its km times `off_graph_weight_per_km`. No metric depends on another. A weighted sum keeps the weights of its creation, and the caller creates it again to update it.
+**The weights of a metric.** `create_metric` computes the weights once, at the call, in one of three ways: from weights per km, as a weighted sum, or with a function of an edge. The first two ways have a kernel each: `compute_weights_from_km` and `compute_weighted_sum`. Each kernel has a C++ version (`scgraph/cpp/src/metric_weights.hpp`) and a pure-Python version (`scgraph/helpers/metric_weights.py`). An edge without a class has the class id 255. `create_metric` gives this id the weight per km of the off-graph legs and no weight at a hub, so `compute_weights_from_km` weighs such an edge as an off-graph leg: its km times `off_graph_weight_per_km`. No metric depends on another. A weighted sum keeps the weights of its creation, and the caller creates it again to update it.
 
 **After an edit.** An edit of the graph moves the edges, so an array is no longer lined up with them. The classes need no update, because the class of an edge is found by its two nodes. The metrics are removed. scgraph computes no metric again. The caller creates the metrics again with `create_metric`.
 
@@ -439,7 +439,7 @@ The example shows one source and one metric. It leaves out the arrays and the ro
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. It is computed on `weights_length`. |
 | `metadata.node_order` | `str` | How the nodes are numbered. `"hilbert"`: along a 2D Hilbert space-filling curve. With several node modes, the nodes are grouped by node mode first, in the order of `metadata.node_modes`, then numbered along the curve within each node mode. A read of one node mode (`load_from_scgraph(node_modes=...)`) relies on this order. |
 | `metadata.node_modes` | `list[dict]` | The node modes of the network. Each node mode is a dict. `name` gives the name of the node mode. When a source gave the node ids of the node mode, `source` holds the name of that source in `sources`. A network with one node mode has no `node_mode_ids`: all its nodes are in that node mode. If that node mode has no name, the file has no `node_modes`. |
-| `metadata.classes` | `list[dict]` | Only in a file with `edge_class_ids`: one row for each class, with its `name` and its `edge_mode`, for example `{"name": "motorway", "edge_mode": "road"}` (docstring of `scgraph.pipelines`, *The classes*). One row may be `{"name": null, "edge_mode": null}`: the class of an edge that was added without a class. |
+| `metadata.classes` | `list[dict]` | Only in a file with `edge_class_ids`: one row for each class, with its `name` and its `edge_mode`, for example `{"name": "motorway", "edge_mode": "road"}` (docstring of `scgraph.pipelines`, *The classes*). A file holds 255 classes at most. |
 | `metadata.node_addition_modes` | `list[str]` | Optional. The node modes that a query point snaps to by default. Each one is a `name` of `metadata.node_modes`. |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: its name, the region, and its `PIPELINE_VERSION`. |
 | `metadata.software` | `dict` | Build environment provenance: `scgraph` version, `backend` (`cpp` or `python`), and host platform (e.g. `linux-x86_64 glibc 2.36` or `macOS 14.5`). |
@@ -467,7 +467,7 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior edge point, in the dtype of `node_points`. |
 | `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). A node that the build adds has an id below zero. No two nodes of one node mode have the same id. |
 | `node_mode_ids` *(opt)* | `uint8` | $N$ | The node mode of each node: the position of its node mode in `metadata.node_modes`, counted from 0. Each node has one node mode, so the value is a position, not a set of bits. A file has at most 256 node modes. |
-| `edge_class_ids` *(opt)* | `uint8` | $M$ | The class of each edge: the position of its class in `metadata.classes`, counted from 0. A file has at most 256 classes. |
+| `edge_class_ids` *(opt)* | `uint8` | $M$ | The id of the class of each edge: the position of its class in `metadata.classes`, counted from 0. The id 255 is the id of no class: it is the value of an edge without a class. |
 
 For example, the first node modes of `geofabrik_multimodal` are:
 
@@ -507,15 +507,15 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - The first row of `metadata.metrics` is `length`, with a `unit`. Each row has its array `weights_<name>`, and each such array has its row. Each of these arrays has $M$ values. Each row other than `length` has `off_graph_weight_per_km`.
    - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
    - Each node has one point. If the file has `source_node_ids` or `node_mode_ids`, each node also has one id or one node mode.
-   - If the file has `edge_class_ids`, each edge has one class.
+   - If the file has `edge_class_ids`, each edge has one class id.
 
-   `node_points` and `shape_points` have the same dtype. If the file has `node_mode_ids`, `metadata.node_modes` is a list. If the file has `edge_class_ids`, `metadata.classes` is a list of rows with a `name` and an `edge_mode`. Each name of `metadata.node_addition_modes` is a name of `metadata.node_modes`.
+   `node_points` and `shape_points` have the same dtype. If the file has `node_mode_ids`, `metadata.node_modes` is a list. If the file has `edge_class_ids`, `metadata.classes` is a list of 255 rows at most, each with a `name` and an `edge_mode`. Each name of `metadata.node_addition_modes` is a name of `metadata.node_modes`.
 6. If `read` copies the arrays into memory, it also checks each value:
    - the values of `offsets` do not decrease;
    - each head is a node;
    - the values of `shape_offsets` do not decrease;
    - each value of `node_mode_ids` is the position of a row of `metadata.node_modes`;
-   - each value of `edge_class_ids` is the position of a row of `metadata.classes`.
+   - each value of `edge_class_ids` is the position of a row of `metadata.classes`, or 255.
 
    `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer. In the C++ build, `load_from_scgraph` always maps the file. A mapped read does not check the values. The C++ graph checks the offsets and the heads when it is built.
 

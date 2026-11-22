@@ -61,7 +61,7 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # node_mode_ids (optional): for each node, the position of its node mode in
 # metadata["node_modes"].
 # edge_class_ids (optional): for each edge, the position of its class in
-# metadata["classes"].
+# metadata["classes"], or NO_CLASS_ID for an edge without a class.
 # weights_length: the length of each edge. The array `weights_<name>` of another metric
 # is not listed here: it has the dtype of weights_length (see `_get_dtypes`).
 # node_points and shape_points are arrays of points: the latitude of a point, then its
@@ -79,6 +79,9 @@ ARRAYS = {
     "edge_class_ids": ("uint8",),
 }
 POINT_ARRAYS = ("node_points", "shape_points")
+# The value of `edge_class_ids` for an edge without a class. The id of a class is
+# below it: a network holds 255 classes at most.
+NO_CLASS_ID = 255
 _ALIGN = 64
 _PREAMBLE = 48  # magic, digest, header length
 
@@ -467,7 +470,8 @@ def _read(filename, file, mapped, node_modes):
         ("units" in metadata and "metrics" not in metadata)
         or {"node_ids", "node_modes", "edge_classes"} & set(header["arrays"])
         or any(
-            isinstance(row, dict) and "mode" in row
+            isinstance(row, dict)
+            and ("mode" in row or row.get("name", "") is None)
             for row in metadata.get("classes", ())
         )
         or any("off_graph_per_km" in row for row in metadata.get("metrics", ()))
@@ -572,9 +576,10 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
         positions = chain.from_iterable(starmap(range, node_runs))
         selected["source_node_ids"] = array("q", positions)
     if "edge_class_ids" in arrays:
-        # `_check` does not read the classes of a mapped file. `translate` deletes
-        # the valid classes in one pass in C: a byte that is left is not a class.
-        valid = bytes(range(256))[: len(metadata["classes"])]
+        # `_check` does not read the class ids of a mapped file. `translate`
+        # deletes the valid ids in one pass in C: a byte that is left is no id of a
+        # class and not NO_CLASS_ID.
+        valid = bytes([*range(len(metadata["classes"])), NO_CLASS_ID])
         if bytes(selected["edge_class_ids"]).translate(None, valid):
             raise ValueError(f"{filename}: invalid edge classes")
     return selected
@@ -959,10 +964,11 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "edge_class_ids" not in arrays or len(arrays["edge_class_ids"]) == m,
         "one edge class per edge expected",
     )
-    # Each value of these arrays is the position of a row in a list of the metadata
-    for name, what, key in (
-        ("node_mode_ids", "node modes", "node_modes"),
-        ("edge_class_ids", "edge classes", "classes"),
+    # Each value of these arrays is the position of a row in a list of the
+    # metadata. A class id may also be NO_CLASS_ID.
+    for name, what, key, other_valid_ids in (
+        ("node_mode_ids", "node modes", "node_modes", set()),
+        ("edge_class_ids", "edge classes", "classes", {NO_CLASS_ID}),
     ):
         if name in arrays:
             rows = metadata.get(key)
@@ -970,15 +976,24 @@ def _check(filename, arrays, metadata, should_check_values=True):
             # A mapped read does not check the values: it does not read the arrays
             require(
                 not should_check_values
-                or max(arrays[name], default=-1) < len(rows),
+                or max(set(arrays[name]) - other_valid_ids, default=-1)
+                < len(rows),
                 f"invalid {what}",
             )
     require(
         "edge_class_ids" not in arrays
         or all(
-            {"name", "edge_mode"} <= set(row) for row in metadata["classes"]
+            isinstance(row, dict)
+            and isinstance(row.get("name"), str)
+            and "edge_mode" in row
+            for row in metadata["classes"]
         ),
         "each class must be a row with a name and an edge mode",
+    )
+    require(
+        "edge_class_ids" not in arrays
+        or len(metadata["classes"]) <= NO_CLASS_ID,
+        f"a network file holds {NO_CLASS_ID} classes at most",
     )
     node_mode_names = [
         mode["name"] for mode in metadata.get("node_modes") or [{"name": None}]

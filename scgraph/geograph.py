@@ -308,13 +308,11 @@ class GeoGraphIO:
         classes, edge_value_arrays = None, {}
         if self.classes or self._metrics:
             geograph_offsets, geograph_heads, _ = self._read_edge_arrays()
-            file_classes, edge_class_ids = (
-                self._edge_classes.list_edge_class_ids(
-                    geograph_offsets, geograph_heads
-                )
+            edge_class_ids = self._edge_classes.list_edge_class_ids(
+                geograph_offsets, geograph_heads
             )
             if edge_class_ids is not None:
-                classes = file_classes
+                classes = self.classes
                 edge_value_arrays["edge_class_ids"] = edge_class_ids
             for name, metric_record in self._metrics.items():
                 edge_value_arrays[f"weights_{name}"] = metric_record.weights
@@ -3655,13 +3653,15 @@ class GeoGraph(
         offsets, heads, lengths = self._read_edge_arrays()
         units_per_km = get_units_per_km(self.geograph_units)
         if weight_per_km is not None:
-            classes, edge_class_ids = self._edge_classes.list_edge_class_ids(
+            edge_class_ids = self._edge_classes.list_edge_class_ids(
                 offsets, heads
             )
             if edge_class_ids is None:
-                # Every edge has the class id 0: `weight_per_km` is one weight per
-                # km for every edge
-                edge_class_ids = array("B", bytes(len(heads)))
+                # No edge has a class: `weight_per_km` is one weight per km for
+                # every edge
+                edge_class_ids = array(
+                    "B", bytes([network_file.NO_CLASS_ID]) * len(heads)
+                )
             # Nodes appended to `nodes` directly are in the first node mode
             self.node_mode_ids.extend(
                 bytes(len(offsets) - 1 - len(self.node_mode_ids))
@@ -3671,7 +3671,7 @@ class GeoGraph(
                     weight_per_km,
                     class_weight_per_km,
                     weight_at_hub,
-                    classes,
+                    self.classes,
                     self.node_modes,
                     edge_class_ids,
                 )

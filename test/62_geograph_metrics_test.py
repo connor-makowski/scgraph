@@ -472,7 +472,7 @@ def test_an_edge_added_without_a_class_adds_no_class_to_the_geograph(network):
     ]
 
 
-def test_a_saved_file_has_one_class_without_a_name_for_its_edges_without_a_class(
+def test_a_saved_and_loaded_geograph_gives_no_class_to_an_edge_without_a_class(
     network, tmp_path
 ):
     network.add_edge(WEST_TOWN, PORT, 85.0, symmetric=True)
@@ -480,30 +480,31 @@ def test_a_saved_file_has_one_class_without_a_name_for_its_edges_without_a_class
 
     network.save_as_scgraph(path)
 
-    # A file stores a class for each edge: the two new edges have the last one.
-    assert GeoGraph.get_scgraph_info(path)["classes"] == [
-        *(
-            {"name": name, "edge_mode": edge_mode}
-            for name, edge_mode in CLASSES.items()
-        ),
-        {"name": None, "edge_mode": None},
-    ]
+    # The file has the classes of the network, and no class for the two new
+    # edges, which are the only edges of 85 km.
+    loaded = GeoGraph.load_from_scgraph(path)
+    assert loaded.classes == network.classes
+    assert [
+        edge["length"]
+        for edge in loaded.get_edges()
+        if edge["edge_class"] is None
+    ] == [85.0, 85.0]
 
 
 def test_a_merge_that_is_refused_changes_nothing(
     network_with_minutes, tmp_path
 ):
-    # A geograph holds 256 classes at most. The network has 7 classes. With
-    # the 250 classes of the other geograph, the merged geograph would have
-    # 257 classes.
-    many_classes = {f"class_{class_id}": "road" for class_id in range(250)}
+    # A geograph holds 255 classes at most. The network has 7 classes. With
+    # the 249 classes of the other geograph, the merged geograph would have
+    # 256 classes.
+    many_classes = {f"class_{class_id}": "road" for class_id in range(249)}
     other_path = str(tmp_path / "many_classes.scgraph")
     _write_network(
         other_path, FERRY_NODES, [(0, 1, 30.0, "class_0")], many_classes
     )
     other = GeoGraph.load_from_scgraph(other_path)
 
-    with pytest.raises(ValueError, match="256 classes"):
+    with pytest.raises(ValueError, match="255 classes"):
         network_with_minutes.merge_with_other_geograph(
             other, connection_nodes=[[0.5, 0.0]]
         )
@@ -515,22 +516,15 @@ def test_a_merge_that_is_refused_changes_nothing(
     ]
 
 
-def test_a_geograph_with_256_classes_refuses_one_more_class(tmp_path):
-    # The ferry line, read from a network file with 256 classes: a network
-    # file holds no more. The line has the last class.
+def test_a_network_file_with_a_256th_class_is_refused(tmp_path):
+    # The ferry line, in a network file with 256 classes. The class id 255 is
+    # the id of no class, so a network holds 255 classes at most.
     classes = {f"class_{class_id}": "road" for class_id in range(256)}
     path = str(tmp_path / "256_classes.scgraph")
-    _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_255")], classes)
-    geograph_with_256_classes = GeoGraph.load_from_scgraph(path)
+    _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_0")], classes)
 
-    # In a network file, an edge without a class has the class without a
-    # name: a 257th class.
-    geograph_with_256_classes.add_edge(0, 1, 25.0)
-
-    with pytest.raises(ValueError, match="256 classes"):
-        geograph_with_256_classes.save_as_scgraph(
-            str(tmp_path / "257_classes.scgraph")
-        )
+    with pytest.raises(ValueError, match="255 classes"):
+        GeoGraph.load_from_scgraph(path)
 
 
 # create_metric: the weights of a metric
