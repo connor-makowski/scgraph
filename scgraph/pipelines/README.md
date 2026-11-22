@@ -301,7 +301,7 @@ for the route between them. This build has three cases, and all three pass. One 
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
 Each kind of case has its node modes. The two points of a case snap to nodes of these node
-node modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
+modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
 file do not count here.
 
 Then the runner moves the file into the cache. A network that fails a case does not enter the
@@ -327,7 +327,7 @@ to another at hubs.
 `GeoGraph.build_geograph` calls the runner, then loads the file. It builds nothing when the
 cache holds the file. The guide
 [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#building-networks-from-their-sources)
-gives this call. With the roads alone (`modes=["road"]`), the route from the center of Aarhus
+gives this call. With the roads alone (`node_modes=["road"]`), the route from the center of Aarhus
 (56.1629, 10.2039) to the center of Copenhagen (55.6761, 12.5683) is 302.2 km.
 
 Each edge has a class. A two-way road gives two edges, and the table counts the km of both.
@@ -554,7 +554,7 @@ This part follows one load of `oceania` without its edge shapes, with the number
    check is deleted: it does not enter the cache, and the load raises a `ValueError`.
 3. **Keep.** The cache keeps the decompressed file as
    `releases/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph`. The cache is not
-   compressed: with the C++ extension, and without `modes`, scgraph maps the file and does not
+   compressed: with the C++ extension, and without `node_modes`, scgraph maps the file and does not
    copy it into memory. A later load makes no request, and does not check the file again.
 4. **Read.** The load reads 125,904 nodes and 339,010 edges. When the caller passes a
    `content_sha256`, the load fails if the file of the cache has another one.
@@ -562,9 +562,9 @@ This part follows one load of `oceania` without its edge shapes, with the number
 The numbers come from one first load and one later load on 2026-11-22, on Linux, with the C++
 extension. The first load took 2.7 s, download included, and the later load 0.01 s. The
 shortest route from Sydney (-33.8688, 151.2093) to Perth (-31.9523, 115.8613) is 3311.7 km,
-with a flight. With `modes=["road"]`, the route is 3930.3 km.
+with a flight. With `node_modes=["road"]`, the route is 3930.3 km.
 
-Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
+Where to read more: the docstring of `fetch_released_file`, in `network_cache.py`.
 
 ## A network of your own
 
