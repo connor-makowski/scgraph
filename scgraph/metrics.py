@@ -1,53 +1,46 @@
 """The metrics of a GeoGraph: what a metric is, and how its weights are computed.
 
-This module is internal. `scgraph/edge_data.py` calls it for `GeoGraph.create_metric`,
-and removes the metrics when the graph is edited: the weights of a metric are those
-of the edges at its creation.
+This module is internal. `GeoGraph.create_metric` calls it, and a geograph keeps its
+metrics by name in `GeoGraph._metrics`.
 
-A METRIC
+A "metric" is one weight for every edge, under a name: an array of float64 values,
+lined up with the edges (`scgraph/edge_classes.py`). A search by a metric adds up
+these weights in place of the lengths. The lengths are the metric `length`, which the
+graph of the geograph holds. A `Metric` record holds each other metric. An edge is
+"closed" in a metric when its weight is infinity: no route by this metric takes it.
 
-A graph stores its edges in an order, and the "index" of an edge is its position in
-that order (`scgraph/edge_data.py`, *The edges and their index*). A "metric" is one
-weight for every edge, under a name: an array of float64 values, the value number `i`
-for the edge of index `i`. A search by a metric adds up these weights in place of the
-lengths. The lengths are the metric `length`, which the graph of the geograph holds.
-A `Metric` record holds each other metric. An edge is "closed" in a metric when its
-weight is infinity: no route by this metric takes it.
+The weights of a metric are computed in one of three ways:
 
-A geograph computes the weights of a metric in one of three ways.
-
-- From tables. `resolve_tables` turns the tables of the caller, whose keys are names
-  of classes and of modes, into two arrays whose positions are rows. The kernel
-  `compute_table_weights` then gives each edge its rate times its km, plus the weight
-  of the hub that it leaves and of the hub that it enters. An edge without a class
-  weighs as an access leg: its km times the rate `"off_graph"` of the metric.
-- As a weighted sum of other metrics, with the kernel `compute_weighted_sum`.
-- From a function of the caller, called once for each edge. The call is in
-  `EdgeData._compute_metric` (`scgraph/edge_data.py`): the function takes the dict
-  of an edge, which an `EdgeData` builds.
+- from tables: the rate of the class of an edge times its km, plus the weight of
+  each hub that the edge leaves or enters. `GeoGraph.create_metric` gives the
+  result of `resolve_tables` to the kernel `compute_table_weights`;
+- as a weighted sum of other metrics (`compute_weights_by_sum`);
+- from a function of the caller, called once for each edge
+  (`compute_weights_from_function`).
 
 `set_edge_weights` then writes the weights that the caller gives for some edges.
 
-A metric keeps the weights of its creation. A weighted sum, or a function, reads the
-weights that the other metrics have at its call. When one of them is created again,
-the sum does not change: the caller creates the sum again.
+THE RULE: A METRIC KEEPS THE WEIGHTS OF ITS CREATION
 
-Example, a graph with the edges 0 -> 1, 0 -> 2 and 2 -> 0, in this order, with
-lengths of 10, 20 and 20 km. The classes of the edges are the rows 4, 4 and 7 of the
-classes. The row 4 is the class `primary`, of the mode `road`, and the row 7 is the
-class `motorway`. The tables
-`per_km={"primary": 0.02, "motorway": 0.01, "off_graph": 0.05}` give the metric
-`hours`:
+An edit of the network removes every metric, and a metric that is created again
+changes no other metric. So no code lines up a metric or computes it again: the
+caller creates it again.
 
-    weights = [0.02 * 10, 0.02 * 20, 0.01 * 20] = [0.2, 0.4, 0.2]
+Example, a graph with the edges 0 -> 1, 0 -> 2 and 2 -> 0, with lengths of 10, 20
+and 20 km. The first two edges have the class `primary` and the third the class
+`motorway`. The rates `per_km={"primary": 0.02, "motorway": 0.01, "off_graph": 0.05}`
+give the metric `hours`, and the sum `{"hours": 30, "length": 0.5}` gives the metric
+`cost`:
 
-The sum `{"hours": 30, "length": 0.5}` gives [30 * 0.2 + 0.5 * 10, ...] = [11, 22, 16].
+    hours = [0.02 * 10, 0.02 * 20, 0.01 * 20] = [0.2, 0.4, 0.2]
+    cost = [30 * 0.2 + 0.5 * 10, ...] = [11, 22, 16]
 
 The two kernels are explained in `scgraph/cpp/src/metric_weights.hpp`. Their
 pure-Python versions are in `scgraph/helpers/metric_weights.py`.
 """
 
 from array import array
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from itertools import compress
 from math import inf, isfinite
@@ -55,12 +48,9 @@ from operator import truediv
 from typing import TYPE_CHECKING
 
 try:
-    from scgraph.cpp import compute_table_weights, compute_weighted_sum
+    from scgraph.cpp import compute_weighted_sum
 except ImportError:
-    from scgraph.helpers.metric_weights import (
-        compute_table_weights,
-        compute_weighted_sum,
-    )
+    from scgraph.helpers.metric_weights import compute_weighted_sum
 
 if TYPE_CHECKING:  # Only for an annotation
     from scgraph.graph import Graph
@@ -80,9 +70,7 @@ class Metric:
     weights: array | memoryview
     # The weight of 1 km of the straight line between a query point and its node
     off_graph_per_km: float
-    # The smallest weight of an open edge divided by its length, over the edges
-    # longer than zero. It scales the bound of an A* search. Computed at the first
-    # such search.
+    # The result of `get_min_weight_per_km`. Computed at the first A* search.
     min_weight_per_km: float | None = None
     # The Graph that a search by this metric runs on. Built at the first query.
     graph_object: "Graph | None" = None
@@ -96,6 +84,26 @@ class Metric:
             "off_graph_per_km": self.off_graph_per_km,
         }
         return {key: value for key, value in row.items() if value is not None}
+
+    def get_min_weight_per_km(self, lengths: array | memoryview) -> float:
+        """Return the smallest weight of an open edge divided by its length, over
+        the edges longer than zero. 0.0 without such an edge.
+
+        A route of `d` km by the metric weighs `d` times this value at least. An A*
+        search by the metric multiplies its great-circle bound by it.
+
+        Args:
+            lengths: The length of each edge.
+        """
+        if self.min_weight_per_km is None:
+            # `compress` leaves out the edges of length zero. The loops run in C.
+            ratios = map(
+                truediv,
+                compress(self.weights, lengths),
+                compress(lengths, lengths),
+            )
+            self.min_weight_per_km = min(filter(isfinite, ratios), default=0.0)
+        return self.min_weight_per_km
 
 
 def resolve_tables(
@@ -194,37 +202,6 @@ def resolve_tables(
     return rates, hub_weights, off_graph_per_km
 
 
-def compute_weights_by_tables(
-    per_km: float | dict,
-    at_hub: dict | None,
-    classes: list[dict],
-    modes: list[dict],
-    edge_arrays: tuple[array | memoryview, ...],
-    edge_classes: array | memoryview,
-    node_modes: array | memoryview,
-) -> tuple[array | memoryview, float]:
-    """Compute the weights of a metric from the tables of a `create_metric` call.
-
-    Args:
-        per_km, at_hub, classes, modes, edge_classes: See `resolve_tables`.
-        edge_arrays: The offsets, the heads and the km of the edges.
-        node_modes: The row of the mode of each node.
-
-    Returns:
-        One float64 weight for each edge, and the rate of the access legs.
-
-    Raises:
-        ValueError: As `resolve_tables`, or a weight is below zero or not a number.
-    """
-    *tables, off_graph_per_km = resolve_tables(
-        per_km, at_hub, classes, modes, edge_classes
-    )
-    weights = compute_table_weights(
-        *edge_arrays, edge_classes, node_modes, *tables
-    )
-    return weights, off_graph_per_km
-
-
 def compute_weights_by_sum(
     weighted_sum_of: dict[str, float],
     metrics: dict[str, Metric],
@@ -273,6 +250,54 @@ def compute_weights_by_sum(
             )
     weights = compute_weighted_sum(
         weights_of_metrics, array("d", weighted_sum_of.values())
+    )
+    return weights, off_graph_per_km
+
+
+def compute_weights_from_function(
+    edge_weight_fn: Callable,
+    edges: Iterable[dict],
+    metrics: dict[str, Metric],
+    units_per_km: float,
+) -> tuple[array, float | None]:
+    """Compute the weights of a metric from a function of the caller.
+
+    Args:
+        edge_weight_fn: A function that takes the dict of an edge and returns its
+            weight, or None to close it.
+        edges: The dict of each edge, in the order of the edges, as
+            `GeoGraph.get_edges` returns them.
+        metrics: The metrics of the geograph other than `length`, by name.
+        units_per_km: 1 km in the unit of the lengths.
+
+    Returns:
+        One float64 weight for each edge, and the weight of 1 km of access leg: the
+        value of the function for 1 km of the mode `off_graph`.
+
+    Raises:
+        ValueError: A weight is below zero or not a number.
+    """
+    weights = array(
+        "d",
+        (
+            check_weight(
+                edge_weight_fn(edge), edge["origin_id"], edge["destination_id"]
+            )
+            for edge in edges
+        ),
+    )
+    off_graph_per_km = edge_weight_fn(
+        {
+            "origin_id": None,
+            "destination_id": None,
+            "length": units_per_km,
+            "class": None,
+            "mode": "off_graph",
+            "metrics": {
+                name: metric_record.off_graph_per_km
+                for name, metric_record in metrics.items()
+            },
+        }
     )
     return weights, off_graph_per_km
 
@@ -363,35 +388,30 @@ def set_edge_weights(
     return new_weights
 
 
-def compute_min_weight_per_km(
-    weights: array | memoryview, lengths: array | memoryview
-) -> float:
-    """Return the smallest weight of an open edge divided by its length.
+def check_off_graph_per_km(name: str, off_graph_per_km: float | None) -> float:
+    """Check the weight of 1 km of access leg in a new metric, and return it as a
+    float.
 
-    A route of `d` km by the metric weighs `d` times this value at least. An A*
-    search by the metric multiplies its great-circle bound by it.
-
-    Args:
-        weights: The weight of each edge in the metric.
-        lengths: The length of each edge.
-
-    Returns:
-        The smallest ratio over the open edges longer than zero. 0.0 without such
-        an edge.
+    Raises:
+        ValueError: The weight is not a finite number of zero or more.
     """
-    # `compress` leaves out the edges of length zero. The loops run in C.
-    ratios = map(
-        truediv, compress(weights, lengths), compress(lengths, lengths)
-    )
-    return min(filter(isfinite, ratios), default=0.0)
+    # A comparison with a value that is not a number is false
+    if off_graph_per_km is None or not 0 <= off_graph_per_km < inf:
+        raise ValueError(
+            f"The weight of 1 km of access leg in the metric {name!r} must "
+            f"be a finite number of zero or more: got {off_graph_per_km!r} "
+            "(for a function: the value that it returns for the mode "
+            "'off_graph')"
+        )
+    return float(off_graph_per_km)
 
 
-def describe_definition(definition: dict) -> str:
-    """Return the `create_metric` call of a definition as text, for the description
-    of a metric: `create_metric(per_km={'road': 0.02, 'off_graph': 0.05},
-    edge_weights=<12 edges>)`. A function is written by its name."""
-    arguments = []
-    for key, value in definition.items():
+def describe_call(**arguments: object) -> str:
+    """Return a `create_metric` call as text, for the description of a metric:
+    `create_metric(per_km={'road': 0.02, 'off_graph': 0.05}, edge_weights=<12
+    edges>)`. A function is written by its name."""
+    texts = []
+    for key, value in arguments.items():
         if value is None:
             continue
         if key == "edge_weight_fn":
@@ -400,5 +420,5 @@ def describe_definition(definition: dict) -> str:
             value = f"<{len(value)} edges>"
         else:
             value = repr(value)
-        arguments.append(f"{key}={value}")
-    return f"create_metric({', '.join(arguments)})"
+        texts.append(f"{key}={value}")
+    return f"create_metric({', '.join(texts)})"
