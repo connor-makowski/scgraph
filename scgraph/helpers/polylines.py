@@ -122,11 +122,11 @@ def build_graph_from_polylines(
         max_km_between_nodes: As in `cut_polylines`.
 
     Returns:
-        `(graph, nodes, shapes, node_ids, edge_class_names)`, where `i` and `j` are node
-        indexes. `graph[i]` maps each node `j` that an edge from node `i` reaches to the
-        length of that edge, in kilometers. `nodes[i]` is the point of node `i`.
+        `(graph, nodes, shapes, source_node_ids, edge_class_names)`, where `i` and `j`
+        are node ids. `graph[i]` maps each node `j` that an edge from node `i` reaches
+        to the length of that edge, in kilometers. `nodes[i]` is the point of node `i`.
         `shapes[i][j]` is the list of shape points of the edge from `i` to `j`, if the
-        edge has any. `node_ids[i]` is the id of the vertex that became node `i`.
+        edge has any. `source_node_ids[i]` is the id of the vertex that became node `i`.
         `edge_class_names[i][j]` is the class of the edge from `i` to `j`, if its polyline
         has one.
     """
@@ -151,8 +151,8 @@ def build_graph_from_polylines(
                 key = (destination_id, origin_id)
                 _keep_shortest(edges, key, km, shape[::-1], class_name)
 
-    # 4. Give each node its index, along the Hilbert curve
-    node_ids = sorted(
+    # 4. Give each node its id, along the Hilbert curve
+    source_node_ids = sorted(
         points,
         key=lambda node_id: (
             hilbert_key(*points[node_id]),
@@ -160,19 +160,24 @@ def build_graph_from_polylines(
             node_id,
         ),
     )
-    node_index = {node_id: i for i, node_id in enumerate(node_ids)}
-    graph = [{} for _ in node_ids]
-    shapes = [{} for _ in node_ids]
-    edge_class_names = [{} for _ in node_ids]
+    node_id_of_vertex = {
+        node_id: i for i, node_id in enumerate(source_node_ids)
+    }
+    graph = [{} for _ in source_node_ids]
+    shapes = [{} for _ in source_node_ids]
+    edge_class_names = [{} for _ in source_node_ids]
     for (origin_id, destination_id), (km, shape, class_name) in edges.items():
-        origin, destination = node_index[origin_id], node_index[destination_id]
+        origin, destination = (
+            node_id_of_vertex[origin_id],
+            node_id_of_vertex[destination_id],
+        )
         graph[origin][destination] = km
         if shape:
             shapes[origin][destination] = shape
         if class_name is not None:
             edge_class_names[origin][destination] = class_name
-    nodes = [points[node_id] for node_id in node_ids]
-    return graph, nodes, shapes, node_ids, edge_class_names
+    nodes = [points[node_id] for node_id in source_node_ids]
+    return graph, nodes, shapes, source_node_ids, edge_class_names
 
 
 def _keep_shortest(edges, key, km, shape, class_name):

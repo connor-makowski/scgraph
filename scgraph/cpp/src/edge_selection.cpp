@@ -1,4 +1,4 @@
-// The selection of the edges of some modes is explained in edge_selection.hpp. Read it first.
+// The selection of the edges of some node modes is explained in edge_selection.hpp. Read it first.
 #include "edge_selection.hpp"
 #include <stdexcept>
 
@@ -18,24 +18,25 @@ void add_run(Runs& runs, int64_t first, int64_t last) {
 }  // namespace
 
 EdgeSelection select_edges(std::span<const int32_t> offsets, std::span<const int32_t> heads,
-                         std::span<const uint8_t> node_modes, const std::vector<bool>& is_mode_kept,
+                         std::span<const uint8_t> node_mode_ids,
+                         const std::vector<bool>& is_node_mode_kept,
                          std::span<const int32_t> shape_offsets) {
     const int64_t node_count = (int64_t)offsets.size() - 1;
     const int64_t edge_count = (int64_t)heads.size();
-    const size_t mode_count = is_mode_kept.size();
+    const size_t mode_count = is_node_mode_kept.size();
     const bool has_shapes = !shape_offsets.empty();
-    if (node_count < 0 || (int64_t)node_modes.size() != node_count) {
+    if (node_count < 0 || (int64_t)node_mode_ids.size() != node_count) {
         throw std::invalid_argument("one node mode per node expected");
     }
     if (has_shapes && (int64_t)shape_offsets.size() != edge_count + 1) {
         throw std::invalid_argument("invalid shape offsets");
     }
 
-    // 1. Find the nodes of each mode
+    // 1. Find the nodes of each node mode
     std::vector<int64_t> first_node(mode_count + 1, 0);
     for (int64_t node = 0; node < node_count; ++node) {
-        const uint8_t mode = node_modes[node];
-        if (mode >= mode_count || (node > 0 && mode < node_modes[node - 1])) {
+        const uint8_t mode = node_mode_ids[node];
+        if (mode >= mode_count || (node > 0 && mode < node_mode_ids[node - 1])) {
             throw std::invalid_argument("unsorted or unknown node modes");
         }
         ++first_node[mode + 1];
@@ -53,7 +54,7 @@ EdgeSelection select_edges(std::span<const int32_t> offsets, std::span<const int
     // The edges of the kept nodes: no selection keeps more edges
     int64_t most_edges = 0;
     for (size_t mode = 0; mode < mode_count; ++mode) {
-        if (!is_mode_kept[mode]) continue;
+        if (!is_node_mode_kept[mode]) continue;
         const int64_t first = first_node[mode], last = first_node[mode + 1];
         // Step 3 uses the offsets of these nodes as positions in `heads`
         if (offsets[first] < 0 || offsets[last] > edge_count) throw std::invalid_argument("invalid offsets");
@@ -80,8 +81,8 @@ EdgeSelection select_edges(std::span<const int32_t> offsets, std::span<const int
             for (int64_t edge = offsets[node]; edge < offsets[node + 1]; ++edge) {
                 const int32_t head = heads[edge];
                 if (head < 0 || head >= node_count) throw std::invalid_argument("edge to a missing node");
-                const uint8_t mode = node_modes[head];
-                if (!is_mode_kept[mode]) continue;
+                const uint8_t mode = node_mode_ids[head];
+                if (!is_node_mode_kept[mode]) continue;
                 new_heads.push_back((int32_t)(head + shift[mode]));
                 add_run(edge_runs, edge, edge + 1);
                 if (!has_shapes) continue;

@@ -265,13 +265,16 @@ def _write_network(
         # The file has the nodes of each mode in Hilbert order, so that nodes
         # close on the globe get close ids
         return network.save_as_scgraph(str(filename), metadata=metadata)
-    arrays, modes = network  # the arrays of the file, already in that order
+    arrays, node_modes = (
+        network  # the arrays of the file, already in that order
+    )
     classes = None
-    if "edge_classes" in arrays:
-        # A value of `edge_classes` is a row of the classes table of the pipeline
+    if "edge_class_ids" in arrays:
+        # A value of `edge_class_ids` is the id of a class of the classes table of the
+        # pipeline
         classes = [
-            {"name": name, "mode": mode}
-            for name, mode in getattr(
+            {"name": name, "edge_mode": edge_mode}
+            for name, edge_mode in getattr(
                 pipeline, "CLASSES", pipelines.CLASSES
             ).items()
         ]
@@ -280,7 +283,7 @@ def _write_network(
         arrays,
         network_file.build_header_metadata(
             metadata,
-            modes=modes,
+            node_modes=node_modes,
             classes=classes,
             node_addition_modes=getattr(pipeline, "NODE_ADDITION_MODES", None),
         ),

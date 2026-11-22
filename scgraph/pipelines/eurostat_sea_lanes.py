@@ -20,10 +20,10 @@ from array import array
 
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
-from scgraph.pipelines import CLASS_ROWS, CLASSES
+from scgraph.pipelines import CLASS_IDS, CLASSES
 from scgraph.pipelines.steps import step3_network_assembly
 
-PIPELINE_VERSION = 2
+PIPELINE_VERSION = 3
 
 SOURCES = {
     "sea_lanes": {
@@ -96,27 +96,38 @@ def build(files: dict[str, str]) -> GeoGraph:
     # `format_coord_list`. No segment of the pinned file is in two lines of
     # different passages.
     node_of_point = {
-        _to_units(point): node_id for node_id, point in enumerate(sea.nodes)
+        _convert_to_e7_degrees(point): node_id
+        for node_id, point in enumerate(sea.nodes)
     }
-    class_names = [{} for _ in sea.nodes]
+    edge_class_names = [{} for _ in sea.nodes]
     for line, passage in lines:
         nodes = [
             node_of_point[
-                _to_units(format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1])
+                _convert_to_e7_degrees(
+                    format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1]
+                )
             ]
             for lon_lat in line["coordinates"]
         ]
         for a, b in zip(nodes, nodes[1:]):
-            class_names[a][b] = class_names[b][a] = passage or "open_sea"
-    edge_classes = sea._line_up()
-    edge_classes.set_classes_by_name(
-        [{"name": name, "mode": mode} for name, mode in CLASSES.items()],
-        edge_classes.list_edge_values(class_names),
+            edge_class_names[a][b] = edge_class_names[b][a] = (
+                passage or "open_sea"
+            )
+    # The same graph and the same nodes, with the class of each edge
+    return GeoGraph(
+        graph=sea.graph_object,
+        nodes=sea.nodes,
+        source_node_ids=list(sea.source_node_ids),
+        coordinate_dtype=sea.coordinate_dtype,
+        classes=[
+            {"name": name, "edge_mode": edge_mode}
+            for name, edge_mode in CLASSES.items()
+        ],
+        edge_classes=edge_class_names,
     )
-    return sea
 
 
-def _to_units(point):
+def _convert_to_e7_degrees(point):
     # A [latitude, longitude] point, in units of 1e-7 degree
     return round(point[0] * 1e7), round(point[1] * 1e7)
 
@@ -133,11 +144,13 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
 
     Returns:
         The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
-        it, with `edge_classes`. The edges have no shape points.
+        it, with `edge_class_ids`. The edges have no shape points.
     """
     sea = build(files)
-    class_row_of_edge = {
-        (edge["origin_id"], edge["destination_id"]): CLASS_ROWS[edge["class"]]
+    class_id_of_edge = {
+        (edge["origin_id"], edge["destination_id"]): CLASS_IDS[
+            edge["edge_class"]
+        ]
         for edge in sea.get_edges()
     }
     offsets, heads, weights = (
@@ -150,15 +163,16 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         "heads": heads,
         "weights_length": weights,
         "node_points": array(
-            "i", (x for point in sea.nodes for x in _to_units(point))
+            "i",
+            (x for point in sea.nodes for x in _convert_to_e7_degrees(point)),
         ),
         "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
         "shape_points": array("i"),
-        "node_ids": array("q", sea.node_ids),
-        "edge_classes": array(
+        "source_node_ids": array("q", sea.source_node_ids),
+        "edge_class_ids": array(
             "B",
             (
-                class_row_of_edge[u, v]
+                class_id_of_edge[u, v]
                 for u in range(len(sea.nodes))
                 for v in heads[offsets[u] : offsets[u + 1]]
             ),

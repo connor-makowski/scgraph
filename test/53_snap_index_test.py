@@ -332,8 +332,8 @@ def test_geograph_snaps_a_query_point_to_its_modes_among_nodes_in_any_order():
         graph=[{i: 1.0 for i in range(1, len(nodes))}]
         + [{0: 1.0} for _ in nodes[1:]],
         nodes=nodes,
-        node_modes=[i % 2 for i in range(len(nodes))],
-        modes=[{"name": "road"}, {"name": "rail"}],
+        node_mode_ids=[i % 2 for i in range(len(nodes))],
+        node_modes=[{"name": "road"}, {"name": "rail"}],
     )
     origin, destination = [-5.0, -5.0], [5.0, 5.0]
 

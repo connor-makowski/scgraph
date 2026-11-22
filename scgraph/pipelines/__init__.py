@@ -42,9 +42,9 @@ WHAT A PIPELINE MODULE HOLDS
     - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
       file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
-      order). `weights_length` holds km. `modes` is the modes table (see below).
-      `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
-      `edge_classes`, the class of each edge (see *The classes*). The runner then
+      order). `weights_length` holds km. `node_modes` is the node modes table (see
+      below). `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may
+      hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
       writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
@@ -112,11 +112,11 @@ returns the direction of a way: 1, -1 or 0. It may return a pair in its place: t
 direction and the name of a class, for example `(1, "motorway")`. A select function
 uses the names of `CLASSES` only.
 
-A pipeline that fills `edge_classes` itself may define its own `CLASSES` dict in its
-module, with the same form. A value of `edge_classes` is then a row of that table,
-and the runner writes that table into the header.
+A pipeline that fills `edge_class_ids` itself may define its own `CLASSES` dict in its
+module, with the same form. A value of `edge_class_ids` is then the id of a class of
+that table, and the runner writes that table into the header.
 
-A network file holds the class of each edge and one row `{"name", "mode"}` for each
+A network file holds the class of each edge and one row `{"name", "edge_mode"}` for each
 class (`ARCHITECTURE.md`, section 7), and `network_file.read` returns them. A GeoGraph
 loaded from the file holds them: `GeoGraph.classes` and `GeoGraph.get_edges`.
 
@@ -178,7 +178,7 @@ cache.
 `scgraph.pipelines.derived_networks` derives a network file from another network file, with no
 download. The derived file holds some modes of its parent file, and its land networks
 inside a bbox. Its header has no `description`. It also records `derivation`: the
-`parent_content_sha256`, and the `modes`, the `bbox` and the `min_component_nodes` of
+`parent_content_sha256`, and the `node_modes`, the `bbox` and the `min_component_nodes` of
 the derivation.
 
 Two builds give the same file, byte for byte, when they have the same pipeline, the
@@ -287,8 +287,8 @@ CLASSES = {
     "sea_connector": "sea",
     "flight": "air",
 }
-# The row of each class: the value that `edge_classes` holds for an edge of the class
-CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
+# The id of each class: the value that `edge_class_ids` holds for an edge of the class
+CLASS_IDS = {name: class_id for class_id, name in enumerate(CLASSES)}
 # In bytes. A larger download is logged at WARNING, which shows without a logging
 # setup.
 LARGE_DOWNLOAD_BYTES = 100e6

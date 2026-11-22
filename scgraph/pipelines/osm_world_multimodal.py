@@ -5,7 +5,7 @@ rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
   `geofabrik_multimodal`.
 - A shortest route in km takes any mode. Between two distant places it takes a
   flight, because a flight is a straight line. To compare modes, derive a cost per
-  mode from the km, or load only some modes (`load_from_scgraph(modes=...)`).
+  mode from the km, or load only some modes (`load_from_scgraph(node_modes=...)`).
 - The flights inside mainland China, and between China and the rest of Asia, are
   missing: no open source counts them.
 - The network keeps each strongly connected component of at least 1,000 nodes, so an
@@ -24,7 +24,7 @@ import os
 from scgraph.pipelines import geofabrik_multimodal as regional
 from scgraph.pipelines.steps import step1_osm_ways
 
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 4
 
 # The sources of the regional pipeline, with the planet in place of the extract
 SOURCES = {**regional.SOURCES, "osm": step1_osm_ways.PLANET}

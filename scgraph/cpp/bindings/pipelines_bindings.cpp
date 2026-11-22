@@ -18,39 +18,39 @@ namespace nb = nanobind;
 void bind_pipelines(nb::module_& m) {
     // Assembly kernels (contracts in scgraph/pipelines/steps/step3_network_assembly.py)
     auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights,
-                       std::optional<Uint8Array> edge_classes) {
+                       std::optional<Uint8Array> edge_class_ids) {
         const int64_t m = (int64_t)origins.shape(0);
         if ((int64_t)destinations.shape(0) != m || (int64_t)weights.shape(0) != m
-            || (edge_classes && (int64_t)edge_classes->shape(0) != m))
+            || (edge_class_ids && (int64_t)edge_class_ids->shape(0) != m))
             throw std::invalid_argument("expected one destination, one weight and one class for each edge");
         auto t = assembly::build_csr_from_edges(origins.data(), destinations.data(), weights.data(), m,
-                                                edge_classes ? edge_classes->data() : nullptr);
-        return nb::make_tuple(owned_view(std::move(t.node_ids)), owned_view(std::move(t.offsets)),
+                                                edge_class_ids ? edge_class_ids->data() : nullptr);
+        return nb::make_tuple(owned_view(std::move(t.source_node_ids)), owned_view(std::move(t.offsets)),
                               owned_view(std::move(t.heads)), owned_view(std::move(t.weights)),
                               owned_view(std::move(t.kept)), owned_view(std::move(t.parallel_edges)));
     };
     m.def("build_csr_from_edges", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"),
-          nb::arg("edge_classes") = nb::none());
+          nb::arg("edge_class_ids") = nb::none());
     auto bind_scc = [](Int32Array offsets, Int32Array heads) {
         auto c = assembly::find_strongly_connected_components(offsets.data(), heads.data(), (int64_t)offsets.shape(0) - 1,
                                                          (int64_t)heads.shape(0));
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
     };
     m.def("find_strongly_connected_components", bind_scc, nb::arg("offsets"), nb::arg("heads"));
-    m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Uint8Array> node_modes,
-                                double max_km_between_nodes, std::optional<Uint8Array> edge_classes) {
+    m.def("contract_chains", [](Int32Array offsets, Int32Array heads, DoubleArray weights, std::optional<Uint8Array> node_mode_ids,
+                                double max_km_between_nodes, std::optional<Uint8Array> edge_class_ids) {
         const int64_t n = (int64_t)offsets.shape(0) - 1;
-        if (weights.shape(0) != heads.shape(0) || (node_modes && (int64_t)node_modes->shape(0) != n)
-            || (edge_classes && edge_classes->shape(0) != heads.shape(0)))
-            throw std::invalid_argument("expected one weight and one class per edge, and one mode per node");
+        if (weights.shape(0) != heads.shape(0) || (node_mode_ids && (int64_t)node_mode_ids->shape(0) != n)
+            || (edge_class_ids && edge_class_ids->shape(0) != heads.shape(0)))
+            throw std::invalid_argument("expected one weight and one class per edge, and one node mode per node");
         auto c = assembly::contract_chains(offsets.data(), heads.data(), weights.data(),
-                                           node_modes ? node_modes->data() : nullptr, n, (int64_t)heads.shape(0), max_km_between_nodes,
-                                           edge_classes ? edge_classes->data() : nullptr);
+                                           node_mode_ids ? node_mode_ids->data() : nullptr, n, (int64_t)heads.shape(0), max_km_between_nodes,
+                                           edge_class_ids ? edge_class_ids->data() : nullptr);
         return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
                               owned_view(std::move(c.heads)), owned_view(std::move(c.weights)),
                               owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
-    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("node_modes") = nb::none(),
-       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("edge_classes") = nb::none());
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("weights"), nb::arg("node_mode_ids") = nb::none(),
+       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("edge_class_ids") = nb::none());
     m.def("simplify_shapes", [](Int32Array shape_points, Int32Array shape_offsets, Int32Array endpoint_coords, double tolerance_meters) {
         const int64_t shapes = (int64_t)shape_offsets.shape(0) - 1;
         if (shape_points.shape(0) % 2 || (int64_t)endpoint_coords.shape(0) != 4 * shapes)

@@ -157,7 +157,7 @@ def test_osmnx_nodes_keep_their_osm_ids_in_hilbert_order():
 
     geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
-    assert list(geograph.node_ids) == [WEST, EAST]
+    assert list(geograph.source_node_ids) == [WEST, EAST]
     assert geograph.nodes == [[0.0, 0.0], [0.0, 0.01]]
 
 
@@ -208,12 +208,12 @@ TOWN = _OSMnxGraph(
     ],
 )
 # The points of a query from WEST to EAST. Each point is at its node: the
-# route has no access leg.
+# route has no off-graph leg.
 POINT_OF_WEST = {"latitude": 0.0, "longitude": 0.0}
 POINT_OF_EAST = {"latitude": 0.0, "longitude": 0.01}
 
 
-# 1 km of access leg takes 3600 s / the off-graph travel speed in km/h.
+# 1 km of an off-graph leg takes 3600 s / the off-graph travel speed in km/h.
 # Without a speed, it takes 240 s: 15 km/h.
 @pytest.mark.parametrize(
     "off_graph_travel_speed, off_graph_seconds_per_km",
@@ -232,7 +232,7 @@ def test_the_travel_times_of_an_osmnx_graph_are_the_metric_travel_time(
             "name": "travel_time",
             "unit": "s",
             "description": "Attribute travel_time of the OSMnx graph.",
-            "off_graph_per_km": off_graph_seconds_per_km,
+            "off_graph_weight_per_km": off_graph_seconds_per_km,
         },
     ]
 
@@ -246,17 +246,17 @@ def test_a_route_by_travel_time_is_the_fastest_and_has_its_km_as_length():
 
     # The avenue: 0.8 km + 0.8 km, in 60 s + 60 s.
     assert route["length"] == pytest.approx(1.6)
-    assert route["metrics"] == {"travel_time": 120.0}
+    assert route["metric_totals"] == {"travel_time": 120.0}
 
 
 def test_an_osmnx_edge_has_the_class_of_its_highway_value():
     town = GeoGraph.load_from_osmnx_graph(TOWN)
 
-    osm_id = list(town.node_ids)
+    osm_id = list(town.source_node_ids)
     classes_and_modes = {
         (osm_id[edge["origin_id"]], osm_id[edge["destination_id"]]): (
-            edge["class"],
-            edge["mode"],
+            edge["edge_class"],
+            edge["edge_mode"],
         )
         for edge in town.get_edges()
     }
@@ -268,32 +268,34 @@ def test_an_osmnx_edge_has_the_class_of_its_highway_value():
     }
 
 
-# With `weight_key="travel_time"`, the lengths of the geograph are seconds.
-# From WEST to EAST, the loader then keeps the bypass, which is the fastest
-# of the three edges.
+# With `weight_key="travel_time"`, a query without `metric` minimises the
+# travel time. From WEST to EAST, the loader then keeps the bypass, which is
+# the fastest of the three edges: 3 km in 100 s.
 @pytest.fixture
-def town_in_seconds():
+def town_by_travel_time():
     return GeoGraph.load_from_osmnx_graph(
         TOWN, weight_key="travel_time", off_graph_travel_speed=30
     )
 
 
-# The lengths of this geograph are seconds. A rate of `per_km` is for 1 km,
-# so the call is refused.
-def test_rates_per_km_are_refused_on_a_geograph_in_seconds(town_in_seconds):
-    with pytest.raises(ValueError, match="in 's'"):
-        town_in_seconds.create_metric("cost", per_km=2.0)
+def test_a_load_by_travel_time_gives_the_fastest_route_with_its_km_as_length(
+    town_by_travel_time,
+):
+    route = town_by_travel_time.get_shortest_path(POINT_OF_WEST, POINT_OF_EAST)
+
+    # The bypass takes 100 s, and the avenue 60 s + 60 s.
+    assert route["length"] == pytest.approx(3.0)
+    assert route["metric_totals"] == {"travel_time": 100.0}
 
 
-def test_a_geograph_in_seconds_read_from_a_file_keeps_its_unit_and_its_routes(
-    town_in_seconds, tmp_path
+def test_a_geograph_read_from_a_file_keeps_its_default_metric_and_its_routes(
+    town_by_travel_time, tmp_path
 ):
     path = str(tmp_path / "town.scgraph")
-    town_in_seconds.save_as_scgraph(path)
+    town_by_travel_time.save_as_scgraph(path)
 
     loaded = GeoGraph.load_from_scgraph(path)
 
-    assert loaded.metrics == [{"name": "length", "unit": "s"}]
-    # The bypass takes 100 s, and the avenue 60 s + 60 s.
+    assert loaded.default_metric == "travel_time"
     route = loaded.get_shortest_path(POINT_OF_WEST, POINT_OF_EAST)
-    assert route["length"] == 100.0
+    assert route["metric_totals"] == {"travel_time": 100.0}

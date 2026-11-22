@@ -1,337 +1,377 @@
-"""The classes of the edges of a GeoGraph, lined up with its edges.
+"""The class of each edge of a GeoGraph, found by the two nodes of the edge.
 
 This module is internal. Each `GeoGraph` has one `EdgeClasses`.
 
-A graph stores its edges by origin, in three arrays (`Graph._csr()`): the offsets,
-the heads and the lengths. The edges of node `u` go to
-`heads[offsets[u]:offsets[u + 1]]`. The "index" of an edge is its position in
-`heads`. An array is "lined up with the edges" when its value number `i` belongs to
-the edge of index `i`. A "class" is the category of an edge, such as `motorway`. An
-`EdgeClasses` holds the rows `{"name", "mode"}` of the classes, and the row of the
-class of each edge, lined up with the edges.
+WHAT IT HOLDS
 
-Example, a graph of three nodes with the edges 0 -> 1, 0 -> 2 and 2 -> 0:
+A "class" is the category of an edge, such as `motorway`. An `EdgeClasses` holds:
 
-    offsets = [0, 2, 2, 3]    heads = [1, 2, 0]    edge_rows = [4, 4, 7]
+- `classes`: one row `{"name", "edge_mode"}` for each class of the geograph. The
+  "class id" of a class is the position of its row in `classes`, counted from 0. A
+  geograph holds 255 classes at most: the class id 255 is the id of no class. It
+  is the class id of an edge without a class.
+- The "loaded edges": the edges of the graph that a loader read or that the
+  constructor of the geograph got, with the class id of each one. They are three
+  arrays. The edges of the node `u` go to
+  `heads[offsets[u]:offsets[u + 1]]`. The "edge id" of an edge is its position in
+  `heads`, and `edge_class_ids` holds its class id at this position. No edit of the
+  graph changes these arrays.
+- The "added edges": the class that an `add_` method of the geograph gave to an
+  edge, in a dict by (origin id, destination id).
 
-The edge 2 -> 0 has the index 2, and its class is the row 7 of the classes.
+THE IDEA: AN EDGE IS KNOWN BY ITS TWO NODES
 
-THE RULE: LINE UP BEFORE A READ
+An edit of the graph changes the edge id of an edge, and not its two nodes: the id
+of a node never changes. So `find_class` takes the two nodes of an edge. It gives
+the row of the class of the added edge of these nodes, else of their loaded edge.
+For an edge without a class, it gives the row `{"name": None, "edge_mode": None}`.
+An edit of the graph makes no answer out of date.
 
-An edit of the graph moves the edges, so `edge_rows` is then older than the graph.
-`line_up` runs before each read of `edge_rows` or of `edge_arrays`. It compares the
-graph and the count of its edits (`Graph._edit_count`) with those of the last
-line-up. When one of the two differs, it reads the edges again. An edge is known by
-its two nodes: an edge that was there keeps its class, and a new edge takes the
-class of its `add_` call, or no class.
+A network file and the kernel of the weights per km need one array, lined up with
+the edges of the graph: the class id of each edge, at the edge id of the edge.
+`list_edge_class_ids` computes this array for the edges that a caller gives, node
+by node. A node that has no added edge, and whose edges go to the destinations of
+its loaded edges in the same order, takes the class ids of its loaded edges. Each
+edge of another node gets its class id as in `find_class`, by its two nodes. The
+geograph keeps the array until the graph is edited.
 
-Example, after the edge 0 -> 2 is removed and `add_edge` adds the edge 1 -> 2 with
-the class of the row 9:
+Example, a loader reads three nodes with the edges 0 -> 1, 0 -> 2 and 2 -> 0:
 
-    offsets = [0, 1, 2, 3]    heads = [1, 2, 0]
-    find_old_edge_indexes gives [0, -1, 2]    edge_rows = [4, 9, 7]
+    classes = [{"name": "motorway", "edge_mode": "road"},
+               {"name": "primary", "edge_mode": "road"}]
+    offsets = [0, 2, 2, 3]    heads = [1, 2, 0]    edge_class_ids = [1, 1, 0]
 
-An assignment into the list of dicts of a graph (`geograph.graph[0][1] = 10.0`, in
-pure Python) does not change the count, so no line-up sees it. After such an
-assignment, the caller replaces the graph:
-`geograph.graph_object = Graph(graph=geograph.graph)`.
+`find_class(2, 0)` gives the row of `motorway`: the edge 2 -> 0 has the edge id 2,
+and the class id 0.
+
+Then the edge 0 -> 2 is removed. `add_edge` adds the edge 1 -> 2 with the class
+`motorway`, and `graph_object` adds the edge 1 -> 0 itself. The three arrays stay,
+and the added edges are `{(1, 2): 0}`, with the class id of `motorway`:
+
+    find_class(0, 1) gives the row of "primary"     the loaded edge of edge id 0
+    find_class(1, 2) gives the row of "motorway"    an added edge
+    find_class(1, 0) gives the row of no class      no added edge, no loaded edge
+
+The graph now has `offsets = [0, 1, 3, 4]` and `heads = [1, 2, 0, 0]`. For these
+arrays, `list_edge_class_ids` gives `edge_class_ids = [1, 0, 255, 0]`. The node 2
+has its loaded edge, so it takes the class id of this edge. The nodes 0 and 1 have
+other edges than their loaded edges: each of their edges is found by its two
+nodes. The edge 1 -> 0 has no class, so its class id is 255.
 """
 
 from array import array
-from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING
+from collections.abc import Iterable
 
-if TYPE_CHECKING:  # Only for an annotation
-    from scgraph.graph import Graph
+from scgraph.network_file import NO_CLASS_ID
 
-# The row of an edge without a class, on a geograph with classes
-NO_CLASS = {"name": None, "mode": None}
-# The row of the class of an edge is stored in one byte
-_MAX_CLASS_COUNT = 256
+# What `find_class` gives for an edge without a class
+_NO_CLASS_ROW = {"name": None, "edge_mode": None}
 
 
-def iter_edges(
-    offsets: array | memoryview, origin_ids: Iterable[int] | None = None
-) -> Iterator[tuple[int, int]]:
-    """Yield each edge as (origin id, index of the edge), in the order of the edges:
-    the offsets [0, 2, 2, 3] give (0, 0), (0, 1) and (2, 2). `origin_ids` gives the
-    nodes whose edges are given, in this order: every node for None."""
-    if origin_ids is None:
-        origin_ids = range(len(offsets) - 1)
-    for origin_id in origin_ids:
-        for edge_index in range(offsets[origin_id], offsets[origin_id + 1]):
-            yield origin_id, edge_index
-
-
-def find_edge_index(
+def find_edge_id(
     offsets: array | memoryview,
     heads: array | memoryview,
     origin_id: int,
     destination_id: int,
 ) -> int | None:
-    """Return the index of the edge from one node to another, or None when the
-    graph has no such edge or no node `origin_id`."""
+    """Return the id of the edge from one node to another: its position in `heads`.
+    Return None when the graph has no such edge or no node `origin_id`."""
     if not 0 <= origin_id < len(offsets) - 1:
         return None
-    for edge_index in range(offsets[origin_id], offsets[origin_id + 1]):
-        if heads[edge_index] == destination_id:
-            return edge_index
+    for edge_id in range(offsets[origin_id], offsets[origin_id + 1]):
+        if heads[edge_id] == destination_id:
+            return edge_id
     return None
 
 
-def find_old_edge_indexes(
-    old_offsets: array | memoryview,
-    old_heads: array | memoryview,
-    offsets: array | memoryview,
-    heads: array | memoryview,
-) -> array:
-    """Return the index that each edge of a graph had before the graph was edited,
-    or -1 for an edge that was not there (int64). The function reads each node once
-    in Python: about 0.5 second for a million nodes."""
-    old_edge_indexes = array("q")
-    old_node_count = len(old_offsets) - 1
-    for origin_id in range(len(offsets) - 1):
-        first, last = offsets[origin_id], offsets[origin_id + 1]
-        if origin_id >= old_node_count:
-            old_edge_indexes.extend([-1] * (last - first))
-            continue
-        old_first, old_last = old_offsets[origin_id], old_offsets[origin_id + 1]
-        # Most rows are as they were. Two slices are compared in C, so that an edit
-        # of a few rows of a large graph does not read each edge in Python.
-        if heads[first:last] == old_heads[old_first:old_last]:
-            old_edge_indexes.extend(range(old_first, old_last))
-            continue
-        old_row = {old_heads[i]: i for i in range(old_first, old_last)}
-        old_edge_indexes.extend(
-            old_row.get(heads[i], -1) for i in range(first, last)
-        )
-    return old_edge_indexes
-
-
-def reorder_edge_values(
-    values: array | memoryview,
-    offsets: array | memoryview,
-    order: list[int],
-) -> array:
-    """Return an array lined up with the edges of a graph whose nodes are reordered.
-
-    Args:
-        values: An array lined up with the edges.
-        offsets: The offsets of the edges before the nodes are reordered.
-        order: The nodes in their new order: `order[new id] = id`. A node keeps the
-            order of its edges, as `Graph._csr(order)` does.
-    """
-    values = memoryview(values)
-    ordered = array(values.format)
-    for origin_id in order:
-        first, last = offsets[origin_id], offsets[origin_id + 1]
-        ordered.frombytes(values[first:last].cast("B"))
-    return ordered
-
-
 def _check_class_count(class_count: int) -> None:
-    if class_count > _MAX_CLASS_COUNT:
+    # A class id is one byte, and NO_CLASS_ID is the id of no class.
+    if class_count > NO_CLASS_ID:
         raise ValueError(
-            f"A geograph holds {_MAX_CLASS_COUNT} classes at most: got "
-            f"{class_count}"
+            f"A geograph holds {NO_CLASS_ID} classes at most: got {class_count}"
         )
+
+
+def _list_class_names(classes: Iterable[dict]) -> list[str | None]:
+    return [class_row["name"] for class_row in classes]
 
 
 class EdgeClasses:
-    """The classes of the edges of one geograph (see the module docstring)."""
+    """The class of each edge of one geograph (see the module docstring)."""
 
-    def __init__(self) -> None:
-        # The rows `{"name", "mode"}` of the classes: `GeoGraph.classes`. Empty on a
-        # geograph without classes. A loader or a merge gives classes to a geograph.
-        self.rows = []
-        # The row in `rows` of each edge (uint8), lined up with the edges. None on
-        # a geograph without classes.
-        self.edge_rows = None
-        # The offsets, the heads and the lengths of the edges at the last line-up
-        self.edge_arrays = None
-        # The graph at the last line-up, and its `_edit_count` at that time
-        self._graph = None
-        self._edit_count = None
-        # What the `add_` methods gave for the edges that are not lined up yet, by
-        # (origin id, destination id): the row of the class of the edge, or None for
-        # no class. The next line-up uses them, then forgets them.
-        self.new_edge_rows = {}
-
-    def line_up(self, graph: "Graph") -> bool:
-        """Line up the classes with the edges of a graph, if the graph was edited
-        since the last line-up.
-
-        Returns:
-            Whether the method read the edges again: at its first call, and after
-            an edit. The geograph then removes its metrics.
+    def __init__(
+        self,
+        classes: Iterable[dict] = (),
+        offsets: array | memoryview | None = None,
+        heads: array | memoryview | None = None,
+        edge_class_ids: array | memoryview | None = None,
+    ) -> None:
+        """
+        Args:
+            classes: The row `{"name", "edge_mode"}` of each class that a loader
+                read. Empty for a geograph without classes.
+            offsets: The offsets of the loaded edges, one for each node plus one.
+                None for a geograph without classes, as `heads` and `edge_class_ids`.
+            heads: The destination of each loaded edge.
+            edge_class_ids: The class id of each loaded edge (uint8), 255 for an
+                edge without a class. The three arrays are kept without a copy.
 
         Raises:
-            ValueError: An edge without a class needs a row after 256 classes.
+            ValueError: `classes` has more than 255 rows.
         """
-        edit_count = graph._edit_count
-        if graph is self._graph and edit_count == self._edit_count:
-            return False
-        edge_arrays = graph._csr()
-        offsets, heads, _ = edge_arrays
-        edge_rows = self.edge_rows
-        if edge_rows is not None:
-            names = [row["name"] for row in self.rows]
-            no_class_row = names.index(None) if None in names else len(names)
-            old_edge_rows = array("B", bytes(edge_rows))
-            if no_class_row == _MAX_CLASS_COUNT:
-                # A byte cannot hold the row of no class after 256 named classes.
-                # The rows are lined up in a wider array, then checked below.
-                old_edge_rows = array("H", old_edge_rows)
-            # An edge that was there keeps its row. The index -1 of a new edge reads
-            # this last value.
-            old_edge_rows.append(no_class_row)
-            edge_rows = array(
-                old_edge_rows.typecode,
-                map(
-                    old_edge_rows.__getitem__,
-                    find_old_edge_indexes(
-                        *self.edge_arrays[:2], offsets, heads
-                    ),
-                ),
+        self.classes = [dict(class_row) for class_row in classes]
+        _check_class_count(len(self.classes))
+        if offsets is None:
+            # A geograph without classes has no loaded edge.
+            offsets, heads = array("i", [0]), array("i")
+            edge_class_ids = array("B")
+        self._loaded_offsets, self._loaded_heads = offsets, heads
+        self._loaded_edge_class_ids = edge_class_ids
+        # The class id of each added edge, by (origin id, destination id)
+        self._class_ids_of_added_edges = {}
+
+    @classmethod
+    def build_from_class_names(
+        cls,
+        classes: list[dict] | None,
+        edge_classes: list[dict[int, str]] | None,
+        offsets: array | memoryview,
+        heads: array | memoryview,
+    ) -> "EdgeClasses":
+        """Return the `EdgeClasses` of a geograph whose constructor got the class
+        of each edge as a name. The edges of the graph become the loaded edges.
+
+        Args:
+            classes: The argument `classes` of `GeoGraph`: the row
+                `{"name", "edge_mode"}` of each class.
+            edge_classes: The argument `edge_classes` of `GeoGraph`: for each
+                node, a dict from the destination of an edge of this node to the
+                name of the class of the edge. An edge that its dict lacks has no
+                class. None gives a class to no edge.
+            offsets: The offsets of the edges of the graph, one for each node plus
+                one.
+            heads: The destination of each edge.
+
+        Raises:
+            ValueError: `classes` is None, has more than 255 rows, or has a row
+                without a name or without an edge mode. `edge_classes` has not
+                one dict for each node, or names a destination that is no edge
+                of the graph, or a class that `classes` lacks.
+        """
+        if classes is None:
+            raise ValueError(
+                "edge_classes needs classes: the row {'name': ..., 'edge_mode': "
+                "...} of each class"
             )
-            for nodes, row in self.new_edge_rows.items():
-                edge_index = find_edge_index(offsets, heads, *nodes)
-                if edge_index is not None:
-                    edge_rows[edge_index] = no_class_row if row is None else row
-            # The row of no class is added when an edge needs it
-            if no_class_row == len(names) and no_class_row in edge_rows:
-                _check_class_count(no_class_row + 1)
-                self.rows.append(dict(NO_CLASS))
-            if edge_rows.typecode != "B":
-                edge_rows = array("B", edge_rows)
-        self.edge_arrays, self.edge_rows = edge_arrays, edge_rows
-        self.new_edge_rows = {}
-        self._graph, self._edit_count = graph, edit_count
-        return True
-
-    def set_edge_arrays(
-        self, graph: "Graph", edge_arrays: tuple[array | memoryview, ...]
-    ) -> None:
-        """Take the edges of a graph from the arrays that the graph was built from
-        (offsets, heads, lengths), so that the first line-up does not read the
-        graph."""
-        self.edge_arrays = edge_arrays
-        self._graph, self._edit_count = graph, graph._edit_count
-
-    def list_edge_values(self, values_of_each_node: list[dict]) -> list:
-        """Return one value for each edge, in the order of the lined-up edges.
-
-        Args:
-            values_of_each_node: For each node, a dict from the destination of an
-                edge of this node to the value of the edge. An edge that its dict
-                lacks gets None.
-        """
-        offsets, heads, _ = self.edge_arrays
-        return [
-            values_of_each_node[origin_id].get(heads[edge_index])
-            for origin_id, edge_index in iter_edges(offsets)
-        ]
-
-    def set_classes_by_name(
-        self, rows: list[dict], edge_class_names: list[str | None]
-    ) -> None:
-        """Give its classes to a geograph, from the name of the class of each edge.
-
-        Args:
-            rows: The rows `{"name", "mode"}` of the classes. The row of no class
-                is added after them when an edge needs it.
-            edge_class_names: The name of the class of each edge, or None for no
-                class, in the order of the lined-up edges (see `list_edge_values`).
-        """
-        rows = list(rows)
-        if None in edge_class_names:
-            rows.append(dict(NO_CLASS))
-        _check_class_count(len(rows))
-        row_of_each_name = {
-            row["name"]: index for index, row in enumerate(rows)
-        }
-        self.rows = rows
-        self.edge_rows = array(
-            "B", map(row_of_each_name.__getitem__, edge_class_names)
+        for class_row in classes:
+            if not (
+                isinstance(class_row, dict)
+                and isinstance(class_row.get("name"), str)
+                and "edge_mode" in class_row
+            ):
+                raise ValueError(
+                    "classes must give each class as a row {'name': ..., "
+                    f"'edge_mode': ...}}, with a string as name: got {class_row!r}"
+                )
+        node_count = len(offsets) - 1
+        if edge_classes is None:
+            edge_classes = [{}] * node_count
+        if len(edge_classes) != node_count:
+            raise ValueError(
+                "edge_classes must give one dict for each node: got "
+                f"{len(edge_classes)} dicts for {node_count} nodes"
+            )
+        class_names = _list_class_names(classes)
+        edge_class_ids = array("B")
+        for origin_id, class_names_of_origin in enumerate(edge_classes):
+            destination_ids = heads[offsets[origin_id] : offsets[origin_id + 1]]
+            for destination_id in class_names_of_origin:
+                if destination_id not in destination_ids:
+                    raise ValueError(
+                        f"edge_classes gives a class to the edge from node "
+                        f"{origin_id} to node {destination_id}, which is no "
+                        "edge of the graph"
+                    )
+            for destination_id in destination_ids:
+                class_name = class_names_of_origin.get(destination_id)
+                if class_name is None:
+                    edge_class_ids.append(NO_CLASS_ID)
+                elif class_name in class_names:
+                    edge_class_ids.append(class_names.index(class_name))
+                else:
+                    raise ValueError(
+                        f"edge_classes gives the class {class_name!r} to the "
+                        f"edge from node {origin_id} to node {destination_id}"
+                        ": classes has no row with this name"
+                    )
+        # The loaded edges are copies: the graph may change its own arrays at
+        # an edit.
+        return cls(
+            classes, array("i", offsets), array("i", heads), edge_class_ids
         )
 
-    def merge(
-        self, other: "EdgeClasses", first_node_id: int
-    ) -> dict[tuple[int, int], int]:
-        """Add the classes of another geograph to the rows, for a merge. A class of
-        the other geograph is added unless a class has its name. A geograph without
-        classes first gets the row of no class for each of its edges. Both
-        `EdgeClasses` are lined up.
+    def find_class(self, origin_id: int, destination_id: int) -> dict:
+        """Return the row of the class of the edge from one node to another:
+        `{"name": None, "edge_mode": None}` for an edge without a class."""
+        class_id = self._find_class_id(origin_id, destination_id)
+        return (
+            _NO_CLASS_ROW if class_id == NO_CLASS_ID else self.classes[class_id]
+        )
+
+    def _find_class_id(self, origin_id: int, destination_id: int) -> int:
+        # Return the class id of the edge from one node to another: of the added
+        # edge of these nodes, else of their loaded edge, else NO_CLASS_ID.
+        edge = (origin_id, destination_id)
+        if edge in self._class_ids_of_added_edges:
+            return self._class_ids_of_added_edges[edge]
+        edge_id = find_edge_id(
+            self._loaded_offsets, self._loaded_heads, origin_id, destination_id
+        )
+        if edge_id is None:
+            return NO_CLASS_ID
+        return self._loaded_edge_class_ids[edge_id]
+
+    def list_edge_class_ids(
+        self, offsets: array | memoryview, heads: array | memoryview
+    ) -> array | memoryview | None:
+        """Return the class id of each edge of a graph, as a network file stores
+        it.
 
         Args:
+            offsets: The offsets of the edges of the graph, one for each node plus
+                one.
+            heads: The destination of each edge.
+
+        Returns:
+            The class id of each edge (uint8), at the edge id of the edge: 255 for
+            an edge without a class. None for a geograph without classes.
+        """
+        if not self.classes:
+            return None
+        edge_class_ids = array("B")
+        # A slice of a memoryview compares with another one by their values, in
+        # C. An array does not.
+        heads = memoryview(heads)
+        loaded_offsets = self._loaded_offsets
+        loaded_heads = memoryview(self._loaded_heads)
+        loaded_node_count = len(loaded_offsets) - 1
+        origins_of_added_edges = {
+            origin_id for origin_id, _ in self._class_ids_of_added_edges
+        }
+        for origin_id in range(len(offsets) - 1):
+            destination_ids = heads[offsets[origin_id] : offsets[origin_id + 1]]
+            # A node after the last loaded node has no loaded edge.
+            first_loaded_edge_id = last_loaded_edge_id = 0
+            if origin_id < loaded_node_count:
+                first_loaded_edge_id = loaded_offsets[origin_id]
+                last_loaded_edge_id = loaded_offsets[origin_id + 1]
+            loaded_edges = slice(first_loaded_edge_id, last_loaded_edge_id)
+            # Most nodes have their loaded edges, in the same order. They take
+            # the class ids of these edges, so that an edit of a few nodes of a
+            # large graph does not read each edge in Python.
+            if (
+                origin_id not in origins_of_added_edges
+                and destination_ids == loaded_heads[loaded_edges]
+            ):
+                edge_class_ids.frombytes(
+                    self._loaded_edge_class_ids[loaded_edges]
+                )
+            else:
+                for destination_id in destination_ids:
+                    edge_class_ids.append(
+                        self._find_class_id(origin_id, destination_id)
+                    )
+        return edge_class_ids
+
+    def check_class(self, edge_class: str | None) -> None:
+        """Check the class that a caller names.
+
+        Raises:
+            ValueError: `edge_class` is not None and not the name of a class.
+        """
+        if edge_class is None:
+            return
+        class_names = _list_class_names(self.classes)
+        if edge_class not in class_names:
+            raise ValueError(
+                f"Unknown class {edge_class!r}: the classes of this geograph are "
+                f"{class_names}"
+            )
+
+    def set_class(
+        self, edges: Iterable[tuple[int, int]], edge_class: str | None
+    ) -> None:
+        """Keep the class that an `add_` method gives to its new edges, each one an
+        (origin id, destination id). `edge_class` is the name of a class, or None
+        for no class. It replaces the class of a loaded edge of the same nodes.
+        """
+        class_id = NO_CLASS_ID
+        if edge_class is not None:
+            class_id = _list_class_names(self.classes).index(edge_class)
+        self._class_ids_of_added_edges.update(dict.fromkeys(edges, class_id))
+
+    def forget_added_edges(self, edges: Iterable[tuple[int, int]]) -> None:
+        """Drop the class of the added edges that the graph no longer has, each one
+        an (origin id, destination id)."""
+        for edge in edges:
+            self._class_ids_of_added_edges.pop(edge, None)
+
+    def merge(self, other: "EdgeClasses", first_node_id: int) -> None:
+        """Take the classes of the edges of another geograph, for a merge. A class
+        of the other geograph is added to `classes`, unless a class has its name.
+        Its loaded edges follow the loaded edges of this geograph, and its added
+        edges join the added edges of this geograph.
+
+        Args:
+            other: The `EdgeClasses` of the other geograph.
             first_node_id: The id that the node 0 of the other geograph gets in the
                 merged graph. Each next node gets the next id.
 
-        Returns:
-            The row in `rows` of each edge of the other geograph, by the ids of its
-            two nodes in the merged graph. The caller adds it to `new_edge_rows`
-            when the graph holds these edges.
-
         Raises:
-            ValueError: The two geographs have more than 256 classes together. This
+            ValueError: The two geographs have more than 255 classes together. This
                 geograph is not changed.
         """
-        rows = self.rows if self.edge_rows is not None else [dict(NO_CLASS)]
-        names = [row["name"] for row in rows]
-        new_rows = [dict(row) for row in other.rows if row["name"] not in names]
-        # Checked before any change of this geograph
-        _check_class_count(len(rows) + len(new_rows))
-        if self.edge_rows is None:
-            self.rows = rows
-            self.edge_rows = array("B", bytes(len(self.edge_arrays[1])))
-        self.rows.extend(new_rows)
-        # The row in `rows` of each class of the other geograph
-        names = [row["name"] for row in self.rows]
-        merged_rows = [names.index(row["name"]) for row in other.rows]
-        other_offsets, other_heads, _ = other.edge_arrays
-        return {
-            (
-                first_node_id + origin_id,
-                first_node_id + other_heads[edge_index],
-            ): merged_rows[other.edge_rows[edge_index]]
-            for origin_id, edge_index in iter_edges(other_offsets)
-        }
-
-    def find_row(self, edge_class: str | None) -> int | None:
-        """Return the row of the class of a name, or None for None.
-
-        Raises:
-            ValueError: No class has this name.
-        """
-        if edge_class is None:
-            return None
-        names = [row["name"] for row in self.rows]
-        if edge_class not in names:
-            raise ValueError(
-                f"Unknown class {edge_class!r}: the classes of this geograph are "
-                f"{names}"
-            )
-        return names.index(edge_class)
-
-    def record_new_edges(
-        self, edges: Iterable[tuple[int, int]], row: int | None
-    ) -> None:
-        """Keep the row that an `add_` call gave to its new edges, each one an
-        (origin id, destination id), for the next line-up."""
-        if self.edge_rows is not None:
-            for nodes in edges:
-                self.new_edge_rows[nodes] = row
-
-    def forget_new_edges(self, edges: Iterable[tuple[int, int]]) -> None:
-        """Drop what an `add_` call gave for edges that the graph no longer has,
-        each one an (origin id, destination id)."""
-        for nodes in edges:
-            self.new_edge_rows.pop(nodes, None)
-
-    def forget_new_edges_of_node(self, node_id: int) -> None:
-        """Drop what an `add_` call gave for the edges of a removed node. The method
-        reads each new edge: `forget_new_edges` is faster for a caller that knows
-        the edges of the node."""
-        new_edge_rows = self.new_edge_rows
-        for nodes in [nodes for nodes in new_edge_rows if node_id in nodes]:
-            del new_edge_rows[nodes]
+        if not other.classes:
+            return
+        class_names = _list_class_names(self.classes)
+        classes = self.classes + [
+            dict(class_row)
+            for class_row in other.classes
+            if class_row["name"] not in class_names
+        ]
+        _check_class_count(len(classes))
+        # The class id in the merged classes of each class id of the other
+        # geograph. The id of no class stays the id of no class.
+        merged_class_names = _list_class_names(classes)
+        merged_class_ids = bytes(
+            merged_class_names.index(class_row["name"])
+            for class_row in other.classes
+        ).ljust(NO_CLASS_ID, b"\0") + bytes([NO_CLASS_ID])
+        # The loaded edges of the other geograph start at the node
+        # `first_node_id`. A node of this geograph without loaded edges, such as
+        # an added node, has none in the new arrays.
+        offsets = array("i", self._loaded_offsets[: first_node_id + 1])
+        edge_count = offsets[-1]
+        offsets.extend([edge_count] * (first_node_id + 1 - len(offsets)))
+        offsets.extend(
+            edge_count + other_offset
+            for other_offset in other._loaded_offsets[1:]
+        )
+        heads = array("i", self._loaded_heads[:edge_count])
+        heads.extend(
+            first_node_id + destination_id
+            for destination_id in other._loaded_heads
+        )
+        edge_class_ids = array("B")
+        edge_class_ids.frombytes(self._loaded_edge_class_ids[:edge_count])
+        edge_class_ids.frombytes(
+            bytes(other._loaded_edge_class_ids).translate(merged_class_ids)
+        )
+        self.classes = classes
+        self._loaded_offsets, self._loaded_heads = offsets, heads
+        self._loaded_edge_class_ids = edge_class_ids
+        for edge, class_id in other._class_ids_of_added_edges.items():
+            origin_id, destination_id = edge
+            self._class_ids_of_added_edges[
+                (first_node_id + origin_id, first_node_id + destination_id)
+            ] = merged_class_ids[class_id]

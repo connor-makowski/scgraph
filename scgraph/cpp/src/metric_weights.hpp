@@ -8,9 +8,9 @@
 // then adds up these weights in place of the lengths.
 //
 // WHAT THEY ANSWER
-//   compute_weights_from_rates gives the weight of each edge from a rate for each class of
-//   edge, and from a weight at each hub. An edge pays the weight of a hub when it leaves
-//   the hub, and when it enters the hub.
+//   compute_weights_from_km gives the weight of each edge from its km, from a weight per km
+//   for each class of edge, and from a weight at each hub. An edge pays the weight of a hub
+//   when it leaves the hub, and when it enters the hub.
 //   compute_weighted_sum gives the weight of each edge as a sum of other metrics, each one
 //   times a coefficient.
 //   Both return one float64 value for each edge, in the order of the edges. An edge that no
@@ -25,35 +25,48 @@
 //
 // WHAT THEY READ
 //   The arrays of the network, in place. The kernels do not copy them.
-//   - `offsets` and `heads` store the edges by origin: the edges of the node u are at the
-//     positions offsets[u] to offsets[u + 1] - 1, and heads[e] is the node that the edge e
-//     goes to.
-//   - `lengths` gives the km of each edge.
-//   - `edge_classes` gives the "class" of each edge, as a row of the classes table. A
-//     class is the category of an edge: motorway, sea connector, and so on.
-//   - `node_modes` gives the "mode" of each node, as a row of the modes table: road, port,
-//     sea, and so on. A "hub" is a node whose mode has a weight in `hub_weights`.
-//   Example: offsets = [0, 1, 3, 4], heads = [1, 0, 2, 1], lengths = [3, 3, 5, 5],
-//   edge_classes = [0, 0, 1, 1] and node_modes = [0, 1, 2]. The class 0 is the road
-//   connector and the class 1 is the sea connector. The mode 1 is the port.
+//   - `offsets` and `heads` store the edges by origin: the edges of the node u have the ids
+//     offsets[u] to offsets[u + 1] - 1, and heads[e] is the node that the edge of id e goes
+//     to. The id of an edge is its position in `heads`.
+//   - `lengths_km` gives the km of each edge.
+//   - `edge_class_ids` gives the "class" of each edge, as the id of the class: its position
+//     in the list of the classes. A class is the category of an edge: motorway, sea
+//     connector, and so on.
+//   - `node_mode_ids` gives the "node mode" of each node, as the id of the node mode: its
+//     position in the list of the node modes. A node mode says where a node is: road, port,
+//     sea, and so on. A "hub" is a node whose node mode has a weight in `hub_weights`.
+//   Example: offsets = [0, 1, 3, 4], heads = [1, 0, 2, 1], lengths_km = [3, 3, 5, 5],
+//   edge_class_ids = [0, 0, 1, 1] and node_mode_ids = [0, 1, 2]. The class 0 is the road
+//   connector and the class 1 is the sea connector. The node mode 1 is the port.
 //
-// THE RATES AND THE HUB WEIGHTS
-//   - `class_rates_per_km[c]` is the "rate" of the class c: the weight of 1 km of an edge of
-//     this class. Infinity closes the class.
+// THE WEIGHTS PER KM AND THE HUB WEIGHTS
+//   - `class_weights_per_km[c]` is the "weight per km" of the class c: the weight of 1 km of
+//     an edge of this class. Infinity closes the class.
 //   - `hub_weights[m * C + c]` is the weight that an edge of the class c pays when it leaves
-//     a node of the mode m, and when it goes to a node of the mode m. C is the number of
-//     classes.
-//   Example: class_rates_per_km = [0.02, 0.04], because 1 km takes 1 / 50 = 0.02 hour by
-//   road and 1 / 25 = 0.04 hour by sea. With 3 modes and 2 classes, `hub_weights` has 6
-//   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the mode 1, has values.
+//     a node of the node mode m, and when it goes to a node of the node mode m. C is the
+//     number of classes.
+//   Example: class_weights_per_km = [0.02, 0.04], because 1 km takes 1 / 50 = 0.02 hour by
+//   road and 1 / 25 = 0.04 hour by sea. With 3 node modes and 2 classes, `hub_weights` has 6
+//   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the node mode 1, has values.
 //
-// HOW A WEIGHT IS COMPUTED FROM RATES
+// AN EDGE WITHOUT A CLASS
+//   The class id 255 is the id of no class. The kernels have no rule for it: the caller
+//   gives it a weight per km and hub weights, as to a class. GeoGraph.create_metric gives
+//   C = 256 values, one for each value of a class id. class_weights_per_km[255] is the
+//   weight of 1 km between a query point and its node, and hub_weights[m * 256 + 255] is
+//   zero for every node mode m. A value that is the id of no class has a weight per km that
+//   is not a number, so step 4 below refuses an edge with such an id.
+//   Example: with the 2 classes above and 0.1 hour for 1 km off the graph,
+//   class_weights_per_km holds 0.02, 0.04, then 253 values that are not a number, then 0.1.
+//   An edge of 4 km without a class weighs 0.1 * 4 = 0.4 hour, also from or to the port.
+//
+// HOW A WEIGHT IS COMPUTED FROM THE KM
 //   For the edge e of the class c, from the node u to the node v:
-//   1. Start with the rate of the class times the km of the edge. For a closed class, start
-//      with infinity. The kernel does not multiply an infinite rate by a length, because
-//      infinity times 0 km is not a number.
-//   2. Add hub_weights[node_modes[u] * C + c], if it is not zero: the edge leaves a hub.
-//   3. Add hub_weights[node_modes[v] * C + c], if it is not zero: the edge enters a hub.
+//   1. Start with the weight per km of the class times the km of the edge. For a closed
+//      class, start with infinity. The kernel does not multiply an infinite weight per km by
+//      a length, because infinity times 0 km is not a number.
+//   2. Add hub_weights[node_mode_ids[u] * C + c], if it is not zero: the edge leaves a hub.
+//   3. Add hub_weights[node_mode_ids[v] * C + c], if it is not zero: the edge enters a hub.
 //   4. Refuse a weight that is below zero or not a number: a search needs weights of zero or
 //      more. The kernel throws std::invalid_argument, and the message names u and v.
 //   Example: the edge 0 -> 1 is a road connector of 3 km. Step 1 gives 0.02 * 3 = 0.06.
@@ -78,13 +91,14 @@
 //   rounds once where Python rounds twice. The two versions therefore return the same
 //   arrays, bit for bit.
 //   The arrays may come from a mapped file that nothing has checked. Each value is checked
-//   before it is used as a position, so a damaged file throws std::invalid_argument and no
-//   memory outside the arrays is read.
+//   before it is used as an id, so a damaged file throws std::invalid_argument and no memory
+//   outside the arrays is read.
 
-std::vector<double> compute_weights_from_rates(
-    std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths,
-    std::span<const uint8_t> edge_classes, std::span<const uint8_t> node_modes,
-    std::span<const double> class_rates_per_km, std::span<const double> hub_weights);
+std::vector<double> compute_weights_from_km(
+    std::span<const int32_t> offsets, std::span<const int32_t> heads,
+    std::span<const double> lengths_km,
+    std::span<const uint8_t> edge_class_ids, std::span<const uint8_t> node_mode_ids,
+    std::span<const double> class_weights_per_km, std::span<const double> hub_weights);
 
 std::vector<double> compute_weighted_sum(const std::vector<std::span<const double>>& weights_of_metrics,
                                          std::span<const double> coefficients);

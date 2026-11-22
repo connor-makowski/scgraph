@@ -301,7 +301,7 @@ for the route between them. This build has three cases, and all three pass. One 
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
 Each kind of case has its node modes. The two points of a case snap to nodes of these node
-modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
+node modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
 file do not count here.
 
 Then the runner moves the file into the cache. A network that fails a case does not enter the

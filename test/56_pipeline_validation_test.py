@@ -180,8 +180,8 @@ def test_a_road_distance_is_not_met_by_a_sea_route(tmp_path):
     GeoGraph(
         graph=[{2: 1.0}, {3: 1.0}, {0: 1.0, 3: ROAD_KM}, {1: 1.0, 2: ROAD_KM}],
         nodes=[list(WEST_TOWN), list(EAST_TOWN), [0.01, 0], [0.01, 1]],
-        node_modes=[0, 0, 1, 1],
-        modes=[{"name": "road"}, {"name": "sea"}],
+        node_mode_ids=[0, 0, 1, 1],
+        node_modes=[{"name": "road"}, {"name": "sea"}],
     ).save_as_scgraph(file)
 
     result = validate_network(
@@ -289,7 +289,7 @@ def hub_network(without=None):
     """The network of the hubs above, without the link `without`."""
     links = [link for link in HUB_LINKS if link != without]
     names = list(HUB_NODES)
-    mode_names = sorted({mode for mode, _ in HUB_NODES.values()})
+    node_mode_names = sorted({mode for mode, _ in HUB_NODES.values()})
     graph = [{} for _ in names]
     for origin, destination in links:
         u, v = names.index(origin), names.index(destination)
@@ -299,8 +299,10 @@ def hub_network(without=None):
     return GeoGraph(
         graph=graph,
         nodes=[list(point) for _, point in HUB_NODES.values()],
-        node_modes=[mode_names.index(mode) for mode, _ in HUB_NODES.values()],
-        modes=[{"name": name} for name in mode_names],
+        node_mode_ids=[
+            node_mode_names.index(mode) for mode, _ in HUB_NODES.values()
+        ],
+        node_modes=[{"name": name} for name in node_mode_names],
     )
 
 

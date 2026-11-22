@@ -81,19 +81,19 @@ def douglas_peucker(
     stack = [(0, n - 1)]
     while stack:
         a, b = stack.pop()
-        farthest_idx = -1
+        farthest_point_id = -1
         farthest_dist = tolerance
         for i in range(a + 1, b):
             d = perpendicular_distance(coords[i], coords[a], coords[b])
             if d > max_distances[i]:
                 max_distances[i] = d
             if d > farthest_dist:
-                farthest_idx = i
+                farthest_point_id = i
                 farthest_dist = d
-        if farthest_idx >= 0:
-            keep[farthest_idx] = True
-            stack.append((a, farthest_idx))
-            stack.append((farthest_idx, b))
+        if farthest_point_id >= 0:
+            keep[farthest_point_id] = True
+            stack.append((a, farthest_point_id))
+            stack.append((farthest_point_id, b))
 
     # Guarantee min_points by retaining points with the highest deviations
     kept_count = sum(keep)

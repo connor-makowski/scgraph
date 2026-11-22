@@ -2,12 +2,10 @@
 classes and its metrics."""
 
 import math
-from array import array
-from itertools import accumulate
 
 import pytest
 
-from scgraph import GeoGraph, PathNotFoundError, network_file
+from scgraph import GeoGraph, PathNotFoundError
 
 # The network of these tests joins two towns on the equator, 0.7 degree of
 # longitude apart. A line of the drawing is one edge each way, with its km.
@@ -27,9 +25,9 @@ from scgraph import GeoGraph, PathNotFoundError, network_file
 # terminals: 2 + 1 + 90 + 1 + 2 = 96 km. The sea lane starts at the port of
 # the east town.
 #
-# The nodes are listed mode by mode, as in a network file: (mode, latitude,
-# longitude). The id of a node is its position. No edge is shorter than the
-# straight line between its two nodes.
+# The nodes are listed node mode by node mode, as in a network file: (node
+# mode, latitude, longitude). The id of a node is its position. No edge is
+# shorter than the straight line between its two nodes.
 WEST_TOWN, JUNCTION, EAST_TOWN = 0, 1, 2
 WEST_STATION, EAST_STATION = 3, 4
 COAST, OPEN_SEA = 5, 6
@@ -47,7 +45,7 @@ NODES = [
     ("rail_terminal", 0.015, 0.0),
     ("rail_terminal", 0.015, 0.7),
 ]
-# The mode of the edges of each class. A hub joins a network by connectors.
+# The edge mode of each class. A hub joins a network by connectors.
 CLASSES = {
     "primary": "road",
     "motorway": "road",
@@ -57,8 +55,7 @@ CLASSES = {
     "open_sea": "sea",
     "sea_connector": "sea",
 }
-# (a node, another node, km, class). The edges of a node are stored in the
-# order of this list.
+# (a node, another node, km, class)
 TWO_WAY_EDGES = [
     (WEST_TOWN, JUNCTION, 40.0, "primary"),
     (JUNCTION, EAST_TOWN, 40.0, "primary"),
@@ -75,29 +72,30 @@ TWO_WAY_EDGES = [
 # The class of each edge, by (origin, destination)
 CLASS_OF_EACH_EDGE = {
     nodes: edge_class
-    for a, b, _, edge_class in TWO_WAY_EDGES
-    for nodes in ((a, b), (b, a))
+    for node, other_node, _, edge_class in TWO_WAY_EDGES
+    for nodes in ((node, other_node), (other_node, node))
 }
 KM_OF_EACH_EDGE = {
-    nodes: km for a, b, km, _ in TWO_WAY_EDGES for nodes in ((a, b), (b, a))
+    nodes: km
+    for node, other_node, km, _ in TWO_WAY_EDGES
+    for nodes in ((node, other_node), (other_node, node))
 }
 
-# The rates of the metric `minutes`: the minutes that 1 km takes. A lorry
-# drives at 40 km/h on a primary road, at 120 km/h on the motorway and at
-# 30 km/h on the other roads, which are the connectors. A train runs at
+# The weights per km of the metric `minutes`: the minutes that 1 km takes. A
+# lorry drives at 40 km/h on a primary road, at 120 km/h on the motorway and
+# at 30 km/h on the other roads, which are the connectors. A train runs at
 # 240 km/h and a ship sails at 30 km/h. A lorry needs 4 minutes for 1 km of
-# the straight line between a query point and its node. Each rate is exact in
-# binary, so that an expected weight is exact.
-MINUTES_PER_KM = {
-    "road": 2.0,
-    "primary": 1.5,
-    "motorway": 0.5,
-    "rail": 0.25,
-    "sea": 2.0,
-    "off_graph": 4.0,
+# an off-graph leg: the straight line between a query point and its node.
+# Each weight per km is exact in binary, so that an expected weight is exact.
+MINUTES_PER_KM = {"road": 2.0, "rail": 0.25, "sea": 2.0, "off_graph": 4.0}
+CLASS_MINUTES_PER_KM = {"primary": 1.5, "motorway": 0.5}
+# The two dicts are the arguments of `create_metric`.
+MINUTES = {
+    "weight_per_km": MINUTES_PER_KM,
+    "class_weight_per_km": CLASS_MINUTES_PER_KM,
 }
-# The rate that MINUTES_PER_KM gives to each class: the name of a class wins
-# over the mode of its edges.
+# The weight per km that MINUTES gives to each class: the weight of a class
+# replaces the weight of its edge mode.
 MINUTES_PER_KM_OF_EACH_CLASS = {
     "primary": 1.5,
     "motorway": 0.5,
@@ -124,10 +122,10 @@ RAILWAY_PATH = [
 ]
 # The two points of a query from the west to the east. Each point is on the
 # equator, 0.1 degree of longitude beyond its town, which is its closest node.
-# An access leg is 6371 km × 0.1 degree in radians = 11.12 km.
+# An off-graph leg is 6371 km × 0.1 degree in radians = 11.12 km.
 WEST_POINT = {"latitude": 0.0, "longitude": -0.1}
 EAST_POINT = {"latitude": 0.0, "longitude": 0.8}
-ACCESS_LEG_KM = 6371 * math.radians(0.1)
+OFF_GRAPH_LEG_KM = 6371 * math.radians(0.1)
 
 # A ferry line of 30 km, one degree north of the two towns. Its class is not a
 # class of their network.
@@ -135,63 +133,64 @@ FERRY_NODES = [("road", 1.0, 0.0), ("road", 1.0, 0.3)]
 FERRY_EDGES = [(0, 1, 30.0, "ferry")]
 
 
-def _write_network(path, nodes, two_way_edges, classes):
-    """Write the network file of `nodes` and `two_way_edges`, which have the
-    form of NODES and TWO_WAY_EDGES. `classes` gives the mode of the edges of
-    each class. A query point snaps to a road node by default."""
-    # The edges of each node: (destination, km, row of the class)
-    rows = [[] for _ in nodes]
-    for a, b, km, edge_class in two_way_edges:
-        rows[a].append((b, km, list(classes).index(edge_class)))
-        rows[b].append((a, km, list(classes).index(edge_class)))
-    heads, lengths, edge_classes = zip(*(edge for row in rows for edge in row))
-    modes = list(dict.fromkeys(mode for mode, _, _ in nodes))
-    arrays = {
-        "offsets": array("i", accumulate(map(len, rows), initial=0)),
-        "heads": array("i", heads),
-        "weights_length": array("d", lengths),
-        "edge_classes": array("B", edge_classes),
-        "node_points": array("d", [x for _, *point in nodes for x in point]),
-        "node_modes": array("B", [modes.index(mode) for mode, _, _ in nodes]),
-    }
-    metadata = {
-        "metrics": [{"name": "length", "unit": "km"}],
-        "modes": [{"name": name} for name in modes],
-        "classes": [{"name": n, "mode": mode} for n, mode in classes.items()],
-        "node_addition_modes": ["road"],
-    }
-    network_file.write(path, arrays, metadata)
+def _build_network(nodes, two_way_edges, classes):
+    """Return the geograph of `nodes` and `two_way_edges`, which have the form
+    of NODES and TWO_WAY_EDGES. `classes` gives the edge mode of each class.
+    A query point snaps to a road node by default."""
+    graph = [{} for _ in nodes]
+    edge_classes = [{} for _ in nodes]
+    for node, other_node, km, edge_class in two_way_edges:
+        graph[node][other_node] = graph[other_node][node] = km
+        edge_classes[node][other_node] = edge_class
+        edge_classes[other_node][node] = edge_class
+    node_modes = list(dict.fromkeys(mode for mode, _, _ in nodes))
+    geograph = GeoGraph(
+        graph=graph,
+        nodes=[[latitude, longitude] for _, latitude, longitude in nodes],
+        node_modes=[{"name": name} for name in node_modes],
+        node_mode_ids=[node_modes.index(mode) for mode, _, _ in nodes],
+        classes=[
+            {"name": name, "edge_mode": edge_mode}
+            for name, edge_mode in classes.items()
+        ],
+        edge_classes=edge_classes,
+    )
+    geograph.default_node_addition_modes = ["road"]
+    return geograph
+
+
+@pytest.fixture
+def network():
+    """The network of the two towns. A test may edit it: each test builds
+    it."""
+    return _build_network(NODES, TWO_WAY_EDGES, CLASSES)
 
 
 @pytest.fixture(scope="module")
 def network_path(tmp_path_factory):
+    """The network file of the two towns, which names the node mode `road` for
+    the query points. The file lists the open sea before the coast: only these
+    two nodes change their ids."""
     path = str(tmp_path_factory.mktemp("network") / "two_towns.scgraph")
-    _write_network(path, NODES, TWO_WAY_EDGES, CLASSES)
+    _build_network(NODES, TWO_WAY_EDGES, CLASSES).save_as_scgraph(path)
     return path
 
 
 @pytest.fixture
-def network(network_path):
-    """The network of the two towns. A test may edit it: each test loads it."""
-    return GeoGraph.load_from_scgraph(network_path)
-
-
-@pytest.fixture
 def network_with_minutes(network):
-    """The network of the two towns, with the metric `minutes` of the rates
-    MINUTES_PER_KM."""
-    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    """The network of the two towns, with the metric `minutes` of the weights
+    per km MINUTES."""
+    network.create_metric("minutes", **MINUTES)
     return network
 
 
 @pytest.fixture
 def network_read_with_minutes(network_path, tmp_path):
     """The network of the two towns, read from a file that holds the metric
-    `minutes`: the geograph has the weights of the metric, and not the rates
-    that made them. The file lists the open sea before the coast: only these
-    two nodes change their ids."""
+    `minutes`: the geograph has the weights of the metric, and not the weights
+    per km that made them."""
     network = GeoGraph.load_from_scgraph(network_path)
-    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("minutes", **MINUTES)
     path = str(tmp_path / "with_minutes.scgraph")
     network.save_as_scgraph(path)
     return GeoGraph.load_from_scgraph(path)
@@ -200,37 +199,37 @@ def network_read_with_minutes(network_path, tmp_path):
 @pytest.fixture
 def sea_network(network_path):
     """The sea lanes and the port of the network, read alone. The file names
-    the mode `road` for the query points, and this geograph has no road node.
-    """
-    return GeoGraph.load_from_scgraph(network_path, modes=["sea", "port"])
+    the node mode `road` for the query points, and this geograph has no road
+    node."""
+    return GeoGraph.load_from_scgraph(network_path, node_modes=["sea", "port"])
 
 
 @pytest.fixture
-def ferry(tmp_path):
-    """The ferry line, read from its network file."""
-    path = str(tmp_path / "ferry.scgraph")
-    _write_network(path, FERRY_NODES, FERRY_EDGES, {"ferry": "road"})
-    return GeoGraph.load_from_scgraph(path)
+def ferry():
+    """The ferry line."""
+    return _build_network(FERRY_NODES, FERRY_EDGES, {"ferry": "road"})
 
 
 @pytest.fixture
 def geograph_without_classes():
     """A geograph made from a graph: one edge of 2.5 km, from the node 0 to
-    the node 1, one degree east of it. The edge has no class, and the one mode
-    of the nodes has no name."""
+    the node 1, one degree east of it. The edge has no class, and the one node
+    mode of the nodes has no name."""
     return GeoGraph(graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]])
 
 
 def _get_class_of_each_edge(geograph):
     return {
-        (edge["origin_id"], edge["destination_id"]): edge["class"]
+        (edge["origin_id"], edge["destination_id"]): edge["edge_class"]
         for edge in geograph.get_edges()
     }
 
 
 def _get_weight_of_each_edge(geograph, metric):
     return {
-        (edge["origin_id"], edge["destination_id"]): edge["metrics"][metric]
+        (edge["origin_id"], edge["destination_id"]): edge["metric_weights"][
+            metric
+        ]
         for edge in geograph.get_edges()
     }
 
@@ -238,9 +237,14 @@ def _get_weight_of_each_edge(geograph, metric):
 # Reading the nodes and the edges
 
 
-def test_get_nodes_gives_the_nodes_of_one_mode(network):
-    assert network.get_nodes(mode="port") == [
-        {"node_id": PORT, "latitude": -0.025, "longitude": 0.7, "mode": "port"}
+def test_get_nodes_gives_the_nodes_of_one_node_mode(network):
+    assert network.get_nodes(node_mode="port") == [
+        {
+            "node_id": PORT,
+            "latitude": -0.025,
+            "longitude": 0.7,
+            "node_mode": "port",
+        }
     ]
 
 
@@ -254,14 +258,18 @@ def test_get_nodes_gives_the_nodes_inside_a_bounding_box(network):
 
 
 def test_get_edges_gives_the_edges_that_leave_one_node(network):
-    assert network.get_edges(origin_id=JUNCTION) == [
+    # A graph made from dictionaries does not promise the order of the edges
+    # of a node.
+    edges = network.get_edges(origin_id=JUNCTION)
+
+    assert sorted(edges, key=lambda edge: edge["destination_id"]) == [
         {
             "origin_id": JUNCTION,
             "destination_id": destination_id,
             "length": 40.0,
-            "class": "primary",
-            "mode": "road",
-            "metrics": {},
+            "edge_class": "primary",
+            "edge_mode": "road",
+            "metric_weights": {},
         }
         for destination_id in (WEST_TOWN, EAST_TOWN)
     ]
@@ -281,7 +289,8 @@ def test_get_path_edges_gives_the_edges_of_a_path_in_its_order(network):
     edges = network.get_path_edges(path)
 
     assert [
-        (edge["class"], edge["mode"], edge["length"]) for edge in edges
+        (edge["edge_class"], edge["edge_mode"], edge["length"])
+        for edge in edges
     ] == [
         ("road_connector", "road", 2.0),
         ("rail_connector", "rail", 1.0),
@@ -294,10 +303,10 @@ def test_get_path_edges_gives_the_edges_of_a_path_in_its_order(network):
 # then the result that the test expects, when the cases have different results.
 
 # Each case names something that the network lacks: a method that reads the
-# network, and its argument. The network has no mode `air`, no class `canal`,
-# no node 10 and no edge from the junction to the port.
+# network, and its argument. The network has no node mode `air`, no class
+# `canal`, no node 10 and no edge from the junction to the port.
 REFUSED_READS = {
-    "a mode": ("get_nodes", {"mode": "air"}),
+    "a node mode": ("get_nodes", {"node_mode": "air"}),
     "a class": ("get_edges", {"edge_class": "canal"}),
     "a node": ("get_edges", {"origin_id": 10}),
     "an edge of a path": (
@@ -311,7 +320,7 @@ REFUSED_READS = {
 @pytest.mark.parametrize(
     "method, argument", REFUSED_READS.values(), ids=REFUSED_READS
 )
-def test_reading_a_mode_a_class_a_node_or_an_edge_that_the_network_lacks_is_refused(
+def test_reading_a_node_mode_a_class_a_node_or_an_edge_that_the_network_lacks_is_refused(
     network, method, argument
 ):
     with pytest.raises(ValueError):
@@ -343,6 +352,14 @@ def test_the_other_edges_keep_their_classes_when_a_node_is_removed(network):
         for nodes, edge_class in CLASS_OF_EACH_EDGE.items()
         if EAST_TERMINAL not in nodes
     }
+
+
+def test_the_edges_of_a_node_added_on_the_graph_object_have_no_class(network):
+    # The new node is the node 10.
+    network.graph_object.add_node({JUNCTION: 30.0}, symmetric=True)
+
+    classes = _get_class_of_each_edge(network)
+    assert [classes[10, JUNCTION], classes[JUNCTION, 10]] == [None, None]
 
 
 def test_a_merge_keeps_the_classes_of_both_geographs(network, ferry):
@@ -419,20 +436,59 @@ def test_a_node_added_with_a_class_gives_it_to_its_edges(network):
     ] == ["road_connector", "road_connector"]
 
 
-def test_a_merge_that_is_refused_changes_nothing(
-    network_with_minutes, tmp_path
+def test_a_merge_keeps_the_class_of_an_edge_that_was_added_to_the_other_geograph(
+    network, ferry
 ):
-    # A geograph holds 256 classes at most. The network has 7 classes. With
-    # the 250 classes of the other geograph, the merged geograph would have
-    # 257 classes.
-    many_classes = {f"class_{row}": "road" for row in range(250)}
-    other_path = str(tmp_path / "many_classes.scgraph")
-    _write_network(
-        other_path, FERRY_NODES, [(0, 1, 30.0, "class_0")], many_classes
-    )
-    other = GeoGraph.load_from_scgraph(other_path)
+    # The new edge of the ferry has no class. It replaces the edge from the
+    # node 1 to the node 0.
+    ferry.add_edge(1, 0, 30.0)
 
-    with pytest.raises(ValueError, match="256 classes"):
+    network.merge_with_other_geograph(ferry, connection_nodes=[[0.5, 0.0]])
+
+    # The two nodes of the ferry become the nodes 11 and 12.
+    classes = _get_class_of_each_edge(network)
+    assert [classes[11, 12], classes[12, 11]] == ["ferry", None]
+
+
+def test_an_edge_added_without_a_class_adds_no_class_to_the_geograph(network):
+    network.add_edge(WEST_TOWN, PORT, 85.0, symmetric=True)
+
+    # A read of every edge reads the class of the two new edges.
+    network.get_edges()
+
+    assert network.classes == [
+        {"name": name, "edge_mode": edge_mode}
+        for name, edge_mode in CLASSES.items()
+    ]
+
+
+def test_a_saved_and_loaded_geograph_gives_no_class_to_an_edge_without_a_class(
+    network, tmp_path
+):
+    network.add_edge(WEST_TOWN, PORT, 85.0, symmetric=True)
+    path = str(tmp_path / "saved.scgraph")
+
+    network.save_as_scgraph(path)
+
+    # The file has the classes of the network, and no class for the two new
+    # edges, which are the only edges of 85 km.
+    loaded = GeoGraph.load_from_scgraph(path)
+    assert loaded.classes == network.classes
+    assert [
+        edge["length"]
+        for edge in loaded.get_edges()
+        if edge["edge_class"] is None
+    ] == [85.0, 85.0]
+
+
+def test_a_merge_that_is_refused_changes_nothing(network_with_minutes):
+    # A geograph holds 255 classes at most. The network has 7 classes. With
+    # the 249 classes of the other geograph, the merged geograph would have
+    # 256 classes.
+    many_classes = {f"class_{class_id}": "road" for class_id in range(249)}
+    other = _build_network(FERRY_NODES, [(0, 1, 30.0, "class_0")], many_classes)
+
+    with pytest.raises(ValueError, match="255 classes"):
         network_with_minutes.merge_with_other_geograph(
             other, connection_nodes=[[0.5, 0.0]]
         )
@@ -444,25 +500,83 @@ def test_a_merge_that_is_refused_changes_nothing(
     ]
 
 
-def test_a_geograph_with_256_classes_refuses_one_more_class(tmp_path):
-    # The ferry line, read from a network file with 256 classes: a geograph
-    # holds no more. The line has the last class.
-    classes = {f"class_{row}": "road" for row in range(256)}
-    path = str(tmp_path / "256_classes.scgraph")
-    _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_255")], classes)
-    geograph_with_256_classes = GeoGraph.load_from_scgraph(path)
+def test_the_constructor_gives_each_edge_the_class_that_edge_classes_names():
+    # Three nodes on the equator. The edge from the node 0 to the node 2 is
+    # in no dict of `edge_classes`.
+    classes = [
+        {"name": "ferry", "edge_mode": "sea"},
+        {"name": "motorway", "edge_mode": "road"},
+    ]
 
-    # An edge without a class has the class without a name: a 257th class.
-    geograph_with_256_classes.add_edge(0, 1, 25.0)
+    geograph = GeoGraph(
+        graph=[{1: 30.0, 2: 50.0}, {0: 30.0}, {}],
+        nodes=[[0.0, 0.0], [0.0, 0.3], [0.0, 0.5]],
+        classes=classes,
+        edge_classes=[{1: "ferry"}, {0: "motorway"}, {}],
+    )
 
-    with pytest.raises(ValueError, match="256 classes"):
-        geograph_with_256_classes.get_edges()
+    assert geograph.classes == classes
+    assert _get_class_of_each_edge(geograph) == {
+        (0, 1): "ferry",
+        (0, 2): None,
+        (1, 0): "motorway",
+    }
+
+
+# Each case gives arguments of the constructor for the ferry line, which has
+# one edge, from the node 0 to the node 1, and a word of the error.
+FERRY_CLASSES = [{"name": "ferry", "edge_mode": "road"}]
+REFUSED_CLASS_ARGUMENTS = {
+    "a class that classes lacks": (
+        {"classes": FERRY_CLASSES, "edge_classes": [{1: "motorway"}, {}]},
+        "edge_classes.*'motorway'",
+    ),
+    "a destination that is no edge of the graph": (
+        {"classes": FERRY_CLASSES, "edge_classes": [{}, {0: "ferry"}]},
+        "edge_classes.*from node 1 to node 0",
+    ),
+    "edge_classes without classes": (
+        {"edge_classes": [{1: "ferry"}, {}]},
+        "edge_classes needs classes",
+    ),
+    "a 256th class": (
+        {
+            "classes": [
+                {"name": f"class_{class_id}", "edge_mode": "road"}
+                for class_id in range(256)
+            ]
+        },
+        "255 classes",
+    ),
+    "not one dict for each node": (
+        {"classes": FERRY_CLASSES, "edge_classes": [{1: "ferry"}]},
+        "edge_classes.*one dict for each node",
+    ),
+    "a class without a name": (
+        {"classes": [{"edge_mode": "road"}]},
+        "classes.*name",
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "arguments, message",
+    REFUSED_CLASS_ARGUMENTS.values(),
+    ids=REFUSED_CLASS_ARGUMENTS,
+)
+def test_the_constructor_refuses_classes_that_do_not_fit_its_graph(
+    arguments, message
+):
+    with pytest.raises(ValueError, match=message):
+        GeoGraph(
+            graph=[{1: 30.0}, {}], nodes=[[1.0, 0.0], [1.0, 0.3]], **arguments
+        )
 
 
 # create_metric: the weights of a metric
 
 
-def test_rates_give_each_edge_the_rate_of_its_class_times_its_km(
+def test_weights_per_km_give_each_edge_the_weight_per_km_of_its_class_times_its_km(
     network_with_minutes,
 ):
     weights = _get_weight_of_each_edge(network_with_minutes, "minutes")
@@ -473,14 +587,12 @@ def test_rates_give_each_edge_the_rate_of_its_class_times_its_km(
 def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(network):
     # A train waits 15 minutes at a rail terminal.
     network.create_metric(
-        "minutes",
-        per_km=MINUTES_PER_KM,
-        at_hub={"rail_terminal": {"rail": 15.0}},
+        "minutes", **MINUTES, weight_at_hub={"rail_terminal": {"rail": 15.0}}
     )
 
     # The rail connector of 1 km between the west station and its terminal
     # takes 0.25 minute. The road connector of 2 km between the terminal and
-    # the town takes 4 minutes: the hub weight names no class of the mode
+    # the town takes 4 minutes: the hub weight does not name the edge mode
     # `road`.
     weights = _get_weight_of_each_edge(network, "minutes")
     assert (
@@ -490,15 +602,21 @@ def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(network):
     ) == (0.25 + 15.0, 0.25 + 15.0, 4.0)
 
 
+# The toll of each class: 7 on the motorway. The dict has the classes of the
+# network only.
+TOLL_OF_EACH_CLASS = {**dict.fromkeys(CLASSES, 0.0), "motorway": 7.0}
+
+
 def _get_toll(edge):
-    """A toll of 7 on the motorway, and 0.25 for 1 km of access leg."""
-    if edge["mode"] == "off_graph":
-        return 0.25 * edge["length"]
-    return 7.0 if edge["class"] == "motorway" else 0.0
+    """The toll of the class of an edge. The function knows the edges of the
+    network only: it fails for a dict that is no edge of the network."""
+    return TOLL_OF_EACH_CLASS[edge["edge_class"]]
 
 
 def test_a_function_gives_its_result_to_each_edge(network):
-    network.create_metric("toll", edge_weight_fn=_get_toll)
+    network.create_metric(
+        "toll", edge_weight_fn=_get_toll, off_graph_weight_per_km=0.25
+    )
 
     assert _get_weight_of_each_edge(network, "toll") == {
         nodes: 7.0 if edge_class == "motorway" else 0.0
@@ -509,7 +627,7 @@ def test_a_function_gives_its_result_to_each_edge(network):
 def test_edge_weights_set_the_weight_of_an_edge_and_none_closes_it(network):
     network.create_metric(
         "minutes",
-        per_km=MINUTES_PER_KM,
+        **MINUTES,
         edge_weights={
             (WEST_TOWN, EAST_TOWN): 75.0,
             (EAST_TOWN, WEST_TOWN): None,
@@ -526,67 +644,90 @@ def test_edge_weights_set_the_weight_of_an_edge_and_none_closes_it(network):
 def test_a_closed_class_closes_an_edge_of_zero_km(network):
     network.add_edge(WEST_TOWN, PORT, 0.0, edge_class="open_sea")
 
-    network.create_metric("minutes", per_km={**MINUTES_PER_KM, "sea": None})
+    network.create_metric(
+        "minutes", weight_per_km={**MINUTES_PER_KM, "sea": None}
+    )
 
     # Infinity times 0 km is not a number: the edge weighs infinity.
     weights = _get_weight_of_each_edge(network, "minutes")
     assert weights[WEST_TOWN, PORT] == math.inf
 
 
-def test_a_geograph_without_classes_takes_one_rate_for_every_edge(
+def test_a_geograph_without_classes_takes_one_weight_per_km_for_every_edge(
     geograph_without_classes,
 ):
-    geograph_without_classes.create_metric("minutes", per_km=2.0)
+    geograph_without_classes.create_metric("minutes", weight_per_km=2.0)
 
-    # The one edge of 2.5 km has no class and no mode.
+    # The one edge of 2.5 km has no class and no edge mode.
     assert geograph_without_classes.get_edges() == [
         {
             "origin_id": 0,
             "destination_id": 1,
             "length": 2.5,
-            "class": None,
-            "mode": None,
-            "metrics": {"minutes": 5.0},
+            "edge_class": None,
+            "edge_mode": None,
+            "metric_weights": {"minutes": 5.0},
         }
     ]
 
 
 def test_metrics_lists_the_row_of_each_metric_after_the_length(network):
     network.create_metric(
-        "minutes", per_km=3.0, unit="min", description="Three minutes per km."
+        "minutes",
+        weight_per_km=3.0,
+        unit="min",
+        description="Three minutes per km.",
     )
     network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
-    network.create_metric("toll", edge_weight_fn=_get_toll)
+    network.create_metric(
+        "toll", edge_weight_fn=_get_toll, off_graph_weight_per_km=0.25
+    )
 
     # A metric without a description gets the text of its call.
-    # `off_graph_per_km` is the weight of 1 km of access leg. For the cost, it
-    # is 2 × 3 minutes + 0.5 × 1 km.
+    # `off_graph_weight_per_km` is the weight of 1 km of an off-graph leg. For
+    # the cost, it is 2 × 3 minutes + 0.5 × 1 km. For the toll, the call gives
+    # it.
     cost_call = "create_metric(weighted_sum_of={'minutes': 2, 'length': 0.5})"
-    toll_call = "create_metric(edge_weight_fn=_get_toll)"
+    toll_call = (
+        "create_metric(edge_weight_fn=_get_toll, off_graph_weight_per_km=0.25)"
+    )
     assert network.metrics == [
         {"name": "length", "unit": "km"},
         {
             "name": "minutes",
             "unit": "min",
             "description": "Three minutes per km.",
-            "off_graph_per_km": 3.0,
+            "off_graph_weight_per_km": 3.0,
         },
-        {"name": "cost", "description": cost_call, "off_graph_per_km": 6.5},
-        {"name": "toll", "description": toll_call, "off_graph_per_km": 0.25},
+        {
+            "name": "cost",
+            "description": cost_call,
+            "off_graph_weight_per_km": 6.5,
+        },
+        {
+            "name": "toll",
+            "description": toll_call,
+            "off_graph_weight_per_km": 0.25,
+        },
     ]
 
 
 def _get_cost(edge):
-    """The cost of an edge, or of 1 km of access leg: 2 for each of its
-    minutes, and 0.5 for each of its km."""
-    return 2 * edge["metrics"]["minutes"] + 0.5 * edge["length"]
+    """The cost of an edge: 2 for each of its minutes, and 0.5 for each of its
+    km."""
+    return 2 * edge["metric_weights"]["minutes"] + 0.5 * edge["length"]
 
 
 # Each case computes the metric `cost` from the metric `minutes`: the
 # arguments of `create_metric`. The function reads the minutes of each edge.
+# It is called for the edges only: the call gives the cost of 1 km of an
+# off-graph leg, which takes 4 minutes.
 COSTS_FROM_THE_MINUTES = {
     "a weighted sum": {"weighted_sum_of": {"minutes": 2, "length": 0.5}},
-    "a function": {"edge_weight_fn": _get_cost},
+    "a function": {
+        "edge_weight_fn": _get_cost,
+        "off_graph_weight_per_km": 8.5,
+    },
 }
 
 
@@ -598,7 +739,7 @@ def test_a_metric_keeps_its_weights_when_a_metric_that_it_was_computed_from_is_c
 ):
     network_with_minutes.create_metric("cost", **cost)
 
-    network_with_minutes.create_metric("minutes", per_km=1.0)
+    network_with_minutes.create_metric("minutes", weight_per_km=1.0)
 
     # The cost of an edge stays 2 times the minutes that the edge had when the
     # cost was created, plus 0.5 times its km.
@@ -608,12 +749,14 @@ def test_a_metric_keeps_its_weights_when_a_metric_that_it_was_computed_from_is_c
     }
 
 
-def test_rates_weigh_an_edge_without_a_class_as_an_access_leg(network):
+def test_weights_per_km_weigh_an_edge_without_a_class_as_an_off_graph_leg(
+    network,
+):
     network.add_edge(WEST_TOWN, PORT, 80.0)
 
-    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("minutes", **MINUTES)
 
-    # The new road has no class, so it takes the rate `off_graph`:
+    # The new road has no class, so it takes the weight per km `off_graph`:
     # 80 km × 4 minutes = 320 minutes.
     weights = _get_weight_of_each_edge(network, "minutes")
     assert weights[WEST_TOWN, PORT] == 320.0
@@ -623,54 +766,76 @@ def test_rates_weigh_an_edge_without_a_class_as_an_access_leg(network):
 
 
 def _get_negative_toll(edge):
-    return -7.0 if edge["class"] == "motorway" else 0.0
+    return -7.0 if edge["edge_class"] == "motorway" else 0.0
 
 
 # Each case is a call that breaks one rule of `create_metric`: its arguments,
 # and words of the error. The network has the metric `minutes`, for the sums.
 REFUSED_METRICS = {
-    # The call names something that the network lacks, or leaves out a rate
-    # that the network needs: the error names it. The network has no class and
-    # no mode `canal`, no node of a mode `airport`, and no edge from the
-    # junction to the port.
-    "no rate for off_graph": (
-        {"per_km": {"road": 2.0, "rail": 0.25, "sea": 2.0}},
+    # The call names something that the network lacks, or leaves out a weight
+    # per km that the network needs: the error names it. The network has no
+    # class and no edge mode `canal`, no node of a node mode `airport`, and no
+    # edge from the junction to the port.
+    "no weight per km for off_graph": (
+        {"weight_per_km": {"road": 2.0, "rail": 0.25, "sea": 2.0}},
         "off_graph",
     ),
-    "no rate for a class that has edges": (
-        {"per_km": {"road": 2.0, "rail": 0.25, "off_graph": 4.0}},
+    "no weight per km for a class that has edges": (
+        {"weight_per_km": {"road": 2.0, "rail": 0.25, "off_graph": 4.0}},
         "open_sea",
     ),
-    "a rate for a class that the network lacks": (
-        {"per_km": {**MINUTES_PER_KM, "canal": 2.0}},
+    "a weight per km for an edge mode that the network lacks": (
+        {"weight_per_km": {**MINUTES_PER_KM, "canal": 2.0}},
         "canal",
     ),
-    "a hub of a mode that the network lacks": (
-        {"per_km": 2.0, "at_hub": {"airport": {"road": 30.0}}},
+    "a weight per km for a class that the network lacks": (
+        {"weight_per_km": 2.0, "class_weight_per_km": {"canal": 2.0}},
+        "canal",
+    ),
+    "a hub of a node mode that the network lacks": (
+        {"weight_per_km": 2.0, "weight_at_hub": {"airport": {"road": 30.0}}},
         "airport",
     ),
-    "a hub weight for a class that the network lacks": (
-        {"per_km": 2.0, "at_hub": {"port": {"canal": 30.0}}},
+    "a hub weight for an edge mode that the network lacks": (
+        {"weight_per_km": 2.0, "weight_at_hub": {"port": {"canal": 30.0}}},
         "canal",
     ),
+    "a hub weight for a class": (
+        {"weight_per_km": 2.0, "weight_at_hub": {"port": {"open_sea": 30.0}}},
+        "open_sea",
+    ),
     "a hub weight that is not a number": (
-        {"per_km": 2.0, "at_hub": {"port": {"sea": (10.0, 20.0)}}},
+        {
+            "weight_per_km": 2.0,
+            "weight_at_hub": {"port": {"sea": (10.0, 20.0)}},
+        },
         "must be a number",
     ),
     "a weight for an edge that the network lacks": (
-        {"per_km": 2.0, "edge_weights": {(1, 7): 5.0}},
+        {"weight_per_km": 2.0, "edge_weights": {(1, 7): 5.0}},
         "node 1 to node 7",
     ),
-    # The three ways to compute a metric are the rates, a weighted sum and a
-    # function. The hub weights of `at_hub` go with the rates.
+    # The three ways to compute a metric are the weights per km, a weighted
+    # sum and a function. The weights of the classes and of the hubs go with
+    # the weights per km.
     "no way to compute the metric": ({}, "exactly one of"),
-    "rates and a sum": (
-        {"per_km": 2.0, "weighted_sum_of": {"length": 2}},
+    "weights per km and a sum": (
+        {"weight_per_km": 2.0, "weighted_sum_of": {"length": 2}},
         "exactly one of",
     ),
-    "a sum and the hub weights of rates": (
-        {"weighted_sum_of": {"length": 2}, "at_hub": {"port": {"sea": 30.0}}},
-        "at_hub needs per_km",
+    "a sum and the weights per km of classes": (
+        {
+            "weighted_sum_of": {"length": 2},
+            "class_weight_per_km": {"motorway": 0.5},
+        },
+        "class_weight_per_km needs weight_per_km",
+    ),
+    "a sum and the weights at hubs": (
+        {
+            "weighted_sum_of": {"length": 2},
+            "weight_at_hub": {"port": {"sea": 30.0}},
+        },
+        "weight_at_hub needs weight_per_km",
     ),
     # The sum cannot be computed.
     "a sum of a metric that the geograph lacks": (
@@ -687,21 +852,35 @@ REFUSED_METRICS = {
     ),
     # The call gives a weight below zero or not a number: to every edge, to
     # the motorway, to the edge from the junction to the east town. The error
-    # names the first such edge.
-    "a rate below zero": ({"per_km": -2.0}, "node 0 to node 1"),
+    # names the first such edge. The first edge of the west town, the node
+    # 0, may go to any of its neighbours.
+    "a weight per km below zero": ({"weight_per_km": -2.0}, "from node 0 to"),
     "a function that gives a toll below zero": (
-        {"edge_weight_fn": _get_negative_toll},
+        {"edge_weight_fn": _get_negative_toll, "off_graph_weight_per_km": 0.0},
         "node 0 to node 2",
     ),
     "an edge weight that is not a number": (
-        {"per_km": 2.0, "edge_weights": {(1, 2): math.nan}},
+        {"weight_per_km": 2.0, "edge_weights": {(1, 2): math.nan}},
         "node 1 to node 2",
     ),
-    # A function returns None to close an edge. It gets 1 km of access leg as
-    # an edge of the mode `off_graph`.
-    "a function that closes the access legs": (
-        {"edge_weight_fn": lambda edge: None},
-        "access leg",
+    # A function is called for the edges only: the call gives the weight of
+    # 1 km of an off-graph leg, a finite number of zero or more. The two other
+    # ways give this weight themselves.
+    "a function without the weight of the off-graph legs": (
+        {"edge_weight_fn": _get_toll},
+        "edge_weight_fn needs off_graph_weight_per_km",
+    ),
+    "a function with a weight of the off-graph legs below zero": (
+        {"edge_weight_fn": _get_toll, "off_graph_weight_per_km": -0.25},
+        "off-graph leg",
+    ),
+    "weights per km and the weight of the off-graph legs": (
+        {"weight_per_km": 2.0, "off_graph_weight_per_km": 4.0},
+        "off_graph_weight_per_km needs edge_weight_fn",
+    ),
+    "a sum and the weight of the off-graph legs": (
+        {"weighted_sum_of": {"length": 2}, "off_graph_weight_per_km": 4.0},
+        "off_graph_weight_per_km needs edge_weight_fn",
     ),
 }
 
@@ -716,13 +895,13 @@ def test_create_metric_refuses_a_call_that_breaks_one_of_its_rules(
         network_with_minutes.create_metric("fare", **arguments)
 
 
-def test_a_rate_per_km_is_refused_on_a_geograph_in_miles():
+def test_a_weight_per_km_is_refused_on_a_geograph_in_miles():
     geograph = GeoGraph(
         graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]], geograph_units="mi"
     )
 
     with pytest.raises(ValueError, match="km"):
-        geograph.create_metric("minutes", per_km=2.0)
+        geograph.create_metric("minutes", weight_per_km=2.0)
 
 
 # `length` is the metric of the lengths. A name has small letters, digits and
@@ -730,7 +909,7 @@ def test_a_rate_per_km_is_refused_on_a_geograph_in_miles():
 @pytest.mark.parametrize("name", ["length", "Minutes", "2nd_class"])
 def test_a_metric_with_a_name_that_is_not_allowed_is_refused(network, name):
     with pytest.raises(ValueError, match=name):
-        network.create_metric(name, per_km=2.0)
+        network.create_metric(name, weight_per_km=2.0)
 
 
 # Removing a metric
@@ -740,7 +919,7 @@ def test_a_route_has_no_total_of_a_removed_metric(network_with_minutes):
     network_with_minutes.remove_metric("minutes")
 
     route = network_with_minutes.get_shortest_path(WEST_POINT, EAST_POINT)
-    assert "metrics" not in route
+    assert "metric_totals" not in route
 
 
 def test_remove_metric_refuses_a_metric_that_the_geograph_lacks(
@@ -806,7 +985,7 @@ def test_a_metric_created_again_after_an_edit_weighs_the_new_edge(
             WEST_TOWN, PORT, 80.0, symmetric=True, edge_class="primary"
         )
 
-    network_with_minutes.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network_with_minutes.create_metric("minutes", **MINUTES)
 
     # The new primary road of 80 km takes 120 minutes.
     assert _get_weight_of_each_edge(network_with_minutes, "minutes") == {
@@ -835,15 +1014,15 @@ def test_a_route_by_a_metric_has_the_smallest_total_of_this_metric(
     )
 
     # The railway: 31 minutes and 96 km, so a cost of 2 × 31 + 0.5 × 96 = 110.
-    # An access leg counts its km times the off-graph circuity, and not times
-    # the node addition circuity of the search, which is 4. 1 km of it takes
-    # 4 minutes and costs 2 × 4 + 0.5 = 8.5.
-    access_km = 2 * ACCESS_LEG_KM * 2
+    # An off-graph leg counts its km times the off-graph circuity, and not
+    # times the node addition circuity of the search, which is 4. 1 km of it
+    # takes 4 minutes and costs 2 × 4 + 0.5 = 8.5.
+    off_graph_km = 2 * OFF_GRAPH_LEG_KM * 2
     assert route["path"] == RAILWAY_PATH
-    assert route["length"] == pytest.approx(96 + access_km)
-    assert route["metrics"] == {
-        "minutes": pytest.approx(31 + access_km * 4.0),
-        "cost": pytest.approx(110 + access_km * 8.5),
+    assert route["length"] == pytest.approx(96 + off_graph_km)
+    assert route["metric_totals"] == {
+        "minutes": pytest.approx(31 + off_graph_km * 4.0),
+        "cost": pytest.approx(110 + off_graph_km * 8.5),
     }
 
 
@@ -853,8 +1032,8 @@ def test_a_route_by_the_length_has_the_total_of_each_metric(
     route = network_with_minutes.get_shortest_path(WEST_POINT, EAST_POINT)
 
     # The shortest route takes the primary road: 80 km at 1.5 minutes per km.
-    assert route["metrics"] == {
-        "minutes": pytest.approx(120 + 2 * ACCESS_LEG_KM * 4.0)
+    assert route["metric_totals"] == {
+        "minutes": pytest.approx(120 + 2 * OFF_GRAPH_LEG_KM * 4.0)
     }
 
 
@@ -865,7 +1044,11 @@ def test_a_route_by_the_length_has_the_total_of_each_metric(
 def test_a_route_by_a_metric_avoids_a_class_that_the_metric_closes(
     network, metric
 ):
-    network.create_metric("minutes", per_km={**MINUTES_PER_KM, "rail": None})
+    network.create_metric(
+        "minutes",
+        weight_per_km={**MINUTES_PER_KM, "rail": None},
+        class_weight_per_km=CLASS_MINUTES_PER_KM,
+    )
     network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
 
     route = network.get_shortest_path(
@@ -879,7 +1062,9 @@ def test_a_route_by_a_metric_avoids_a_class_that_the_metric_closes(
 
 
 def test_the_error_for_a_route_that_a_metric_closes_names_the_metric(network):
-    network.create_metric("minutes", per_km={**MINUTES_PER_KM, "sea": None})
+    network.create_metric(
+        "minutes", weight_per_km={**MINUTES_PER_KM, "sea": None}
+    )
 
     # The destination snaps to the open sea node, which only sea lanes reach.
     # A route by the length exists: the error names the metric that has none.
@@ -892,9 +1077,11 @@ def test_the_error_for_a_route_that_a_metric_closes_names_the_metric(network):
         )
 
 
-def test_access_legs_that_weigh_nothing_do_not_make_a_route_direct(network):
+def test_off_graph_legs_that_weigh_nothing_do_not_make_a_route_direct(network):
     network.create_metric(
-        "minutes", per_km={**MINUTES_PER_KM, "off_graph": 0.0}
+        "minutes",
+        weight_per_km={**MINUTES_PER_KM, "off_graph": 0.0},
+        class_weight_per_km=CLASS_MINUTES_PER_KM,
     )
 
     route = network.get_shortest_path(
@@ -908,15 +1095,19 @@ def _get_twice_the_length(edge):
     return 2 * edge["length"]
 
 
-def test_a_metric_of_a_geograph_in_miles_weighs_an_access_leg_by_its_miles():
+def test_a_metric_of_a_geograph_in_miles_weighs_an_off_graph_leg_by_its_miles():
     # One edge of 2.5 miles. The metric `cost` is a weighted sum, and the
-    # metric `toll` is a function: each gives the weight 2 to 1 mile.
+    # metric `toll` is a function: each gives the weight 2 to 1 mile. The call
+    # of the function gives the weight of 1 km of an off-graph leg. 1 km is
+    # 3959 / 6371 mile: the radius of the Earth in miles and in km.
     geograph_in_miles = GeoGraph(
         graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]], geograph_units="mi"
     )
     geograph_in_miles.create_metric("cost", weighted_sum_of={"length": 2})
     geograph_in_miles.create_metric(
-        "toll", edge_weight_fn=_get_twice_the_length
+        "toll",
+        edge_weight_fn=_get_twice_the_length,
+        off_graph_weight_per_km=2 * 3959 / 6371,
     )
 
     route = geograph_in_miles.get_shortest_path(
@@ -926,9 +1117,12 @@ def test_a_metric_of_a_geograph_in_miles_weighs_an_access_leg_by_its_miles():
         output_units="mi",
     )
 
-    # The length of the route is in miles, with its two access legs.
+    # The length of the route is in miles, with its two off-graph legs.
     two_per_mile = pytest.approx(2 * route["length"])
-    assert route["metrics"] == {"cost": two_per_mile, "toll": two_per_mile}
+    assert route["metric_totals"] == {
+        "cost": two_per_mile,
+        "toll": two_per_mile,
+    }
 
 
 # The two functions of a geograph that give a bound in km between two nodes
@@ -961,7 +1155,9 @@ def test_length_only_with_a_metric_gives_the_total_of_this_metric_alone(
     )
 
     assert result == {
-        "metrics": {"minutes": pytest.approx(31 + 2 * ACCESS_LEG_KM * 4.0)}
+        "metric_totals": {
+            "minutes": pytest.approx(31 + 2 * OFF_GRAPH_LEG_KM * 4.0)
+        }
     }
 
 
@@ -977,7 +1173,7 @@ def test_get_path_weight_gives_the_total_of_a_metric_along_a_route(
     )
 
     # The shortest route takes the primary road: 80 km at 1.5 minutes per km.
-    assert minutes == pytest.approx(120 + 2 * ACCESS_LEG_KM * 4.0)
+    assert minutes == pytest.approx(120 + 2 * OFF_GRAPH_LEG_KM * 4.0)
 
 
 # Each case is a method that takes a metric, and its other arguments. The
@@ -1029,27 +1225,27 @@ def test_reduce_reduces_the_graph_of_each_metric_and_keeps_its_routes(
 
 # Each case gives the arguments of a matrix between the west point and the
 # east point, and the total that it holds from one point to the other. 1 km
-# of access leg takes 4 minutes.
+# of an off-graph leg takes 4 minutes.
 TOTALS_OF_A_MATRIX = {
     # The fastest route is the railway: 31 minutes.
     "the totals of the metric of the routes": (
         {"metric": "minutes"},
-        31 + 2 * ACCESS_LEG_KM * 4.0,
+        31 + 2 * OFF_GRAPH_LEG_KM * 4.0,
     ),
     # The railway is 96 km long.
     "the lengths of the fastest routes": (
         {"metric": "minutes", "output_metric": "length"},
-        96 + 2 * ACCESS_LEG_KM,
+        96 + 2 * OFF_GRAPH_LEG_KM,
     ),
     # The shortest route is the primary road: 80 km at 1.5 minutes per km.
     "the minutes of the shortest routes": (
         {"metric": "length", "output_metric": "minutes"},
-        120 + 2 * ACCESS_LEG_KM * 4.0,
+        120 + 2 * OFF_GRAPH_LEG_KM * 4.0,
     ),
     # Each point snaps to the station of its town, 0.02 degree north of the
     # equator and 0.1 degree of longitude away. The shortest route between the
     # two stations takes the primary road: 1 + 2 + 80 + 2 + 1 = 86 km.
-    "the lengths between points that snap to the modes of the call": (
+    "the lengths between points that snap to the node modes of the call": (
         {"node_addition_modes": ["rail"]},
         86 + 2 * 6371 * math.radians(math.hypot(0.02, 0.1)),
     ),
@@ -1083,9 +1279,9 @@ def test_the_legs_of_a_route_are_its_parts_on_one_mode(network_with_minutes):
 
     # The fastest route: a road connector from the west town to its terminal,
     # the railway between the two terminals, and a road connector to the east
-    # town. An access leg joins each point of the query to its town. The
+    # town. An off-graph leg joins each point of the query to its town. The
     # lengths are in metres, the unit of the query: 96 km on the network.
-    access_leg = ("off_graph", pytest.approx(1000 * ACCESS_LEG_KM), {})
+    off_graph_leg = ("off_graph", pytest.approx(1000 * OFF_GRAPH_LEG_KM), {})
     road_leg = ("road", 2000.0, {"road_connector": 2000.0})
     rail_leg = (
         "rail",
@@ -1095,12 +1291,12 @@ def test_the_legs_of_a_route_are_its_parts_on_one_mode(network_with_minutes):
     assert [
         (leg["mode"], leg["length"], leg["class_lengths"])
         for leg in route["legs"]
-    ] == [access_leg, road_leg, rail_leg, road_leg, access_leg]
-    assert route["hubs"] == [
-        {"node_id": WEST_TERMINAL, "mode": "rail_terminal"},
-        {"node_id": EAST_TERMINAL, "mode": "rail_terminal"},
+    ] == [off_graph_leg, road_leg, rail_leg, road_leg, off_graph_leg]
+    assert route["transfers"] == [
+        {"node_id": WEST_TERMINAL, "node_mode": "rail_terminal"},
+        {"node_id": EAST_TERMINAL, "node_mode": "rail_terminal"},
     ]
-    assert route["length"] == pytest.approx(1000 * (96 + 2 * ACCESS_LEG_KM))
+    assert route["length"] == pytest.approx(1000 * (96 + 2 * OFF_GRAPH_LEG_KM))
 
 
 def test_the_legs_of_a_route_add_up_to_its_length_and_to_its_totals(
@@ -1121,9 +1317,9 @@ def test_the_legs_of_a_route_add_up_to_its_length_and_to_its_totals(
     legs = route["legs"]
     assert sum(leg["length"] for leg in legs) == pytest.approx(route["length"])
     assert {
-        name: sum(leg["metrics"][name] for leg in legs)
+        name: sum(leg["metric_totals"][name] for leg in legs)
         for name in ("minutes", "cost")
-    } == pytest.approx(route["metrics"])
+    } == pytest.approx(route["metric_totals"])
 
 
 # Each case gives a destination whose route from the west point is direct, and
@@ -1194,16 +1390,16 @@ def test_the_coordinate_paths_of_the_legs_follow_the_one_of_the_route():
     )
 
     # A leg starts at the point where the leg before it ends.
-    access_leg, road_leg, last_access_leg = (
+    off_graph_leg, road_leg, last_off_graph_leg = (
         leg["coordinate_path"] for leg in route["legs"]
     )
     assert (
-        access_leg + road_leg[1:] + last_access_leg[1:]
+        off_graph_leg + road_leg[1:] + last_off_graph_leg[1:]
         == route["coordinate_path"]
     )
 
 
-# The modes that a query point snaps to
+# The node modes that a query point snaps to
 
 # Two points on the equator, each with a road node as its closest node. The
 # first one is 0.01 degree west of the east town. Its closest rail node is the
@@ -1216,7 +1412,7 @@ POINT_NEAR_THE_JUNCTION = {"latitude": 0.0, "longitude": 0.3}
 
 # The other tests snap with the default type, 'closest'.
 @pytest.mark.parametrize("node_addition_type", ["quadrant", "all"])
-def test_a_query_point_snaps_only_to_nodes_of_the_modes_of_the_query(
+def test_a_query_point_snaps_only_to_nodes_of_the_node_modes_of_the_query(
     network, node_addition_type
 ):
     route = network.get_shortest_path(
@@ -1232,9 +1428,13 @@ def test_a_query_point_snaps_only_to_nodes_of_the_modes_of_the_query(
     assert (path[0], path[-1]) == (EAST_STATION, WEST_STATION)
 
 
-def test_a_query_point_snaps_to_the_modes_that_the_network_file_names(network):
-    # The file names the mode `road` (`_write_network`). The point is 0.01
-    # degree north of the east station and 0.03 degree north of the east town.
+def test_a_query_point_snaps_to_the_node_modes_that_the_network_file_names(
+    network_path,
+):
+    network = GeoGraph.load_from_scgraph(network_path)
+
+    # The file names the node mode `road`. The point is 0.01 degree north of
+    # the east station and 0.03 degree north of the east town.
     route = network.get_shortest_path(
         WEST_POINT, {"latitude": 0.03, "longitude": 0.7}, output_path=True
     )
@@ -1243,11 +1443,11 @@ def test_a_query_point_snaps_to_the_modes_that_the_network_file_names(network):
 
 
 def test_a_query_point_snaps_to_a_node_that_the_user_added(network):
-    # The file names the mode `road` for the query points. This query builds
-    # the snapping index of the road nodes.
+    # The file names the node mode `road` for the query points. This query
+    # builds the snapping index of the road nodes.
     network.get_shortest_path(WEST_POINT, EAST_POINT)
 
-    # The new node has no mode of the file. It is at the origin of the next
+    # The new node has no node mode of the file. It is at the origin of the next
     # query, 0.1 degree west of the west town.
     node_id = network.add_coord_node(WEST_POINT)
 
@@ -1255,7 +1455,7 @@ def test_a_query_point_snaps_to_a_node_that_the_user_added(network):
     assert route["path"][0] == node_id
 
 
-def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_mode(
+def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_node_mode(
     sea_network,
 ):
     # The origin is 0.01 degree west of the port, and the destination is 0.05
@@ -1273,19 +1473,19 @@ def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_mode(
     ]
 
 
-# Each case gives the modes of a query. No node of the geograph has the mode
-# `road`. Its file has no mode `canal`.
-REFUSED_MODES = {
-    "a mode that no node has": ["road"],
-    "a mode that the file lacks": ["sea", "canal"],
+# Each case gives the node modes of a query. No node of the geograph has the
+# node mode `road`. Its file has no node mode `canal`.
+REFUSED_NODE_MODES = {
+    "a node mode that no node has": ["road"],
+    "a node mode that the file lacks": ["sea", "canal"],
     "no mode": [],
 }
 
 
 @pytest.mark.parametrize(
-    "node_addition_modes", REFUSED_MODES.values(), ids=REFUSED_MODES
+    "node_addition_modes", REFUSED_NODE_MODES.values(), ids=REFUSED_NODE_MODES
 )
-def test_a_query_refuses_modes_that_its_points_cannot_snap_to(
+def test_a_query_refuses_node_modes_that_its_points_cannot_snap_to(
     sea_network, node_addition_modes
 ):
     with pytest.raises(ValueError, match="node_addition_modes"):
@@ -1296,10 +1496,10 @@ def test_a_query_refuses_modes_that_its_points_cannot_snap_to(
         )
 
 
-def test_a_query_refuses_modes_on_a_geograph_without_modes(
+def test_a_query_refuses_node_modes_on_a_geograph_without_node_modes(
     geograph_without_classes,
 ):
-    # The one mode of this geograph has no name: a query cannot name it.
+    # The one node mode of this geograph has no name: a query cannot name it.
     with pytest.raises(ValueError, match="node_addition_modes"):
         geograph_without_classes.get_shortest_path(
             {"latitude": 0, "longitude": 0},
@@ -1311,12 +1511,12 @@ def test_a_query_refuses_modes_on_a_geograph_without_modes(
 # A network read from a file with a metric
 
 
-def test_a_saved_and_loaded_geograph_keeps_its_metrics_and_its_default_modes(
+def test_a_saved_and_loaded_geograph_keeps_its_metrics_and_its_default_node_modes(
     network_with_minutes, network_read_with_minutes
 ):
     # The fixture `network_read_with_minutes` saved the same network with the
-    # same metric, and loaded the file. The file names the mode `road` for
-    # the query points (`_write_network`).
+    # same metric, and loaded the file. The file names the node mode `road` for
+    # the query points.
     assert network_read_with_minutes.metrics == network_with_minutes.metrics
     assert network_read_with_minutes.default_node_addition_modes == ["road"]
     assert network_read_with_minutes.get_shortest_path(

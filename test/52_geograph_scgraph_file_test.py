@@ -33,13 +33,13 @@ SOURCES = [
 ]
 
 
-def _small(node_ids=None):
+def _small(source_node_ids=None):
     return GeoGraph(
         graph=[dict(row) for row in SMALL_GRAPH],
         nodes=[list(node) for node in SMALL_NODES],
         intermediate_nodes=SMALL_SHAPES,
         geograph_units="mi",
-        node_ids=node_ids,
+        source_node_ids=source_node_ids,
     )
 
 
@@ -105,7 +105,7 @@ def test_shapes_read_from_a_file_behave_as_the_list_that_was_saved(small_file):
 # of a node is its position. A node added since gets a negative id, and a save
 # keeps them all.
 @pytest.mark.parametrize(
-    "node_ids, ids_before_the_addition",
+    "source_node_ids, ids_before_the_addition",
     [
         pytest.param([7, 5, 3, 1], [7, 5, 3, 1], id="ids within 32 bits"),
         pytest.param(
@@ -114,19 +114,19 @@ def test_shapes_read_from_a_file_behave_as_the_list_that_was_saved(small_file):
         pytest.param(None, [0, 1, 2, 3], id="no ids: the positions"),
     ],
 )
-def test_node_ids_and_the_id_of_an_added_node_are_kept_through_saves(
-    tmp_path, node_ids, ids_before_the_addition
+def test_source_node_ids_and_the_id_of_an_added_node_are_kept_through_saves(
+    tmp_path, source_node_ids, ids_before_the_addition
 ):
     path, again = str(tmp_path / "small.scgraph"), str(
         tmp_path / "again.scgraph"
     )
-    _small(node_ids).save_as_scgraph(path)
+    _small(source_node_ids).save_as_scgraph(path)
     loaded = GeoGraph.load_from_scgraph(path)
     loaded.add_coord_node({"latitude": 2.0, "longitude": 2.0}, auto_edge=False)
     # Saved to another file: Windows does not replace a mapped file
     loaded.save_as_scgraph(again)
 
-    assert GeoGraph.load_from_scgraph(again).node_ids == [
+    assert GeoGraph.load_from_scgraph(again).source_node_ids == [
         *ids_before_the_addition,
         -1,
     ]
@@ -135,21 +135,21 @@ def test_node_ids_and_the_id_of_an_added_node_are_kept_through_saves(
 # OpenStreetMap has node ids beyond 32 bits. No call of GeoGraph shows the
 # size of the ids in the file: the test reads the arrays of the file.
 @pytest.mark.parametrize(
-    "node_ids, bytes_per_id",
+    "source_node_ids, bytes_per_id",
     [
         pytest.param([7, 5, 3, 1], 4, id="ids within 32 bits"),
         pytest.param([2**40, 5, 3, 1], 8, id="an id beyond 32 bits"),
     ],
 )
-def test_node_ids_are_stored_in_32_bits_when_they_all_fit_and_else_in_64(
-    tmp_path, node_ids, bytes_per_id
+def test_source_node_ids_are_stored_in_32_bits_when_they_all_fit_and_else_in_64(
+    tmp_path, source_node_ids, bytes_per_id
 ):
     path = str(tmp_path / "small.scgraph")
-    _small(node_ids).save_as_scgraph(path)
+    _small(source_node_ids).save_as_scgraph(path)
 
     arrays, _ = network_file.read(path)
 
-    assert arrays["node_ids"].itemsize == bytes_per_id
+    assert arrays["source_node_ids"].itemsize == bytes_per_id
 
 
 def _small_listed_backwards():
@@ -174,7 +174,7 @@ def test_a_file_lists_the_nodes_in_hilbert_order(tmp_path):
     assert loaded.graph_object.graph == SMALL_GRAPH
     assert loaded.intermediate_nodes == SMALL_SHAPES
     # A node moved by the save keeps its former position as its id.
-    assert list(loaded.node_ids) == [3, 2, 1, 0]
+    assert list(loaded.source_node_ids) == [3, 2, 1, 0]
 
 
 def test_a_save_does_not_change_the_order_of_the_nodes_of_the_geograph(
@@ -219,7 +219,7 @@ def sea():
     sea = GeoGraph(
         graph=[{1: 1.0}, {0: 1.0}],
         nodes=[[1, 0], [1, 1]],
-        modes=[{"name": "sea", "source": "lanes"}],
+        node_modes=[{"name": "sea", "source": "lanes"}],
     )
     sea.metadata = {"sources": [{"name": "lanes"}]}
     return sea
@@ -230,13 +230,13 @@ def road_merged_with_sea(sea):
     road = GeoGraph(
         graph=[{1: 1.0}, {0: 1.0}],
         nodes=[[0, 1], [0, 0]],
-        modes=[{"name": "road", "source": "osm"}],
+        node_modes=[{"name": "road", "source": "osm"}],
     )
     road.metadata = {"sources": [{"name": "osm"}]}
     road.add_coord_node({"latitude": 0, "longitude": 3})
-    road.add_coord_node({"latitude": 0, "longitude": 2}, mode="road")
+    road.add_coord_node({"latitude": 0, "longitude": 2}, node_mode="road")
     road.merge_with_other_geograph(
-        sea, connection_nodes=[[0.5, 0.5]], mode="port"
+        sea, connection_nodes=[[0.5, 0.5]], node_mode="port"
     )
     return road
 
@@ -248,13 +248,13 @@ def road_and_sea_file(road_merged_with_sea, tmp_path_factory):
     return path
 
 
-def test_additions_and_a_merge_give_each_node_its_mode_and_cite_both_sources(
+def test_additions_and_a_merge_give_each_node_its_node_mode_and_cite_both_sources(
     road_merged_with_sea,
 ):
     road = road_merged_with_sea
 
     # The modes of the additions and of the merge come after the road mode.
-    assert road.modes == [
+    assert road.node_modes == [
         {"name": "road", "source": "osm"},
         {"name": None},
         {"name": "port"},
@@ -262,7 +262,7 @@ def test_additions_and_a_merge_give_each_node_its_mode_and_cite_both_sources(
     ]
     # Two road nodes, the node without a mode, the road node added after it,
     # the port node of the merge, then the two sea nodes
-    assert list(road.node_modes) == [0, 0, 1, 0, 2, 3, 3]
+    assert list(road.node_mode_ids) == [0, 0, 1, 0, 2, 3, 3]
     # Each mode names its source, so the merged geograph needs both sources
     assert road.metadata["sources"] == [{"name": "osm"}, {"name": "lanes"}]
 
@@ -270,40 +270,42 @@ def test_additions_and_a_merge_give_each_node_its_mode_and_cite_both_sources(
 def test_a_merge_leaves_the_modes_of_the_other_geograph(
     sea, road_merged_with_sea
 ):
-    assert list(sea.node_modes) == [0, 0]
+    assert list(sea.node_mode_ids) == [0, 0]
 
 
-def test_a_file_lists_the_nodes_mode_by_mode_with_their_modes_and_ids(
+def test_a_file_lists_the_nodes_node_mode_by_node_mode_with_their_node_modes_and_ids(
     road_merged_with_sea, road_and_sea_file
 ):
     road = road_merged_with_sea
 
     loaded = GeoGraph.load_from_scgraph(road_and_sea_file)
 
-    assert loaded.modes == road.modes
-    assert list(loaded.node_modes) == [0, 0, 0, 1, 2, 3, 3]
+    assert loaded.node_modes == road.node_modes
+    assert list(loaded.node_mode_ids) == [0, 0, 0, 1, 2, 3, 3]
     # Each node keeps its mode and its id, whatever its new position.
     assert sorted(
-        zip(loaded.node_modes, loaded.node_ids, loaded.nodes)
-    ) == sorted(zip(road.node_modes, road.node_ids, road.nodes))
+        zip(loaded.node_mode_ids, loaded.source_node_ids, loaded.nodes)
+    ) == sorted(zip(road.node_mode_ids, road.source_node_ids, road.nodes))
 
 
-def test_a_file_loaded_on_one_mode_has_the_nodes_of_that_mode_only(
+def test_a_file_loaded_on_one_node_mode_has_the_nodes_of_that_node_mode_only(
     road_and_sea_file,
 ):
     # Loaded lazily: the file is read when the nodes are first asked for
     roads = GeoGraph.load_from_scgraph(
-        road_and_sea_file, lazy=True, modes="road"
+        road_and_sea_file, lazy=True, node_modes="road"
     )
 
     assert sorted(roads.nodes) == [[0, 0], [0, 1], [0, 2]]
 
 
-def test_a_file_loaded_on_one_mode_routes_on_that_mode(road_and_sea_file):
+def test_a_file_loaded_on_one_node_mode_routes_on_that_node_mode(
+    road_and_sea_file,
+):
     # The destination is a sea node of the file. On roads only, the route
     # ends at the road node closest to it, (0, 1).
     roads = GeoGraph.load_from_scgraph(
-        road_and_sea_file, lazy=True, modes="road"
+        road_and_sea_file, lazy=True, node_modes="road"
     )
 
     route = roads.get_shortest_path(
@@ -316,41 +318,43 @@ def test_a_file_loaded_on_one_mode_routes_on_that_mode(road_and_sea_file):
     assert route["coordinate_path"] == [[0, 0], [0, 0], [0, 1], [1, 1]]
 
 
-def test_a_node_of_a_257th_mode_is_refused_and_changes_nothing():
-    modes = [{"name": str(i)} for i in range(256)]
-    geograph = GeoGraph(graph=[{}], nodes=[[0, 0]], modes=modes)
+def test_a_node_of_a_257th_node_mode_is_refused_and_changes_nothing():
+    node_modes = [{"name": str(i)} for i in range(256)]
+    geograph = GeoGraph(graph=[{}], nodes=[[0, 0]], node_modes=node_modes)
 
-    with pytest.raises(ValueError, match="at most 256 modes"):
-        geograph.add_coord_node({"latitude": 0, "longitude": 1}, mode="new")
+    with pytest.raises(ValueError, match="at most 256 node modes"):
+        geograph.add_coord_node(
+            {"latitude": 0, "longitude": 1}, node_mode="new"
+        )
 
-    assert (len(geograph.nodes), len(geograph.modes)) == (1, 256)
+    assert (len(geograph.nodes), len(geograph.node_modes)) == (1, 256)
 
 
-def test_a_merge_that_needs_a_257th_mode_is_refused_and_changes_nothing():
+def test_a_merge_that_needs_a_257th_node_mode_is_refused_and_changes_nothing():
     # 200 modes, 60 other modes and the mode of the connection node: 261
     road_modes = [{"name": f"road {i}"} for i in range(200)]
     sea_modes = [{"name": f"sea {i}"} for i in range(60)]
-    road = GeoGraph(graph=[{}], nodes=[[0, 0]], modes=road_modes)
-    sea = GeoGraph(graph=[{}], nodes=[[1, 1]], modes=sea_modes)
+    road = GeoGraph(graph=[{}], nodes=[[0, 0]], node_modes=road_modes)
+    sea = GeoGraph(graph=[{}], nodes=[[1, 1]], node_modes=sea_modes)
 
-    with pytest.raises(ValueError, match="at most 256 modes"):
+    with pytest.raises(ValueError, match="at most 256 node modes"):
         road.merge_with_other_geograph(sea, connection_nodes=[[0.5, 0.5]])
 
-    assert (len(road.nodes), len(road.modes)) == (1, 200)
+    assert (len(road.nodes), len(road.node_modes)) == (1, 200)
 
 
-def test_nodes_appended_directly_are_saved_in_the_first_mode(tmp_path):
+def test_nodes_appended_directly_are_saved_in_the_first_node_mode(tmp_path):
     geo = GeoGraph(
         graph=[{}, {}],
         nodes=[[0, 0], [1, 1]],
-        node_modes=[1, 0],
-        modes=[{"name": "road"}, {"name": "sea"}],
+        node_mode_ids=[1, 0],
+        node_modes=[{"name": "road"}, {"name": "sea"}],
     )
     geo.graph_object.add_node({})
     geo.nodes.append([2, 2])
     geo.save_as_scgraph(str(tmp_path / "modes.scgraph"))
     loaded = GeoGraph.load_from_scgraph(str(tmp_path / "modes.scgraph"))
-    assert dict(zip(map(tuple, loaded.nodes), loaded.node_modes)) == {
+    assert dict(zip(map(tuple, loaded.nodes), loaded.node_mode_ids)) == {
         (0, 0): 1,
         (1, 1): 0,
         (2, 2): 0,
@@ -358,36 +362,37 @@ def test_nodes_appended_directly_are_saved_in_the_first_mode(tmp_path):
 
 
 @pytest.mark.skipif(has_cpp(), reason="a C++ graph is not picklable")
-def test_a_pickled_geograph_keeps_its_node_ids(tmp_path):
+def test_a_pickled_geograph_keeps_its_source_node_ids(tmp_path):
     geo = pickle.loads(pickle.dumps(_small([7, 5, 3, 1])))
     geo.add_coord_node({"latitude": 2.0, "longitude": 2.0}, auto_edge=False)
     geo.save_as_scgraph(str(tmp_path / "small.scgraph"))
     loaded = GeoGraph.load_from_scgraph(str(tmp_path / "small.scgraph"))
-    assert loaded.node_ids == [7, 5, 3, 1, -1]
+    assert loaded.source_node_ids == [7, 5, 3, 1, -1]
 
 
-# Without `modes`, a geograph has one mode: the row 1 of modes does not exist.
+# Without `node_modes`, a geograph has one node mode: the node mode id 1 does
+# not exist.
 @pytest.mark.parametrize(
     "columns, message",
     [
         pytest.param(
-            {"node_ids": [7, 5, 3]},
+            {"source_node_ids": [7, 5, 3]},
             "one id per node",
             id="fewer node ids than nodes",
         ),
         pytest.param(
-            {"node_modes": [0, 0, 0]},
-            "a row of modes",
+            {"node_mode_ids": [0, 0, 0]},
+            "a row of node_modes",
             id="fewer node modes than nodes",
         ),
         pytest.param(
-            {"node_modes": [0, 0, 0, 1]},
-            "a row of modes",
-            id="a node mode that is not in the modes",
+            {"node_mode_ids": [0, 0, 0, 1]},
+            "a row of node_modes",
+            id="a node mode id beyond the node modes",
         ),
     ],
 )
-def test_a_geograph_whose_node_ids_or_node_modes_do_not_fit_is_refused(
+def test_a_geograph_whose_source_node_ids_or_node_mode_ids_do_not_fit_is_refused(
     columns, message
 ):
     with pytest.raises(ValueError, match=message):
@@ -559,7 +564,7 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     assert info["coordinate_dtype"] == "int32"
     assert info["shapes"] is True
     # The ids of the small network are the positions: the file stores none.
-    assert info["node_ids"] is False
+    assert info["source_node_ids"] is False
     assert info["content_sha256"] == digest
     assert info["sources"] == DATED_SOURCES
     # The credit line gives each credit once, with its license.
@@ -570,9 +575,9 @@ def test_scgraph_info_describes_a_file_and_its_sources(dated_file):
     assert info["data_up_to"] == "2026-11-06T20:21:43Z"
 
 
-def test_a_mode_must_name_a_source_of_the_metadata(tmp_path):
+def test_a_node_mode_must_name_a_source_of_the_metadata(tmp_path):
     geograph = _small()
-    geograph.modes = [{"name": None, "source": "region-0"}]
+    geograph.node_modes = [{"name": None, "source": "region-0"}]
 
     with pytest.raises(ValueError, match="names no source"):
         geograph.save_as_scgraph(
@@ -670,12 +675,12 @@ def test_a_file_says_whether_its_graph_is_symmetric(tmp_path, graph, symmetric):
 # the length first. Another metric gives its weight for 1 km between a query
 # point and its node: here, no toll.
 LENGTH_IN_KM = {"name": "length", "unit": "km"}
-TOLL = {"name": "toll", "unit": "EUR", "off_graph_per_km": 0.0}
+TOLL = {"name": "toll", "unit": "EUR", "off_graph_weight_per_km": 0.0}
 ROAD_AND_PORT = [
     {"name": "road", "source": "roads"},
     {"name": "port", "source": "ports"},
 ]
-ROAD_AND_PORT_HEADER = {"metrics": [LENGTH_IN_KM], "modes": ROAD_AND_PORT}
+ROAD_AND_PORT_HEADER = {"metrics": [LENGTH_IN_KM], "node_modes": ROAD_AND_PORT}
 
 
 def _two_road_nodes_and_a_port():
@@ -686,8 +691,8 @@ def _two_road_nodes_and_a_port():
         "heads": array("i", [1, 0]),
         "weights_length": array("d", [1.0, 1.0]),
         "node_points": array("d", [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
-        "node_ids": array("q", [2**40, 7, -1]),
-        "node_modes": array("B", [0, 0, 1]),
+        "source_node_ids": array("q", [2**40, 7, -1]),
+        "node_mode_ids": array("B", [0, 0, 1]),
     }
 
 
@@ -701,9 +706,9 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
 
     assert loaded.graph_object.graph == [{1: 1.0}, {0: 1.0}, {}]
     assert loaded.nodes == [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
-    assert list(loaded.node_ids) == [2**40, 7, -1]
-    assert list(loaded.node_modes) == [0, 0, 1]
-    assert loaded.modes == ROAD_AND_PORT
+    assert list(loaded.source_node_ids) == [2**40, 7, -1]
+    assert list(loaded.node_mode_ids) == [0, 0, 1]
+    assert loaded.node_modes == ROAD_AND_PORT
 
 
 # A file may come from another tool, or be damaged. `load_from_scgraph` must
@@ -715,18 +720,18 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
     "invalid_arrays, message",
     [
         pytest.param(
-            {"node_ids": array("q", [1, 2])},
+            {"source_node_ids": array("q", [1, 2])},
             "one node id per node",
             id="fewer node ids than nodes",
         ),
         pytest.param(
-            {"node_modes": array("B", [0, 0])},
+            {"node_mode_ids": array("B", [0, 0])},
             "one node mode per node",
             id="fewer node modes than nodes",
         ),
         pytest.param(
-            {"node_modes": array("B", [0, 0, 2])},
-            "invalid node modes|each node a row of modes",
+            {"node_mode_ids": array("B", [0, 0, 2])},
+            "invalid node modes|a row of node_modes",
             id="a node mode beyond the list of modes",
         ),
         pytest.param(
@@ -738,7 +743,7 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
             id="node points and shape points of two dtypes",
         ),
         pytest.param(
-            {"edge_classes": array("B", [0])},
+            {"edge_class_ids": array("B", [0])},
             "one edge class per edge",
             id="fewer edge classes than edges",
         ),
@@ -755,18 +760,21 @@ def test_a_file_whose_arrays_do_not_fit_together_is_refused(
         GeoGraph.load_from_scgraph(path)
 
 
-# A row of the list `classes` gives a class and the mode of its edges.
-MOTORWAY = {"name": "motorway", "mode": "road"}
+# A row of the list `classes` gives a class and the edge mode of its edges.
+MOTORWAY = {"name": "motorway", "edge_mode": "road"}
 
 
-# A value of `node_modes` is a row of the list `modes` of the metadata, and a
-# value of `edge_classes` is a row of the list `classes`.
-@pytest.mark.parametrize("missing_list", ["modes", "classes"])
+# A value of `node_mode_ids` is the position of a row of the list `node_modes`
+# of the metadata, and a value of `edge_class_ids` is the position of a row of
+# the list `classes`.
+@pytest.mark.parametrize("missing_list", ["node_modes", "classes"])
 def test_a_file_with_rows_and_without_their_list_is_refused(
     tmp_path, missing_list
 ):
     path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port() | {"edge_classes": array("B", [0, 0])}
+    arrays = _two_road_nodes_and_a_port() | {
+        "edge_class_ids": array("B", [0, 0])
+    }
     metadata = ROAD_AND_PORT_HEADER | {"classes": [MOTORWAY]}
     del metadata[missing_list]
     network_file.write(path, arrays, metadata)
@@ -778,11 +786,12 @@ def test_a_file_with_rows_and_without_their_list_is_refused(
 # The header must describe the arrays of the file, and `load_from_scgraph`
 # must name what is wrong. Here the valid network above also has a class and a
 # toll for each edge. Each case below replaces or adds a key of the valid
-# header. The last one is the header of an earlier development version of
-# scgraph: `units`, and no `metrics`. No released version wrote such a file.
+# header. The last two are headers of an earlier development version of
+# scgraph: `units` and no `metrics`, then a class row with the key `mode`. No
+# released version wrote such a file.
 ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
     "metrics": [LENGTH_IN_KM, TOLL],
-    "modes": ROAD_AND_PORT,
+    "node_modes": ROAD_AND_PORT,
     "classes": [MOTORWAY],
 }
 
@@ -810,24 +819,47 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL
             | {"metrics": [LENGTH_IN_KM, {"name": "toll"}]},
-            "must give off_graph_per_km",
-            id="a toll without off_graph_per_km",
+            "must give off_graph_weight_per_km",
+            id="a toll without off_graph_weight_per_km",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"classes": ["motorway"]},
-            "a row with a name and a mode",
-            id="a class without the mode of its edges",
+            "a row with a name and an edge mode",
+            id="a class without its edge mode",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL
             | {"node_addition_modes": ["rail"]},
-            "names a mode that the file does not have",
+            "names a node mode that the file does not have",
             id="a node addition mode that the file does not have",
         ),
         pytest.param(
-            {"units": "km", "modes": ROAD_AND_PORT, "classes": [MOTORWAY]},
+            {"units": "km", "node_modes": ROAD_AND_PORT, "classes": [MOTORWAY]},
             "build or download the network again",
             id="the header of an earlier development version",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {"classes": [{"name": "motorway", "mode": "road"}]},
+            "build or download the network again",
+            id="the class rows of an earlier development version",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {"classes": [{"name": None, "edge_mode": None}]},
+            "build or download the network again",
+            id="a class without a name of an earlier development version",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {
+                "classes": [
+                    {"name": f"class_{class_id}", "edge_mode": "road"}
+                    for class_id in range(256)
+                ]
+            },
+            "255 classes at most",
+            id="a 256th class",
         ),
     ],
 )
@@ -836,7 +868,7 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
 ):
     path = str(tmp_path / "arrays.scgraph")
     arrays = _two_road_nodes_and_a_port() | {
-        "edge_classes": array("B", [0, 0]),
+        "edge_class_ids": array("B", [0, 0]),
         "weights_toll": array("d", [2.0, 2.0]),
     }
     network_file.write(path, arrays, invalid_header)
@@ -845,7 +877,7 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
         GeoGraph.load_from_scgraph(path)
 
 
-# `load_from_scgraph(modes=...)` loads the nodes of some modes only. It finds
+# `load_from_scgraph(node_modes=...)` loads the nodes of some modes only. It finds
 # them without reading the whole file, so the file must list its nodes mode by
 # mode. It checks the arrays that it reads on the way. The file names one
 # class, so the only row of an edge class is 0. The case of an edge class beyond
@@ -855,17 +887,17 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
     "invalid_arrays, message",
     [
         pytest.param(
-            {"node_modes": array("B", [1, 0, 0])},
+            {"node_mode_ids": array("B", [1, 0, 0])},
             "unsorted",
             id="node modes that are not sorted",
         ),
         pytest.param(
-            {"node_modes": array("B", [0, 0, 2])},
+            {"node_mode_ids": array("B", [0, 0, 2])},
             "unknown node",
             id="a node mode beyond the list of modes",
         ),
         pytest.param(
-            {"node_ids": array("q", [1, 2, 3, 4])},
+            {"source_node_ids": array("q", [1, 2, 3, 4])},
             "per node",
             id="more node ids than nodes",
         ),
@@ -904,7 +936,7 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
             id="a shape that ends after the last shape point",
         ),
         pytest.param(
-            {"edge_classes": array("B", [0, 1])},
+            {"edge_class_ids": array("B", [0, 1])},
             "invalid edge classes",
             id="an edge class beyond the list of classes",
         ),
@@ -919,27 +951,29 @@ def test_loading_some_modes_refuses_arrays_that_do_not_fit_together(
     network_file.write(path, arrays, metadata)
 
     with pytest.raises(ValueError, match=message):
-        GeoGraph.load_from_scgraph(path, modes=["road"])
+        GeoGraph.load_from_scgraph(path, node_modes=["road"])
 
 
-def test_loading_a_mode_that_the_file_does_not_have_is_refused(tmp_path):
+def test_loading_a_node_mode_that_the_file_does_not_have_is_refused(tmp_path):
     path = str(tmp_path / "arrays.scgraph")
     network_file.write(path, _two_road_nodes_and_a_port(), ROAD_AND_PORT_HEADER)
 
-    with pytest.raises(ValueError, match=r"unknown modes \['rail'\]"):
-        GeoGraph.load_from_scgraph(path, modes=["rail"])
+    with pytest.raises(ValueError, match=r"unknown node modes \['rail'\]"):
+        GeoGraph.load_from_scgraph(path, node_modes=["rail"])
 
 
 EDGE_CLASSES = [
-    {"name": "connector", "mode": "sea"},
-    {"name": "motorway", "mode": "road"},
-    {"name": "primary", "mode": "road"},
-    {"name": "lane", "mode": "sea"},
-    {"name": "strait", "mode": "sea"},
+    {"name": "connector", "edge_mode": "sea"},
+    {"name": "motorway", "edge_mode": "road"},
+    {"name": "primary", "edge_mode": "road"},
+    {"name": "lane", "edge_mode": "sea"},
+    {"name": "strait", "edge_mode": "sea"},
 ]
 
 
-def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
+def _write_road_port_and_sea(
+    path, coordinate_typecode, with_source_node_ids=True
+):
     """Write a file of five nodes, listed mode by mode: the road nodes 10 and
     11, the port 20, the sea nodes 30 and 31. A node has its id as latitude
     and minus its id as longitude, stored as they are in `coordinate_typecode`
@@ -968,8 +1002,8 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
             coordinate_typecode,
             [10, -10, 11, -11, 20, -20, 30, -30, 31, -31],
         ),
-        "node_ids": array("i", [10, 11, 20, 30, 31]),
-        "node_modes": array("B", [0, 0, 1, 2, 2]),
+        "source_node_ids": array("i", [10, 11, 20, 30, 31]),
+        "node_mode_ids": array("B", [0, 0, 1, 2, 2]),
         "shape_offsets": array("i", [0, 1, 3, 5, 7, 7, 8, 9]),
         "shape_points": array(
             coordinate_typecode,
@@ -980,14 +1014,14 @@ def _write_road_port_and_sea(path, coordinate_typecode, with_node_ids=True):
             + [31, 20]
             + [31, 30],
         ),
-        "edge_classes": array("B", [1, 2, 0, 0, 3, 0, 4]),
+        "edge_class_ids": array("B", [1, 2, 0, 0, 3, 0, 4]),
     }
-    if not with_node_ids:
-        del arrays["node_ids"]
+    if not with_source_node_ids:
+        del arrays["source_node_ids"]
     names = [{"name": name} for name in ("road", "port", "sea")]
     metadata = {
         "metrics": [LENGTH_IN_KM, TOLL],
-        "modes": names,
+        "node_modes": names,
         "classes": EDGE_CLASSES,
     }
     network_file.write(path, arrays, metadata)
@@ -1001,7 +1035,7 @@ def test_a_file_written_with_edge_classes_is_read_back_with_them(tmp_path):
 
     arrays, metadata = network_file.read(path)
 
-    assert list(arrays["edge_classes"]) == [1, 2, 0, 0, 3, 0, 4]
+    assert list(arrays["edge_class_ids"]) == [1, 2, 0, 0, 3, 0, 4]
     assert metadata["classes"] == EDGE_CLASSES
 
 
@@ -1011,11 +1045,11 @@ def test_reading_some_modes_keeps_the_class_and_the_weights_of_each_kept_edge(
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
-    arrays, _ = network_file.read(path, modes=["road", "sea"])
+    arrays, _ = network_file.read(path, node_modes=["road", "sea"])
 
     # The kept edges are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30. They are
     # 1, 1.5, 4 and 6 km long.
-    assert list(arrays["edge_classes"]) == [1, 2, 3, 4]
+    assert list(arrays["edge_class_ids"]) == [1, 2, 3, 4]
     assert list(arrays["weights_length"]) == [1.0, 1.5, 4.0, 6.0]
     assert list(arrays["weights_toll"]) == [10.0, 15.0, 40.0, 60.0]
 
@@ -1033,21 +1067,23 @@ def test_a_geograph_loaded_from_a_file_is_saved_with_its_classes_and_metrics(
     # The save lists the sea node 31 before the sea node 30. The file ends
     # with the edges 31 -> 20, 31 -> 30 and 30 -> 31, of 5, 6 and 4 km.
     arrays, metadata = network_file.read(saved_path)
-    assert list(arrays["edge_classes"]) == [1, 2, 0, 0, 0, 4, 3]
+    assert list(arrays["edge_class_ids"]) == [1, 2, 0, 0, 0, 4, 3]
     assert metadata["classes"] == EDGE_CLASSES
     assert list(arrays["weights_toll"]) == [10, 15, 20, 30, 50, 60, 40]
     assert metadata["metrics"] == [LENGTH_IN_KM, TOLL]
 
 
-def test_loading_one_mode_gives_its_nodes_and_the_edges_between_them(tmp_path):
+def test_loading_one_node_mode_gives_its_nodes_and_the_edges_between_them(
+    tmp_path,
+):
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
-    roads = GeoGraph.load_from_scgraph(path, modes="road")
+    roads = GeoGraph.load_from_scgraph(path, node_modes="road")
 
-    assert list(roads.node_ids) == [10, 11]
+    assert list(roads.source_node_ids) == [10, 11]
     assert roads.nodes == [[10, -10], [11, -11]]
-    assert list(roads.node_modes) == [0, 0]
+    assert list(roads.node_mode_ids) == [0, 0]
     # The edge from 11 to the port is left out
     assert roads.graph_object.graph == [{1: 1.0}, {0: 1.5}]
     assert [dict(shapes) for shapes in roads.intermediate_nodes] == [
@@ -1063,11 +1099,11 @@ def test_loading_two_modes_gives_their_nodes_in_the_order_of_the_file(
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, "d")
 
-    geograph = GeoGraph.load_from_scgraph(path, modes=("sea", "road"))
+    geograph = GeoGraph.load_from_scgraph(path, node_modes=("sea", "road"))
 
-    assert list(geograph.node_ids) == [10, 11, 30, 31]
+    assert list(geograph.source_node_ids) == [10, 11, 30, 31]
     assert geograph.nodes == [[10, -10], [11, -11], [30, -30], [31, -31]]
-    assert list(geograph.node_modes) == [0, 0, 2, 2]
+    assert list(geograph.node_mode_ids) == [0, 0, 2, 2]
     # Without the port, the sea nodes move from the positions 3 and 4 to the
     # positions 2 and 3. The edges 11 -> 20 and 31 -> 20 are left out.
     assert geograph.graph_object.graph == [
@@ -1082,7 +1118,7 @@ def test_loading_two_modes_gives_their_nodes_in_the_order_of_the_file(
         {},
         {2: [[31, 30]]},
     ]
-    classes = [edge["class"] for edge in geograph.get_edges()]
+    classes = [edge["edge_class"] for edge in geograph.get_edges()]
     assert classes == ["motorway", "primary", "lane", "strait"]
 
 
@@ -1097,21 +1133,21 @@ def test_loading_some_modes_keeps_the_dtype_of_the_coordinates(
     path = str(tmp_path / "modes.scgraph")
     _write_road_port_and_sea(path, coordinate_typecode)
 
-    roads = GeoGraph.load_from_scgraph(path, modes="road")
+    roads = GeoGraph.load_from_scgraph(path, node_modes="road")
 
     assert roads.coordinate_dtype == coordinate_dtype
 
 
-def test_loading_some_modes_of_a_file_without_node_ids_gives_the_positions(
+def test_loading_some_node_modes_of_a_file_without_source_node_ids_gives_the_node_ids_of_the_file(
     tmp_path,
 ):
     # The id of a node is then its position in the whole file
     path = str(tmp_path / "modes.scgraph")
-    _write_road_port_and_sea(path, "d", with_node_ids=False)
+    _write_road_port_and_sea(path, "d", with_source_node_ids=False)
 
-    geograph = GeoGraph.load_from_scgraph(path, modes=("sea", "road"))
+    geograph = GeoGraph.load_from_scgraph(path, node_modes=("sea", "road"))
 
-    assert list(geograph.node_ids) == [0, 1, 3, 4]
+    assert list(geograph.source_node_ids) == [0, 1, 3, 4]
 
 
 def test_load_from_scgraph_reads_an_empty_network(tmp_path):
