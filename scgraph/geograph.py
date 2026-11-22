@@ -40,7 +40,7 @@ from scgraph.metrics import (
     check_off_graph_per_km,
     compute_weights_from_sum,
     compute_weights_from_function,
-    describe_call,
+    build_default_description,
     resolve_rates,
     set_edge_weights,
 )
@@ -3581,7 +3581,7 @@ class GeoGraph(
             name,
             unit,
             description
-            or describe_call(
+            or build_default_description(
                 per_km=per_km,
                 at_hub=at_hub,
                 weighted_sum_of=weighted_sum_of,

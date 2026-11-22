@@ -377,8 +377,9 @@ def check_off_graph_per_km(name: str, off_graph_per_km: float | None) -> float:
     return float(off_graph_per_km)
 
 
-def describe_call(**arguments: object) -> str:
-    """Return a `create_metric` call as text, for the description of a metric:
+def build_default_description(**arguments: object) -> str:
+    """Return the description of a metric that the caller did not describe:
+    the text of its `create_metric` call, for example
     `create_metric(per_km={'road': 0.02, 'off_graph': 0.05}, edge_weights=<12
     edges>)`. A function is written by its name."""
     texts = []
