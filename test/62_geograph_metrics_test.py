@@ -576,8 +576,8 @@ def _get_cost(edge):
     return 2 * edge["metrics"]["minutes"] + 0.5 * edge["length"]
 
 
-# The metric `cost` uses the metric `minutes`: as a weighted sum, then as a
-# function that reads the minutes of each edge.
+# The metric `cost` is computed from the metric `minutes`: as a weighted sum,
+# then as a function that reads the minutes of each edge.
 @pytest.mark.parametrize(
     "cost",
     [
@@ -586,18 +586,18 @@ def _get_cost(edge):
     ],
     ids=["a weighted sum", "a function"],
 )
-def test_a_metric_is_computed_again_when_a_metric_that_it_uses_is_created_again(
+def test_a_metric_keeps_its_weights_when_a_metric_that_it_was_computed_from_is_created_again(
     network_with_minutes, cost
 ):
     network_with_minutes.create_metric("cost", **cost)
-    network_with_minutes.create_metric("fare", weighted_sum_of={"cost": 3})
 
     network_with_minutes.create_metric("minutes", per_km=1.0)
 
-    # At 1 minute per km, the cost of an edge is 2 × 1 + 0.5 = 2.5 times its
-    # km. The fare is 3 times the cost.
-    assert _get_weight_of_each_edge(network_with_minutes, "fare") == {
-        nodes: 7.5 * km for nodes, km in KM_OF_EACH_EDGE.items()
+    # The cost of an edge stays 2 times the minutes that the edge had when the
+    # cost was created, plus 0.5 times its km.
+    assert _get_weight_of_each_edge(network_with_minutes, "cost") == {
+        nodes: 2 * minutes + 0.5 * KM_OF_EACH_EDGE[nodes]
+        for nodes, minutes in MINUTES_OF_EACH_EDGE.items()
     }
 
 
@@ -685,34 +685,27 @@ def test_create_metric_refuses_a_call_without_exactly_one_of_its_three_ways(
         network.create_metric("minutes", **arguments)
 
 
-# The geograph has the metric `minutes` and its sum `cost`. Each call asks for
-# a sum that cannot be computed: the name of the sum, what it sums, and what
-# the error says.
+# The geograph has the metric `minutes`. Each call asks for a sum that cannot
+# be computed: what it sums, and what the error says.
 @pytest.mark.parametrize(
-    "name, weighted_sum_of, cause",
+    "weighted_sum_of, cause",
     [
-        ("fare", {"speed": 2}, "unknown metric 'speed'"),
-        ("fare", {"minutes": 0}, "coefficient of 'minutes'"),
-        ("fare", {"minutes": math.inf}, "coefficient of 'minutes'"),
-        ("cost", {"cost": 2}, "would use itself"),
-        ("minutes", {"cost": 2}, "would use itself"),
+        ({"speed": 2}, "unknown metric 'speed'"),
+        ({"minutes": 0}, "coefficient of 'minutes'"),
+        ({"minutes": math.inf}, "coefficient of 'minutes'"),
     ],
     ids=[
         "a metric that the geograph lacks",
         "a coefficient of zero",
         "an infinite coefficient",
-        "a sum of itself",
-        "a sum of a sum that uses it",
     ],
 )
 def test_a_sum_that_cannot_be_computed_is_refused(
-    network_with_minutes, name, weighted_sum_of, cause
+    network_with_minutes, weighted_sum_of, cause
 ):
-    network_with_minutes.create_metric("cost", weighted_sum_of={"minutes": 2})
-
     with pytest.raises(ValueError, match=cause):
         network_with_minutes.create_metric(
-            name, weighted_sum_of=weighted_sum_of
+            "fare", weighted_sum_of=weighted_sum_of
         )
 
 
@@ -761,28 +754,11 @@ def test_a_route_has_no_total_of_a_removed_metric(network_with_minutes):
     assert "metrics" not in route
 
 
-# The geograph has no metric `speed`. The metric `cost` uses the metric
-# `minutes`: as a weighted sum, then as a function.
-@pytest.mark.parametrize(
-    "cost, name",
-    [
-        ({"weighted_sum_of": {"minutes": 2}}, "speed"),
-        ({"weighted_sum_of": {"minutes": 2}}, "minutes"),
-        ({"edge_weight_fn": _get_cost}, "minutes"),
-    ],
-    ids=[
-        "a metric that the geograph lacks",
-        "a metric that a weighted sum uses",
-        "a metric that a function uses",
-    ],
-)
-def test_remove_metric_refuses_a_metric_that_it_cannot_remove(
-    network_with_minutes, cost, name
+def test_remove_metric_refuses_a_metric_that_the_geograph_lacks(
+    network_with_minutes,
 ):
-    network_with_minutes.create_metric("cost", **cost)
-
-    with pytest.raises(ValueError, match=name):
-        network_with_minutes.remove_metric(name)
+    with pytest.raises(ValueError, match="speed"):
+        network_with_minutes.remove_metric("speed")
 
 
 # An edit of the network

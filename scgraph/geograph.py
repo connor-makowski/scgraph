@@ -3404,7 +3404,7 @@ class GeoGraph(
 
         - Create a metric: one weight for each edge, under a name. `get_shortest_path(metric=name)` then finds the route with the smallest total of these weights
         - `create_metric` computes the weights at the call. A call gives exactly one of `per_km`, `weighted_sum_of` and `edge_weight_fn`
-        - A metric of the same name is replaced, and each metric that uses it is computed again. A weighted sum uses the metrics that it sums. A metric made by `edge_weight_fn` uses every metric that the geograph has at this call, because the function may read them in the `metrics` of an edge
+        - A metric of the same name is replaced. No other metric changes: a weighted sum, or a metric made by `edge_weight_fn`, keeps the weights that it got at its call. To update it, create it again
         - An edit of the network removes the metric: a node or an edge that is added or removed, or a merge. The geograph warns with the names of the removed metrics. Create the metric again after the edits
         - Example: `geograph.create_metric("hours", per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, at_hub={"rail_terminal": {"rail": 4}}, unit="h")`
 
@@ -3472,13 +3472,12 @@ class GeoGraph(
                 "per_km needs lengths in km: the lengths of this geograph are in "
                 f"{self._length_unit!r}"
             )
-        # The geograph keeps its own copy of the arguments, to compute the metric again
         definition = {
-            "per_km": deepcopy(per_km),
-            "at_hub": deepcopy(at_hub),
-            "weighted_sum_of": deepcopy(weighted_sum_of),
+            "per_km": per_km,
+            "at_hub": at_hub,
+            "weighted_sum_of": weighted_sum_of,
             "edge_weight_fn": edge_weight_fn,
-            "edge_weights": deepcopy(edge_weights),
+            "edge_weights": edge_weights,
         }
         self._edge_data.create_metric(
             self,
@@ -3499,7 +3498,7 @@ class GeoGraph(
 
         - `name`
             - Type: str
-            - What: The name of a metric of `metrics`, other than `length`; an unknown name, or a metric that another metric uses (see `create_metric`), raises a ValueError
+            - What: The name of a metric of `metrics`, other than `length`; an unknown name raises a ValueError
         """
         self._edge_data.remove_metric(self, name)
 

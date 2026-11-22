@@ -119,8 +119,6 @@ from scgraph.metrics import (
     compute_min_weight_per_km,
     compute_weights_by_sum,
     compute_weights_by_tables,
-    find_used_metrics,
-    find_users,
     set_edge_weights,
 )
 from scgraph.utils import get_units_per_km
@@ -473,12 +471,11 @@ class EdgeData:
         ]
 
     def add_read_metric(self, metric_record: Metric) -> None:
-        """Add a metric that a loader read, with its weights. The geograph cannot
-        compute it again.
+        """Add a metric that a loader read, with its weights.
 
         Args:
-            metric_record: The metric, without a definition. Its weights are in the
-                order of the edges of the graph.
+            metric_record: The metric. Its weights are in the order of the edges of
+                the graph.
         """
         self._metrics[metric_record.name] = metric_record
 
@@ -693,8 +690,7 @@ class EdgeData:
         description: str | None,
         definition: dict,
     ) -> None:
-        """Compute a metric and keep it, in place of a metric of the same name. Each
-        metric that uses it is then computed again, after the metrics that it uses.
+        """Compute a metric and keep it, in place of a metric of the same name.
 
         Args:
             name: The name of the metric.
@@ -702,54 +698,13 @@ class EdgeData:
             description: Where the weights come from, as free text, or None.
             definition: The arguments `per_km`, `at_hub`, `weighted_sum_of`,
                 `edge_weight_fn` and `edge_weights` of `GeoGraph.create_metric`, by
-                name. The `EdgeData` keeps this dict.
+                name.
 
         Raises:
             ValueError: An argument does not fit the network, or a weight is below
                 zero or not a number. No metric changes.
         """
-        self._line_up(geograph)
-        used_metrics = find_used_metrics(self._metrics, name, definition)
-        users = find_users(self._metrics, name)
-        metrics_before = self._metrics
-        # A metric that is created again keeps its place among the metrics
-        self._metrics = dict(metrics_before)
-        try:
-            self._metrics[name] = self._compute_metric(
-                geograph, name, unit, description, definition, used_metrics
-            )
-            for user_name in users:
-                user_record = self._metrics[user_name]
-                self._metrics[user_name] = self._compute_metric(
-                    geograph,
-                    user_name,
-                    user_record.unit,
-                    user_record.description,
-                    user_record.definition,
-                    user_record.used_metrics,
-                )
-        except Exception:
-            # No metric changes when one of them cannot be computed
-            self._metrics = metrics_before
-            raise
-
-    def _compute_metric(
-        self,
-        geograph: "GeoGraph",
-        name: str,
-        unit: str | None,
-        description: str | None,
-        definition: dict,
-        used_metrics: tuple[str, ...],
-    ) -> Metric:
-        """Return a metric computed on the lined-up edges.
-
-        Args:
-            definition: As in `create_metric`.
-            used_metrics: The names of the metrics that the metric uses. A function
-                reads these metrics, and no other, in the `metrics` of an edge.
-        """
-        offsets, heads, lengths = self._edge_arrays
+        offsets, heads, lengths = self._line_up(geograph)
         units_per_km = get_units_per_km(geograph.geograph_units)
         if definition["per_km"] is not None:
             edge_classes = self._edge_classes
@@ -771,7 +726,6 @@ class EdgeData:
             )
         elif definition["weighted_sum_of"] is not None:
             weights, off_graph_per_km = compute_weights_by_sum(
-                name,
                 definition["weighted_sum_of"],
                 self._metrics,
                 lengths,
@@ -779,17 +733,13 @@ class EdgeData:
             )
         else:
             edge_weight_fn = definition["edge_weight_fn"]
-            read_metrics = {
-                used_name: self._metrics[used_name]
-                for used_name in used_metrics
-            }
             weights = array(
                 "d",
                 (
                     check_weight(
                         edge_weight_fn(
                             self._build_edge(
-                                origin_id, edge_index, read_metrics
+                                origin_id, edge_index, self._metrics
                             )
                         ),
                         origin_id,
@@ -807,8 +757,8 @@ class EdgeData:
                     "class": None,
                     "mode": "off_graph",
                     "metrics": {
-                        used_name: used_record.off_graph_per_km
-                        for used_name, used_record in read_metrics.items()
+                        other_name: other_record.off_graph_per_km
+                        for other_name, other_record in self._metrics.items()
                     },
                 }
             )
@@ -829,31 +779,17 @@ class EdgeData:
                 "(for a function: the value that it returns for the mode "
                 "'off_graph')"
             )
-        return Metric(
-            name,
-            unit,
-            description,
-            weights,
-            float(off_graph_per_km),
-            definition,
-            used_metrics,
+        self._metrics[name] = Metric(
+            name, unit, description, weights, float(off_graph_per_km)
         )
 
     def remove_metric(self, geograph: "GeoGraph", metric: str) -> None:
         """Remove a metric.
 
         Raises:
-            ValueError: The geograph has no such metric, or another metric uses it.
+            ValueError: The geograph has no such metric.
         """
         self._get_metric_record(geograph, metric)
-        users = find_users(self._metrics, metric)
-        if users:
-            raise ValueError(
-                f"The metric {metric!r} is used by the metric {users[0]!r}: remove "
-                f"{users[0]!r} first. A weighted sum uses the metrics that it "
-                "sums, and a metric made by edge_weight_fn uses every metric that "
-                "the geograph had at its creation"
-            )
         del self._metrics[metric]
 
     def remove_metrics(self) -> None:

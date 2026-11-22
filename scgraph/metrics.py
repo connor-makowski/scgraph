@@ -28,11 +28,9 @@ A geograph computes the weights of a metric in one of three ways.
 
 `set_edge_weights` then writes the weights that the caller gives for some edges.
 
-A metric "uses" the metrics that its weights are computed from. A weighted sum uses
-the metrics that it sums. A function may read the weight of an edge in each metric
-that the geograph has at that time, so the metric of a function uses all of them.
-When a metric is created again, the geograph computes each of its users again
-(`find_users`), each one after the metrics that it uses (`order_by_dependencies`).
+A metric keeps the weights of its creation. A weighted sum, or a function, reads the
+weights that the other metrics have at its call. When one of them is created again,
+the sum does not change: the caller creates the sum again.
 
 Example, a graph with the edges 0 -> 1, 0 -> 2 and 2 -> 0, in this order, with
 lengths of 10, 20 and 20 km. The classes of the edges are the rows 4, 4 and 7 of the
@@ -82,14 +80,6 @@ class Metric:
     weights: array | memoryview
     # The weight of 1 km of the straight line between a query point and its node
     off_graph_per_km: float
-    # The arguments of the `create_metric` call that made the metric, by name. None
-    # for a metric that a loader read: the geograph cannot compute it again.
-    definition: dict | None = None
-    # The names of the metrics that the weights were computed from: the metrics of
-    # a weighted sum, other than `length`, or the metrics that a function could
-    # read. The geograph computes the metric again when one of them is created
-    # again.
-    used_metrics: tuple[str, ...] = ()
     # The smallest weight of an open edge divided by its length, over the edges
     # longer than zero. It scales the bound of an A* search. Computed at the first
     # such search.
@@ -236,7 +226,6 @@ def compute_weights_by_tables(
 
 
 def compute_weights_by_sum(
-    name: str,
     weighted_sum_of: dict[str, float],
     metrics: dict[str, Metric],
     lengths: array | memoryview,
@@ -245,7 +234,6 @@ def compute_weights_by_sum(
     """Compute the weights of a metric that is a weighted sum of other metrics.
 
     Args:
-        name: The name of the sum.
         weighted_sum_of: A dict from the name of a metric to its coefficient, a
             finite number above zero. `length` may be one of the metrics.
         metrics: The metrics of the geograph other than `length`, by name.
@@ -259,16 +247,9 @@ def compute_weights_by_sum(
         same sum of the rates of the metrics.
 
     Raises:
-        ValueError: The sum names no metric, an unknown metric or itself, or a
-            coefficient is not a finite number above zero.
+        ValueError: The sum names no metric or an unknown metric, or a coefficient
+            is not a finite number above zero.
     """
-    if name in weighted_sum_of or not set(weighted_sum_of).isdisjoint(
-        find_users(metrics, name)
-    ):
-        raise ValueError(
-            f"The metric {name!r} would use itself: weighted_sum_of names it, or "
-            "a metric that uses it"
-        )
     weights_of_metrics, off_graph_per_km = [], 0.0
     for summed_name, coefficient in weighted_sum_of.items():
         if summed_name != "length" and summed_name not in metrics:
@@ -403,89 +384,6 @@ def compute_min_weight_per_km(
         truediv, compress(weights, lengths), compress(lengths, lengths)
     )
     return min(filter(isfinite, ratios), default=0.0)
-
-
-def order_by_dependencies(metrics: dict[str, Metric]) -> list[str]:
-    """Return the names of the metrics, each one after the metrics that it uses.
-
-    Example: `cost` is a sum of `hours`, and `fare` is a sum of `cost`. The order
-    is `hours`, `cost`, `fare`, also when the dict lists `fare` first.
-
-    Args:
-        metrics: The metrics by name. No metric uses itself, directly or through
-            another metric: `create_metric` refuses such a metric.
-
-    Returns:
-        Every name of `metrics`. Two metrics that do not use each other keep the
-        order of `metrics`.
-    """
-    ordered = {}
-
-    def add_after_its_metrics(name: str) -> None:
-        if name not in ordered:
-            for used_name in metrics[name].used_metrics:
-                add_after_its_metrics(used_name)
-            ordered[name] = None
-
-    for name in metrics:
-        add_after_its_metrics(name)
-    return list(ordered)
-
-
-def find_users(metrics: dict[str, Metric], name: str) -> list[str]:
-    """Return the metrics that use a metric, directly or through another metric.
-
-    Example: `cost` is a sum of `hours`, and `fare` is a sum of `cost`. The users
-    of `hours` are `cost` and `fare`.
-
-    Args:
-        metrics: The metrics by name.
-        name: The name of the metric. It may be a name that `metrics` lacks.
-
-    Returns:
-        The names of the users, each one after the metrics that it uses.
-    """
-    used_names = {name}
-    users = []
-    for other_name in order_by_dependencies(metrics):
-        if other_name != name and used_names.intersection(
-            metrics[other_name].used_metrics
-        ):
-            used_names.add(other_name)
-            users.append(other_name)
-    return users
-
-
-def find_used_metrics(
-    metrics: dict[str, Metric], name: str, definition: dict
-) -> tuple[str, ...]:
-    """Return the names of the metrics that a new metric uses.
-
-    Args:
-        metrics: The metrics of the geograph, by name.
-        name: The name of the new metric. `metrics` may hold a metric of this name,
-            which the new metric replaces.
-        definition: The arguments of the `create_metric` call, by name.
-
-    Returns:
-        For a weighted sum, the metrics that it sums, other than `length`. For a
-        function, every other metric that does not use `name`: the function may
-        read each of them in the `metrics` of an edge. For tables, no metric.
-    """
-    if definition["weighted_sum_of"] is not None:
-        return tuple(
-            summed_name
-            for summed_name in definition["weighted_sum_of"]
-            if summed_name != "length"
-        )
-    if definition["edge_weight_fn"] is not None:
-        users = find_users(metrics, name)
-        return tuple(
-            other_name
-            for other_name in metrics
-            if other_name != name and other_name not in users
-        )
-    return ()
 
 
 def describe_definition(definition: dict) -> str:
