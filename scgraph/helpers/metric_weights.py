@@ -1,7 +1,8 @@
 """
 Pure-Python version of the C++ kernels `compute_weights_from_km` and
-`compute_weighted_sum`, with the same result, bit for bit. The kernels and their
-parameters are described in `scgraph/cpp/src/metric_weights.hpp`. Read it first.
+`compute_weighted_sum`, with the same result, bit for bit. This module is internal. The
+kernels and their parameters are described in `scgraph/cpp/src/metric_weights.hpp`. Read
+it first.
 
 Same as in C++: the steps, the order of the operations on each weight, and the
 messages of the errors.
@@ -22,15 +23,15 @@ from operator import add, mul
 def compute_weights_from_km(
     offsets: array | memoryview,
     heads: array | memoryview,
-    lengths: array | memoryview,
+    lengths_km: array | memoryview,
     edge_class_ids: array | memoryview,
     node_mode_ids: array | memoryview,
     class_weights_per_km: array | memoryview,
     hub_weights: array | memoryview,
 ) -> array:
     """
-    Compute the weight of each edge from the weight per km of its class and from the weight
-    that it pays at a hub: one float64 weight of zero or more for each edge, and
+    Compute the weight of each edge from the weight per km of its class and from the
+    weight that it pays at a hub: one float64 weight of zero or more for each edge, and
     infinity for a closed edge.
 
     Raises:
@@ -42,7 +43,7 @@ def compute_weights_from_km(
     if (
         node_count < 0
         or len(node_mode_ids) != node_count
-        or len(lengths) != edge_count
+        or len(lengths_km) != edge_count
         or len(edge_class_ids) != edge_count
     ):
         raise ValueError(
@@ -56,12 +57,12 @@ def compute_weights_from_km(
         )
     try:
         # 1. The weight per km of the class times the km, or infinity for a closed class
-        # A list holds the weights per km as Python floats: an array would make a new float
-        # at each read
+        # A list holds the weights per km as Python floats: an array would make a new
+        # float at each read
         weights_per_km = map(
             list(class_weights_per_km).__getitem__, edge_class_ids
         )
-        weights = array("d", map(mul, lengths, weights_per_km))
+        weights = array("d", map(mul, lengths_km, weights_per_km))
         is_closed = bytes(
             weight_per_km == inf for weight_per_km in class_weights_per_km
         )

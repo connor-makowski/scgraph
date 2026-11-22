@@ -533,7 +533,7 @@ class GraphModifiers:
         """The number of calls of `add_node`, `add_edge`, `remove_node` and
         `remove_edge` that changed the graph. A GeoGraph reads it to know that its
         graph was edited."""
-        return getattr(self, "__edit_count__", 0)
+        return getattr(self, "_edit_counter", 0)
 
     def add_node(
         self,
@@ -568,7 +568,7 @@ class GraphModifiers:
             for dest_id, distance in node_dict.items():
                 self.__graph__[dest_id][new_node_id] = distance
         self.__inverse_graph__ = None
-        self.__edit_count__ = self._edit_count + 1
+        self._edit_counter = self._edit_count + 1
         self.reset_cache()
         return new_node_id
 
@@ -614,7 +614,7 @@ class GraphModifiers:
         if symmetric:
             self.__graph__[destination_id][origin_id] = distance
         self.__inverse_graph__ = None
-        self.__edit_count__ = self._edit_count + 1
+        self._edit_counter = self._edit_count + 1
         self.reset_cache()
 
     def remove_node(
@@ -654,7 +654,7 @@ class GraphModifiers:
                     origin_dict.pop(node_id)
         removed_node = self.__graph__.pop()
         self.__inverse_graph__ = None
-        self.__edit_count__ = self._edit_count + 1
+        self._edit_counter = self._edit_count + 1
         self.reset_cache()
         return removed_node
 
@@ -695,6 +695,6 @@ class GraphModifiers:
             self.__graph__[destination_id].pop(origin_id, None)
         res = self.__graph__[origin_id].pop(destination_id, None)
         self.__inverse_graph__ = None
-        self.__edit_count__ = self._edit_count + 1
+        self._edit_counter = self._edit_count + 1
         self.reset_cache()
         return res

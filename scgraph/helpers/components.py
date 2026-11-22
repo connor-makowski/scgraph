@@ -175,8 +175,8 @@ def keep_largest_strongly_connected_component(
     list[dict[int, str]],
 ]:
     """Keep the largest strongly connected component of a graph in the layout of a
-    GeoGraph. Return `(graph, nodes, shapes, source_node_ids, edge_class_names)` with the kept
-    nodes only.
+    GeoGraph. Return `(graph, nodes, shapes, source_node_ids, edge_class_names)` with
+    the kept nodes only.
     """
     kept, _ = keep_strongly_connected_components(
         *build_csr_from_adjacency_list(graph)[:2]

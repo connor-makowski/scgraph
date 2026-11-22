@@ -129,9 +129,10 @@ HUB_TABLES = {
 
 class Hub(NamedTuple):
     """A hub. `kind` is `port`, `airport` or `rail_terminal`. `id` is its id in its
-    source. `point` is `[latitude, longitude]`. `node_modes` lists the networks that it serves.
-    `open_roadstead` is true for a port without shelter, where ships anchor off the coast.
-    The road connector of such a port may cross up to ROADSTEAD_WATER_KM of water.
+    source. `point` is `[latitude, longitude]`. `node_modes` lists the networks that it
+    serves. `open_roadstead` is true for a port without shelter, where ships anchor off
+    the coast. The road connector of such a port may cross up to ROADSTEAD_WATER_KM of
+    water.
     """
 
     kind: str
@@ -259,9 +260,10 @@ def join_networks_at_hubs(
 
     Returns:
         The joined network as the network file's arrays, and the number of hubs
-        joined of each kind. `node_mode_ids` gives the position of the node mode of each node in `node_modes`.
-        `source_node_ids` keeps each layer's ids and gives each hub its id in its table.
-        `edge_class_ids` gives the id of the class of each edge in `scgraph.pipelines.CLASSES`.
+        joined of each kind. `node_mode_ids` gives the position of the node mode of each
+        node in `node_modes`. `source_node_ids` keeps each layer's ids and gives each
+        hub its id in its table. `edge_class_ids` gives the id of the class of each edge
+        in `scgraph.pipelines.CLASSES`.
     """
     layers = {mode: _Layer(network) for mode, network in layers.items()}
     # The class id of a connector, by the mode that it reaches, and of a flight
@@ -354,8 +356,8 @@ def join_networks_at_hubs(
     for node_mode_id, size in zip(layer_node_mode_ids, sizes):
         node_mode_ids += bytes([node_mode_id]) * size
     node_mode_ids += bytes(node_modes.index(kind) for kind in kinds)
-    # build_graph_from_pieces renumbers the nodes; its source_node_ids are the numbers the
-    # nodes had here
+    # build_graph_from_pieces renumbers the nodes; its source_node_ids are the numbers
+    # the nodes had here
     old = joined["source_node_ids"]
     joined["node_mode_ids"] = array("B", (node_mode_ids[u] for u in old))
     joined["source_node_ids"] = array("q", (all_ids[u] for u in old))

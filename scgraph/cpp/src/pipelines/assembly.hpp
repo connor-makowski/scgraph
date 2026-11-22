@@ -179,9 +179,9 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
             // The edges first to i - 1 join the same two nodes, in input order. The
             // shortest of each class is parallel, except the kept edge
             for (int32_t j = first; j < i; ++j) {
-                const uint32_t a = static_cast<uint32_t>(edges[j]);
-                int64_t& shortest = shortest_of_class[edge_class_ids[a]];
-                if (shortest < 0 || weights[a] < weights[shortest]) shortest = a;
+                const uint32_t edge_id = static_cast<uint32_t>(edges[j]);
+                int64_t& shortest = shortest_of_class[edge_class_ids[edge_id]];
+                if (shortest < 0 || weights[edge_id] < weights[shortest]) shortest = edge_id;
             }
             for (int32_t j = first; j < i; ++j) {
                 int64_t& shortest = shortest_of_class[edge_class_ids[static_cast<uint32_t>(edges[j])]];

@@ -42,9 +42,9 @@ WHAT A PIPELINE MODULE HOLDS
     - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
       file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
-      order). `weights_length` holds km. `node_modes` is the node modes table (see below).
-      `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may hold
-      `edge_class_ids`, the class of each edge (see *The classes*). The runner then
+      order). `weights_length` holds km. `node_modes` is the node modes table (see
+      below). `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may
+      hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
       writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
@@ -113,8 +113,8 @@ direction and the name of a class, for example `(1, "motorway")`. A select funct
 uses the names of `CLASSES` only.
 
 A pipeline that fills `edge_class_ids` itself may define its own `CLASSES` dict in its
-module, with the same form. A value of `edge_class_ids` is then the id of a class of that table,
-and the runner writes that table into the header.
+module, with the same form. A value of `edge_class_ids` is then the id of a class of
+that table, and the runner writes that table into the header.
 
 A network file holds the class of each edge and one row `{"name", "edge_mode"}` for each
 class (`ARCHITECTURE.md`, section 7), and `network_file.read` returns them. A GeoGraph

@@ -4,8 +4,9 @@ described in `scgraph/cpp/src/edge_selection.hpp`. Read it first.
 
 Same as in C++: the three steps, the checks and the messages of the errors.
 
-Different: step 1 finds the first node of each node mode by bisection, because `node_mode_ids`
-is sorted. The check of the order runs in C (`map`), not in a Python loop.
+Different: step 1 finds the first node of each node mode by bisection, because
+`node_mode_ids` is sorted. The check of the order runs in C (`map`), not in a Python
+loop.
 """
 
 from array import array
@@ -35,7 +36,8 @@ def select_edges(
             offsets[u + 1] - 1 (int32).
         heads: The head of each edge, as the position of a node (int32).
         node_mode_ids: The node mode of each node (uint8). The values must not decrease.
-        is_node_mode_kept: For each node mode of the file, True if the selection keeps it.
+        is_node_mode_kept: For each node mode of the file, True if the selection
+            keeps it.
         shape_offsets: The shape of edge a is the shape points at the positions
             shape_offsets[a] to shape_offsets[a + 1] - 1 (int32). None for a file
             without edge shapes.

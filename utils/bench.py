@@ -577,11 +577,12 @@ def bench_misc(results):
             ms,
         )
 
-        def by_hours():
+        def get_shortest_path_by_hours():
             return uf_geo.get_shortest_path(orig, dest, metric="hours")
 
-        by_hours()  # builds the graph of the metric, which is not timed below
-        ms, out = timed(by_hours)
+        # This call builds the graph of the metric, which is not timed below
+        get_shortest_path_by_hours()
+        ms, out = timed(get_shortest_path_by_hours)
         results.cell(
             "misc",
             ["Shortest Path by a Metric", "us_freeway"],

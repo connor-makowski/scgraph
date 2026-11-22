@@ -168,13 +168,15 @@ def build_header_metadata(
     node_addition_modes: Sequence[str] | None = None,
 ) -> dict:
     """Return the metadata that `write` takes, for a network whose nodes are in the
-    order of a network file: by node mode, then along a Hilbert curve (`helpers.hilbert`).
+    order of a network file: by node mode, then along a Hilbert curve
+    (`helpers.hilbert`).
 
     Args:
         build_metadata: What built the network: the pipeline, the sources and the
             software (docstring of `scgraph.pipelines`).
-        node_modes: The node modes table: one dict for each node mode, with its `name` and, if a
-            source gave the node ids of the node mode, the name of that `source`.
+        node_modes: The node modes table: one dict for each node mode, with its `name`
+            and, if a source gave the node ids of the node mode, the name of that
+            `source`.
         metrics: One row for each metric of the network, `length` first. A row
             gives the `name` of the metric, its `unit` and its `description`. A
             row other than `length` also gives `off_graph_weight_per_km`: the
@@ -190,8 +192,8 @@ def build_header_metadata(
         `node_addition_modes`, `node_order`), then the keys of `build_metadata`.
 
     Raises:
-        ValueError: `build_metadata` sets a key that scgraph writes itself, or a node mode
-            names a source that is not in the `sources` of `build_metadata`.
+        ValueError: `build_metadata` sets a key that scgraph writes itself, or a node
+            mode names a source that is not in the `sources` of `build_metadata`.
     """
     if RESERVED_METADATA_KEYS & set(build_metadata):
         raise ValueError(
@@ -340,11 +342,11 @@ def read(
         filename: The path of the `.scgraph` file to read.
         mapped: If True, on a little-endian computer, the arrays are views of the
             file mapped into memory, not copies. The default is False.
-        node_modes: The names of the node modes to read. The arrays then hold only the nodes
-            of these node modes and the edges between them, in the order of the file. With
-            `mapped`, an array is a view of the file when its values are consecutive
-            in the file, and a new array otherwise. The default, None, reads every
-            node mode.
+        node_modes: The names of the node modes to read. The arrays then hold only the
+            nodes of these node modes and the edges between them, in the order of the
+            file. With `mapped`, an array is a view of the file when its values are
+            consecutive in the file, and a new array otherwise. The default, None, reads
+            every node mode.
 
     Returns:
         `(arrays, metadata)`. `arrays` holds the arrays of the network by name
@@ -441,8 +443,8 @@ def check_content(filename: str | os.PathLike) -> str:
 
 def _read(filename, file, mapped, node_modes):
     """The arrays of the whole file and its metadata. With `node_modes`, the third value
-    says, for each node mode of the file, whether `node_modes` names it. This value is None
-    when the read keeps every node mode."""
+    says, for each node mode of the file, whether `node_modes` names it. This value is
+    None when the read keeps every node mode."""
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
     digest = file.read(32)
@@ -686,9 +688,10 @@ class EdgeShapes(Sequence):
 
 class SourceNodeIds(Sequence):
     """
-    The `source_node_ids` of a GeoGraph: the stable id of each node (its id in the source it
-    came from, or its position if it has none), then, for each node added since, a
-    negative id below all the others. Read-only; pickled with its ids as a list.
+    The `source_node_ids` of a GeoGraph: the stable id of each node (its id in the
+    source it came from, or its position if it has none), then, for each node added
+    since, a negative id below all the others. Read-only; pickled with its ids as a
+    list.
     """
 
     def __init__(self, ids, nodes):
@@ -898,13 +901,14 @@ def _check(filename, arrays, metadata, should_check_values=True):
         metrics and metrics[0]["name"] == "length" and "unit" in metrics[0],
         "the first metric must be length, with its unit",
     )
-    weights_names = sorted(filter(_is_weights_array, arrays))
+    weights_array_names = sorted(filter(_is_weights_array, arrays))
     require(
-        sorted(f"weights_{row['name']}" for row in metrics) == weights_names,
+        sorted(f"weights_{row['name']}" for row in metrics)
+        == weights_array_names,
         "one array of weights per metric expected",
     )
     require(
-        all(len(arrays[name]) == m for name in weights_names),
+        all(len(arrays[name]) == m for name in weights_array_names),
         "one weight per edge expected",
     )
     require(

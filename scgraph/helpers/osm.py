@@ -444,9 +444,9 @@ def read_osm(
 
     Returns:
         `(graph, nodes, shapes, source_node_ids, edge_class_names)` in the layout of a
-        GeoGraph. `source_node_ids` holds the OSM ids of the nodes. `edge_class_names[i][j]`
-        is the class that `select` gave to the way of the edge from `i` to `j`, if it
-        gave one.
+        GeoGraph. `source_node_ids` holds the OSM ids of the nodes.
+        `edge_class_names[i][j]` is the class that `select` gave to the way of the edge
+        from `i` to `j`, if it gave one.
     """
     selects = {"all": {"ways": select}}
     junctions, polylines = locate_ways(

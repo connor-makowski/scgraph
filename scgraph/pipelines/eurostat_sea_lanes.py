@@ -97,13 +97,16 @@ def build(files: dict[str, str]) -> GeoGraph:
     # `format_coord_list`. No segment of the pinned file is in two lines of
     # different passages.
     node_of_point = {
-        _to_units(point): node_id for node_id, point in enumerate(sea.nodes)
+        _convert_to_e7_degrees(point): node_id
+        for node_id, point in enumerate(sea.nodes)
     }
     edge_class_names = [{} for _ in sea.nodes]
     for line, passage in lines:
         nodes = [
             node_of_point[
-                _to_units(format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1])
+                _convert_to_e7_degrees(
+                    format_coord_list(lon_lat, COORDINATE_DECIMALS)[::-1]
+                )
             ]
             for lon_lat in line["coordinates"]
         ]
@@ -121,7 +124,7 @@ def build(files: dict[str, str]) -> GeoGraph:
     return sea
 
 
-def _to_units(point):
+def _convert_to_e7_degrees(point):
     # A [latitude, longitude] point, in units of 1e-7 degree
     return round(point[0] * 1e7), round(point[1] * 1e7)
 
@@ -157,7 +160,8 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         "heads": heads,
         "weights_length": weights,
         "node_points": array(
-            "i", (x for point in sea.nodes for x in _to_units(point))
+            "i",
+            (x for point in sea.nodes for x in _convert_to_e7_degrees(point)),
         ),
         "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
         "shape_points": array("i"),

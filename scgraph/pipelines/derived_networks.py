@@ -22,10 +22,10 @@ copies into memory only the nodes and the edges that it keeps.
 
 HOW A RUN GOES
 
-1. Select the nodes. A node is selected when its mode is one of `node_modes`. A node of a
-   land mode (`LAND_MODES`) must also be inside `bbox`. The bbox does not cut the
-   other node modes: their nodes all stay. A `node_modes` of None keeps every mode. A `bbox`
-   of None cuts nothing.
+1. Select the nodes. A node is selected when its mode is one of `node_modes`. A node of
+   a land mode (`LAND_MODES`) must also be inside `bbox`. The bbox does not cut the
+   other node modes: their nodes all stay. A `node_modes` of None keeps every mode. A
+   `bbox` of None cuts nothing.
 2. Cut the graph. An edge stays when its two ends are selected.
 3. Keep each strongly connected component of at least `min_component_nodes` nodes.
    An edge between two components is dropped. The chains are not contracted again: a
@@ -131,9 +131,9 @@ _EDGE_SOURCE_OF_MODE = {"airport": "flights"}
 # The bbox of a call without a bbox: every point is inside it.
 _WHOLE_GLOBE = (-90, -180, 90, 180)
 # The networks that a network release derives from the file of `world_multimodal`.
-# An entry gives the arguments of `derive_network_file` for one network. `node_modes` names the
-# modes to keep. `bbox` is the rectangle that cuts the land networks, as (south,
-# west, north, east) in degrees.
+# An entry gives the arguments of `derive_network_file` for one network. `node_modes`
+# names the modes to keep. `bbox` is the rectangle that cuts the land networks, as
+# (south, west, north, east) in degrees.
 DERIVED_NETWORKS: dict[str, dict] = {
     "world_sea": {"node_modes": ["sea", "port"]},
     "world_rail": {"node_modes": ["rail", "rail_terminal"]},

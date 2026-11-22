@@ -54,14 +54,14 @@ HUBS AND CONNECTORS
 
 MODES AND CLASSES
 
-- Each node has its node mode (`node_mode_ids`, positions in `node_modes`): `road`, `rail`, `sea`,
-  `port`, `airport` or `rail_terminal`. Each mode cites the source of its node ids:
-  OpenStreetMap for roads and railways, the World Port Index number for a port, the
-  OurAirports id for an airport, the Wikidata number for a rail terminal. A node with
-  a negative id is in no source: the build added it (*Nodes and shapes*).
-- Each edge has a class. `edge_class_ids` gives its position in `classes`. A road edge has the
-  `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
-  railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
+- Each node has its node mode (`node_mode_ids`, positions in `node_modes`): `road`,
+  `rail`, `sea`, `port`, `airport` or `rail_terminal`. Each mode cites the source of its
+  node ids: OpenStreetMap for roads and railways, the World Port Index number for a
+  port, the OurAirports id for an airport, the Wikidata number for a rail terminal. A
+  node with a negative id is in no source: the build added it (*Nodes and shapes*).
+- Each edge has a class. `edge_class_ids` gives its position in `classes`. A road edge
+  has the `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`.
+  A railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
   edge has the name of its passage, for example `suez`, or `open_sea`. A flight is
   `flight`. A connector to a road has the class `road_connector`, a connector to a
   railway `rail_connector`, and a connector to a sea lane `sea_connector`.

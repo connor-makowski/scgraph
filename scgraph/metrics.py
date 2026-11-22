@@ -22,7 +22,8 @@ The weights of a metric are computed in one of three ways:
   (`compute_weights_from_function`). The caller gives the weight of 1 km of an
   off-graph leg beside the function.
 
-`set_edge_weights` then writes the weights that the caller gives for some edges.
+`copy_with_edge_weights` then returns a copy of the weights with the weights that
+the caller gives for some edges.
 
 THE RULE: A METRIC KEEPS THE WEIGHTS OF ITS CREATION
 
@@ -235,7 +236,8 @@ def compute_weights_from_sum(
         weighted_sum_of: `{name of a metric: coefficient}`. `length` may be one of
             the metrics.
         metrics: The metrics of the geograph other than `length`, by name.
-        lengths: The length of each edge: the weights of the metric `length`.
+        lengths: The length of each edge, in `geograph_units`: the weights of the
+            metric `length`.
         units_per_km: 1 km in the unit of `lengths`.
 
     Raises:
@@ -287,7 +289,7 @@ def compute_weights_from_function(
     return array(
         "d",
         (
-            check_weight(
+            parse_weight(
                 edge_weight_fn(edge), edge["origin_id"], edge["destination_id"]
             )
             for edge in edges
@@ -296,19 +298,19 @@ def compute_weights_from_function(
 
 
 def _check_edge_modes(
-    keys: Iterable, argument: str, edge_modes: list[str]
+    keys: Iterable, argument_name: str, edge_modes: list[str]
 ) -> None:
     # Refuse a key of `weight_per_km` or of a dict of hub weights that is no edge
-    # mode. `argument` names the dict in the message.
+    # mode. `argument_name` names the dict in the message.
     for key in keys:
         if key not in edge_modes:
             raise ValueError(
-                f"{argument} has the key {key!r}, which is no edge mode of "
+                f"{argument_name} has the key {key!r}, which is no edge mode of "
                 f"this geograph: its edge modes are {edge_modes}"
             )
 
 
-def check_weight(
+def parse_weight(
     weight: float | None, origin_id: int, destination_id: int
 ) -> float:
     """Return the weight that a caller gives for an edge as a float: infinity for
@@ -328,7 +330,7 @@ def check_weight(
     return weight
 
 
-def set_edge_weights(
+def copy_with_edge_weights(
     weights: array | memoryview,
     edge_weights: dict,
     offsets: array | memoryview,
@@ -347,8 +349,8 @@ def set_edge_weights(
         ValueError: A pair of nodes is not an edge, or a weight is below zero or
             not a number.
     """
-    new_weights = array("d")
-    new_weights.frombytes(memoryview(weights).cast("B"))
+    weights_with_edge_weights = array("d")
+    weights_with_edge_weights.frombytes(memoryview(weights).cast("B"))
     for (origin_id, destination_id), weight in edge_weights.items():
         edge_id = find_edge_id(offsets, heads, origin_id, destination_id)
         if edge_id is None:
@@ -356,11 +358,13 @@ def set_edge_weights(
                 f"edge_weights names an edge from node {origin_id} to node "
                 f"{destination_id}: the geograph has no such edge"
             )
-        new_weights[edge_id] = check_weight(weight, origin_id, destination_id)
-    return new_weights
+        weights_with_edge_weights[edge_id] = parse_weight(
+            weight, origin_id, destination_id
+        )
+    return weights_with_edge_weights
 
 
-def check_off_graph_weight_per_km(
+def parse_off_graph_weight_per_km(
     name: str, off_graph_weight_per_km: float | None
 ) -> float:
     """Return the weight of 1 km of an off-graph leg in a new metric as a float.

@@ -75,11 +75,13 @@ TWO_WAY_EDGES = [
 # The class of each edge, by (origin, destination)
 CLASS_OF_EACH_EDGE = {
     nodes: edge_class
-    for a, b, _, edge_class in TWO_WAY_EDGES
-    for nodes in ((a, b), (b, a))
+    for node, other_node, _, edge_class in TWO_WAY_EDGES
+    for nodes in ((node, other_node), (other_node, node))
 }
 KM_OF_EACH_EDGE = {
-    nodes: km for a, b, km, _ in TWO_WAY_EDGES for nodes in ((a, b), (b, a))
+    nodes: km
+    for node, other_node, km, _ in TWO_WAY_EDGES
+    for nodes in ((node, other_node), (other_node, node))
 }
 
 # The weights per km of the metric `minutes`: the minutes that 1 km takes. A
@@ -140,10 +142,10 @@ def _write_network(path, nodes, two_way_edges, classes):
     class. A query point snaps to a road node by default."""
     # The edges of each node: (destination, km, id of the class)
     edges_of_each_node = [[] for _ in nodes]
-    for a, b, km, edge_class in two_way_edges:
+    for node, other_node, km, edge_class in two_way_edges:
         class_id = list(classes).index(edge_class)
-        edges_of_each_node[a].append((b, km, class_id))
-        edges_of_each_node[b].append((a, km, class_id))
+        edges_of_each_node[node].append((other_node, km, class_id))
+        edges_of_each_node[other_node].append((node, km, class_id))
     heads, lengths, edge_class_ids = zip(
         *(edge for edges in edges_of_each_node for edge in edges)
     )

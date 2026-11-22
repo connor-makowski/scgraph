@@ -323,16 +323,16 @@ NB_MODULE(cpp, m) {
        "shape_offsets, node_runs, edge_runs, shape_point_runs); explained in scgraph/cpp/src/edge_selection.hpp, "
        "same result as scgraph.helpers.edge_selection.select_edges");
 
-    m.def("compute_weights_from_km", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
+    m.def("compute_weights_from_km", [](Int32Array offsets, Int32Array heads, DoubleArray lengths_km,
                                           Uint8Array edge_class_ids, Uint8Array node_mode_ids,
                                           DoubleArray class_weights_per_km, DoubleArray hub_weights) {
         return owned_view(compute_weights_from_km(
             {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
-            {lengths.data(), lengths.shape(0)}, {edge_class_ids.data(), edge_class_ids.shape(0)},
+            {lengths_km.data(), lengths_km.shape(0)}, {edge_class_ids.data(), edge_class_ids.shape(0)},
             {node_mode_ids.data(), node_mode_ids.shape(0)},
             {class_weights_per_km.data(), class_weights_per_km.shape(0)},
             {hub_weights.data(), hub_weights.shape(0)}));
-    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths"), nb::arg("edge_class_ids"),
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths_km"), nb::arg("edge_class_ids"),
        nb::arg("node_mode_ids"), nb::arg("class_weights_per_km"), nb::arg("hub_weights"),
        "The weight of each edge from a weight per km for each class and the weight that it pays at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "

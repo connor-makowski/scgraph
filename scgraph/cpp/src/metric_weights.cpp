@@ -5,7 +5,7 @@
 #include <string>
 
 std::vector<double> compute_weights_from_km(
-    std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths,
+    std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths_km,
     std::span<const uint8_t> edge_class_ids, std::span<const uint8_t> node_mode_ids,
     std::span<const double> class_weights_per_km, std::span<const double> hub_weights) {
     constexpr double INFINITE = std::numeric_limits<double>::infinity();
@@ -13,7 +13,7 @@ std::vector<double> compute_weights_from_km(
     const int64_t edge_count = (int64_t)heads.size();
     const size_t class_count = class_weights_per_km.size();
     if (node_count < 0 || (int64_t)node_mode_ids.size() != node_count ||
-        (int64_t)lengths.size() != edge_count || (int64_t)edge_class_ids.size() != edge_count) {
+        (int64_t)lengths_km.size() != edge_count || (int64_t)edge_class_ids.size() != edge_count) {
         throw std::invalid_argument("expected one node mode per node, and one length and one class per edge");
     }
     if (class_count == 0 || hub_weights.size() % class_count != 0) {
@@ -40,7 +40,7 @@ std::vector<double> compute_weights_from_km(
             if (head < 0 || head >= node_count) throw std::invalid_argument("edge to a missing node");
             // 1. The weight per km of the class times the km, or infinity for a closed class
             const double weight_per_km = class_weights_per_km[class_id];
-            double weight = weight_per_km == INFINITE ? INFINITE : weight_per_km * lengths[edge_id];
+            double weight = weight_per_km == INFINITE ? INFINITE : weight_per_km * lengths_km[edge_id];
             // 2. The weight of the hub that the edge leaves
             const double weight_leaving_hub = hub_weights_of_origin[class_id];
             if (weight_leaving_hub != 0.0) weight += weight_leaving_hub;

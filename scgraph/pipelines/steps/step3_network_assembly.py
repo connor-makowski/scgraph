@@ -12,9 +12,10 @@ A graph is a dict of arrays, with the names of the network file. Node `u` has th
 `offsets[u]` to `offsets[u + 1] - 1`. Edge `a` goes to node `heads[a]` and is
 `weights_length[a]` km long. `node_points` holds the latitude, then the longitude of each
 node, in units of 1e-7 degree. The shape points of edge `a` are
-`shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `source_node_ids` holds the id
-of each node in its source. A node that step 1 adds has an id below zero. `node_mode_ids`,
-if the graph has several modes, holds the position of the node mode of each node in the node modes table.
+`shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `source_node_ids` holds
+the id of each node in its source. A node that step 1 adds has an id below zero.
+`node_mode_ids`, if the graph has several modes, holds the position of the node mode of
+each node in the node modes table.
 
 `edge_class_ids`, if the pieces have classes, holds the id of the class of each edge in the classes
 table (`scgraph.pipelines.CLASSES`).
@@ -241,9 +242,10 @@ def build_csr_from_edges(
             without classes.
 
     Returns:
-        `(source_node_ids, offsets, heads, weights, kept, parallel_edges)`. `source_node_ids` (int64)
-        lists the ids of the ends, sorted, each once. Node `u` is the id at position
-        `u`. The edges of node `u` are `heads[offsets[u]:offsets[u + 1]]` (int32),
+        `(source_node_ids, offsets, heads, weights, kept, parallel_edges)`.
+        `source_node_ids` (int64) lists the ids of the ends, sorted, each once. Node `u`
+        is the id at position `u`. The edges of node `u` are
+        `heads[offsets[u]:offsets[u + 1]]` (int32),
         sorted by head, with their `weights`. `kept[a]` (int32) is the input index of
         edge `a`: the caller finds the shape of the edge with it. The function drops an
         edge from a node to itself, and an id that has only such edges gives no node.
@@ -434,8 +436,8 @@ def contract_chains(
         offsets: The CSR offsets of the graph, one more than its nodes (int32).
         heads: The head of each edge (int32).
         weights: The length of each edge in km (float64).
-        node_mode_ids: The mode of each node (uint8), or None. A chain is never contracted
-            across two modes.
+        node_mode_ids: The mode of each node (uint8), or None. A chain is never
+            contracted across two modes.
         max_km_between_nodes: The length in km at which a chain is cut. Along the chain,
             an edge ends at the first node where it is this long or longer. So an edge
             can be longer than this value, by less than the length of one input edge.
@@ -721,7 +723,8 @@ def build_graph_from_pieces(
     Returns:
         The graph as a dict of arrays: `offsets`, `heads`, `weights_length`,
         `node_points`, `shape_offsets`, `shape_points` and `source_node_ids`, and
-        `edge_class_ids` when the pieces have classes. The module docstring describes them.
+        `edge_class_ids` when the pieces have classes. The module docstring describes
+        them.
 
     Raises:
         ValueError: Every piece joins a node to itself. Or some pieces have a class
@@ -801,8 +804,8 @@ def assemble_network(
     at DEBUG.
 
     Args:
-        graph: The graph, as `build_graph_from_pieces` returns it, with `node_mode_ids` if it
-            has several modes. The function empties this dict, to free its memory.
+        graph: The graph, as `build_graph_from_pieces` returns it, with `node_mode_ids`
+            if it has several modes. The function empties this dict, to free its memory.
         max_km_between_nodes: The length in km at which `contract_chains` cuts a chain.
         min_component_nodes: The smallest number of nodes of a kept component. None keeps
             only the largest component.
@@ -903,9 +906,9 @@ def _select_nodes(graph, nodes):
     """Copy the arrays of `graph` that describe the nodes, for the nodes listed in
     `nodes` only. Node `nodes[i]` becomes node `i`.
 
-    The arrays are `node_points`, then `source_node_ids` and `node_mode_ids` if `graph` has
-    them. `network_file.write` writes the arrays in the order of the returned dict. This
-    order is fixed, so every run writes the same file.
+    The arrays are `node_points`, then `source_node_ids` and `node_mode_ids` if `graph`
+    has them. `network_file.write` writes the arrays in the order of the returned dict.
+    This order is fixed, so every run writes the same file.
     """
     # One view holds the latitudes and another the longitudes, without a copy.
     # Reading a value from a view is as fast as reading it from an array.

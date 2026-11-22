@@ -40,9 +40,9 @@ def hilbert_order(
 
     Args:
         nodes: The point of each node, as `[latitude, longitude]`.
-        node_mode_ids: The node mode of each node, as a number. The nodes are then ordered by
-            node mode first, and along the curve inside each node mode. The nodes of one node mode
-            stay together.
+        node_mode_ids: The node mode of each node, as a number. The nodes are then
+            ordered by node mode first, and along the curve inside each node mode. The
+            nodes of one node mode stay together.
 
     Returns:
         `order`, where `order[new_id]` is the old id of the node.
