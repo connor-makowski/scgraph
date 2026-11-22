@@ -16,7 +16,7 @@ from operator import le
 def warn_deprecated(name: str, stacklevel: int = 3) -> None:
     """
     Warns that a function or a parameter of the former printing is deprecated. The
-    message sends the user to the README section Logging.
+    message sends the user to the section Logging of `guides/routing.md`.
 
     - `name`: the function or the parameter, as the message names it
     - `stacklevel`: the default points the warning at the caller of the function that
@@ -24,7 +24,7 @@ def warn_deprecated(name: str, stacklevel: int = 3) -> None:
     """
     warnings.warn(
         f"{name} is deprecated. scgraph reports its messages through the logging"
-        " module (README, section Logging)",
+        " module (guides/routing.md, section Logging)",
         DeprecationWarning,
         stacklevel=stacklevel,
     )

@@ -221,8 +221,8 @@ HOW TO ADD A NETWORK TO SCGRAPH
 1. Add the module to this package, with the names above.
 2. Add its name to `NAMES` below and to the `Literal` of `GeoGraph.build_geograph`,
    in alphabetical order. A test checks that the two lists are the same.
-3. Add its row to the table of *Building Networks from Their Sources*, in `README.md`
-   and in the docstring of `scgraph/__init__.py`.
+3. Add its row to the table of *Building Networks from Their Sources*, in
+   `guides/networks.md`.
 4. Add its cases to `steps/step4_validation_cases/cases/` and list them in `VALIDATION`.
 5. Build and validate the network with the command above.
 

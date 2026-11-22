@@ -2,7 +2,7 @@
 
 This document explains how `scgraph` works inside: how a query runs, how a graph is stored, how graph reduction works, how to add an algorithm, what the caches hold, and the `.scgraph` file format.
 
-The [README](README.md) and the [API Documentation](https://connor-makowski.github.io/scgraph/scgraph.html) show how to use scgraph. [DEVELOPMENT.md](DEVELOPMENT.md) gives the rules of a contribution.
+The [README](README.md), the guides of [`guides/`](guides/) and the [API Documentation](https://connor-makowski.github.io/scgraph/scgraph.html) show how to use scgraph. [DEVELOPMENT.md](DEVELOPMENT.md) gives the rules of a contribution.
 
 **Words.** An **edge** joins one node to another, in one direction, and has a weight. A **metric** is one weight for every edge of a network, under a name. `length` is the metric that every network has: the length of each edge. The **class** of an edge is its category in its source, such as `motorway` or `suez`. An edge is **closed** in a metric when its weight is infinity: no route by this metric takes it. A **rate** is the weight of 1 km of an edge. A **query point** is the origin or the destination of a query. An **access leg** is the straight line between a query point and the node that it snaps to. The **total** of a metric along a route is the sum of the weights of its edges and of its two access legs. A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`. Each class has one edge mode.
 
@@ -31,7 +31,7 @@ flowchart LR
 
 `scgraph` separates the graph algorithms from the geographic logic and from the grid logic:
 
-* **`Graph`**: A graph of node ids. It knows nothing about coordinates. It holds the search algorithms (Dijkstra, Bidirectional Dijkstra, A\*, Bellman-Ford, BMSSP) and graph reduction. The *Algorithm Reference* of the [README](README.md#algorithm-reference) lists every algorithm with its use.
+* **`Graph`**: A graph of node ids. It knows nothing about coordinates. It holds the search algorithms (Dijkstra, Bidirectional Dijkstra, A\*, Bellman-Ford, BMSSP) and graph reduction. The section *Choosing an Algorithm* of [guides/routing.md](guides/routing.md#choosing-an-algorithm) lists every algorithm with its use.
 * **`GeoGraph` / `LazyGeoGraph`**: A `GeoGraph` holds a `Graph` (attribute `graph_object`) and one point for each node (WGS84 latitude and longitude). It snaps a point to the network with a `SnapIndex`, computes distances, and handles networks with several node modes. It also holds the class of each edge and the metrics of the network, with one `Graph` for each metric. A `LazyGeoGraph` downloads and loads its network at the first query.
 * **`GridGraph`**: A 2D grid with obstacles, with 4 or 8 directions of movement.
 * **`CHGraph` / `TNRGraph`**: Two hierarchies that a `Graph` builds on demand to answer queries faster: Contraction Hierarchies and Transit Node Routing.
@@ -202,7 +202,7 @@ The selected algorithm (default: `bidirectional_buckets`) runs from the origin c
 * The search runs on the graph of the metric of the query: `get_graph_object(metric)`. It reads the `search_graph` of this graph: the reduced graph if `reduce()` was called, the original graph otherwise.
 * No search takes a closed edge. When every route needs one, the search raises `PathNotFoundError`.
 * `a_star` uses a distance to the destination as a lower bound. With `heuristic_fn=geograph.haversine`, the bound is the great-circle distance. The search computes it from the coordinates in radians, which the `GeoGraph` keeps. With `heuristic_fn=geograph.cheap_ruler`, the bound is the distance that `cheap_ruler` returns. For a metric other than `length`, the `GeoGraph` multiplies each of these two bounds by the smallest weight that the metric gives to 1 km of an open edge (`min_weight_per_km`). A route of `d` km weighs at least `d` times this value, so the bound stays below the real total. Another heuristic function is used as it is. The search stops when, for the node taken from the queue, the distance from the origin plus the lower bound reaches the length of the best route found. With more than 4 destination candidates, it computes no lower bound and scans the nodes as Dijkstra does.
-* A search that counts its node scans (README, *Logging*) stores the count for its thread when it ends (`_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
+* A search that counts its node scans (`guides/routing.md`, *Logging*) stores the count for its thread when it ends (`_last_search_in_thread` in Python, `tl_node_scans` in C++). `GeoGraph.get_shortest_path` reads it for its DEBUG record.
 
 ### 4. Path Expansion
 If the search ran on a reduced graph, `run_with_reduced` replaces each contracted edge of the path by the nodes of its chain.

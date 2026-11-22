@@ -949,7 +949,7 @@ class GeoGraphIO:
         Function:
 
         - Load a built-in GeoGraph by name, using a local cache.
-        - A network release is a set of networks that the maintainers of scgraph build from open sources and publish together under one tag. A network of a network release is a released network. The name of a released network, such as `europe`, `world_sea` or `world_multimodal`, loads that network. `list_geographs` gives every name, and the README describes each network (section *Network Releases*).
+        - A network release is a set of networks that the maintainers of scgraph build from open sources and publish together under one tag. A network of a network release is a released network. The name of a released network, such as `europe`, `world_sea` or `world_multimodal`, loads that network. `list_geographs` gives every name, and `guides/networks.md` describes each network (section *Released Networks*).
         - For such a name, the first call downloads the network file, decompresses it, checks its content, then keeps it in the cache. Later calls read the cache without any network request. The arguments `network_release`, `content_sha256`, `modes` and `load_intermediate_nodes` apply to these networks only.
         - The points below apply to the seven networks of scgraph 3.6.0 (`marnet`, `us_freeway`, ...), which are published as `.graphjson` files.
         - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
