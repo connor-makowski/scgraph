@@ -10,8 +10,8 @@ and what it produces, with numbers of a real run.
 
 The guide covers the networks that scgraph publishes in network releases, such as `europe` or
 `world_multimodal`.
-The seven networks of scgraph 3.6.0, such as `marnet`, were made in another way. The README
-of the repository describes them.
+The seven networks of scgraph 3.6.0, such as `marnet`, were made in another way.
+[MIGRATING.md](https://github.com/connor-makowski/scgraph/blob/main/MIGRATING.md) lists them.
 
 ## The words
 
@@ -67,8 +67,7 @@ flowchart TD
 ```
 
 A user can also do the work of Parts 1 and 2 on a machine of their own. Part 1 gives the
-command that builds the network of one country. The section *A network of your own* gives
-the call that derives a network.
+command of a build, and the section *A network of your own* names the call of a derivation.
 
 ## Four choices of the design
 
@@ -324,34 +323,12 @@ The file holds 50,320 nodes and 171,999 edges.
 | `rail_terminal` | 1 |
 
 A route may use every network. It starts and ends at a road node, and it goes from one network
-to another at hubs. A leg is a part of a route on one edge mode. `output_legs=True` returns the
-legs of the route, and the hubs between them.
-
+to another at hubs.
 `GeoGraph.build_geograph` calls the runner, then loads the file. It builds nothing when the
-cache holds the file.
-
-```py
-from scgraph import GeoGraph
-
-denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
-route = denmark.get_shortest_path(
-    {"latitude": 56.1629, "longitude": 10.2039},  # the center of Aarhus
-    {"latitude": 55.6761, "longitude": 12.5683},  # the center of Copenhagen
-    output_legs=True,
-)
-route["length"]  # the km of the shortest route
-[(leg["mode"], round(leg["length"])) for leg in route["legs"]]  # the edge modes that it takes
-```
-
-To keep some node modes only, load the file with `modes`. With the roads alone, the route between
-the same two points is 302.2 km:
-
-```py
-from scgraph.pipelines.network_builder import build_network_file
-
-file = build_network_file("geofabrik_multimodal", region="europe/denmark")  # the file of the cache
-roads = GeoGraph.load_from_scgraph(file, modes=["road"])
-```
+cache holds the file. The guide
+[Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#building-networks-from-their-sources)
+gives this call. With the roads alone (`modes=["road"]`), the route from the center of Aarhus
+(56.1629, 10.2039) to the center of Copenhagen (55.6761, 12.5683) is 302.2 km.
 
 Each edge has a class. A two-way road gives two edges, and the table counts the km of both.
 
@@ -377,9 +354,8 @@ network `world_multimodal`. The pipeline differs from `geofabrik_multimodal` in 
   The roads of an island then stay in the file.
 
 A shortest route counts km only, on every network. A long route therefore often takes a
-flight. Part 4 loads some node modes only. The README of the repository, section *Routes by
-Time, Cost and CO2*, gives each edge mode a speed or a cost, and finds the fastest or the
-cheapest route.
+flight. The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md)
+gives each edge mode a speed or a cost, and finds the fastest or the cheapest route.
 
 ## Part 2. Derive a network from a network file
 
@@ -536,11 +512,9 @@ The run ends with a draft.
    of each file and the counts of each network into `scgraph/network_release.py`. It writes
    the module as the formatter keeps it, so `utils/prettify.py` changes no line. A PR brings
    this module into `dev`.
-4. **Update the documents.** The README of the repository names the pinned network release,
-   with the sizes of its files and one `content_sha256`. Its examples show lengths on the
-   released networks. In the same PR, the maintainer runs these examples again, and updates
-   the tag, the sizes, the counts and each length that changed. The maintainer also updates
-   the numbers of Parts 2 to 4 of this guide.
+4. **Update the documents.** The README and the guides of `guides/` hold no number of a
+   network release. In the same PR, the maintainer runs their examples again, and updates the
+   numbers of Parts 2 to 4 of this guide.
 5. **Reach the users.** An install from `dev` loads the new network release at once. A user of
    PyPI gets it with the next version of scgraph.
 
@@ -564,105 +538,42 @@ Where to read more: the comment at the top of `build_networks.yml`, and the docs
 
 ## Part 4. Load a released network
 
-```py
-from scgraph import GeoGraph
+`GeoGraph.load_geograph("oceania")` loads a released network. The guide
+[Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#released-networks) lists the
+eleven networks, and gives the arguments of the call, the cache and the errors of a load.
+This part follows one load of `oceania` without its edge shapes, with the numbers of a run.
 
-oceania = GeoGraph.load_geograph("oceania", load_intermediate_nodes=False)
-sydney = {"latitude": -33.8688, "longitude": 151.2093}
-perth = {"latitude": -31.9523, "longitude": 115.8613}
-route = oceania.get_shortest_path(origin_node=sydney, destination_node=perth)
-route["length"]  # 3311.7 km: the route takes a flight
-
-roads = GeoGraph.load_geograph("oceania", load_intermediate_nodes=False, modes=["road"])
-route = roads.get_shortest_path(origin_node=sydney, destination_node=perth)
-route["length"]  # 3930.3 km, by road
-```
-
-`load_geograph` takes the name of a released network. `load_intermediate_nodes=False` asks for
-the file without the shapes of the edges, and `modes` for some node modes only. The README of
-the repository lists the eleven networks, in section *Network Releases*. It also gives the
-other arguments, the way to read the credit line, and the way to load exactly the same file
-later. The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on
-a map.
-
-The first call downloads
-`https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph.gz`.
-The cache keeps the decompressed file as
-`releases/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph`.
-
-```mermaid
-flowchart TD
-    A["load_geograph(name)"] --> B{"Is the file in the cache?"}
-    B -- "no" --> O{"Is scgraph offline?<br/>local_files_only or SCGRAPH_OFFLINE=1"}
-    O -- "yes" --> E1["FileNotFoundError"]
-    O -- "no" --> D{"Does the server give the file?<br/>3.5 MB, compressed"}
-    D -- "no" --> E4["FileNotFoundError or ConnectionError"]
-    D -- "yes" --> U["Decompress it<br/>7.1 MB"]
-    U --> K{"Is the content whole?<br/>Is its content_sha256 the one in network_release.py?"}
-    K -- "no" --> E2["Delete the file, ValueError"]
-    K -- "yes" --> M["Move the file into the cache"]
-    M --> H
-    B -- "yes" --> H{"Did the caller pass a content_sha256<br/>that the file does not have?"}
-    H -- "yes" --> E3["ValueError"]
-    H -- "no" --> L["Read the file<br/>125,904 nodes, 339,010 edges"]
-    L --> G["A GeoGraph"]
-```
+1. **Download.** The first call downloads
+   `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph.gz`
+   (3.5 MB), and decompresses it (7.1 MB).
+2. **Check.** `network_file.check_content` computes the `content_sha256` of the decompressed
+   file, and compares it with the one in the header of the file. This finds a download that
+   was cut or damaged. For the pinned network release, the `content_sha256` must also be the
+   one that `scgraph/network_release.py` records. This finds a file that was replaced on the
+   server. A file of another network release has the first check only. A file that fails a
+   check is deleted: it does not enter the cache, and the load raises a `ValueError`.
+3. **Keep.** The cache keeps the decompressed file as
+   `releases/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph`. The cache is not
+   compressed: with the C++ extension, and without `modes`, scgraph maps the file and does not
+   copy it into memory. A later load makes no request, and does not check the file again.
+4. **Read.** The load reads 125,904 nodes and 339,010 edges. When the caller passes a
+   `content_sha256`, the load fails if the file of the cache has another one.
 
 The numbers come from one first load and one later load on 2026-11-22, on Linux, with the C++
-extension. The first load took 2.7 s, download included. The later load took 0.01 s: it found
-the file in the cache and made no request.
-
-- **Which network release.** `load_geograph` loads a network of the pinned network release,
-  which `scgraph/network_release.py` names. The argument `network_release` gives the tag of another
-  network release.
-- **Which checks after a download.** `network_file.check_content` computes the
-  `content_sha256` of the decompressed file, and compares it with the one in the header of the
-  file. This finds a download that was cut or damaged. For the pinned network release, the
-  `content_sha256` must also be the one that `scgraph/network_release.py` records. This finds a
-  file that was replaced on the server. A file of another network release has the first check
-  only. A file of the cache is not checked again.
-- **Which check at each load.** A caller can pass the `content_sha256` of the file that it
-  wants. The load fails when the file of the cache has another one.
-- **After an error.** A downloaded file that fails a check does not enter the cache. In every
-  error case of the picture, the cache is as before, and the call can be made again.
-- **Why the cache is not compressed.** With the C++ extension, and without `modes`, scgraph
-  maps the file and does not copy it into memory.
-- **How long the cache keeps a file.** The cache keeps the files of each network release until
-  `GeoGraph.clear_geograph_cache` removes them. The README of the repository gives the place
-  of the cache, in section *Cache Management*.
+extension. The first load took 2.7 s, download included, and the later load 0.01 s. The
+shortest route from Sydney (-33.8688, 151.2093) to Perth (-31.9523, 115.8613) is 3311.7 km,
+with a flight. With `modes=["road"]`, the route is 3930.3 km.
 
 Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 
 ## A network of your own
 
-- **Another network derived from a released network.** `derive_network_file` takes any node
-  modes and any bbox. The parent file is in the cache after a load, and `scgraph_file` gives
-  its path. The parent file must have the shapes of its edges.
-
-  ```py
-  from scgraph import GeoGraph
-  from scgraph.pipelines.derived_networks import derive_network_file
-
-  europe = GeoGraph.load_geograph("europe")
-  derive_network_file(europe.scgraph_file, "iberia.scgraph", bbox=(36, -10, 44, 4))
-  iberia = GeoGraph.load_from_scgraph("iberia.scgraph")
-  ```
-
+- **A part of a released network.** `derive_network_file` takes any node modes and any bbox:
+  [the call](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#a-part-of-a-released-network).
 - **Another pipeline.** Copy the pipeline that is closest to your need, and change its sources,
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.
-
 - **The classes and the default node modes of your pipeline.** A pipeline module can define
-  two more names. The runner reads them when `build` returns the arrays of the network file.
-
-  ```py
-  # A query point snaps to a node of these node modes by default
-  NODE_ADDITION_MODES = ("road",)
-  # The edge mode of each class, by the name of the class
-  CLASSES = {"cycleway": "road", "towpath": "road", "ferry": "road"}
-  ```
-
-  The array `edge_classes` holds the row of the class of each edge in `CLASSES`, counted from
-  0: `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
-  `scgraph.pipelines.CLASSES`. The docstring of `scgraph.pipelines` gives the contract of the
-  two names.
+  `NODE_ADDITION_MODES`, the node modes that a query point snaps to by default, and `CLASSES`,
+  the edge mode of each class. The runner reads them when `build` returns the arrays of the
+  network file. The docstring of `scgraph.pipelines` gives the contract of the two names.
