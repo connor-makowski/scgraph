@@ -323,10 +323,10 @@ NB_MODULE(cpp, m) {
        "shape_offsets, node_runs, edge_runs, shape_point_runs); explained in scgraph/cpp/src/edge_selection.hpp, "
        "same result as scgraph.helpers.edge_selection.select_edges");
 
-    m.def("compute_table_weights", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
-                                     Uint8Array edge_classes, Uint8Array node_modes,
-                                     DoubleArray class_rates_per_km, DoubleArray hub_weights) {
-        return owned_view(compute_table_weights(
+    m.def("compute_weights_from_rates", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
+                                          Uint8Array edge_classes, Uint8Array node_modes,
+                                          DoubleArray class_rates_per_km, DoubleArray hub_weights) {
+        return owned_view(compute_weights_from_rates(
             {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
             {lengths.data(), lengths.shape(0)}, {edge_classes.data(), edge_classes.shape(0)},
             {node_modes.data(), node_modes.shape(0)},
@@ -336,7 +336,7 @@ NB_MODULE(cpp, m) {
        nb::arg("node_modes"), nb::arg("class_rates_per_km"), nb::arg("hub_weights"),
        "The weight of each edge from a rate per km for each class and the weight that it pays at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
-       "scgraph.helpers.metric_weights.compute_table_weights");
+       "scgraph.helpers.metric_weights.compute_weights_from_rates");
 
     m.def("compute_weighted_sum", [](std::vector<DoubleArray> weights_of_metrics, DoubleArray coefficients) {
         std::vector<std::span<const double>> weights;

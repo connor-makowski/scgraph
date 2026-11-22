@@ -196,11 +196,11 @@ def test_an_edge_has_the_class_that_the_default_select_gives_to_its_way(
     }
 
 
-def test_a_table_of_rates_may_name_a_class_that_the_loaded_roads_lack(
+def test_rates_may_name_a_class_that_the_loaded_roads_lack(
     osm_file,
 ):
     network = GeoGraph.load_from_osm(osm_file)
-    # Minutes for 1 km. The table may name any class of
+    # Minutes for 1 km. `per_km` may name any class of
     # `scgraph.pipelines.CLASSES`: these roads have no motorway.
     network.create_metric(
         "minutes", per_km={"road": 2.0, "motorway": 0.5, "off_graph": 4.0}

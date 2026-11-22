@@ -11,10 +11,10 @@ graph of the geograph holds. A `Metric` record holds each other metric. An edge 
 
 The weights of a metric are computed in one of three ways:
 
-- from tables: the rate of the class of an edge times its km, plus the weight of
+- from rates: the rate of the class of an edge times its km, plus the weight of
   each hub that the edge leaves or enters. `GeoGraph.create_metric` gives the
-  result of `resolve_tables` to the kernel `compute_table_weights`;
-- as a weighted sum of other metrics (`compute_weights_by_sum`);
+  result of `resolve_rates` to the kernel `compute_weights_from_rates`;
+- as a weighted sum of other metrics (`compute_weights_from_sum`);
 - from a function of the caller, called once for each edge
   (`compute_weights_from_function`).
 
@@ -106,17 +106,18 @@ class Metric:
         return self.min_weight_per_km
 
 
-def resolve_tables(
+def resolve_rates(
     per_km: float | dict,
     at_hub: dict | None,
     classes: list[dict],
     modes: list[dict],
     edge_classes: array | memoryview,
 ) -> tuple[array, array, float]:
-    """Turn the tables of a `create_metric` call into the arrays of the kernel
-    `compute_table_weights`.
+    """Turn the rates and the hub weights of a `create_metric` call into the arrays
+    of the kernel `compute_weights_from_rates`.
 
-    In a table, the key of a class is its name, or the mode of its edges. The name
+    In `per_km` and in the dict of a hub, the key of a class is its name, or the
+    mode of its edges. The name
     wins: `{"road": 0.02, "motorway": 0.01}` gives 0.01 to the motorways and 0.02 to
     the other classes of the mode `road`.
 
@@ -135,10 +136,10 @@ def resolve_tables(
 
     Returns:
         `class_rates_per_km`, `hub_weights` and the rate of the access legs. The
-        docstring of `compute_table_weights` describes the two arrays.
+        docstring of `compute_weights_from_rates` describes the two arrays.
 
     Raises:
-        ValueError: A table has a key that it may not have, or lacks a rate, or a
+        ValueError: A dict has a key that it may not have, or lacks a rate, or a
             hub weight is not a number.
     """
     class_count = max(len(classes), 1)
@@ -202,7 +203,7 @@ def resolve_tables(
     return rates, hub_weights, off_graph_per_km
 
 
-def compute_weights_by_sum(
+def compute_weights_from_sum(
     weighted_sum_of: dict[str, float],
     metrics: dict[str, Metric],
     lengths: array | memoryview,
@@ -302,24 +303,26 @@ def compute_weights_from_function(
     return weights, off_graph_per_km
 
 
-def _find_key(table: dict, edge_class: dict) -> str | None:
-    # The key of a class in a table: its name, else the mode of its edges, else None
+def _find_key(values: dict, edge_class: dict) -> str | None:
+    # The key of a class in a dict of rates or of hub weights: its name, else the
+    # mode of its edges, else None
     for key in (edge_class["name"], edge_class["mode"]):
-        if key is not None and key in table:
+        if key is not None and key in values:
             return key
     return None
 
 
 def _check_keys(
-    table: dict, table_name: str, classes: list[dict], other_keys: tuple
+    values: dict, argument: str, classes: list[dict], other_keys: tuple
 ) -> None:
-    # Refuse a key of a table that is no class, no mode of edges and no other key
+    # Refuse a key of a dict of rates or of hub weights that is no class, no mode
+    # of edges and no other key. `argument` names the dict in the message.
     known = {row[key] for row in classes for key in ("name", "mode")}
-    for key in table:
+    for key in values:
         if key not in known and key not in other_keys:
             edge_modes = sorted({row["mode"] for row in classes} - {None})
             raise ValueError(
-                f"{table_name} has the key {key!r}, which is no class and no "
+                f"{argument} has the key {key!r}, which is no class and no "
                 "mode of the edges of this geograph: the modes of its edges are "
                 f"{edge_modes}, and `classes` gives its classes"
             )

@@ -1,5 +1,5 @@
 """
-Pure-Python version of the C++ kernels `compute_table_weights` and
+Pure-Python version of the C++ kernels `compute_weights_from_rates` and
 `compute_weighted_sum`, with the same result, bit for bit. The kernels are described
 in `scgraph/cpp/src/metric_weights.hpp`. Read it first.
 
@@ -19,7 +19,7 @@ from math import inf
 from operator import add, mul
 
 
-def compute_table_weights(
+def compute_weights_from_rates(
     offsets: array | memoryview,
     heads: array | memoryview,
     lengths: array | memoryview,
@@ -68,7 +68,7 @@ def compute_table_weights(
         raise ValueError("expected one hub weight per mode and per class")
     if max(node_modes, default=-1) >= len(hub_weights) // class_count:
         raise ValueError(
-            "an edge has a class, or a node has a mode, that the tables do not hold"
+            "an edge has a class without a rate, or a node has a mode without hub weights"
         )
     try:
         # 1. The rate of the class times the km, or infinity for a closed class
@@ -109,7 +109,7 @@ def compute_table_weights(
                     weights[edge_index] += weight
     except IndexError:
         raise ValueError(
-            "an edge has a class, or a node has a mode, that the tables do not hold"
+            "an edge has a class without a rate, or a node has a mode without hub weights"
         ) from None
 
     # 4. A comparison with a value that is not a number is false

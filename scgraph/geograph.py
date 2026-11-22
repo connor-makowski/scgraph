@@ -38,10 +38,10 @@ from scgraph.edge_classes import (
 from scgraph.metrics import (
     Metric,
     check_off_graph_per_km,
-    compute_weights_by_sum,
+    compute_weights_from_sum,
     compute_weights_from_function,
     describe_call,
-    resolve_tables,
+    resolve_rates,
     set_edge_weights,
 )
 from scgraph import built_in_geographs, network_cache, network_file
@@ -67,9 +67,13 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from scgraph import Graph, PathNotFoundError
 
 try:
-    from scgraph.cpp import NodeOrderError, SnapIndex, compute_table_weights
+    from scgraph.cpp import (
+        NodeOrderError,
+        SnapIndex,
+        compute_weights_from_rates,
+    )
 except ImportError:
-    from scgraph.helpers.metric_weights import compute_table_weights
+    from scgraph.helpers.metric_weights import compute_weights_from_rates
     from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
 
 if (
@@ -660,7 +664,7 @@ class GeoGraphIO:
             coordinate_dtype="int32",  # OSM's own: 1e-7 degree
         )
         if any(edge_class_names):
-            # As in a network file of a pipeline: every row of the table of classes,
+            # As in a network file of a pipeline: every row of the classes table,
             # then the row of no class when an edge needs it
             edge_classes = geograph._line_up()
             edge_classes.set_classes_by_name(
@@ -3573,8 +3577,8 @@ class GeoGraph(
             )
         if at_hub is not None and per_km is None:
             raise ValueError(
-                "at_hub needs per_km: a hub weight is added to the weights of the "
-                "tables"
+                "at_hub needs per_km: a hub weight is added to the weight that a "
+                "rate gives"
             )
         if per_km is not None and self._length_unit != "km":
             raise ValueError(
@@ -3587,20 +3591,20 @@ class GeoGraph(
         if per_km is not None:
             edge_rows = edge_classes.edge_rows
             if edge_rows is None:
-                # Every edge has the row 0, the only row of the table of rates
+                # Every edge has the row 0: `per_km` is one rate for every edge
                 edge_rows = array("B", bytes(len(heads)))
             # Nodes appended to `nodes` directly are in the first mode
             self.node_modes.extend(
                 bytes(len(offsets) - 1 - len(self.node_modes))
             )
-            *tables, off_graph_per_km = resolve_tables(
+            *rates, off_graph_per_km = resolve_rates(
                 per_km, at_hub, edge_classes.rows, self.modes, edge_rows
             )
-            weights = compute_table_weights(
-                offsets, heads, lengths, edge_rows, self.node_modes, *tables
+            weights = compute_weights_from_rates(
+                offsets, heads, lengths, edge_rows, self.node_modes, *rates
             )
         elif weighted_sum_of is not None:
-            weights, off_graph_per_km = compute_weights_by_sum(
+            weights, off_graph_per_km = compute_weights_from_sum(
                 weighted_sum_of, self._metrics, lengths, units_per_km
             )
         else:

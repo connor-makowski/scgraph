@@ -82,7 +82,7 @@ KM_OF_EACH_EDGE = {
     nodes: km for a, b, km, _ in TWO_WAY_EDGES for nodes in ((a, b), (b, a))
 }
 
-# The tables of the metric `minutes`: the minutes that 1 km takes. A lorry
+# The rates of the metric `minutes`: the minutes that 1 km takes. A lorry
 # drives at 40 km/h on a primary road, at 120 km/h on the motorway and at
 # 30 km/h on the other roads, which are the connectors. A train runs at
 # 240 km/h and a ship sails at 30 km/h. A lorry needs 4 minutes for 1 km of
@@ -96,8 +96,8 @@ MINUTES_PER_KM = {
     "sea": 2.0,
     "off_graph": 4.0,
 }
-# The rate of each class in these tables: the name of a class wins over the
-# mode of its edges.
+# The rate that MINUTES_PER_KM gives to each class: the name of a class wins
+# over the mode of its edges.
 MINUTES_PER_KM_OF_EACH_CLASS = {
     "primary": 1.5,
     "motorway": 0.5,
@@ -178,7 +178,7 @@ def network(network_path):
 
 @pytest.fixture
 def network_with_minutes(network):
-    """The network of the two towns, with the metric `minutes` of the tables
+    """The network of the two towns, with the metric `minutes` of the rates
     MINUTES_PER_KM."""
     network.create_metric("minutes", per_km=MINUTES_PER_KM)
     return network
@@ -187,7 +187,7 @@ def network_with_minutes(network):
 @pytest.fixture
 def network_read_with_minutes(network_path, tmp_path):
     """The network of the two towns, read from a file that holds the metric
-    `minutes`: the geograph has the weights of the metric, and not the tables
+    `minutes`: the geograph has the weights of the metric, and not the rates
     that made them. The file lists the open sea before the coast: only these
     two nodes change their ids."""
     network = GeoGraph.load_from_scgraph(network_path)
@@ -457,7 +457,7 @@ def test_a_geograph_with_256_classes_refuses_one_more_class(tmp_path):
 # create_metric: the weights of a metric
 
 
-def test_tables_give_each_edge_the_rate_of_its_class_times_its_km(
+def test_rates_give_each_edge_the_rate_of_its_class_times_its_km(
     network_with_minutes,
 ):
     weights = _get_weight_of_each_edge(network_with_minutes, "minutes")
@@ -475,7 +475,8 @@ def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(network):
 
     # The rail connector of 1 km between the west station and its terminal
     # takes 0.25 minute. The road connector of 2 km between the terminal and
-    # the town takes 4 minutes: the table names no class of the mode `road`.
+    # the town takes 4 minutes: the hub weight names no class of the mode
+    # `road`.
     weights = _get_weight_of_each_edge(network, "minutes")
     assert (
         weights[WEST_STATION, WEST_TERMINAL],
@@ -601,12 +602,12 @@ def test_a_metric_keeps_its_weights_when_a_metric_that_it_was_computed_from_is_c
     }
 
 
-def test_tables_weigh_an_edge_without_a_class_as_an_access_leg(network):
+def test_rates_weigh_an_edge_without_a_class_as_an_access_leg(network):
     network.add_edge(WEST_TOWN, PORT, 80.0)
 
     network.create_metric("minutes", per_km=MINUTES_PER_KM)
 
-    # The new road has no class, so the tables give it the rate `off_graph`:
+    # The new road has no class, so it takes the rate `off_graph`:
     # 80 km × 4 minutes = 320 minutes.
     weights = _get_weight_of_each_edge(network, "minutes")
     assert weights[WEST_TOWN, PORT] == 320.0
@@ -667,8 +668,8 @@ def test_a_metric_with_a_name_that_is_not_allowed_is_refused(network, name):
         network.create_metric(name, per_km=2.0)
 
 
-# The three ways to compute a metric are the tables, a weighted sum and a
-# function. The hub weights of `at_hub` are a part of the tables.
+# The three ways to compute a metric are the rates, a weighted sum and a
+# function. The hub weights of `at_hub` go with the rates.
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -676,7 +677,7 @@ def test_a_metric_with_a_name_that_is_not_allowed_is_refused(network, name):
         {"per_km": 2.0, "weighted_sum_of": {"length": 2}},
         {"weighted_sum_of": {"length": 2}, "at_hub": {"port": {"sea": 30.0}}},
     ],
-    ids=["no way", "tables and a sum", "a sum and the hub weights of tables"],
+    ids=["no way", "rates and a sum", "a sum and the hub weights of rates"],
 )
 def test_create_metric_refuses_a_call_without_exactly_one_of_its_three_ways(
     network, arguments
