@@ -334,7 +334,7 @@ NB_MODULE(cpp, m) {
             {hub_weights.data(), hub_weights.shape(0)}));
     }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths_km"), nb::arg("edge_class_ids"),
        nb::arg("node_mode_ids"), nb::arg("class_weights_per_km"), nb::arg("hub_weights"),
-       "The weight of each edge from a weight per km for each class and the weight that it pays at "
+       "The weight of each edge from a weight per km for each class and the weight added to it at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
        "scgraph.helpers.metric_weights.compute_weights_from_km");
 

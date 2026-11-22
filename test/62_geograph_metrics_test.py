@@ -258,8 +258,8 @@ def test_get_nodes_gives_the_nodes_inside_a_bounding_box(network):
 
 
 def test_get_edges_gives_the_edges_that_leave_one_node(network):
-    # A graph made from dictionaries does not promise the order of the edges
-    # of a node.
+    # A graph made from dictionaries has no fixed order for the edges of a
+    # node.
     edges = network.get_edges(origin_id=JUNCTION)
 
     assert sorted(edges, key=lambda edge: edge["destination_id"]) == [
@@ -302,9 +302,9 @@ def test_get_path_edges_gives_the_edges_of_a_path_in_its_order(network):
 # is the id of the case in a test run. The value holds the inputs of the case,
 # then the result that the test expects, when the cases have different results.
 
-# Each case names something that the network lacks: a method that reads the
-# network, and its argument. The network has no node mode `air`, no class
-# `canal`, no node 10 and no edge from the junction to the port.
+# Each case names something that the network does not have: a method that
+# reads the network, and its argument. The network has no node mode `air`, no
+# class `canal`, no node 10 and no edge from the junction to the port.
 REFUSED_READS = {
     "a node mode": ("get_nodes", {"node_mode": "air"}),
     "a class": ("get_edges", {"edge_class": "canal"}),
@@ -527,7 +527,7 @@ def test_the_constructor_gives_each_edge_the_class_that_edge_classes_names():
 # one edge, from the node 0 to the node 1, and a word of the error.
 FERRY_CLASSES = [{"name": "ferry", "edge_mode": "road"}]
 REFUSED_CLASS_ARGUMENTS = {
-    "a class that classes lacks": (
+    "a class that is not in classes": (
         {"classes": FERRY_CLASSES, "edge_classes": [{1: "motorway"}, {}]},
         "edge_classes.*'motorway'",
     ),
@@ -608,7 +608,7 @@ TOLL_OF_EACH_CLASS = {**dict.fromkeys(CLASSES, 0.0), "motorway": 7.0}
 
 
 def _get_toll(edge):
-    """The toll of the class of an edge. The function knows the edges of the
+    """The toll of the class of an edge. The function accepts the edges of the
     network only: it fails for a dict that is no edge of the network."""
     return TOLL_OF_EACH_CLASS[edge["edge_class"]]
 
@@ -648,7 +648,7 @@ def test_a_closed_class_closes_an_edge_of_zero_km(network):
         "minutes", weight_per_km={**MINUTES_PER_KM, "sea": None}
     )
 
-    # Infinity times 0 km is not a number: the edge weighs infinity.
+    # Infinity times 0 km is not a number: the weight of the edge is infinity.
     weights = _get_weight_of_each_edge(network, "minutes")
     assert weights[WEST_TOWN, PORT] == math.inf
 
@@ -772,10 +772,10 @@ def _get_negative_toll(edge):
 # Each case is a call that breaks one rule of `create_metric`: its arguments,
 # and words of the error. The network has the metric `minutes`, for the sums.
 REFUSED_METRICS = {
-    # The call names something that the network lacks, or leaves out a weight
-    # per km that the network needs: the error names it. The network has no
-    # class and no edge mode `canal`, no node of a node mode `airport`, and no
-    # edge from the junction to the port.
+    # The call names something that the network does not have, or omits a
+    # weight per km that the network needs: the error names it. The network has
+    # no class and no edge mode `canal`, no node of a node mode `airport`, and
+    # no edge from the junction to the port.
     "no weight per km for off_graph": (
         {"weight_per_km": {"road": 2.0, "rail": 0.25, "sea": 2.0}},
         "off_graph",
@@ -784,19 +784,19 @@ REFUSED_METRICS = {
         {"weight_per_km": {"road": 2.0, "rail": 0.25, "off_graph": 4.0}},
         "open_sea",
     ),
-    "a weight per km for an edge mode that the network lacks": (
+    "a weight per km for an edge mode that the network does not have": (
         {"weight_per_km": {**MINUTES_PER_KM, "canal": 2.0}},
         "canal",
     ),
-    "a weight per km for a class that the network lacks": (
+    "a weight per km for a class that the network does not have": (
         {"weight_per_km": 2.0, "class_weight_per_km": {"canal": 2.0}},
         "canal",
     ),
-    "a hub of a node mode that the network lacks": (
+    "a hub of a node mode that the network does not have": (
         {"weight_per_km": 2.0, "weight_at_hub": {"airport": {"road": 30.0}}},
         "airport",
     ),
-    "a hub weight for an edge mode that the network lacks": (
+    "a hub weight for an edge mode that the network does not have": (
         {"weight_per_km": 2.0, "weight_at_hub": {"port": {"canal": 30.0}}},
         "canal",
     ),
@@ -811,7 +811,7 @@ REFUSED_METRICS = {
         },
         "must be a number",
     ),
-    "a weight for an edge that the network lacks": (
+    "a weight for an edge that the network does not have": (
         {"weight_per_km": 2.0, "edge_weights": {(1, 7): 5.0}},
         "node 1 to node 7",
     ),
@@ -838,7 +838,7 @@ REFUSED_METRICS = {
         "weight_at_hub needs weight_per_km",
     ),
     # The sum cannot be computed.
-    "a sum of a metric that the geograph lacks": (
+    "a sum of a metric that the geograph does not have": (
         {"weighted_sum_of": {"speed": 2}},
         "unknown metric 'speed'",
     ),
@@ -971,7 +971,7 @@ def test_an_edit_made_on_the_graph_object_removes_the_metrics_at_their_next_read
 ):
     network_with_minutes.graph_object.add_edge(WEST_TOWN, PORT, 85.0)
 
-    # The geograph sees the edit when it reads its metrics.
+    # The geograph detects the edit when it reads its metrics.
     with pytest.warns(UserWarning, match="'minutes'.*create_metric"):
         metrics = network_with_minutes.metrics
     assert metrics == [{"name": "length", "unit": "km"}]
@@ -1477,7 +1477,7 @@ def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_node_mode(
 # node mode `road`. Its file has no node mode `canal`.
 REFUSED_NODE_MODES = {
     "a node mode that no node has": ["road"],
-    "a node mode that the file lacks": ["sea", "canal"],
+    "a node mode that the file does not have": ["sea", "canal"],
     "no mode": [],
 }
 

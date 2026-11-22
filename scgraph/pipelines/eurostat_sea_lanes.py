@@ -91,7 +91,7 @@ def build(files: dict[str, str]) -> GeoGraph:
             file,
         )
     sea = GeoGraph.load_from_geojson(geojson, precision=COORDINATE_DECIMALS)
-    # The name of the class of each edge, by its two nodes. A node is known by its
+    # The name of the class of each edge, by its two nodes. A node is found by its
     # point: `load_from_geojson` rounds each point of a lane with
     # `format_coord_list`. No segment of the pinned file is in two lines of
     # different passages.

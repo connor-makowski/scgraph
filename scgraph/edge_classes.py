@@ -20,7 +20,7 @@ WHAT IT HOLDS
 - The "added edges": a dict `{(origin id, destination id): class id}` of the
   edges that an `add_` method of the geograph added.
 
-THE IDEA: AN EDGE IS KNOWN BY ITS TWO NODES
+THE IDEA: AN EDGE IS FOUND BY ITS TWO NODES
 
 An edit of the graph changes the id of an edge, but never the ids of its two
 nodes. So `find_class` takes the two nodes of an edge. It looks in the added
@@ -135,7 +135,7 @@ class EdgeClasses:
         offsets: array | memoryview,
         heads: array | memoryview,
     ) -> "EdgeClasses":
-        """Return the `EdgeClasses` of a geograph whose constructor got the class
+        """Return the `EdgeClasses` of a geograph whose constructor received the class
         of each edge as a name. The edges of the graph become the loaded edges.
 
         Args:
@@ -143,7 +143,7 @@ class EdgeClasses:
                 `{"name", "edge_mode"}` of each class.
             edge_classes: The argument `edge_classes` of `GeoGraph`: for each
                 node, a dict from the destination of an edge of this node to the
-                name of the class of the edge. An edge that its dict lacks has no
+                name of the class of the edge. An edge that is not in its dict has no
                 class. None gives a class to no edge.
             offsets: The id of the first edge of each node of the graph, then the
                 count of its edges.
@@ -153,7 +153,7 @@ class EdgeClasses:
             ValueError: `classes` is None, has more than 255 rows, or has a row
                 without a name or without an edge mode. `edge_classes` does not
                 have one dict for each node, or names a destination that is no
-                edge of the graph, or a class that `classes` lacks.
+                edge of the graph, or a class that is not in `classes`.
         """
         if classes is None:
             raise ValueError(
