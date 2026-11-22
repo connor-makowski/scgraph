@@ -106,6 +106,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from scgraph.helpers.osm import select_main_roads_with_class
 from scgraph.pipelines import eurostat_sea_lanes
 from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.pipelines.steps import step2_hub_connectors
@@ -158,17 +159,6 @@ MARGIN_DEGREES = 2
 download = (
     step1_osm_ways.download
 )  # for the sources without their own download: checks osmium first
-
-
-def select_main_roads_with_class(
-    tags: "osmium.osm.TagList",
-) -> tuple[int, str] | None:
-    """Return the direction and the class of a main road, and None for any other way.
-    The class is the `highway` value of the way. Example: a one-way motorway gives
-    `(1, "motorway")`.
-    """
-    direction = step1_osm_ways.select_main_roads(tags)
-    return None if direction is None else (direction, tags["highway"])
 
 
 def select_vehicle_ferries_with_class(

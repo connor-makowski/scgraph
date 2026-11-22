@@ -15,7 +15,7 @@ mode.
 
 A select function may return the direction with the class of the way (docstring of
 `scgraph.pipelines`, *The classes*). Example: for a one-way trunk road,
-`geofabrik_multimodal.select_main_roads_with_class` returns `(1, "trunk")`.
+`scgraph.helpers.osm.select_main_roads_with_class` returns `(1, "trunk")`.
 
 WHERE THE FILE IS
 

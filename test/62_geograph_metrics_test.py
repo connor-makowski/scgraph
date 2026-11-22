@@ -8,7 +8,7 @@ from itertools import accumulate
 
 import pytest
 
-from scgraph import GeoGraph, PathNotFoundError, network_file
+from scgraph import GeoGraph, Graph, PathNotFoundError, network_file
 from scgraph.utils import haversine
 
 # The network of these tests joins two towns on the equator, 0.7 degree of
@@ -325,6 +325,22 @@ def test_an_edit_made_on_the_graph_object_keeps_the_classes_lined_up(network):
     }
 
 
+def test_a_graph_object_that_the_caller_replaced_gives_its_own_edges(network):
+    # The first read lines up the classes with the edges of the file.
+    network.get_edges()
+    graph_without_motorway = [dict(row) for row in network.graph]
+    del graph_without_motorway[WEST_TOWN][EAST_TOWN]
+    del graph_without_motorway[EAST_TOWN][WEST_TOWN]
+
+    network.graph_object = Graph(graph=graph_without_motorway)
+
+    assert _get_class_of_each_edge(network) == {
+        nodes: edge_class
+        for nodes, edge_class in CLASS_OF_EACH_EDGE.items()
+        if edge_class != "motorway"
+    }
+
+
 def test_a_removed_node_leaves_the_classes_of_the_other_edges(network):
     # The last node is the east terminal.
     network.remove_node()
@@ -363,6 +379,20 @@ def test_a_merge_keeps_the_classes_of_both_geographs(network, tmp_path):
     }
 
 
+def test_a_merge_that_gives_more_than_256_classes_is_refused(network, tmp_path):
+    # The network has 7 classes. With the 250 classes of the other geograph,
+    # the merged geograph would have 257 classes.
+    many_classes = {f"class_{row}": "road" for row in range(250)}
+    other_path = str(tmp_path / "many_classes.scgraph")
+    _write_network(
+        other_path, FERRY_NODES, [(0, 1, 30.0, "class_0")], many_classes
+    )
+    other = GeoGraph.load_from_scgraph(other_path)
+
+    with pytest.raises(ValueError, match="256 classes"):
+        network.merge_with_other_geograph(other, connection_nodes=[[0.5, 0.0]])
+
+
 def test_a_save_keeps_the_default_node_addition_modes(network, tmp_path):
     saved_path = str(tmp_path / "saved.scgraph")
 
@@ -370,6 +400,18 @@ def test_a_save_keeps_the_default_node_addition_modes(network, tmp_path):
 
     saved = GeoGraph.load_from_scgraph(saved_path)
     assert saved.default_node_addition_modes == ["road"]
+
+
+def test_a_save_leaves_out_a_default_mode_that_the_geograph_lacks(tmp_path):
+    geograph = GeoGraph(graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]])
+    # The one mode of this geograph has no name: it has no mode `road`.
+    geograph.default_node_addition_modes = ["road"]
+    saved_path = str(tmp_path / "saved.scgraph")
+
+    geograph.save_as_scgraph(saved_path)
+
+    saved = GeoGraph.load_from_scgraph(saved_path)
+    assert saved.default_node_addition_modes is None
 
 
 def test_tables_give_each_edge_the_rate_of_its_class_times_its_km(network):
@@ -666,20 +708,24 @@ def test_every_search_finds_the_best_route_by_a_metric(network, algorithm_fn):
     )
 
 
-def test_a_star_with_the_great_circle_bound_finds_the_best_route(network):
+# The two functions of a geograph that give a bound in km between two nodes
+@pytest.mark.parametrize("bound", ["haversine", "cheap_ruler"])
+def test_a_star_with_a_bound_of_the_geograph_finds_the_best_route(
+    network, bound
+):
     network.create_metric("minutes", per_km=MINUTES_PER_KM)
 
     # The motorway reaches the east town in one edge and 50 minutes. The
-    # railway, the best route, has five edges. The bound of a node is its
-    # great-circle km to the destination times 0.25, the fewest minutes that
-    # 1 km of an edge takes. A bound in km would be above the 31 minutes of
-    # the railway, and the search would stop at the motorway.
+    # railway, the best route, has five edges. The bound of a node is its km
+    # to the destination times 0.25, the fewest minutes that 1 km of an edge
+    # takes. A bound in km would be above the 31 minutes of the railway, and
+    # the search would stop at the motorway.
     route = network.get_shortest_path(
         WEST_POINT,
         EAST_POINT,
         metric="minutes",
         algorithm_fn="a_star",
-        algorithm_kwargs={"heuristic_fn": network.haversine},
+        algorithm_kwargs={"heuristic_fn": getattr(network, bound)},
         output_path=True,
     )
 

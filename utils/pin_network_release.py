@@ -16,6 +16,7 @@ The script downloads `networks.json`, the index of the release, and writes the m
 again: the tag, the digest of each file, and what `list_geographs` says of each network.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -56,27 +57,33 @@ NETWORKS = {{
 '''
 
 
-def main(tag: str) -> None:
-    response = requests.get(f"{URL}/{tag}/networks.json", timeout=60)
-    response.raise_for_status()
+def format_module(tag: str, networks: list[dict]) -> str:
+    """Return the text of the module `scgraph/network_release.py` for a network
+    release.
+
+    Args:
+        tag: The tag of the network release.
+        networks: The rows of `networks` in the `networks.json` of the release, one
+            for each file.
+
+    Returns:
+        The module as `black` formats it: `utils/prettify.py` then changes no line.
+    """
     rows = "\n".join(
         f'    "{network["file"].removesuffix(".scgraph.gz")}": '
         f'"{network["content_sha256"]}",'
-        for network in sorted(
-            response.json()["networks"], key=lambda network: network["file"]
-        )
+        for network in sorted(networks, key=lambda network: network["file"])
     )
     files = {
         network["file"].removesuffix(".scgraph.gz"): network
-        for network in response.json()["networks"]
+        for network in networks
     }
-    # Each time as black writes it, between double quotes, or None. The module
-    # then needs no formatting.
+    # `json.dumps` writes a text between double quotes, as black does
     data_up_to = {
-        name: f'"{file["data_up_to"]}"' if file["data_up_to"] else "None"
+        name: json.dumps(file["data_up_to"]) if file["data_up_to"] else "None"
         for name, file in files.items()
     }
-    networks = "\n".join(
+    described = "\n".join(
         f'    "{name}": {{\n'
         f'        "nodes": {files[name]["nodes"]},\n'
         f'        "edges": {files[name]["edges"]},\n'
@@ -84,13 +91,20 @@ def main(tag: str) -> None:
         f'        "download_mb_without_shapes": '
         f'{files[name + ".no_shapes"]["compressed_bytes"] / 1e6:.1f},\n'
         f'        "data_up_to": {data_up_to[name]},\n'
-        f'        "description": {files[name]["description"]!r},\n'
+        f'        "description": '
+        f'{json.dumps(files[name]["description"], ensure_ascii=False)},\n'
         f"    }},"
         for name in sorted(files)
         if not name.endswith(".no_shapes")
     )
+    return MODULE.format(tag=tag, rows=rows, networks=described)
+
+
+def main(tag: str) -> None:
+    response = requests.get(f"{URL}/{tag}/networks.json", timeout=60)
+    response.raise_for_status()
     module = Path(__file__).parent.parent / "scgraph" / "network_release.py"
-    module.write_text(MODULE.format(tag=tag, rows=rows, networks=networks))
+    module.write_text(format_module(tag, response.json()["networks"]))
     print(f"Wrote {module}")
 
 

@@ -174,7 +174,7 @@ def build_csr_from_edges_python(
         edge_classes is not None and len(edge_classes) != len(origins)
     ):
         raise ValueError(
-            "one destination, one weight and one class per origin expected"
+            "expected one destination, one weight and one class for each edge"
         )
     best = (
         {}

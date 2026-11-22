@@ -41,11 +41,12 @@ as:
 WHY NO READ IS STALE
 
 The graph of a geograph changes. The geograph adds and removes nodes and edges, and
-a caller may edit `graph_object`. The arrays of an `EdgeData` are then older than
-the graph. So each method that reads them "lines up" first: it compares the count of
-the edits of the graph (`Graph._edit_count`) with the count at the last read. When
-the counts differ, it runs the steps of the next part. No other code reads the
-arrays, so no caller can skip this check.
+a caller may edit `graph_object`, or replace it by another `Graph`. The arrays of an
+`EdgeData` are then older than the graph. So each method that reads them "lines up"
+first. It compares the graph with the graph of the last read, and the count of its
+edits (`Graph._edit_count`) with the count at that read. When one of the two
+differs, it runs the steps of the next part. No other code reads the arrays, so no
+caller can skip this check.
 
 An `EdgeData` keeps no reference to its geograph. Two objects that refer to each
 other are freed late, and a geograph may hold a large network. So a method that
@@ -119,6 +120,8 @@ if TYPE_CHECKING:  # Only for an annotation
 
 # The row of `classes` for an edge without a class, on a geograph with classes
 _NO_CLASS = {"name": None, "mode": None}
+# The row of the class of an edge is stored in one byte
+_MAX_CLASS_COUNT = 256
 
 
 def iter_edges(
@@ -292,6 +295,14 @@ def cut_legs(edges: list[dict]) -> list[dict]:
     return legs
 
 
+def _check_class_count(class_count: int) -> None:
+    if class_count > _MAX_CLASS_COUNT:
+        raise ValueError(
+            f"A geograph holds {_MAX_CLASS_COUNT} classes at most: got "
+            f"{class_count}"
+        )
+
+
 class EdgeData:
     """The classes and the metrics of the edges of one geograph (see the module
     docstring). A method with the parameter `geograph` lines up with the graph of
@@ -306,7 +317,8 @@ class EdgeData:
         self._edge_classes = None
         # The offsets, the heads and the lengths of the edges at the last line-up
         self._edge_arrays = None
-        # The `_edit_count` of the graph at the last line-up
+        # The graph at the last line-up, and its `_edit_count` at that time
+        self._graph = None
         self._edit_count = None
         # The metrics other than `length`, by name
         self._metrics = {}
@@ -332,7 +344,7 @@ class EdgeData:
         """
         graph = geograph.graph_object
         edit_count = graph._edit_count
-        if edit_count == self._edit_count:
+        if graph is self._graph and edit_count == self._edit_count:
             return self._edge_arrays
         # 1. The edges of the graph now
         edge_arrays = graph._csr()
@@ -373,7 +385,7 @@ class EdgeData:
         # 5. The new edges are lined up
         self._new_edge_classes = {}
         self._new_edge_weights = {}
-        self._edit_count = edit_count
+        self._graph, self._edit_count = graph, edit_count
         return edge_arrays
 
     def _line_up_metrics(
@@ -439,7 +451,7 @@ class EdgeData:
                 `graph._csr()` would return them.
         """
         self._edge_arrays = edge_arrays
-        self._edit_count = graph._edit_count
+        self._graph, self._edit_count = graph, graph._edit_count
 
     def set_classes(
         self,
@@ -475,6 +487,7 @@ class EdgeData:
         classes = list(classes)
         if None in edge_class_names:
             classes.append(dict(_NO_CLASS))
+        _check_class_count(len(classes))
         class_rows = {
             edge_class["name"]: row for row, edge_class in enumerate(classes)
         }
@@ -531,22 +544,33 @@ class EdgeData:
             The row in `classes` of each edge of the other geograph, by the ids of
             its two nodes in the merged graph. `set_new_edge_classes` takes it when
             the graph holds these edges.
+
+        Raises:
+            ValueError: The two geographs have more than 256 classes together. This
+                geograph is not changed.
         """
         other = other_geograph._edge_data
         other_offsets, other_heads, _ = other._line_up(other_geograph)
-        if self._edge_classes is None:
-            # Every edge of this geograph is in the row 0: no class
+        # A geograph without classes gets the row 0 for each of its edges: no class
+        classes = self.classes if self.has_classes() else [dict(_NO_CLASS)]
+        names = [edge_class["name"] for edge_class in classes]
+        new_classes = [
+            dict(edge_class)
+            for edge_class in other.classes
+            if edge_class["name"] not in names
+        ]
+        # Checked before any change of this geograph
+        _check_class_count(len(classes) + len(new_classes))
+        if not self.has_classes():
             heads = self._line_up(geograph)[1]
-            self.classes = [dict(_NO_CLASS)]
+            self.classes = classes
             self._edge_classes = array("B", bytes(len(heads)))
+        self.classes.extend(new_classes)
         # The row in `classes` of each class of the other geograph
         names = [edge_class["name"] for edge_class in self.classes]
-        class_rows = []
-        for edge_class in other.classes:
-            if edge_class["name"] not in names:
-                names.append(edge_class["name"])
-                self.classes.append(dict(edge_class))
-            class_rows.append(names.index(edge_class["name"]))
+        class_rows = [
+            names.index(edge_class["name"]) for edge_class in other.classes
+        ]
         return {
             (
                 first_node_id + origin_id,
@@ -565,11 +589,6 @@ class EdgeData:
                 (origin id, destination id).
         """
         self._new_edge_classes.update(new_edge_classes)
-
-    def forget_graph(self) -> None:
-        """Line up again at the next read: the geograph has a new `graph_object`,
-        whose edit count does not say that the edges changed."""
-        self._edit_count = None
 
     def list_file_classes(self, geograph: "GeoGraph") -> list[dict] | None:
         """Return the rows of the classes for the header of a network file, or None
@@ -642,15 +661,16 @@ class EdgeData:
         """Check the `metrics` of an `add_` call.
 
         Args:
-            metrics: The weight of the new edges in the metrics that were read, by
-                name. None as a weight closes the edges. None for no weight.
+            metrics: The weight of the new edges in the metrics that
+                `create_metric` did not make, by name. None as a weight closes the
+                edges. None for no weight.
 
         Returns:
             The weights as floats, by name. Infinity for None.
 
         Raises:
-            ValueError: A name is not a metric that was read, or a weight is below
-                zero or not a number.
+            ValueError: A name is not such a metric, or a weight is below zero or
+                not a number.
         """
         new_edge_weights = {}
         for name, weight in (metrics or {}).items():
@@ -662,9 +682,8 @@ class EdgeData:
                     if other_record.definition is None
                 ]
                 raise ValueError(
-                    f"metrics names {name!r}: an `add_` method takes the weight of "
-                    "a new edge only in a metric that was read from a file, and "
-                    f"these metrics are {names}"
+                    f"metrics names {name!r}. An `add_` method takes a weight only "
+                    f"in a metric that `create_metric` did not make: {names}"
                 )
             new_edge_weights[name] = inf if weight is None else float(weight)
             # A comparison with a value that is not a number is false
@@ -694,6 +713,24 @@ class EdgeData:
             if self._metrics:
                 self._new_edge_weights[nodes] = new_edge_weights
 
+    def forget_new_edges(self, edges: Iterable[tuple[int, int]]) -> None:
+        """Drop what an `add_` call gave for edges that the graph no longer has.
+
+        Args:
+            edges: The (origin id, destination id) of each removed edge.
+        """
+        for nodes in edges:
+            self._new_edge_classes.pop(nodes, None)
+            self._new_edge_weights.pop(nodes, None)
+
+    def forget_new_edges_of_node(self, node_id: int) -> None:
+        """Drop what an `add_` call gave for the edges of a node that the graph no
+        longer has. The method reads each new edge: `forget_new_edges` is faster
+        for a caller that knows the edges of the node."""
+        for new_edges in (self._new_edge_classes, self._new_edge_weights):
+            for nodes in [nodes for nodes in new_edges if node_id in nodes]:
+                del new_edges[nodes]
+
     # The metrics
 
     def has_metrics(self) -> bool:
@@ -706,10 +743,6 @@ class EdgeData:
         return [
             metric_record.get_row() for metric_record in self._metrics.values()
         ]
-
-    def check_metric(self, metric: str) -> None:
-        """Raise a ValueError unless `metric` names a metric other than `length`."""
-        self._get_metric_record(metric)
 
     def _get_metric_record(self, metric: str) -> Metric:
         # The record of a metric other than `length`
@@ -858,7 +891,9 @@ class EdgeData:
         if off_graph_per_km is None or not 0 <= off_graph_per_km < inf:
             raise ValueError(
                 f"The weight of 1 km of access leg in the metric {name!r} must "
-                f"be a finite number of zero or more: got {off_graph_per_km!r}"
+                f"be a finite number of zero or more: got {off_graph_per_km!r} "
+                "(for a function: the value that it returns for the mode "
+                "'off_graph')"
             )
         return Metric(
             name,
@@ -1029,7 +1064,8 @@ class EdgeData:
             )
             if edge_index is None:
                 raise ValueError(
-                    f"The path has no edge from node {origin_id} to node {destination_id}"
+                    f"The geograph has no edge from node {origin_id} to node "
+                    f"{destination_id}"
                 )
             edge_indexes.append(edge_index)
         return edge_indexes
@@ -1067,14 +1103,23 @@ class EdgeData:
         Args:
             path: The node ids of the path.
             metric: The name of a metric of the geograph. It may be `length`.
+
+        Raises:
+            ValueError: The geograph has no such metric, or no edge between two
+                consecutive nodes of the path.
         """
-        edge_indexes = self._find_path_edge_indexes(geograph, path)
+        lengths = self._line_up(geograph)[2]
         weights = (
-            self._edge_arrays[2]
+            lengths
             if metric == "length"
-            else self._metrics[metric].weights
+            else self._get_metric_record(metric).weights
         )
-        return sum(map(weights.__getitem__, edge_indexes))
+        return sum(
+            map(
+                weights.__getitem__,
+                self._find_path_edge_indexes(geograph, path),
+            )
+        )
 
     def get_path_totals(
         self, geograph: "GeoGraph", path: list[int], off_graph_km: float

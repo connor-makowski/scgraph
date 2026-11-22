@@ -122,6 +122,17 @@ def select_main_roads(tags: "osmium.osm.TagList") -> int | None:
     )
 
 
+def select_main_roads_with_class(
+    tags: "osmium.osm.TagList",
+) -> tuple[int, str] | None:
+    """Return the direction and the class of a main road, and None for any other way.
+    The class is the `highway` value of the way. Example: a one-way motorway gives
+    `(1, "motorway")`.
+    """
+    direction = select_main_roads(tags)
+    return None if direction is None else (direction, tags["highway"])
+
+
 @contextmanager
 def _open_source(source, entities):
     # `source` is a path, or a source object. A source object gives a new input for

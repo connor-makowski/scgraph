@@ -9,8 +9,7 @@ messages of the errors.
 Different: a pass over all the edges runs in C (`map`, `compress`, `translate`), not
 in a Python loop. Step 1 multiplies every edge, then writes infinity on the edges of
 a closed class. Steps 2 and 3 visit only the edges that leave or enter a hub. Step 4
-checks the weights at the end. A node whose mode is not in the tables pays no hub
-weight: `GeoGraph` gives each node a mode of its table.
+checks the weights at the end.
 """
 
 from array import array
@@ -74,6 +73,10 @@ def compute_table_weights(
         or len(weights_into_hub) != len(weights_out_of_hub)
     ):
         raise ValueError("expected one hub weight per mode and per class")
+    if max(node_modes, default=-1) >= len(weights_out_of_hub) // class_count:
+        raise ValueError(
+            "an edge has a class, or a node has a mode, that the tables do not hold"
+        )
     try:
         # 1. The rate of the class times the km, or infinity for a closed class
         # A list holds the rates as Python floats: an array would make a new float

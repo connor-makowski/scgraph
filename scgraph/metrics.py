@@ -81,7 +81,7 @@ class Metric:
     # The weight of 1 km of the straight line between a query point and its node
     off_graph_per_km: float
     # The arguments of the `create_metric` call that made the metric, by name. None
-    # for a metric that was read from a file: the geograph cannot compute it again.
+    # for a metric that a loader read: the geograph cannot compute it again.
     definition: dict | None = None
     # The names of the metrics that the weights were computed from: the metrics of
     # a weighted sum, other than `length`, or the metrics that a function could
@@ -165,7 +165,8 @@ def resolve_tables(
                     f"per_km gives no rate for the class {edge_class['name']!r}, "
                     f"which has edges: name it, or its mode {edge_class['mode']!r}"
                 )
-            # A class without a rate has no edge. An edge without a class is closed.
+            # Without a key, the class has no edge, or it is the row of no class.
+            # Its rate is infinity, so an edge without a class is closed.
             rate = None if key is None else per_km[key]
             rates.append(inf if rate is None else rate)
     else:
@@ -312,9 +313,11 @@ def _check_keys(
     known = {row[key] for row in classes for key in ("name", "mode")}
     for key in table:
         if key not in known and key not in other_keys:
+            edge_modes = sorted({row["mode"] for row in classes} - {None})
             raise ValueError(
                 f"{table_name} has the key {key!r}, which is no class and no "
-                f"mode of the edges of this geograph"
+                "mode of the edges of this geograph: the modes of its edges are "
+                f"{edge_modes}, and `classes` gives its classes"
             )
 
 
