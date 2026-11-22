@@ -28,7 +28,10 @@ An edit of the graph makes no answer out of date.
 
 A network file and the kernel of the weights per km need one array, lined up with
 the edges of the graph: the class id of each edge, at the edge id of the edge.
-`list_edge_class_ids` computes this array for the edges that a caller gives. The
+`list_edge_class_ids` computes this array for the edges that a caller gives, node
+by node. A node that has no added edge, and whose edges go to the destinations of
+its loaded edges in the same order, takes the class ids of its loaded edges. Each
+edge of another node gets its class id as in `find_class`, by its two nodes. The
 geograph keeps the array until the graph is edited.
 
 Example, a loader reads three nodes with the edges 0 -> 1, 0 -> 2 and 2 -> 0:
@@ -49,13 +52,14 @@ and the added edges are `{(1, 2): 0}`, with the class id of `motorway`:
     find_class(1, 0) gives the row of no class      no added edge, no loaded edge
 
 The graph now has `offsets = [0, 1, 3, 4]` and `heads = [1, 2, 0, 0]`. For these
-arrays, `list_edge_class_ids` gives `edge_class_ids = [1, 0, 255, 0]`. The edge
-1 -> 0 has no class.
+arrays, `list_edge_class_ids` gives `edge_class_ids = [1, 0, 255, 0]`. The node 2
+has its loaded edge, so it takes the class id of this edge. The nodes 0 and 1 have
+other edges than their loaded edges: each of their edges is found by its two
+nodes. The edge 1 -> 0 has no class, so its class id is 255.
 """
 
 from array import array
 from collections.abc import Iterable
-from itertools import chain, pairwise, repeat, starmap
 
 from scgraph.network_file import NO_CLASS_ID
 
@@ -191,38 +195,38 @@ class EdgeClasses:
         if not self.classes:
             return None
         edge_class_ids = array("B")
-        # An array and a memoryview do not compare by their values: two
-        # memoryviews do.
-        graph_heads = memoryview(heads)
+        # A slice of a memoryview compares with another one by their values, in
+        # C. An array does not.
+        heads = memoryview(heads)
+        loaded_offsets = self._loaded_offsets
         loaded_heads = memoryview(self._loaded_heads)
-        # The slice of the edges of each node, in the graph and in the loaded
-        # edges. A node after the last loaded node has no loaded edge.
-        edge_slices = starmap(slice, pairwise(offsets))
-        loaded_edge_slices = chain(
-            starmap(slice, pairwise(self._loaded_offsets)), repeat(slice(0))
-        )
+        loaded_node_count = len(loaded_offsets) - 1
         origins_of_added_edges = {
             origin_id for origin_id, _ in self._class_ids_of_added_edges
         }
-        for origin_id, (edges_of_origin, loaded_edges_of_origin) in enumerate(
-            zip(edge_slices, loaded_edge_slices)
-        ):
-            destination_ids = graph_heads[edges_of_origin]
-            # Most nodes have their loaded edges, in the same order. The two
-            # slices are compared in C, so that an edit of a few nodes of a large
-            # graph does not read each edge in Python.
+        for origin_id in range(len(offsets) - 1):
+            destination_ids = heads[offsets[origin_id] : offsets[origin_id + 1]]
+            # A node after the last loaded node has no loaded edge.
+            first_loaded_edge_id = last_loaded_edge_id = 0
+            if origin_id < loaded_node_count:
+                first_loaded_edge_id = loaded_offsets[origin_id]
+                last_loaded_edge_id = loaded_offsets[origin_id + 1]
+            loaded_edges = slice(first_loaded_edge_id, last_loaded_edge_id)
+            # Most nodes have their loaded edges, in the same order. They take
+            # the class ids of these edges, so that an edit of a few nodes of a
+            # large graph does not read each edge in Python.
             if (
                 origin_id not in origins_of_added_edges
-                and destination_ids == loaded_heads[loaded_edges_of_origin]
+                and destination_ids == loaded_heads[loaded_edges]
             ):
                 edge_class_ids.frombytes(
-                    self._loaded_edge_class_ids[loaded_edges_of_origin]
+                    self._loaded_edge_class_ids[loaded_edges]
                 )
-                continue
-            for destination_id in destination_ids:
-                edge_class_ids.append(
-                    self._find_class_id(origin_id, destination_id)
-                )
+            else:
+                for destination_id in destination_ids:
+                    edge_class_ids.append(
+                        self._find_class_id(origin_id, destination_id)
+                    )
         return edge_class_ids
 
     def check_class(self, edge_class: str | None) -> None:
@@ -284,11 +288,10 @@ class EdgeClasses:
         _check_class_count(len(classes))
         # The class id in the merged classes of each class id of the other
         # geograph. The id of no class stays the id of no class.
+        merged_class_names = _list_class_names(classes)
         merged_class_ids = bytes(
-            map(
-                _list_class_names(classes).index,
-                _list_class_names(other.classes),
-            )
+            merged_class_names.index(class_row["name"])
+            for class_row in other.classes
         ).ljust(NO_CLASS_ID, b"\0") + bytes([NO_CLASS_ID])
         # The loaded edges of the other geograph start at the node
         # `first_node_id`. A node of this geograph without loaded edges, such as
@@ -296,9 +299,15 @@ class EdgeClasses:
         offsets = array("i", self._loaded_offsets[: first_node_id + 1])
         edge_count = offsets[-1]
         offsets.extend([edge_count] * (first_node_id + 1 - len(offsets)))
-        offsets.extend(map(edge_count.__add__, other._loaded_offsets[1:]))
+        offsets.extend(
+            edge_count + other_offset
+            for other_offset in other._loaded_offsets[1:]
+        )
         heads = array("i", self._loaded_heads[:edge_count])
-        heads.extend(map(first_node_id.__add__, other._loaded_heads))
+        heads.extend(
+            first_node_id + destination_id
+            for destination_id in other._loaded_heads
+        )
         edge_class_ids = array("B")
         edge_class_ids.frombytes(self._loaded_edge_class_ids[:edge_count])
         edge_class_ids.frombytes(
