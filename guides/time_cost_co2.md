@@ -54,7 +54,7 @@ for leg in route["legs"]:
 route["transfers"]  # [{'node_id': ..., 'node_mode': 'airport'}, ...]: each transfer with its node mode
 ```
 
-The first leg and the last leg are the two off-graph legs: their `mode` is `off_graph`. The two nodes where they meet the network are not transfers. A leg by air holds the hours of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
+The first leg and the last leg are the two off-graph legs: their `mode` is `off_graph`. The two nodes where they meet the network are not transfers. Here each query point is at less than 0.5 km from its node, so each off-graph leg prints 0 km. A leg by air holds the hours of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
 
 ## Three Ways to Compute the Weights
 

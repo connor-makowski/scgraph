@@ -75,7 +75,7 @@ The costly functions of `step2_land_mask` and `step3_network_assembly` have a C+
 
 #### 1. The Python Adjacency List
 
-In Python, a graph is a list of dictionaries. The index of a dictionary is the id of an origin node:
+In Python, a graph is a list of dictionaries. The position of a dictionary in the list is the id of an origin node:
 
 ```python
 # graph[origin_node] = {destination_node: weight, ...}
@@ -184,7 +184,7 @@ The origin and the destination are dictionaries with `latitude` and `longitude` 
 ### 2. Network Snapping (`SnapIndex`)
 A `SnapIndex` finds the nodes that are near a point. It is a tree of bounding boxes, with 8 children per box.
 
-**The node modes.** `node_addition_modes` lists the node modes that a query point may snap to. Its default is `default_node_addition_modes`, which a network file gives: the roads, in a multimodal network that `scgraph.pipelines` built. With this default, a query point also snaps to a node without a named node mode. `add_coord_node` without `mode` adds such a node, so a default query can start at a node that the user added. A default node mode that no node of the geograph has does not count. Without any default node mode, a query point may snap to every node. The geograph has one `SnapIndex` of all its nodes. It builds one more `SnapIndex` for each node mode, at the first query that snaps to this node mode. A query point snaps to the closest node among the indexes of its node modes. The nodes of a network file are sorted by node mode, so the index of a node mode reads the points of its nodes in the file.
+**The node modes.** `node_addition_modes` lists the node modes that a query point may snap to. Its default is `default_node_addition_modes`, which a network file gives: the roads, in a multimodal network that `scgraph.pipelines` built. With this default, a query point also snaps to a node without a named node mode. `add_coord_node` without `node_mode` adds such a node, so a default query can start at a node that the user added. A default node mode that no node of the geograph has does not count. Without any default node mode, a query point may snap to every node. The geograph has one `SnapIndex` of all its nodes. It builds one more `SnapIndex` for each node mode, at the first query that snaps to this node mode. A query point snaps to the closest node among the indexes of its node modes. The nodes of a network file are sorted by node mode, so the index of a node mode reads the points of its nodes in the file.
 
 **The nodes.** The option `node_addition_type` chooses the nodes that the point is connected to, among the nodes of these node modes:
 * `'closest'`: the closest node.
@@ -259,9 +259,9 @@ flowchart TD
 
 `contract_chains` works on the CSR arrays of a build:
 * It takes `(offsets, heads, weights, node_mode_ids, max_km_between_nodes, edge_class_ids)` and returns a `ContractedGraph` namedtuple:
-  * `kept`: the indices of the kept nodes.
+  * `kept`: the ids of the kept nodes.
   * `origins`, `heads`, `weights`: the contracted edges.
-  * `member_offsets`, `members`: the indices of the input edges that each contracted edge replaces.
+  * `member_offsets`, `members`: the ids of the input edges that each contracted edge replaces.
 * `node_mode_ids` is optional. A chain is never contracted across two node modes.
 * `edge_class_ids` is optional: the class of each edge. The header of `step3_network_assembly.py` gives its rule.
 * `max_km_between_nodes` cuts a chain into segments of about that length (default: no cut).
@@ -459,12 +459,12 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 
 | Array Name | Data Type | Dimensions | Description |
 | :--- | :--- | :--- | :--- |
-| `offsets` | `int32` | $N + 1$ | CSR row index. Edges originating from node $u$ span index `offsets[u]` to `offsets[u+1] - 1`. |
+| `offsets` | `int32` | $N + 1$ | For each node, the id of its first edge. The edges that leave node $u$ have the ids `offsets[u]` to `offsets[u+1] - 1`. |
 | `heads` | `int32` | $M$ | The destination node of each edge, from `0` to $N - 1$. |
 | `weights_length` | `float64` | $M$ | The length of each edge, in the unit of the row `length` of `metadata.metrics`. |
 | `weights_<name>` *(opt)* | `float64` | $M$ | One array for each other row of `metadata.metrics`: the weight of each edge in the metric `<name>`. The value is infinity for a closed edge. No value is below zero or not a number. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
-| `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed edge polylines. |
+| `shape_offsets` *(opt)* | `int32` | $M + 1$ | The shape of edge $e$ has the points of ids `shape_offsets[e]` to `shape_offsets[e+1] - 1` in `shape_points`. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior edge point, in the dtype of `node_points`. |
 | `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). A node that the build adds has an id below zero. No two nodes of one node mode have the same id. |
 | `node_mode_ids` *(opt)* | `uint8` | $N$ | The node mode of each node: the position of its node mode in `metadata.node_modes`, counted from 0. Each node has one node mode, so the value is a position, not a set of bits. A file has at most 256 node modes. |

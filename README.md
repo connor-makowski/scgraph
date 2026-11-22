@@ -65,9 +65,9 @@ print(route["length"])  # the km of the route
 
 The recipes run in order, after the first route: a recipe may use a name of an earlier one.
 
-### A Route on Several Modes, with Its Legs
+### A Route on Several Edge Modes, with Its Legs
 
-`europe` holds roads, railways, sea lanes and flights. `output_legs=True` returns the **legs** of a route: its parts by road, by rail, by sea and by air.
+An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`. `europe` has edges of the four edge modes. `output_legs=True` returns the **legs** of a route: a leg is a part of the route on one edge mode.
 
 ```py
 europe = GeoGraph.load_geograph("europe")

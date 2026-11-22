@@ -8,7 +8,7 @@ A **released network** is a network that the maintainers of scgraph build and pu
 |---|---|---|
 | The name of a released network | `GeoGraph.load_geograph(name)` | [Released Networks](#released-networks) |
 | A region, and the need of its data of today | `GeoGraph.build_geograph(name, region=...)` | [Building Networks from Their Sources](#building-networks-from-their-sources) |
-| A released network that is too large | `derive_network_file(file, new_file, bbox=...)` | [A Part of a Released Network](#a-part-of-a-released-network) |
+| A released network that is too large | `derive_network_file(parent_file, derived_file, bbox=...)` | [A Part of a Released Network](#a-part-of-a-released-network) |
 | An OSMnx graph | `GeoGraph.load_from_osmnx_graph(graph)` | [Loading from OSMnx](#loading-from-osmnx) |
 | An OpenStreetMap file | `GeoGraph.load_from_osm(file)` | [Loading an OpenStreetMap File](#loading-an-openstreetmap-file) |
 | Lines in a GeoJSON file, or a file that scgraph saved | `load_from_geojson`, `load_from_scgraph`, `load_from_graphjson` | [Saving and Loading Files](#saving-and-loading-files) |

@@ -20,7 +20,7 @@ graph = Graph([
 graph.validate()
 
 output = graph.dijkstra(origin_id=0, destination_id=5)
-print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10}
+print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10.0}
 
 # Reduce the graph: graph.graph stays the original graph, and graph.reduced_graph is the reduced one
 graph.reduce(iterations=1)
