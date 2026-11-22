@@ -978,6 +978,7 @@ class GeoGraphIO:
             - Type: str
             - What: The base URL where the built-in geograph .graphjson files are hosted
             - Note: With another URL than the default, every name loads `<name>.graphjson` from that URL, also the name of a released network
+            - Note: Deprecated. A call that passes another URL than the default gets a `DeprecationWarning`, and scgraph 5.0 removes the parameter. To load your own network, use `load_from_graphjson` or `load_from_scgraph`
         - `reduce_iterations`
             - Type: int
             - What: Number of reduction iterations to perform upon loading. If 0, no reduction is done. If -1, reduces iteratively until convergence.
@@ -3587,7 +3588,7 @@ class GeoGraph(
             - With a dict, an edge without a class weighs as an off-graph leg: its km times the weight of `"off_graph"`. It pays no weight of `weight_at_hub`
         - `class_weight_per_km`: With `weight_per_km`, `{name of a class: weight of 1 km}`: the weight per km of the edges of this class, in place of the weight per km of their edge mode. None closes a class
         - `weight_at_hub`: With `weight_per_km`, the weight that an edge pays at a hub: `{node mode of a hub: {edge mode: weight}}`. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port
-        - `weighted_sum_of`: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. The sum keeps its weights when one of these metrics is created again
+        - `weighted_sum_of`: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. An edge that is closed in one of these metrics is closed in the sum. The sum keeps its weights when one of these metrics is created again
         - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, and for the edges only. It needs `off_graph_weight_per_km`
         - `off_graph_weight_per_km`: With `edge_weight_fn`, the weight of 1 km of an off-graph leg, a finite number of zero or more. The other ways refuse it: a number of `weight_per_km` is also the weight per km of the off-graph legs, a dict of `weight_per_km` has the key `"off_graph"`, and a sum adds the weights per km of the off-graph legs of its metrics
         - `edge_weights`: `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the weight computed above
@@ -4177,8 +4178,8 @@ class GeoGraph(
         - Identify the shortest path between two nodes in a sparse network graph
 
         - Return a dictionary of various path information including:
-            - `id_path`: A list of node ids in the order they are visited
-            - `path`: A list of nodes  (list of lat then long) in the order they are visited
+            - `path`: With `output_path=True`, a list of node ids in the order they are visited
+            - `coordinate_path`: A list of coordinates (latitude then longitude) in the order they are visited, in the format of `output_coordinate_path`
             - `length`: The length of the path
             - `metric_totals`: On a geograph that has metrics other than `length` (see `metrics`), a dictionary `{name: total}` with the total of each of these metrics along the path
             - `legs`: With `output_legs=True`, the legs of the path in their order. A leg is a part of the path on one mode, as a dictionary `{"mode", "length", "metric_totals", "class_lengths", "coordinate_path"}`
@@ -4720,7 +4721,7 @@ class GeoGraph(
             - Type: str
             - What: The units of the output distance matrix
             - Default: 'km'
-            - Options: 'km', 'miles', 'meters', 'feet'
+            - Options: 'km', 'm', 'mi', 'ft'
             - Note: Ignored when the matrix holds the totals of a metric other than 'length'
         - `silent`
             - Deprecated and without effect. scgraph reports its messages through `logging`.
