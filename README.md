@@ -19,7 +19,7 @@ SCGraph finds the shortest route between two points of the globe, by road, by ra
 pip install scgraph
 ```
 
-scgraph has an optional C++ extension, which makes it faster. Without a C++ compiler, the install uses pure Python instead, with the same results. This command installs the pure-Python version on purpose, on Linux, macOS and WSL2:
+scgraph has an optional C++ extension, which makes it faster. Without a C++ compiler, the install uses pure Python instead, with the same results. To install the pure-Python version on a machine that has a compiler, run this command on Linux, macOS or WSL2:
 
 ```bash
 SCGRAPH_NO_BUILD=1 pip install --no-binary scgraph scgraph
@@ -51,9 +51,9 @@ print(route["length"])  # the km of the route
 | Routes over roads, railways, sea lanes and flights | `world_multimodal`, or a part of the world such as `europe` | `GeoGraph.load_geograph("europe")` |
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
-| Routes by road only | a released network, with `node_modes` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
+| Routes by road only | a released network, with `node_modes`. A **node mode** says where a node is, such as `road`, `sea` or `port` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
 | Routes by road and by sea | a released network, with `node_modes` and the ports that join them | `GeoGraph.load_geograph("europe", node_modes=["road", "sea", "port"])` |
-| Routes by time, by cost or by CO2 | a released network, with a metric | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
+| Routes by time, by cost or by CO2 | a released network, with a **metric**: a weight for each edge other than its length | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)` |
@@ -128,7 +128,7 @@ Two guides give more detail: [Networks](https://github.com/connor-makowski/scgra
 
 ### Faster Repeated Queries
 
-`reduce()` prepares a network once, and every later query is faster. `cached_shortest_path` keeps the work of the first query from an origin.
+`reduce()` prepares a network once, and every later query is faster. With `cached_shortest_path`, the first query from an origin stores its shortest paths, and a later query from this origin reads them.
 
 ```py
 roads.reduce()

@@ -2,7 +2,7 @@
 
 This guide is for a user who routes by time, by cost or by CO2. After it, you can give each edge your own weight, find the best route by these weights, read its parts, and close a canal.
 
-A network gives each edge a length. A **metric** gives each edge another weight, under a name: its hours, its cost, its kg of CO2. You create a metric on a geograph, then you name it in a query. The **total** of a metric along a route is the sum of the weights of its edges. A query by a metric returns the route with the smallest total.
+A network gives each edge a length. A **metric** gives each edge another weight, under a name: its hours, its cost, its kg of CO2. You create a metric on a geograph, then you name it in a query. The **total** of a metric along a route is the sum of the weights of its edges. A query by a metric returns the route with the smallest total. In the example below, `class_weight_per_km` gives the motorways their own speed, and `weight_at_hub` adds a wait at each port, airport and rail terminal.
 
 ```py
 from scgraph import GeoGraph
@@ -40,7 +40,7 @@ Each of the three dicts of the call has one kind of key:
 
 **The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
 
-**The default metric.** A query that names no metric uses the **default metric** of the geograph: `geograph.default_metric`. It is `length`, unless a loader or you set it: `europe.default_metric = "hours"`. `get_shortest_path`, `distance_matrix`, `get_path_weight` and `get_graph_object` apply this rule. A call raises a `ValueError` while the geograph does not have its default metric, for example after an edit of the network. The guide of the networks shows a loader that sets it, in [Loading from OSMnx](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#loading-from-osmnx).
+**The default metric.** A query that names no metric uses the **default metric** of the geograph: `geograph.default_metric`. It is `length`, unless a loader or you set it: `europe.default_metric = "hours"`. `get_shortest_path`, `distance_matrix`, `get_path_weight` and `get_graph_object` apply this rule. An edit of the network removes the metrics. If it removes the default metric, each of these calls raises a `ValueError` until you create this metric again. The guide of the networks shows a loader that sets it, in [Loading from OSMnx](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#loading-from-osmnx).
 
 ## The Legs of a Route
 
@@ -54,7 +54,7 @@ for leg in route["legs"]:
 route["transfers"]  # [{'node_id': ..., 'node_mode': 'airport'}, ...]: each transfer with its node mode
 ```
 
-The first leg and the last leg are the two off-graph legs: their `mode` is `off_graph`. The two nodes where they meet the network are not transfers. Here each query point is at less than 0.5 km from its node, so each off-graph leg prints 0 km. A leg by air holds the hours of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
+The first leg and the last leg are the two off-graph legs: their `mode` is `off_graph`. An off-graph leg ends at a node of the network: this node is not a transfer. Here each query point is at less than 0.5 km from its node, so each off-graph leg prints 0 km. A leg by air holds the hours of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
 
 ## Three Ways to Compute the Weights
 
@@ -100,7 +100,7 @@ europe.create_metric(
 
 **The function.** The function receives one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `edge_class`, `edge_mode` and `metric_weights`. `metric_weights` holds the weight of the edge in each metric that exists at the call. The function is called once for each edge, so a function is slower than weights per km. It is called for the edges only. `off_graph_weight_per_km` gives the weight of 1 km of an off-graph leg.
 
-**The rules of a call.** A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. `class_weight_per_km` and `weight_at_hub` need `weight_per_km`. `off_graph_weight_per_km` needs `edge_weight_fn`, and `edge_weight_fn` needs it. A dict of `weight_per_km` gives a weight per km for `off_graph`. Each class that has an edge needs a weight per km: its own, or that of its edge mode. A geograph without classes takes one number as `weight_per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. A metric that has the same name is replaced, and `remove_metric(name)` removes a metric. The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.create_metric) gives every argument.
+**The rules of a call.** A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. `class_weight_per_km` and `weight_at_hub` need `weight_per_km`. A call that gives `edge_weight_fn` also gives `off_graph_weight_per_km`, and no other call gives it. A dict of `weight_per_km` gives a weight per km for `off_graph`. Each class that has an edge needs a weight per km: its own, or that of its edge mode. A geograph without classes takes one number as `weight_per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. A metric that has the same name is replaced, and `remove_metric(name)` removes a metric. The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.create_metric) gives every argument.
 
 ## Closing an Edge Mode, a Class or an Edge
 

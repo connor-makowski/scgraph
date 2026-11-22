@@ -41,7 +41,7 @@ The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgr
 
 A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point **snaps** to this node. The route starts or ends at this node. An **off-graph leg** is the straight line from a query point to its node.
 
-A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. Each of its nodes has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph. In a released network with roads, a query point snaps to its closest road node, for every metric. A point at sea snaps to a road node too, however far. `node_addition_modes` lists the node modes that a query point may snap to:
+A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. Each of its nodes has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph. In a released network with roads, a query point snaps to its closest road node, for every metric. A point at sea also snaps to a road node, at any distance. `node_addition_modes` lists the node modes that a query point may snap to:
 
 ```py
 oceania = GeoGraph.load_geograph("oceania")
@@ -54,9 +54,9 @@ route = oceania.get_shortest_path(
 )
 ```
 
-With `node_addition_modes=["road", "rail"]`, a route may also start or end at a rail node. A node mode that the geograph does not have raises a `ValueError`.
+`node_addition_modes` chooses only the two nodes where the route starts and ends. Between them, the route takes any edge: here it takes a flight. With `node_addition_modes=["road", "rail"]`, a route may also start or end at a rail node. A node mode that the geograph does not have raises a `ValueError`.
 
-The default is `None`. A query point then snaps to the node modes that the network file names, in `geograph.default_node_addition_modes`. For a released network with roads, they are the roads. The point also snaps to a node without a named node mode, such as a node added by `add_coord_node` without `node_mode=`. A geograph without `default_node_addition_modes` snaps a query point to every node.
+The default is `None`. A query point then snaps to the node modes that the network file names, in `geograph.default_node_addition_modes`. For a released network with roads, they are the roads. `add_coord_node` without `node_mode` gives its node the node mode that has no name. A query point also snaps to a node of this node mode. A geograph without `default_node_addition_modes` snaps a query point to every node.
 
 `node_addition_type` chooses the nodes that the origin is joined to, among the nodes of these node modes. `destination_node_addition_type` does the same for the destination:
 
@@ -68,19 +68,19 @@ The default is `None`. A query point then snaps to the node modes that the netwo
 
 ## Choosing an Algorithm
 
-`algorithm_fn` names the algorithm of a query. The default, `'bidirectional_buckets'`, is adapted to a single query on a geographic network. `n` is the number of nodes, `m` the number of edges, and `W` the number of buckets that the search scans.
+`algorithm_fn` names the algorithm of a query. The default, `'bidirectional_buckets'`, is adapted to a single query on a geographic network. A **bucket** holds the nodes whose distance from the origin is in one range. A bucket search scans the buckets in the order of their distances. `n` is the number of nodes, `m` the number of edges, and `W` the number of buckets that the search scans.
 
 | `algorithm_fn` | Use it for | Time |
 |---|---|---|
 | `'bidirectional_buckets'` | A single query, with weights of zero or more. Bidirectional Dijkstra with buckets (Dial's algorithm) | O(n+m+W) |
 | `'dijkstra'` | A single query, with weights of zero or more. Standard Dijkstra | O((n+m) log n) |
 | `'bidirectional_dijkstra'` | A single query. The search runs from the origin and from the destination at the same time | O((n+m) log n) |
-| `'dijkstra_buckets'` | A search in one direction, with weights of zero or more. The width of a bucket comes from the finite weights of the graph | O(n+m+W) |
+| `'dijkstra_buckets'` | A search in one direction, with weights of zero or more. By default, the range of a bucket is 8 times the median of the edge weights that are not infinite | O(n+m+W) |
 | `'a_star'` | A single query with a good heuristic ([A* Heuristics](#a-heuristics)) | O((n+m) log n) |
 | `'dijkstra_negative'` | A graph with negative weights. Dijkstra with cycle detection | O(n·m) |
 | `'bellman_ford'` | A graph with negative weights. Slower than Dijkstra | O(n·m) |
 | `'bmssp'` | The [BMSSP algorithm](https://arxiv.org/pdf/2504.17033) ([implementation](https://github.com/connor-makowski/bmsspy)) | O(m log^(2/3)(n)) |
-| `'cached_shortest_path'` | Many queries from one origin: it keeps the shortest path tree of the origin | O((n+m) log n) first, O(1) after |
+| `'cached_shortest_path'` | Many queries from one origin. It keeps the **shortest path tree** of the origin: the shortest path from the origin to every node | O((n+m) log n) first, O(1) after |
 | `'contraction_hierarchy'` | Many queries between any points of a fixed graph, after a preprocessing | O(k log k) per query |
 | `'tnr'` | The same need, for long routes: [Transit Node Routing](https://en.wikipedia.org/wiki/Transit_node_routing) | O(1) per long query |
 
@@ -98,7 +98,7 @@ One query needs no preparation. For many queries, choose a way by the form of yo
 | Every pair of a list of places | `distance_matrix` | One tree for each place |
 | Any queries on a sparse network: roads, railways, sea lanes | `reduce()`, once | One pass over the graph. The lengths stay exact |
 | Very many queries between any points of a large network | A hierarchy: `'contraction_hierarchy'` or `'tnr'` | A preprocessing of seconds to minutes. An edit of the graph removes the hierarchy |
-| A program that may never query one of its networks | `lazy=True` at the load | Nothing before the first use |
+| A program that names several networks and uses only some of them | `lazy=True` at the load | Nothing before the first use |
 
 ### Cached Queries from One Origin
 
@@ -107,7 +107,7 @@ Use `cached_shortest_path` for many queries from the same origin, for example fr
 ```py
 shanghai = {"latitude": 31.23, "longitude": 121.47}
 
-# The first call computes the tree: about the cost of one Dijkstra search that does not stop early
+# The first call computes the tree: about the cost of one Dijkstra search that visits every node
 to_savannah = world_sea.get_shortest_path(
     origin_node=shanghai,
     destination_node={"latitude": 32.08, "longitude": -81.09},
@@ -178,7 +178,7 @@ europe.load()  # loads the network now; without this call, the first query loads
 
 ### Hierarchies: CH and TNR
 
-Use a contraction hierarchy (CH) for very many queries between any points of one large graph. The preprocessing runs once and is slow: seconds to minutes, by the size of the graph. A long route is then far faster than with Dijkstra. For many queries from one origin, a cached tree is still faster.
+Use a contraction hierarchy (CH) for very many queries between any points of one large graph. The preprocessing runs once and is slow: seconds to minutes, by the size of the graph. The query of a long route is then much faster than with Dijkstra. For many queries from one origin, a cached tree is still faster.
 
 ```py
 oceania_roads = GeoGraph.load_geograph("oceania", node_modes=["road"])
@@ -193,7 +193,7 @@ route = oceania_roads.get_shortest_path(
 )
 ```
 
-A hierarchy belongs to one metric. `oceania_roads.graph_object` is the graph of the lengths. For another metric, build the hierarchy on `oceania_roads.get_graph_object(metric)`, and pass `metric` to `get_shortest_path`. A metric that is created again has a new graph, without a hierarchy.
+A hierarchy belongs to one metric. `oceania_roads.graph_object` is the graph of the lengths. For another metric, build the hierarchy on `oceania_roads.get_graph_object(metric)`, and pass `metric` to `get_shortest_path`. When you create a metric again, its graph is new: build its hierarchy again.
 
 A hierarchy can be saved, and loaded again in place of a new preprocessing. A hierarchy with transit nodes (`algorithm_fn='tnr'`) is built and saved the same way:
 
@@ -229,7 +229,7 @@ route = world_sea.get_shortest_path(
 - `geograph.haversine`: the great-circle distance. It is exact, and the C++ build computes it inside the search.
 - `geograph.cheap_ruler`: a fast approximate distance (the method of Mapbox).
 
-A* returns the shortest path when the heuristic never exceeds the real distance left to the destination. With a metric other than `length`, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-shortest-path-search) gives the rule of the scale, and the case where A* searches as Dijkstra does.
+A* returns the shortest path when the heuristic never exceeds the real distance left to the destination. With a metric other than `length`, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-shortest-path-search) gives the rule of the scale, and the case where A* computes no lower bound.
 
 ## Distance Utilities
 
@@ -275,7 +275,7 @@ world_sea.get_shortest_path({"latitude": 31.23, "longitude": 121.47}, {"latitude
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
 
-- `node_scans` is the size of the search: the number of times it went over the edges of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
+- `node_scans` is the size of the search: the number of times that the search read the edges of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
 - `origin_snap_distance` and `destination_snap_distance` are the distances from each query point to the closest node that it snaps to, in `distance_units`.
 - `kept_nodes` is the number of nodes left after the reduction.
 - `mapped` is true when the load maps the file and reads it in place. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.

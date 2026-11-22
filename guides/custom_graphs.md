@@ -22,7 +22,7 @@ graph.validate()
 output = graph.dijkstra(origin_id=0, destination_id=5)
 print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10.0}
 
-# Reduce the graph: graph.graph stays the original graph, and graph.reduced_graph is the reduced one
+# reduce() replaces each chain of nodes with two neighbors by one edge: graph.reduced_graph is this reduced graph, and graph.graph stays the original graph
 graph.reduce(iterations=1)
 ```
 
@@ -31,8 +31,8 @@ Nodes are numbered from zero. An edge has one direction: a two-way link is two e
 The decorator `@Graph.algorithm` adds an algorithm of your own, which also runs on a reduced graph:
 
 ```py
-# On a reduced graph, a destination inside a contracted chain is passed as a dict {node_id: distance}
-# of the boundary nodes of the chain. A bidirectional algorithm gets its origin in the same form.
+# On a reduced graph, a destination inside a replaced chain is passed as a dict {node_id: distance}:
+# the nodes at the ends of its chain, each with its distance. A bidirectional algorithm gets its origin in the same form.
 @Graph.algorithm
 def custom_solver(self, origin_id: int | dict, destination_id: int | dict) -> dict:
     # A search in one direction on self.search_graph (the reduced graph after reduce()).
@@ -139,7 +139,7 @@ world_sea.add_coord_node(coord_dict={"latitude": 43.0, "longitude": 6.0}, edge_c
 world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 100})
 ```
 
-Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly keeps the class of the edge that it replaces. Between two nodes that had no edge, it has no class. An **off-graph leg** is the straight line from the origin or the destination of a query to its node. A metric made from weights per km gives an edge without a class the weight of an off-graph leg. This weight is its km times the weight per km of `off_graph`. So a route by the metric can start at a node that you added. A function of an edge receives such an edge with `None` as its `edge_class` and as its `edge_mode`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
+Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly keeps the class of the edge that it replaces. Between two nodes that had no edge, it has no class. An **off-graph leg** is the straight line from the origin or the destination of a query to its node. In a metric made from weights per km, an edge without a class has the weight per km of `off_graph`. So a route by the metric can start at a node that you added. A function of an edge receives such an edge with `None` as its `edge_class` and as its `edge_mode`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
 
 The [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) has more examples.
 
@@ -187,7 +187,7 @@ print(output)
 # {'length': 20.9704, 'coordinate_path': [[2, 10], [3, 9], ..., [18, 10]]}
 ```
 
-Without the wall, the direct path would have a length of 16. The wall forces a detour, of a length of 20.9704.
+Without the wall, the direct path would have a length of 16. Around the wall, the shortest path has a length of 20.9704.
 
 `conn_data` replaces the 8 default moves of a cell by moves of your own:
 
