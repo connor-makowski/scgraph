@@ -53,8 +53,6 @@ from math import inf, isfinite
 from operator import truediv
 from typing import TYPE_CHECKING
 
-from scgraph.utils import earth_radius
-
 try:
     from scgraph.cpp import compute_table_weights, compute_weighted_sum
 except ImportError:
@@ -257,8 +255,9 @@ def compute_weights_by_sum(
             finite number above zero. `length` may be one of the metrics.
         metrics: The metrics of the geograph other than `length`, by name.
         lengths: The length of each edge: the weights of the metric `length`.
-        units_per_km: 1 km in the unit of `lengths` (`get_units_per_km`): the
-            weight of 1 km of access leg in the metric `length`.
+        units_per_km: 1 km in the unit of `lengths`, from
+            `utils.get_units_per_km`: the weight of 1 km of access leg in the
+            metric `length`.
 
     Returns:
         One float64 weight for each edge, and the rate of the access legs: the
@@ -385,18 +384,6 @@ def set_edge_weights(
             weight, origin_id, destination_id
         )
     return new_weights
-
-
-def get_units_per_km(geograph_units: str) -> float:
-    """Return 1 km in the units of a geograph: 0.621 for `mi`.
-
-    `haversine` multiplies an angle by the Earth radius of a unit, so the ratio of
-    two radiuses converts a distance.
-
-    Args:
-        geograph_units: The `geograph_units` of the geograph.
-    """
-    return earth_radius.get(geograph_units, 6371) / earth_radius["km"]
 
 
 def compute_min_weight_per_km(

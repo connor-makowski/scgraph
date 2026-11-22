@@ -119,10 +119,10 @@ from scgraph.metrics import (
     compute_weights_by_tables,
     find_used_metrics,
     find_users,
-    get_units_per_km,
     order_by_dependencies,
     set_edge_weights,
 )
+from scgraph.utils import get_units_per_km
 
 if TYPE_CHECKING:  # Only for an annotation
     from scgraph.geograph import GeoGraph
@@ -339,17 +339,25 @@ class EdgeData:
 
     # The line-up
 
-    def _line_up(self, geograph: "GeoGraph") -> tuple[array | memoryview, ...]:
+    def _line_up(
+        self, geograph: "GeoGraph", left_out_metrics: tuple[str, ...] = ()
+    ) -> tuple[array | memoryview, ...]:
         """Line up the classes and the metrics with the edges of the graph, if the
         graph was edited since the last line-up (module docstring, *After an edit*).
+
+        Args:
+            left_out_metrics: The names of the metrics that the line-up leaves as
+                they are. Only `create_metric` names some: the metric that it
+                replaces and the users of this metric, which it computes next.
 
         Returns:
             The offsets, the heads and the lengths of the edges.
 
         Raises:
+            ValueError: An edge without a class needs a row after 256 classes.
             Exception: A metric cannot be computed again. The error leaves the
                 lined-up arrays as before the edit. Each later call raises it
-                again, until `remove_metric`.
+                again, until the metric is created again or removed.
         """
         graph = geograph.graph_object
         edit_count = graph._edit_count
@@ -368,6 +376,10 @@ class EdgeData:
             # 3. The classes
             names = [edge_class["name"] for edge_class in self.classes]
             no_class_row = names.index(None) if None in names else len(names)
+            if no_class_row == _MAX_CLASS_COUNT:
+                # A byte cannot hold the row of no class after 256 named classes.
+                # The rows are lined up in a wider array, then checked below.
+                edge_classes = array("H", edge_classes)
             edge_classes = take_edge_values(
                 edge_classes, old_edge_indexes, no_class_row
             )
@@ -381,13 +393,18 @@ class EdgeData:
             if no_class_row == len(self.classes) and (
                 no_class_row in edge_classes
             ):
+                _check_class_count(no_class_row + 1)
                 self.classes.append(dict(_NO_CLASS))
+            if edge_classes.typecode != "B":
+                edge_classes = array("B", edge_classes)
         before = self._edge_arrays, self._edge_classes, self._metrics
         self._edge_arrays, self._edge_classes = edge_arrays, edge_classes
         if self._metrics:
             # 4. The metrics
             try:
-                self._line_up_metrics(geograph, old_edge_indexes)
+                self._line_up_metrics(
+                    geograph, old_edge_indexes, left_out_metrics
+                )
             except Exception:
                 self._edge_arrays, self._edge_classes, self._metrics = before
                 raise
@@ -398,10 +415,14 @@ class EdgeData:
         return edge_arrays
 
     def _line_up_metrics(
-        self, geograph: "GeoGraph", old_edge_indexes: array
+        self,
+        geograph: "GeoGraph",
+        old_edge_indexes: array,
+        left_out_metrics: tuple[str, ...],
     ) -> None:
-        # Step 4 of a line-up. It also drops the graph of each metric. A pair of the
-        # `edge_weights` of a metric that is no longer an edge is dropped.
+        # Step 4 of a line-up. It also drops the graph of each metric. A pair of
+        # nodes of `edge_weights` is dropped when the graph no longer has this
+        # edge. No metric that is lined up uses a metric of `left_out_metrics`.
         offsets, heads, lengths = self._edge_arrays
         # For the metrics that were read: the weights that the `add_` call of each
         # new edge gave, by the index of the edge. An edge that was not there is
@@ -421,6 +442,9 @@ class EdgeData:
         metrics, self._metrics = self._metrics, {}
         for name in order_by_dependencies(metrics):
             metric_record = metrics[name]
+            if name in left_out_metrics:
+                self._metrics[name] = metric_record
+                continue
             if metric_record.definition is None:
                 weights = take_edge_values(
                     metric_record.weights, old_edge_indexes, inf
@@ -464,7 +488,9 @@ class EdgeData:
             except Exception as error:
                 error.add_note(
                     f"The geograph was edited, and it computes the metric {name!r} "
-                    f"again. `remove_metric({name!r})` removes the metric."
+                    f"again. To repair the geograph, create the metric {name!r} "
+                    "again with arguments that give a weight to each new edge, or "
+                    f"remove it with `remove_metric({name!r})`."
                 )
                 raise
         # The metrics keep their order, which `metrics` and the results show
@@ -622,6 +648,13 @@ class EdgeData:
                 (origin id, destination id).
         """
         self._new_edge_classes.update(new_edge_classes)
+
+    def list_classes(self, geograph: "GeoGraph") -> list[dict]:
+        """Return the rows of the classes: `GeoGraph.classes`. The classes are
+        lined up first, because a new edge without a class adds its row."""
+        if self._edge_classes is not None:
+            self._line_up(geograph)
+        return self.classes
 
     def list_file_classes(self, geograph: "GeoGraph") -> list[dict] | None:
         """Return the rows of the classes for the header of a network file, or None
@@ -809,15 +842,20 @@ class EdgeData:
             ValueError: An argument does not fit the network, or a weight is below
                 zero or not a number. No metric changes.
         """
-        self._line_up(geograph)
         used_metrics = find_used_metrics(self._metrics, name, definition)
-        metrics_before = dict(self._metrics)
+        users = find_users(self._metrics, name)
+        state_before = dict(vars(self))
         try:
+            # The call computes the metric of this name and its users from the new
+            # definition. The line-up leaves them out: after an edit, the
+            # definition that the call replaces may fit the graph no longer.
+            self._line_up(geograph, (name, *users))
             # A metric that is created again keeps its place among the metrics
+            self._metrics = dict(self._metrics)
             self._metrics[name] = self._compute_metric(
                 geograph, name, unit, description, definition, used_metrics
             )
-            for user_name in find_users(metrics_before, name):
+            for user_name in users:
                 user_record = self._metrics[user_name]
                 self._metrics[user_name] = self._compute_metric(
                     geograph,
@@ -828,8 +866,9 @@ class EdgeData:
                     user_record.used_metrics,
                 )
         except Exception:
-            # No metric changes when one of them cannot be computed
-            self._metrics = metrics_before
+            # No metric changes when one of them cannot be computed. The line-up
+            # is undone with them: it left out the metrics that the call computes.
+            vars(self).update(state_before)
             raise
 
     def _compute_metric(

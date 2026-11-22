@@ -19,6 +19,7 @@ from scgraph.utils import (
     get_line_path,
     cheap_ruler,
     get_lat_lon_bound_between_pts,
+    get_units_per_km,
     resolve_cache_dir,
     earth_radius,
     radians_per_degree,
@@ -28,7 +29,7 @@ from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.edge_data import EdgeData
-from scgraph.metrics import Metric, describe_definition, get_units_per_km
+from scgraph.metrics import Metric, describe_definition
 from scgraph import built_in_geographs, network_cache, network_file
 from scgraph import network_release as pinned_network_release
 import hashlib
@@ -2316,8 +2317,6 @@ class GeoGraphModifiers:
         original_other_modes = len(other_geograph.modes)
         if len(self.modes) + original_other_modes + 1 > 256:
             raise ValueError("A geograph has at most 256 modes")
-        # The edges of the other geograph have no weight in these metrics
-        self._edge_data.remove_metrics()
         # The class of each edge of the other geograph, read before this geograph
         # gets the connection nodes. A node of the other geograph follows the nodes
         # of this geograph and the connection nodes.
@@ -2326,6 +2325,9 @@ class GeoGraphModifiers:
             other_edge_classes = self._edge_data.merge_classes(
                 self, other_geograph, len(self.nodes) + len(connection_nodes)
             )
+        # The edges of the other geograph have no weight in these metrics. The
+        # metrics are removed after the checks: a refused merge changes nothing.
+        self._edge_data.remove_metrics()
         # Connection nodes connect to the two networks as they were before
         # the merge, not to each other
         current_index = self.snap_index
@@ -3152,7 +3154,7 @@ class GeoGraph(
         merge gives classes to a geograph. Example:
         `[row["name"] for row in geograph.classes]`.
         """
-        return self._edge_data.classes
+        return self._edge_data.list_classes(self)
 
     @property
     def graph(self) -> list[dict[int, int | float]]:

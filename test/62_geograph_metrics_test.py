@@ -375,7 +375,9 @@ def test_a_merge_keeps_the_classes_of_both_geographs(network, ferry):
     }
 
 
-def test_a_merge_that_gives_more_than_256_classes_is_refused(network, tmp_path):
+def test_a_merge_that_gives_more_than_256_classes_is_refused(
+    network_with_minutes, tmp_path
+):
     # The network has 7 classes. With the 250 classes of the other geograph,
     # the merged geograph would have 257 classes.
     many_classes = {f"class_{row}": "road" for row in range(250)}
@@ -386,7 +388,45 @@ def test_a_merge_that_gives_more_than_256_classes_is_refused(network, tmp_path):
     other = GeoGraph.load_from_scgraph(other_path)
 
     with pytest.raises(ValueError, match="256 classes"):
-        network.merge_with_other_geograph(other, connection_nodes=[[0.5, 0.0]])
+        network_with_minutes.merge_with_other_geograph(
+            other, connection_nodes=[[0.5, 0.0]]
+        )
+
+    # A refused merge changes nothing: the network keeps its metric.
+    assert [row["name"] for row in network_with_minutes.metrics] == [
+        "length",
+        "minutes",
+    ]
+
+
+@pytest.fixture
+def geograph_with_256_classes(tmp_path):
+    """The ferry line, read from a network file with 256 classes: a geograph
+    holds no more. The line has the last class."""
+    classes = {f"class_{row}": "road" for row in range(256)}
+    path = str(tmp_path / "256_classes.scgraph")
+    _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_255")], classes)
+    return GeoGraph.load_from_scgraph(path)
+
+
+def test_the_other_edges_keep_their_classes_when_a_geograph_with_256_classes_is_edited(
+    geograph_with_256_classes,
+):
+    geograph_with_256_classes.remove_edge(0, 1)
+
+    assert _get_class_of_each_edge(geograph_with_256_classes) == {
+        (1, 0): "class_255"
+    }
+
+
+def test_a_geograph_with_256_classes_refuses_an_edge_without_a_class(
+    geograph_with_256_classes,
+):
+    # An edge without a class has the class without a name: a 257th class.
+    geograph_with_256_classes.add_edge(0, 1, 25.0)
+
+    with pytest.raises(ValueError, match="256 classes"):
+        geograph_with_256_classes.get_edges()
 
 
 # create_metric: the weights of a metric
@@ -593,6 +633,30 @@ def test_tables_weigh_an_edge_without_a_class_as_an_access_leg(
     # 80 km × 4 minutes = 320 minutes.
     weights = _get_weight_of_each_edge(network_with_minutes, "minutes")
     assert weights[WEST_TOWN, PORT] == 320.0
+
+
+def test_a_metric_without_a_rate_for_a_new_edge_is_repaired_by_creating_it_again(
+    sea_network,
+):
+    # The sea network has no road: its tables need no rate for a road. Its
+    # nodes are the coast, the open sea and the port, in this order.
+    open_sea, port = 1, 2
+    sea_network.create_metric("minutes", per_km={"sea": 2.0, "off_graph": 4.0})
+    sea_network.add_edge(open_sea, port, 5.0, edge_class="primary")
+
+    # The tables give no rate to the new road.
+    with pytest.raises(ValueError, match="'minutes'"):
+        sea_network.get_shortest_path(
+            {"latitude": -0.025, "longitude": 0.69},
+            {"latitude": -0.065, "longitude": 2.5},
+        )
+
+    sea_network.create_metric(
+        "minutes", per_km={"sea": 2.0, "road": 8.0, "off_graph": 4.0}
+    )
+    # The new road: 5 km × 8 minutes = 40 minutes.
+    weights = _get_weight_of_each_edge(sea_network, "minutes")
+    assert weights[open_sea, port] == 40.0
 
 
 # create_metric: the calls that it refuses

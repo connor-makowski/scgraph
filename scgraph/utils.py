@@ -200,6 +200,18 @@ def distance_converter(
     return (distance / km_table[input_units]) * km_table[output_units]
 
 
+def get_units_per_km(geograph_units: str) -> float:
+    """Return 1 km in the units of a geograph: 0.621 for `mi`.
+
+    `haversine` multiplies an angle by the Earth radius of a unit, so the ratio of
+    two radiuses converts a distance.
+
+    Args:
+        geograph_units: The `geograph_units` of the geograph.
+    """
+    return earth_radius.get(geograph_units, 6371) / earth_radius["km"]
+
+
 def get_line_path(
     output: list | dict, filename: str | os.PathLike | None = None
 ) -> dict:
