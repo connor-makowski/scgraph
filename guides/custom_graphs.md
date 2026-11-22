@@ -85,7 +85,25 @@ print(output)
 # Birmingham and Zaragoza are off the graph. The path joins them to London and to Madrid, their closest nodes
 ```
 
-The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#saving-and-loading-files) says how to save this geograph to a file.
+**Classes of your own.** The **class** of an edge is its category, such as `motorway`. `edge_classes` gives the class of each edge, in the form of `graph`. `classes` gives each class with its **edge mode**, which says how its edges are travelled: `road`, `rail`, `sea` or `air`. A **metric** gives each edge a weight other than its length, under a name, such as its hours. A **weight per km** is the weight of 1 km of an edge in a metric. A metric gives a weight per km to an edge mode, and another one to a class:
+
+```py
+# Paris (0), Dijon (1) and Lyon (2): a motorway from Paris to Lyon, and a main road through Dijon
+france = GeoGraph(
+    nodes=[[48.8566, 2.3522], [47.3220, 5.0415], [45.7640, 4.8357]],
+    graph=[{1: 263, 2: 465}, {0: 263, 2: 175}, {0: 465, 1: 175}],
+    edge_classes=[{1: "main_road", 2: "motorway"}, {0: "main_road", 2: "main_road"}, {0: "motorway", 1: "main_road"}],
+    classes=[{"name": "motorway", "edge_mode": "road"}, {"name": "main_road", "edge_mode": "road"}],
+)
+# Hours: 70 km/h by road, and 110 km/h on a motorway
+france.create_metric("hours", weight_per_km={"road": 1 / 70, "off_graph": 1 / 30}, class_weight_per_km={"motorway": 1 / 110})
+
+paris, lyon = {"latitude": 48.8566, "longitude": 2.3522}, {"latitude": 45.7640, "longitude": 4.8357}
+france.get_shortest_path(origin_node=paris, destination_node=lyon)["length"]  # 438: the main road, through Dijon
+france.get_shortest_path(origin_node=paris, destination_node=lyon, metric="hours")["length"]  # 465: the motorway
+```
+
+The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#saving-and-loading-files) says how to save a geograph to a file.
 
 ## Modifying a GeoGraph
 
@@ -106,9 +124,9 @@ my_geograph.graph_object.add_edge(origin_id=0, destination_id=5, distance=1850, 
 my_geograph.remove_coord_node()
 ```
 
-**An edit of the network removes its metrics: create them again after it.** A **metric** gives each edge a weight other than its length, under a name, such as its hours. An edit is a node or an edge that you add or remove, or a merge. A warning then names the removed metrics, once. A metric that a loader read is removed too. An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them.
+**An edit of the network removes its metrics: create them again after it.** An edit is a node or an edge that you add or remove, or a merge. A warning then names the removed metrics, once. A metric that a loader read is removed too. An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them.
 
-**The classes stay.** The **class** of an edge is its category in its source, such as `motorway` or `open_sea`. `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take the keyword `edge_class`. It is the class of the new edge: a name of `geograph.classes`. A **weight per km** is the weight of 1 km of an edge in a metric. A metric that you create after the edit gives the new edge the weight per km of its class.
+**The classes stay.** `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take the keyword `edge_class`. It is the class of the new edge: a name of `geograph.classes`. A metric that you create after the edit gives the new edge the weight per km of its class.
 
 ```py
 world_sea = GeoGraph.load_geograph("world_sea")
