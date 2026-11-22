@@ -1,6 +1,6 @@
 # scgraph — Developer Guide
 
-<!-- Budget: 200 lines. `.claude/CLAUDE.md` and `AGENTS.md` link to this file. Detail lives in ARCHITECTURE.md, README.md and pyproject.toml. -->
+<!-- Budget: 200 lines. `.claude/CLAUDE.md` and `AGENTS.md` link to this file. Detail lives in ARCHITECTURE.md, guides/ and pyproject.toml. -->
 
 This guide is for people and for coding agents who change scgraph. *Getting Started* takes a new contributor to a first passing test run. The sections after it are reference: where the code is, how it is built and tested, and the rules of a contribution.
 
@@ -71,8 +71,7 @@ scgraph/
     bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
-  bench.py                       # Fast benchmark runner (<30s); outputs benchmark.md
-  compare_versions.py            # Before/after of two git refs with bench.py
+  bench.py, compare_versions.py  # Fast benchmark runner (<30s), outputs benchmark.md; before/after of two git refs with bench.py
   prettify.py                    # ruff (unused imports) + black (line-length=80)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
   draft_network_release.py       # Notes and file list of a network release (run by build_networks.yml)
@@ -82,6 +81,7 @@ utils/
 noxfile.py                       # nox sessions: pytest across Python 3.11–3.14 and PyPy 3.11, and lint (ruff, pyrefly)
 pyproject.toml                   # Package metadata, scikit-build-core config, black + ruff + pytest config
 CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
+README.md, guides/, MIGRATING.md # User documents: the entry page, one guide for each task, the changes since release 3.6
 ```
 
 ## Development Commands
@@ -100,7 +100,7 @@ CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3
 
 ## Core Architecture
 
-[ARCHITECTURE.md](ARCHITECTURE.md) explains how scgraph works inside: the data model, the classes, the metrics and the hierarchies (§2), the steps of a geographic query (§3), graph reduction (§4), plugging in an algorithm (§5), caches (§6), the `.scgraph` file (§7). The [README](README.md) gives every algorithm with its use (*Algorithm Reference*) and the parameters of the loaders.
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how scgraph works inside: the data model, the classes, the metrics and the hierarchies (§2), the steps of a geographic query (§3), graph reduction (§4), plugging in an algorithm (§5), caches (§6), the `.scgraph` file (§7). [guides/routing.md](guides/routing.md) gives every algorithm with its use (*Choosing an Algorithm*), and the docstrings give the parameters of the loaders.
 
 ### Key Classes
 
@@ -171,9 +171,9 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
 - **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Code that has a C++ kernel calls it when the extension is built.
-- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `_internal.log_step` (README, *Logging*).
+- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `_internal.log_step` (`guides/routing.md`, *Logging*).
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
-- **Public API**: The public names are the names of the README and of the `__all__` of each module (README, *Public API*). A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
+- **Public API**: The public names are the names of the table *Public API* of the README and of the `__all__` of each module. A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
 - **Don't mutate caller-provided arguments**: Copy small inputs (option dicts, lists of blocks, etc.) before modifying them; large graph data may be kept without copying for performance, so say so in the docstring
 
@@ -183,8 +183,8 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - Branches live in this repository (`fix/...`, `perf/...`, `docs/...`, `test/...`) and start from `dev`; PRs target `dev`, never `main`. A contributor without write access works from a fork.
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
-- A change to the public API edits `README.md` in the same PR. The documentation site shows the README as the page of the package: the docstring of `scgraph/__init__.py` includes it.
-- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. Release 4.0 made the breaking changes of the README section *Migrating from 3.6 to 4.0*. What 4.0 deprecates is removed in 5.0 at the earliest. `_internal.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
+- **Documents**: The README is the entry page, a guide of `guides/` covers one task, the docstrings are the reference, and `ARCHITECTURE.md` explains the inside: each fact has one home, and the other documents link to it. No document holds a number that a run or a network release changes. A change to the public API edits its docstring and its guide in the same PR. The docstring of `scgraph/__init__.py` includes the README, the guides and `MIGRATING.md`, so the documentation site shows them on the page of the package.
+- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. Release 4.0 made the breaking changes of `MIGRATING.md`. What 4.0 deprecates is removed in 5.0 at the earliest. `_internal.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.
