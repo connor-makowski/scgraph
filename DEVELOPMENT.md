@@ -37,7 +37,8 @@ scgraph/
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
   geograph.py                    # GeoGraph + LazyGeoGraph — snapping, loaders and savers, cache management, build_geograph, classes and metrics
-  metrics.py                     # Internal: the metrics of a GeoGraph, the arrays lined up with its edges, the legs of a route
+  edge_data.py                   # Internal: EdgeData, one for each GeoGraph: the classes and the metrics of its edges, lined up with its edges; the legs of a route
+  metrics.py                     # Internal: what a metric is, and how its weights are computed (tables, weighted sum, function)
   contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
@@ -53,7 +54,7 @@ scgraph/
     osm_world_multimodal.py      # The same network for the world, from the OpenStreetMap planet
     eurostat_sea_lanes.py        # Sea lanes of Eurostat SeaRoute
     network_builder.py           # The runner: build_network_file (download, build, cache); runs with python -m
-    derived_networks.py          # derive_network_file: some modes and a bbox of another network file; runs with python -m
+    derived_networks.py          # derive_network_file: some node modes and a bbox of another network file; runs with python -m
     data/                        # Hub tables: ports, airports, flights and rail terminals (data/README.md)
     steps/                       # step1_osm_ways, step1_osm_planet_reader, step2_hub_connectors, step2_land_mask,
     │                            #   step3_network_assembly, step4_validation_cases, near_nodes (ARCHITECTURE.md §1)
@@ -62,9 +63,8 @@ scgraph/
     polylines.py                 # Polylines to a graph: nodes where they end or meet, edges with their shape
     osm.py                       # The ways of an OpenStreetMap file to a graph, for load_from_osm and the pipelines
     components.py                # Strongly connected components; keeps the largest one, for load_from_osm and the pipelines
-    hilbert.py                   # Hilbert-curve order of nodes
-    snap_index.py                # Snapping index, pure-Python version of cpp/src/snap_index.cpp
-    edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from tables or as a sum)
+    hilbert.py, snap_index.py    # Hilbert-curve order of nodes; snapping index, pure-Python version of cpp/src/snap_index.cpp
+    edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from tables or as a sum)
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
     │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)
@@ -108,7 +108,7 @@ CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3
 |---|---|---|
 | `Graph` | `graph.py` | A graph of node ids: the algorithms, `reduce()`, the decorator `@Graph.algorithm`, the shortest path trees |
 | `GraphReducer` | `graph_reducer.py` | Contracts chains of pass-through nodes and expands a path back to the original nodes (ARCHITECTURE.md §4) |
-| `GeoGraph`, `LazyGeoGraph` | `geograph.py` | A `Graph` (attribute `graph_object`) with a point for each node: snapping, loaders and savers, cache, network builds. It holds the class of each edge and the metrics, with one `Graph` for each metric (`get_graph_object`) |
+| `GeoGraph`, `LazyGeoGraph` | `geograph.py` | A `Graph` (attribute `graph_object`) with a point for each node: snapping, loaders and savers, cache, network builds. Its `EdgeData` (`edge_data.py`) holds the class of each edge and the metrics, with one `Graph` for each metric (`get_graph_object`) |
 | `CHGraph`, `TNRGraph` | `contraction_hierarchies.py`, `transit_node_routing.py` | Hierarchies built once for fast queries (ARCHITECTURE.md §2, *Trees and Hierarchies*) |
 | `GridGraph` | `grid.py` | A 2D grid with obstacles, with 4 or 8 directions |
 | `GraphUtils`, `GraphModifiers` | `graph_utils.py` | Input validation and path reconstruction; adding and removing nodes and edges |

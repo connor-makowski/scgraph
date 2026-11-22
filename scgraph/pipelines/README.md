@@ -17,6 +17,8 @@ of the repository describes them.
 
 - A **network** is a graph with a position for each node. An **edge** joins one node to
   another, in one direction, and has a length in km.
+- A **query point** is the origin or the destination of a query. It **snaps** to a node of
+  the network: the route starts or ends at this node.
 - A **network file** stores one network, as `<name>.scgraph`. Its **header** is the first
   part of the file, which describes the network.
 - The **shape** of an edge is the list of points that draw the edge on a map between its two
@@ -72,8 +74,8 @@ the call that derives a network.
 
 1. **How do eleven networks stay consistent? One network is built from the sources, and every
    other network is derived from it.** A build of the world reads the whole OpenStreetMap
-   planet, which takes more than an hour. A derivation downloads nothing and takes seconds. All the
-   networks of one network release therefore hold the same data (Part 2).
+   planet, which takes more than an hour. A derivation downloads nothing and takes seconds.
+   All the networks of one network release therefore hold the same data (Part 2).
 2. **How does a user know what a file holds? A network file records where it comes from.**
    A user can then cite the sources and name the exact file behind a result. Step 7 of Part 1
    lists what the header records.
@@ -101,13 +103,16 @@ from its log. Another day gives other numbers, because the extract changes every
   pipeline and keeps the network file in the cache.
 - A **way** is a line of OpenStreetMap: a part of a road, of a railway or of a ferry route.
 - A **piece** is the part of a way between two nodes of the network.
-- The **mode** of a node is its kind: `road`, `rail`, `sea`, or the kind of a hub (`port`,
-  `airport`, `rail_terminal`).
-- A **hub** is a place where a route changes mode: a port, an airport or a rail terminal. A hub
-  is one node.
-- A **connector** is the pair of edges that joins a hub to the network of one mode.
+- The **node mode** of a node says where the node is: `road`, `rail`, `sea`, or the kind of a
+  hub (`port`, `airport`, `rail_terminal`).
+- A **hub** is a place where a route goes from one network to another: a port, an airport or a
+  rail terminal. A hub is one node.
+- A **connector** is the pair of edges that joins a hub to the network of the roads, of the
+  railways or of the sea lanes.
 - The **class** of an edge is its category, for example `motorway`, `ferry`, `rail_main` or
   `flight`. The docstring of `scgraph.pipelines` lists the classes.
+- The **edge mode** of a class says how its edges are travelled: `road`, `rail`, `sea` or
+  `air`.
 - A **chain** is a row of nodes that each have only two neighbors, as along a road with no
   junction.
 
@@ -132,7 +137,7 @@ build_network_file("geofabrik_multimodal", region="europe/denmark", validate=Tru
 ### The steps
 
 The build below has eight steps. The modules of `scgraph/pipelines/steps` group them in four:
-read the sources (`step1_…`), join the modes (`step2_…`), assemble the network (`step3_…`) and
+read the sources (`step1_…`), join the networks (`step2_…`), assemble the network (`step3_…`) and
 validate (`step4_…`).
 
 ```mermaid
@@ -173,26 +178,28 @@ selects. It cuts each way at its junctions. It also cuts a way where a piece wou
 than `max_km_between_nodes` (2 km). A route starts at the road node closest to its origin, so a
 long road needs nodes along it. The function simplifies the shape of each piece to within 50 m.
 
-The pipeline reads the extract once, for its two modes. The log line of this step gives the
-sum of the two counts: 26,457 pieces.
+The pipeline reads the extract once, for its two node modes. The log line of this step gives
+the sum of the two counts: 26,457 pieces.
 
-| Mode | Ways kept | Pieces |
+| Node mode | Ways kept | Pieces |
 |---|---|---|
 | `rail` | railway lines | 5,680 |
 | `road` | main roads | 20,777 |
 
-A pipeline has one select function for each mode. The function says whether a way is kept,
-and gives the class of the way. Each piece has the class of its way.
+A pipeline has one select function for each of these node modes. The function says whether a
+way is kept, and gives the class of the way. Each piece has the class of its way.
 
-Each mode has its own junctions and its own pieces, so the roads and the railways stay apart.
-A road and a railway can share a node of OpenStreetMap at a level crossing. The build makes
-one node for each mode there, so no route changes mode at a level crossing.
+Each node mode has its own junctions and its own pieces, so the roads and the railways stay
+apart. A road and a railway can share a node of OpenStreetMap at a level crossing. The build
+makes one node for each node mode there, so no route goes from a road to a railway at a level
+crossing.
 
 The function also attaches the vehicle ferries to the roads (`step1_osm_ways.build_ferry_edges`).
 A ferry is kept when each of its ends is within 2 km of a road node. The ferries give 12 edges in
 this build, one for each direction.
 
-`step3_network_assembly.build_graph_from_pieces` then stores the pieces of each mode as a graph.
+`step3_network_assembly.build_graph_from_pieces` then stores the pieces of each node mode as a
+graph.
 A graph holds one edge at most from a node to another. Of several edges between the same two
 nodes, the function keeps the shortest edge of each class:
 
@@ -264,12 +271,12 @@ count a few more nodes and edges.
   node to every other node. The step removes the rest, for example a road on a small island
   with no ferry.
 - **Contract the chains.** A chain becomes one edge with the length and the shape of the chain.
-  The route lengths do not change. A chain is never contracted across two modes or two
+  The route lengths do not change. A chain is never contracted across two node modes or two
   classes, and a chain longer than `max_km_between_nodes` keeps nodes along it. In this
   build, 151 nodes stay because the class changes there. The node in the middle of a split
   road (step 2) also stays.
-- **Order the nodes.** The nodes are sorted by mode, then along a Hilbert curve. Nodes that are
-  near on the map are then near in the file, so a search reads nearby memory.
+- **Order the nodes.** The nodes are sorted by node mode, then along a Hilbert curve. Nodes
+  that are near on the map are then near in the file, so a search reads nearby memory.
 
 Where to read more: the docstring at the top of `steps/step3_network_assembly.py`.
 
@@ -281,9 +288,9 @@ build. It also records three things that a query uses:
 
 - `metrics`: the metrics of the file. A built file has one metric, `length`, in km. A user
   adds other metrics on the loaded network (`GeoGraph.create_metric`).
-- `classes`: one row for each class, with its name and the mode of its edges, such as
+- `classes`: one row for each class, with its name and its edge mode, such as
   `{"name": "motorway", "mode": "road"}`.
-- `node_addition_modes`: the modes that a query point snaps to by default. This pipeline
+- `node_addition_modes`: the node modes that a query point snaps to by default. This pipeline
   names `road`, so a route starts and ends on a road.
 
 `GeoGraph.get_scgraph_info(file)` reads this back.
@@ -298,6 +305,11 @@ describes one known fact of the real world. Most cases give two points and a ref
 for the route between them. This build has three cases, and all three pass. One of them says
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
+There is one kind of case for each rule, and each kind has its node modes. The two points of
+a case snap to nodes of these node modes: a road node for a road distance, any node for a hub.
+The `node_addition_modes` of the file do not count here. So a case of a hub starts at the node
+of its hub, also in a network whose query points snap to roads by default.
+
 Then the runner moves the file into the cache. A network that fails a case does not enter the
 cache.
 
@@ -307,7 +319,7 @@ Where to read more: the docstring of `steps/step4_validation_cases`.
 
 The file holds 50,320 nodes and 171,999 edges.
 
-| Mode | Nodes |
+| Node mode | Nodes |
 |---|---|
 | `sea` | 42,157 |
 | `road` | 6,162 |
@@ -316,8 +328,9 @@ The file holds 50,320 nodes and 171,999 edges.
 | `airport` | 10 |
 | `rail_terminal` | 1 |
 
-A route may use every mode. It starts and ends at a road node, and it changes mode at hubs.
-`output_legs=True` returns the part of the route on each mode, and the hubs between them.
+A route may use every network. It starts and ends at a road node, and it goes from one network
+to another at hubs. A leg is a part of a route on one edge mode. `output_legs=True` returns the
+legs of the route, and the hubs between them.
 
 `GeoGraph.build_geograph` calls the runner, then loads the file. It builds nothing when the
 cache holds the file.
@@ -332,10 +345,10 @@ route = denmark.get_shortest_path(
     output_legs=True,
 )
 route["length"]  # the km of the shortest route
-[(leg["mode"], round(leg["length"])) for leg in route["legs"]]  # the modes that it takes
+[(leg["mode"], round(leg["length"])) for leg in route["legs"]]  # the edge modes that it takes
 ```
 
-To keep some modes only, load the file with `modes`. With the roads alone, the route between
+To keep some node modes only, load the file with `modes`. With the roads alone, the route between
 the same two points is 302.2 km:
 
 ```py
@@ -368,9 +381,10 @@ network `world_multimodal`. The pipeline differs from `geofabrik_multimodal` in 
 - It keeps each strongly connected component of at least 1,000 nodes, not only the largest.
   The roads of an island then stay in the file.
 
-A shortest route counts km only, in every mode. A long route therefore often takes a flight.
-Part 4 loads some modes only. The README of the repository, section *Routes by Time, Cost and
-CO2*, gives each mode a speed or a cost, and finds the fastest or the cheapest route.
+A shortest route counts km only, on every network. A long route therefore often takes a
+flight. Part 4 loads some node modes only. The README of the repository, section *Routes by
+Time, Cost and CO2*, gives each edge mode a speed or a cost, and finds the fastest or the
+cheapest route.
 
 ## Part 2. Derive a network from a network file
 
@@ -378,10 +392,10 @@ CO2*, gives each mode a speed or a cost, and finds the fastest or the cheapest r
 writes a smaller one, the derived file. It downloads nothing. The docstring of the module
 `derived_networks.py` gives the rules.
 
-A derivation takes two choices. The first is a list of modes. The second is a bbox, a rectangle
-`(south, west, north, east)` in degrees. The table `DERIVED_NETWORKS` of the same module names
-the ten derived networks of a network release, each with its modes or its bbox. Two examples
-are `world_sea` and `oceania`.
+A derivation takes two choices. The first is a list of node modes. The second is a bbox, a
+rectangle `(south, west, north, east)` in degrees. The table `DERIVED_NETWORKS` of the same
+module names the ten derived networks of a network release, each with its node modes or its
+bbox. Two examples are `world_sea` and `oceania`.
 
 ```
 mkdir derived
@@ -413,14 +427,15 @@ extension. The parent file is the `world_multimodal` of the network release
   does not contract the chains again: a junction that lost a road stays as a node.
 
 The derivation took 1.5 s. The derived file is 19.7 MB, and 7.1 MB without the shapes. Its
-header records the `content_sha256` of the parent file, the modes and the bbox.
+header records the `content_sha256` of the parent file, the node modes and the bbox.
 
-A derived file keeps the length and the class of each edge. It keeps the modes of
-`node_addition_modes` that it holds. So a query point snaps to a road node in `oceania`. `world_sea`
-holds no road, and a query point snaps to its closest node of any mode.
+A derived file keeps the length and the class of each edge. It keeps the node modes of
+`node_addition_modes` that it holds. So a query point snaps to a road node in `oceania`.
+`world_sea` holds no road, and a query point snaps to its closest node of any node mode.
 
 The command checks the derived network against some cases of `world_multimodal` (`--no-validate`
-skips this check): the cases whose two points are inside the bbox, on modes that the file holds.
+skips this check): the cases whose two points are inside the bbox, on node modes that the file
+holds.
 There are 16 such cases here.
 
 The validation of the world accepts that up to 1 % of the cities of a list have no road route.
@@ -568,11 +583,12 @@ route = roads.get_shortest_path(origin_node=sydney, destination_node=perth)
 route["length"]  # 3930.3 km, by road
 ```
 
-`load_geograph` takes the name of a released network. `load_intermediate_nodes=False` asks for the file
-without the shapes of the edges, and `modes` for some modes only. The README of the repository
-lists the eleven networks, in section *Network Releases*. It also gives the other
-arguments, the way to read the credit line, and the way to load exactly the same file later.
-The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on maps.
+`load_geograph` takes the name of a released network. `load_intermediate_nodes=False` asks for
+the file without the shapes of the edges, and `modes` for some node modes only. The README of
+the repository lists the eleven networks, in section *Network Releases*. It also gives the
+other arguments, the way to read the credit line, and the way to load exactly the same file
+later. The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on
+a map.
 
 The first call downloads
 `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph.gz`.
@@ -624,9 +640,9 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 
 ## A network of your own
 
-- **Another network derived from a released network.** `derive_network_file` takes any modes and any
-  bbox. The parent file is in the cache after a load, and `scgraph_file` gives its path. The
-  parent file must have the shapes of its edges.
+- **Another network derived from a released network.** `derive_network_file` takes any node
+  modes and any bbox. The parent file is in the cache after a load, and `scgraph_file` gives
+  its path. The parent file must have the shapes of its edges.
 
   ```py
   from scgraph import GeoGraph
@@ -641,21 +657,21 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.
 
-- **The classes and the default modes of your pipeline.** A pipeline module can define two
-  more names. The runner reads them when `build` returns the arrays of the network file.
+- **The classes and the default node modes of your pipeline.** A pipeline module can define
+  two more names. The runner reads them when `build` returns the arrays of the network file.
 
   ```py
-  # A query point snaps to a node of these modes by default
+  # A query point snaps to a node of these node modes by default
   NODE_ADDITION_MODES = ("road",)
-  # The mode of the edges of each class, by the name of the class
+  # The edge mode of each class, by the name of the class
   CLASSES = {"cycleway": "road", "towpath": "road", "ferry": "road"}
   ```
 
   A name of `NODE_ADDITION_MODES` is a name of the modes table that `build` returns. The array
   `edge_classes` holds the row of the class of each edge in `CLASSES`, counted from 0:
   `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
-  `scgraph.pipelines.CLASSES`. A user then gives a rate to each class or to each mode of these
-  tables (`GeoGraph.create_metric`).
+  `scgraph.pipelines.CLASSES`. A user then gives a rate to each class or to each edge mode of
+  these tables (`GeoGraph.create_metric`).
 
   When `build` returns a GeoGraph, the runner reads neither name. The file then holds the
   classes of this geograph, which its loader gave, and its `default_node_addition_modes`.
