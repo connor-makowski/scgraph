@@ -273,7 +273,8 @@ def _check_hub(network, case) -> str | None:
 
 
 # For each kind: the modes that its routes may use, and its rule. An empty tuple
-# of modes means all the modes of the network.
+# of modes means all the modes of the network. The points of a case snap to the
+# nodes of these modes (see `validate_network`).
 RULES = {
     "road_distances": (("road",), _check_road_distance),
     "crossings": (("road",), _check_crossing),
@@ -387,10 +388,17 @@ def validate_network(
     cases are the exception: when at most `MAX_SHARE_OF_FAILED_CITIES` of them
     fail, they all count as passed.
 
+    The points of a case snap to the nodes of the modes of its kind: a road node
+    for a road distance, any node for a hub. The modes that the network names for
+    its query points (`default_node_addition_modes`) do not count: a hub case
+    starts at the node of its hub, which is not a road node.
+
     Args:
         network: The path of a network file, or a loaded GeoGraph. A file is read
             again for each set of modes, one at a time, to limit the memory used.
-            The coverage rule resets the cache of trees of a loaded GeoGraph.
+            The coverage rule resets the cache of trees of a loaded GeoGraph. The
+            function sets `default_node_addition_modes` of a loaded GeoGraph for
+            its queries, and sets it back before it returns.
         cases: The cases, as `load_validation_cases` returns them.
 
     Returns:
@@ -410,12 +418,23 @@ def validate_network(
         loaded = None  # the previous network is released before the next load
         loaded = _load_on_modes(network, modes)
         failures = []
-        for case in cases_on_modes:
-            reason = RULES[case["kind"]][1](loaded, case)
-            if reason:
-                failures.append(
-                    {"id": case["id"], "kind": case["kind"], "error": reason}
-                )
+        # The queries of the rules snap to the nodes of the modes of the kind. No
+        # list of modes means every node.
+        default_node_addition_modes = loaded.default_node_addition_modes
+        loaded.default_node_addition_modes = list(modes) or None
+        try:
+            for case in cases_on_modes:
+                reason = RULES[case["kind"]][1](loaded, case)
+                if reason:
+                    failures.append(
+                        {
+                            "id": case["id"],
+                            "kind": case["kind"],
+                            "error": reason,
+                        }
+                    )
+        finally:
+            loaded.default_node_addition_modes = default_node_addition_modes
         # Coverage is judged on all its cities together
         cities = sum(case["kind"] == "coverage" for case in cases)
         cities_failed = sum(

@@ -7,7 +7,9 @@ reference value from a published source. Each case is one row of a CSV file in
 
 There is one CSV file for each kind of case. Each kind has its own rule, and its
 routes are searched on the modes of that kind only. For example, a road distance
-is measured on roads only, so a sea route cannot replace it.
+is measured on roads only, so a sea route cannot replace it. The two ends of a
+case snap to the nodes of these modes, whatever modes the network names for its
+query points (`node_addition_modes`).
 
     Kind (file name)  Modes      The case passes when
     ----------------  ---------  -------------------------------------------------
