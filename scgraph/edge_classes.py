@@ -28,8 +28,8 @@ An edit of the graph makes no answer out of date.
 
 A network file and the kernel of the weights per km need one array, lined up with
 the edges of the graph: the class id of each edge, at the edge id of the edge.
-`list_edge_class_ids` computes this array from `find_class`, when a caller asks for
-it. It keeps the array until the graph is edited.
+`list_edge_class_ids` computes this array for the edges that a caller gives. The
+geograph keeps the array until the graph is edited.
 
 Example, a loader reads three nodes with the edges 0 -> 1, 0 -> 2 and 2 -> 0:
 
@@ -124,10 +124,6 @@ class EdgeClasses:
         self._loaded_edge_class_ids = edge_class_ids
         # The class id of each added edge, by (origin id, destination id)
         self._class_ids_of_added_edges = {}
-        # The last result of `list_edge_class_ids`, and the heads of its graph. The
-        # edges of a graph read from a network file are the loaded edges.
-        self._listed_heads = heads
-        self._listed_edge_class_ids = edge_class_ids
 
     @classmethod
     def build_from_class_names(
@@ -181,21 +177,17 @@ class EdgeClasses:
         self, offsets: array | memoryview, heads: array | memoryview
     ) -> array | memoryview | None:
         """Return the class id of each edge of a graph, as a network file stores
-        it. The method keeps its last result: a second call for the same graph
-        computes nothing.
+        it.
 
         Args:
             offsets: The offsets of the edges of the graph, one for each node plus
                 one.
-            heads: The destination of each edge. The same array means the same
-                graph: the caller gives new arrays after an edit of the graph.
+            heads: The destination of each edge.
 
         Returns:
             The class id of each edge (uint8), at the edge id of the edge: 255 for
             an edge without a class. None for a geograph without classes.
         """
-        if heads is self._listed_heads:
-            return self._listed_edge_class_ids
         if not self.classes:
             return None
         edge_class_ids = array("B")
@@ -231,8 +223,6 @@ class EdgeClasses:
                 edge_class_ids.append(
                     self._find_class_id(origin_id, destination_id)
                 )
-        self._listed_heads = heads
-        self._listed_edge_class_ids = edge_class_ids
         return edge_class_ids
 
     def check_class(self, edge_class: str | None) -> None:

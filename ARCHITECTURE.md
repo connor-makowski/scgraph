@@ -338,7 +338,7 @@ flowchart TD
 | The snapping index of every node (`snap_index`), and the coordinates in radians | At the load of a network file, or at the first snap | When the nodes change: `add_coord_node`, `remove_node`, `remove_coord_node`, `merge_with_other_geograph` |
 | One snapping index for each set of node modes | At the first query that snaps to this set of node modes | With `snap_index` |
 | The edges (`offsets`, `heads`, lengths) | At the first read of an edge or of a metric | At the first read after an edit of `graph_object` (section 2, *Classes and Metrics*) |
-| The id of the class of each edge, lined up with the edges | At the first call that needs every class: `create_metric` from weights per km or from a function, `save_as_scgraph`, `get_edges` without a node | At the next of these calls after an edit of `graph_object` |
+| The id of the class of each edge, lined up with the edges | At the load of a network file with classes. After an edit, at the first call that needs the array: `create_metric` from weights per km, or `save_as_scgraph` | With the edges |
 | The `Graph` of each metric other than `length`, with its reduced graph, its trees and its hierarchies | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again |
 
 ### Persistent Filesystem Cache (`SCGRAPH_CACHE_DIR`)

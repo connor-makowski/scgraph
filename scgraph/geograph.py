@@ -307,10 +307,8 @@ class GeoGraphIO:
         # not read the arrays of its edges here.
         classes, edge_value_arrays = None, {}
         if self.classes or self._metrics:
-            geograph_offsets, geograph_heads, _ = self._read_edge_arrays()
-            edge_class_ids = self._edge_classes.list_edge_class_ids(
-                geograph_offsets, geograph_heads
-            )
+            geograph_offsets = self._read_edge_arrays()[0]
+            edge_class_ids = self._read_edge_class_ids()
             if edge_class_ids is not None:
                 classes = self.classes
                 edge_value_arrays["edge_class_ids"] = edge_class_ids
@@ -879,7 +877,7 @@ class GeoGraphIO:
         geograph.scgraph_file = filename
         geograph._length_unit = length_unit
         # The arrays of the file are the edges of the new graph, in the same order
-        geograph._set_edge_arrays(edge_arrays)
+        geograph._set_edge_arrays(edge_arrays, arrays.get("edge_class_ids"))
         if "edge_class_ids" in arrays:
             geograph._edge_classes = EdgeClasses(
                 metadata["classes"],
@@ -3189,6 +3187,10 @@ class GeoGraph(
         self._edge_arrays = None
         self._edge_arrays_graph = None
         self._edge_arrays_edit_count = None
+        # The class id of each of these edges, lined up with them, as
+        # `_read_edge_class_ids` computed it. None before the first call and
+        # after an edit.
+        self._edge_class_ids = None
         # The argument of the last `reduce`, for the graph of each metric
         self._reduce_iterations = None
         # The node modes that a query point snaps to by default, as a network file names
@@ -3251,13 +3253,30 @@ class GeoGraph(
         return self._edge_arrays
 
     def _set_edge_arrays(
-        self, edge_arrays: tuple[array | memoryview, ...]
+        self,
+        edge_arrays: tuple[array | memoryview, ...],
+        edge_class_ids: array | memoryview | None = None,
     ) -> None:
         # Keep the offsets, the heads and the lengths of the edges of
-        # `graph_object`, for `_read_edge_arrays`.
+        # `graph_object`, for `_read_edge_arrays`. `edge_class_ids` gives the
+        # class id of each of these edges when a network file holds it. With
+        # None, `_read_edge_class_ids` computes it.
         self._edge_arrays = edge_arrays
         self._edge_arrays_graph = self.graph_object
         self._edge_arrays_edit_count = self.graph_object._edit_count
+        self._edge_class_ids = edge_class_ids
+
+    def _read_edge_class_ids(self) -> array | memoryview | None:
+        # Return the class id of each edge of `graph_object`, lined up with the
+        # edges: 255 for an edge without a class. Return None for a geograph
+        # without classes. The array is computed at the first call after an
+        # edit of the graph.
+        offsets, heads, _ = self._read_edge_arrays()
+        if self._edge_class_ids is None:
+            self._edge_class_ids = self._edge_classes.list_edge_class_ids(
+                offsets, heads
+            )
+        return self._edge_class_ids
 
     def _remove_metrics(self) -> None:
         # Remove every metric other than `length`, at an edit of the network, and
@@ -3653,9 +3672,7 @@ class GeoGraph(
         offsets, heads, lengths = self._read_edge_arrays()
         units_per_km = get_units_per_km(self.geograph_units)
         if weight_per_km is not None:
-            edge_class_ids = self._edge_classes.list_edge_class_ids(
-                offsets, heads
-            )
+            edge_class_ids = self._read_edge_class_ids()
             if edge_class_ids is None:
                 # No edge has a class: `weight_per_km` is one weight per km for
                 # every edge
