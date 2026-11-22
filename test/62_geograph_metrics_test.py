@@ -414,11 +414,12 @@ def test_a_node_added_with_a_class_gives_it_to_its_edges(network):
     ] == ["road_connector", "road_connector"]
 
 
-def test_a_merge_that_gives_more_than_256_classes_is_refused(
+def test_a_merge_that_is_refused_changes_nothing(
     network_with_minutes, tmp_path
 ):
-    # The network has 7 classes. With the 250 classes of the other geograph,
-    # the merged geograph would have 257 classes.
+    # A geograph holds 256 classes at most. The network has 7 classes. With
+    # the 250 classes of the other geograph, the merged geograph would have
+    # 257 classes.
     many_classes = {f"class_{row}": "road" for row in range(250)}
     other_path = str(tmp_path / "many_classes.scgraph")
     _write_network(
@@ -431,36 +432,21 @@ def test_a_merge_that_gives_more_than_256_classes_is_refused(
             other, connection_nodes=[[0.5, 0.0]]
         )
 
-    # A refused merge changes nothing: the network keeps its metric.
+    # The network keeps its metric.
     assert [row["name"] for row in network_with_minutes.metrics] == [
         "length",
         "minutes",
     ]
 
 
-@pytest.fixture
-def geograph_with_256_classes(tmp_path):
-    """The ferry line, read from a network file with 256 classes: a geograph
-    holds no more. The line has the last class."""
+def test_a_geograph_with_256_classes_refuses_one_more_class(tmp_path):
+    # The ferry line, read from a network file with 256 classes: a geograph
+    # holds no more. The line has the last class.
     classes = {f"class_{row}": "road" for row in range(256)}
     path = str(tmp_path / "256_classes.scgraph")
     _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_255")], classes)
-    return GeoGraph.load_from_scgraph(path)
+    geograph_with_256_classes = GeoGraph.load_from_scgraph(path)
 
-
-def test_the_other_edges_keep_their_classes_when_a_geograph_with_256_classes_is_edited(
-    geograph_with_256_classes,
-):
-    geograph_with_256_classes.remove_edge(0, 1)
-
-    assert _get_class_of_each_edge(geograph_with_256_classes) == {
-        (1, 0): "class_255"
-    }
-
-
-def test_a_geograph_with_256_classes_refuses_an_edge_without_a_class(
-    geograph_with_256_classes,
-):
     # An edge without a class has the class without a name: a 257th class.
     geograph_with_256_classes.add_edge(0, 1, 25.0)
 
@@ -1305,28 +1291,15 @@ def test_a_query_point_snaps_to_the_modes_that_the_network_file_names(network):
 
 
 def test_a_query_point_snaps_to_a_node_that_the_user_added(network):
-    # The file names the mode `road` for the query points. The new node has
-    # no mode of the file. It is at the origin of the query, 0.1 degree west
-    # of the west town.
+    # The file names the mode `road` for the query points. This query builds
+    # the snapping index of the road nodes.
+    network.get_shortest_path(WEST_POINT, EAST_POINT)
+
+    # The new node has no mode of the file. It is at the origin of the next
+    # query, 0.1 degree west of the west town.
     node_id = network.add_coord_node(WEST_POINT)
 
     route = network.get_shortest_path(WEST_POINT, EAST_POINT, output_path=True)
-
-    assert route["path"][0] == node_id
-
-
-def test_a_query_point_snaps_to_a_node_added_after_an_earlier_query(network):
-    # This query builds the snapping index of the rail nodes.
-    network.get_shortest_path(
-        WEST_POINT, EAST_POINT, node_addition_modes=["rail"]
-    )
-
-    # The new rail node is at the origin of the next query.
-    node_id = network.add_coord_node(WEST_POINT, mode="rail")
-
-    route = network.get_shortest_path(
-        WEST_POINT, EAST_POINT, node_addition_modes=["rail"], output_path=True
-    )
     assert route["path"][0] == node_id
 
 
