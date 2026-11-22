@@ -9,8 +9,8 @@
 //
 // WHAT THEY ANSWER
 //   compute_weights_from_km gives the weight of each edge from its km, from a weight per km
-//   for each class of edge, and from a weight at each hub. An edge pays the weight of a hub
-//   when it leaves the hub, and when it enters the hub.
+//   for each class of edge, and from a weight at each hub. The weight of a hub is added
+//   to an edge that leaves the hub, and to an edge that enters the hub.
 //   compute_weighted_sum gives the weight of each edge as a sum of other metrics, each one
 //   times a coefficient.
 //   Both return one float64 value for each edge, in the order of the edges. An edge that no
@@ -42,9 +42,9 @@
 // THE WEIGHTS PER KM AND THE HUB WEIGHTS
 //   - `class_weights_per_km[c]` is the "weight per km" of the class c: the weight of 1 km of
 //     an edge of this class. Infinity closes the class.
-//   - `hub_weights[m * C + c]` is the weight that an edge of the class c pays when it leaves
-//     a node of the node mode m, and when it goes to a node of the node mode m. C is the
-//     number of classes.
+//   - `hub_weights[m * C + c]` is the weight that is added to an edge of the class c when
+//     it leaves a node of the node mode m, and when it goes to a node of the node mode m.
+//     C is the number of classes.
 //   Example: class_weights_per_km = [0.02, 0.04], because 1 km takes 1 / 50 = 0.02 hour by
 //   road and 1 / 25 = 0.04 hour by sea. With 3 node modes and 2 classes, `hub_weights` has 6
 //   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the node mode 1, has values.
@@ -58,7 +58,7 @@
 //   is not a number, so step 4 below refuses an edge with such an id.
 //   Example: with the 2 classes above and 0.1 hour for 1 km off the graph,
 //   class_weights_per_km holds 0.02, 0.04, then 253 values that are not a number, then 0.1.
-//   An edge of 4 km without a class weighs 0.1 * 4 = 0.4 hour, also from or to the port.
+//   The weight of an edge of 4 km without a class is 0.1 * 4 = 0.4 hour, also at the port.
 //
 // HOW A WEIGHT IS COMPUTED FROM THE KM
 //   For the edge e of the class c, from the node u to the node v:

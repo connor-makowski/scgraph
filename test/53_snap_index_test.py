@@ -323,7 +323,7 @@ def test_geograph_snaps_nodes_added_to_a_network_file(tmp_path):
 
 
 def test_geograph_snaps_a_query_point_to_its_modes_among_nodes_in_any_order():
-    # The shuffled network, a road node and a rail node in turn. A snapping
+    # The shuffled network: a road node, then a rail node, and so on. A snapping
     # index needs nearby nodes to follow each other. The rail nodes are not in
     # such an order, so the geograph sorts them before it builds their index.
     # Each node has an edge to the node 0 and back, so that every route exists.

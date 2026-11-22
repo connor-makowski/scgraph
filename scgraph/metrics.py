@@ -103,10 +103,10 @@ class Metric:
     def get_min_weight_per_km(self, lengths: array | memoryview) -> float:
         """Return the smallest weight of one unit of length: the weight of an edge
         divided by its length, over the open edges longer than zero. Return 0.0
-        without such an edge. A route of the length `d` weighs `d` times this value
+        without such an edge. The total of a route of length `d` is `d` times this value
         at least, so an A* search by the metric multiplies its bound by it."""
         if self.min_weight_per_km is None:
-            # `compress` leaves out the edges of length zero. The loops run in C.
+            # `compress` removes the edges of length zero. The loops run in C.
             ratios = map(
                 truediv,
                 compress(self.weights, lengths),
@@ -144,8 +144,8 @@ def resolve_weights_per_km(
         km that is not a number, which the kernel refuses.
 
     Raises:
-        ValueError: A dict has a key that it may not have, or lacks a weight per
-            km, or a hub weight is not a number.
+        ValueError: A dict has a key that it may not have, a weight per km is
+            missing, or a hub weight is not a number.
     """
     class_id_count = NO_CLASS_ID + 1
     class_weight_per_km = class_weight_per_km or {}
@@ -219,8 +219,8 @@ def resolve_weights_per_km(
             if not isinstance(weight, (int, float)):
                 raise ValueError(
                     f"weight_at_hub[{hub_mode!r}][{edge_mode!r}] must be a "
-                    "number, which an edge pays when it enters the hub and "
-                    f"when it leaves the hub: got {weight!r}"
+                    "number, added to an edge that enters the hub or leaves "
+                    f"it: got {weight!r}"
                 )
             # Two node modes may have the same name, after a merge
             for node_mode_id, mode_name in enumerate(node_mode_names):

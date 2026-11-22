@@ -1426,7 +1426,7 @@ class GeoGraphIO:
             - Keeps the `highway` value of each edge as its class, of the edge mode `road` (see `classes` and `get_edges`): the first value when `highway` is a list, and no class for an edge without `highway`
             - The lengths of the geograph are always the `length` of the edges, in kilometers
             - Keeps the `travel_time` of each edge as the metric `travel_time`, in seconds, when every edge has one: `get_shortest_path(metric="travel_time")` then finds the fastest path. Its result has the kilometers of this path in `length` and its seconds in `metric_totals["travel_time"]`
-            - An off-graph leg, the straight line between a query point and its node, weighs its kilometers times 3600 / `off_graph_travel_speed` seconds in the metric `travel_time`, or times 240 seconds without a speed
+            - The weight of an off-graph leg, the straight line between a query point and its node, is its kilometers times 3600 / `off_graph_travel_speed` seconds in the metric `travel_time`, or times 240 seconds without a speed
             - Of several edges from one node to another, keeps the one with the smallest value of `weight_key`, with its length, its class and its travel time. So with the weight key 'length', `travel_time` holds the time of the shortest edge, which may not be the fastest
 
         Required Arguments:
@@ -1460,8 +1460,8 @@ class GeoGraphIO:
             - What: The travel speed (km/h) to assume for off-graph travel in the metric `travel_time`
             - Default: None
             - Options:
-                - If a number, 1 km off the graph weighs 3600 / speed seconds in the metric `travel_time` (`off_graph_weight_per_km`)
-                - If None, 1 km off the graph weighs 240 seconds: 15 km/h
+                - If a number, the weight of 1 km off the graph is 3600 / speed seconds in the metric `travel_time` (`off_graph_weight_per_km`)
+                - If None, the weight of 1 km off the graph is 240 seconds: 15 km/h
             - Note: The speed does not change the lengths: an off-graph leg counts its kilometers in `length`
         - `load_intermediate_nodes`
             - Type: bool
@@ -1827,7 +1827,7 @@ class GeoGraphModifiers:
         Optional Arguments:
 
         - `symmetric`: Whether to add the edge in both directions
-        - `edge_class`: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError. With None, the edge has no class: a metric made from weights per km weighs it as an off-graph leg (see `create_metric`)
+        - `edge_class`: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError. With None, the edge has no class: a metric made from weights per km gives it the weight of an off-graph leg (see `create_metric`)
         """
         self._edge_classes.check_class(edge_class)
         self.graph_object.add_edge(
@@ -1948,7 +1948,7 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
-            - Default: None (no class: a metric made from weights per km weighs the new edge as an off-graph leg)
+            - Default: None (no class: a metric made from weights per km gives the new edge the weight of an off-graph leg)
         """
         if not (isinstance(origin_coord_dict, dict)):
             raise ValueError("Origin node must be a dictionary")
@@ -2079,7 +2079,7 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edges (see `add_edge`)
-            - Default: None (no class: a metric made from weights per km weighs each new edge as an off-graph leg)
+            - Default: None (no class: a metric made from weights per km gives each new edge the weight of an off-graph leg)
 
         Returns:
 
@@ -2213,7 +2213,7 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
-            - Default: None (no class: a metric made from weights per km weighs the new edge as an off-graph leg)
+            - Default: None (no class: a metric made from weights per km gives the new edge the weight of an off-graph leg)
         """
         if not (origin_idx < len(self.graph_object.graph)):
             raise ValueError("Origin node does not exist")
@@ -3182,8 +3182,8 @@ class GeoGraph(
         - `edge_classes`
             - Type: list of dicts | None
             - What: One dict per node, {destination: name of a class}: the class of each edge, as a name of `classes`; `get_edges` reads it back as `edge_class`
-            - Note: An edge that its dict lacks has no class
-            - Note: A name that `classes` lacks, a destination that is no edge of `graph`, a list that has not one dict per node, or `edge_classes` without `classes` raises a ValueError
+            - Note: An edge that is not in its dict has no class
+            - Note: A name that is not in `classes`, a destination that is no edge of `graph`, a list that has not one dict per node, or `edge_classes` without `classes` raises a ValueError
             - Example: `[{1: "motorway"}, {0: "motorway", 2: "ferry"}, {1: "ferry"}]`
             - Default: None (no edge has a class)
         - `default_off_graph_circuity`
@@ -3569,9 +3569,9 @@ class GeoGraph(
 
         - The nodes of a network file are sorted by node mode. So the nodes of one node
           mode are a range of node ids, and their index reads their points in the file
-        - A merge or an added node breaks this order: the ids are then an array. A merge
-          can also give the same name to two rows of `node_modes`, and a geograph may
-          have no row for a name
+        - A merge or an added node changes this order: the ids are then an array. A
+          merge can also give the same name to two rows of `node_modes`, and a geograph
+          may have no row for a name
         - `add_coord_node` without `node_mode` gives the node mode without a name to
           its node. A node appended to `nodes` directly is not in `node_mode_ids`: it
           has no named node mode either
@@ -3719,9 +3719,9 @@ class GeoGraph(
         - `weight_per_km`: The weight of 1 km: the weight of an edge is its weight per km times its km. The lengths of the geograph must be in km
             - A number is the weight per km of every edge, and of the off-graph legs: the straight lines between the points of a query and their nodes
             - A dict is `{mode of a leg: weight of 1 km}`. Its keys are the edge modes (see `classes`) and `"off_graph"`, for the off-graph legs. The dict must have `"off_graph"`, and the edge mode of each class that has an edge and that `class_weight_per_km` does not name. None closes an edge mode
-            - With a dict, an edge without a class weighs as an off-graph leg: its km times the weight of `"off_graph"`. It pays no weight of `weight_at_hub`
+            - With a dict, an edge without a class has the weight of an off-graph leg: its km times the weight of `"off_graph"`. `weight_at_hub` adds nothing to it
         - `class_weight_per_km`: With `weight_per_km`, `{name of a class: weight of 1 km}`: the weight per km of the edges of this class, in place of the weight per km of their edge mode. None closes a class
-        - `weight_at_hub`: With `weight_per_km`, `{node mode of a hub: {edge mode: weight}}`: the weight that an edge of this edge mode pays when it leaves a node of this node mode, and when it enters one. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port
+        - `weight_at_hub`: With `weight_per_km`, `{node mode of a hub: {edge mode: weight}}`: the weight that is added to an edge of this edge mode when it leaves a node of this node mode, and when it enters one. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port
         - `weighted_sum_of`: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. An edge that is closed in one of these metrics is closed in the sum. The sum keeps its weights when one of these metrics is created again
         - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, and for the edges only. It needs `off_graph_weight_per_km`
         - `off_graph_weight_per_km`: With `edge_weight_fn`, the weight of 1 km of an off-graph leg, a finite number of zero or more. The other ways refuse it: a number of `weight_per_km` is also the weight per km of the off-graph legs, a dict of `weight_per_km` has the key `"off_graph"`, and a sum adds the weights per km of the off-graph legs of its metrics
@@ -4061,9 +4061,9 @@ class GeoGraph(
     ) -> dict[str, float]:
         """Return the total of each metric other than `length` along a route: the
         weight of each edge of `path`, plus the off-graph legs from the points
-        `origin` and `destination` of the query. An off-graph leg weighs its km,
-        times `off_graph_circuity`, times `off_graph_weight_per_km` of the metric.
-        """
+        `origin` and `destination` of the query. The weight of an off-graph leg is
+        its km, times `off_graph_circuity`, times `off_graph_weight_per_km` of the
+        metric."""
         off_graph_km = off_graph_circuity * self._get_off_graph_km(
             path, origin, destination
         )
@@ -4512,7 +4512,7 @@ class GeoGraph(
                 - The search runs on `get_graph_object(metric)`. An unknown name raises a ValueError
                 - When no route by the metric joins the two points, the PathNotFoundError names the metric: an edge that is closed in the metric cannot be taken
                 - With `algorithm_fn='a_star'`, the bound of `geograph.haversine` or of `geograph.cheap_ruler` is a length: the geograph multiplies it by the smallest weight of 1 km of an edge in the metric. Another `heuristic_fn` is used as it is: it must give a lower bound of the total of the metric between two nodes
-                - An off-graph leg weighs its km times the weight of 1 km in the metric (`off_graph_weight_per_km` in `metrics`), with `node_addition_circuity` during pathfinding and with `off_graph_circuity` in the reported totals
+                - The weight of an off-graph leg is its km times the weight of 1 km in the metric (`off_graph_weight_per_km` in `metrics`), with `node_addition_circuity` during pathfinding and with `off_graph_circuity` in the reported totals
         - `node_addition_modes`
             - Type: list of str | None
             - What: The names of the node modes (see `node_modes`) that the origin and the destination may snap to: each one is connected only to nodes of these node modes, for every `node_addition_type`
@@ -4580,8 +4580,8 @@ class GeoGraph(
                 algorithm_kwargs.pop("heuristic_fn")
                 radius = earth_radius.get(self.geograph_units, 6371)
                 if is_metric_other_than_length:
-                    # A route of the length d weighs d times `min_weight_per_km` at
-                    # least. So the radius times this value bounds the metric.
+                    # The total of a route of the length d is at least d times
+                    # `min_weight_per_km`. So the radius times it bounds the metric.
                     radius *= self._read_metric(metric).get_min_weight_per_km(
                         self._read_edge_arrays()[2]
                     )
@@ -4680,9 +4680,9 @@ class GeoGraph(
             )
             is_direct = direct_node_addition_length <= min_entry_exit
             if is_metric_other_than_length:
-                # The search weighs an off-graph leg by its km times the weight of
-                # 1 km. The test above compares lengths: a metric whose off-graph
-                # legs weigh nothing must not make every route direct.
+                # In the search, the weight of an off-graph leg is its km times the
+                # weight of 1 km. The test above compares lengths: a metric whose
+                # off-graph legs have a weight of zero must not make every route direct.
                 off_graph_weight_per_unit = self._read_metric(
                     metric
                 ).off_graph_weight_per_km / get_units_per_km(
@@ -4957,8 +4957,8 @@ class GeoGraph(
             )
             off_graph_units, off_graph_weight_per_unit = output_units, 1
         else:
-            # The total of a metric is not converted. An off-graph leg weighs its km
-            # times the weight of 1 km in the metric.
+            # The total of a metric is not converted. The weight of an off-graph leg
+            # is its km times the weight of 1 km in the metric.
             dist_multiplier, off_graph_units = 1, "km"
             off_graph_weight_per_unit = self._read_metric(
                 output_metric
