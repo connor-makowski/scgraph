@@ -1267,10 +1267,13 @@ def test_a_road_fragment_apart_from_the_main_road_is_left_out(coast_network):
 def test_a_route_from_the_road_to_the_sea_lane_passes_through_a_port(
     coast_network,
 ):
+    # The destination is at sea. Without the modes, a point of a query snaps to
+    # a road node: the network file names this mode.
     route = coast_network.get_shortest_path(
         origin_node={"latitude": -0.01, "longitude": 0},
         destination_node={"latitude": 0, "longitude": 0.3},
         output_coordinate_path="list_of_lists",
+        node_addition_modes=["road", "sea"],
     )
 
     assert [-0.004, 0.001] in route["coordinate_path"]  # the bend of the road

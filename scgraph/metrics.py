@@ -1,4 +1,5 @@
-"""The metrics of a GeoGraph, and the arrays that it keeps lined up with its edges.
+"""The metrics of a GeoGraph, the arrays that it keeps lined up with its edges, and
+the legs of its routes.
 
 This module is internal. `GeoGraph.create_metric` and the queries of a GeoGraph call
 it.
@@ -59,6 +60,23 @@ Example, after the edge 0 -> 2 is removed and the edge 1 -> 2 is added:
 
     offsets = [0, 1, 2, 3]    heads = [1, 2, 0]    match_edges gives [0, -1, 2]
     take_edge_values([4, 4, 7], [0, -1, 2], 9) gives [4, 9, 7]
+
+THE LEGS OF A ROUTE
+
+A "leg" is a part of a route on one mode: consecutive edges whose classes have the
+same mode. `cut_legs` cuts the edges of a path into legs, and totals each leg.
+
+Example, the path 3 -> 0 -> 8 -> 9 -> 2. Its four edges are a road of 2 km, a
+railway of 1 km, a railway of 90 km and a road of 2 km. The class of the first
+railway is `rail_connector`, and the class of the second is `rail_main`:
+
+    modes of the edges = [road, rail, rail, road]
+    legs = road, 2 km, nodes [3, 0]
+           rail, 91 km, nodes [0, 8, 9], of which rail_connector 1 km, rail_main 90 km
+           road, 2 km, nodes [9, 2]
+
+A leg starts at the node where the leg before it ends. The two road legs stay two
+legs, because the railway is between them.
 """
 
 from array import array
@@ -560,3 +578,41 @@ def reorder_edge_values(
         first, last = offsets[origin_id], offsets[origin_id + 1]
         ordered.frombytes(values[first:last].cast("B"))
     return ordered
+
+
+def cut_legs(edges: list[dict]) -> list[dict]:
+    """Cut the edges of a path into legs, and total each leg.
+
+    Args:
+        edges: The dict of each edge of the path, in the order of the path, as
+            `GeoGraph.get_path_edges` returns them.
+
+    Returns:
+        One dict for each leg, in the order of the path. `mode` is the mode of the
+        edges of the leg. `length` is their total length, and `metrics` their total
+        in each metric, by name. `class_lengths` is their total length by class,
+        under the name of the class. `path` holds the node ids of the leg. A path
+        without an edge has no leg.
+    """
+    legs = []
+    for edge in edges:
+        if not legs or legs[-1]["mode"] != edge["mode"]:
+            legs.append(
+                {
+                    "mode": edge["mode"],
+                    "length": 0.0,
+                    "metrics": dict.fromkeys(edge["metrics"], 0.0),
+                    "class_lengths": {},
+                    "path": [edge["origin_id"]],
+                }
+            )
+        leg = legs[-1]
+        leg["length"] += edge["length"]
+        for name, weight in edge["metrics"].items():
+            leg["metrics"][name] += weight
+        class_lengths = leg["class_lengths"]
+        class_lengths[edge["class"]] = (
+            class_lengths.get(edge["class"], 0.0) + edge["length"]
+        )
+        leg["path"].append(edge["destination_id"])
+    return legs

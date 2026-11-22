@@ -2,12 +2,14 @@
 classes and its metrics."""
 
 import math
+import random
 from array import array
 from itertools import accumulate
 
 import pytest
 
 from scgraph import GeoGraph, PathNotFoundError, network_file
+from scgraph.utils import haversine
 
 # The network of these tests joins two towns on the equator, 0.7 degree of
 # longitude apart. A line of the drawing is one edge each way, with its km.
@@ -734,8 +736,333 @@ def test_a_route_that_needs_a_closed_edge_is_not_found(network):
     # The destination snaps to the open sea node, which only sea lanes reach.
     with pytest.raises(PathNotFoundError):
         network.get_shortest_path(
-            WEST_POINT, {"latitude": -0.065, "longitude": 2.5}, metric="minutes"
+            WEST_POINT,
+            {"latitude": -0.065, "longitude": 2.5},
+            metric="minutes",
+            node_addition_modes=["road", "sea"],
         )
+
+
+# Two points on the equator, each with a road node as its closest node. The
+# first one is 0.01 degree west of the east town. Its closest rail node is the
+# east station, 0.022 degree away. The second one is 0.05 degree west of the
+# junction. Its closest rail node is the west station, 0.3 degree away: the
+# east station is 0.4 degree away.
+POINT_NEAR_THE_EAST_TOWN = {"latitude": 0.0, "longitude": 0.69}
+POINT_NEAR_THE_JUNCTION = {"latitude": 0.0, "longitude": 0.3}
+
+
+# The other tests snap with the default type, 'closest'.
+@pytest.mark.parametrize("node_addition_type", ["quadrant", "all"])
+def test_a_query_point_snaps_only_to_nodes_of_the_modes_of_the_query(
+    network, node_addition_type
+):
+    route = network.get_shortest_path(
+        POINT_NEAR_THE_EAST_TOWN,
+        POINT_NEAR_THE_JUNCTION,
+        node_addition_modes=["rail"],
+        node_addition_type=node_addition_type,
+        output_path=True,
+    )
+
+    # A route that may start at any node starts at the east town.
+    path = route["path"]
+    assert (path[0], path[-1]) == (EAST_STATION, WEST_STATION)
+
+
+def test_a_query_point_snaps_to_the_modes_that_the_network_file_names(network):
+    # The file names the mode `road` (`_write_network`). The point is 0.01
+    # degree north of the east station and 0.03 degree north of the east town.
+    route = network.get_shortest_path(
+        WEST_POINT, {"latitude": 0.03, "longitude": 0.7}, output_path=True
+    )
+
+    assert route["path"][-1] == EAST_TOWN
+
+
+def test_a_query_point_snaps_to_a_node_added_after_an_earlier_query(network):
+    # This query builds the snapping index of the rail nodes.
+    network.get_shortest_path(
+        WEST_POINT, EAST_POINT, node_addition_modes=["rail"]
+    )
+
+    # The new rail node is at the origin of the next query.
+    node_id = network.add_coord_node(WEST_POINT, mode="rail")
+
+    route = network.get_shortest_path(
+        WEST_POINT, EAST_POINT, node_addition_modes=["rail"], output_path=True
+    )
+    assert route["path"][0] == node_id
+
+
+def test_a_query_point_snaps_to_its_modes_among_nodes_in_any_order():
+    # 2,000 nodes at random places, a road node and a rail node in turn. A
+    # snapping index needs nearby nodes to follow each other: the geograph
+    # sorts the rail nodes for theirs. Each node has an edge to the node 0 and
+    # back, so that every route exists.
+    rng = random.Random(62)
+    nodes = [[rng.uniform(-10, 10), rng.uniform(-10, 10)] for _ in range(2000)]
+    geograph = GeoGraph(
+        graph=[{i: 1.0 for i in range(1, 2000)}]
+        + [{0: 1.0} for _ in nodes[1:]],
+        nodes=nodes,
+        node_modes=[i % 2 for i in range(2000)],
+        modes=[{"name": "road"}, {"name": "rail"}],
+    )
+    origin, destination = [-5.0, -5.0], [5.0, 5.0]
+
+    route = geograph.get_shortest_path(
+        {"latitude": origin[0], "longitude": origin[1]},
+        {"latitude": destination[0], "longitude": destination[1]},
+        node_addition_modes=["rail"],
+        output_path=True,
+    )
+
+    # The rail nodes have the odd ids.
+    assert [route["path"][0], route["path"][-1]] == [
+        min(range(1, 2000, 2), key=lambda i: haversine(point, nodes[i]))
+        for point in (origin, destination)
+    ]
+
+
+@pytest.fixture
+def sea_network(network_path):
+    """The sea lanes and the port of the network, read alone. The file names
+    the mode `road` for the query points, and this geograph has no road node.
+    """
+    return GeoGraph.load_from_scgraph(network_path, modes=["sea", "port"])
+
+
+def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_mode(
+    sea_network,
+):
+    # The origin is 0.01 degree west of the port, and the destination is 0.05
+    # degree east of the open sea node.
+    route = sea_network.get_shortest_path(
+        {"latitude": -0.025, "longitude": 0.69},
+        {"latitude": -0.065, "longitude": 2.5},
+    )
+
+    # The points of the port, of the coast and of the open sea
+    assert route["coordinate_path"][1:-1] == [
+        [-0.025, 0.7],
+        [-0.065, 0.7],
+        [-0.065, 2.45],
+    ]
+
+
+# No node of the geograph has the mode `road`. Its file has no mode `canal`.
+@pytest.mark.parametrize(
+    "node_addition_modes", [["road"], ["sea", "canal"], []]
+)
+def test_a_query_refuses_modes_that_its_points_cannot_snap_to(
+    sea_network, node_addition_modes
+):
+    with pytest.raises(ValueError, match="node_addition_modes"):
+        sea_network.get_shortest_path(
+            {"latitude": -0.025, "longitude": 0.69},
+            {"latitude": -0.065, "longitude": 2.5},
+            node_addition_modes=node_addition_modes,
+        )
+
+
+def test_a_query_refuses_modes_on_a_geograph_without_modes():
+    geograph = GeoGraph(graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]])
+
+    # The one mode of this geograph has no name: a query cannot name it.
+    with pytest.raises(ValueError, match="node_addition_modes"):
+        geograph.get_shortest_path(
+            {"latitude": 0, "longitude": 0},
+            {"latitude": 0, "longitude": 1},
+            node_addition_modes=[None],
+        )
+
+
+def test_the_legs_of_a_route_are_its_parts_on_one_mode(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+
+    route = network.get_shortest_path(
+        WEST_POINT,
+        EAST_POINT,
+        metric="minutes",
+        output_units="m",
+        output_legs=True,
+    )
+
+    # The fastest route: a road connector from the west town to its terminal,
+    # the railway between the two terminals, and a road connector to the east
+    # town. An access leg joins each point of the query to its town. The
+    # lengths are in metres, the unit of the query.
+    access_leg = ("off_graph", pytest.approx(1000 * ACCESS_LEG_KM), {})
+    road_leg = ("road", 2000.0, {"road_connector": 2000.0})
+    rail_leg = (
+        "rail",
+        92000.0,
+        {"rail_connector": 2000.0, "rail_main": 90000.0},
+    )
+    assert [
+        (leg["mode"], leg["length"], leg["class_lengths"])
+        for leg in route["legs"]
+    ] == [access_leg, road_leg, rail_leg, road_leg, access_leg]
+    assert route["hubs"] == [
+        {"node_id": WEST_TERMINAL, "mode": "rail_terminal"},
+        {"node_id": EAST_TERMINAL, "mode": "rail_terminal"},
+    ]
+
+
+def test_the_legs_of_a_route_add_up_to_its_length_and_to_its_totals(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    network.create_metric("cost", weighted_sum_of={"minutes": 2, "length": 0.5})
+
+    route = network.get_shortest_path(
+        WEST_POINT,
+        EAST_POINT,
+        metric="minutes",
+        off_graph_circuity=2,
+        output_legs=True,
+    )
+
+    legs = route["legs"]
+    assert sum(leg["length"] for leg in legs) == pytest.approx(route["length"])
+    assert {
+        name: sum(leg["metrics"][name] for leg in legs)
+        for name in ("minutes", "cost")
+    } == pytest.approx(route["metrics"])
+
+
+# Each destination gives a route without an edge, with its points. The first
+# one is 0.05 degree east of the west town: both points of the query snap to
+# this town. The second one is 0.01 degree from the origin: the straight line
+# is shorter than the way to the town.
+@pytest.mark.parametrize(
+    "destination, coordinate_path",
+    [
+        ([0.0, 0.05], [[0.0, -0.1], [0.0, 0.0], [0.0, 0.05]]),
+        ([0.0, -0.11], [[0.0, -0.1], [0.0, -0.11]]),
+    ],
+)
+def test_a_route_without_an_edge_is_one_leg_off_the_graph(
+    network, destination, coordinate_path
+):
+    route = network.get_shortest_path(
+        WEST_POINT,
+        {"latitude": destination[0], "longitude": destination[1]},
+        output_legs=True,
+    )
+
+    assert route["legs"] == [
+        {
+            "mode": "off_graph",
+            "length": pytest.approx(route["length"]),
+            "class_lengths": {},
+            "coordinate_path": coordinate_path,
+        }
+    ]
+
+
+def test_the_edges_of_a_geograph_without_classes_make_one_leg_of_no_mode():
+    geograph = GeoGraph(graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]])
+
+    route = geograph.get_shortest_path(
+        {"latitude": 0, "longitude": -0.1},
+        {"latitude": 0, "longitude": 1.1},
+        output_legs=True,
+    )
+
+    assert [(leg["mode"], leg["class_lengths"]) for leg in route["legs"]] == [
+        ("off_graph", {}),
+        (None, {None: 2.5}),
+        ("off_graph", {}),
+    ]
+
+
+def test_the_coordinate_paths_of_the_legs_follow_the_one_of_the_route():
+    # A road of two edges. The first edge has a bend: one point of its shape.
+    road_with_a_bend = GeoGraph(
+        graph=[{1: 60.0}, {2: 60.0}, {}],
+        nodes=[[0.0, 0.0], [0.0, 0.5], [0.0, 1.0]],
+        intermediate_nodes=[{1: [[0.1, 0.25]]}, {}, {}],
+    )
+
+    route = road_with_a_bend.get_shortest_path(
+        {"latitude": 0.0, "longitude": -0.1},
+        {"latitude": 0.0, "longitude": 1.1},
+        output_coordinate_path="list_of_dicts",
+        output_legs=True,
+    )
+
+    # A leg starts at the point where the leg before it ends.
+    access_leg, road_leg, last_access_leg = (
+        leg["coordinate_path"] for leg in route["legs"]
+    )
+    assert (
+        access_leg + road_leg[1:] + last_access_leg[1:]
+        == route["coordinate_path"]
+    )
+
+
+def test_distance_matrix_by_a_metric_gives_the_total_of_this_metric(network):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    points = [WEST_POINT, EAST_POINT]
+
+    matrix = network.distance_matrix(points, metric="minutes")
+
+    assert matrix == [
+        pytest.approx(
+            [
+                network.get_shortest_path(
+                    origin, destination, metric="minutes"
+                )["metrics"]["minutes"]
+                for destination in points
+            ]
+        )
+        for origin in points
+    ]
+
+
+# The lengths of the fastest routes, and the minutes of the shortest routes
+@pytest.mark.parametrize(
+    "metric, output_metric", [("minutes", "length"), ("length", "minutes")]
+)
+def test_distance_matrix_gives_the_totals_of_another_metric_than_its_routes(
+    network, metric, output_metric
+):
+    network.create_metric("minutes", per_km=MINUTES_PER_KM)
+    points = [WEST_POINT, EAST_POINT]
+
+    matrix = network.distance_matrix(
+        points, metric=metric, output_metric=output_metric
+    )
+
+    routes = [
+        [
+            network.get_shortest_path(origin, destination, metric=metric)
+            for destination in points
+        ]
+        for origin in points
+    ]
+    assert matrix == [
+        pytest.approx(
+            [
+                {"length": route["length"], **route["metrics"]}[output_metric]
+                for route in row
+            ]
+        )
+        for row in routes
+    ]
+
+
+def test_distance_matrix_snaps_its_points_to_the_modes_of_the_call(network):
+    matrix = network.distance_matrix(
+        [WEST_POINT, EAST_POINT], node_addition_modes=["rail"]
+    )
+
+    # Each point snaps to the station of its town, 0.02 degree north of the
+    # equator and 0.1 degree of longitude away. The shortest route between the
+    # two stations takes the primary road: 1 + 2 + 80 + 2 + 1 = 86 km.
+    access_leg_km = 6371 * math.radians(math.hypot(0.02, 0.1))
+    km = pytest.approx(86 + 2 * access_leg_km)
+    assert matrix == [[0.0, km], [km, 0.0]]
 
 
 def test_a_removed_metric_leaves_the_results_of_the_geograph(network):
