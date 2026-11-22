@@ -2,12 +2,10 @@
 classes and its metrics."""
 
 import math
-from array import array
-from itertools import accumulate
 
 import pytest
 
-from scgraph import GeoGraph, PathNotFoundError, network_file
+from scgraph import GeoGraph, PathNotFoundError
 
 # The network of these tests joins two towns on the equator, 0.7 degree of
 # longitude apart. A line of the drawing is one edge each way, with its km.
@@ -57,8 +55,7 @@ CLASSES = {
     "open_sea": "sea",
     "sea_connector": "sea",
 }
-# (a node, another node, km, class). The edges of a node are stored in the
-# order of this list.
+# (a node, another node, km, class)
 TWO_WAY_EDGES = [
     (WEST_TOWN, JUNCTION, 40.0, "primary"),
     (JUNCTION, EAST_TOWN, 40.0, "primary"),
@@ -136,55 +133,47 @@ FERRY_NODES = [("road", 1.0, 0.0), ("road", 1.0, 0.3)]
 FERRY_EDGES = [(0, 1, 30.0, "ferry")]
 
 
-def _write_network(path, nodes, two_way_edges, classes):
-    """Write the network file of `nodes` and `two_way_edges`, which have the
-    form of NODES and TWO_WAY_EDGES. `classes` gives the edge mode of each
-    class. A query point snaps to a road node by default."""
-    # The edges of each node: (destination, km, id of the class)
-    edges_of_each_node = [[] for _ in nodes]
+def _build_network(nodes, two_way_edges, classes):
+    """Return the geograph of `nodes` and `two_way_edges`, which have the form
+    of NODES and TWO_WAY_EDGES. `classes` gives the edge mode of each class.
+    A query point snaps to a road node by default."""
+    graph = [{} for _ in nodes]
+    edge_classes = [{} for _ in nodes]
     for node, other_node, km, edge_class in two_way_edges:
-        class_id = list(classes).index(edge_class)
-        edges_of_each_node[node].append((other_node, km, class_id))
-        edges_of_each_node[other_node].append((node, km, class_id))
-    heads, lengths, edge_class_ids = zip(
-        *(edge for edges in edges_of_each_node for edge in edges)
-    )
+        graph[node][other_node] = graph[other_node][node] = km
+        edge_classes[node][other_node] = edge_class
+        edge_classes[other_node][node] = edge_class
     node_modes = list(dict.fromkeys(mode for mode, _, _ in nodes))
-    arrays = {
-        "offsets": array(
-            "i", accumulate(map(len, edges_of_each_node), initial=0)
-        ),
-        "heads": array("i", heads),
-        "weights_length": array("d", lengths),
-        "edge_class_ids": array("B", edge_class_ids),
-        "node_points": array("d", [x for _, *point in nodes for x in point]),
-        "node_mode_ids": array(
-            "B", [node_modes.index(mode) for mode, _, _ in nodes]
-        ),
-    }
-    metadata = {
-        "metrics": [{"name": "length", "unit": "km"}],
-        "node_modes": [{"name": name} for name in node_modes],
-        "classes": [
+    geograph = GeoGraph(
+        graph=graph,
+        nodes=[[latitude, longitude] for _, latitude, longitude in nodes],
+        node_modes=[{"name": name} for name in node_modes],
+        node_mode_ids=[node_modes.index(mode) for mode, _, _ in nodes],
+        classes=[
             {"name": name, "edge_mode": edge_mode}
             for name, edge_mode in classes.items()
         ],
-        "node_addition_modes": ["road"],
-    }
-    network_file.write(path, arrays, metadata)
+        edge_classes=edge_classes,
+    )
+    geograph.default_node_addition_modes = ["road"]
+    return geograph
+
+
+@pytest.fixture
+def network():
+    """The network of the two towns. A test may edit it: each test builds
+    it."""
+    return _build_network(NODES, TWO_WAY_EDGES, CLASSES)
 
 
 @pytest.fixture(scope="module")
 def network_path(tmp_path_factory):
+    """The network file of the two towns, which names the node mode `road` for
+    the query points. The file lists the open sea before the coast: only these
+    two nodes change their ids."""
     path = str(tmp_path_factory.mktemp("network") / "two_towns.scgraph")
-    _write_network(path, NODES, TWO_WAY_EDGES, CLASSES)
+    _build_network(NODES, TWO_WAY_EDGES, CLASSES).save_as_scgraph(path)
     return path
-
-
-@pytest.fixture
-def network(network_path):
-    """The network of the two towns. A test may edit it: each test loads it."""
-    return GeoGraph.load_from_scgraph(network_path)
 
 
 @pytest.fixture
@@ -199,8 +188,7 @@ def network_with_minutes(network):
 def network_read_with_minutes(network_path, tmp_path):
     """The network of the two towns, read from a file that holds the metric
     `minutes`: the geograph has the weights of the metric, and not the weights
-    per km that made them. The file lists the open sea before the coast: only
-    these two nodes change their ids."""
+    per km that made them."""
     network = GeoGraph.load_from_scgraph(network_path)
     network.create_metric("minutes", **MINUTES)
     path = str(tmp_path / "with_minutes.scgraph")
@@ -217,11 +205,9 @@ def sea_network(network_path):
 
 
 @pytest.fixture
-def ferry(tmp_path):
-    """The ferry line, read from its network file."""
-    path = str(tmp_path / "ferry.scgraph")
-    _write_network(path, FERRY_NODES, FERRY_EDGES, {"ferry": "road"})
-    return GeoGraph.load_from_scgraph(path)
+def ferry():
+    """The ferry line."""
+    return _build_network(FERRY_NODES, FERRY_EDGES, {"ferry": "road"})
 
 
 @pytest.fixture
@@ -272,7 +258,11 @@ def test_get_nodes_gives_the_nodes_inside_a_bounding_box(network):
 
 
 def test_get_edges_gives_the_edges_that_leave_one_node(network):
-    assert network.get_edges(origin_id=JUNCTION) == [
+    # A graph made from dictionaries does not promise the order of the edges
+    # of a node.
+    edges = network.get_edges(origin_id=JUNCTION)
+
+    assert sorted(edges, key=lambda edge: edge["destination_id"]) == [
         {
             "origin_id": JUNCTION,
             "destination_id": destination_id,
@@ -491,18 +481,12 @@ def test_a_saved_and_loaded_geograph_gives_no_class_to_an_edge_without_a_class(
     ] == [85.0, 85.0]
 
 
-def test_a_merge_that_is_refused_changes_nothing(
-    network_with_minutes, tmp_path
-):
+def test_a_merge_that_is_refused_changes_nothing(network_with_minutes):
     # A geograph holds 255 classes at most. The network has 7 classes. With
     # the 249 classes of the other geograph, the merged geograph would have
     # 256 classes.
     many_classes = {f"class_{class_id}": "road" for class_id in range(249)}
-    other_path = str(tmp_path / "many_classes.scgraph")
-    _write_network(
-        other_path, FERRY_NODES, [(0, 1, 30.0, "class_0")], many_classes
-    )
-    other = GeoGraph.load_from_scgraph(other_path)
+    other = _build_network(FERRY_NODES, [(0, 1, 30.0, "class_0")], many_classes)
 
     with pytest.raises(ValueError, match="255 classes"):
         network_with_minutes.merge_with_other_geograph(
@@ -868,8 +852,9 @@ REFUSED_METRICS = {
     ),
     # The call gives a weight below zero or not a number: to every edge, to
     # the motorway, to the edge from the junction to the east town. The error
-    # names the first such edge.
-    "a weight per km below zero": ({"weight_per_km": -2.0}, "node 0 to node 1"),
+    # names the first such edge. The first edge of the west town, the node
+    # 0, may go to any of its neighbours.
+    "a weight per km below zero": ({"weight_per_km": -2.0}, "from node 0 to"),
     "a function that gives a toll below zero": (
         {"edge_weight_fn": _get_negative_toll, "off_graph_weight_per_km": 0.0},
         "node 0 to node 2",
@@ -1444,10 +1429,12 @@ def test_a_query_point_snaps_only_to_nodes_of_the_node_modes_of_the_query(
 
 
 def test_a_query_point_snaps_to_the_node_modes_that_the_network_file_names(
-    network,
+    network_path,
 ):
-    # The file names the node mode `road` (`_write_network`). The point is 0.01
-    # degree north of the east station and 0.03 degree north of the east town.
+    network = GeoGraph.load_from_scgraph(network_path)
+
+    # The file names the node mode `road`. The point is 0.01 degree north of
+    # the east station and 0.03 degree north of the east town.
     route = network.get_shortest_path(
         WEST_POINT, {"latitude": 0.03, "longitude": 0.7}, output_path=True
     )
@@ -1529,7 +1516,7 @@ def test_a_saved_and_loaded_geograph_keeps_its_metrics_and_its_default_node_mode
 ):
     # The fixture `network_read_with_minutes` saved the same network with the
     # same metric, and loaded the file. The file names the node mode `road` for
-    # the query points (`_write_network`).
+    # the query points.
     assert network_read_with_minutes.metrics == network_with_minutes.metrics
     assert network_read_with_minutes.default_node_addition_modes == ["road"]
     assert network_read_with_minutes.get_shortest_path(
