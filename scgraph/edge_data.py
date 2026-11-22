@@ -50,8 +50,9 @@ caller can skip this check.
 
 An `EdgeData` keeps no reference to its geograph. Two objects that refer to each
 other are freed late, and a geograph may hold a large network. So a method that
-reads the edges takes the geograph as its first argument. It reads `graph_object`
-and `geograph_units`, and `modes` and `node_modes` for a metric from tables.
+reads the edges takes the geograph as its first argument. It reads `graph_object`,
+`geograph_units` and the unit of the lengths, and `modes` and `node_modes` for a
+metric from tables.
 
 AFTER AN EDIT
 
@@ -68,14 +69,21 @@ holds one edge at most from a node to another. A line-up has five steps.
 4. Each metric is lined up after the metrics that it uses. A metric that
    `create_metric` made is computed again from the arguments of that call. A metric
    that was read keeps the weight of each edge that was there. A new edge takes the
-   weight of its `add_` call, or is closed.
+   weight of its `add_` call. Without this weight, it weighs as an access leg: its
+   km times the rate `"off_graph"` of the metric (`off_graph_per_km`). When the
+   lengths of the geograph are in seconds, a new edge has no km: it is closed.
 5. It forgets what the `add_` calls gave.
 
-Example, after the edge 0 -> 2 is removed and the edge 1 -> 2 is added:
+Example, after the edge 0 -> 2 is removed and the edge 1 -> 2 is added, with a
+length of 30 km:
 
     offsets = [0, 1, 2, 3]    heads = [1, 2, 0]
     find_old_edge_indexes gives [0, -1, 2]
     take_edge_values([4, 4, 7], [0, -1, 2], 9) gives [4, 9, 7]
+
+Suppose that the metric `hours` was read from a file, with 0.05 hour for 1 km of
+access leg, and that the `add_` call gave no weight. The weights [0.2, 0.4, 0.2]
+become [0.2, 0.05 * 30, 0.2] = [0.2, 1.5, 0.2].
 
 THE LEGS OF A ROUTE
 
@@ -95,7 +103,6 @@ A leg starts at the node where the leg before it ends. The two road legs stay tw
 legs, because the railway is between them.
 """
 
-import warnings
 from array import array
 from collections.abc import Iterable, Iterator
 from dataclasses import replace
@@ -395,7 +402,22 @@ class EdgeData:
     ) -> None:
         # Step 4 of a line-up. It also drops the graph of each metric. A pair of the
         # `edge_weights` of a metric that is no longer an edge is dropped.
-        offsets, heads, _ = self._edge_arrays
+        offsets, heads, lengths = self._edge_arrays
+        # For the metrics that were read: the weights that the `add_` call of each
+        # new edge gave, by the index of the edge. An edge that was not there is
+        # new, also when no `add_` call made it. The loop over the edges runs in C.
+        weights_of_new_edges = {}
+        if any(record.definition is None for record in self._metrics.values()):
+            weights_of_new_edges = dict.fromkeys(
+                compress(count(), map((-1).__eq__, old_edge_indexes)), {}
+            )
+            for nodes, weights_of_call in self._new_edge_weights.items():
+                edge_index = find_edge_index(offsets, heads, *nodes)
+                if edge_index is not None:
+                    weights_of_new_edges[edge_index] = weights_of_call
+        # A length in seconds gives no km
+        has_km = geograph._length_unit != "s"
+        units_per_km = get_units_per_km(geograph.geograph_units)
         metrics, self._metrics = self._metrics, {}
         for name in order_by_dependencies(metrics):
             metric_record = metrics[name]
@@ -403,10 +425,19 @@ class EdgeData:
                 weights = take_edge_values(
                     metric_record.weights, old_edge_indexes, inf
                 )
-                for nodes, new_edge_weights in self._new_edge_weights.items():
-                    edge_index = find_edge_index(offsets, heads, *nodes)
-                    if edge_index is not None:
-                        weights[edge_index] = new_edge_weights.get(name, inf)
+                # A new edge without a weight weighs as an access leg of its km
+                off_graph_per_unit = (
+                    metric_record.off_graph_per_km / units_per_km
+                )
+                for edge_index, weights_of_call in weights_of_new_edges.items():
+                    if name in weights_of_call:
+                        weights[edge_index] = weights_of_call[name]
+                    elif has_km:
+                        weights[edge_index] = (
+                            lengths[edge_index] * off_graph_per_unit
+                        )
+                    else:
+                        weights[edge_index] = inf
                 self._metrics[name] = replace(
                     metric_record,
                     weights=weights,
@@ -889,8 +920,6 @@ class EdgeData:
                     for nodes in definition["edge_weights"]
                 ],
             )
-        if isinstance(definition["per_km"], dict):
-            self._warn_of_closed_edges_without_class(name, weights)
         # A comparison with a value that is not a number is false
         if off_graph_per_km is None or not 0 <= off_graph_per_km < inf:
             raise ValueError(
@@ -908,34 +937,6 @@ class EdgeData:
             definition,
             used_metrics,
         )
-
-    def _warn_of_closed_edges_without_class(
-        self, name: str, weights: array | memoryview
-    ) -> None:
-        # A `per_km` dict gives a rate to a class, so it closes an edge without a
-        # class. Such an edge often comes from an `add_` call without `edge_class`:
-        # a route by the metric then ignores the new edge, and nothing else says
-        # why.
-        names = [edge_class["name"] for edge_class in self.classes]
-        if None not in names:
-            return
-        # One byte for each row of the classes, then for each edge: 1 for an edge
-        # without a class. The loop over the edges runs in C.
-        is_no_class_row = bytes(row == names.index(None) for row in range(256))
-        is_without_class = bytes(self._edge_classes).translate(is_no_class_row)
-        closed_count = sum(
-            weights[edge_index] == inf
-            for edge_index in compress(count(), is_without_class)
-        )
-        if closed_count:
-            warnings.warn(
-                f"The metric {name!r} closes {closed_count} edge(s) without a "
-                "class: a per_km dict gives a rate to a class. Pass edge_class= "
-                "to the add_ call that makes such an edge, or use a number for "
-                "per_km.",
-                UserWarning,
-                stacklevel=2,
-            )
 
     def remove_metric(self, metric: str) -> None:
         """Remove a metric.

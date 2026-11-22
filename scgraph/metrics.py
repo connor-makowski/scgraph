@@ -18,7 +18,8 @@ A geograph computes the weights of a metric in one of three ways.
 - From tables. `resolve_tables` turns the tables of the caller, whose keys are names
   of classes and of modes, into three arrays whose positions are rows. The kernel
   `compute_table_weights` then gives each edge its rate times its km, plus the weight
-  of the hub that it leaves and of the hub that it enters.
+  of the hub that it leaves and of the hub that it enters. An edge without a class
+  weighs as an access leg: its km times the rate `"off_graph"` of the metric.
 - As a weighted sum of other metrics, with the kernel `compute_weighted_sum`.
 - From a function of the caller, called once for each edge.
 
@@ -121,7 +122,9 @@ def resolve_tables(
 
     Args:
         per_km: The rate of every edge, or a dict from a class, a mode of edges or
-            `"off_graph"` to a rate. A rate of None closes the class.
+            `"off_graph"` to a rate. A rate of None closes the class. With a dict,
+            an edge without a class weighs as an access leg: its km times the rate
+            `"off_graph"` of the metric. It pays no hub weight.
         at_hub: A dict from the mode of a node to a dict from a class, or a mode of
             edges, to a weight. The weight is a number, paid on the way in and on
             the way out, or a pair (into the hub, out of the hub). None for no hub
@@ -165,9 +168,9 @@ def resolve_tables(
                     f"per_km gives no rate for the class {edge_class['name']!r}, "
                     f"which has edges: name it, or its mode {edge_class['mode']!r}"
                 )
-            # Without a key, the class has no edge, or it is the row of no class.
-            # Its rate is infinity, so an edge without a class is closed.
-            rate = None if key is None else per_km[key]
+            # Without a key, the class has no edge, or it is the row of no class:
+            # an edge without a class takes the rate of the access legs.
+            rate = off_graph_per_km if key is None else per_km[key]
             rates.append(inf if rate is None else rate)
     else:
         off_graph_per_km = per_km

@@ -572,17 +572,15 @@ def test_an_edit_computes_again_a_metric_that_create_metric_made(network):
     }
 
 
-def test_a_route_by_a_metric_warns_of_a_new_edge_that_the_metric_closes(
+def test_tables_weigh_an_edge_without_a_class_as_an_access_leg(
     network_with_minutes,
 ):
-    # The new road has no class. The tables of the metric give a rate to each
-    # class, so the metric closes the road in its two directions.
-    network_with_minutes.add_edge(WEST_TOWN, PORT, 80.0, symmetric=True)
+    network_with_minutes.add_edge(WEST_TOWN, PORT, 80.0)
 
-    with pytest.warns(UserWarning, match="'minutes' closes 2 edge"):
-        network_with_minutes.get_shortest_path(
-            WEST_POINT, EAST_POINT, metric="minutes"
-        )
+    # The new road has no class, so the tables give it the rate `off_graph`:
+    # 80 km × 4 minutes = 320 minutes.
+    weights = _get_weight_of_each_edge(network_with_minutes, "minutes")
+    assert weights[WEST_TOWN, PORT] == 320.0
 
 
 # create_metric: the calls that it refuses
@@ -1400,17 +1398,19 @@ def test_a_node_added_with_a_class_and_a_weight_gives_them_to_its_edges(
     ] == [("road_connector", 3.0), ("road_connector", 3.0)]
 
 
-def test_an_edge_added_without_a_weight_is_closed_in_a_read_metric(
+def test_an_edge_added_without_a_weight_weighs_as_an_access_leg_in_a_read_metric(
     network_read_with_minutes,
 ):
     network_read_with_minutes.add_edge(WEST_TOWN, PORT, 85.0)
     # An edit made on the graph object gives no weight to its edge.
     network_read_with_minutes.graph_object.add_edge(PORT, WEST_TOWN, 85.0)
 
+    # The file keeps the rate `off_graph` of the metric, and not its other
+    # rates: 85 km × 4 minutes = 340 minutes.
     weights = _get_weight_of_each_edge(network_read_with_minutes, "minutes")
     assert (weights[WEST_TOWN, PORT], weights[PORT, WEST_TOWN]) == (
-        math.inf,
-        math.inf,
+        340.0,
+        340.0,
     )
 
 

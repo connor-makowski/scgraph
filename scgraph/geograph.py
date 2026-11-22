@@ -774,7 +774,7 @@ class GeoGraphIO:
         - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_modes` and `modes` give each node's mode
         - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge; `default_node_addition_modes` holds the `node_addition_modes` of the file: the modes that the points of a query snap to by default (see `get_shortest_path`)
-        - `metrics` holds the metrics of the file. The geograph has their weights, not the call that made them. An edge added later is closed in them, unless its `add_` call gives its weights
+        - `metrics` holds the metrics of the file. The geograph has their weights, not the call that made them. An edge added later takes the weight of its `add_` call (`metrics=`). Without this weight, it weighs as an access leg: its km times the rate `"off_graph"` of the metric (`off_graph_per_km` in `metrics`)
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones. On a file with `node_addition_modes`, the first query also builds the index of the nodes of these modes
@@ -1825,10 +1825,12 @@ class GeoGraphModifiers:
             - Type: str | None
             - What: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError
             - Default: None (on a geograph with classes, the edge gets the class without a name: `{"name": None, "mode": None}`)
+            - Note: In a metric made from a `per_km` dict, an edge without a class weighs as an access leg: its km times the rate `"off_graph"` of the metric
         - `metrics`
             - Type: dict | None
             - What: `{name of a metric: weight}`: the weight of the new edge in a metric that `create_metric` did not make, which the geograph cannot compute; None as a weight closes the edge. A metric made by `create_metric` is computed again for every edge, and may not be named here
-            - Default: None (the new edge is closed in each metric that `create_metric` did not make)
+            - Default: None (in a metric that `create_metric` did not make, the new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric, which is `off_graph_per_km` in `metrics`)
+            - Note: When the lengths of the geograph are in seconds (`load_from_osmnx_graph` with `weight_key="travel_time"`), the new edge has no km: without a weight, it is closed in such a metric
         """
         class_row = self._edge_data.find_class_row(edge_class)
         new_edge_weights = self._edge_data.check_new_edge_weights(metrics)
@@ -1949,11 +1951,11 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
-            - Default: None
+            - Default: None (no class: a metric made from a `per_km` dict weighs the new edge as an access leg)
         - `metrics`
             - Type: dict | None
             - What: The weight of the new edge in the metrics that `create_metric` did not make (see `add_edge`)
-            - Default: None
+            - Default: None (in such a metric, the new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric)
         """
         if not (isinstance(origin_coord_dict, dict)):
             raise ValueError("Origin node must be a dictionary")
@@ -2085,11 +2087,11 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edges (see `add_edge`)
-            - Default: None
+            - Default: None (no class: a metric made from a `per_km` dict weighs each new edge as an access leg)
         - `metrics`
             - Type: dict | None
             - What: The weight of each new edge in the metrics that `create_metric` did not make (see `add_edge`)
-            - Default: None
+            - Default: None (in such a metric, each new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric)
 
         Returns:
 
@@ -2221,11 +2223,11 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
-            - Default: None
+            - Default: None (no class: a metric made from a `per_km` dict weighs the new edge as an access leg)
         - `metrics`
             - Type: dict | None
             - What: The weight of the new edge in the metrics that `create_metric` did not make (see `add_edge`)
-            - Default: None
+            - Default: None (in such a metric, the new edge weighs as an access leg: its km times the rate `"off_graph"` of the metric)
         """
         if not (origin_idx < len(self.graph_object.graph)):
             raise ValueError("Origin node does not exist")
@@ -3440,7 +3442,7 @@ class GeoGraph(
             - What: The rate of each edge: the weight of an edge is its rate times its km
             - A number is the rate of every edge, and of the access legs: the straight lines between the points of a query and their nodes
             - A dict gives the rate of each class, under the name of the class or under the mode of its edges (the name wins), and the rate of the access legs under `"off_graph"`. A rate of None closes the edges of the class: no route by this metric takes them
-            - Note: With a dict, each class that has an edge needs a rate, and an edge without a class is closed. The call warns (UserWarning) with the count of such edges, and so does each computation of the metric after an edit: pass `edge_class` to the `add_` call that makes such an edge, or use a number
+            - Note: With a dict, each class that has an edge needs a rate. An edge without a class weighs as an access leg: its km times the rate `"off_graph"` of the metric. It pays no weight of `at_hub`. To close such an edge, name it in `edge_weights` with None
             - Note: The lengths of the geograph must be in km: another `geograph_units`, or lengths in seconds (`load_from_osmnx_graph` with `weight_key="travel_time"`), raise a ValueError
         - `at_hub`
             - Type: dict | None
