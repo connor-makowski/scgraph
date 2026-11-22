@@ -244,7 +244,7 @@ def build_way_pieces(
             # The ferries of one class give the edges of that class
             edges = []
             for class_row, polylines in ferries[mode].items():
-                rows, ends, shapes, _ = build_graph_from_polylines(
+                rows, ends, shapes, _, _ = build_graph_from_polylines(
                     polylines, junctions[mode], math.inf
                 )
                 edges += (

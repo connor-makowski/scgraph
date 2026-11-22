@@ -510,7 +510,7 @@ class GeoGraphIO:
                 vertex_id for vertex_id, count in uses.items() if count > 1
             }
             # A GeoGraph numbers its nodes by index, so the node ids are dropped
-            graph, nodes, shapes, _ = build_graph_from_polylines(
+            graph, nodes, shapes, _, _ = build_graph_from_polylines(
                 ((0, line) for line in lines), junctions, max_km_between_nodes
             )
             geograph = GeoGraph(
@@ -560,6 +560,7 @@ class GeoGraphIO:
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes`
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
+        - Each edge has the class that `select` gives to its way: `classes` holds the classes of `scgraph.pipelines.CLASSES`, and `get_edges` gives the class of each edge. With the default `select`, the class of a way is its `highway` value
         - Not the graph of the `geofabrik_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
@@ -572,9 +573,10 @@ class GeoGraphIO:
         Optional Arguments:
 
         - `select`
-            - Type: Callable (tags -> int | None), the tags of a way read as `tags.get(key)` or `key in tags`
-            - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out
-            - Default: None: `scgraph.helpers.osm.select_main_roads` (motorway to primary and their links, one way where `scgraph.helpers.osm.get_way_direction(tags)` returns 1 or -1)
+            - Type: Callable (tags -> int | tuple[int, str] | None), the tags of a way read as `tags.get(key)` or `key in tags`
+            - What: Gives, from the tags of a way, its direction: 1 (one way, along its drawing), -1 (one way, against it), 0 (both ways), or None to leave the way out. In place of the direction, it may give a pair: the direction and the class of the way, a name of `scgraph.pipelines.CLASSES`
+            - Default: None: `scgraph.pipelines.geofabrik_multimodal.select_main_roads_with_class` (motorway to primary and their links, each with its `highway` value as its class, one way where `scgraph.helpers.osm.get_way_direction(tags)` returns 1 or -1)
+            - Note: When `select` gives a direction alone for every way, the geograph has no classes. An edge of a way without a class has no class
             - Example: `lambda tags: 0 if tags.get("railway") == "rail" and tags.get("service") in (None, "crossover") else None` for railway lines without yards, sidings and spurs, both ways (a crossover joins the two tracks of a double line)
             - Note: Called for each way in two passes over the file: it must give the same answer each time
         - `tag_keys`
@@ -607,7 +609,7 @@ class GeoGraphIO:
         Raises:
 
         - `ImportError` if the optional dependency `osmium` is not installed
-        - `ValueError` if no way of the file has one of `tag_keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0 or None (`True` and `False` included)
+        - `ValueError` if no way of the file has one of `tag_keys` and is kept by `select`, or if `select` returns anything else than 1, -1, 0, a pair of one of them and a name of `scgraph.pipelines.CLASSES`, or None (`True` and `False` included)
         """
         if lazy:
             return LazyGeoGraph(
@@ -625,30 +627,31 @@ class GeoGraphIO:
         from scgraph.helpers.components import (
             keep_largest_strongly_connected_component,
         )
-        from scgraph.helpers.osm import (
-            MAX_KM_BETWEEN_NODES,
-            select_main_roads,
-            read_osm,
+        from scgraph.helpers.osm import MAX_KM_BETWEEN_NODES, read_osm
+        from scgraph.pipelines import CLASSES
+        from scgraph.pipelines.geofabrik_multimodal import (
+            select_main_roads_with_class,
         )
 
-        graph, nodes, shapes, ids = read_osm(
+        graph, nodes, shapes, ids, edge_class_names = read_osm(
             filename,
-            select or select_main_roads,
+            select or select_main_roads_with_class,
             tag_keys,
             (
                 MAX_KM_BETWEEN_NODES
                 if max_km_between_nodes is None
                 else max_km_between_nodes
             ),
+            CLASSES,
         )
         if not nodes:
             raise ValueError(
                 f"No way of {filename} has one of the tag keys {tag_keys} and is kept by select"
             )
         if largest_component:
-            graph, nodes, shapes, ids = (
+            graph, nodes, shapes, ids, edge_class_names = (
                 keep_largest_strongly_connected_component(
-                    graph, nodes, shapes, ids
+                    graph, nodes, shapes, ids, edge_class_names
                 )
             )
         geograph = GeoGraph(
@@ -658,6 +661,30 @@ class GeoGraphIO:
             node_ids=ids,
             coordinate_dtype="int32",  # OSM's own: 1e-7 degree
         )
+        if any(edge_class_names):
+            # The class of each edge, lined up with the edges
+            offsets, heads, _ = geograph._get_edge_arrays()
+            class_name_of_each_edge = [
+                edge_class_names[origin_id].get(heads[edge_index])
+                for origin_id in range(len(offsets) - 1)
+                for edge_index in range(
+                    offsets[origin_id], offsets[origin_id + 1]
+                )
+            ]
+            # As in a network file of a pipeline: every row of the table of classes,
+            # then the row of no class when an edge needs it
+            geograph.classes = [
+                {"name": name, "mode": mode} for name, mode in CLASSES.items()
+            ]
+            if None in class_name_of_each_edge:
+                geograph.classes.append(dict(_NO_CLASS))
+            class_rows = {
+                edge_class["name"]: row
+                for row, edge_class in enumerate(geograph.classes)
+            }
+            geograph._edge_classes = array(
+                "B", map(class_rows.__getitem__, class_name_of_each_edge)
+            )
         geograph.reduce(reduce_iterations)
         return geograph
 
@@ -842,6 +869,7 @@ class GeoGraphIO:
             graph = Graph.from_csr(*edge_arrays, copy=False)
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
+        length_unit = metadata["metrics"][0]["unit"]
         geograph = GeoGraph(
             graph=graph,
             nodes=network_file.NodePoints(arrays["node_points"]),
@@ -850,7 +878,8 @@ class GeoGraphIO:
                 if "shape_offsets" in arrays
                 else None
             ),
-            geograph_units=metadata["metrics"][0]["unit"],
+            # Beside lengths in seconds, a distance off the graph is in km
+            geograph_units="km" if length_unit == "s" else length_unit,
             node_ids=arrays.get("node_ids"),
             node_modes=arrays.get("node_modes"),
             modes=metadata.get("modes"),
@@ -862,6 +891,7 @@ class GeoGraphIO:
             if key not in network_file.RESERVED_METADATA_KEYS
         }
         geograph.scgraph_file = filename
+        geograph._length_unit = length_unit
         # The arrays of the file are the edges of the new graph, in the same order
         geograph._edge_arrays = edge_arrays
         geograph._edge_arrays_edit_count = graph._edit_count
@@ -1404,6 +1434,9 @@ class GeoGraphIO:
             - Rounds the weights to the specified precision (in kilometers)
             - This preserves directionality of edges from the OSMnx graph
             - Numbers the nodes along a Hilbert curve (nodes close on the globe get close ids); `node_ids[i]` is node i's OSMnx id (its OSM id), when the ids are integers
+            - Keeps the `highway` value of each edge as its class, of the mode `road` (see `classes` and `get_edges`): the first value when `highway` is a list, and no class for an edge without `highway`
+            - With the weight key 'length', keeps the `travel_time` of each edge as the metric `travel_time`, in seconds, when every edge has one: `get_shortest_path(metric="travel_time")` then finds the fastest path and returns its kilometers in `length`
+            - Of several edges from one node to another, keeps the one with the smallest weight, with its class and its travel time: the metric `travel_time` has the time of the shortest edge, which may not be the fastest
 
         Required Arguments:
 
@@ -1430,6 +1463,7 @@ class GeoGraphIO:
                 - 'length': Use the length attribute (in kilometers)
                 - 'travel_time': Use the travel_time attribute (in seconds)
             - Default: 'length'
+            - Note: With 'travel_time', the lengths of the geograph are seconds: it has no other metric, `metrics` gives the unit `s`, and `create_metric` refuses `per_km`
         - `off_graph_travel_speed`
             - Type: int | float | None
             - What: The travel speed (km/h) to assume for off-graph travel when using travel_time (seconds) as the weight key
@@ -1440,7 +1474,7 @@ class GeoGraphIO:
                     - The default_node_addition_circuity will be set to 240
                         - This assumes 15 km/h off graph travel speed when optimizing for entry
                         - This is not included in final returned length, but only used to choose an optimal entry node into the graph
-                - If None and weight_key is 'length', the function will ignore this parameter
+                - If weight_key is 'length', this speed only sets the weight of 1 km off the graph in the metric `travel_time` (`off_graph_per_km`): 3600 / speed, or 240 seconds if None (15 km/h)
                 - If a number, the function will use this speed to convert off-graph distances to travel times in seconds
         - `load_intermediate_nodes`
             - Type: bool
@@ -1492,6 +1526,8 @@ class GeoGraphIO:
         if load_intermediate_nodes:
             intermediate_nodes = [dict() for _ in range(len(node_list))]
         weight_divisor = 1000 if weight_key == "length" else 1
+        # The attributes of the kept edge from a node to another
+        kept_attributes = [dict() for _ in range(len(node_list))]
         for u, v, data in osmnx_graph.edges(data=True):
             i = node_to_idx[u]
             j = node_to_idx[v]
@@ -1502,6 +1538,7 @@ class GeoGraphIO:
             if weight >= graph[i].get(j, float("inf")):
                 continue
             graph[i][j] = weight
+            kept_attributes[i][j] = data
             if load_intermediate_nodes and "geometry" in data:
                 intermediate_nodes[i][j] = [
                     [
@@ -1549,6 +1586,53 @@ class GeoGraphIO:
             coordinate_dtype="int32" if coord_precision <= 7 else "float64",
             **kwargs,
         )
+        # The attributes of each edge, lined up with the edges
+        offsets, heads, _ = geograph._get_edge_arrays()
+        edge_attributes = [
+            kept_attributes[origin_id][heads[edge_index]]
+            for origin_id in range(len(offsets) - 1)
+            for edge_index in range(offsets[origin_id], offsets[origin_id + 1])
+        ]
+        highways = [data.get("highway") for data in edge_attributes]
+        # OSMnx gives a list to an edge that it made from ways of several values
+        highways = [
+            highway[0] if isinstance(highway, list) else highway
+            for highway in highways
+        ]
+        class_names = sorted(set(highways) - {None})
+        if class_names:
+            geograph.classes = [
+                {"name": name, "mode": "road"} for name in class_names
+            ]
+            if None in highways:
+                geograph.classes.append(dict(_NO_CLASS))
+            class_rows = {
+                edge_class["name"]: row
+                for row, edge_class in enumerate(geograph.classes)
+            }
+            geograph._edge_classes = array(
+                "B", map(class_rows.__getitem__, highways)
+            )
+        if weight_key == "travel_time":
+            geograph._length_unit = "s"
+        elif all("travel_time" in data for data in edge_attributes):
+            geograph._metrics["travel_time"] = Metric(
+                "travel_time",
+                "s",
+                "Attribute travel_time of the OSMnx graph.",
+                array(
+                    "d",
+                    (
+                        round(float(data["travel_time"]), weight_precision)
+                        for data in edge_attributes
+                    ),
+                ),
+                (
+                    240.0
+                    if off_graph_travel_speed is None
+                    else 3600 / off_graph_travel_speed
+                ),
+            )
         geograph.reduce(reduce_iterations)
         return geograph
 
@@ -3149,6 +3233,9 @@ class GeoGraph(
             True if intermediate_nodes is not None else False
         )
         self.geograph_units = geograph_units
+        # The unit of the lengths of the edges: `geograph_units`, or "s" when a loader
+        # read travel times as the lengths
+        self._length_unit = geograph_units
         # Built at the first snap, not here: a GeoGraph that never snaps never pays for it
         self.snap_index = None
         # len(nodes), not len(graph): a C++ graph would be copied to Python to count it
@@ -3534,10 +3621,10 @@ class GeoGraph(
             earth_radius.get(self.geograph_units, 6371) / earth_radius["km"]
         )
         if definition["per_km"] is not None:
-            if self.geograph_units != "km":
+            if self._length_unit != "km":
                 raise ValueError(
-                    "per_km needs a geograph whose lengths are in km: the "
-                    f"lengths of this geograph are in {self.geograph_units}"
+                    "per_km gives the weight of 1 km of an edge: the lengths of "
+                    f"this geograph are in {self._length_unit!r}"
                 )
             edge_classes = self._edge_classes
             if edge_classes is None:
@@ -3626,13 +3713,14 @@ class GeoGraph(
     def metrics(self) -> list[dict]:
         """
         The rows of the metrics of the geograph, as a network file stores them. The
-        first row is `length`, with the unit of the geograph. The row of another
+        first row is `length`, with its unit: `geograph_units`, or `s` when a loader
+        read travel times as the lengths. The row of another
         metric has its `name`, its `unit` and its `description`, if it has them, and
         `off_graph_per_km`: the weight of 1 km of the straight line between a point
         of a query and its node. `create_metric` and `remove_metric` change the
         metrics. Example: `[row["name"] for row in geograph.metrics]`.
         """
-        return [{"name": "length", "unit": self.geograph_units}] + [
+        return [{"name": "length", "unit": self._length_unit}] + [
             metric.get_row() for metric in self._metrics.values()
         ]
 
@@ -3671,7 +3759,7 @@ class GeoGraph(
             - A number is the rate of every edge, and of the access legs: the straight lines between the points of a query and their nodes
             - A dict gives the rate of each class, under the name of the class or under the mode of its edges (the name wins), and the rate of the access legs under `"off_graph"`. A rate of None closes the edges of the class: no route by this metric takes them
             - Note: With a dict, each class that has an edge needs a rate, and an edge without a class is closed
-            - Note: The lengths of the geograph must be in km
+            - Note: The lengths of the geograph must be in km: another `geograph_units`, or lengths in seconds (`load_from_osmnx_graph` with `weight_key="travel_time"`), raise a ValueError
         - `at_hub`
             - Type: dict | None
             - What: With `per_km`, the weight that an edge pays at a hub: `{mode of a node: {class or mode of an edge: weight}}`. A number is paid by an edge into a node of this mode and by an edge out of it. A pair is `(into the hub, out of the hub)`

@@ -36,6 +36,9 @@ _NODES = {
     51: (5.0, 0.01),
     60: (6.0, 0.0),  # ferry route, without a highway tag
     61: (6.0, 0.01),
+    70: (7.0, 0.0),  # a trunk road through node 72, and a shorter primary road
+    71: (7.0, 0.01),
+    72: (7.005, 0.005),
 }
 _WAYS = [
     (1, [1, 2, 3], {"highway": "primary"}),
@@ -49,6 +52,8 @@ _WAYS = [
     (9, [40, 41], {"highway": "primary", "junction": "roundabout"}),
     (10, [50, 51], {"highway": "motorway"}),
     (11, [60, 61], {"route": "ferry"}),
+    (12, [70, 72, 71], {"highway": "trunk"}),
+    (13, [70, 71], {"highway": "primary"}),
 ]
 
 
@@ -166,6 +171,59 @@ def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
     assert {edge for edge in edges if 30 in edge} == {(30, 31), (31, 30)}
     # Way 10, from node 50 to node 51, is the only motorway of the file.
     assert not any(50 in edge or 51 in edge for edge in edges)
+
+
+def test_an_edge_has_the_class_that_the_default_select_gives_to_its_way(
+    whole_network, edges
+):
+    osm_id = list(whole_network.node_ids)
+    classes = {
+        (osm_id[edge["origin_id"]], osm_id[edge["destination_id"]]): (
+            edge["class"]
+        )
+        for edge in whole_network.get_edges()
+    }
+
+    # The class of a main road is its `highway` value. Way 6 is a trunk road,
+    # cut at node 12. Way 10 is the motorway. Every other edge is a primary
+    # road: between nodes 70 and 71, the primary road is kept, because it is
+    # shorter than the trunk road.
+    trunk_road = [(10, 12), (12, 10), (12, 13), (13, 12)]
+    assert classes == {
+        **dict.fromkeys(edges, "primary"),
+        **dict.fromkeys(trunk_road, "trunk"),
+        (50, 51): "motorway",
+    }
+
+
+def test_a_metric_by_tables_routes_on_the_roads_of_an_osm_file(osm_file):
+    network = GeoGraph.load_from_osm(osm_file)
+    # Minutes for 1 km. The table may name any class of
+    # `scgraph.pipelines.CLASSES`: these roads have no motorway.
+    network.create_metric(
+        "minutes", per_km={"road": 2.0, "motorway": 0.5, "off_graph": 4.0}
+    )
+
+    # From the point of node 1 to the point of node 4, without an access leg
+    route = network.get_shortest_path(
+        dict(zip(("latitude", "longitude"), _NODES[1])),
+        dict(zip(("latitude", "longitude"), _NODES[4])),
+        metric="minutes",
+    )
+
+    # The route goes through node 2.
+    assert route["metrics"] == {
+        "minutes": pytest.approx(2.0 * (_km(1, 2) + _km(2, 4)))
+    }
+
+
+def test_a_select_that_gives_no_class_gives_a_network_without_classes(osm_file):
+    def select_primary_roads(tags):
+        return 0 if tags.get("highway") == "primary" else None
+
+    network = GeoGraph.load_from_osm(osm_file, select=select_primary_roads)
+
+    assert network.classes == []
 
 
 def test_tag_keys_name_the_keys_of_the_ways_that_reach_select(osm_file):

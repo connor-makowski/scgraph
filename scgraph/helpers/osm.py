@@ -12,7 +12,8 @@ WHAT IT ANSWERS
 `read_osm` gives a graph in the layout of a GeoGraph, for `load_from_osm`. A select
 function chooses the ways. It takes the tags of a way. It returns
 the direction of the way: 1 (one way, in the order of its nodes), -1 (one way, against
-that order) or 0 (both ways). It returns None to leave the way out.
+that order) or 0 (both ways). It returns None to leave the way out. In place of the
+direction, it may return a pair: the direction and the name of the class of the way.
 
 A pipeline gives its select functions as `{mode: {kind: select}}`. A mode is a group
 of ways that are cut and joined together. A multimodal pipeline names it as in its
@@ -417,24 +418,32 @@ def read_osm(
     select: Callable,
     tag_keys: tuple[str, ...] = (),
     max_km_between_nodes: float = MAX_KM_BETWEEN_NODES,
+    class_names: Container[str] = (),
 ) -> tuple[
     list[dict[int, float]],
     list[list[float]],
     list[dict[int, list[list[float]]]],
     list[int],
+    list[dict[int, str]],
 ]:
     """Build the graph of the ways of `source` that `select` keeps (`locate_ways`, then
     `build_graph_from_polylines`). A way is cut at its junctions, and at the first point
-    where a piece reaches `max_km_between_nodes` (`cut_polylines`).
+    where a piece reaches `max_km_between_nodes` (`cut_polylines`). `class_names` holds
+    the class names that `select` may give with the direction of a way.
 
     Returns:
-        `(graph, nodes, shapes, node_ids)` in the layout of a GeoGraph. `node_ids` holds
-        the OSM ids of the nodes.
+        `(graph, nodes, shapes, node_ids, edge_class_names)` in the layout of a
+        GeoGraph. `node_ids` holds the OSM ids of the nodes. `edge_class_names[i][j]`
+        is the class that `select` gave to the way of the edge from `i` to `j`, if it
+        gave one.
     """
     selects = {"all": {"ways": select}}
-    junctions, polylines = locate_ways(source, selects, tag_keys)
+    junctions, polylines = locate_ways(
+        source, selects, tag_keys, class_names=class_names
+    )
     polylines = (
-        (direction, vertices) for _, _, direction, _, vertices in polylines
+        (direction, vertices, class_name)
+        for _, _, direction, class_name, vertices in polylines
     )
     return build_graph_from_polylines(
         polylines, junctions["all"], max_km_between_nodes

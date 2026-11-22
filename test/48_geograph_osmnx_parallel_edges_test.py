@@ -169,3 +169,130 @@ def test_osmnx_coordinates_rounded_to_7_decimals_or_fewer_are_integers():
     geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
     assert geograph.coordinate_dtype == "int32"
+
+
+# A town of three nodes, as OSMnx gives it after `add_edge_travel_times`: an
+# edge has its length in meters, its travel time in seconds, and the
+# `highway` value of its way.
+#
+#          NORTH
+#         /     \        the avenue: 0.8 km + 0.8 km, 60 s + 60 s
+#     WEST ----- EAST    the street: 1.112 km, 200 s
+#
+# The bypass and the alley also go from WEST to EAST. Both are longer than
+# the street. A load by length keeps the street, and drops the two others
+# with their classes and their travel times. From WEST to EAST, the street is
+# then the shortest way and the avenue is the fastest.
+NORTH = 3
+BYPASS = {"length": 3000, "travel_time": 100.0, "highway": "trunk"}
+STREET = {"length": 1112, "travel_time": 200.0, "highway": "residential"}
+ALLEY = {"length": 2000, "travel_time": 400.0, "highway": "service"}
+# The loader rounds a travel time to 3 decimals, as a length: 60 s.
+AVENUE_FROM_WEST = {"length": 800, "travel_time": 60.0004, "highway": "primary"}
+# OSMnx gives a list to an edge that it made from ways of several values.
+AVENUE_TO_EAST = {
+    "length": 800,
+    "travel_time": 60.0,
+    "highway": ["primary", "secondary"],
+}
+STREET_BACK_WITHOUT_HIGHWAY = {"length": 1112, "travel_time": 200.0}
+TOWN = _OSMnxGraph(
+    {**PLACES, NORTH: (0.005, 0.005)},
+    [
+        (WEST, EAST, BYPASS),
+        (WEST, EAST, STREET),
+        (WEST, EAST, ALLEY),
+        (WEST, NORTH, AVENUE_FROM_WEST),
+        (NORTH, EAST, AVENUE_TO_EAST),
+        (EAST, WEST, STREET_BACK_WITHOUT_HIGHWAY),
+    ],
+)
+# The points of a query from WEST to EAST. Each point is at its node: the
+# route has no access leg.
+POINT_OF_WEST = {"latitude": 0.0, "longitude": 0.0}
+POINT_OF_EAST = {"latitude": 0.0, "longitude": 0.01}
+
+
+# 1 km of access leg takes 3600 s / the off-graph travel speed in km/h.
+# Without a speed, it takes 240 s: 15 km/h.
+@pytest.mark.parametrize(
+    "off_graph_travel_speed, off_graph_seconds_per_km",
+    [(None, 240.0), (30, 120.0)],
+)
+def test_the_travel_times_of_an_osmnx_graph_are_the_metric_travel_time(
+    off_graph_travel_speed, off_graph_seconds_per_km
+):
+    town = GeoGraph.load_from_osmnx_graph(
+        TOWN, off_graph_travel_speed=off_graph_travel_speed
+    )
+
+    assert town.metrics == [
+        {"name": "length", "unit": "km"},
+        {
+            "name": "travel_time",
+            "unit": "s",
+            "description": "Attribute travel_time of the OSMnx graph.",
+            "off_graph_per_km": off_graph_seconds_per_km,
+        },
+    ]
+
+
+def test_a_route_by_travel_time_is_the_fastest_and_has_its_km_as_length():
+    town = GeoGraph.load_from_osmnx_graph(TOWN)
+
+    route = town.get_shortest_path(
+        POINT_OF_WEST, POINT_OF_EAST, metric="travel_time"
+    )
+
+    # The avenue: 0.8 km + 0.8 km, in 60 s + 60 s.
+    assert route["length"] == pytest.approx(1.6)
+    assert route["metrics"] == {"travel_time": 120.0}
+
+
+def test_an_osmnx_edge_has_the_class_of_its_highway_value():
+    town = GeoGraph.load_from_osmnx_graph(TOWN)
+
+    osm_id = list(town.node_ids)
+    classes_and_modes = {
+        (osm_id[edge["origin_id"]], osm_id[edge["destination_id"]]): (
+            edge["class"],
+            edge["mode"],
+        )
+        for edge in town.get_edges()
+    }
+    assert classes_and_modes == {
+        (WEST, EAST): ("residential", "road"),
+        (WEST, NORTH): ("primary", "road"),
+        (NORTH, EAST): ("primary", "road"),
+        (EAST, WEST): (None, None),
+    }
+
+
+# With `weight_key="travel_time"`, the lengths of the geograph are seconds.
+# From WEST to EAST, the loader then keeps the bypass, which is the fastest
+# of the three edges.
+@pytest.fixture
+def town_in_seconds():
+    return GeoGraph.load_from_osmnx_graph(
+        TOWN, weight_key="travel_time", off_graph_travel_speed=30
+    )
+
+
+# A table of `create_metric` gives the weight of 1 km of an edge.
+def test_a_table_of_rates_is_refused_on_a_geograph_in_seconds(town_in_seconds):
+    with pytest.raises(ValueError, match="in 's'"):
+        town_in_seconds.create_metric("cost", per_km=2.0)
+
+
+def test_a_geograph_in_seconds_read_from_a_file_keeps_its_unit_and_its_routes(
+    town_in_seconds, tmp_path
+):
+    path = str(tmp_path / "town.scgraph")
+    town_in_seconds.save_as_scgraph(path)
+
+    loaded = GeoGraph.load_from_scgraph(path)
+
+    assert loaded.metrics == [{"name": "length", "unit": "s"}]
+    # The bypass takes 100 s, and the avenue 60 s + 60 s.
+    route = loaded.get_shortest_path(POINT_OF_WEST, POINT_OF_EAST)
+    assert route["length"] == 100.0

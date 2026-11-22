@@ -166,14 +166,17 @@ def keep_largest_strongly_connected_component(
     nodes: list[list[float]],
     shapes: list[dict[int, list[list[float]]]],
     node_ids: list[int],
+    edge_class_names: list[dict[int, str]],
 ) -> tuple[
     list[dict[int, int | float]],
     list[list[float]],
     list[dict[int, list[list[float]]]],
     list[int],
+    list[dict[int, str]],
 ]:
     """Keep the largest strongly connected component of a graph in the layout of a
-    GeoGraph. Return `(graph, nodes, shapes, node_ids)` with the kept nodes only.
+    GeoGraph. Return `(graph, nodes, shapes, node_ids, edge_class_names)` with the kept
+    nodes only.
     """
     kept, _ = keep_strongly_connected_components(
         *build_csr_from_adjacency_list(graph)[:2]
@@ -188,4 +191,5 @@ def keep_largest_strongly_connected_component(
         [nodes[u] for u in kept],
         [row(shapes[u]) for u in kept],
         [node_ids[u] for u in kept],
+        [row(edge_class_names[u]) for u in kept],
     )
