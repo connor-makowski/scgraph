@@ -158,7 +158,7 @@ The routing guide says when to use each way in [Making Many Queries Fast](https:
 These notebooks open in Google Colab:
 
 - [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb): load a released network, compute a route, draw it on a map, choose a network.
-- [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb): keep each route on the sea, on the roads or on the railways with a metric, compare three routes.
+- [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb): keep each route by sea, by road or by rail with a metric, compare three routes.
 - [Shortest Tour of 14 Cities by Road](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/travelling_salesman.ipynb): compute a distance matrix, solve the travelling salesman problem with PuLP.
 - [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb): load OSM data, solve for time and distance on bike networks.
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb): export several routes as GeoJSON.
