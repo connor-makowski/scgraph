@@ -72,7 +72,7 @@ def find_edge_id(
     destination_id: int,
 ) -> int | None:
     """Return the id of the edge from one node to another: its position in `heads`.
-    Return None when the graph has no such edge or no node `origin_id`."""
+    Return None when the graph has no such edge, or no node `origin_id`."""
     if not 0 <= origin_id < len(offsets) - 1:
         return None
     for edge_id in range(offsets[origin_id], offsets[origin_id + 1]):
@@ -107,9 +107,9 @@ class EdgeClasses:
         Args:
             classes: The row `{"name", "edge_mode"}` of each class that a loader
                 read. Empty for a geograph without classes.
-            offsets: The offsets of the loaded edges, one for each node plus one.
-                None for a geograph without classes, as `heads` and `edge_class_ids`.
-            heads: The destination of each loaded edge.
+            offsets: The id of the first loaded edge of each node, then the count
+                of the loaded edges. None for a geograph without classes.
+            heads: The destination of each loaded edge. None with `offsets`.
             edge_class_ids: The class id of each loaded edge (uint8), 255 for an
                 edge without a class. The three arrays are kept without a copy.
 
@@ -145,15 +145,15 @@ class EdgeClasses:
                 node, a dict from the destination of an edge of this node to the
                 name of the class of the edge. An edge that its dict lacks has no
                 class. None gives a class to no edge.
-            offsets: The offsets of the edges of the graph, one for each node plus
-                one.
+            offsets: The id of the first edge of each node of the graph, then the
+                count of its edges.
             heads: The destination of each edge.
 
         Raises:
             ValueError: `classes` is None, has more than 255 rows, or has a row
-                without a name or without an edge mode. `edge_classes` has not
-                one dict for each node, or names a destination that is no edge
-                of the graph, or a class that `classes` lacks.
+                without a name or without an edge mode. `edge_classes` does not
+                have one dict for each node, or names a destination that is no
+                edge of the graph, or a class that `classes` lacks.
         """
         if classes is None:
             raise ValueError(
@@ -208,8 +208,8 @@ class EdgeClasses:
         )
 
     def find_class(self, origin_id: int, destination_id: int) -> dict:
-        """Return the row of the class of the edge from one node to another:
-        `{"name": None, "edge_mode": None}` for an edge without a class."""
+        """Return the row `{"name", "edge_mode"}` of the class of the edge from one
+        node to another. Both values are None for an edge without a class."""
         class_id = self._find_class_id(origin_id, destination_id)
         return (
             _NO_CLASS_ROW if class_id == NO_CLASS_ID else self.classes[class_id]
@@ -235,19 +235,19 @@ class EdgeClasses:
         it.
 
         Args:
-            offsets: The offsets of the edges of the graph, one for each node plus
-                one.
+            offsets: The id of the first edge of each node of the graph, then the
+                count of its edges.
             heads: The destination of each edge.
 
         Returns:
-            The class id of each edge (uint8), at the edge id of the edge: 255 for
-            an edge without a class. None for a geograph without classes.
+            An array with the class id of each edge at the id of the edge (uint8),
+            255 for an edge without a class. None for a geograph without classes.
         """
         if not self.classes:
             return None
         edge_class_ids = array("B")
-        # A slice of a memoryview compares with another one by their values, in
-        # C. An array does not.
+        # A slice of a memoryview makes no copy, and two slices compare by their
+        # values, in C.
         heads = memoryview(heads)
         loaded_offsets = self._loaded_offsets
         loaded_heads = memoryview(self._loaded_heads)
@@ -298,7 +298,7 @@ class EdgeClasses:
     def set_class(
         self, edges: Iterable[tuple[int, int]], edge_class: str | None
     ) -> None:
-        """Keep the class that an `add_` method gives to its new edges, each one an
+        """Store the class that an `add_` method gives to its new edges, each one an
         (origin id, destination id). `edge_class` is the name of a class, or None
         for no class. It replaces the class of a loaded edge of the same nodes.
         """
@@ -308,16 +308,16 @@ class EdgeClasses:
         self._class_ids_of_added_edges.update(dict.fromkeys(edges, class_id))
 
     def forget_added_edges(self, edges: Iterable[tuple[int, int]]) -> None:
-        """Drop the class of the added edges that the graph no longer has, each one
-        an (origin id, destination id)."""
+        """Remove the class of the added edges that the graph no longer has, each
+        one an (origin id, destination id)."""
         for edge in edges:
             self._class_ids_of_added_edges.pop(edge, None)
 
     def merge(self, other: "EdgeClasses", first_node_id: int) -> None:
         """Take the classes of the edges of another geograph, for a merge. A class
         of the other geograph is added to `classes`, unless a class has its name.
-        Its loaded edges follow the loaded edges of this geograph, and its added
-        edges join the added edges of this geograph.
+        The loaded edges of the other geograph follow the loaded edges of this
+        geograph. Its added edges are added to the added edges of this geograph.
 
         Args:
             other: The `EdgeClasses` of the other geograph.
