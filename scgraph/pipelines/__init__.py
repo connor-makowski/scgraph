@@ -113,7 +113,7 @@ direction and the name of a class, for example `(1, "motorway")`. A select funct
 uses the names of `CLASSES` only.
 
 A pipeline that fills `edge_class_ids` itself may define its own `CLASSES` dict in its
-module, with the same form. A value of `edge_class_ids` is then a row of that table,
+module, with the same form. A value of `edge_class_ids` is then the id of a class of that table,
 and the runner writes that table into the header.
 
 A network file holds the class of each edge and one row `{"name", "edge_mode"}` for each
@@ -287,8 +287,8 @@ CLASSES = {
     "sea_connector": "sea",
     "flight": "air",
 }
-# The row of each class: the value that `edge_class_ids` holds for an edge of the class
-CLASS_ROWS = {name: row for row, name in enumerate(CLASSES)}
+# The id of each class: the value that `edge_class_ids` holds for an edge of the class
+CLASS_IDS = {name: class_id for class_id, name in enumerate(CLASSES)}
 # In bytes. A larger download is logged at WARNING, which shows without a logging
 # setup.
 LARGE_DOWNLOAD_BYTES = 100e6

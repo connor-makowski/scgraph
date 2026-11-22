@@ -56,9 +56,12 @@ MAGIC = b"SCGRAPH1"
 FORMAT_VERSION = 1
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
-# array name -> the dtypes it may have; shape_* hold the edge shapes, if any; node_ids and
-# node_mode_ids (optional): each node's id in its source and its row of metadata["node_modes"].
-# edge_class_ids (optional): each edge's row of metadata["classes"].
+# array name -> the dtypes it may have; shape_* hold the edge shapes, if any.
+# source_node_ids (optional): the id of each node in its source.
+# node_mode_ids (optional): for each node, the position of its node mode in
+# metadata["node_modes"].
+# edge_class_ids (optional): for each edge, the position of its class in
+# metadata["classes"].
 # weights_length: the length of each edge. The array `weights_<name>` of another metric
 # is not listed here: it has the dtype of weights_length (see `_get_dtypes`).
 # node_points and shape_points are arrays of points: the latitude of a point, then its
@@ -71,7 +74,7 @@ ARRAYS = {
     "node_points": ("int32", "float64"),
     "shape_offsets": ("int32",),
     "shape_points": ("int32", "float64"),
-    "node_ids": ("int32", "int64"),
+    "source_node_ids": ("int32", "int64"),
     "node_mode_ids": ("uint8",),
     "edge_class_ids": ("uint8",),
 }
@@ -149,7 +152,7 @@ RESERVED_METADATA_KEYS = frozenset(
         "edges",
         "coordinate_dtype",
         "shapes",
-        "node_ids",
+        "source_node_ids",
         "attribution",
         "data_up_to",
     }
@@ -388,8 +391,8 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
     Returns:
         The keys of the metadata of the file, then `content_sha256`,
         `format_version`, `nodes`, `edges`, `coordinate_dtype`, `shapes` and
-        `node_ids`. `nodes` and `edges` are counts. `shapes` and `node_ids` say whether
-        the file holds these arrays.
+        `source_node_ids`. `nodes` and `edges` are counts. `shapes` and
+        `source_node_ids` say whether the file holds these arrays.
 
     Raises:
         ValueError: The header of the file is not valid.
@@ -402,7 +405,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         "edges": len(arrays["heads"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
         "shapes": "shape_points" in arrays,
-        "node_ids": "node_ids" in arrays,
+        "source_node_ids": "source_node_ids" in arrays,
     }
 
 
@@ -460,7 +463,7 @@ def _read(filename, file, mapped, node_modes):
     metadata = header["metadata"]
     if (
         ("units" in metadata and "metrics" not in metadata)
-        or {"node_modes", "edge_classes"} & set(header["arrays"])
+        or {"node_ids", "node_modes", "edge_classes"} & set(header["arrays"])
         or any(
             isinstance(row, dict) and "mode" in row
             for row in metadata.get("classes", ())
@@ -556,16 +559,16 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
         *((name, edge_runs, 1) for name in arrays if _is_weights_array(name)),
         ("edge_class_ids", edge_runs, 1),
         ("node_points", node_runs, 2),
-        ("node_ids", node_runs, 1),
+        ("source_node_ids", node_runs, 1),
         ("node_mode_ids", node_runs, 1),
         ("shape_points", shape_point_runs, 2),
     ):
         if name in arrays:
             selected[name] = _take_runs(arrays[name], runs, in_place, width)
-    if "node_ids" not in arrays:
+    if "source_node_ids" not in arrays:
         # The id of a node is its position in the file
         positions = chain.from_iterable(starmap(range, node_runs))
-        selected["node_ids"] = array("q", positions)
+        selected["source_node_ids"] = array("q", positions)
     if "edge_class_ids" in arrays:
         # `_check` does not read the classes of a mapped file. `translate` deletes
         # the valid classes in one pass in C: a byte that is left is not a class.
@@ -681,9 +684,9 @@ class EdgeShapes(Sequence):
         return list, ([dict(row) for row in self],)
 
 
-class NodeIds(Sequence):
+class SourceNodeIds(Sequence):
     """
-    The `node_ids` of a GeoGraph: the stable id of each node (its id in the source it
+    The `source_node_ids` of a GeoGraph: the stable id of each node (its id in the source it
     came from, or its position if it has none), then, for each node added since, a
     negative id below all the others. Read-only; pickled with its ids as a list.
     """
@@ -713,7 +716,7 @@ class NodeIds(Sequence):
         return self._floor - 1 - (i - len(ids))
 
     def __eq__(self, other):
-        if not isinstance(other, (list, NodeIds)):
+        if not isinstance(other, (list, SourceNodeIds)):
             return NotImplemented
         return len(self) == len(other) and all(map(eq, self, other))
 
@@ -721,7 +724,7 @@ class NodeIds(Sequence):
         return repr(list(self))
 
     def __reduce__(self):
-        return NodeIds, (list(self), self._nodes)
+        return SourceNodeIds, (list(self), self._nodes)
 
     def take(self, positions: Iterable[int]) -> array:
         """The ids of the nodes at `positions`, as an int64 array."""
@@ -940,7 +943,10 @@ def _check(filename, arrays, metadata, should_check_values=True):
             not should_check_values or is_sorted(shapes),
             "invalid shape offsets",
         )
-    for name, what in (("node_ids", "node id"), ("node_mode_ids", "node mode")):
+    for name, what in (
+        ("source_node_ids", "node id"),
+        ("node_mode_ids", "node mode"),
+    ):
         require(
             name not in arrays or len(arrays[name]) == n,
             f"one {what} per node expected",
@@ -949,7 +955,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "edge_class_ids" not in arrays or len(arrays["edge_class_ids"]) == m,
         "one edge class per edge expected",
     )
-    # Each value of these arrays is a row of a list of the metadata
+    # Each value of these arrays is the position of a row in a list of the metadata
     for name, what, key in (
         ("node_mode_ids", "node modes", "node_modes"),
         ("edge_class_ids", "edge classes", "classes"),

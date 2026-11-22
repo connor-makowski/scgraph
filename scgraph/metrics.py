@@ -4,11 +4,12 @@ This module is internal. `GeoGraph.create_metric` calls it, and a geograph keeps
 metrics by name in `GeoGraph._metrics`.
 
 A "metric" is one weight for every edge, under a name: an array of float64 values,
-"lined up with the edges". Its value number `i` is the weight of the edge of index
-`i`: the edge at the position `i` in the heads of the graph (`Graph._csr`). A search
-by a metric adds up these weights in place of the lengths. The lengths are the metric `length`, which the
-graph of the geograph holds. A `Metric` record holds each other metric. An edge is
-"closed" in a metric when its weight is infinity: no route by this metric takes it.
+"lined up with the edges". Its value number `i` is the weight of the edge of id `i`:
+the edge at the position `i` in the heads of the graph (`Graph._csr`). A search by a
+metric adds up these weights in place of the lengths. The lengths are the metric
+`length`, which the graph of the geograph holds. A `Metric` record holds each other
+metric. An edge is "closed" in a metric when its weight is infinity: no route by
+this metric takes it.
 
 The weights of a metric are computed in one of three ways:
 
@@ -50,7 +51,7 @@ from math import inf, isfinite
 from operator import truediv
 from typing import TYPE_CHECKING
 
-from scgraph.edge_classes import find_edge_index
+from scgraph.edge_classes import find_edge_id
 
 try:
     from scgraph.cpp import compute_weighted_sum
@@ -126,11 +127,11 @@ def resolve_weights_per_km(
     to the other classes of the edge mode `road`.
 
     Args:
-        classes: The entry `{"name", "edge_mode"}` of each class. Empty for a
-            geograph without classes: every edge then has the row 0.
-        node_modes: The entry of each node mode (`GeoGraph.node_modes`).
-        edge_class_ids: The row of the class of each edge: the position of the
-            entry of the class in `classes`.
+        classes: The row `{"name", "edge_mode"}` of each class. Empty for a
+            geograph without classes: every edge then has the class id 0.
+        node_modes: The row of each node mode (`GeoGraph.node_modes`).
+        edge_class_ids: The class id of each edge: the position of the row of
+            its class in `classes`.
 
     Raises:
         ValueError: A dict has a key that it may not have, or lacks a weight per
@@ -139,9 +140,9 @@ def resolve_weights_per_km(
     class_count = max(len(classes), 1)
     class_weight_per_km = class_weight_per_km or {}
     edge_modes = sorted(
-        {class_entry["edge_mode"] for class_entry in classes} - {None}
+        {class_row["edge_mode"] for class_row in classes} - {None}
     )
-    class_names = [class_entry["name"] for class_entry in classes]
+    class_names = [class_row["name"] for class_row in classes]
     for class_name in class_weight_per_km:
         if class_name is None or class_name not in class_names:
             raise ValueError(
@@ -168,15 +169,15 @@ def resolve_weights_per_km(
         weight_per_km_of_edge_mode = dict.fromkeys(
             [*edge_modes, None], weight_per_km
         )
-    count_edges_of_class_row = bytes(edge_class_ids).count
+    count_edges_of_class_id = bytes(edge_class_ids).count
     class_weights_per_km = array("d")
-    for class_row, class_entry in enumerate(classes):
-        class_name, edge_mode = class_entry["name"], class_entry["edge_mode"]
+    for class_id, class_row in enumerate(classes):
+        class_name, edge_mode = class_row["name"], class_row["edge_mode"]
         if class_name is not None and class_name in class_weight_per_km:
             weight = class_weight_per_km[class_name]
         elif edge_mode in weight_per_km_of_edge_mode:
             weight = weight_per_km_of_edge_mode[edge_mode]
-        elif class_name is not None and count_edges_of_class_row(class_row):
+        elif class_name is not None and count_edges_of_class_id(class_id):
             raise ValueError(
                 "weight_per_km gives no weight for the edge mode "
                 f"{edge_mode!r} of the class {class_name!r}, which has edges: "
@@ -201,8 +202,8 @@ def resolve_weights_per_km(
         _check_edge_modes(
             weights_of_hub, f"weight_at_hub[{hub_mode!r}]", edge_modes
         )
-        for class_row, class_entry in enumerate(classes):
-            edge_mode = class_entry["edge_mode"]
+        for class_id, class_row in enumerate(classes):
+            edge_mode = class_row["edge_mode"]
             if edge_mode not in weights_of_hub:
                 continue
             weight = weights_of_hub[edge_mode]
@@ -213,9 +214,9 @@ def resolve_weights_per_km(
                     f"when it leaves the hub: got {weight!r}"
                 )
             # Two node modes may have the same name, after a merge
-            for mode_row, mode_name in enumerate(node_mode_names):
+            for node_mode_id, mode_name in enumerate(node_mode_names):
                 if mode_name == hub_mode:
-                    hub_weights[mode_row * class_count + class_row] = weight
+                    hub_weights[node_mode_id * class_count + class_id] = weight
     return class_weights_per_km, hub_weights, off_graph_weight_per_km
 
 
@@ -368,15 +369,13 @@ def set_edge_weights(
     new_weights = array("d")
     new_weights.frombytes(memoryview(weights).cast("B"))
     for (origin_id, destination_id), weight in edge_weights.items():
-        edge_index = find_edge_index(offsets, heads, origin_id, destination_id)
-        if edge_index is None:
+        edge_id = find_edge_id(offsets, heads, origin_id, destination_id)
+        if edge_id is None:
             raise ValueError(
                 f"edge_weights names an edge from node {origin_id} to node "
                 f"{destination_id}: the geograph has no such edge"
             )
-        new_weights[edge_index] = check_weight(
-            weight, origin_id, destination_id
-        )
+        new_weights[edge_id] = check_weight(weight, origin_id, destination_id)
     return new_weights
 
 

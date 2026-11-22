@@ -21,7 +21,7 @@ from array import array
 from scgraph.edge_classes import EdgeClasses
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
-from scgraph.pipelines import CLASS_ROWS, CLASSES
+from scgraph.pipelines import CLASS_IDS, CLASSES
 from scgraph.pipelines.steps import step3_network_assembly
 
 PIPELINE_VERSION = 3
@@ -141,8 +141,8 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         it, with `edge_class_ids`. The edges have no shape points.
     """
     sea = build(files)
-    class_row_of_edge = {
-        (edge["origin_id"], edge["destination_id"]): CLASS_ROWS[
+    class_id_of_edge = {
+        (edge["origin_id"], edge["destination_id"]): CLASS_IDS[
             edge["edge_class"]
         ]
         for edge in sea.get_edges()
@@ -161,11 +161,11 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         ),
         "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
         "shape_points": array("i"),
-        "node_ids": array("q", sea.node_ids),
+        "source_node_ids": array("q", sea.source_node_ids),
         "edge_class_ids": array(
             "B",
             (
-                class_row_of_edge[u, v]
+                class_id_of_edge[u, v]
                 for u in range(len(sea.nodes))
                 for v in heads[offsets[u] : offsets[u + 1]]
             ),

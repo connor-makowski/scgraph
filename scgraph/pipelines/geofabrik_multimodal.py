@@ -54,12 +54,12 @@ HUBS AND CONNECTORS
 
 MODES AND CLASSES
 
-- Each node has its mode (`node_mode_ids`, rows of `node_modes`): `road`, `rail`, `sea`,
+- Each node has its node mode (`node_mode_ids`, positions in `node_modes`): `road`, `rail`, `sea`,
   `port`, `airport` or `rail_terminal`. Each mode cites the source of its node ids:
   OpenStreetMap for roads and railways, the World Port Index number for a port, the
   OurAirports id for an airport, the Wikidata number for a rail terminal. A node with
   a negative id is in no source: the build added it (*Nodes and shapes*).
-- Each edge has a class. `edge_class_ids` gives its row in `classes`. A road edge has the
+- Each edge has a class. `edge_class_ids` gives its position in `classes`. A road edge has the
   `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
   railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
   edge has the name of its passage, for example `suez`, or `open_sea`. A flight is
@@ -262,7 +262,7 @@ def build(
         sea = eurostat_sea_lanes.build_sea_lane_arrays(
             {"sea_lanes": files["sea"]}
         )
-        counts["nodes"] = len(sea["node_ids"])
+        counts["nodes"] = len(sea["source_node_ids"])
     # 3. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
     latitudes, longitudes = node_points[0::2], node_points[1::2]

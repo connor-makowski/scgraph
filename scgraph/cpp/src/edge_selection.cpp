@@ -18,7 +18,8 @@ void add_run(Runs& runs, int64_t first, int64_t last) {
 }  // namespace
 
 EdgeSelection select_edges(std::span<const int32_t> offsets, std::span<const int32_t> heads,
-                         std::span<const uint8_t> node_mode_ids, const std::vector<bool>& is_node_mode_kept,
+                         std::span<const uint8_t> node_mode_ids,
+                         const std::vector<bool>& is_node_mode_kept,
                          std::span<const int32_t> shape_offsets) {
     const int64_t node_count = (int64_t)offsets.size() - 1;
     const int64_t edge_count = (int64_t)heads.size();

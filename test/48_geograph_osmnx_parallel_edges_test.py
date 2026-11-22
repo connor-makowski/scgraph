@@ -157,7 +157,7 @@ def test_osmnx_nodes_keep_their_osm_ids_in_hilbert_order():
 
     geograph = GeoGraph.load_from_osmnx_graph(osmnx_graph)
 
-    assert list(geograph.node_ids) == [WEST, EAST]
+    assert list(geograph.source_node_ids) == [WEST, EAST]
     assert geograph.nodes == [[0.0, 0.0], [0.0, 0.01]]
 
 
@@ -252,7 +252,7 @@ def test_a_route_by_travel_time_is_the_fastest_and_has_its_km_as_length():
 def test_an_osmnx_edge_has_the_class_of_its_highway_value():
     town = GeoGraph.load_from_osmnx_graph(TOWN)
 
-    osm_id = list(town.node_ids)
+    osm_id = list(town.source_node_ids)
     classes_and_modes = {
         (osm_id[edge["origin_id"]], osm_id[edge["destination_id"]]): (
             edge["edge_class"],

@@ -58,7 +58,7 @@ def parent_file(tmp_path_factory):
         graph=graph,
         nodes=list(NODES.values()),
         intermediate_nodes=shapes,
-        node_ids=list(NODES),
+        source_node_ids=list(NODES),
         node_mode_ids=[0] * 4 + [1] + [2] * 2 + [3] * 2,  # rows of MODES
         node_modes=MODES,
         coordinate_dtype="int32",
@@ -97,7 +97,7 @@ def _nodes_by_mode(file):
     """The nodes of a network file: for each mode, the sorted ids of its nodes."""
     network = GeoGraph.load_from_scgraph(file)
     nodes = {mode["name"]: [] for mode in network.node_modes}
-    for row, node in zip(network.node_mode_ids, network.node_ids):
+    for row, node in zip(network.node_mode_ids, network.source_node_ids):
         nodes[network.node_modes[row]["name"]].append(node)
     return {mode: sorted(ids) for mode, ids in nodes.items()}
 
@@ -153,7 +153,7 @@ def _name_each_edge(arrays):
     """A name for each edge of the arrays of a network, in the order of the
     edges: "1-2" for the edge from node 1 to node 2."""
     ids, offsets, heads = (
-        arrays[name] for name in ("node_ids", "offsets", "heads")
+        arrays[name] for name in ("source_node_ids", "offsets", "heads")
     )
     return [
         f"{ids[u]}-{ids[heads[edge]]}"

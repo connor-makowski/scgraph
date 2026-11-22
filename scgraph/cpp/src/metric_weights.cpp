@@ -19,41 +19,41 @@ std::vector<double> compute_weights_from_km(
     if (class_count == 0 || hub_weights.size() % class_count != 0) {
         throw std::invalid_argument("expected one hub weight per node mode and per class");
     }
-    const size_t mode_count = hub_weights.size() / class_count;
-    for (uint8_t mode : node_mode_ids) {
-        if (mode >= mode_count) {
+    const size_t node_mode_count = hub_weights.size() / class_count;
+    for (uint8_t node_mode_id : node_mode_ids) {
+        if (node_mode_id >= node_mode_count) {
             throw std::invalid_argument("an edge has a class without a weight per km, or a node has a node mode without hub weights");
         }
     }
 
     std::vector<double> weights(edge_count);
-    for (int64_t origin = 0; origin < node_count; ++origin) {
-        const int64_t first = offsets[origin], last = offsets[origin + 1];
+    for (int64_t origin_id = 0; origin_id < node_count; ++origin_id) {
+        const int64_t first = offsets[origin_id], last = offsets[origin_id + 1];
         if (first < 0 || last < first || last > edge_count) throw std::invalid_argument("invalid offsets");
-        const double* weights_at_origin = hub_weights.data() + node_mode_ids[origin] * class_count;
-        for (int64_t edge = first; edge < last; ++edge) {
-            const size_t edge_class = edge_class_ids[edge];
-            const int32_t head = heads[edge];
-            if (edge_class >= class_count) {
+        const double* hub_weights_of_origin = hub_weights.data() + node_mode_ids[origin_id] * class_count;
+        for (int64_t edge_id = first; edge_id < last; ++edge_id) {
+            const size_t class_id = edge_class_ids[edge_id];
+            const int32_t head = heads[edge_id];
+            if (class_id >= class_count) {
                 throw std::invalid_argument("an edge has a class without a weight per km, or a node has a node mode without hub weights");
             }
             if (head < 0 || head >= node_count) throw std::invalid_argument("edge to a missing node");
             // 1. The weight per km of the class times the km, or infinity for a closed class
-            const double weight_per_km = class_weights_per_km[edge_class];
-            double weight = weight_per_km == INFINITE ? INFINITE : weight_per_km * lengths[edge];
+            const double weight_per_km = class_weights_per_km[class_id];
+            double weight = weight_per_km == INFINITE ? INFINITE : weight_per_km * lengths[edge_id];
             // 2. The weight of the hub that the edge leaves
-            const double out_weight = weights_at_origin[edge_class];
-            if (out_weight != 0.0) weight += out_weight;
+            const double weight_leaving_hub = hub_weights_of_origin[class_id];
+            if (weight_leaving_hub != 0.0) weight += weight_leaving_hub;
             // 3. The weight of the hub that the edge enters
-            const double into_weight = hub_weights[node_mode_ids[head] * class_count + edge_class];
-            if (into_weight != 0.0) weight += into_weight;
+            const double weight_entering_hub = hub_weights[node_mode_ids[head] * class_count + class_id];
+            if (weight_entering_hub != 0.0) weight += weight_entering_hub;
             // 4. A comparison with a value that is not a number is false
             if (!(weight >= 0.0)) {
-                throw std::invalid_argument("The weight of the edge from node " + std::to_string(origin) +
+                throw std::invalid_argument("The weight of the edge from node " + std::to_string(origin_id) +
                                             " to node " + std::to_string(head) +
                                             " is below zero or not a number");
             }
-            weights[edge] = weight;
+            weights[edge_id] = weight;
         }
     }
     return weights;
@@ -70,12 +70,12 @@ std::vector<double> compute_weighted_sum(const std::vector<std::span<const doubl
         if (weights.size() != edge_count) throw std::invalid_argument("expected one weight per edge in each metric");
     }
     std::vector<double> sums(edge_count);
-    for (size_t edge = 0; edge < edge_count; ++edge) {
-        double sum = coefficients[0] * weights_of_metrics[0][edge];
+    for (size_t edge_id = 0; edge_id < edge_count; ++edge_id) {
+        double sum = coefficients[0] * weights_of_metrics[0][edge_id];
         for (size_t k = 1; k < metric_count; ++k) {
-            sum += coefficients[k] * weights_of_metrics[k][edge];
+            sum += coefficients[k] * weights_of_metrics[k][edge_id];
         }
-        sums[edge] = sum;
+        sums[edge_id] = sum;
     }
     return sums;
 }

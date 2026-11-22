@@ -443,8 +443,8 @@ def read_osm(
     the class names that `select` may give with the direction of a way.
 
     Returns:
-        `(graph, nodes, shapes, node_ids, edge_class_names)` in the layout of a
-        GeoGraph. `node_ids` holds the OSM ids of the nodes. `edge_class_names[i][j]`
+        `(graph, nodes, shapes, source_node_ids, edge_class_names)` in the layout of a
+        GeoGraph. `source_node_ids` holds the OSM ids of the nodes. `edge_class_names[i][j]`
         is the class that `select` gave to the way of the edge from `i` to `j`, if it
         gave one.
     """

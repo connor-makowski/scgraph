@@ -138,17 +138,20 @@ def _write_network(path, nodes, two_way_edges, classes):
     """Write the network file of `nodes` and `two_way_edges`, which have the
     form of NODES and TWO_WAY_EDGES. `classes` gives the edge mode of each
     class. A query point snaps to a road node by default."""
-    # The edges of each node: (destination, km, row of the class)
-    rows = [[] for _ in nodes]
+    # The edges of each node: (destination, km, id of the class)
+    edges_of_each_node = [[] for _ in nodes]
     for a, b, km, edge_class in two_way_edges:
-        rows[a].append((b, km, list(classes).index(edge_class)))
-        rows[b].append((a, km, list(classes).index(edge_class)))
+        class_id = list(classes).index(edge_class)
+        edges_of_each_node[a].append((b, km, class_id))
+        edges_of_each_node[b].append((a, km, class_id))
     heads, lengths, edge_class_ids = zip(
-        *(edge for row in rows for edge in row)
+        *(edge for edges in edges_of_each_node for edge in edges)
     )
     node_modes = list(dict.fromkeys(mode for mode, _, _ in nodes))
     arrays = {
-        "offsets": array("i", accumulate(map(len, rows), initial=0)),
+        "offsets": array(
+            "i", accumulate(map(len, edges_of_each_node), initial=0)
+        ),
         "heads": array("i", heads),
         "weights_length": array("d", lengths),
         "edge_class_ids": array("B", edge_class_ids),
@@ -491,7 +494,7 @@ def test_a_merge_that_is_refused_changes_nothing(
     # A geograph holds 256 classes at most. The network has 7 classes. With
     # the 250 classes of the other geograph, the merged geograph would have
     # 257 classes.
-    many_classes = {f"class_{row}": "road" for row in range(250)}
+    many_classes = {f"class_{class_id}": "road" for class_id in range(250)}
     other_path = str(tmp_path / "many_classes.scgraph")
     _write_network(
         other_path, FERRY_NODES, [(0, 1, 30.0, "class_0")], many_classes
@@ -513,7 +516,7 @@ def test_a_merge_that_is_refused_changes_nothing(
 def test_a_geograph_with_256_classes_refuses_one_more_class(tmp_path):
     # The ferry line, read from a network file with 256 classes: a network
     # file holds no more. The line has the last class.
-    classes = {f"class_{row}": "road" for row in range(256)}
+    classes = {f"class_{class_id}": "road" for class_id in range(256)}
     path = str(tmp_path / "256_classes.scgraph")
     _write_network(path, FERRY_NODES, [(0, 1, 30.0, "class_255")], classes)
     geograph_with_256_classes = GeoGraph.load_from_scgraph(path)

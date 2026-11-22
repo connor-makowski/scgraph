@@ -183,7 +183,7 @@ def test_first_load_converts_the_published_geograph_into_a_network_file(
     # The nodes are numbered along the Hilbert curve: nodes 1, 2, 0 of the
     # .graphjson become nodes 0, 1, 2. The links follow.
     assert geo.nodes == [[-45, -90], [45, -90], [45, 90]]
-    assert list(geo.node_ids) == [1, 2, 0]
+    assert list(geo.source_node_ids) == [1, 2, 0]
     assert geo.graph_object.graph == [
         {2: 1.5, 1: 2.0},
         {0: 2.0},

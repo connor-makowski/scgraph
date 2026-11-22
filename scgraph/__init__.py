@@ -711,7 +711,7 @@ For one of the seven networks of scgraph 3.6.0, the first load also converts the
 
 - **Node ids**: Nodes are numbered along a Hilbert curve, so that nodes close on the globe get close ids. Route lengths do not change. When two routes have exactly the same length, the other one may be returned.
 - **Coordinates**: Coordinates are stored to 1e-7 degree (about 1 cm). A few published ports have 9 decimals.
-- **Ids of scgraph 3.6.0**: `node_ids[i]` is the id that node `i` has in the `.graphjson`, so `[geo.node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps the old numbering.
+- **Ids of scgraph 3.6.0**: `source_node_ids[i]` is the id that node `i` has in the `.graphjson`, so `[geo.source_node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps the old numbering.
 
 ```py
 from scgraph import GeoGraph
@@ -832,7 +832,7 @@ A rebuild removes the old network file. On Windows, an old file that another pro
 
 **Multimodal networks.** `geofabrik_multimodal` and `osm_world_multimodal` join several transport networks. Ports, airports and rail terminals join roads, railways, sea lanes and regular flights. Such a place is a hub, and a hub is one node. A connector is the pair of edges that joins a hub to one of these networks. The docstring of `geofabrik_multimodal` gives the rules of the connectors.
 
-Each node has a node mode, for example `road`, `sea` or `port`. `geo.node_mode_ids[i]` gives the row of node `i` in `geo.node_modes`. That row names the node mode and the source of the node ids (OpenStreetMap for roads). The file stores the nodes of each node mode together. Routes use kilometers on every network.
+Each node has a node mode, for example `road`, `sea` or `port`. `geo.node_mode_ids[i]` gives the position of the node mode of node `i` in `geo.node_modes`. That row names the node mode and the source of the node ids (OpenStreetMap for roads). The file stores the nodes of each node mode together. Routes use kilometers on every network.
 
 In these networks, the shortest route in kilometers between two distant places takes a flight, because a flight is a straight line. To find the fastest route or the cheapest route, create a metric ([Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)). To route on some node modes only, load the file with these node modes and with the hubs that join them: `GeoGraph.load_from_scgraph(file, node_modes=["road", "rail", "rail_terminal"])`. Without the node mode of a hub, two networks have no link.
 
@@ -1423,7 +1423,7 @@ Release 4.0 changes these calls of release 3.6.
 | What changes | What to do |
 |---|---|
 | The seven networks of 3.6 (`marnet`, `us_freeway`, ...) are deprecated. They still load, with the same results and a `DeprecationWarning` | Load the released network of the table *Deprecated Networks of scgraph 3.6.0*. Its lengths differ: Shanghai to Savannah is 19072.8293 km on `marnet` and 19264.1889 km on `world_sea` |
-| A network loaded by `load_geograph` numbers its nodes in another order | `geograph.node_ids[i]` gives the id that node `i` had in 3.6 |
+| A network loaded by `load_geograph` numbers its nodes in another order | `geograph.source_node_ids[i]` gives the id that node `i` had in 3.6 |
 | `GeoGraph.get_shortest_path` takes its options by keyword | Write `get_shortest_path(origin, destination, output_units="mi")`, not `get_shortest_path(origin, destination, "mi")` |
 | `CHGraph`, `TNRGraph`, `create_contraction_hierarchy` and `create_tnr_hierarchy` take their options by keyword, with the same names in both builds | Write `TNRGraph(graph, num_transit_nodes=100)` |
 | `ch_graph_kwargs` and `tnr_graph_kwargs` have no effect and give a `DeprecationWarning` | Pass `settled_limit` and `heuristic_fn` |

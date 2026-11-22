@@ -86,8 +86,8 @@ def _find_closest_node(network, point, mode=None) -> tuple:
     wanted = node_mode_names.index(mode)
     return min(
         (haversine(point, node), tuple(node))
-        for node, node_mode in zip(network.nodes, network.node_mode_ids)
-        if node_mode == wanted
+        for node, node_mode_id in zip(network.nodes, network.node_mode_ids)
+        if node_mode_id == wanted
     )
 
 

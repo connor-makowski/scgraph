@@ -55,7 +55,7 @@ from scgraph.helpers.osm import (
     select_main_roads as select_main_roads,
 )
 from scgraph.helpers.polylines import cut_polylines, build_graph_from_polylines
-from scgraph.pipelines import CLASS_ROWS, CLASSES, download_file
+from scgraph.pipelines import CLASS_IDS, CLASSES, download_file
 from scgraph.pipelines.steps.near_nodes import NearNodes
 from scgraph.pipelines.steps.step3_network_assembly import (
     PieceArrays,
@@ -175,7 +175,7 @@ def build_way_pieces(
             },
             "tag_keys": list(tag_keys),
             "max_km_between_nodes": max_km_between_nodes,
-            # The pieces hold rows of this table
+            # The pieces hold ids of classes of this table
             "classes": list(CLASSES),
         }
         inputs_file = os.path.join(work_dir, "ways.inputs.json")
@@ -200,18 +200,18 @@ def build_way_pieces(
             selects,
             tag_keys,
             work_dir=work_dir,
-            class_names=CLASS_ROWS,
+            class_names=CLASS_IDS,
         )
         pieces = {
             mode: PieceArrays(work_dir=pieces_dirs[mode]) for mode in selects
         }
-        # The ferries of each mode, by the row of their class
+        # The ferries of each mode, by the id of their class
         ferries = {mode: defaultdict(list) for mode in selects}
         for mode, kind, direction, class_name, vertices in ways:
             # A way without a class has no row
-            class_row = CLASS_ROWS.get(class_name)
+            class_id = CLASS_IDS.get(class_name)
             if kind == "ferries":
-                ferries[mode][class_row].append((direction, vertices))
+                ferries[mode][class_id].append((direction, vertices))
                 continue
             vertex_points = dict(vertices)
             for origin_id, destination_id, km, way, shape in cut_polylines(
@@ -219,7 +219,7 @@ def build_way_pieces(
             ):
                 ends = vertex_points[origin_id], vertex_points[destination_id]
                 pieces[mode].append(
-                    origin_id, destination_id, km, way, ends, shape, class_row
+                    origin_id, destination_id, km, way, ends, shape, class_id
                 )
         for mode_pieces in pieces.values():
             mode_pieces.flush()
@@ -243,12 +243,12 @@ def build_way_pieces(
             near = NearNodes(latitudes, longitudes, scale=1e-7)
             # The ferries of one class give the edges of that class
             edges = []
-            for class_row, polylines in ferries[mode].items():
+            for class_id, polylines in ferries[mode].items():
                 rows, ends, shapes, _, _ = build_graph_from_polylines(
                     polylines, junctions[mode], math.inf
                 )
                 edges += (
-                    (*edge, class_row)
+                    (*edge, class_id)
                     for edge in build_ferry_edges(
                         rows,
                         ends,
@@ -256,12 +256,12 @@ def build_way_pieces(
                         partial(near.find_closest, km=FERRY_END_KM),
                     )
                 )
-            for u, v, km, shape, class_row in edges:
+            for u, v, km, shape, class_id in edges:
                 road = [
                     [latitudes[w] * 1e-7, longitudes[w] * 1e-7] for w in (u, v)
                 ]
                 end_ids = ids[u % 2][u // 2], ids[v % 2][v // 2]
-                mode_pieces.append(*end_ids, km, 1, road, shape, class_row)
+                mode_pieces.append(*end_ids, km, 1, road, shape, class_id)
             mode_pieces.flush()
             counts["edges"] = len(edges)
     if work_dir:

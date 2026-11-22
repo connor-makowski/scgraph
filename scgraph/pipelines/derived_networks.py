@@ -232,10 +232,10 @@ def derive_network_file(
     unknown = sorted(set(node_modes or ()) - set(node_mode_names))
     if unknown:
         raise ValueError(f"{parent_file} has no mode named {unknown}")
-    # The rows of the modes table of the parent file that the derived file keeps
-    kept_mode_rows = [
-        row
-        for row, name in enumerate(node_mode_names)
+    # The ids of the node modes of the parent file that the derived file keeps
+    kept_node_mode_ids = [
+        node_mode_id
+        for node_mode_id, name in enumerate(node_mode_names)
         if node_modes is None or name in node_modes
     ]
     with log_step(
@@ -244,8 +244,10 @@ def derive_network_file(
         step3_network_assembly._count_nodes_and_edges(parent_arrays),
     ) as counts:
         # 1. Select the nodes
-        land_rows = {
-            row for row in kept_mode_rows if node_mode_names[row] in LAND_MODES
+        land_node_mode_ids = {
+            node_mode_id
+            for node_mode_id in kept_node_mode_ids
+            if node_mode_names[node_mode_id] in LAND_MODES
         }
         node_points = parent_arrays["node_points"]
         latitudes, longitudes = node_points[0::2], node_points[1::2]
@@ -253,10 +255,10 @@ def derive_network_file(
             "i",
             (
                 u
-                for u, row in enumerate(parent_arrays["node_mode_ids"])
-                if row in kept_mode_rows
+                for u, node_mode_id in enumerate(parent_arrays["node_mode_ids"])
+                if node_mode_id in kept_node_mode_ids
                 and (
-                    row not in land_rows
+                    node_mode_id not in land_node_mode_ids
                     or (
                         (south <= latitudes[u] <= north)
                         and (west <= longitudes[u] <= east)
@@ -294,18 +296,24 @@ def derive_network_file(
         )
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
-    if len(kept_mode_rows) == 1:
+    if len(kept_node_mode_ids) == 1:
         del graph["node_mode_ids"]  # a network file with one mode has none
-    else:  # a kept mode takes its row in the new modes table
-        row_translation = bytes.maketrans(
-            bytes(kept_mode_rows), bytes(range(len(kept_mode_rows)))
+    else:  # a kept node mode takes its id in the new node modes table
+        node_mode_id_translation = bytes.maketrans(
+            bytes(kept_node_mode_ids), bytes(range(len(kept_node_mode_ids)))
         )
         graph["node_mode_ids"] = array(
-            "B", graph["node_mode_ids"].tobytes().translate(row_translation)
+            "B",
+            graph["node_mode_ids"]
+            .tobytes()
+            .translate(node_mode_id_translation),
         )
     if not keep_shapes:
         del graph["shape_offsets"], graph["shape_points"]
-    kept_modes = [parent_metadata["node_modes"][row] for row in kept_mode_rows]
+    kept_modes = [
+        parent_metadata["node_modes"][node_mode_id]
+        for node_mode_id in kept_node_mode_ids
+    ]
 
     def find_used_sources(node_modes):
         return {mode.get("source") for mode in node_modes} | {

@@ -662,7 +662,7 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
   CLASSES = {"cycleway": "road", "towpath": "road", "ferry": "road"}
   ```
 
-  The array `edge_class_ids` holds the row of the class of each edge in `CLASSES`, counted from
+  The array `edge_class_ids` holds the id of the class of each edge in `CLASSES`, counted from
   0: `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
   `scgraph.pipelines.CLASSES`. The docstring of `scgraph.pipelines` gives the contract of the
   two names.

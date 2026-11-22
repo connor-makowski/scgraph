@@ -109,7 +109,7 @@ def test_added_and_merged_nodes_get_unique_ids():
     road = GeoGraph(
         graph=[{1: 1.0}, {0: 1.0}],
         nodes=[[0, 0], [0, 1]],
-        node_ids=[10, 20],
+        source_node_ids=[10, 20],
     )
     road.add_coord_node({"latitude": 0, "longitude": 2})
     sea = GeoGraph(graph=[{1: 1.0}, {0: 1.0}], nodes=[[1, 0], [1, 1]])
@@ -117,7 +117,7 @@ def test_added_and_merged_nodes_get_unique_ids():
 
     road.merge_with_other_geograph(sea, connection_nodes=[[0.5, 0.5]])
 
-    assert list(road.node_ids) == [
+    assert list(road.source_node_ids) == [
         10,  # the nodes of road keep their ids
         20,
         -1,
@@ -136,7 +136,7 @@ def test_node_added_after_a_merge_gets_the_next_negative_id():
 
     road.add_coord_node({"latitude": 2, "longitude": 2})
 
-    assert road.node_ids[-1] == -2
+    assert road.source_node_ids[-1] == -2
 
 
 def test_merge_keeps_the_finer_coordinate_type_of_the_two_geographs():

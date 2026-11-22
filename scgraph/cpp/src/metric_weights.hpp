@@ -25,13 +25,15 @@
 //
 // WHAT THEY READ
 //   The arrays of the network, in place. The kernels do not copy them.
-//   - `offsets` and `heads` store the edges by origin: the edges of the node u are at the
-//     positions offsets[u] to offsets[u + 1] - 1, and heads[e] is the node that the edge e
-//     goes to.
+//   - `offsets` and `heads` store the edges by origin: the edges of the node u have the ids
+//     offsets[u] to offsets[u + 1] - 1, and heads[e] is the node that the edge of id e goes
+//     to. The id of an edge is its position in `heads`.
 //   - `lengths` gives the km of each edge.
-//   - `edge_class_ids` gives the "class" of each edge, as a row of the classes table. A
-//     class is the category of an edge: motorway, sea connector, and so on.
-//   - `node_mode_ids` gives the "node mode" of each node, as a row of the node modes table: road, port,
+//   - `edge_class_ids` gives the "class" of each edge, as the id of the class: its position
+//     in the list of the classes. A class is the category of an edge: motorway, sea
+//     connector, and so on.
+//   - `node_mode_ids` gives the "node mode" of each node, as the id of the node mode: its
+//     position in the list of the node modes. A node mode says where a node is: road, port,
 //     sea, and so on. A "hub" is a node whose node mode has a weight in `hub_weights`.
 //   Example: offsets = [0, 1, 3, 4], heads = [1, 0, 2, 1], lengths = [3, 3, 5, 5],
 //   edge_class_ids = [0, 0, 1, 1] and node_mode_ids = [0, 1, 2]. The class 0 is the road
@@ -41,8 +43,8 @@
 //   - `class_weights_per_km[c]` is the "weight per km" of the class c: the weight of 1 km of
 //     an edge of this class. Infinity closes the class.
 //   - `hub_weights[m * C + c]` is the weight that an edge of the class c pays when it leaves
-//     a node of the node mode m, and when it goes to a node of the node mode m. C is the number of
-//     classes.
+//     a node of the node mode m, and when it goes to a node of the node mode m. C is the
+//     number of classes.
 //   Example: class_weights_per_km = [0.02, 0.04], because 1 km takes 1 / 50 = 0.02 hour by
 //   road and 1 / 25 = 0.04 hour by sea. With 3 node modes and 2 classes, `hub_weights` has 6
 //   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the node mode 1, has values.
@@ -78,8 +80,8 @@
 //   rounds once where Python rounds twice. The two versions therefore return the same
 //   arrays, bit for bit.
 //   The arrays may come from a mapped file that nothing has checked. Each value is checked
-//   before it is used as a position, so a damaged file throws std::invalid_argument and no
-//   memory outside the arrays is read.
+//   before it is used as an id, so a damaged file throws std::invalid_argument and no memory
+//   outside the arrays is read.
 
 std::vector<double> compute_weights_from_km(
     std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths,
