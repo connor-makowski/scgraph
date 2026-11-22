@@ -81,7 +81,7 @@ utils/
 noxfile.py                       # nox sessions: pytest across Python 3.11–3.14 and PyPy 3.11, and lint (ruff, pyrefly)
 pyproject.toml                   # Package metadata, scikit-build-core config, black + ruff + pytest config
 CMakeLists.txt                   # C++ build configuration (nanobind, C++20, -O3)
-README.md, guides/, MIGRATING.md # User documents: the entry page, one guide for each task, the changes since release 3.6
+README.md, guides/, MIGRATING.md # User documents: the entry page, one guide for each task (with a module that gives it a page of the site), the changes since release 3.6
 ```
 
 ## Development Commands

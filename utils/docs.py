@@ -59,6 +59,8 @@ def generate_docs(version):
                 "-t",
                 template_dir,
                 "./scgraph",
+                # One page for each guide (the modules of `guides/`)
+                "./guides",
             ],
             check=True,
         )
