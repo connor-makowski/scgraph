@@ -1,5 +1,9 @@
 """Tests of `scgraph.pipelines.derived_networks`: a network file derived from a parent file."""
 
+import json
+import shutil
+import subprocess
+import sys
 from array import array
 from pathlib import Path
 
@@ -336,6 +340,14 @@ REGION_POINTS = {
 }
 
 
+# What a pipeline records in the header of the file that it builds: its docstring,
+# and each source with its credit and its license
+WORLD_DESCRIPTION = (
+    "The roads, the railways and the sea lanes of a small world."
+)
+WORLD_SOURCE = {"name": "osm", "credit": "The mappers", "license": "ODbL-1.0"}
+
+
 def _write_small_world(path, pipeline_name):
     """Write the small world to `path`, as a file that the pipeline
     `pipeline_name` built."""
@@ -370,7 +382,10 @@ def _write_small_world(path, pipeline_name):
         modes=WORLD_MODES,
         coordinate_dtype="int32",
     ).save_as_scgraph(
-        path, metadata=pipelines.build_metadata(pipeline_name, None, 1, [])
+        path,
+        metadata=pipelines.build_metadata(
+            pipeline_name, None, 1, [WORLD_SOURCE], WORLD_DESCRIPTION
+        ),
     )
     return path
 
@@ -409,6 +424,47 @@ def test_a_network_release_gets_two_files_for_each_derived_network(
         for name in DERIVED_NAMES
         for suffix in ("", ".no_shapes")
     ] + ["world_multimodal.no_shapes.scgraph"]
+
+
+# `utils/draft_network_release.py` writes the index of a network release from the
+# files of a run of the workflow `build_networks.yml`. The world file without shapes
+# is derived from the world file, and it is not a derived network.
+def test_the_index_of_a_network_release_describes_every_file(
+    small_world_file, tmp_path
+):
+    files, previous = tmp_path / "files", tmp_path / "previous"
+    files.mkdir()
+    previous.mkdir()
+    shutil.copy(small_world_file, files)
+    derived_networks.derive_network_release_files(
+        small_world_file, files, validate=False
+    )
+
+    subprocess.run(
+        [
+            sys.executable,
+            Path(__file__).parent.parent / "utils" / "draft_network_release.py",
+            files,
+            previous,
+            tmp_path / "release",
+            "networks-2000.01.01",
+            "the commit of the run",
+        ],
+        check=True,
+    )
+
+    index = json.loads((tmp_path / "release" / "networks.json").read_text())
+    description = {
+        network["file"]: network["description"] for network in index["networks"]
+    }
+    assert (
+        description["world_multimodal.no_shapes.scgraph.gz"]
+        == description["world_multimodal.scgraph.gz"]
+        == WORLD_DESCRIPTION
+    )
+    assert description["europe.no_shapes.scgraph.gz"] == (
+        derived_networks.describe_derived_network("europe")
+    )
 
 
 def test_a_derived_network_has_the_modes_or_the_bbox_of_its_name(

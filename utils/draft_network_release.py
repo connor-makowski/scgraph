@@ -27,7 +27,10 @@ import sys
 from pathlib import Path
 
 from scgraph import GeoGraph
-from scgraph.pipelines.derived_networks import describe_derived_network
+from scgraph.pipelines.derived_networks import (
+    DERIVED_NETWORKS,
+    describe_derived_network,
+)
 
 
 def read_previous_commits(previous: str | os.PathLike) -> dict[str, str]:
@@ -58,21 +61,24 @@ def compress(file: Path, compressed_file: Path) -> None:
         shutil.copyfileobj(source, packed)
 
 
-def describe_network(file: Path, info: dict) -> str:
+def describe_network(file: Path) -> str:
     """Return the sentence that describes the network of a file, for the index.
 
     Args:
         file: The network file. Its name starts with the name of the network.
-        info: What `GeoGraph.get_scgraph_info` returns for the file.
 
     Returns:
         For a derived network, the sentence of `describe_derived_network`. For a built
-        network, the first paragraph of the docstring of its pipeline, which the file
-        records as `description`.
+        network, the first paragraph of the docstring of its pipeline. The file with
+        shapes of the network records this docstring as `description`. The file
+        without shapes is in the same folder and does not record it.
     """
-    if "derivation" in info:
-        return describe_derived_network(file.name.split(".")[0])
-    return " ".join(info["description"].split("\n\n")[0].split())
+    name = file.name.split(".")[0]
+    if name in DERIVED_NETWORKS:
+        return describe_derived_network(name)
+    file_with_shapes = file.with_name(f"{name}.scgraph")
+    description = GeoGraph.get_scgraph_info(file_with_shapes)["description"]
+    return " ".join(description.split("\n\n")[0].split())
 
 
 def write_release_draft(
@@ -132,7 +138,7 @@ def write_release_draft(
                 },
                 # Only a derived file has a derivation: its parent, modes and bbox
                 "derivation": info.get("derivation"),
-                "description": describe_network(file, info),
+                "description": describe_network(file),
             }
         )
     index = {"tag": tag, "networks": networks}
