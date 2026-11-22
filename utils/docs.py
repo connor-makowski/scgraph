@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 root = Path(__file__).parent.parent
-scgraph = root / "scgraph" / "__init__.py"
 
 VERSION = "3.6.0"
 OLD_DOC_VERSIONS = ["2.15.0", "1.5.2", "0.3.0"]
@@ -64,13 +63,6 @@ def generate_docs(version):
             check=True,
         )
 
-
-# The docstring of __init__.py repeats the README. The code after the docstring holds
-# the public names of the package, and stays as it is.
-readme = (root / "README.md").read_text()
-docstring_end = '\n"""\n'
-code = scgraph.read_text().split(docstring_end, 1)[1]
-scgraph.write_text(f'r"""\n{readme}{docstring_end}{code}')
 
 # Update the versions manifest loaded dynamically by client-side JS
 update_versions_manifest()
