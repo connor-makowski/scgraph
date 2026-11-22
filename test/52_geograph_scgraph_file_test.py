@@ -775,49 +775,73 @@ def test_a_file_with_rows_and_without_their_list_is_refused(
         GeoGraph.load_from_scgraph(path)
 
 
-# The header must describe the arrays of the file. Here the valid network
-# above also has a class and a toll for each edge. Each case below replaces or
-# adds a key of its header.
+# The header must describe the arrays of the file, and `load_from_scgraph`
+# must name what is wrong. Here the valid network above also has a class and a
+# toll for each edge. Each case below replaces or adds a key of the valid
+# header. The last one is the header of an earlier development version of
+# scgraph: `units`, and no `metrics`. No released version wrote such a file.
+ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
+    "metrics": [LENGTH_IN_KM, TOLL],
+    "modes": ROAD_AND_PORT,
+    "classes": [MOTORWAY],
+}
+
+
 @pytest.mark.parametrize(
-    "invalid_metadata",
+    "invalid_header, message",
     [
-        {"metrics": [TOLL, TOLL | {"name": "length"}]},  # the toll comes first
-        {"metrics": [{"name": "length"}, TOLL]},  # the length has no unit
-        {"metrics": [LENGTH_IN_KM]},  # the tolls have no row
-        {"metrics": [LENGTH_IN_KM, {"name": "toll"}]},  # no off_graph_per_km
-        {"classes": ["motorway"]},  # a class without the mode of its edges
-        {"node_addition_modes": ["rail"]},  # a mode that the file does not have
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {"metrics": [TOLL, TOLL | {"name": "length"}]},
+            "the first metric must be length",
+            id="the toll before the length",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {"metrics": [{"name": "length"}, TOLL]},
+            "length, with its unit",
+            id="a length without its unit",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"metrics": [LENGTH_IN_KM]},
+            "one array of weights per metric",
+            id="tolls without their row of metric",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {"metrics": [LENGTH_IN_KM, {"name": "toll"}]},
+            "must give off_graph_per_km",
+            id="a toll without off_graph_per_km",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"classes": ["motorway"]},
+            "a row with a name and a mode",
+            id="a class without the mode of its edges",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {"node_addition_modes": ["rail"]},
+            "names a mode that the file does not have",
+            id="a node addition mode that the file does not have",
+        ),
+        pytest.param(
+            {"units": "km", "modes": ROAD_AND_PORT, "classes": [MOTORWAY]},
+            "build or download the network again",
+            id="the header of an earlier development version",
+        ),
     ],
 )
 def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
-    tmp_path, invalid_metadata
+    tmp_path, invalid_header, message
 ):
     path = str(tmp_path / "arrays.scgraph")
     arrays = _two_road_nodes_and_a_port() | {
         "edge_classes": array("B", [0, 0]),
         "weights_toll": array("d", [2.0, 2.0]),
     }
-    valid_metadata = {
-        "metrics": [LENGTH_IN_KM, TOLL],
-        "modes": ROAD_AND_PORT,
-        "classes": [MOTORWAY],
-    }
-    network_file.write(path, arrays, valid_metadata | invalid_metadata)
+    network_file.write(path, arrays, invalid_header)
 
-    with pytest.raises(ValueError, match="arrays.scgraph: "):
-        GeoGraph.load_from_scgraph(path)
-
-
-# Earlier development versions of scgraph wrote `units` in the header, and no
-# `metrics`. No released version of scgraph wrote such a file.
-def test_a_file_of_an_earlier_development_version_says_to_build_it_again(
-    tmp_path,
-):
-    path = str(tmp_path / "earlier.scgraph")
-    earlier_header = {"units": "km", "modes": ROAD_AND_PORT}
-    network_file.write(path, _two_road_nodes_and_a_port(), earlier_header)
-
-    with pytest.raises(ValueError, match="build or download the network again"):
+    with pytest.raises(ValueError, match=message):
         GeoGraph.load_from_scgraph(path)
 
 
@@ -981,17 +1005,7 @@ def test_a_file_written_with_edge_classes_is_read_back_with_them(tmp_path):
     assert metadata["classes"] == EDGE_CLASSES
 
 
-def test_reading_some_modes_keeps_the_class_of_each_kept_edge(tmp_path):
-    path = str(tmp_path / "modes.scgraph")
-    _write_road_port_and_sea(path, "d")
-
-    arrays, _ = network_file.read(path, modes=["road", "sea"])
-
-    # The kept edges are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30.
-    assert list(arrays["edge_classes"]) == [1, 2, 3, 4]
-
-
-def test_reading_some_modes_keeps_the_weights_of_each_metric_of_a_kept_edge(
+def test_reading_some_modes_keeps_the_class_and_the_weights_of_each_kept_edge(
     tmp_path,
 ):
     path = str(tmp_path / "modes.scgraph")
@@ -999,29 +1013,16 @@ def test_reading_some_modes_keeps_the_weights_of_each_metric_of_a_kept_edge(
 
     arrays, _ = network_file.read(path, modes=["road", "sea"])
 
-    # The kept edges are 1, 1.5, 4 and 6 km long.
+    # The kept edges are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30. They are
+    # 1, 1.5, 4 and 6 km long.
+    assert list(arrays["edge_classes"]) == [1, 2, 3, 4]
     assert list(arrays["weights_length"]) == [1.0, 1.5, 4.0, 6.0]
     assert list(arrays["weights_toll"]) == [10.0, 15.0, 40.0, 60.0]
 
 
-def test_a_geograph_loaded_from_a_file_with_classes_is_saved_with_them(
+def test_a_geograph_loaded_from_a_file_is_saved_with_its_classes_and_metrics(
     tmp_path,
 ):
-    path, saved_path = (
-        str(tmp_path / name) for name in ("a.scgraph", "b.scgraph")
-    )
-    _write_road_port_and_sea(path, "d")
-
-    GeoGraph.load_from_scgraph(path).save_as_scgraph(saved_path)
-
-    # The save lists the sea node 31 before the sea node 30. The file ends
-    # with the edges 31 -> 20, 31 -> 30 and 30 -> 31.
-    arrays, metadata = network_file.read(saved_path)
-    assert list(arrays["edge_classes"]) == [1, 2, 0, 0, 0, 4, 3]
-    assert metadata["classes"] == EDGE_CLASSES
-
-
-def test_a_geograph_loaded_from_a_file_with_a_metric_is_saved_with_it(tmp_path):
     path, saved_path = (
         str(tmp_path / name) for name in ("a.scgraph", "b.scgraph")
     )
@@ -1032,6 +1033,8 @@ def test_a_geograph_loaded_from_a_file_with_a_metric_is_saved_with_it(tmp_path):
     # The save lists the sea node 31 before the sea node 30. The file ends
     # with the edges 31 -> 20, 31 -> 30 and 30 -> 31, of 5, 6 and 4 km.
     arrays, metadata = network_file.read(saved_path)
+    assert list(arrays["edge_classes"]) == [1, 2, 0, 0, 0, 4, 3]
+    assert metadata["classes"] == EDGE_CLASSES
     assert list(arrays["weights_toll"]) == [10, 15, 20, 30, 50, 60, 40]
     assert metadata["metrics"] == [LENGTH_IN_KM, TOLL]
 

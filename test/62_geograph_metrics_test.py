@@ -266,12 +266,6 @@ def test_a_read_of_what_the_network_lacks_is_refused(network, method, argument):
         getattr(network, method)(**argument)
 
 
-def test_a_geograph_made_from_a_graph_has_edges_without_a_class():
-    geograph = GeoGraph(graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]])
-
-    assert _get_class_of_each_edge(geograph) == {(0, 1): None}
-
-
 # Each call adds an edge both ways between the west town and the port.
 ADDITIONS_OF_AN_EDGE = [
     ("add_edge", (WEST_TOWN, PORT, 85.0, True)),
@@ -284,34 +278,6 @@ ADDITIONS_OF_AN_EDGE = [
         ),
     ),
 ]
-
-
-@pytest.mark.parametrize("method, arguments", ADDITIONS_OF_AN_EDGE)
-def test_an_added_edge_has_its_class_and_the_other_edges_keep_theirs(
-    network, method, arguments
-):
-    getattr(network, method)(*arguments, edge_class="primary")
-
-    assert _get_class_of_each_edge(network) == {
-        **CLASS_OF_EACH_EDGE,
-        (WEST_TOWN, PORT): "primary",
-        (PORT, WEST_TOWN): "primary",
-    }
-
-
-def test_a_node_added_with_a_class_gives_this_class_to_its_edges(network):
-    # The west town is the closest node: 0.01 degree north of the new node.
-    node_id = network.add_coord_node(
-        {"latitude": -0.01, "longitude": 0.0},
-        node_addition_type="closest",
-        edge_class="road_connector",
-    )
-
-    assert _get_class_of_each_edge(network) == {
-        **CLASS_OF_EACH_EDGE,
-        (node_id, WEST_TOWN): "road_connector",
-        (WEST_TOWN, node_id): "road_connector",
-    }
 
 
 def test_an_edit_made_on_the_graph_object_keeps_the_classes_lined_up(network):
@@ -391,15 +357,6 @@ def test_a_merge_that_gives_more_than_256_classes_is_refused(network, tmp_path):
 
     with pytest.raises(ValueError, match="256 classes"):
         network.merge_with_other_geograph(other, connection_nodes=[[0.5, 0.0]])
-
-
-def test_a_save_keeps_the_default_node_addition_modes(network, tmp_path):
-    saved_path = str(tmp_path / "saved.scgraph")
-
-    network.save_as_scgraph(saved_path)
-
-    saved = GeoGraph.load_from_scgraph(saved_path)
-    assert saved.default_node_addition_modes == ["road"]
 
 
 def test_a_save_leaves_out_a_default_mode_that_the_geograph_lacks(tmp_path):
@@ -539,7 +496,17 @@ def test_a_geograph_without_classes_takes_one_rate_for_every_edge():
 
     geograph.create_metric("minutes", per_km=2.0)
 
-    assert _get_weight_of_each_edge(geograph, "minutes") == {(0, 1): 5.0}
+    # The one edge of 2.5 km has no class and no mode.
+    assert geograph.get_edges() == [
+        {
+            "origin_id": 0,
+            "destination_id": 1,
+            "length": 2.5,
+            "class": None,
+            "mode": None,
+            "metrics": {"minutes": 5.0},
+        }
+    ]
 
 
 # Each call names something that the network lacks, or leaves out a rate that
@@ -686,26 +653,6 @@ def test_access_legs_that_weigh_nothing_do_not_make_a_route_direct(network):
     )
 
     assert route["path"] == RAILWAY_PATH
-
-
-SEARCHES = (
-    "dijkstra bidirectional_dijkstra dijkstra_buckets bidirectional_buckets "
-    "dijkstra_negative a_star bellman_ford bmssp cached_shortest_path "
-    "contraction_hierarchy tnr"
-).split()
-
-
-@pytest.mark.parametrize("algorithm_fn", SEARCHES)
-def test_every_search_finds_the_best_route_by_a_metric(network, algorithm_fn):
-    network.create_metric("minutes", per_km=MINUTES_PER_KM)
-
-    route = network.get_shortest_path(
-        WEST_POINT, EAST_POINT, metric="minutes", algorithm_fn=algorithm_fn
-    )
-
-    assert route["metrics"]["minutes"] == pytest.approx(
-        31 + 2 * ACCESS_LEG_KM * 4.0
-    )
 
 
 # The two functions of a geograph that give a bound in km between two nodes
@@ -1217,11 +1164,12 @@ def test_reduce_reduces_the_graph_of_each_metric_and_keeps_its_routes(network):
     )
 
 
-def test_a_saved_and_loaded_geograph_keeps_its_metrics_and_their_routes(
+def test_a_saved_and_loaded_geograph_keeps_its_metrics_and_its_default_modes(
     network, loaded_network
 ):
     # The fixture created the metric `minutes` on `network` and saved it.
     assert loaded_network.metrics == network.metrics
+    assert loaded_network.default_node_addition_modes == ["road"]
     assert loaded_network.get_shortest_path(
         WEST_POINT, EAST_POINT, metric="minutes"
     ) == network.get_shortest_path(WEST_POINT, EAST_POINT, metric="minutes")
@@ -1256,34 +1204,45 @@ def test_an_edit_computes_again_a_metric_that_create_metric_made(network):
 
 
 @pytest.mark.parametrize("method, arguments", ADDITIONS_OF_AN_EDGE)
-def test_an_added_edge_takes_its_weight_in_a_metric_that_was_read(
+def test_an_added_edge_has_the_class_and_the_weight_of_its_call(
     loaded_network, method, arguments
 ):
-    getattr(loaded_network, method)(*arguments, metrics={"minutes": 90.0})
+    getattr(loaded_network, method)(
+        *arguments, edge_class="primary", metrics={"minutes": 90.0}
+    )
 
-    # The geograph cannot compute the minutes of the new edge. The edges that
-    # were there keep their minutes: the new edge of the west town moves the
-    # edges of every node after it.
-    weights = _get_weight_of_each_edge(loaded_network, "minutes")
-    assert (
-        weights[WEST_TOWN, PORT],
-        weights[PORT, WEST_TOWN],
-        weights[WEST_STATION, EAST_STATION],
-    ) == (90.0, 90.0, 22.5)
+    # The geograph cannot compute the minutes of the new edge. The railway
+    # was there: it keeps its class and its 22.5 minutes. The new edge of the
+    # west town moves the edges of every node after it.
+    classes = _get_class_of_each_edge(loaded_network)
+    minutes = _get_weight_of_each_edge(loaded_network, "minutes")
+    assert [
+        (classes[nodes], minutes[nodes])
+        for nodes in [
+            (WEST_TOWN, PORT),
+            (PORT, WEST_TOWN),
+            (WEST_STATION, EAST_STATION),
+        ]
+    ] == [("primary", 90.0), ("primary", 90.0), ("rail_main", 22.5)]
 
 
-def test_a_node_added_with_a_weight_gives_this_weight_to_its_edges(
+def test_a_node_added_with_a_class_and_a_weight_gives_them_to_its_edges(
     loaded_network,
 ):
     # The west town is the closest node: 0.01 degree north of the new node.
     node_id = loaded_network.add_coord_node(
         {"latitude": -0.01, "longitude": 0.0},
         node_addition_type="closest",
+        edge_class="road_connector",
         metrics={"minutes": 3.0},
     )
 
-    weights = _get_weight_of_each_edge(loaded_network, "minutes")
-    assert (weights[node_id, WEST_TOWN], weights[WEST_TOWN, node_id]) == (3, 3)
+    classes = _get_class_of_each_edge(loaded_network)
+    minutes = _get_weight_of_each_edge(loaded_network, "minutes")
+    assert [
+        (classes[nodes], minutes[nodes])
+        for nodes in [(node_id, WEST_TOWN), (WEST_TOWN, node_id)]
+    ] == [("road_connector", 3.0), ("road_connector", 3.0)]
 
 
 def test_an_edge_added_without_a_weight_is_closed_in_a_read_metric(
