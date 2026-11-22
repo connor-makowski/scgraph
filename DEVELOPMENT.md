@@ -11,7 +11,7 @@ This guide is for people and for coding agents who change scgraph. *Getting Star
 - **Shortest path algorithms** — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A\*, BMSSP, Contraction Hierarchies (CH), Transit Node Routing (TNR)
 - **Graph reduction** — iterative degree-2 pass-through chain contraction with O(1) same-chain detection, boundary resolution, and transparent algorithm wrapping
 - **Geographic routing & lazy loading** — lat/lon node coordinates, automatic origin/destination snapping, lazy GeoGraph proxies, haversine/cheap-ruler distances
-- **Metrics** — named weights of the edges (time, cost, CO2) from rates, sums or a function; routes by a metric, legs of a route, closed classes
+- **Metrics** — named weights of the edges (time, cost, CO2) from weights per km, sums or a function; routes by a metric, legs of a route, closed classes
 - **Networks** — released networks of the world (roads, railways, sea lanes, flights), downloaded on demand; networks built from their online sources; the seven networks of release 3.6.0, deprecated
 - **C++ acceleration** — optional compiled extension (nanobind); pure Python fallback always present
 - **Grid pathfinding** — 2D grid routing with obstacles and configurable connectivity
@@ -38,7 +38,7 @@ scgraph/
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
   geograph.py                    # GeoGraph + LazyGeoGraph — snapping, loaders and savers, cache management, build_geograph, metrics, edges and legs of a path
   edge_classes.py                # Internal: the classes of the edges, lined up with the graph after an edit
-  metrics.py                     # Internal: the record of a metric, and how its weights are computed (rates, weighted sum, function)
+  metrics.py                     # Internal: the record of a metric, and how its weights are computed (weights per km, weighted sum, function)
   contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
@@ -64,7 +64,7 @@ scgraph/
     osm.py                       # The ways of an OpenStreetMap file to a graph, for load_from_osm and the pipelines
     components.py                # Strongly connected components; keeps the largest one, for load_from_osm and the pipelines
     hilbert.py, snap_index.py    # Hilbert-curve order of nodes; snapping index, pure-Python version of cpp/src/snap_index.cpp
-    edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from rates or as a sum)
+    edge_selection.py, metric_weights.py  # Pure-Python versions of cpp/src/edge_selection.cpp (nodes and edges of some node modes of a file) and cpp/src/metric_weights.cpp (weights of a metric from weights per km or as a sum)
   cpp/
     src/                         # C++ source: csr_graph, graph, graph_utils, graph_reducer, contraction_hierarchies,
     │                            #   transit_node_routing, snap_index, edge_selection, metric_weights, float4 (header), bmssp (template header); pipelines/ (assembly, landmask)

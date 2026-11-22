@@ -108,20 +108,20 @@ my_geograph.remove_coord_node()
 
 **An edit of the network removes its metrics: create them again after it.** A **metric** gives each edge a weight other than its length, under a name, such as its hours. An edit is a node or an edge that you add or remove, or a merge. A warning then names the removed metrics, once. A metric that a loader read is removed too. An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them.
 
-**The classes stay.** The **class** of an edge is its category in its source, such as `motorway` or `open_sea`. `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take the keyword `edge_class`. It is the class of the new edge: a name of `geograph.classes`. A **rate** is the weight of 1 km of an edge in a metric. A metric that you create after the edit gives the new edge the rate of its class.
+**The classes stay.** The **class** of an edge is its category in its source, such as `motorway` or `open_sea`. `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take the keyword `edge_class`. It is the class of the new edge: a name of `geograph.classes`. A **weight per km** is the weight of 1 km of an edge in a metric. A metric that you create after the edit gives the new edge the weight per km of its class.
 
 ```py
 world_sea = GeoGraph.load_geograph("world_sea")
-world_sea.create_metric("days", per_km={"sea": 1 / 600, "off_graph": 1 / 100})
+world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 100})
 
 # This edit removes the metric `days`, with a warning. The new edges have the class `sea_connector`
 world_sea.add_coord_node(coord_dict={"latitude": 43.0, "longitude": 6.0}, edge_class="sea_connector")
 
-# The new edges get the rate of `sea`: the edge mode of their class
-world_sea.create_metric("days", per_km={"sea": 1 / 600, "off_graph": 1 / 100})
+# The new edges get the weight per km of `sea`: the edge mode of their class
+world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 100})
 ```
 
-Without `edge_class`, the new edge has no class: its `class` and its `mode` are `None`. An edge added on `graph_object` directly has no class either. An **access leg** is the straight line from the origin or the destination of a query to its node. A metric made from rates weighs an edge without a class as an access leg: its km times the rate `"off_graph"` of the metric. So a route by the metric can start at a node that you added. A function of an edge gets such an edge with the class `None` and the mode `None`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-a-class-or-an-edge).
+Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly has no class either. An **off-graph leg** is the straight line from the origin or the destination of a query to its node. A metric made from weights per km weighs an edge without a class as an off-graph leg. Its weight is its km times the weight per km of `off_graph`. So a route by the metric can start at a node that you added. A function of an edge gets such an edge with `None` as its `edge_class` and as its `edge_mode`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
 
 The [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) has more examples.
 

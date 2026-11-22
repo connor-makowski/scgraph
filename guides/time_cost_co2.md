@@ -12,38 +12,47 @@ europe = GeoGraph.load_geograph("europe")
 # Hours: a speed by road, by rail, by sea and by air, and a wait at each port, airport and rail terminal
 europe.create_metric(
     "hours",
-    per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30},
-    at_hub={"port": {"sea": 12}, "airport": {"air": 3}, "rail_terminal": {"rail": 4}},
+    weight_per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30},
+    class_weight_per_km={"motorway": 1 / 90},
+    weight_at_hub={"port": {"sea": 12}, "airport": {"air": 3}, "rail_terminal": {"rail": 4}},
     unit="h",
 )
 
 paris = {"latitude": 48.8566, "longitude": 2.3522}
 berlin = {"latitude": 52.52, "longitude": 13.405}
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours")
-route["length"]   # the km of the fastest route
-route["metrics"]  # {'hours': ...}: its hours
+route["length"]         # the km of the fastest route
+route["metric_totals"]  # {'hours': ...}: its hours
 ```
 
-- **Rate.** A **rate** is the weight of 1 km of an edge. Here a rate is in hours per km: `1 / 70` means 70 km/h. These rates are examples. The library ships no speed, no cost and no emission factor: you give your own.
-- **Modes.** A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`. `per_km` gives a rate to each edge mode.
-- **Class.** Each edge of `europe` has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. So does each edge of the other networks that scgraph publishes. Each class has one edge mode. A class can have its own rate, which wins over the rate of its edge mode: `"motorway": 1 / 90`.
-- **Off the graph.** A **query point** is the origin or the destination of a query. An **access leg** is the straight line from a query point to its node. `"off_graph"` is the rate of the access legs. The total of a route counts its two access legs. The routing guide says [where a query point snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps).
-- **Hub.** A **hub** is a port, an airport or a rail terminal. `at_hub` adds a weight at a hub. Its first key is the node mode of the hub. Its second key is an edge mode or a class. Only these edges pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches.
-- **The result.** `length` is always the length of the route. `metrics` holds the total of each metric other than `length` along the route.
+- **Weight per km.** A **weight per km** is the weight of 1 km of an edge. Here it is in hours per km: `1 / 70` means 70 km/h. These numbers are examples. The library ships no speed, no cost and no emission factor: you give your own.
+- **Edge mode.** An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`.
+- **Leg.** A **leg** is a part of a route on one edge mode. The mode of a leg is this edge mode.
+- **Off the graph.** A **query point** is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. Its mode is `off_graph`. The total of a route counts its two off-graph legs. The routing guide says [where a query point snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps).
+- **Class.** Each edge of `europe` has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. So does each edge of the other networks that scgraph publishes. Each class has one edge mode.
+- **Hub.** A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. A **hub** is a port, an airport or a rail terminal: its node mode is `port`, `airport` or `rail_terminal`.
+
+Each of the three dicts of the call has one kind of key:
+
+- **`weight_per_km`.** Its keys are the modes that a leg can have: the edge modes and `off_graph`. They are the values of `leg["mode"]` in a result. One number in place of the dict is the weight per km of every edge and of the off-graph legs.
+- **`class_weight_per_km`.** Its keys are classes. The weight per km of a class replaces the weight per km of its edge mode. Here a motorway is travelled at 90 km/h, and every other road at 70 km/h.
+- **`weight_at_hub`.** It adds a weight at a hub. Its first key is the node mode of the hub, and its second key is an edge mode. Only the edges of this edge mode pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches.
+
+**The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
 
 ## The Legs of a Route
 
-A **leg** is a part of a route on one edge mode. `output_legs=True` returns the legs, and the hubs between them:
+A **transfer** is a node where a route goes from one leg to the next. `output_legs=True` returns the legs of a route, and its transfers:
 
 ```py
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_legs=True)
 for leg in route["legs"]:
-    print(leg["mode"], round(leg["length"]), "km", round(leg["metrics"]["hours"], 1), "h")
-# One line for each leg: its edge mode, its km and its hours
-route["hubs"]  # [{'node_id': ..., 'mode': 'airport'}, ...]: the hubs between two legs
+    print(leg["mode"], round(leg["length"]), "km", round(leg["metric_totals"]["hours"], 1), "h")
+# One line for each leg: its mode, its km and its hours
+route["transfers"]  # [{'node_id': ..., 'node_mode': 'airport'}, ...]: each transfer with its node mode
 ```
 
-The first leg and the last leg are the two access legs: their `mode` is `off_graph`. A leg by air holds the hours of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
+The first leg and the last leg are the two off-graph legs: their `mode` is `off_graph`. A leg by air holds the hours of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
 
 ## Three Ways to Compute the Weights
 
@@ -51,9 +60,9 @@ The first leg and the last leg are the two access legs: their `mode` is `off_gra
 
 | Way | Argument | Use it when |
 |---|---|---|
-| Rates | `per_km`, with `at_hub` | Each edge mode or each class has a rate per km, as in `hours` above |
+| Weights per km | `weight_per_km`, with `class_weight_per_km` and `weight_at_hub` | Each edge mode or each class has a weight per km, as in `hours` above |
 | A weighted sum | `weighted_sum_of` | A metric combines other metrics, for example a cost of the hours and of the km |
-| A function of an edge | `edge_weight_fn` | The weight of an edge is not a rate times its km |
+| A function of an edge | `edge_weight_fn` | The weight of an edge is not its km times a weight per km |
 
 With each of the three ways, `edge_weights` gives the weights of chosen edges. Use it when a few edges differ from the others. These weights replace the computed ones.
 
@@ -63,11 +72,11 @@ europe.create_metric("euros", weighted_sum_of={"hours": 30, "length": 0.5}, unit
 
 # A function of an edge: a short flight emits more CO2 for each km than a long flight
 def get_co2(edge):
-    if edge["mode"] == "air":
+    if edge["edge_mode"] == "air":
         return edge["length"] * (0.8 if edge["length"] < 1000 else 0.6)
-    # None is the mode of an edge without a class, such as an edge that you add
-    rates = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1, None: 0.1}
-    return edge["length"] * rates[edge["mode"]]
+    # None is the edge mode of an edge without a class, such as an edge that you add
+    kg_per_km = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1, None: 0.1}
+    return edge["length"] * kg_per_km[edge["edge_mode"]]
 
 europe.create_metric("co2", edge_weight_fn=get_co2, unit="kg")
 
@@ -78,7 +87,7 @@ europe.create_metric(
     "hours_with_slow_ferries",
     weighted_sum_of={"hours": 1},
     edge_weights={
-        (edge["origin_id"], edge["destination_id"]): 2 * edge["metrics"]["hours"]
+        (edge["origin_id"], edge["destination_id"]): 2 * edge["metric_weights"]["hours"]
         for edge in ferries
     },
 )
@@ -86,17 +95,17 @@ europe.create_metric(
 
 **A weighted sum.** A weighted sum is computed once, at its creation. When you create `hours` again, create `euros` again too. A weighted sum can also trade one metric against another: `weighted_sum_of={"co2": 1, "hours": 10}` counts one hour as 10 kg of CO2. An edge that is closed in one metric of the sum is closed in the sum. The notebook [Trade-offs between time, cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb) tries several coefficients, and draws the routes on charts and on a map.
 
-**The function.** The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `class`, `mode` and `metrics`. `metrics` holds the weight of the edge in each metric that exists at the call. The function is called once for each edge, so a function is slower than rates. It is called once more for the rate of the access legs, with a length of 1 km and `off_graph` as the `mode`.
+**The function.** The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `edge_class`, `edge_mode` and `metric_weights`. `metric_weights` holds the weight of the edge in each metric that exists at the call. The function is called once for each edge, so a function is slower than weights per km. It is called once more for the weight per km of the off-graph legs. This call has a length of 1 km, and `off_graph` as its `edge_mode`.
 
-**The rules of a call.** A call gives exactly one of `per_km`, `weighted_sum_of` and `edge_weight_fn`. A dict of `per_km` gives a rate for `"off_graph"`. It also gives a rate for each class that has an edge, by its name or by its edge mode. A geograph without classes, such as one made from your own graph, takes one number as `per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. A metric that has the same name is replaced, and `remove_metric(name)` removes a metric. The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.create_metric) gives every argument.
+**The rules of a call.** A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. `class_weight_per_km` and `weight_at_hub` go with `weight_per_km`. A dict of `weight_per_km` gives a weight per km for `off_graph`. Each class that has an edge needs a weight per km: its own, or that of its edge mode. A geograph without classes takes one number as `weight_per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. A metric that has the same name is replaced, and `remove_metric(name)` removes a metric. The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.create_metric) gives every argument.
 
-## Closing a Class or an Edge
+## Closing an Edge Mode, a Class or an Edge
 
-A rate of `None` closes a class: no route by this metric takes an edge of this class. The Suez Canal is the class `suez` of the sea lanes:
+`None` in place of a weight per km closes an edge mode or a class. No route by this metric then takes one of its edges. `weight_per_km={"air": None, ...}` closes every flight. The Suez Canal is the class `suez` of the sea lanes:
 
 ```py
 world_sea = GeoGraph.load_geograph("world_sea")
-world_sea.create_metric("km_without_suez", per_km={"sea": 1, "suez": None, "off_graph": 1})
+world_sea.create_metric("km_without_suez", weight_per_km={"sea": 1, "off_graph": 1}, class_weight_per_km={"suez": None})
 
 rotterdam = {"latitude": 51.95, "longitude": 4.14}
 singapore = {"latitude": 1.26, "longitude": 103.82}
@@ -117,16 +126,16 @@ A geograph gives its node modes, its classes, its metrics, its nodes and its edg
 
 ```py
 europe.modes    # [{'name': 'road', ...}, ...]: the node modes
-europe.classes  # [{'name': 'motorway', 'mode': 'road'}, ...]: each class with its edge mode
+europe.classes  # [{'name': 'motorway', 'edge_mode': 'road'}, ...]: each class with its edge mode
 europe.metrics  # [{'name': 'length', 'unit': 'km'}, {'name': 'hours', 'unit': 'h', ...}, ...]
 
-# The airports around Paris: mode is a node mode, bbox is (south, west, north, east) in degrees
-europe.get_nodes(mode="airport", bbox=(48, 1, 50, 4))
-# [{'node_id': ..., 'latitude': ..., 'longitude': ..., 'mode': 'airport'}, ...]
+# The airports around Paris: bbox is (south, west, north, east) in degrees
+europe.get_nodes(node_mode="airport", bbox=(48, 1, 50, 4))
+# [{'node_id': ..., 'latitude': ..., 'longitude': ..., 'node_mode': 'airport'}, ...]
 
 # The edges of one class, or the edges that leave one node: get_edges(origin_id=...)
 europe.get_edges(edge_class="ferry")
-# [{'origin_id': ..., 'destination_id': ..., 'length': ..., 'class': 'ferry', 'mode': 'road', 'metrics': {...}}, ...]
+# [{'origin_id': ..., 'destination_id': ..., 'length': ..., 'edge_class': 'ferry', 'edge_mode': 'road', 'metric_weights': {...}}, ...]
 
 # The edges of a route, in its order: get_path_edges takes the node ids of the route
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_path=True)

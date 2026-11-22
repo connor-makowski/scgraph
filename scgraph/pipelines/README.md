@@ -104,8 +104,8 @@ from its log. Another day gives other numbers, because the extract changes every
 - A **piece** is the part of a way between two nodes of the network.
 - The **node mode** of a node says where the node is: `road`, `rail`, `sea`, or the kind of a
   hub (`port`, `airport`, `rail_terminal`).
-- A **hub** is a place where a route goes from one network to another: a port, an airport or a
-  rail terminal. A hub is one node.
+- A **hub** is a port, an airport or a rail terminal. A hub is one node. A route goes from one
+  network to another at a hub.
 - A **connector** is the pair of edges that joins a hub to the network of the roads, of the
   railways or of the sea lanes.
 - The **class** of an edge is its category, for example `motorway`, `ferry`, `rail_main` or
@@ -284,7 +284,7 @@ build. It also records three things that a query uses:
 - `metrics`: the metrics of the file. A built file has one metric, `length`, in km. A user
   adds other metrics on the loaded network (`GeoGraph.create_metric`).
 - `classes`: one row for each class, with its name and its edge mode, such as
-  `{"name": "motorway", "mode": "road"}`.
+  `{"name": "motorway", "edge_mode": "road"}`.
 - `node_addition_modes`: the node modes that a query point snaps to by default. This pipeline
   names `road`, so a route starts and ends on a road.
 

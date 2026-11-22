@@ -32,14 +32,14 @@ The result is a dictionary. It always has these two keys:
 A query can add these keys:
 
 - `path`, with `output_path=True`: the node ids of the route.
-- `metrics`. A **metric** gives each edge a weight under a name, such as its hours. When the geograph has a metric other than `length`, `metrics` holds the sum of these weights along the route, for each metric.
-- `legs` and `hubs`, with `output_legs=True`. A **leg** is a part of a route by road, by rail, by sea or by air. A **hub** is a port, an airport or a rail terminal, where a route goes from one leg to the next.
+- `metric_totals`. A **metric** gives each edge a weight under a name, such as its hours. When the geograph has a metric other than `length`, `metric_totals` holds the sum of these weights along the route, for each metric.
+- `legs` and `transfers`, with `output_legs=True`. A **leg** is a part of a route by road, by rail, by sea or by air. A **transfer** is a node where a route goes from one leg to the next.
 
-The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) shows metrics, legs and hubs. To route by a metric, pass `metric=name` with any option of this guide.
+The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) shows metrics, legs and transfers. To route by a metric, pass `metric=name` with any option of this guide.
 
 ## Where a Query Point Snaps
 
-A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point **snaps** to this node. The route starts or ends at this node. An **access leg** is the straight line from a query point to its node.
+A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point **snaps** to this node. The route starts or ends at this node. An **off-graph leg** is the straight line from a query point to its node.
 
 A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. Each of its nodes has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.modes` gives the node modes of a geograph. In a released network with roads, a query point snaps to its closest road node, for every metric. A point at sea snaps to a road node too, however far. `node_addition_modes` lists the node modes that a query point may snap to:
 
@@ -64,7 +64,7 @@ The default is `None`. A query point then snaps to the node modes that the netwo
 - `'quadrant'`: the closest node in each of the four quadrants around the point (NE, NW, SE, SW).
 - `'all'`: every node within `node_addition_lat_lon_bound` degrees of the point. The default bound is `'auto'`.
 
-[ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-answering-a-geographic-query) explains how a search weighs the access legs when a point has several nodes.
+[ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-answering-a-geographic-query) explains how a search weighs the off-graph legs when a point has several nodes.
 
 ## Choosing an Algorithm
 
@@ -139,12 +139,12 @@ matrix = north_america.distance_matrix(cities, output_units="km")
 matrix[0][1]  # the km from Los Angeles to New York City
 ```
 
-The two directions of a pair can differ a little: a one-way road is followed in its direction. A pair without a route has the distance `None`.
+`output_units` takes `km`, `m`, `mi` or `ft`. The two directions of a pair can differ a little: a one-way road is followed in its direction. A pair without a route has the distance `None`.
 
 The **total** of a metric along a route is the sum of the weights of its edges. With a metric, the matrix holds the totals of this metric. `output_metric` names another metric to read along the same routes:
 
 ```py
-north_america.create_metric("hours", per_km={"road": 1 / 80, "off_graph": 1 / 30})
+north_america.create_metric("hours", weight_per_km={"road": 1 / 80, "off_graph": 1 / 30})
 hours = north_america.distance_matrix(cities, metric="hours")
 km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours", output_metric="length")
 ```

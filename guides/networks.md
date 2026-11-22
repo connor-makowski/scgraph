@@ -180,7 +180,7 @@ origin = {"latitude": 42.2808, "longitude": -83.7430}
 destination = {"latitude": 42.2622, "longitude": -83.7482}
 shortest = ann_arbor.get_shortest_path(origin_node=origin, destination_node=destination)
 fastest = ann_arbor.get_shortest_path(origin_node=origin, destination_node=destination, metric="travel_time")
-print(fastest["length"], fastest["metrics"]["travel_time"])  # its km, then its seconds
+print(fastest["length"], fastest["metric_totals"]["travel_time"])  # its km, then its seconds
 ```
 
 The geograph keeps the `highway` value of each edge as its class. Each class has an **edge mode**, which says how its edges are travelled: here `road`. When every edge has a `travel_time`, the geograph also keeps it as the metric `travel_time`, in seconds. One geograph then gives the shortest path and the fastest path. `off_graph_travel_speed` is the speed in km/h between a query point and its node.
@@ -196,7 +196,8 @@ With `weight_key='travel_time'`, the lengths of the geograph are the travel time
 ```py
 # Main roads (motorway to primary, with their links); one-way streets are respected
 michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
-michigan_roads.create_metric("minutes", per_km={"motorway": 60 / 110, "road": 60 / 80, "off_graph": 60 / 30})
+# Minutes: 80 km/h on a road, and 110 km/h on a road of the class motorway
+michigan_roads.create_metric("minutes", weight_per_km={"road": 60 / 80, "off_graph": 60 / 30}, class_weight_per_km={"motorway": 60 / 110})
 
 # Other ways: select(tags) gives the direction of a way (1 or -1: one way, 0: both
 # ways) or None to leave it out; only ways with one of the tag keys reach select.
@@ -214,7 +215,7 @@ michigan_rail = GeoGraph.load_from_osm(
 )
 ```
 
-Each edge has the class that `select` gives to its way. A **rate** is the weight of 1 km of an edge in a metric. The default `select` gives the `highway` value of the way, so a metric can give a rate to each class of road. A `select` that returns directions alone, as the railway example above, gives a geograph without classes.
+Each edge has the class that `select` gives to its way. The default `select` gives the `highway` value of the way. A **weight per km** is the weight of 1 km of an edge in a metric. A metric can give a weight per km to each class of road, as `minutes` above. A `select` that returns directions alone, as the railway example above, gives a geograph without classes.
 
 Ways meet only where they share an OSM node, so roads that cross on a bridge or in a tunnel are not connected. Each edge has the length of its piece of way, in kilometers. `max_km_between_nodes` cuts a long way into several edges, so that a query point finds a node close to it.
 

@@ -53,7 +53,7 @@ print(route["length"])  # the km of the route
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
 | Routes by road only | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
 | Routes by road and by sea | a released network, with `modes` and the ports that join them | `GeoGraph.load_geograph("europe", modes=["road", "sea", "port"])` |
-| Routes by time, by cost or by CO2 | a released network, with a metric | `geograph.create_metric("hours", per_km=...)`, then `get_shortest_path(..., metric="hours")` |
+| Routes by time, by cost or by CO2 | a released network, with a metric | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)` |
@@ -83,19 +83,19 @@ The guide of the metrics says more in [The Legs of a Route](https://github.com/c
 
 ### A Route by Time, by Cost or by CO2
 
-A **metric** gives each edge a weight other than its length. Here the weight is a cost in euros. Each mode has a **rate**, the cost of 1 km, and each port and airport has a fee. These numbers are examples.
+A **metric** gives each edge a weight other than its length. Here the weight is a cost in euros. `weight_per_km` gives the cost of 1 km by road, by rail, by sea and by air. Its key `off_graph` is for the straight lines between the two points and the network. `weight_at_hub` adds a fee at each port and at each airport. These numbers are examples.
 
 ```py
-rates = {"road": 1.2, "rail": 0.4, "sea": 0.1, "air": 5, "off_graph": 1.2}
-europe.create_metric("euros", per_km=rates, at_hub={"port": {"sea": 300}, "airport": {"air": 200}})
+euros_per_km = {"road": 1.2, "rail": 0.4, "sea": 0.1, "air": 5, "off_graph": 1.2}
+europe.create_metric("euros", weight_per_km=euros_per_km, weight_at_hub={"port": {"sea": 300}, "airport": {"air": 200}})
 
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="euros", output_legs=True)
-print(route["length"], route["metrics"]["euros"])  # the km and the euros of the cheapest route
+print(route["length"], route["metric_totals"]["euros"])  # the km and the euros of the cheapest route
 for leg in route["legs"]:
-    print(leg["mode"], round(leg["metrics"]["euros"]), "euros")
+    print(leg["mode"], round(leg["metric_totals"]["euros"]), "euros")
 ```
 
-The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) adds weighted sums, functions of an edge and closed canals.
+The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) adds weights by class, weighted sums, functions of an edge and closed canals.
 
 ### A Distance Matrix
 
@@ -158,7 +158,7 @@ The routing guide says when to use each way in [Making Many Queries Fast](https:
 These notebooks open in Google Colab:
 
 - [Getting Started](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/getting_started.ipynb): load a released network, compute a route, draw it on a map, choose a network.
-- [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb): keep each route on one mode of transport with a metric, compare three routes.
+- [One Trip by Sea, by Road and by Rail](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/route_examples.ipynb): keep each route on one edge mode with a metric, compare three routes.
 - [Shortest Tour of 14 Cities by Road](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/travelling_salesman.ipynb): compute a distance matrix, solve the travelling salesman problem with PuLP.
 - [Using OSMNx with SCGraph](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb): load OSM data, solve for time and distance on bike networks.
 - [Creating A Multi-Path GeoJSON](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/multi_path_geojson.ipynb): export several routes as GeoJSON.

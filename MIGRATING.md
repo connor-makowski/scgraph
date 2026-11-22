@@ -15,7 +15,7 @@ This page is for a user of scgraph 3.6. It lists what release 4.0 changes, and w
 | `geograph_url` is deprecated. Another URL than the default still loads `<name>.graphjson` from that URL, with a `DeprecationWarning` | Load your own file with `load_from_graphjson` or `load_from_scgraph` |
 | scgraph prints nothing. The parameters `silent` and `show_progress` have no effect and give a `DeprecationWarning` | Remove them from your calls. Show the messages with `logging`: see [Logging](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#logging) |
 | In pure Python, `get_path_weight` raises `ValueError` for a missing edge, and `bmssp` raises `PathNotFoundError` when no path exists | These are the exceptions of the C++ build |
-| `load_from_osmnx_graph` gives the metric `travel_time` to a geograph, when every edge of the OSMnx graph has a `travel_time` and `weight_key` is `'length'`. Each result of this geograph has one more key, `metrics` | Read the travel time of a route in `metrics`, or call `geograph.remove_metric("travel_time")`: the results then have the keys of 3.6 |
+| `load_from_osmnx_graph` gives the metric `travel_time` to a geograph, when every edge of the OSMnx graph has a `travel_time` and `weight_key` is `'length'`. Each result of this geograph has one more key, `metric_totals` | Read the travel time of a route in `metric_totals`, or call `geograph.remove_metric("travel_time")`: the results then have the keys of 3.6 |
 
 Release 5.0 removes what 4.0 deprecates.
 
