@@ -51,8 +51,8 @@ print(route["length"])  # the km of the route
 | Routes over roads, railways, sea lanes and flights | `world_multimodal`, or a part of the world such as `europe` | `GeoGraph.load_geograph("europe")` |
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
-| Routes by road only | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
-| Routes by road and by sea | a released network, with `modes` and the ports that join them | `GeoGraph.load_geograph("europe", modes=["road", "sea", "port"])` |
+| Routes by road only | a released network, with `node_modes` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
+| Routes by road and by sea | a released network, with `node_modes` and the ports that join them | `GeoGraph.load_geograph("europe", node_modes=["road", "sea", "port"])` |
 | Routes by time, by cost or by CO2 | a released network, with a metric | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
@@ -102,7 +102,7 @@ The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgr
 `distance_matrix` returns the distance between every pair of a list of places.
 
 ```py
-roads = GeoGraph.load_geograph("europe", modes=["road"])
+roads = GeoGraph.load_geograph("europe", node_modes=["road"])
 rome = {"latitude": 41.9028, "longitude": 12.4964}
 madrid = {"latitude": 40.4168, "longitude": -3.7038}
 cities = [paris, berlin, rome, madrid]
@@ -175,7 +175,7 @@ The public names of scgraph are the names of the table below. They keep working 
 | For | Public names |
 |---|---|
 | Routes on a network | `scgraph.GeoGraph` and its methods, `scgraph.network_release.TAG` |
-| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `default_metric`, `classes`, `modes` and `default_node_addition_modes` |
+| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `default_metric`, `classes`, `node_modes` and `default_node_addition_modes` |
 | Your own graph or grid | `scgraph.Graph`, `scgraph.CHGraph`, `scgraph.TNRGraph`, `scgraph.GridGraph`, `scgraph.PathNotFoundError`, `scgraph.NegativeCycleError` |
 | Distances | `scgraph.utils`: `haversine`, `cheap_ruler`, `distance_converter`, `has_cpp` |
 | Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |

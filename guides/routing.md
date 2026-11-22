@@ -33,7 +33,7 @@ A query can add these keys:
 
 - `path`, with `output_path=True`: the node ids of the route.
 - `metric_totals`. A **metric** gives each edge a weight under a name, such as its hours. When the geograph has a metric other than `length`, `metric_totals` holds the sum of these weights along the route, for each metric.
-- `legs` and `transfers`, with `output_legs=True`. A **leg** is a part of a route by road, by rail, by sea or by air. A **transfer** is a node where a route goes from one leg to the next.
+- `legs` and `transfers`, with `output_legs=True`. A **leg** is a part of a route by road, by rail, by sea or by air. A **transfer** is a node where the route goes from one of these four to another, such as a port.
 
 The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) shows metrics, legs and transfers. To route by a metric, pass `metric=name` with any option of this guide.
 
@@ -41,7 +41,7 @@ The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgr
 
 A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point **snaps** to this node. The route starts or ends at this node. An **off-graph leg** is the straight line from a query point to its node.
 
-A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. Each of its nodes has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.modes` gives the node modes of a geograph. In a released network with roads, a query point snaps to its closest road node, for every metric. A point at sea snaps to a road node too, however far. `node_addition_modes` lists the node modes that a query point may snap to:
+A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. Each of its nodes has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph. In a released network with roads, a query point snaps to its closest road node, for every metric. A point at sea snaps to a road node too, however far. `node_addition_modes` lists the node modes that a query point may snap to:
 
 ```py
 oceania = GeoGraph.load_geograph("oceania")
@@ -56,7 +56,7 @@ route = oceania.get_shortest_path(
 
 With `node_addition_modes=["road", "rail"]`, a route may also start or end at a rail node. A node mode that the geograph does not have raises a `ValueError`.
 
-The default is `None`. A query point then snaps to the node modes that the network file names, in `geograph.default_node_addition_modes`. For a released network with roads, they are the roads. The point also snaps to a node without a named node mode, such as a node added by `add_coord_node` without `mode=`. A geograph without `default_node_addition_modes` snaps a query point to every node.
+The default is `None`. A query point then snaps to the node modes that the network file names, in `geograph.default_node_addition_modes`. For a released network with roads, they are the roads. The point also snaps to a node without a named node mode, such as a node added by `add_coord_node` without `node_mode=`. A geograph without `default_node_addition_modes` snaps a query point to every node.
 
 `node_addition_type` chooses the nodes that the origin is joined to, among the nodes of these node modes. `destination_node_addition_type` does the same for the destination:
 
@@ -126,7 +126,7 @@ to_london = world_sea.get_shortest_path(
 Use `distance_matrix` for the distances between every pair of a list of places. It computes one shortest path tree for each place:
 
 ```py
-north_america = GeoGraph.load_geograph("north_america", modes=["road"])
+north_america = GeoGraph.load_geograph("north_america", node_modes=["road"])
 
 cities = [
     {"latitude": 34.0522, "longitude": -118.2437},  # Los Angeles
@@ -181,7 +181,7 @@ europe.load()  # loads the network now; without this call, the first query loads
 Use a contraction hierarchy (CH) for very many queries between any points of one large graph. The preprocessing runs once and is slow: seconds to minutes, by the size of the graph. A long route is then far faster than with Dijkstra. For many queries from one origin, a cached tree is still faster.
 
 ```py
-oceania_roads = GeoGraph.load_geograph("oceania", modes=["road"])
+oceania_roads = GeoGraph.load_geograph("oceania", node_modes=["road"])
 
 # The preprocessing: once for each graph. It takes its options by keyword (settled_limit, heuristic_fn)
 oceania_roads.graph_object.create_contraction_hierarchy()
@@ -271,7 +271,7 @@ world_sea.get_shortest_path({"latitude": 31.23, "longitude": 121.47}, {"latitude
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `edges`, `duration_ms` |
 | `convert the published network` | `name`, `duration_ms` |
-| `build the snapping index` | `nodes`, `modes` (only for the index of some node modes), `sorted_for_the_index`, `duration_ms` |
+| `build the snapping index` | `nodes`, `node_mode` (the name of the node mode, only for the index of one node mode), `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
 

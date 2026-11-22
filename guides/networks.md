@@ -47,11 +47,11 @@ berlin = {"latitude": 52.52, "longitude": 13.405}
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin)
 route["length"]  # the km of the shortest route
 
-roads = GeoGraph.load_geograph("europe", modes=["road"])
+roads = GeoGraph.load_geograph("europe", node_modes=["road"])
 roads.get_shortest_path(origin_node=paris, destination_node=berlin)["length"]  # the km by road
 ```
 
-**Some node modes only.** Each node of these networks has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `modes` loads the nodes of some node modes only, as `roads` above. A **hub** is a port, an airport or a rail terminal. A route goes from one of these networks to another at a hub. So load the node mode of the hub with the networks that it joins: `modes=["road", "sea", "port"]`.
+**Some node modes only.** Each node of these networks has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `node_modes` loads the nodes of some node modes only, as `roads` above. A **hub** is a port, an airport or a rail terminal. A route goes from one of these networks to another at a hub. So load the node mode of the hub with the networks that it joins: `node_modes=["road", "sea", "port"]`.
 
 **The shortest route in km.** Between two distant places, the shortest route in km takes a flight, because a flight is a straight line. A **metric** gives each edge another weight than its length, such as its hours. The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) finds the fastest route or the cheapest route with a metric.
 
@@ -145,7 +145,7 @@ Each network is built by a **pipeline**: a module of `scgraph.pipelines`, whose 
 
 **Offline.** With `local_files_only=True`, nothing is downloaded. A network that is not in the cache raises a `FileNotFoundError`. A network built with another version of its pipeline is loaded with a warning that names what differs. A network in another file format is refused.
 
-**What a built network holds.** The networks of `build_geograph` are not the networks of `load_geograph`: their sources are newer, so their nodes and their results differ. A multimodal network has node modes and hubs, as a released network. Each edge has a class, and `geograph.classes` lists the classes. A query point snaps to a road node by default (`geograph.default_node_addition_modes`). To route on some node modes only, load the file with these node modes and with their hubs: `GeoGraph.load_from_scgraph(file, modes=["road", "rail", "rail_terminal"])`.
+**What a built network holds.** The networks of `build_geograph` are not the networks of `load_geograph`: their sources are newer, so their nodes and their results differ. A multimodal network has node modes and hubs, as a released network. Each edge has a class, and `geograph.classes` lists the classes. A query point snaps to a road node by default (`geograph.default_node_addition_modes`). To route on some node modes only, load the file with these node modes and with their hubs: `GeoGraph.load_from_scgraph(file, node_modes=["road", "rail", "rail_terminal"])`.
 
 **Nodes along a road.** `geofabrik_multimodal` has a node at every junction, and more nodes along a long road or railway. A query point then finds a node close to it. `reduce_iterations=-1` removes the nodes that routing does not need. The shape of each road, ferry or railway edge is simplified, and its length is measured on the full shape. The docstring of each pipeline gives its distances.
 
@@ -153,7 +153,7 @@ Each network is built by a **pipeline**: a module of `scgraph.pipelines`, whose 
 
 ## A Part of a Released Network
 
-`derive_network_file` writes a smaller network file from a network file, and downloads nothing. It keeps the roads, the railways and the rail terminals inside a bbox: a rectangle `(south, west, north, east)` in degrees. The sea lanes, the ports and the airports of the world all stay. With `modes`, it keeps some node modes only.
+`derive_network_file` writes a smaller network file from a network file, and downloads nothing. It keeps the roads, the railways and the rail terminals inside a bbox: a rectangle `(south, west, north, east)` in degrees. The sea lanes, the ports and the airports of the world all stay. With `node_modes`, it keeps some node modes only.
 
 ```py
 from scgraph.pipelines.derived_networks import derive_network_file
@@ -195,9 +195,10 @@ by_time = GeoGraph.load_from_osmnx_graph(osmnx_graph, weight_key="travel_time", 
 by_time.default_metric  # 'travel_time'
 fastest = by_time.get_shortest_path(origin_node=origin, destination_node=destination)
 print(fastest["length"], fastest["metric_totals"]["travel_time"])  # still its km, then its seconds
+shortest = by_time.get_shortest_path(origin_node=origin, destination_node=destination, metric="length")
 ```
 
-OSMnx can give several edges from one node to another. The geograph keeps the shortest one, with its class and its travel time. So the metric `travel_time` holds the time of the shortest edge, which may not be the fastest.
+OSMnx can give several edges from one node to another. The geograph keeps the one with the smallest value of `weight_key`, with its length, its class and its travel time. So with `weight_key='length'`, the metric `travel_time` holds the time of the shortest edge, which may not be the fastest.
 
 The [OSMnx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) compares the fastest route and the shortest route on a bike network, and draws them.
 
@@ -274,7 +275,7 @@ my_network = GeoGraph.load_from_graphjson("my_network.graphjson")
 GeoGraph.get_scgraph_info("my_network.scgraph")  # what the file holds, without loading the network
 ```
 
-**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each metric, and `default_node_addition_modes`. A `.graphjson` file and a GeoJSON file hold no class and no metric.
+**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each metric, the default metric (`default_metric`), and `default_node_addition_modes`. A `.graphjson` file and a GeoJSON file hold no class and no metric.
 
 **What a network file says about itself.** The header of a `.scgraph` file stores the pipeline, the sources with the time of their data, and the software of the build. `get_scgraph_info` reads it, with the credit line to cite (`attribution`) and the `content_sha256`. A geograph loaded from a file keeps this metadata (`geograph.metadata`) and the path of the file (`geograph.scgraph_file`). `save_as_scgraph` writes the metadata back unless given other `metadata`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) describes the format.
 
