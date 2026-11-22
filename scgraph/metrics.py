@@ -49,11 +49,12 @@ from array import array
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from itertools import compress
-from math import inf, isfinite
+from math import inf, isfinite, nan
 from operator import truediv
 from typing import TYPE_CHECKING
 
 from scgraph.edge_classes import find_edge_id
+from scgraph.network_file import NO_CLASS_ID
 
 try:
     from scgraph.cpp import compute_weighted_sum
@@ -123,6 +124,12 @@ def resolve_weights_per_km(
     `compute_weights_from_km`: `class_weights_per_km`, `hub_weights`, and the
     weight of 1 km of an off-graph leg.
 
+    The two arrays have one value for each of the 256 values of a class id. The
+    kernel therefore needs no rule for an edge without a class, whose class id is
+    255: `class_weights_per_km[255]` is the weight of 1 km of an off-graph leg,
+    and `hub_weights` is zero for the class id 255 at every hub. A class id that
+    is no class has the weight per km "not a number", which the kernel refuses.
+
     A class takes the weight per km of its name in `class_weight_per_km`, else of
     its edge mode in `weight_per_km`. `weight_per_km={"road": 0.02, ...}` with
     `class_weight_per_km={"motorway": 0.01}` gives 0.01 to the motorways and 0.02
@@ -130,23 +137,23 @@ def resolve_weights_per_km(
 
     Args:
         classes: The row `{"name", "edge_mode"}` of each class. Empty for a
-            geograph without classes: every edge then has the class id 0.
+            geograph without classes: every edge then has the class id 255.
         node_modes: The row of each node mode (`GeoGraph.node_modes`).
         edge_class_ids: The class id of each edge: the position of the row of
-            its class in `classes`.
+            its class in `classes`, or 255 for an edge without a class.
 
     Raises:
         ValueError: A dict has a key that it may not have, or lacks a weight per
             km, or a hub weight is not a number.
     """
-    class_count = max(len(classes), 1)
+    class_id_count = NO_CLASS_ID + 1
     class_weight_per_km = class_weight_per_km or {}
     edge_modes = sorted(
         {class_row["edge_mode"] for class_row in classes} - {None}
     )
     class_names = [class_row["name"] for class_row in classes]
     for class_name in class_weight_per_km:
-        if class_name is None or class_name not in class_names:
+        if class_name not in class_names:
             raise ValueError(
                 f"class_weight_per_km has the key {class_name!r}, which is no "
                 "class of this geograph: `classes` gives its classes"
@@ -172,29 +179,28 @@ def resolve_weights_per_km(
             [*edge_modes, None], weight_per_km
         )
     count_edges_of_class_id = bytes(edge_class_ids).count
-    class_weights_per_km = array("d")
+    class_weights_per_km = array("d", [nan] * class_id_count)
+    # An edge without a class takes the weight per km of the off-graph legs.
+    class_weights_per_km[NO_CLASS_ID] = off_graph_weight_per_km
     for class_id, class_row in enumerate(classes):
         class_name, edge_mode = class_row["name"], class_row["edge_mode"]
-        if class_name is not None and class_name in class_weight_per_km:
+        if class_name in class_weight_per_km:
             weight = class_weight_per_km[class_name]
         elif edge_mode in weight_per_km_of_edge_mode:
             weight = weight_per_km_of_edge_mode[edge_mode]
-        elif class_name is not None and count_edges_of_class_id(class_id):
+        elif count_edges_of_class_id(class_id):
             raise ValueError(
                 "weight_per_km gives no weight for the edge mode "
                 f"{edge_mode!r} of the class {class_name!r}, which has edges: "
                 "name the edge mode, or name the class in class_weight_per_km"
             )
         else:
-            # The class has no edge, or it is the class without a name: an edge
-            # without a class takes the weight per km of the off-graph legs.
+            # The class has no edge: its weight per km is never read.
             weight = off_graph_weight_per_km
-        class_weights_per_km.append(inf if weight is None else weight)
-    if not classes:
-        class_weights_per_km.append(weight_per_km)
+        class_weights_per_km[class_id] = inf if weight is None else weight
 
     node_mode_names = [mode.get("name") for mode in node_modes]
-    hub_weights = array("d", bytes(8 * len(node_modes) * class_count))
+    hub_weights = array("d", bytes(8 * len(node_modes) * class_id_count))
     for hub_mode, weights_of_hub in (weight_at_hub or {}).items():
         if hub_mode not in node_mode_names:
             raise ValueError(
@@ -218,7 +224,9 @@ def resolve_weights_per_km(
             # Two node modes may have the same name, after a merge
             for node_mode_id, mode_name in enumerate(node_mode_names):
                 if mode_name == hub_mode:
-                    hub_weights[node_mode_id * class_count + class_id] = weight
+                    hub_weights[node_mode_id * class_id_count + class_id] = (
+                        weight
+                    )
     return class_weights_per_km, hub_weights, off_graph_weight_per_km
 
 

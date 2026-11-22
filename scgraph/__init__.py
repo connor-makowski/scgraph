@@ -532,7 +532,7 @@ Each metric has its own graph: the edges of the network, with the weights of the
 | `unit` | `None` | The unit of the weights, as free text |
 | `description` | `None` | Where the weights come from, as free text; by default, the text of the call |
 
-A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. A dict of `weight_per_km` gives a weight per km for `"off_graph"` and for the edge mode of each class that has an edge, unless `class_weight_per_km` names this class. A geograph without classes, such as one made from your own graph, takes one number as `weight_per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. `remove_metric(name)` removes a metric.
+A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. A dict of `weight_per_km` gives a weight per km for `"off_graph"` and for the edge mode of each class that has an edge, unless `class_weight_per_km` names this class. A geograph without classes, such as one made from your own graph without `classes`, takes one number as `weight_per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. `remove_metric(name)` removes a metric.
 
 ## Choosing an Algorithm
 
@@ -1167,6 +1167,26 @@ print(output)
 #     ]
 # }
 ```
+
+To give a class to the edges of your own graph, pass `classes` and `edge_classes`. `classes` lists the rows of the classes, in the form of `geograph.classes`. `edge_classes` has one dictionary for each node, as `graph`: it gives the name of the class of an edge by the destination of the edge. An edge that its dictionary lacks has no class. A geograph holds 255 classes at most.
+
+```py
+classes = [
+    {"name": "tunnel", "edge_mode": "rail"},
+    {"name": "motorway", "edge_mode": "road"},
+]
+edge_classes = [
+    {1: "tunnel"},                      # London -> Paris
+    {0: "tunnel", 4: "motorway"},       # Paris -> London, Madrid
+    {},                                 # Berlin: its edges have no class
+    {},                                 # Rome
+    {1: "motorway", 5: "motorway"},     # Madrid -> Paris, Lisbon
+    {4: "motorway"},                    # Lisbon -> Madrid
+]
+my_geograph = GeoGraph(nodes=nodes, graph=graph, classes=classes, edge_classes=edge_classes)
+```
+
+A [metric](#routes-by-time-cost-and-co2) of this geograph can then give a weight per km to each edge mode and to each class.
 
 ## Modifying a GeoGraph
 
