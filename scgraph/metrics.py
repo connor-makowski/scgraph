@@ -17,7 +17,7 @@ weight is infinity: no route by this metric takes it.
 A geograph computes the weights of a metric in one of three ways.
 
 - From tables. `resolve_tables` turns the tables of the caller, whose keys are names
-  of classes and of modes, into three arrays whose positions are rows. The kernel
+  of classes and of modes, into two arrays whose positions are rows. The kernel
   `compute_table_weights` then gives each edge its rate times its km, plus the weight
   of the hub that it leaves and of the hub that it enters. An edge without a class
   weighs as an access leg: its km times the rate `"off_graph"` of the metric.
@@ -114,7 +114,7 @@ def resolve_tables(
     classes: list[dict],
     modes: list[dict],
     edge_classes: array | memoryview,
-) -> tuple[array, array, array, float]:
+) -> tuple[array, array, float]:
     """Turn the tables of a `create_metric` call into the arrays of the kernel
     `compute_table_weights`.
 
@@ -128,21 +128,20 @@ def resolve_tables(
             an edge without a class weighs as an access leg: its km times the rate
             `"off_graph"` of the metric. It pays no hub weight.
         at_hub: A dict from the mode of a node to a dict from a class, or a mode of
-            edges, to a weight. The weight is a number, paid on the way in and on
-            the way out, or a pair (into the hub, out of the hub). None for no hub
-            weight.
+            edges, to a weight: a number, which an edge pays when it enters the
+            hub and when it leaves the hub. None for no hub weight.
         classes: The rows `{"name", "mode"}` of the classes. Empty for a geograph
             without classes: every edge then has the row 0.
         modes: The rows of the modes of the nodes, each with its `name`.
         edge_classes: The row of the class of each edge.
 
     Returns:
-        `class_rates_per_km`, `weights_out_of_hub`, `weights_into_hub` and the rate
-        of the access legs. The docstring of `compute_table_weights` describes the
-        three arrays.
+        `class_rates_per_km`, `hub_weights` and the rate of the access legs. The
+        docstring of `compute_table_weights` describes the two arrays.
 
     Raises:
-        ValueError: A table has a key that it may not have, or lacks a rate.
+        ValueError: A table has a key that it may not have, or lacks a rate, or a
+            hub weight is not a number.
     """
     class_count = max(len(classes), 1)
     if isinstance(per_km, dict):
@@ -179,38 +178,30 @@ def resolve_tables(
         rates = array("d", [per_km]) * class_count
 
     mode_names = [mode.get("name") for mode in modes]
-    weights_out_of_hub = array("d", bytes(8 * len(modes) * class_count))
-    weights_into_hub = array("d", weights_out_of_hub)
-    for hub_mode, hub_weights in (at_hub or {}).items():
+    hub_weights = array("d", bytes(8 * len(modes) * class_count))
+    for hub_mode, weights_of_hub in (at_hub or {}).items():
         if hub_mode not in mode_names:
             raise ValueError(
                 f"at_hub has the key {hub_mode!r}, which is no mode of a node: "
                 f"the modes of this geograph are {mode_names}"
             )
-        _check_keys(hub_weights, f"at_hub[{hub_mode!r}]", classes, ())
+        _check_keys(weights_of_hub, f"at_hub[{hub_mode!r}]", classes, ())
         for row, edge_class in enumerate(classes):
-            key = _find_key(hub_weights, edge_class)
+            key = _find_key(weights_of_hub, edge_class)
             if key is None:
                 continue
-            weight = hub_weights[key]
-            if weight is None:
+            weight = weights_of_hub[key]
+            if not isinstance(weight, (int, float)):
                 raise ValueError(
-                    f"at_hub[{hub_mode!r}][{key!r}] is None: a hub weight is a "
-                    "number, or a pair (into the hub, out of the hub)"
+                    f"at_hub[{hub_mode!r}][{key!r}] must be a number, which an "
+                    "edge pays when it enters the hub and when it leaves the "
+                    f"hub: got {weight!r}"
                 )
-            into_hub, out_of_hub = (
-                weight
-                if isinstance(weight, (tuple, list))
-                else (weight, weight)
-            )
             # Two modes may have the same name, after a merge
             for mode_row, mode_name in enumerate(mode_names):
                 if mode_name == hub_mode:
-                    weights_into_hub[mode_row * class_count + row] = into_hub
-                    weights_out_of_hub[mode_row * class_count + row] = (
-                        out_of_hub
-                    )
-    return rates, weights_out_of_hub, weights_into_hub, off_graph_per_km
+                    hub_weights[mode_row * class_count + row] = weight
+    return rates, hub_weights, off_graph_per_km
 
 
 def compute_weights_by_tables(

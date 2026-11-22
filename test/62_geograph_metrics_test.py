@@ -479,20 +479,12 @@ def test_tables_give_each_edge_the_rate_of_its_class_times_its_km(
     assert weights == MINUTES_OF_EACH_EDGE
 
 
-# A train waits at a rail terminal. One number is the wait on the way into
-# the terminal and on the way out. A pair is (into the hub, out of the hub).
-@pytest.mark.parametrize(
-    "wait, minutes_into_the_hub, minutes_out_of_the_hub",
-    [(15.0, 15.0, 15.0), ((10.0, 20.0), 10.0, 20.0)],
-    ids=["one number", "a pair"],
-)
-def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(
-    network, wait, minutes_into_the_hub, minutes_out_of_the_hub
-):
+def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(network):
+    # A train waits 15 minutes at a rail terminal.
     network.create_metric(
         "minutes",
         per_km=MINUTES_PER_KM,
-        at_hub={"rail_terminal": {"rail": wait}},
+        at_hub={"rail_terminal": {"rail": 15.0}},
     )
 
     # The rail connector of 1 km between the west station and its terminal
@@ -503,7 +495,7 @@ def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(
         weights[WEST_STATION, WEST_TERMINAL],
         weights[WEST_TERMINAL, WEST_STATION],
         weights[WEST_TERMINAL, WEST_TOWN],
-    ) == (0.25 + minutes_into_the_hub, 0.25 + minutes_out_of_the_hub, 4.0)
+    ) == (0.25 + 15.0, 0.25 + 15.0, 4.0)
 
 
 def _get_toll(edge):
@@ -649,7 +641,10 @@ def test_tables_weigh_an_edge_without_a_class_as_an_access_leg(network):
         ({"per_km": {**MINUTES_PER_KM, "canal": 2.0}}, "canal"),
         ({"per_km": 2.0, "at_hub": {"airport": {"road": 30.0}}}, "airport"),
         ({"per_km": 2.0, "at_hub": {"port": {"canal": 30.0}}}, "canal"),
-        ({"per_km": 2.0, "at_hub": {"port": {"sea": None}}}, "None"),
+        (
+            {"per_km": 2.0, "at_hub": {"port": {"sea": (10.0, 20.0)}}},
+            "must be a number",
+        ),
         ({"per_km": 2.0, "edge_weights": {(1, 7): 5.0}}, "node 1 to node 7"),
     ],
     ids=[
@@ -658,7 +653,7 @@ def test_tables_weigh_an_edge_without_a_class_as_an_access_leg(network):
         "a rate for a class that the network lacks",
         "a hub of a mode that the network lacks",
         "a hub weight for a class that the network lacks",
-        "a hub weight of None",
+        "a hub weight that is not a number",
         "a weight for an edge that the network lacks",
     ],
 )

@@ -7,8 +7,7 @@
 std::vector<double> compute_table_weights(
     std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths,
     std::span<const uint8_t> edge_classes, std::span<const uint8_t> node_modes,
-    std::span<const double> class_rates_per_km, std::span<const double> weights_out_of_hub,
-    std::span<const double> weights_into_hub) {
+    std::span<const double> class_rates_per_km, std::span<const double> hub_weights) {
     constexpr double INFINITE = std::numeric_limits<double>::infinity();
     const int64_t node_count = (int64_t)offsets.size() - 1;
     const int64_t edge_count = (int64_t)heads.size();
@@ -17,11 +16,10 @@ std::vector<double> compute_table_weights(
         (int64_t)lengths.size() != edge_count || (int64_t)edge_classes.size() != edge_count) {
         throw std::invalid_argument("expected one mode per node, and one length and one class per edge");
     }
-    if (class_count == 0 || weights_out_of_hub.size() % class_count != 0 ||
-        weights_into_hub.size() != weights_out_of_hub.size()) {
+    if (class_count == 0 || hub_weights.size() % class_count != 0) {
         throw std::invalid_argument("expected one hub weight per mode and per class");
     }
-    const size_t mode_count = weights_out_of_hub.size() / class_count;
+    const size_t mode_count = hub_weights.size() / class_count;
     for (uint8_t mode : node_modes) {
         if (mode >= mode_count) {
             throw std::invalid_argument("an edge has a class, or a node has a mode, that the tables do not hold");
@@ -32,7 +30,7 @@ std::vector<double> compute_table_weights(
     for (int64_t origin = 0; origin < node_count; ++origin) {
         const int64_t first = offsets[origin], last = offsets[origin + 1];
         if (first < 0 || last < first || last > edge_count) throw std::invalid_argument("invalid offsets");
-        const double* out_of_hub = weights_out_of_hub.data() + node_modes[origin] * class_count;
+        const double* weights_at_origin = hub_weights.data() + node_modes[origin] * class_count;
         for (int64_t edge = first; edge < last; ++edge) {
             const size_t edge_class = edge_classes[edge];
             const int32_t head = heads[edge];
@@ -43,11 +41,11 @@ std::vector<double> compute_table_weights(
             // 1. The rate of the class times the km, or infinity for a closed class
             const double rate = class_rates_per_km[edge_class];
             double weight = rate == INFINITE ? INFINITE : rate * lengths[edge];
-            // 2. The weight to leave a hub
-            const double out_weight = out_of_hub[edge_class];
+            // 2. The weight of the hub that the edge leaves
+            const double out_weight = weights_at_origin[edge_class];
             if (out_weight != 0.0) weight += out_weight;
-            // 3. The weight to enter a hub
-            const double into_weight = weights_into_hub[node_modes[head] * class_count + edge_class];
+            // 3. The weight of the hub that the edge enters
+            const double into_weight = hub_weights[node_modes[head] * class_count + edge_class];
             if (into_weight != 0.0) weight += into_weight;
             // 4. A comparison with a value that is not a number is false
             if (!(weight >= 0.0)) {

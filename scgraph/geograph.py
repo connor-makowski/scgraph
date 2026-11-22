@@ -3432,7 +3432,7 @@ class GeoGraph(
             - Note: The lengths of the geograph must be in km: another `geograph_units`, or lengths in seconds (`load_from_osmnx_graph` with `weight_key="travel_time"`), raise a ValueError
         - `at_hub`
             - Type: dict | None
-            - What: With `per_km`, the weight that an edge pays at a hub: `{mode of a node: {class or mode of an edge: weight}}`. A number is paid by an edge into a node of this mode and by an edge out of it. A pair is `(into the hub, out of the hub)`
+            - What: With `per_km`, the weight that an edge pays at a hub: `{mode of a node: {class or mode of an edge: weight}}`. The weight is a number. An edge into a node of this mode pays it, and so does an edge out of it: `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port and to each sea edge that leaves a port
         - `weighted_sum_of`
             - Type: dict | None
             - What: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. An edge that is closed in one of the metrics is closed in the sum

@@ -26,12 +26,11 @@ def compute_table_weights(
     edge_classes: array | memoryview,
     node_modes: array | memoryview,
     class_rates_per_km: array | memoryview,
-    weights_out_of_hub: array | memoryview,
-    weights_into_hub: array | memoryview,
+    hub_weights: array | memoryview,
 ) -> array:
     """
-    Compute the weight of each edge from a rate for each class and from the weights
-    to leave and to enter a hub.
+    Compute the weight of each edge from a rate for each class and from the weight
+    that it pays at a hub.
 
     Args:
         offsets: The edges of node u are at the positions offsets[u] to
@@ -42,11 +41,9 @@ def compute_table_weights(
         node_modes: The mode of each node, as a row of the modes (uint8).
         class_rates_per_km: The weight of 1 km of an edge of each class (float64).
             Infinity closes the class.
-        weights_out_of_hub: The weight that an edge of the class c pays when it
-            leaves a node of the mode m, at the position m * number of classes + c
-            (float64).
-        weights_into_hub: The same table for an edge that goes to a node of the
-            mode m.
+        hub_weights: The weight that an edge of the class c pays when it leaves a
+            node of the mode m, and when it goes to a node of the mode m, at the
+            position m * number of classes + c (float64).
 
     Returns:
         One float64 weight for each edge, of zero or more. Infinity for a closed
@@ -67,13 +64,9 @@ def compute_table_weights(
         raise ValueError(
             "expected one mode per node, and one length and one class per edge"
         )
-    if (
-        class_count == 0
-        or len(weights_out_of_hub) % class_count != 0
-        or len(weights_into_hub) != len(weights_out_of_hub)
-    ):
+    if class_count == 0 or len(hub_weights) % class_count != 0:
         raise ValueError("expected one hub weight per mode and per class")
-    if max(node_modes, default=-1) >= len(weights_out_of_hub) // class_count:
+    if max(node_modes, default=-1) >= len(hub_weights) // class_count:
         raise ValueError(
             "an edge has a class, or a node has a mode, that the tables do not hold"
         )
@@ -91,21 +84,27 @@ def compute_table_weights(
             for edge_index in compress(count(), closed_edges):
                 weights[edge_index] = inf
 
-        # 2. The weight to leave a hub
-        is_hub = _find_hub_nodes(weights_out_of_hub, class_count, node_modes)
-        for origin_id in compress(count(), is_hub):
-            row = node_modes[origin_id] * class_count
-            for edge_index in range(offsets[origin_id], offsets[origin_id + 1]):
-                weight = weights_out_of_hub[row + edge_classes[edge_index]]
-                if weight != 0.0:
-                    weights[edge_index] += weight
-
-        # 3. The weight to enter a hub
-        is_hub = _find_hub_nodes(weights_into_hub, class_count, node_modes)
+        # For each node, 1 if a class has a weight at a hub of the mode of the
+        # node, else 0. `translate` maps the mode of each node in C.
+        is_hub_mode = bytes(
+            any(hub_weights[first : first + class_count])
+            for first in range(0, len(hub_weights), class_count)
+        )
+        is_hub = bytes(node_modes).translate(is_hub_mode.ljust(256, b"\0"))
         if 1 in is_hub:
+            # 2. The weight of the hub that the edge leaves
+            for origin_id in compress(count(), is_hub):
+                row = node_modes[origin_id] * class_count
+                for edge_index in range(
+                    offsets[origin_id], offsets[origin_id + 1]
+                ):
+                    weight = hub_weights[row + edge_classes[edge_index]]
+                    if weight != 0.0:
+                        weights[edge_index] += weight
+            # 3. The weight of the hub that the edge enters
             for edge_index in compress(count(), map(is_hub.__getitem__, heads)):
                 row = node_modes[heads[edge_index]] * class_count
-                weight = weights_into_hub[row + edge_classes[edge_index]]
+                weight = hub_weights[row + edge_classes[edge_index]]
                 if weight != 0.0:
                     weights[edge_index] += weight
     except IndexError:
@@ -124,20 +123,6 @@ def compute_table_weights(
             f"{heads[edge_index]} is below zero or not a number"
         )
     return weights
-
-
-def _find_hub_nodes(
-    hub_weights: array | memoryview,
-    class_count: int,
-    node_modes: array | memoryview,
-) -> bytes:
-    # For each node, 1 if a class has a weight in this hub table for the mode of
-    # the node, else 0. `translate` maps the mode of each node in C.
-    is_hub_mode = bytes(
-        any(hub_weights[first : first + class_count])
-        for first in range(0, len(hub_weights), class_count)
-    )
-    return bytes(node_modes).translate(is_hub_mode.ljust(256, b"\0"))
 
 
 def compute_weighted_sum(

@@ -400,7 +400,7 @@ route["metrics"]  # {'hours': ...}: its hours
 - **Node modes and edge modes.** A node mode says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal` (`europe.modes`). An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`. Each class has one edge mode (`europe.classes`). `per_km` and the legs use edge modes. `node_addition_modes` and the first key of `at_hub` use node modes.
 - **`per_km`.** A **rate** is the weight of 1 km of an edge. `per_km` gives a rate to each edge mode. Here a rate is in hours per km: `1 / 70` means 70 km/h. A rate is not a speed: for hours, give 1 / speed. A class can have its own rate, which wins over the rate of its edge mode: `"motorway": 1 / 90`.
 - **`"off_graph"`.** An **access leg** is the straight line from a query point to its node. `"off_graph"` is the rate of the access legs. The total of a route counts its two access legs.
-- **`at_hub`** adds a weight at a **hub**: a port, an airport or a rail terminal. The first key is a node mode: `port`, `airport` or `rail_terminal`. The second key is an edge mode or a class. Only these edges pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches. A pair gives two values: `(1, 2)` is 1 hour for an edge into the hub and 2 hours for an edge out of it.
+- **`at_hub`** adds a weight at a **hub**: a port, an airport or a rail terminal. The first key is a node mode: `port`, `airport` or `rail_terminal`. The second key is an edge mode or a class. Only these edges pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches. A hub weight is one number.
 - **The result.** `length` is always the length of the route. `metrics` holds the total of each metric other than `length` along the route. With `length_only=True`, a query by a metric returns the total of this metric alone: `{'metrics': {'hours': ...}}`.
 
 ### The Legs of a Route
@@ -596,7 +596,7 @@ A search called on the graph of a metric returns the total of the metric under t
 |---|---|---|
 | `name` | required | Name of the metric: small letters, digits and `_`, starting with a letter; not `length`. A metric that has this name is replaced |
 | `per_km` | `None` | One rate for every edge and for the access legs (a number), or a dict of rates: by class, by edge mode, and `"off_graph"` for the access legs. A rate of `None` closes a class. The lengths of the geograph must be in km |
-| `at_hub` | `None` | With `per_km`: `{node mode of a hub: {class or edge mode: weight}}`. An edge into the hub pays the weight, and so does an edge out of it. A pair is `(into the hub, out of the hub)` |
+| `at_hub` | `None` | With `per_km`: `{node mode of a hub: {class or edge mode: weight}}`. The weight is one number: an edge into the hub pays it, and so does an edge out of it |
 | `weighted_sum_of` | `None` | `{name of a metric: coefficient}`, with coefficients above zero; `length` can be one of the metrics. An edge that is closed in one of them is closed in the sum |
 | `edge_weight_fn` | `None` | A function that gets the dict of an edge and returns its weight, or `None` to close it |
 | `edge_weights` | `None` | `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the computed one; `None` closes an edge |

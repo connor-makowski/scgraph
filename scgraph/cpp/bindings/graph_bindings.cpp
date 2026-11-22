@@ -325,19 +325,16 @@ NB_MODULE(cpp, m) {
 
     m.def("compute_table_weights", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
                                      Uint8Array edge_classes, Uint8Array node_modes,
-                                     DoubleArray class_rates_per_km, DoubleArray weights_out_of_hub,
-                                     DoubleArray weights_into_hub) {
+                                     DoubleArray class_rates_per_km, DoubleArray hub_weights) {
         return owned_view(compute_table_weights(
             {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
             {lengths.data(), lengths.shape(0)}, {edge_classes.data(), edge_classes.shape(0)},
             {node_modes.data(), node_modes.shape(0)},
             {class_rates_per_km.data(), class_rates_per_km.shape(0)},
-            {weights_out_of_hub.data(), weights_out_of_hub.shape(0)},
-            {weights_into_hub.data(), weights_into_hub.shape(0)}));
+            {hub_weights.data(), hub_weights.shape(0)}));
     }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths"), nb::arg("edge_classes"),
-       nb::arg("node_modes"), nb::arg("class_rates_per_km"), nb::arg("weights_out_of_hub"),
-       nb::arg("weights_into_hub"),
-       "The weight of each edge from a rate per km for each class and the weights to leave and to enter "
+       nb::arg("node_modes"), nb::arg("class_rates_per_km"), nb::arg("hub_weights"),
+       "The weight of each edge from a rate per km for each class and the weight that it pays at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
        "scgraph.helpers.metric_weights.compute_table_weights");
 
