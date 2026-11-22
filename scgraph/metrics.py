@@ -30,9 +30,8 @@ HOW THE WEIGHTS ARE COMPUTED
 - From a function of the caller (`compute_weights_from_function`).
 
 `copy_with_edge_weights` then replaces the weights of the edges that the caller
-names. A "kernel" is a loop over all the edges, in C++ and in pure Python
-(`scgraph/helpers/metric_weights.py`). `scgraph/cpp/src/metric_weights.hpp`
-explains the two kernels of the metrics.
+names. A "kernel" is a loop over all the edges, in C++ and in pure Python.
+`scgraph/cpp/src/metric_weights.hpp` explains the two kernels of the metrics.
 
 THE RULE: A METRIC KEEPS THE WEIGHTS OF ITS CREATION
 
