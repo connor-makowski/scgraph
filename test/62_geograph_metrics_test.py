@@ -543,6 +543,18 @@ def test_a_metric_is_computed_again_when_a_metric_that_it_uses_is_created_again(
         nodes: 7.5 * km for nodes, km in KM_OF_EACH_EDGE.items()
     }
 
+    # After an edit, the geograph computes the three metrics again, each one
+    # after the metric that it uses. A new road of 39 km replaces the primary
+    # road of 40 km from the junction to the east town: the best route has
+    # 79 km and its two access legs.
+    network_with_minutes.add_edge(JUNCTION, EAST_TOWN, 39.0)
+    route = network_with_minutes.get_shortest_path(
+        WEST_POINT, EAST_POINT, metric="fare"
+    )
+    assert route["metrics"]["fare"] == pytest.approx(
+        7.5 * (79.0 + 2 * ACCESS_LEG_KM)
+    )
+
 
 def test_an_edit_computes_again_a_metric_that_create_metric_made(network):
     network.create_metric(
