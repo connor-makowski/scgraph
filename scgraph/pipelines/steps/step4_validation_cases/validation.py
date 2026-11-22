@@ -79,14 +79,14 @@ def _find_closest_node(network, point, mode=None) -> tuple:
     candidates. When the network does not have that mode, all its nodes are
     candidates. This is the case of a published network and of a file with a
     single mode."""
-    mode_names = [m["name"] for m in network.modes or []]
-    if mode is None or mode not in mode_names:
+    node_mode_names = [m["name"] for m in network.node_modes or []]
+    if mode is None or mode not in node_mode_names:
         node = network.nodes[network.snap_index.closest_idx(point=list(point))]
         return haversine(point, node), tuple(node)
-    wanted = mode_names.index(mode)
+    wanted = node_mode_names.index(mode)
     return min(
         (haversine(point, node), tuple(node))
-        for node, node_mode in zip(network.nodes, network.node_modes)
+        for node, node_mode in zip(network.nodes, network.node_mode_ids)
         if node_mode == wanted
     )
 
@@ -244,7 +244,7 @@ def _check_hub(network, case) -> str | None:
     km, hub = _find_closest_node(network, case["origin"], case["hub_kind"])
     if km > 5.0:
         return f"the closest {case['hub_kind']} is {km:.1f} km away"
-    names = [mode["name"] for mode in network.modes]
+    names = [mode["name"] for mode in network.node_modes]
     for mode in case["reference"].split():
         if mode == "air":
             first_mode = "airport"
@@ -264,7 +264,7 @@ def _check_hub(network, case) -> str | None:
             )["path"]
         except PathNotFoundError:
             return f"no route to the {mode} network"
-        if len(path) < 2 or names[network.node_modes[path[1]]] != first_mode:
+        if len(path) < 2 or names[network.node_mode_ids[path[1]]] != first_mode:
             return f"no connector to the {mode} network"
         # A direct flight is the shortest route between two airports: a stop
         # or a road between them is longer
@@ -365,18 +365,19 @@ def load_validation_cases(
     return cases
 
 
-def _load_on_modes(network, modes: tuple) -> GeoGraph:
-    """Load the network file `network` with the nodes and edges of `modes` only.
+def _load_on_node_modes(network, node_modes: tuple) -> GeoGraph:
+    """Load the network file `network` with the nodes and edges of `node_modes` only.
     A GeoGraph is returned unchanged. The caller must then give only cases of the
     modes of that GeoGraph."""
     if isinstance(network, GeoGraph):
         return network
     file_modes = {
-        m["name"] for m in GeoGraph.get_scgraph_info(network).get("modes", [])
+        m["name"]
+        for m in GeoGraph.get_scgraph_info(network).get("node_modes", [])
     }
-    restrict = bool(modes) and not file_modes <= set(modes)
+    restrict = bool(node_modes) and not file_modes <= set(node_modes)
     return GeoGraph.load_from_scgraph(
-        str(network), modes=sorted(modes) if restrict else None
+        str(network), node_modes=sorted(node_modes) if restrict else None
     )
 
 
@@ -412,16 +413,16 @@ def validate_network(
 
     # The cities of one landmass follow each other: see the coverage rule
     cases = sorted(cases, key=lambda case: case.get("landmass") or "")
-    for modes, cases_on_modes in groupby(
+    for node_modes, cases_on_modes in groupby(
         sorted(cases, key=modes_of), key=modes_of
     ):
         loaded = None  # the previous network is released before the next load
-        loaded = _load_on_modes(network, modes)
+        loaded = _load_on_node_modes(network, node_modes)
         failures = []
         # The queries of the rules snap to the nodes of the modes of the kind. No
         # list of modes means every node.
         default_node_addition_modes = loaded.default_node_addition_modes
-        loaded.default_node_addition_modes = list(modes) or None
+        loaded.default_node_addition_modes = list(node_modes) or None
         try:
             for case in cases_on_modes:
                 reason = RULES[case["kind"]][1](loaded, case)

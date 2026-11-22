@@ -23,8 +23,8 @@ def compute_weights_from_km(
     offsets: array | memoryview,
     heads: array | memoryview,
     lengths: array | memoryview,
-    edge_classes: array | memoryview,
-    node_modes: array | memoryview,
+    edge_class_ids: array | memoryview,
+    node_mode_ids: array | memoryview,
     class_weights_per_km: array | memoryview,
     hub_weights: array | memoryview,
 ) -> array:
@@ -41,63 +41,63 @@ def compute_weights_from_km(
     class_count = len(class_weights_per_km)
     if (
         node_count < 0
-        or len(node_modes) != node_count
+        or len(node_mode_ids) != node_count
         or len(lengths) != edge_count
-        or len(edge_classes) != edge_count
+        or len(edge_class_ids) != edge_count
     ):
         raise ValueError(
-            "expected one mode per node, and one length and one class per edge"
+            "expected one node mode per node, and one length and one class per edge"
         )
     if class_count == 0 or len(hub_weights) % class_count != 0:
-        raise ValueError("expected one hub weight per mode and per class")
-    if max(node_modes, default=-1) >= len(hub_weights) // class_count:
+        raise ValueError("expected one hub weight per node mode and per class")
+    if max(node_mode_ids, default=-1) >= len(hub_weights) // class_count:
         raise ValueError(
-            "an edge has a class without a weight per km, or a node has a mode without hub weights"
+            "an edge has a class without a weight per km, or a node has a node mode without hub weights"
         )
     try:
         # 1. The weight per km of the class times the km, or infinity for a closed class
         # A list holds the weights per km as Python floats: an array would make a new float
         # at each read
         weights_per_km = map(
-            list(class_weights_per_km).__getitem__, edge_classes
+            list(class_weights_per_km).__getitem__, edge_class_ids
         )
         weights = array("d", map(mul, lengths, weights_per_km))
         is_closed = bytes(
             weight_per_km == inf for weight_per_km in class_weights_per_km
         )
         if 1 in is_closed:
-            closed_edges = bytes(edge_classes).translate(
+            closed_edges = bytes(edge_class_ids).translate(
                 is_closed.ljust(256, b"\0")
             )
             for edge_index in compress(count(), closed_edges):
                 weights[edge_index] = inf
 
-        # For each node, 1 if a class has a weight at a hub of the mode of the
-        # node, else 0. `translate` maps the mode of each node in C.
+        # For each node, 1 if a class has a weight at a hub of the node mode of the
+        # node, else 0. `translate` maps the node mode of each node in C.
         is_hub_mode = bytes(
             any(hub_weights[first : first + class_count])
             for first in range(0, len(hub_weights), class_count)
         )
-        is_hub = bytes(node_modes).translate(is_hub_mode.ljust(256, b"\0"))
+        is_hub = bytes(node_mode_ids).translate(is_hub_mode.ljust(256, b"\0"))
         if 1 in is_hub:
             # 2. The weight of the hub that the edge leaves
             for origin_id in compress(count(), is_hub):
-                row = node_modes[origin_id] * class_count
+                row = node_mode_ids[origin_id] * class_count
                 for edge_index in range(
                     offsets[origin_id], offsets[origin_id + 1]
                 ):
-                    weight = hub_weights[row + edge_classes[edge_index]]
+                    weight = hub_weights[row + edge_class_ids[edge_index]]
                     if weight != 0.0:
                         weights[edge_index] += weight
             # 3. The weight of the hub that the edge enters
             for edge_index in compress(count(), map(is_hub.__getitem__, heads)):
-                row = node_modes[heads[edge_index]] * class_count
-                weight = hub_weights[row + edge_classes[edge_index]]
+                row = node_mode_ids[heads[edge_index]] * class_count
+                weight = hub_weights[row + edge_class_ids[edge_index]]
                 if weight != 0.0:
                     weights[edge_index] += weight
     except IndexError:
         raise ValueError(
-            "an edge has a class without a weight per km, or a node has a mode without hub weights"
+            "an edge has a class without a weight per km, or a node has a node mode without hub weights"
         ) from None
 
     # 4. A comparison with a value that is not a number is false

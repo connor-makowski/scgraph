@@ -401,7 +401,9 @@ def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
     )
 
     # Place 2 is contracted. Place 3 stays, and each edge has its class.
-    class_rows = _by_node_ids(arrays, lambda edge: arrays["edge_classes"][edge])
+    class_rows = _by_node_ids(
+        arrays, lambda edge: arrays["edge_class_ids"][edge]
+    )
     assert class_rows == {
         (1, 3): primary,
         (3, 1): primary,
@@ -444,7 +446,7 @@ def test_a_longer_road_of_another_class_between_two_junctions_is_split():
     edges = _by_node_ids(
         graph,
         lambda edge: (
-            graph["edge_classes"][edge],
+            graph["edge_class_ids"][edge],
             graph["weights_length"][edge],
         ),
     )
@@ -599,7 +601,7 @@ ROAD_WITH_ONE_EDGE_OF_ANOTHER_CLASS = (
 # `contract_chains` gives first the nodes that it keeps.
 @both_backends
 @pytest.mark.parametrize(
-    "graph, modes, max_km, edge_classes, kept_nodes",
+    "graph, node_mode_ids, max_km, edge_class_ids, kept_nodes",
     [
         pytest.param(
             *ROAD_WITH_A_DEAD_END,
@@ -649,9 +651,11 @@ ROAD_WITH_ONE_EDGE_OF_ANOTHER_CLASS = (
     ],
 )
 def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
-    backend, graph, modes, max_km, edge_classes, kept_nodes
+    backend, graph, node_mode_ids, max_km, edge_class_ids, kept_nodes
 ):
-    kept, *_ = backend.contract_chains(*graph, modes, max_km, edge_classes)
+    kept, *_ = backend.contract_chains(
+        *graph, node_mode_ids, max_km, edge_class_ids
+    )
 
     assert list(kept) == kept_nodes
 
@@ -676,10 +680,12 @@ def _random_chains(seed):
             if u != v
         )
     graph = _csr(*edges)
-    modes = array("B", (rng.random() < 0.05 for _ in range(len(graph[0]) - 1)))
+    node_mode_ids = array(
+        "B", (rng.random() < 0.05 for _ in range(len(graph[0]) - 1))
+    )
     max_km = rng.choice([math.inf, 0.5])
-    edge_classes = array("B", (rng.random() < 0.1 for _ in graph[1]))
-    return graph, modes, max_km, edge_classes
+    edge_class_ids = array("B", (rng.random() < 0.1 for _ in graph[1]))
+    return graph, node_mode_ids, max_km, edge_class_ids
 
 
 # The test below states what holds for any graph: it runs on the first seven
@@ -688,7 +694,7 @@ def _random_chains(seed):
 # graphs are taken without classes: classes only keep more nodes, and the test
 # after this one gives the random graphs their classes.
 on_every_graph = pytest.mark.parametrize(
-    "graph, modes, max_km",
+    "graph, node_mode_ids, max_km",
     [
         case[:3]
         for case in (
@@ -723,13 +729,13 @@ def _members_of_each_edge(member_offsets, members):
 @both_backends
 @on_every_graph
 def test_contracted_edges_replace_the_chains_of_the_graph(
-    backend, graph, modes, max_km
+    backend, graph, node_mode_ids, max_km
 ):
     offsets, heads, weights = graph
     origin_of = _origin_of_each_edge(offsets)
 
     kept, origins, ends, km, member_offsets, members = backend.contract_chains(
-        *graph, modes, max_km
+        *graph, node_mode_ids, max_km
     )
 
     # Every edge is a member of exactly one contracted edge
@@ -766,15 +772,15 @@ def test_contracted_edges_replace_the_chains_of_the_graph(
 @both_backends
 def test_the_members_of_a_contracted_edge_have_the_same_class(backend):
     for seed in range(6):
-        graph, modes, max_km, edge_classes = _random_chains(seed)
+        graph, node_mode_ids, max_km, edge_class_ids = _random_chains(seed)
 
         *_, member_offsets, members = backend.contract_chains(
-            *graph, modes, max_km, edge_classes
+            *graph, node_mode_ids, max_km, edge_class_ids
         )
 
         for edges in _members_of_each_edge(member_offsets, members):
             assert (
-                len({edge_classes[edge] for edge in edges}) == 1
+                len({edge_class_ids[edge] for edge in edges}) == 1
             ), f"seed {seed}"
 
 
@@ -784,9 +790,9 @@ def test_the_members_of_a_contracted_edge_have_the_same_class(backend):
 @needs_the_cpp_extension
 def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel():
     for seed in range(6):
-        graph, modes, max_km, edge_classes = _random_chains(seed)
-        without_classes = (*graph, modes, max_km)
-        for arguments in (without_classes, (*without_classes, edge_classes)):
+        graph, node_mode_ids, max_km, edge_class_ids = _random_chains(seed)
+        without_classes = (*graph, node_mode_ids, max_km)
+        for arguments in (without_classes, (*without_classes, edge_class_ids)):
             contracted = cpp.contract_chains(*arguments)
 
             assert list(map(list, contracted)) == list(

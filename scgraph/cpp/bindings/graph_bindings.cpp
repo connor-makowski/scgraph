@@ -307,33 +307,33 @@ NB_MODULE(cpp, m) {
        "(latitude then longitude of each node, int32 in 1e-7 degree or float64 degrees) and a list of "
        "ids (negative ids count from the end); a route's coordinates for NodePoints.take");
 
-    m.def("select_edges", [](Int32Array offsets, Int32Array heads, Uint8Array node_modes,
-                            std::vector<bool> is_mode_kept, std::optional<Int32Array> shape_offsets) {
+    m.def("select_edges", [](Int32Array offsets, Int32Array heads, Uint8Array node_mode_ids,
+                            std::vector<bool> is_node_mode_kept, std::optional<Int32Array> shape_offsets) {
         EdgeSelection selection = select_edges(
             {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
-            {node_modes.data(), node_modes.shape(0)}, is_mode_kept,
+            {node_mode_ids.data(), node_mode_ids.shape(0)}, is_node_mode_kept,
             shape_offsets ? std::span(shape_offsets->data(), shape_offsets->shape(0)) : std::span<const int32_t>());
         return nb::make_tuple(
             owned_view(std::move(selection.offsets)), owned_view(std::move(selection.heads)),
             shape_offsets ? owned_view(std::move(selection.shape_offsets)) : nb::none(),
             selection.node_runs, selection.edge_runs, selection.shape_point_runs);
-    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("node_modes"), nb::arg("is_mode_kept"),
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("node_mode_ids"), nb::arg("is_node_mode_kept"),
        nb::arg("shape_offsets") = nb::none(),
-       "The nodes of the kept modes of a network file and the edges between them, as (offsets, heads, "
+       "The nodes of the kept node modes of a network file and the edges between them, as (offsets, heads, "
        "shape_offsets, node_runs, edge_runs, shape_point_runs); explained in scgraph/cpp/src/edge_selection.hpp, "
        "same result as scgraph.helpers.edge_selection.select_edges");
 
     m.def("compute_weights_from_km", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
-                                          Uint8Array edge_classes, Uint8Array node_modes,
+                                          Uint8Array edge_class_ids, Uint8Array node_mode_ids,
                                           DoubleArray class_weights_per_km, DoubleArray hub_weights) {
         return owned_view(compute_weights_from_km(
             {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
-            {lengths.data(), lengths.shape(0)}, {edge_classes.data(), edge_classes.shape(0)},
-            {node_modes.data(), node_modes.shape(0)},
+            {lengths.data(), lengths.shape(0)}, {edge_class_ids.data(), edge_class_ids.shape(0)},
+            {node_mode_ids.data(), node_mode_ids.shape(0)},
             {class_weights_per_km.data(), class_weights_per_km.shape(0)},
             {hub_weights.data(), hub_weights.shape(0)}));
-    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths"), nb::arg("edge_classes"),
-       nb::arg("node_modes"), nb::arg("class_weights_per_km"), nb::arg("hub_weights"),
+    }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths"), nb::arg("edge_class_ids"),
+       nb::arg("node_mode_ids"), nb::arg("class_weights_per_km"), nb::arg("hub_weights"),
        "The weight of each edge from a weight per km for each class and the weight that it pays at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
        "scgraph.helpers.metric_weights.compute_weights_from_km");

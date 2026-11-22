@@ -748,7 +748,7 @@ def test_the_file_of_a_pipeline_with_its_own_classes_table_names_those_classes(
 ):
     def build_canals(files):
         arrays = eurostat_sea_lanes.build_sea_lane_arrays(files)
-        arrays["edge_classes"] = array("B", bytes(len(arrays["heads"])))
+        arrays["edge_class_ids"] = array("B", bytes(len(arrays["heads"])))
         return arrays, [{"name": None}]
 
     pipeline = _lines_pipeline(source, build=build_canals)
@@ -1145,7 +1145,7 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
     ids, offsets = graph["node_ids"], graph["offsets"]
     class_names = {
         (ids[u], ids[graph["heads"][edge]]): list(pipelines.CLASSES)[
-            graph["edge_classes"][edge]
+            graph["edge_class_ids"][edge]
         ]
         for u in range(len(ids))
         for edge in range(offsets[u], offsets[u + 1])
@@ -1217,12 +1217,12 @@ def test_a_pipeline_whose_selects_give_no_class_builds_no_edge_classes(
 
     arrays, metadata = network_file.read(path)
 
-    assert "edge_classes" not in arrays
+    assert "edge_class_ids" not in arrays
     assert "classes" not in metadata
 
 
 def test_nodes_are_stored_by_mode_and_each_mode_names_its_source(coast_network):
-    assert coast_network.modes == [
+    assert coast_network.node_modes == [
         {"name": "road", "source": "osm"},
         {"name": "rail", "source": "osm"},
         {"name": "sea", "source": "sea"},
@@ -1232,7 +1232,7 @@ def test_nodes_are_stored_by_mode_and_each_mode_names_its_source(coast_network):
     ]
     # 3 road nodes, 4 rail nodes, the 2 ends of the sea lane, 2 ports, 2 airports
     # and 1 rail terminal
-    assert list(coast_network.node_modes) == [0] * 3 + [1] * 4 + [
+    assert list(coast_network.node_mode_ids) == [0] * 3 + [1] * 4 + [
         2,
         2,
         3,
@@ -1249,12 +1249,12 @@ def test_build_geograph_loads_only_the_modes_asked(coast_cache):
         region="roads",
         cache_dir=coast_cache,
         local_files_only=True,
-        modes=["road"],
+        node_modes=["road"],
         lazy=True,  # the modes also reach a network that is loaded at its first use
     )
 
     # The 3 road nodes of the coast, and no hub
-    assert _mode_names(roads) == ["road", "road", "road"]
+    assert _get_node_mode_names(roads) == ["road", "road", "road"]
 
 
 def test_a_road_fragment_apart_from_the_main_road_is_left_out(coast_network):
@@ -1376,15 +1376,15 @@ def test_each_source_is_recorded_with_the_version_of_its_data(coast_network):
     }
 
 
-def _mode_names(network):
-    names = [mode["name"] for mode in network.modes]
-    return [names[row] for row in network.node_modes]
+def _get_node_mode_names(network):
+    names = [mode["name"] for mode in network.node_modes]
+    return [names[row] for row in network.node_mode_ids]
 
 
 def _points_of(network, mode):
     return sorted(
         list(point)
-        for point, name in zip(network.nodes, _mode_names(network))
+        for point, name in zip(network.nodes, _get_node_mode_names(network))
         if name == mode
     )
 
@@ -1394,12 +1394,12 @@ def _points_of(network, mode):
 # network has its own node at (0, 0), and no edge joins a road node to a rail
 # node.
 def test_roads_and_railways_stay_apart_at_a_level_crossing(coast_network):
-    modes = _mode_names(coast_network)
+    node_modes = _get_node_mode_names(coast_network)
 
     assert [0, 0] in _points_of(coast_network, "road")
     assert [0, 0] in _points_of(coast_network, "rail")
     assert not any(
-        {modes[u], modes[v]} == {"road", "rail"}
+        {node_modes[u], node_modes[v]} == {"road", "rail"}
         for u, edges in enumerate(coast_network.graph_object.graph)
         for v in edges
     )
@@ -1422,13 +1422,13 @@ def test_a_railway_is_read_both_ways_and_without_its_sidings(
 
 
 def test_each_hub_joins_the_modes_it_serves(coast_network):
-    modes = _mode_names(coast_network)
+    node_modes = _get_node_mode_names(coast_network)
     ids = list(coast_network.node_ids)
 
     reached = {
-        (modes[u], ids[u]): sorted({modes[v] for v in edges})
+        (node_modes[u], ids[u]): sorted({node_modes[v] for v in edges})
         for u, edges in enumerate(coast_network.graph_object.graph)
-        if modes[u] in ("port", "airport", "rail_terminal")
+        if node_modes[u] in ("port", "airport", "rail_terminal")
     }
 
     # Each hub keeps the id of its table; an airport reaches the other by its
@@ -1461,12 +1461,14 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
 
     arrays, metadata = network_file.read(path)
 
-    modes = [metadata["modes"][row]["name"] for row in arrays["node_modes"]]
+    node_modes = [
+        metadata["node_modes"][row]["name"] for row in arrays["node_mode_ids"]
+    ]
     classes = {}  # the modes of the two ends of an edge -> the classes found
-    for u, mode in enumerate(modes):
+    for u, mode in enumerate(node_modes):
         for edge in range(arrays["offsets"][u], arrays["offsets"][u + 1]):
-            ends = tuple(sorted((mode, modes[arrays["heads"][edge]])))
-            class_row = metadata["classes"][arrays["edge_classes"][edge]]
+            ends = tuple(sorted((mode, node_modes[arrays["heads"][edge]])))
+            class_row = metadata["classes"][arrays["edge_class_ids"][edge]]
             classes.setdefault(ends, set()).add(class_row["name"])
     assert classes == {
         ("road", "road"): {"primary"},
@@ -1527,7 +1529,7 @@ def test_the_edges_of_a_lane_of_a_passage_have_the_class_of_the_passage(
     latitudes = [round(value * 1e-7) for value in sea["node_points"][0::2]]
     classes = {
         (latitudes[u], latitudes[sea["heads"][edge]]): list(pipelines.CLASSES)[
-            sea["edge_classes"][edge]
+            sea["edge_class_ids"][edge]
         ]
         for u in range(len(latitudes))
         for edge in range(sea["offsets"][u], sea["offsets"][u + 1])

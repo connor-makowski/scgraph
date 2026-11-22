@@ -6,23 +6,23 @@
 
 std::vector<double> compute_weights_from_km(
     std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths,
-    std::span<const uint8_t> edge_classes, std::span<const uint8_t> node_modes,
+    std::span<const uint8_t> edge_class_ids, std::span<const uint8_t> node_mode_ids,
     std::span<const double> class_weights_per_km, std::span<const double> hub_weights) {
     constexpr double INFINITE = std::numeric_limits<double>::infinity();
     const int64_t node_count = (int64_t)offsets.size() - 1;
     const int64_t edge_count = (int64_t)heads.size();
     const size_t class_count = class_weights_per_km.size();
-    if (node_count < 0 || (int64_t)node_modes.size() != node_count ||
-        (int64_t)lengths.size() != edge_count || (int64_t)edge_classes.size() != edge_count) {
-        throw std::invalid_argument("expected one mode per node, and one length and one class per edge");
+    if (node_count < 0 || (int64_t)node_mode_ids.size() != node_count ||
+        (int64_t)lengths.size() != edge_count || (int64_t)edge_class_ids.size() != edge_count) {
+        throw std::invalid_argument("expected one node mode per node, and one length and one class per edge");
     }
     if (class_count == 0 || hub_weights.size() % class_count != 0) {
-        throw std::invalid_argument("expected one hub weight per mode and per class");
+        throw std::invalid_argument("expected one hub weight per node mode and per class");
     }
     const size_t mode_count = hub_weights.size() / class_count;
-    for (uint8_t mode : node_modes) {
+    for (uint8_t mode : node_mode_ids) {
         if (mode >= mode_count) {
-            throw std::invalid_argument("an edge has a class without a weight per km, or a node has a mode without hub weights");
+            throw std::invalid_argument("an edge has a class without a weight per km, or a node has a node mode without hub weights");
         }
     }
 
@@ -30,12 +30,12 @@ std::vector<double> compute_weights_from_km(
     for (int64_t origin = 0; origin < node_count; ++origin) {
         const int64_t first = offsets[origin], last = offsets[origin + 1];
         if (first < 0 || last < first || last > edge_count) throw std::invalid_argument("invalid offsets");
-        const double* weights_at_origin = hub_weights.data() + node_modes[origin] * class_count;
+        const double* weights_at_origin = hub_weights.data() + node_mode_ids[origin] * class_count;
         for (int64_t edge = first; edge < last; ++edge) {
-            const size_t edge_class = edge_classes[edge];
+            const size_t edge_class = edge_class_ids[edge];
             const int32_t head = heads[edge];
             if (edge_class >= class_count) {
-                throw std::invalid_argument("an edge has a class without a weight per km, or a node has a mode without hub weights");
+                throw std::invalid_argument("an edge has a class without a weight per km, or a node has a node mode without hub weights");
             }
             if (head < 0 || head >= node_count) throw std::invalid_argument("edge to a missing node");
             // 1. The weight per km of the class times the km, or infinity for a closed class
@@ -45,7 +45,7 @@ std::vector<double> compute_weights_from_km(
             const double out_weight = weights_at_origin[edge_class];
             if (out_weight != 0.0) weight += out_weight;
             // 3. The weight of the hub that the edge enters
-            const double into_weight = hub_weights[node_modes[head] * class_count + edge_class];
+            const double into_weight = hub_weights[node_mode_ids[head] * class_count + edge_class];
             if (into_weight != 0.0) weight += into_weight;
             // 4. A comparison with a value that is not a number is false
             if (!(weight >= 0.0)) {

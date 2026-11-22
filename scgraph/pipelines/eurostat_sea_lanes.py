@@ -138,7 +138,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
 
     Returns:
         The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
-        it, with `edge_classes`. The edges have no shape points.
+        it, with `edge_class_ids`. The edges have no shape points.
     """
     sea = build(files)
     class_row_of_edge = {
@@ -162,7 +162,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
         "shape_points": array("i"),
         "node_ids": array("q", sea.node_ids),
-        "edge_classes": array(
+        "edge_class_ids": array(
             "B",
             (
                 class_row_of_edge[u, v]

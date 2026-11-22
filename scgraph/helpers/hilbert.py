@@ -34,23 +34,24 @@ def hilbert_key(latitude: float, longitude: float) -> int:
 
 
 def hilbert_order(
-    nodes: list[list[float]], modes: list[int] | None = None
+    nodes: list[list[float]], node_mode_ids: list[int] | None = None
 ) -> list[int]:
     """Return the ids of the nodes in Hilbert order.
 
     Args:
         nodes: The point of each node, as `[latitude, longitude]`.
-        modes: The mode of each node, as a number. The nodes are then ordered by
-            mode first, and along the curve inside each mode. The nodes of one mode
+        node_mode_ids: The node mode of each node, as a number. The nodes are then ordered by
+            node mode first, and along the curve inside each node mode. The nodes of one node mode
             stay together.
 
     Returns:
         `order`, where `order[new_id]` is the old id of the node.
     """
-    if modes is None:
+    if node_mode_ids is None:
         return sorted(range(len(nodes)), key=lambda i: hilbert_key(*nodes[i]))
-    # One integer per node, the mode above the key (keys are below 4^CURVE_ORDER)
+    # One integer per node, the node mode above the key (keys are below 4^CURVE_ORDER)
     return sorted(
         range(len(nodes)),
-        key=lambda i: modes[i] << 2 * CURVE_ORDER | hilbert_key(*nodes[i]),
+        key=lambda i: node_mode_ids[i] << 2 * CURVE_ORDER
+        | hilbert_key(*nodes[i]),
     )

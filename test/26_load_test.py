@@ -193,7 +193,7 @@ def test_first_load_converts_the_published_geograph_into_a_network_file(
     # .graphjson as its source.
     info = GeoGraph.get_scgraph_info(str(cache_with_marnet / "marnet.scgraph"))
     assert info["coordinate_dtype"] == "int32"
-    assert info["modes"] == [{"name": None, "source": "marnet.graphjson"}]
+    assert info["node_modes"] == [{"name": None, "source": "marnet.graphjson"}]
     assert [s["name"] for s in info["sources"]] == ["marnet.graphjson"]
 
 

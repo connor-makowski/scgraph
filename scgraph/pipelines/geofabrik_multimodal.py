@@ -54,12 +54,12 @@ HUBS AND CONNECTORS
 
 MODES AND CLASSES
 
-- Each node has its mode (`node_modes`, rows of `modes`): `road`, `rail`, `sea`,
+- Each node has its mode (`node_mode_ids`, rows of `node_modes`): `road`, `rail`, `sea`,
   `port`, `airport` or `rail_terminal`. Each mode cites the source of its node ids:
   OpenStreetMap for roads and railways, the World Port Index number for a port, the
   OurAirports id for an airport, the Wikidata number for a rail terminal. A node with
   a negative id is in no source: the build added it (*Nodes and shapes*).
-- Each edge has a class. `edge_classes` gives its row in `classes`. A road edge has the
+- Each edge has a class. `edge_class_ids` gives its row in `classes`. A road edge has the
   `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`. A
   railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
   edge has the name of its passage, for example `suez`, or `open_sea`. A flight is
@@ -93,7 +93,7 @@ SOURCES AND LIMITS
 - A shortest route in km takes any mode. Between two distant places it takes a
   flight, because a flight is a straight line. To compare modes, derive a cost per
   mode (time, CO2) from the km, or load only some modes
-  (`load_from_scgraph(modes=...)`).
+  (`load_from_scgraph(node_modes=...)`).
 - A region without a railway, such as `europe/malta`, has no rail node. Its hubs join
   the roads and the sea lanes.
 - `GeoGraph.load_from_osm` gives another graph from the same extract. That loader

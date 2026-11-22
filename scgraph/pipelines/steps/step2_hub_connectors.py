@@ -22,7 +22,7 @@ A hub that reaches fewer than two networks stays out: a port without a road woul
 the sea to nothing. The networks of two modes never share a node, so a route goes from
 one network to another only through a hub.
 
-When the networks have the class of each edge (`edge_classes`), the joined network has
+When the networks have the class of each edge (`edge_class_ids`), the joined network has
 it too. A connector then has the class of the mode that it reaches, for example
 `road_connector`, and a flight has the class `flight`.
 
@@ -129,7 +129,7 @@ HUB_TABLES = {
 
 class Hub(NamedTuple):
     """A hub. `kind` is `port`, `airport` or `rail_terminal`. `id` is its id in its
-    source. `point` is `[latitude, longitude]`. `modes` lists the networks that it serves.
+    source. `point` is `[latitude, longitude]`. `node_modes` lists the networks that it serves.
     `open_roadstead` is true for a port without shelter, where ships anchor off the coast.
     The road connector of such a port may cross up to ROADSTEAD_WATER_KM of water.
     """
@@ -137,7 +137,7 @@ class Hub(NamedTuple):
     kind: str
     id: int
     point: list[float]
-    modes: tuple[str, ...]
+    node_modes: tuple[str, ...]
     open_roadstead: bool = False
 
 
@@ -223,7 +223,7 @@ class _Layer:
         network = self.network
         weights = network["weights_length"]
         starts, line = network["shape_offsets"], network["shape_points"]
-        edge_classes = network["edge_classes"]
+        edge_class_ids = network["edge_class_ids"]
         for u in range(len(self)):
             for a in range(self.offsets[u], self.offsets[u + 1]):
                 points = line[2 * starts[a] : 2 * starts[a + 1]]
@@ -231,14 +231,14 @@ class _Layer:
                     [x * 1e-7, y * 1e-7]
                     for x, y in zip(points[::2], points[1::2])
                 ]
-                yield u, self.heads[a], weights[a], shape, edge_classes[a]
+                yield u, self.heads[a], weights[a], shape, edge_class_ids[a]
 
 
 def join_networks_at_hubs(
     layers: dict[str, dict],
     hubs: Iterable[Hub],
     land_mask: "LandMask",
-    modes: Sequence[str],
+    node_modes: Sequence[str],
     flights: Iterable[tuple[int, int]] = (),
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, dict[str, int]]:
@@ -249,19 +249,19 @@ def join_networks_at_hubs(
 
     Args:
         layers: The network of each mode, as the network file's arrays, with
-            `edge_classes`. The arrays are emptied.
+            `edge_class_ids`. The arrays are emptied.
         hubs: The hubs to join.
         land_mask: Land and water around the hubs. Its raster is released.
-        modes: The names of the rows of the modes table: every layer and every kind
+        node_modes: The names of the rows of the modes table: every layer and every kind
             of hub.
         flights: The two airport ids of each pair with regular flights.
         work_dir: A folder that keeps the edges in files. None keeps them in memory.
 
     Returns:
         The joined network as the network file's arrays, and the number of hubs
-        joined of each kind. `node_modes` gives the row of each node in `modes`.
+        joined of each kind. `node_mode_ids` gives the row of each node in `node_modes`.
         `node_ids` keeps each layer's ids and gives each hub its id in its table.
-        `edge_classes` gives the row of each edge in `scgraph.pipelines.CLASSES`.
+        `edge_class_ids` gives the row of each edge in `scgraph.pipelines.CLASSES`.
     """
     layers = {mode: _Layer(network) for mode, network in layers.items()}
     # The class row of a connector, by the mode that it reaches, and of a flight
@@ -299,7 +299,9 @@ def join_networks_at_hubs(
     )  # each hub, with the connectors it finds: mode -> (node, km, shape)
     for hub in hubs:
         edges = {
-            mode: connect[mode](hub) for mode in hub.modes if mode in connect
+            mode: connect[mode](hub)
+            for mode in hub.node_modes
+            if mode in connect
         }
         connectors.append(
             (hub, {mode: edge for mode, edge in edges.items() if edge})
@@ -335,7 +337,7 @@ def join_networks_at_hubs(
         add(b, a, km, [], flight_row)
     # 4. The graph, with the mode and the source id of each node
     layer_ids = [layer.ids for layer in layers.values()]
-    layer_modes = [modes.index(mode) for mode in layers]
+    layer_modes = [node_modes.index(mode) for mode in layers]
     sizes = [len(layer) for layer in layers.values()]
     for layer in layers.values():
         layer.release()  # freed before the joined graph is built
@@ -346,14 +348,14 @@ def join_networks_at_hubs(
     for layer_id in layer_ids:
         all_ids += layer_id
     all_ids += ids
-    node_modes = bytearray()
+    node_mode_ids = bytearray()
     for row, size in zip(layer_modes, sizes):
-        node_modes += bytes([row]) * size
-    node_modes += bytes(modes.index(kind) for kind in kinds)
+        node_mode_ids += bytes([row]) * size
+    node_mode_ids += bytes(node_modes.index(kind) for kind in kinds)
     # build_graph_from_pieces renumbers the nodes; its node_ids are the numbers the
     # nodes had here
     old = joined["node_ids"]
-    joined["node_modes"] = array("B", (node_modes[u] for u in old))
+    joined["node_mode_ids"] = array("B", (node_mode_ids[u] for u in old))
     joined["node_ids"] = array("q", (all_ids[u] for u in old))
     return joined, {kind: kinds.count(kind) for kind in dict.fromkeys(kinds)}
 

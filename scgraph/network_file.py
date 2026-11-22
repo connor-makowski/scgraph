@@ -57,8 +57,8 @@ FORMAT_VERSION = 1
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # array name -> the dtypes it may have; shape_* hold the edge shapes, if any; node_ids and
-# node_modes (optional): each node's id in its source and its row of metadata["modes"].
-# edge_classes (optional): each edge's row of metadata["classes"].
+# node_mode_ids (optional): each node's id in its source and its row of metadata["node_modes"].
+# edge_class_ids (optional): each edge's row of metadata["classes"].
 # weights_length: the length of each edge. The array `weights_<name>` of another metric
 # is not listed here: it has the dtype of weights_length (see `_get_dtypes`).
 # node_points and shape_points are arrays of points: the latitude of a point, then its
@@ -72,8 +72,8 @@ ARRAYS = {
     "shape_offsets": ("int32",),
     "shape_points": ("int32", "float64"),
     "node_ids": ("int32", "int64"),
-    "node_modes": ("uint8",),
-    "edge_classes": ("uint8",),
+    "node_mode_ids": ("uint8",),
+    "edge_class_ids": ("uint8",),
 }
 POINT_ARRAYS = ("node_points", "shape_points")
 _ALIGN = 64
@@ -138,7 +138,7 @@ RESERVED_METADATA_KEYS = frozenset(
     {
         "crs",
         "metrics",
-        "modes",
+        "node_modes",
         "classes",
         "node_addition_modes",
         "symmetric",
@@ -159,47 +159,47 @@ RESERVED_METADATA_KEYS = frozenset(
 def build_header_metadata(
     build_metadata: dict,
     *,
-    modes: list[dict],
+    node_modes: list[dict],
     metrics: list[dict] | None = None,
     classes: list[dict] | None = None,
     node_addition_modes: Sequence[str] | None = None,
 ) -> dict:
     """Return the metadata that `write` takes, for a network whose nodes are in the
-    order of a network file: by mode, then along a Hilbert curve (`helpers.hilbert`).
+    order of a network file: by node mode, then along a Hilbert curve (`helpers.hilbert`).
 
     Args:
         build_metadata: What built the network: the pipeline, the sources and the
             software (docstring of `scgraph.pipelines`).
-        modes: The modes table: one dict for each mode, with its `name` and, if a
-            source gave the node ids of the mode, the name of that `source`.
+        node_modes: The node modes table: one dict for each node mode, with its `name` and, if a
+            source gave the node ids of the node mode, the name of that `source`.
         metrics: One row for each metric of the network, `length` first. A row
             gives the `name` of the metric, its `unit` and its `description`. A
             row other than `length` also gives `off_graph_weight_per_km`: the
             weight of 1 km between a query point and its node. The default, None,
             is the one row of lengths in km.
-        classes: One row for each class, for a network with `edge_classes`. A row
+        classes: One row for each class, for a network with `edge_class_ids`. A row
             gives the `name` of the class and the `edge_mode` of its edges.
-        node_addition_modes: The names of the modes that a query point snaps to
+        node_addition_modes: The names of the node modes that a query point snaps to
             by default. None writes no such key.
 
     Returns:
-        The keys that scgraph sets itself (`crs`, `metrics`, `modes`, `classes`,
+        The keys that scgraph sets itself (`crs`, `metrics`, `node_modes`, `classes`,
         `node_addition_modes`, `node_order`), then the keys of `build_metadata`.
 
     Raises:
-        ValueError: `build_metadata` sets a key that scgraph writes itself, or a mode
+        ValueError: `build_metadata` sets a key that scgraph writes itself, or a node mode
             names a source that is not in the `sources` of `build_metadata`.
     """
     if RESERVED_METADATA_KEYS & set(build_metadata):
         raise ValueError(
             f"metadata may not set {sorted(RESERVED_METADATA_KEYS & set(build_metadata))}"
         )
-    # A mode cites the source of its node ids by name
+    # A node mode cites the source of its node ids by name
     names = {source.get("name") for source in build_metadata.get("sources", [])}
-    for mode in modes:
+    for mode in node_modes:
         if "source" in mode and mode["source"] not in names:
             raise ValueError(
-                f"Mode {mode} names no source: pass metadata with a source of "
+                f"Node mode {mode} names no source: pass metadata with a source of "
                 f"that name in its 'sources'"
             )
     if metrics is None:
@@ -213,7 +213,9 @@ def build_header_metadata(
     return {
         "crs": "EPSG:4326",
         "metrics": metrics,
-        **({"modes": modes} if modes != [{"name": None}] else {}),
+        **(
+            {"node_modes": node_modes} if node_modes != [{"name": None}] else {}
+        ),
         **({"classes": classes} if classes is not None else {}),
         **(
             {"node_addition_modes": list(node_addition_modes)}
@@ -238,7 +240,7 @@ def write(
             `weights_length`, `node_points`, ...). `ARRAYS` gives the names and the
             dtypes that a file may hold. The file may also hold one array
             `weights_<name>` for each other metric.
-        metadata: The metadata of the network (metrics, modes, sources, ...), as
+        metadata: The metadata of the network (metrics, node modes, sources, ...), as
             `build_header_metadata` returns it. It must be serializable as JSON.
 
     Returns:
@@ -327,7 +329,7 @@ def write(
 def read(
     filename: str | os.PathLike,
     mapped: bool = False,
-    modes: str | list[str] | None = None,
+    node_modes: str | list[str] | None = None,
 ) -> tuple[dict[str, array | memoryview], dict]:
     """Read the arrays and the metadata of a network from a `.scgraph` file.
 
@@ -335,11 +337,11 @@ def read(
         filename: The path of the `.scgraph` file to read.
         mapped: If True, on a little-endian computer, the arrays are views of the
             file mapped into memory, not copies. The default is False.
-        modes: The names of the modes to read. The arrays then hold only the nodes
-            of these modes and the edges between them, in the order of the file. With
+        node_modes: The names of the node modes to read. The arrays then hold only the nodes
+            of these node modes and the edges between them, in the order of the file. With
             `mapped`, an array is a view of the file when its values are consecutive
             in the file, and a new array otherwise. The default, None, reads every
-            mode.
+            node mode.
 
     Returns:
         `(arrays, metadata)`. `arrays` holds the arrays of the network by name
@@ -356,23 +358,23 @@ def read(
     mapped = mapped and sys.byteorder == "little"
     try:
         with open(filename, "rb") as file:
-            arrays, metadata, is_mode_kept = _read(
-                filename, file, mapped, modes
+            arrays, metadata, is_node_mode_kept = _read(
+                filename, file, mapped, node_modes
             )
         # A selection checks the values of the edges itself, where it reads them
         _check(
             filename,
             arrays,
             metadata,
-            should_check_values=not mapped and is_mode_kept is None,
+            should_check_values=not mapped and is_node_mode_kept is None,
         )
     except ValueError:
         raise
     except (AttributeError, KeyError, OverflowError, TypeError) as error:
         raise ValueError(f"{filename}: invalid header ({error!r})") from error
-    if is_mode_kept is not None:
+    if is_node_mode_kept is not None:
         arrays = _select_modes(
-            filename, arrays, metadata, is_mode_kept, in_place=mapped
+            filename, arrays, metadata, is_node_mode_kept, in_place=mapped
         )
     return arrays, metadata
 
@@ -434,10 +436,10 @@ def check_content(filename: str | os.PathLike) -> str:
     return recorded.hex()
 
 
-def _read(filename, file, mapped, modes):
-    """The arrays of the whole file and its metadata. With `modes`, the third value
-    says, for each mode of the file, whether `modes` names it. This value is None
-    when the read keeps every mode."""
+def _read(filename, file, mapped, node_modes):
+    """The arrays of the whole file and its metadata. With `node_modes`, the third value
+    says, for each node mode of the file, whether `node_modes` names it. This value is None
+    when the read keeps every node mode."""
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
     digest = file.read(32)
@@ -458,6 +460,7 @@ def _read(filename, file, mapped, modes):
     metadata = header["metadata"]
     if (
         ("units" in metadata and "metrics" not in metadata)
+        or {"node_modes", "edge_classes"} & set(header["arrays"])
         or any(
             isinstance(row, dict) and "mode" in row
             for row in metadata.get("classes", ())
@@ -468,21 +471,23 @@ def _read(filename, file, mapped, modes):
             f"{filename} has the format of an earlier development version of "
             "scgraph: build or download the network again"
         )
-    is_mode_kept = None
-    if modes is not None:
-        modes = (modes,) if isinstance(modes, str) else modes
-        mode_names = [
+    is_node_mode_kept = None
+    if node_modes is not None:
+        node_modes = (
+            (node_modes,) if isinstance(node_modes, str) else node_modes
+        )
+        node_mode_names = [
             mode["name"]
-            for mode in header["metadata"].get("modes") or [{"name": None}]
+            for mode in header["metadata"].get("node_modes") or [{"name": None}]
         ]
-        unknown = [mode for mode in modes if mode not in mode_names]
+        unknown = [mode for mode in node_modes if mode not in node_mode_names]
         if unknown:
-            raise ValueError(f"{filename}: unknown modes {unknown}")
-        if not all(name in modes for name in mode_names):
-            is_mode_kept = [name in modes for name in mode_names]
+            raise ValueError(f"{filename}: unknown node modes {unknown}")
+        if not all(name in node_modes for name in node_mode_names):
+            is_node_mode_kept = [name in node_modes for name in node_mode_names]
     # A selection also reads the file in place, and copies only what it keeps
     view = None
-    if mapped or (is_mode_kept is not None and sys.byteorder == "little"):
+    if mapped or (is_node_mode_kept is not None and sys.byteorder == "little"):
         view = memoryview(mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ))
     arrays = {}
     for name, entry in header["arrays"].items():
@@ -512,14 +517,14 @@ def _read(filename, file, mapped, modes):
         arrays[name] = _to_little_endian(values)
     metadata = dict(header["metadata"])
     metadata["content_sha256"] = digest.hex()
-    return arrays, metadata, is_mode_kept
+    return arrays, metadata, is_node_mode_kept
 
 
-def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
-    """The arrays of the nodes of the kept modes, and of the edges between them.
+def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
+    """The arrays of the nodes of the kept node modes, and of the edges between them.
 
     `arrays` holds the whole file, and `_check` has checked the lengths.
-    `is_mode_kept` says, for each mode of the file, whether the read keeps it.
+    `is_node_mode_kept` says, for each node mode of the file, whether the read keeps it.
     `select_edges` computes the arrays whose values change. For the other arrays, it
     gives runs: the ranges of positions of the file that the selection keeps
     (`scgraph/cpp/src/edge_selection.hpp` explains them). With `in_place`, an array
@@ -536,9 +541,9 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
         ) = select_edges(
             arrays["offsets"],
             arrays["heads"],
-            # Without node_modes, every node is in the first mode
-            arrays.get("node_modes", bytes(node_count)),
-            is_mode_kept,
+            # Without node_mode_ids, every node is in the first node mode
+            arrays.get("node_mode_ids", bytes(node_count)),
+            is_node_mode_kept,
             arrays.get("shape_offsets"),
         )
     except ValueError as error:
@@ -549,10 +554,10 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
     # Each other array, the runs that it follows, and its values per position
     for name, runs, width in (
         *((name, edge_runs, 1) for name in arrays if _is_weights_array(name)),
-        ("edge_classes", edge_runs, 1),
+        ("edge_class_ids", edge_runs, 1),
         ("node_points", node_runs, 2),
         ("node_ids", node_runs, 1),
-        ("node_modes", node_runs, 1),
+        ("node_mode_ids", node_runs, 1),
         ("shape_points", shape_point_runs, 2),
     ):
         if name in arrays:
@@ -561,11 +566,11 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
         # The id of a node is its position in the file
         positions = chain.from_iterable(starmap(range, node_runs))
         selected["node_ids"] = array("q", positions)
-    if "edge_classes" in arrays:
+    if "edge_class_ids" in arrays:
         # `_check` does not read the classes of a mapped file. `translate` deletes
         # the valid classes in one pass in C: a byte that is left is not a class.
         valid = bytes(range(256))[: len(metadata["classes"])]
-        if bytes(selected["edge_classes"]).translate(None, valid):
+        if bytes(selected["edge_class_ids"]).translate(None, valid):
             raise ValueError(f"{filename}: invalid edge classes")
     return selected
 
@@ -935,19 +940,19 @@ def _check(filename, arrays, metadata, should_check_values=True):
             not should_check_values or is_sorted(shapes),
             "invalid shape offsets",
         )
-    for name, what in (("node_ids", "node id"), ("node_modes", "node mode")):
+    for name, what in (("node_ids", "node id"), ("node_mode_ids", "node mode")):
         require(
             name not in arrays or len(arrays[name]) == n,
             f"one {what} per node expected",
         )
     require(
-        "edge_classes" not in arrays or len(arrays["edge_classes"]) == m,
+        "edge_class_ids" not in arrays or len(arrays["edge_class_ids"]) == m,
         "one edge class per edge expected",
     )
     # Each value of these arrays is a row of a list of the metadata
     for name, what, key in (
-        ("node_modes", "node modes", "modes"),
-        ("edge_classes", "edge classes", "classes"),
+        ("node_mode_ids", "node modes", "node_modes"),
+        ("edge_class_ids", "edge classes", "classes"),
     ):
         if name in arrays:
             rows = metadata.get(key)
@@ -959,18 +964,18 @@ def _check(filename, arrays, metadata, should_check_values=True):
                 f"invalid {what}",
             )
     require(
-        "edge_classes" not in arrays
+        "edge_class_ids" not in arrays
         or all(
             {"name", "edge_mode"} <= set(row) for row in metadata["classes"]
         ),
         "each class must be a row with a name and an edge mode",
     )
-    mode_names = [
-        mode["name"] for mode in metadata.get("modes") or [{"name": None}]
+    node_mode_names = [
+        mode["name"] for mode in metadata.get("node_modes") or [{"name": None}]
     ]
     require(
-        set(metadata.get("node_addition_modes", [])) <= set(mode_names),
-        "node_addition_modes names a mode that the file does not have",
+        set(metadata.get("node_addition_modes", [])) <= set(node_mode_names),
+        "node_addition_modes names a node mode that the file does not have",
     )
 
 

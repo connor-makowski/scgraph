@@ -29,8 +29,8 @@ def _small_network():
         graph=[{1: 2.0}, {0: 2.0, 2: 3.0}, {1: 3.0}],
         nodes=[[0, 0], [0, 1], [1, 1]],
         intermediate_nodes=[{1: [[0.5, 0.5]]}, {}, {}],
-        node_modes=[0, 0, 1],
-        modes=[{"name": "road"}, {"name": "sea"}],
+        node_mode_ids=[0, 0, 1],
+        node_modes=[{"name": "road"}, {"name": "sea"}],
     )
 
 
@@ -242,7 +242,7 @@ def test_modes_loads_the_nodes_of_these_modes_only(releases, cache, tmp_path):
         "europe",
         str(cache),
         network_release=OTHER_TAG,
-        modes=["road"],
+        node_modes=["road"],
         lazy=True,
     )
 

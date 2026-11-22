@@ -193,7 +193,7 @@ def format_notes(networks: list[dict], commit: str) -> str:
             "",
             "To use a file, download it and decompress it (`gunzip FILE.gz`). Load "
             'it with `GeoGraph.load_from_scgraph("FILE")`, and keep some modes '
-            'only with `modes=["road"]`. This needs a version of scgraph that reads '
+            'only with `node_modes=["road"]`. This needs a version of scgraph that reads '
             "the file format version "
             f"{', '.join(map(str, format_versions))}. "
             '`GeoGraph.get_scgraph_info("FILE")` gives the sources of a file and '

@@ -27,9 +27,9 @@ from scgraph import GeoGraph, PathNotFoundError, network_file
 # terminals: 2 + 1 + 90 + 1 + 2 = 96 km. The sea lane starts at the port of
 # the east town.
 #
-# The nodes are listed mode by mode, as in a network file: (mode, latitude,
-# longitude). The id of a node is its position. No edge is shorter than the
-# straight line between its two nodes.
+# The nodes are listed node mode by node mode, as in a network file: (node
+# mode, latitude, longitude). The id of a node is its position. No edge is
+# shorter than the straight line between its two nodes.
 WEST_TOWN, JUNCTION, EAST_TOWN = 0, 1, 2
 WEST_STATION, EAST_STATION = 3, 4
 COAST, OPEN_SEA = 5, 6
@@ -143,19 +143,23 @@ def _write_network(path, nodes, two_way_edges, classes):
     for a, b, km, edge_class in two_way_edges:
         rows[a].append((b, km, list(classes).index(edge_class)))
         rows[b].append((a, km, list(classes).index(edge_class)))
-    heads, lengths, edge_classes = zip(*(edge for row in rows for edge in row))
-    modes = list(dict.fromkeys(mode for mode, _, _ in nodes))
+    heads, lengths, edge_class_ids = zip(
+        *(edge for row in rows for edge in row)
+    )
+    node_modes = list(dict.fromkeys(mode for mode, _, _ in nodes))
     arrays = {
         "offsets": array("i", accumulate(map(len, rows), initial=0)),
         "heads": array("i", heads),
         "weights_length": array("d", lengths),
-        "edge_classes": array("B", edge_classes),
+        "edge_class_ids": array("B", edge_class_ids),
         "node_points": array("d", [x for _, *point in nodes for x in point]),
-        "node_modes": array("B", [modes.index(mode) for mode, _, _ in nodes]),
+        "node_mode_ids": array(
+            "B", [node_modes.index(mode) for mode, _, _ in nodes]
+        ),
     }
     metadata = {
         "metrics": [{"name": "length", "unit": "km"}],
-        "modes": [{"name": name} for name in modes],
+        "node_modes": [{"name": name} for name in node_modes],
         "classes": [
             {"name": name, "edge_mode": edge_mode}
             for name, edge_mode in classes.items()
@@ -202,9 +206,9 @@ def network_read_with_minutes(network_path, tmp_path):
 @pytest.fixture
 def sea_network(network_path):
     """The sea lanes and the port of the network, read alone. The file names
-    the mode `road` for the query points, and this geograph has no road node.
-    """
-    return GeoGraph.load_from_scgraph(network_path, modes=["sea", "port"])
+    the node mode `road` for the query points, and this geograph has no road
+    node."""
+    return GeoGraph.load_from_scgraph(network_path, node_modes=["sea", "port"])
 
 
 @pytest.fixture
@@ -218,8 +222,8 @@ def ferry(tmp_path):
 @pytest.fixture
 def geograph_without_classes():
     """A geograph made from a graph: one edge of 2.5 km, from the node 0 to
-    the node 1, one degree east of it. The edge has no class, and the one mode
-    of the nodes has no name."""
+    the node 1, one degree east of it. The edge has no class, and the one node
+    mode of the nodes has no name."""
     return GeoGraph(graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]])
 
 
@@ -1162,7 +1166,7 @@ TOTALS_OF_A_MATRIX = {
     # Each point snaps to the station of its town, 0.02 degree north of the
     # equator and 0.1 degree of longitude away. The shortest route between the
     # two stations takes the primary road: 1 + 2 + 80 + 2 + 1 = 86 km.
-    "the lengths between points that snap to the modes of the call": (
+    "the lengths between points that snap to the node modes of the call": (
         {"node_addition_modes": ["rail"]},
         86 + 2 * 6371 * math.radians(math.hypot(0.02, 0.1)),
     ),
@@ -1316,7 +1320,7 @@ def test_the_coordinate_paths_of_the_legs_follow_the_one_of_the_route():
     )
 
 
-# The modes that a query point snaps to
+# The node modes that a query point snaps to
 
 # Two points on the equator, each with a road node as its closest node. The
 # first one is 0.01 degree west of the east town. Its closest rail node is the
@@ -1329,7 +1333,7 @@ POINT_NEAR_THE_JUNCTION = {"latitude": 0.0, "longitude": 0.3}
 
 # The other tests snap with the default type, 'closest'.
 @pytest.mark.parametrize("node_addition_type", ["quadrant", "all"])
-def test_a_query_point_snaps_only_to_nodes_of_the_modes_of_the_query(
+def test_a_query_point_snaps_only_to_nodes_of_the_node_modes_of_the_query(
     network, node_addition_type
 ):
     route = network.get_shortest_path(
@@ -1345,8 +1349,10 @@ def test_a_query_point_snaps_only_to_nodes_of_the_modes_of_the_query(
     assert (path[0], path[-1]) == (EAST_STATION, WEST_STATION)
 
 
-def test_a_query_point_snaps_to_the_modes_that_the_network_file_names(network):
-    # The file names the mode `road` (`_write_network`). The point is 0.01
+def test_a_query_point_snaps_to_the_node_modes_that_the_network_file_names(
+    network,
+):
+    # The file names the node mode `road` (`_write_network`). The point is 0.01
     # degree north of the east station and 0.03 degree north of the east town.
     route = network.get_shortest_path(
         WEST_POINT, {"latitude": 0.03, "longitude": 0.7}, output_path=True
@@ -1356,11 +1362,11 @@ def test_a_query_point_snaps_to_the_modes_that_the_network_file_names(network):
 
 
 def test_a_query_point_snaps_to_a_node_that_the_user_added(network):
-    # The file names the mode `road` for the query points. This query builds
-    # the snapping index of the road nodes.
+    # The file names the node mode `road` for the query points. This query
+    # builds the snapping index of the road nodes.
     network.get_shortest_path(WEST_POINT, EAST_POINT)
 
-    # The new node has no mode of the file. It is at the origin of the next
+    # The new node has no node mode of the file. It is at the origin of the next
     # query, 0.1 degree west of the west town.
     node_id = network.add_coord_node(WEST_POINT)
 
@@ -1368,7 +1374,7 @@ def test_a_query_point_snaps_to_a_node_that_the_user_added(network):
     assert route["path"][0] == node_id
 
 
-def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_mode(
+def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_node_mode(
     sea_network,
 ):
     # The origin is 0.01 degree west of the port, and the destination is 0.05
@@ -1386,19 +1392,19 @@ def test_a_query_point_snaps_to_any_node_when_no_node_has_a_default_mode(
     ]
 
 
-# Each case gives the modes of a query. No node of the geograph has the mode
-# `road`. Its file has no mode `canal`.
-REFUSED_MODES = {
-    "a mode that no node has": ["road"],
-    "a mode that the file lacks": ["sea", "canal"],
+# Each case gives the node modes of a query. No node of the geograph has the
+# node mode `road`. Its file has no node mode `canal`.
+REFUSED_NODE_MODES = {
+    "a node mode that no node has": ["road"],
+    "a node mode that the file lacks": ["sea", "canal"],
     "no mode": [],
 }
 
 
 @pytest.mark.parametrize(
-    "node_addition_modes", REFUSED_MODES.values(), ids=REFUSED_MODES
+    "node_addition_modes", REFUSED_NODE_MODES.values(), ids=REFUSED_NODE_MODES
 )
-def test_a_query_refuses_modes_that_its_points_cannot_snap_to(
+def test_a_query_refuses_node_modes_that_its_points_cannot_snap_to(
     sea_network, node_addition_modes
 ):
     with pytest.raises(ValueError, match="node_addition_modes"):
@@ -1409,10 +1415,10 @@ def test_a_query_refuses_modes_that_its_points_cannot_snap_to(
         )
 
 
-def test_a_query_refuses_modes_on_a_geograph_without_modes(
+def test_a_query_refuses_node_modes_on_a_geograph_without_node_modes(
     geograph_without_classes,
 ):
-    # The one mode of this geograph has no name: a query cannot name it.
+    # The one node mode of this geograph has no name: a query cannot name it.
     with pytest.raises(ValueError, match="node_addition_modes"):
         geograph_without_classes.get_shortest_path(
             {"latitude": 0, "longitude": 0},
@@ -1424,11 +1430,11 @@ def test_a_query_refuses_modes_on_a_geograph_without_modes(
 # A network read from a file with a metric
 
 
-def test_a_saved_and_loaded_geograph_keeps_its_metrics_and_its_default_modes(
+def test_a_saved_and_loaded_geograph_keeps_its_metrics_and_its_default_node_modes(
     network_with_minutes, network_read_with_minutes
 ):
     # The fixture `network_read_with_minutes` saved the same network with the
-    # same metric, and loaded the file. The file names the mode `road` for
+    # same metric, and loaded the file. The file names the node mode `road` for
     # the query points (`_write_network`).
     assert network_read_with_minutes.metrics == network_with_minutes.metrics
     assert network_read_with_minutes.default_node_addition_modes == ["road"]

@@ -92,10 +92,10 @@ struct EdgeTable {
     std::vector<double> weights;
 };
 
-// edge_classes is null for edges without classes: parallel_edges is then empty
+// edge_class_ids is null for edges without classes: parallel_edges is then empty
 inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* destinations,
                               const double* weights, int64_t edge_count,
-                              const uint8_t* edge_classes = nullptr) {
+                              const uint8_t* edge_class_ids = nullptr) {
     if (edge_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 edges");
     // The origins, then the destinations that are not origins (few: most nodes are both)
     EdgeTable table;
@@ -175,16 +175,16 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
             table.heads.push_back(head);
             table.kept.push_back(best);
             table.weights.push_back(weights[best]);
-            if (!edge_classes || i - first < 2) continue;
+            if (!edge_class_ids || i - first < 2) continue;
             // The edges first to i - 1 join the same two nodes, in input order. The
             // shortest of each class is parallel, except the kept edge
             for (int32_t j = first; j < i; ++j) {
                 const uint32_t a = static_cast<uint32_t>(edges[j]);
-                int64_t& shortest = shortest_of_class[edge_classes[a]];
+                int64_t& shortest = shortest_of_class[edge_class_ids[a]];
                 if (shortest < 0 || weights[a] < weights[shortest]) shortest = a;
             }
             for (int32_t j = first; j < i; ++j) {
-                int64_t& shortest = shortest_of_class[edge_classes[static_cast<uint32_t>(edges[j])]];
+                int64_t& shortest = shortest_of_class[edge_class_ids[static_cast<uint32_t>(edges[j])]];
                 if (shortest >= 0 && shortest != best) table.parallel_edges.push_back(static_cast<int32_t>(shortest));
                 shortest = -1;  // each class once, and the table is empty for the next two nodes
             }
@@ -286,10 +286,10 @@ struct Contracted {
 
 // The same rules, in the same order of operations, as contract_chains_python in
 // assembly.py: the two versions give the same edges and the same sums.
-// node_modes and edge_classes may be null: the graph then has no modes, or no classes.
+// node_mode_ids and edge_class_ids may be null: the graph then has no modes, or no classes.
 inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
-                                  const uint8_t* node_modes, int64_t node_count, int64_t edge_count,
-                                  double max_km_between_nodes, const uint8_t* edge_classes) {
+                                  const uint8_t* node_mode_ids, int64_t node_count, int64_t edge_count,
+                                  double max_km_between_nodes, const uint8_t* edge_class_ids) {
     check_offsets(offsets, node_count, edge_count);
     const int32_t n = static_cast<int32_t>(node_count);
     std::vector<int32_t> indegree(n, 0), first(n, -1), second(n, -1);
@@ -316,14 +316,14 @@ inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, 
         // All the edges that leave v or enter v have one class: two edges for a one-way node, four for a
         // two-way node. Called for a pass-through node only, which has these edges.
         auto has_one_class = [&]() {
-            const uint8_t c = edge_classes[offsets[v]];
-            return edge_classes[edge(first[v], v)] == c &&
-                   (one_way || (edge_classes[offsets[v] + 1] == c && edge_classes[edge(second[v], v)] == c));
+            const uint8_t c = edge_class_ids[offsets[v]];
+            return edge_class_ids[edge(first[v], v)] == c &&
+                   (one_way || (edge_class_ids[offsets[v] + 1] == c && edge_class_ids[edge(second[v], v)] == c));
         };
         chain[v] = (two_way || one_way) &&
-                   (!node_modes || (node_modes[out[0]] == node_modes[v] &&
-                                    node_modes[two_way ? out[1] : first[v]] == node_modes[v])) &&
-                   (!edge_classes || has_one_class());
+                   (!node_mode_ids || (node_mode_ids[out[0]] == node_mode_ids[v] &&
+                                    node_mode_ids[two_way ? out[1] : first[v]] == node_mode_ids[v])) &&
+                   (!edge_class_ids || has_one_class());
         keep[v] = !chain[v];
     }
     for (auto* unused : {&indegree, &first, &second}) std::vector<int32_t>().swap(*unused);

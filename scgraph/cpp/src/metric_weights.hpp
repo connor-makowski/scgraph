@@ -29,31 +29,31 @@
 //     positions offsets[u] to offsets[u + 1] - 1, and heads[e] is the node that the edge e
 //     goes to.
 //   - `lengths` gives the km of each edge.
-//   - `edge_classes` gives the "class" of each edge, as a row of the classes table. A
+//   - `edge_class_ids` gives the "class" of each edge, as a row of the classes table. A
 //     class is the category of an edge: motorway, sea connector, and so on.
-//   - `node_modes` gives the "mode" of each node, as a row of the modes table: road, port,
-//     sea, and so on. A "hub" is a node whose mode has a weight in `hub_weights`.
+//   - `node_mode_ids` gives the "node mode" of each node, as a row of the node modes table: road, port,
+//     sea, and so on. A "hub" is a node whose node mode has a weight in `hub_weights`.
 //   Example: offsets = [0, 1, 3, 4], heads = [1, 0, 2, 1], lengths = [3, 3, 5, 5],
-//   edge_classes = [0, 0, 1, 1] and node_modes = [0, 1, 2]. The class 0 is the road
-//   connector and the class 1 is the sea connector. The mode 1 is the port.
+//   edge_class_ids = [0, 0, 1, 1] and node_mode_ids = [0, 1, 2]. The class 0 is the road
+//   connector and the class 1 is the sea connector. The node mode 1 is the port.
 //
 // THE WEIGHTS PER KM AND THE HUB WEIGHTS
 //   - `class_weights_per_km[c]` is the "weight per km" of the class c: the weight of 1 km of
 //     an edge of this class. Infinity closes the class.
 //   - `hub_weights[m * C + c]` is the weight that an edge of the class c pays when it leaves
-//     a node of the mode m, and when it goes to a node of the mode m. C is the number of
+//     a node of the node mode m, and when it goes to a node of the node mode m. C is the number of
 //     classes.
 //   Example: class_weights_per_km = [0.02, 0.04], because 1 km takes 1 / 50 = 0.02 hour by
-//   road and 1 / 25 = 0.04 hour by sea. With 3 modes and 2 classes, `hub_weights` has 6
-//   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the mode 1, has values.
+//   road and 1 / 25 = 0.04 hour by sea. With 3 node modes and 2 classes, `hub_weights` has 6
+//   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the node mode 1, has values.
 //
 // HOW A WEIGHT IS COMPUTED FROM THE KM
 //   For the edge e of the class c, from the node u to the node v:
 //   1. Start with the weight per km of the class times the km of the edge. For a closed
 //      class, start with infinity. The kernel does not multiply an infinite weight per km by
 //      a length, because infinity times 0 km is not a number.
-//   2. Add hub_weights[node_modes[u] * C + c], if it is not zero: the edge leaves a hub.
-//   3. Add hub_weights[node_modes[v] * C + c], if it is not zero: the edge enters a hub.
+//   2. Add hub_weights[node_mode_ids[u] * C + c], if it is not zero: the edge leaves a hub.
+//   3. Add hub_weights[node_mode_ids[v] * C + c], if it is not zero: the edge enters a hub.
 //   4. Refuse a weight that is below zero or not a number: a search needs weights of zero or
 //      more. The kernel throws std::invalid_argument, and the message names u and v.
 //   Example: the edge 0 -> 1 is a road connector of 3 km. Step 1 gives 0.02 * 3 = 0.06.
@@ -83,7 +83,7 @@
 
 std::vector<double> compute_weights_from_km(
     std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths,
-    std::span<const uint8_t> edge_classes, std::span<const uint8_t> node_modes,
+    std::span<const uint8_t> edge_class_ids, std::span<const uint8_t> node_mode_ids,
     std::span<const double> class_weights_per_km, std::span<const double> hub_weights);
 
 std::vector<double> compute_weighted_sum(const std::vector<std::span<const double>>& weights_of_metrics,

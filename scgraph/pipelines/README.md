@@ -302,7 +302,7 @@ for the route between them. This build has three cases, and all three pass. One 
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
 Each kind of case has its node modes. The two points of a case snap to nodes of these node
-modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
+node modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
 file do not count here.
 
 Then the runner moves the file into the cache. A network that fails a case does not enter the
@@ -343,14 +343,14 @@ route["length"]  # the km of the shortest route
 [(leg["mode"], round(leg["length"])) for leg in route["legs"]]  # the edge modes that it takes
 ```
 
-To keep some node modes only, load the file with `modes`. With the roads alone, the route between
+To keep some node modes only, load the file with `node_modes`. With the roads alone, the route between
 the same two points is 302.2 km:
 
 ```py
 from scgraph.pipelines.network_builder import build_network_file
 
 file = build_network_file("geofabrik_multimodal", region="europe/denmark")  # the file of the cache
-roads = GeoGraph.load_from_scgraph(file, modes=["road"])
+roads = GeoGraph.load_from_scgraph(file, node_modes=["road"])
 ```
 
 Each edge has a class. A two-way road gives two edges, and the table counts the km of both.
@@ -573,13 +573,13 @@ perth = {"latitude": -31.9523, "longitude": 115.8613}
 route = oceania.get_shortest_path(origin_node=sydney, destination_node=perth)
 route["length"]  # 3311.7 km: the route takes a flight
 
-roads = GeoGraph.load_geograph("oceania", load_intermediate_nodes=False, modes=["road"])
+roads = GeoGraph.load_geograph("oceania", load_intermediate_nodes=False, node_modes=["road"])
 route = roads.get_shortest_path(origin_node=sydney, destination_node=perth)
 route["length"]  # 3930.3 km, by road
 ```
 
 `load_geograph` takes the name of a released network. `load_intermediate_nodes=False` asks for
-the file without the shapes of the edges, and `modes` for some node modes only. The README of
+the file without the shapes of the edges, and `node_modes` for some node modes only. The README of
 the repository lists the eleven networks, in section *Network Releases*. It also gives the
 other arguments, the way to read the credit line, and the way to load exactly the same file
 later. The notebook `examples/multimodal_networks.ipynb` of the repository draws such routes on
@@ -625,7 +625,7 @@ the file in the cache and made no request.
   wants. The load fails when the file of the cache has another one.
 - **After an error.** A downloaded file that fails a check does not enter the cache. In every
   error case of the picture, the cache is as before, and the call can be made again.
-- **Why the cache is not compressed.** With the C++ extension, and without `modes`, scgraph
+- **Why the cache is not compressed.** With the C++ extension, and without `node_modes`, scgraph
   maps the file and does not copy it into memory.
 - **How long the cache keeps a file.** The cache keeps the files of each network release until
   `GeoGraph.clear_geograph_cache` removes them. The README of the repository gives the place
@@ -662,7 +662,7 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
   CLASSES = {"cycleway": "road", "towpath": "road", "ferry": "road"}
   ```
 
-  The array `edge_classes` holds the row of the class of each edge in `CLASSES`, counted from
+  The array `edge_class_ids` holds the row of the class of each edge in `CLASSES`, counted from
   0: `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
   `scgraph.pipelines.CLASSES`. The docstring of `scgraph.pipelines` gives the contract of the
   two names.

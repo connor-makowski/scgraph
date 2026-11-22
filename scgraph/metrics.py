@@ -112,8 +112,8 @@ def resolve_weights_per_km(
     class_weight_per_km: dict | None,
     weight_at_hub: dict | None,
     classes: list[dict],
-    modes: list[dict],
-    edge_classes: array | memoryview,
+    node_modes: list[dict],
+    edge_class_ids: array | memoryview,
 ) -> tuple[array, array, float]:
     """Turn `weight_per_km`, `class_weight_per_km` and `weight_at_hub` of
     `GeoGraph.create_metric` into the arrays of the kernel
@@ -128,8 +128,8 @@ def resolve_weights_per_km(
     Args:
         classes: The entry `{"name", "edge_mode"}` of each class. Empty for a
             geograph without classes: every edge then has the row 0.
-        modes: The entry of each node mode (`GeoGraph.modes`).
-        edge_classes: The row of the class of each edge: the position of the
+        node_modes: The entry of each node mode (`GeoGraph.node_modes`).
+        edge_class_ids: The row of the class of each edge: the position of the
             entry of the class in `classes`.
 
     Raises:
@@ -168,7 +168,7 @@ def resolve_weights_per_km(
         weight_per_km_of_edge_mode = dict.fromkeys(
             [*edge_modes, None], weight_per_km
         )
-    count_edges_of_class_row = bytes(edge_classes).count
+    count_edges_of_class_row = bytes(edge_class_ids).count
     class_weights_per_km = array("d")
     for class_row, class_entry in enumerate(classes):
         class_name, edge_mode = class_entry["name"], class_entry["edge_mode"]
@@ -190,13 +190,13 @@ def resolve_weights_per_km(
     if not classes:
         class_weights_per_km.append(weight_per_km)
 
-    mode_names = [mode.get("name") for mode in modes]
-    hub_weights = array("d", bytes(8 * len(modes) * class_count))
+    node_mode_names = [mode.get("name") for mode in node_modes]
+    hub_weights = array("d", bytes(8 * len(node_modes) * class_count))
     for hub_mode, weights_of_hub in (weight_at_hub or {}).items():
-        if hub_mode not in mode_names:
+        if hub_mode not in node_mode_names:
             raise ValueError(
                 f"weight_at_hub has the key {hub_mode!r}, which is no node "
-                f"mode: the node modes of this geograph are {mode_names}"
+                f"mode: the node modes of this geograph are {node_mode_names}"
             )
         _check_edge_modes(
             weights_of_hub, f"weight_at_hub[{hub_mode!r}]", edge_modes
@@ -212,8 +212,8 @@ def resolve_weights_per_km(
                     "number, which an edge pays when it enters the hub and "
                     f"when it leaves the hub: got {weight!r}"
                 )
-            # Two modes may have the same name, after a merge
-            for mode_row, mode_name in enumerate(mode_names):
+            # Two node modes may have the same name, after a merge
+            for mode_row, mode_name in enumerate(node_mode_names):
                 if mode_name == hub_mode:
                     hub_weights[mode_row * class_count + class_row] = weight
     return class_weights_per_km, hub_weights, off_graph_weight_per_km
