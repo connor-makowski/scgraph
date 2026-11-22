@@ -179,14 +179,14 @@ def build_header_metadata(
     Args:
         build_metadata: What built the network: the pipeline, the sources and the
             software (docstring of `scgraph.pipelines`).
-        node_modes: The node modes table: one dict for each node mode, with its `name`
-            and, if a source gave the node ids of the node mode, the name of that
-            `source`.
-        metrics: One row for each metric of the network, `length` first. A row
-            gives the `name` of the metric, its `unit` and its `description`. A
-            row other than `length` also gives `off_graph_weight_per_km`: the
-            weight of 1 km between a query point and its node. The default, None,
-            is the one row of lengths in km.
+        node_modes: The rows of the node modes: one dict for each node mode, with
+            its `name` and, if a source gave the node ids of the node mode, the name
+            of that `source`.
+        metrics: One row for each metric of the network, `length` first. A row gives
+            the `name` of the metric, its `unit` and its `description`. A row other
+            than `length` also gives `off_graph_weight_per_km`: the weight of 1 km of
+            an off-graph leg, the straight line between a query point and its node.
+            The default, None, is the one row of lengths in km.
         classes: One row for each class, for a network with `edge_class_ids`. A row
             gives the `name` of the class and the `edge_mode` of its edges.
         node_addition_modes: The names of the node modes that a query point snaps to
