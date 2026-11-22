@@ -448,7 +448,8 @@ europe.create_metric("euros", weighted_sum_of={"hours": 30, "length": 0.5}, unit
 def get_co2(edge):
     if edge["mode"] == "air":
         return edge["length"] * (0.8 if edge["length"] < 1000 else 0.6)
-    rates = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1}
+    # None is the mode of an edge without a class, such as an edge that you add
+    rates = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1, None: 0.1}
     return edge["length"] * rates[edge["mode"]]
 
 europe.create_metric("co2", edge_weight_fn=get_co2, unit="kg")
@@ -468,7 +469,7 @@ europe.create_metric(
 
 A metric created again under the same name replaces the first one, as `co2` here.
 
-**An edge without a class.** An edge that you add without `edge_class` has no class, so tables have no rate for it. In a metric made from tables, such an edge weighs as an access leg: its km times the rate `"off_graph"` of the metric. A function gets such an edge with the class `None`, and gives its weight.
+**An edge without a class.** An edge that you add without `edge_class` has no class, so tables have no rate for it. In a metric made from tables, such an edge weighs as an access leg: its km times the rate `"off_graph"` of the metric. A function gets such an edge with the class `None` and the mode `None`. It must return a weight for it.
 
 **The function.** The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `class`, `mode` and `metrics`. `metrics` holds the weight of the edge in each metric that exists. scgraph calls the function once for each edge, so a function is slower than tables. scgraph also needs the rate of the access legs. It calls the function once more, with a length of 1 km and `off_graph` as the `mode`. The two ids and the class are then `None`, and `metrics` holds the rate of the access legs in each metric.
 
@@ -563,7 +564,7 @@ route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, met
 
 `save_as_scgraph` writes the weights of each metric, with its unit and a description. The description is the text of the `create_metric` call, or your own `description`. The file does not keep the tables or the function. So the loaded geograph cannot compute these metrics again. In each of them, an edge that you add to it weighs as an access leg: its km times the rate `"off_graph"` of the metric. To change this, create the metric again after your edits, or give the weights of the new edge: `add_edge(..., metrics={"hours": 2.5})`.
 
-After an edit of the network, the geograph gives each edge its class and its weights again. It computes again the metrics that `create_metric` made on it. The next call that uses a metric, `get_edges` or `output_legs` does this work. The work takes about 1 second for a network of a million nodes, with the C++ extension.
+After an edit of the network, the geograph gives each edge its class and its weights again. It computes again the metrics that `create_metric` made on it. The next call that reads a class or a weight of a metric does this work: `get_edges`, `classes`, `output_legs`, a save, or a query whose result holds the total of each metric. A query by `length` on a geograph without a metric does not do it. The work takes about 1 second for a network of a million nodes, with the C++ extension. A metric made by a function adds the time of its creation.
 
 ### Metrics and Algorithms
 
@@ -1262,7 +1263,7 @@ geograph.add_edge(origin_id=0, destination_id=5, distance=85, symmetric=True, ed
 | `edge_class` | `None` | The class of the new edge, a name of `geograph.classes`. Without it, the edge has no class: its `class` and its `mode` are `None` |
 | `metrics` | `None` | `{name: weight}`: the weight of the new edge in a metric that `create_metric` did not make. Without it, the edge weighs as an access leg in such a metric: its km times the rate `"off_graph"` of the metric (it is closed when the lengths of the geograph are in seconds). A metric that `create_metric` made is computed again for every edge, and is not named here |
 
-An edge added on `graph_object` directly, as above, has no class. At the next query, the geograph gives each new edge its class and its weights (see [What a File Keeps](#what-a-file-keeps)).
+An edge added on `graph_object` directly, as above, has no class. The geograph gives each new edge its class and its weights at the next call that reads them (see [What a File Keeps](#what-a-file-keeps)).
 
 A metric made from a `per_km` dict has no rate for an edge without a class. Such an edge weighs as an access leg: its km times the rate `"off_graph"` of the metric. So a route by the metric can start at a node that you added. To close such an edge, name it in `edge_weights` with `None` (see [Closing a Class or an Edge](#closing-a-class-or-an-edge)). To give the new edges the rate of a class, name the class. This call joins a new node to `europe` by edges of the class `road_connector`. A metric that `create_metric` made on `europe` then gives them the rate of the edge mode `road`:
 

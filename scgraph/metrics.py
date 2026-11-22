@@ -21,7 +21,9 @@ A geograph computes the weights of a metric in one of three ways.
   of the hub that it leaves and of the hub that it enters. An edge without a class
   weighs as an access leg: its km times the rate `"off_graph"` of the metric.
 - As a weighted sum of other metrics, with the kernel `compute_weighted_sum`.
-- From a function of the caller, called once for each edge.
+- From a function of the caller, called once for each edge. The call is in
+  `EdgeData._compute_metric` (`scgraph/edge_data.py`): the function takes the dict
+  of an edge, which an `EdgeData` builds.
 
 `set_edge_weights` then writes the weights that the caller gives for some edges.
 

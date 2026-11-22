@@ -48,11 +48,17 @@ edits (`Graph._edit_count`) with the count at that read. When one of the two
 differs, it runs the steps of the next part. No other code reads the arrays, so no
 caller can skip this check.
 
+An edit of `graph_object` through its methods is seen. An assignment into its list
+of dicts (`geograph.graph[0][1] = 10.0`, in pure Python) is not seen, because it
+does not change the count. After such an assignment, the caller replaces
+`graph_object`: `geograph.graph_object = Graph(graph=geograph.graph)`.
+
 An `EdgeData` keeps no reference to its geograph. Two objects that refer to each
 other are freed late, and a geograph may hold a large network. So a method that
 reads the edges takes the geograph as its first argument. It reads `graph_object`,
 `geograph_units` and the unit of the lengths, and `modes` and `node_modes` for a
-metric from tables.
+metric from tables. It extends `node_modes` for the nodes that a caller appended
+to `nodes` directly.
 
 AFTER AN EDIT
 
