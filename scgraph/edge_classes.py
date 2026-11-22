@@ -6,9 +6,9 @@ WHAT IT HOLDS
 
 A "class" is the category of an edge, such as `motorway`. An `EdgeClasses` holds:
 
-- `classes`: one entry `{"name", "mode"}` for each class of the geograph. The "row"
+- `classes`: one entry `{"name", "edge_mode"}` for each class of the geograph. The "row"
   of a class is the position of its entry in `classes`, counted from 0. An edge
-  without a class has the entry `{"name": None, "mode": None}`.
+  without a class has the entry `{"name": None, "edge_mode": None}`.
 - The "loaded edges": the edges of the graph that a loader read, with the row of
   the class of each one. They are three arrays. The edges of the node `u` go to
   `heads[offsets[u]:offsets[u + 1]]`. The "index" of an edge is its position in
@@ -24,15 +24,15 @@ a node never changes. So `find_class` takes the two nodes of an edge. It gives t
 entry of the class of the added edge of these nodes, else of their loaded edge,
 else the entry of no class. An edit of the graph makes no answer out of date.
 
-A network file and the kernel of the rates need one array, lined up with the edges
-of the graph: the row of the class of each edge, at the index of the edge.
+A network file and the kernel of the weights per km need one array, lined up with
+the edges of the graph: the row of the class of each edge, at the index of the edge.
 `list_class_rows` computes this array from `find_class`, when a caller asks for it.
 It keeps the array until the graph is edited.
 
 Example, a loader reads three nodes with the edges 0 -> 1, 0 -> 2 and 2 -> 0:
 
-    classes = [{"name": "motorway", "mode": "road"},
-               {"name": "primary", "mode": "road"}]
+    classes = [{"name": "motorway", "edge_mode": "road"},
+               {"name": "primary", "edge_mode": "road"}]
     offsets = [0, 2, 2, 3]    heads = [1, 2, 0]    edge_classes = [1, 1, 0]
 
 `find_class(2, 0)` gives the entry of `motorway`: the edge 2 -> 0 has the index 2,
@@ -57,7 +57,7 @@ from itertools import chain, pairwise, repeat, starmap
 
 # The entry of an edge without a class: the class without a name. A network file
 # stores the row of a class for each edge, so it has this entry for such an edge.
-_NO_CLASS = {"name": None, "mode": None}
+_NO_CLASS = {"name": None, "edge_mode": None}
 # A network file stores the row of the class of an edge in one byte
 _MAX_CLASS_COUNT = 256
 
@@ -102,7 +102,7 @@ class EdgeClasses:
     ) -> None:
         """
         Args:
-            classes: The entry `{"name", "mode"}` of each class that a loader read.
+            classes: The entry `{"name", "edge_mode"}` of each class that a loader read.
                 Empty for a geograph without classes.
             offsets: The offsets of the loaded edges, one for each node plus one.
                 None for a geograph without classes, as `heads` and `edge_classes`.
@@ -132,7 +132,7 @@ class EdgeClasses:
         a name.
 
         Args:
-            classes: The entry `{"name", "mode"}` of each class.
+            classes: The entry `{"name", "edge_mode"}` of each class.
             edge_class_names: For each node, a dict from the destination of an edge
                 of this node to the name of the class of the edge, as
                 `intermediate_nodes` gives its shape. An edge that its dict lacks
@@ -154,7 +154,7 @@ class EdgeClasses:
 
     def find_class(self, origin_id: int, destination_id: int) -> dict:
         """Return the entry of the class of the edge from one node to another:
-        `{"name": None, "mode": None}` for an edge without a class."""
+        `{"name": None, "edge_mode": None}` for an edge without a class."""
         edge = (origin_id, destination_id)
         if edge in self._classes_of_added_edges:
             return self._classes_of_added_edges[edge]

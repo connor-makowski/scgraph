@@ -323,20 +323,20 @@ NB_MODULE(cpp, m) {
        "shape_offsets, node_runs, edge_runs, shape_point_runs); explained in scgraph/cpp/src/edge_selection.hpp, "
        "same result as scgraph.helpers.edge_selection.select_edges");
 
-    m.def("compute_weights_from_rates", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
+    m.def("compute_weights_from_km", [](Int32Array offsets, Int32Array heads, DoubleArray lengths,
                                           Uint8Array edge_classes, Uint8Array node_modes,
-                                          DoubleArray class_rates_per_km, DoubleArray hub_weights) {
-        return owned_view(compute_weights_from_rates(
+                                          DoubleArray class_weights_per_km, DoubleArray hub_weights) {
+        return owned_view(compute_weights_from_km(
             {offsets.data(), offsets.shape(0)}, {heads.data(), heads.shape(0)},
             {lengths.data(), lengths.shape(0)}, {edge_classes.data(), edge_classes.shape(0)},
             {node_modes.data(), node_modes.shape(0)},
-            {class_rates_per_km.data(), class_rates_per_km.shape(0)},
+            {class_weights_per_km.data(), class_weights_per_km.shape(0)},
             {hub_weights.data(), hub_weights.shape(0)}));
     }, nb::arg("offsets"), nb::arg("heads"), nb::arg("lengths"), nb::arg("edge_classes"),
-       nb::arg("node_modes"), nb::arg("class_rates_per_km"), nb::arg("hub_weights"),
-       "The weight of each edge from a rate per km for each class and the weight that it pays at "
+       nb::arg("node_modes"), nb::arg("class_weights_per_km"), nb::arg("hub_weights"),
+       "The weight of each edge from a weight per km for each class and the weight that it pays at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
-       "scgraph.helpers.metric_weights.compute_weights_from_rates");
+       "scgraph.helpers.metric_weights.compute_weights_from_km");
 
     m.def("compute_weighted_sum", [](std::vector<DoubleArray> weights_of_metrics, DoubleArray coefficients) {
         std::vector<std::span<const double>> weights;

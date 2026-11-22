@@ -179,7 +179,7 @@ def test_an_edge_has_the_class_that_the_default_select_gives_to_its_way(
     osm_id = list(whole_network.node_ids)
     classes = {
         (osm_id[edge["origin_id"]], osm_id[edge["destination_id"]]): (
-            edge["class"]
+            edge["edge_class"]
         )
         for edge in whole_network.get_edges()
     }
@@ -196,17 +196,19 @@ def test_an_edge_has_the_class_that_the_default_select_gives_to_its_way(
     }
 
 
-def test_rates_may_name_a_class_that_the_loaded_roads_lack(
+def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_lack(
     osm_file,
 ):
     network = GeoGraph.load_from_osm(osm_file)
-    # Minutes for 1 km. `per_km` may name any class of
+    # Minutes for 1 km. `class_weight_per_km` may name any class of
     # `scgraph.pipelines.CLASSES`: these roads have no motorway.
     network.create_metric(
-        "minutes", per_km={"road": 2.0, "motorway": 0.5, "off_graph": 4.0}
+        "minutes",
+        weight_per_km={"road": 2.0, "off_graph": 4.0},
+        class_weight_per_km={"motorway": 0.5},
     )
 
-    # From the point of node 1 to the point of node 4, without an access leg
+    # From the point of node 1 to the point of node 4, without an off-graph leg
     route = network.get_shortest_path(
         dict(zip(("latitude", "longitude"), _NODES[1])),
         dict(zip(("latitude", "longitude"), _NODES[4])),
@@ -214,7 +216,7 @@ def test_rates_may_name_a_class_that_the_loaded_roads_lack(
     )
 
     # The route goes through node 2.
-    assert route["metrics"] == {
+    assert route["metric_totals"] == {
         "minutes": pytest.approx(2.0 * (_km(1, 2) + _km(2, 4)))
     }
 

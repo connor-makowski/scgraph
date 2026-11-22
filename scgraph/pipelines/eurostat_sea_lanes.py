@@ -24,7 +24,7 @@ from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_ROWS, CLASSES
 from scgraph.pipelines.steps import step3_network_assembly
 
-PIPELINE_VERSION = 2
+PIPELINE_VERSION = 3
 
 SOURCES = {
     "sea_lanes": {
@@ -112,7 +112,10 @@ def build(files: dict[str, str]) -> GeoGraph:
                 passage or "open_sea"
             )
     sea._edge_classes = EdgeClasses.build_from_class_names(
-        [{"name": name, "mode": mode} for name, mode in CLASSES.items()],
+        [
+            {"name": name, "edge_mode": edge_mode}
+            for name, edge_mode in CLASSES.items()
+        ],
         edge_class_names,
     )
     return sea
@@ -139,7 +142,9 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     """
     sea = build(files)
     class_row_of_edge = {
-        (edge["origin_id"], edge["destination_id"]): CLASS_ROWS[edge["class"]]
+        (edge["origin_id"], edge["destination_id"]): CLASS_ROWS[
+            edge["edge_class"]
+        ]
         for edge in sea.get_edges()
     }
     offsets, heads, weights = (

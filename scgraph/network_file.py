@@ -174,11 +174,11 @@ def build_header_metadata(
             source gave the node ids of the mode, the name of that `source`.
         metrics: One row for each metric of the network, `length` first. A row
             gives the `name` of the metric, its `unit` and its `description`. A
-            row other than `length` also gives `off_graph_per_km`: the weight of
-            1 km between a query point and its node. The default, None, is the
-            one row of lengths in km.
+            row other than `length` also gives `off_graph_weight_per_km`: the
+            weight of 1 km between a query point and its node. The default, None,
+            is the one row of lengths in km.
         classes: One row for each class, for a network with `edge_classes`. A row
-            gives the `name` of the class and the `mode` of its edges.
+            gives the `name` of the class and the `edge_mode` of its edges.
         node_addition_modes: The names of the modes that a query point snaps to
             by default. None writes no such key.
 
@@ -452,9 +452,18 @@ def _read(filename, file, mapped, modes):
             f"{filename} has format version {header.get('format_version')}; "
             f"this version of scgraph reads version {FORMAT_VERSION}"
         )
-    # A file of an earlier development version has `units` and no `metrics`. Without
-    # this message, the read would only say that an array is missing.
-    if "units" in header["metadata"] and "metrics" not in header["metadata"]:
+    # A file of an earlier development version has `units` and no `metrics`, or a
+    # name that this version no longer reads. Without this message, the read would
+    # only say that an array or a key is missing.
+    metadata = header["metadata"]
+    if (
+        ("units" in metadata and "metrics" not in metadata)
+        or any(
+            isinstance(row, dict) and "mode" in row
+            for row in metadata.get("classes", ())
+        )
+        or any("off_graph_per_km" in row for row in metadata.get("metrics", ()))
+    ):
         raise ValueError(
             f"{filename} has the format of an earlier development version of "
             "scgraph: build or download the network again"
@@ -891,8 +900,8 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "one weight per edge expected",
     )
     require(
-        all("off_graph_per_km" in row for row in metrics[1:]),
-        "a metric other than length must give off_graph_per_km",
+        all("off_graph_weight_per_km" in row for row in metrics[1:]),
+        "a metric other than length must give off_graph_weight_per_km",
     )
     if should_check_values:
         # The loops over the edges run in C (map, min, max), not in Python
@@ -951,8 +960,10 @@ def _check(filename, arrays, metadata, should_check_values=True):
             )
     require(
         "edge_classes" not in arrays
-        or all({"name", "mode"} <= set(row) for row in metadata["classes"]),
-        "each class must be a row with a name and a mode",
+        or all(
+            {"name", "edge_mode"} <= set(row) for row in metadata["classes"]
+        ),
+        "each class must be a row with a name and an edge mode",
     )
     mode_names = [
         mode["name"] for mode in metadata.get("modes") or [{"name": None}]

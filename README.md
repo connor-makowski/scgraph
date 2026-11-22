@@ -100,9 +100,9 @@ A query can add these keys:
 
 | Key | When | Description |
 |---|---|---|
-| `metrics` | The geograph has a metric other than `length` | For each of these metrics, the sum of its weights along the path, as `{name: total}` (see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)) |
+| `metric_totals` | The geograph has a metric other than `length` | For each of these metrics, the sum of its weights along the path, as `{name: total}` (see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)) |
 | `path` | `output_path=True` | The node ids of the path |
-| `legs`, `hubs` | `output_legs=True` | The parts of the path by road, by rail, by sea or by air, and the nodes between two parts (see [The Legs of a Route](#the-legs-of-a-route)) |
+| `legs`, `transfers` | `output_legs=True` | The parts of the path by road, by rail, by sea or by air, and the nodes where the path goes from one edge mode to another (see [The Legs of a Route](#the-legs-of-a-route)) |
 
 
 ### Which Network?
@@ -113,7 +113,7 @@ A query can add these keys:
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
 | A part of a larger network, for example its roads | a released network, with `modes` | `GeoGraph.load_geograph("europe", modes=["road"])` |
-| Routes by time, by cost or by CO2 | a released network, with a metric | `geograph.create_metric("hours", per_km=...)`, then `get_shortest_path(..., metric="hours")`: see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2) |
+| Routes by time, by cost or by CO2 | a released network, with a metric | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")`: see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2) |
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
 | The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)`, then `save_as_scgraph` to load it faster later |
@@ -382,8 +382,8 @@ europe = GeoGraph.load_geograph("europe")
 # Hours: a speed by road, by rail, by sea and by air, and a wait at each port, airport and rail terminal
 europe.create_metric(
     "hours",
-    per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30},
-    at_hub={"port": {"sea": 12}, "airport": {"air": 3}, "rail_terminal": {"rail": 4}},
+    weight_per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30},
+    weight_at_hub={"port": {"sea": 12}, "airport": {"air": 3}, "rail_terminal": {"rail": 4}},
     unit="h",
 )
 
@@ -391,34 +391,34 @@ paris = {"latitude": 48.8566, "longitude": 2.3522}
 berlin = {"latitude": 52.52, "longitude": 13.405}
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours")
 route["length"]   # the km of the fastest route
-route["metrics"]  # {'hours': ...}: its hours
+route["metric_totals"]  # {'hours': ...}: its hours
 ```
 
-- **The rates are examples.** scgraph ships no speed, no cost and no emission factor: you give your own.
-- **Rate.** A **rate** is the weight of 1 km of an edge. Here a rate is in hours per km: `1 / 70` means 70 km/h.
-- **Node mode and edge mode.** A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`. `per_km` gives a rate to each edge mode.
-- **Class.** Each edge of a released network has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. Each class has one edge mode. A class can have its own rate, which wins over the rate of its edge mode: `"motorway": 1 / 90`.
-- **Access leg.** A query point is the origin or the destination of a query. An **access leg** is the straight line from a query point to its node. `"off_graph"` is the rate of the access legs. The total of a route counts its two access legs.
-- **Hub.** A **hub** is a port, an airport or a rail terminal. `at_hub` adds a weight at a hub. Its first key is the node mode of the hub. Its second key is an edge mode or a class. Only these edges pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches.
-- **The result.** `length` is always the length of the route. `metrics` holds the total of each metric other than `length` along the route.
+- **The weights are examples.** scgraph ships no speed, no cost and no emission factor: you give your own.
+- **Weight per km.** A metric gives a weight to each edge. A **weight per km** is the weight of 1 km of an edge. Here a weight per km is in hours per km: `1 / 70` means 70 km/h.
+- **Node mode and edge mode.** A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`. `weight_per_km` gives a weight per km to each edge mode.
+- **Class.** Each edge of a released network has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. Each class has one edge mode. `class_weight_per_km` gives a class its own weight per km, which replaces the weight per km of its edge mode: `class_weight_per_km={"motorway": 1 / 90}`.
+- **Off-graph leg.** A query point is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. `"off_graph"` is the weight per km of the off-graph legs. The total of a route counts its two off-graph legs.
+- **Hub.** A **hub** is a port, an airport or a rail terminal. `weight_at_hub` adds a weight at a hub. Its first key is the node mode of the hub. Its second key is an edge mode. Only the edges of this edge mode pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches.
+- **The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
 
 ### The Legs of a Route
 
-A **leg** is a part of a route on one edge mode. `output_legs=True` returns the legs, and the hubs between them:
+A **leg** is a part of a route on one edge mode. `output_legs=True` returns the legs, and the transfers between them. A **transfer** is a node where the route goes from a leg of one edge mode to a leg of another:
 
 ```py
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_legs=True)
 for leg in route["legs"]:
-    print(leg["mode"], round(leg["length"]), "km", round(leg["metrics"]["hours"], 1), "h")
+    print(leg["mode"], round(leg["length"]), "km", round(leg["metric_totals"]["hours"], 1), "h")
 # off_graph 0 km 0.0 h
 # road 16 km 0.2 h
 # air 884 km 7.2 h
 # road 26 km 0.4 h
 # off_graph 0 km 0.0 h
-route["hubs"]  # [{'node_id': 1055445, 'mode': 'airport'}, {'node_id': 1055493, 'mode': 'airport'}]
+route["transfers"]  # [{'node_id': 1055445, 'node_mode': 'airport'}, {'node_id': 1055493, 'node_mode': 'airport'}]
 ```
 
-The first leg and the last leg are the two access legs: their `mode` is `off_graph`. Here the two query points are close to a road node, so the access legs round to 0 km. The flight leg holds the 3 hours of each of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
+The first leg and the last leg are the two off-graph legs: their `mode` is `off_graph`. The two nodes where they meet the network are not transfers. Here the two query points are close to a road node, so the off-graph legs round to 0 km. The flight leg holds the 3 hours of each of its two airports. A leg also holds `class_lengths` and `coordinate_path`. `class_lengths` gives the km of the leg on each class.
 
 ### Three Ways to Compute the Weights
 
@@ -426,9 +426,9 @@ The first leg and the last leg are the two access legs: their `mode` is `off_gra
 
 | Way | Argument | Use it when |
 |---|---|---|
-| Rates | `per_km`, with `at_hub` | Each edge mode or each class has a rate per km, as in `hours` above |
+| Weights per km | `weight_per_km`, with `class_weight_per_km` and `weight_at_hub` | Each edge mode or each class has a weight per km, as in `hours` above |
 | A weighted sum | `weighted_sum_of` | A metric combines other metrics, for example a cost of the hours and of the km |
-| A function of an edge | `edge_weight_fn` | The weight of an edge is not a rate times its km |
+| A function of an edge | `edge_weight_fn` | The weight of an edge is not a weight per km times its km |
 
 With each of the three ways, `edge_weights` gives the weights of chosen edges. Use it when a few edges differ from the others. These weights replace the computed ones.
 
@@ -438,11 +438,11 @@ europe.create_metric("euros", weighted_sum_of={"hours": 30, "length": 0.5}, unit
 
 # A function of an edge: a short flight emits more CO2 for each km than a long flight
 def get_co2(edge):
-    if edge["mode"] == "air":
+    if edge["edge_mode"] == "air":
         return edge["length"] * (0.8 if edge["length"] < 1000 else 0.6)
-    # None is the mode of an edge without a class, such as an edge that you add
-    rates = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1, None: 0.1}
-    return edge["length"] * rates[edge["mode"]]
+    # None is the edge mode of an edge without a class, such as an edge that you add
+    kg_per_km = {"road": 0.1, "rail": 0.02, "sea": 0.01, "off_graph": 0.1, None: 0.1}
+    return edge["length"] * kg_per_km[edge["edge_mode"]]
 
 europe.create_metric("co2", edge_weight_fn=get_co2, unit="kg")
 
@@ -453,7 +453,7 @@ europe.create_metric(
     "hours_with_slow_ferries",
     weighted_sum_of={"hours": 1},
     edge_weights={
-        (edge["origin_id"], edge["destination_id"]): 2 * edge["metrics"]["hours"]
+        (edge["origin_id"], edge["destination_id"]): 2 * edge["metric_weights"]["hours"]
         for edge in ferries
     },
 )
@@ -461,15 +461,15 @@ europe.create_metric(
 
 **A weighted sum.** scgraph computes a weighted sum once, at its creation. When you create `hours` again, create `euros` again too. A weighted sum can also trade one metric against another: `weighted_sum_of={"co2": 1, "hours": 10}` counts one hour as 10 kg of CO2. The notebook [Trade-offs between time, cost and CO2](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/time_cost_co2_trade_offs.ipynb) tries several coefficients, and draws the routes on charts and on a map.
 
-**The function.** The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `class`, `mode` and `metrics`. `metrics` holds the weight of the edge in each metric that exists at the call. scgraph calls the function once for each edge, so a function is slower than rates. It calls the function once more for the rate of the access legs, with a length of 1 km and `off_graph` as the `mode`.
+**The function.** The function gets one edge as a dict, with the keys `origin_id`, `destination_id`, `length`, `edge_class`, `edge_mode` and `metric_weights`. `metric_weights` holds the weight of the edge in each metric that exists at the call. scgraph calls the function once for each edge, so a function is slower than weights per km. It calls the function once more for the weight per km of the off-graph legs, with a length of 1 km and `off_graph` as the `edge_mode`.
 
 ### Closing a Class or an Edge
 
-A rate of `None` closes a class: no route by this metric takes an edge of this class. The Suez Canal is the class `suez` of the sea lanes:
+A weight per km of `None` closes a class: no route by this metric takes an edge of this class. The Suez Canal is the class `suez` of the sea lanes:
 
 ```py
 world_sea = GeoGraph.load_geograph("world_sea")
-world_sea.create_metric("km_without_suez", per_km={"sea": 1, "suez": None, "off_graph": 1})
+world_sea.create_metric("km_without_suez", weight_per_km=1, class_weight_per_km={"suez": None})
 
 rotterdam = {"latitude": 51.95, "longitude": 4.14}
 singapore = {"latitude": 1.26, "longitude": 103.82}
@@ -494,16 +494,16 @@ A geograph gives its node modes, its classes, its metrics, its nodes and its edg
 
 ```py
 europe.modes    # [{'name': 'road', ...}, ...]: the node modes
-europe.classes  # [{'name': 'motorway', 'mode': 'road'}, ...]: each class with its edge mode
+europe.classes  # [{'name': 'motorway', 'edge_mode': 'road'}, ...]: each class with its edge mode
 europe.metrics  # [{'name': 'length', 'unit': 'km'}, {'name': 'hours', 'unit': 'h', ...}, ...]
 
-# The airports around Paris: mode is a node mode, bbox is (south, west, north, east) in degrees
-europe.get_nodes(mode="airport", bbox=(48, 1, 50, 4))
-# [{'node_id': ..., 'latitude': ..., 'longitude': ..., 'mode': 'airport'}, ...]
+# The airports around Paris: bbox is (south, west, north, east) in degrees
+europe.get_nodes(node_mode="airport", bbox=(48, 1, 50, 4))
+# [{'node_id': ..., 'latitude': ..., 'longitude': ..., 'node_mode': 'airport'}, ...]
 
 # The edges of one class, or the edges that leave one node: get_edges(origin_id=...)
 europe.get_edges(edge_class="ferry")
-# [{'origin_id': ..., 'destination_id': ..., 'length': ..., 'class': 'ferry', 'mode': 'road', 'metrics': {...}}, ...]
+# [{'origin_id': ..., 'destination_id': ..., 'length': ..., 'edge_class': 'ferry', 'edge_mode': 'road', 'metric_weights': {...}}, ...]
 
 # The edges of a route, in its order: get_path_edges takes the node ids of the route
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_path=True)
@@ -521,15 +521,16 @@ Each metric has its own graph: the edges of the network, with the weights of the
 | Parameter | Default | Description |
 |---|---|---|
 | `name` | required | Name of the metric: small letters, digits and `_`, starting with a letter; not `length`. A metric that has this name is replaced |
-| `per_km` | `None` | One rate for every edge and for the access legs (a number), or a dict of rates: by class, by edge mode, and `"off_graph"` for the access legs. A rate of `None` closes a class. The lengths of the geograph must be in km |
-| `at_hub` | `None` | With `per_km`: `{node mode of a hub: {class or edge mode: weight}}`. The weight is one number |
+| `weight_per_km` | `None` | One weight per km for every edge and for the off-graph legs (a number), or `{mode of a leg: weight of 1 km}`: the keys are the edge modes, and `"off_graph"` for the off-graph legs. `None` closes an edge mode. The lengths of the geograph must be in km |
+| `class_weight_per_km` | `None` | With `weight_per_km`: `{name of a class: weight of 1 km}`. It replaces the weight per km of the edge mode of the class. `None` closes a class |
+| `weight_at_hub` | `None` | With `weight_per_km`: `{node mode of a hub: {edge mode: weight}}`. The weight is one number, paid by an edge that leaves the hub and by an edge that enters it |
 | `weighted_sum_of` | `None` | `{name of a metric: coefficient}`, with coefficients above zero; `length` can be one of the metrics. An edge that is closed in one of them is closed in the sum |
 | `edge_weight_fn` | `None` | A function that gets the dict of an edge and returns its weight, or `None` to close it |
 | `edge_weights` | `None` | `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the computed one; `None` closes an edge |
 | `unit` | `None` | The unit of the weights, as free text |
 | `description` | `None` | Where the weights come from, as free text; by default, the text of the call |
 
-A call gives exactly one of `per_km`, `weighted_sum_of` and `edge_weight_fn`. A dict of `per_km` gives a rate for `"off_graph"` and for each class that has an edge, by its name or by its edge mode. A geograph without classes, such as one made from your own graph, takes one number as `per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. `remove_metric(name)` removes a metric.
+A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. A dict of `weight_per_km` gives a weight per km for `"off_graph"` and for the edge mode of each class that has an edge, unless `class_weight_per_km` names this class. A geograph without classes, such as one made from your own graph, takes one number as `weight_per_km`. A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it. `remove_metric(name)` removes a metric.
 
 ## Choosing an Algorithm
 
@@ -603,7 +604,7 @@ For large matrices, throughput can approach 500 nanoseconds per distance query.
 With a [metric](#routes-by-time-cost-and-co2), the matrix holds the totals of this metric. `output_metric` names another metric to read along the same routes:
 
 ```py
-north_america.create_metric("hours", per_km={"road": 1 / 80, "off_graph": 1 / 30})
+north_america.create_metric("hours", weight_per_km={"road": 1 / 80, "off_graph": 1 / 30})
 hours = north_america.distance_matrix(cities, metric="hours")
 km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours", output_metric="length")
 ```
@@ -613,7 +614,7 @@ km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours",
 | Parameter | Default | Description |
 |---|---|---|
 | `nodes` | required | The query points, as a list of dicts with the keys `latitude` and `longitude` |
-| `off_graph_circuity` | `1` | Multiplier of the km of each access leg: the straight line from a query point to its node |
+| `off_graph_circuity` | `1` | Multiplier of the km of each off-graph leg: the straight line from a query point to its node |
 | `output_units` | `'km'` | Unit of the lengths of the matrix; ignored when the matrix holds another metric than `length` |
 | `metric` | `'length'` | The metric that each route minimises |
 | `output_metric` | `None` | The metric that the matrix holds; `None` is the metric of `metric`. With another metric, the call is slower: it reads the path of each pair |
@@ -694,7 +695,7 @@ output = world_sea.get_shortest_path(
 
 `node_addition_modes` limits these nodes to some node modes, for each `node_addition_type`: `node_addition_modes=["road"]` joins the origin and the destination to road nodes only. A node mode that the geograph does not have raises a `ValueError`.
 
-The default is `None`. A query point then snaps to the node modes that the network file names: `default_node_addition_modes`, the roads for a released network with roads. It also snaps to a node without a named node mode: a node that you added with `add_coord_node` without `mode=`. A geograph without `default_node_addition_modes` snaps a query point to every node.
+The default is `None`. A query point then snaps to the node modes that the network file names: `default_node_addition_modes`, the roads for a released network with roads. It also snaps to a node without a named node mode: a node that you added with `add_coord_node` without `node_mode=`. A geograph without `default_node_addition_modes` snaps a query point to every node.
 
 
 ---
@@ -907,7 +908,7 @@ OSMnx can give several edges from one node to another. The geograph keeps the sh
 | `coord_precision` | `5` | Decimal places for lat/lon coordinates |
 | `weight_precision` | `3` | Decimal places for edge weights |
 | `weight_key` | `'length'` | Edge attribute that gives the lengths of the geograph: `'length'` (kilometers) or `'travel_time'` (seconds). With `'travel_time'`, the geograph has no metric `travel_time`: its lengths are the times |
-| `off_graph_travel_speed` | `None` | Speed (km/h) between a query point and its node. With `weight_key='length'`, it gives the rate of the access legs of the metric `travel_time`: 3600 / speed seconds per km, or 240 for `None` (15 km/h). With `weight_key='travel_time'`, it sets `default_off_graph_circuity` and `default_node_addition_circuity` to 3600 / speed, or to 0 and 240 for `None` |
+| `off_graph_travel_speed` | `None` | Speed (km/h) between a query point and its node. With `weight_key='length'`, it gives the weight per km of the off-graph legs of the metric `travel_time`: 3600 / speed seconds per km, or 240 for `None` (15 km/h). With `weight_key='travel_time'`, it sets `default_off_graph_circuity` and `default_node_addition_circuity` to 3600 / speed, or to 0 and 240 for `None` |
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
 | `silent` | `None` | Deprecated and without effect. scgraph reports its messages through `logging`. |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
@@ -943,10 +944,14 @@ michigan_rail = GeoGraph.load_from_osm(
 )
 ```
 
-Each edge has the class that `select` gives to its way. The default `select` gives the `highway` value of the way, so a [metric](#routes-by-time-cost-and-co2) can give a rate to each class of road:
+Each edge has the class that `select` gives to its way. The default `select` gives the `highway` value of the way, so a [metric](#routes-by-time-cost-and-co2) can give a weight per km to each class of road:
 
 ```py
-michigan_roads.create_metric("minutes", per_km={"motorway": 60 / 110, "road": 60 / 80, "off_graph": 60 / 30})
+michigan_roads.create_metric(
+    "minutes",
+    weight_per_km={"road": 60 / 80, "off_graph": 60 / 30},
+    class_weight_per_km={"motorway": 60 / 110},
+)
 ```
 
 A `select` that returns directions alone, as the railway example above, gives a geograph without classes.
@@ -1186,14 +1191,14 @@ The classes stay. `add_edge`, `add_coord_edge`, `add_coord_node` and `add_havers
 geograph.add_edge(origin_id=0, destination_id=5, distance=85, symmetric=True, edge_class="primary")
 ```
 
-Without `edge_class`, the new edge has no class: its `class` and its `mode` are `None`. An edge added on `graph_object` directly has the class that the geograph knows for its two nodes: the class of the edge that it replaces, and no class between two nodes that had no edge. A metric made from rates weighs an edge without a class as an access leg: its km times the rate `"off_graph"` of the metric. So a route by the metric can start at a node that you added. A function of an edge gets such an edge with the class `None` and the mode `None`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None` (see [Closing a Class or an Edge](#closing-a-class-or-an-edge)).
+Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly has the class that the geograph knows for its two nodes: the class of the edge that it replaces, and no class between two nodes that had no edge. A metric made from weights per km weighs an edge without a class as an off-graph leg: its km times the weight per km `"off_graph"` of the metric. So a route by the metric can start at a node that you added. A function of an edge gets such an edge with the class `None` and the edge mode `None`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None` (see [Closing a Class or an Edge](#closing-a-class-or-an-edge)).
 
-To give the new edges the rate of a class, name the class. This call joins a new node to `europe` by edges of the class `road_connector`. A metric that you then create on `europe` gives them the rate of the edge mode `road`:
+To give the new edges the weight per km of a class, name the class. This call joins a new node to `europe` by edges of the class `road_connector`. A metric that you then create on `europe` gives them the weight per km of the edge mode `road`:
 
 ```py
 # This edit removes the metric `hours` of `europe`, with a warning
 europe.add_coord_node(coord_dict={"latitude": 46.0, "longitude": 2.0}, edge_class="road_connector")
-europe.create_metric("hours", per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30})
+europe.create_metric("hours", weight_per_km={"road": 1 / 70, "rail": 1 / 50, "sea": 1 / 30, "air": 1 / 750, "off_graph": 1 / 30})
 ```
 
 See the [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) for more examples.

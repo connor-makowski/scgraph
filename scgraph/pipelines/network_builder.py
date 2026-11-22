@@ -270,8 +270,8 @@ def _write_network(
     if "edge_classes" in arrays:
         # A value of `edge_classes` is a row of the classes table of the pipeline
         classes = [
-            {"name": name, "mode": mode}
-            for name, mode in getattr(
+            {"name": name, "edge_mode": edge_mode}
+            for name, edge_mode in getattr(
                 pipeline, "CLASSES", pipelines.CLASSES
             ).items()
         ]

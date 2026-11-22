@@ -119,7 +119,7 @@ if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 4
 
 
 def _natural_earth(layer):

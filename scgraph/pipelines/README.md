@@ -285,7 +285,7 @@ build. It also records three things that a query uses:
 - `metrics`: the metrics of the file. A built file has one metric, `length`, in km. A user
   adds other metrics on the loaded network (`GeoGraph.create_metric`).
 - `classes`: one row for each class, with its name and its edge mode, such as
-  `{"name": "motorway", "mode": "road"}`.
+  `{"name": "motorway", "edge_mode": "road"}`.
 - `node_addition_modes`: the node modes that a query point snaps to by default. This pipeline
   names `road`, so a route starts and ends on a road.
 
@@ -325,7 +325,7 @@ The file holds 50,320 nodes and 171,999 edges.
 
 A route may use every network. It starts and ends at a road node, and it goes from one network
 to another at hubs. A leg is a part of a route on one edge mode. `output_legs=True` returns the
-legs of the route, and the hubs between them.
+legs of the route, and the transfers between them.
 
 `GeoGraph.build_geograph` calls the runner, then loads the file. It builds nothing when the
 cache holds the file.

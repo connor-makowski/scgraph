@@ -756,7 +756,7 @@ def test_the_file_of_a_pipeline_with_its_own_classes_table_names_those_classes(
 
     file = network_builder.build_network_file(pipeline, cache_dir=tmp_path)
 
-    canal = {"name": "canal", "mode": "inland_water"}
+    canal = {"name": "canal", "edge_mode": "inland_water"}
     assert GeoGraph.get_scgraph_info(file)["classes"] == [canal]
 
 
@@ -1481,7 +1481,7 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
         ("port", "sea"): {"sea_connector"},
     }
     # A row of `classes` also gives the mode of the edges of its class.
-    assert {"name": "flight", "mode": "air"} in metadata["classes"]
+    assert {"name": "flight", "edge_mode": "air"} in metadata["classes"]
 
 
 # A query point snaps to a road node of the multimodal network by default.

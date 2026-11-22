@@ -8,9 +8,9 @@
 // then adds up these weights in place of the lengths.
 //
 // WHAT THEY ANSWER
-//   compute_weights_from_rates gives the weight of each edge from a rate for each class of
-//   edge, and from a weight at each hub. An edge pays the weight of a hub when it leaves
-//   the hub, and when it enters the hub.
+//   compute_weights_from_km gives the weight of each edge from its km, from a weight per km
+//   for each class of edge, and from a weight at each hub. An edge pays the weight of a hub
+//   when it leaves the hub, and when it enters the hub.
 //   compute_weighted_sum gives the weight of each edge as a sum of other metrics, each one
 //   times a coefficient.
 //   Both return one float64 value for each edge, in the order of the edges. An edge that no
@@ -37,21 +37,21 @@
 //   edge_classes = [0, 0, 1, 1] and node_modes = [0, 1, 2]. The class 0 is the road
 //   connector and the class 1 is the sea connector. The mode 1 is the port.
 //
-// THE RATES AND THE HUB WEIGHTS
-//   - `class_rates_per_km[c]` is the "rate" of the class c: the weight of 1 km of an edge of
-//     this class. Infinity closes the class.
+// THE WEIGHTS PER KM AND THE HUB WEIGHTS
+//   - `class_weights_per_km[c]` is the "weight per km" of the class c: the weight of 1 km of
+//     an edge of this class. Infinity closes the class.
 //   - `hub_weights[m * C + c]` is the weight that an edge of the class c pays when it leaves
 //     a node of the mode m, and when it goes to a node of the mode m. C is the number of
 //     classes.
-//   Example: class_rates_per_km = [0.02, 0.04], because 1 km takes 1 / 50 = 0.02 hour by
+//   Example: class_weights_per_km = [0.02, 0.04], because 1 km takes 1 / 50 = 0.02 hour by
 //   road and 1 / 25 = 0.04 hour by sea. With 3 modes and 2 classes, `hub_weights` has 6
 //   values: hub_weights = [0, 0, 2, 6, 0, 0]. Only the port, the mode 1, has values.
 //
-// HOW A WEIGHT IS COMPUTED FROM RATES
+// HOW A WEIGHT IS COMPUTED FROM THE KM
 //   For the edge e of the class c, from the node u to the node v:
-//   1. Start with the rate of the class times the km of the edge. For a closed class, start
-//      with infinity. The kernel does not multiply an infinite rate by a length, because
-//      infinity times 0 km is not a number.
+//   1. Start with the weight per km of the class times the km of the edge. For a closed
+//      class, start with infinity. The kernel does not multiply an infinite weight per km by
+//      a length, because infinity times 0 km is not a number.
 //   2. Add hub_weights[node_modes[u] * C + c], if it is not zero: the edge leaves a hub.
 //   3. Add hub_weights[node_modes[v] * C + c], if it is not zero: the edge enters a hub.
 //   4. Refuse a weight that is below zero or not a number: a search needs weights of zero or
@@ -81,10 +81,10 @@
 //   before it is used as a position, so a damaged file throws std::invalid_argument and no
 //   memory outside the arrays is read.
 
-std::vector<double> compute_weights_from_rates(
+std::vector<double> compute_weights_from_km(
     std::span<const int32_t> offsets, std::span<const int32_t> heads, std::span<const double> lengths,
     std::span<const uint8_t> edge_classes, std::span<const uint8_t> node_modes,
-    std::span<const double> class_rates_per_km, std::span<const double> hub_weights);
+    std::span<const double> class_weights_per_km, std::span<const double> hub_weights);
 
 std::vector<double> compute_weighted_sum(const std::vector<std::span<const double>>& weights_of_metrics,
                                          std::span<const double> coefficients);

@@ -169,7 +169,7 @@ def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
     # The name of the class is the name of the edge, and its mode is "road".
     arrays, metadata = network_file.read(parent_file)
     class_names = _name_each_edge(arrays)
-    classes = [{"name": name, "mode": "road"} for name in class_names]
+    classes = [{"name": name, "edge_mode": "road"} for name in class_names]
     arrays["edge_classes"] = array("B", range(len(class_names)))
     classed_file = str(tmp_path / "classed.scgraph")
     network_file.write(classed_file, arrays, metadata | {"classes": classes})

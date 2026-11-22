@@ -568,11 +568,11 @@ def bench_misc(results):
 
     # A version without metrics has no `create_metric`: its two rows stay empty
     if hasattr(type(uf_geo), "create_metric"):
-        # us_freeway has no classes, so every edge gets one rate: 100 km/h
-        ms, _ = timed(uf_geo.create_metric, "hours", per_km=1 / 100)
+        # us_freeway has no classes, so every edge gets one weight per km: 100 km/h
+        ms, _ = timed(uf_geo.create_metric, "hours", weight_per_km=1 / 100)
         results.cell(
             "misc",
-            ["Create Metric (one rate per km)", "us_freeway"],
+            ["Create Metric (one weight per km)", "us_freeway"],
             "Time",
             ms,
         )
@@ -589,7 +589,7 @@ def bench_misc(results):
             ms,
         )
         results.check(
-            "misc", "metric|hours", round_length(out["metrics"]["hours"])
+            "misc", "metric|hours", round_length(out["metric_totals"]["hours"])
         )
 
     vis_data = [[i, i % 2 + (i / 10000)] for i in range(10000)]

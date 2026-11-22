@@ -234,9 +234,9 @@ def road_merged_with_sea(sea):
     )
     road.metadata = {"sources": [{"name": "osm"}]}
     road.add_coord_node({"latitude": 0, "longitude": 3})
-    road.add_coord_node({"latitude": 0, "longitude": 2}, mode="road")
+    road.add_coord_node({"latitude": 0, "longitude": 2}, node_mode="road")
     road.merge_with_other_geograph(
-        sea, connection_nodes=[[0.5, 0.5]], mode="port"
+        sea, connection_nodes=[[0.5, 0.5]], node_mode="port"
     )
     return road
 
@@ -321,7 +321,9 @@ def test_a_node_of_a_257th_mode_is_refused_and_changes_nothing():
     geograph = GeoGraph(graph=[{}], nodes=[[0, 0]], modes=modes)
 
     with pytest.raises(ValueError, match="at most 256 modes"):
-        geograph.add_coord_node({"latitude": 0, "longitude": 1}, mode="new")
+        geograph.add_coord_node(
+            {"latitude": 0, "longitude": 1}, node_mode="new"
+        )
 
     assert (len(geograph.nodes), len(geograph.modes)) == (1, 256)
 
@@ -670,7 +672,7 @@ def test_a_file_says_whether_its_graph_is_symmetric(tmp_path, graph, symmetric):
 # the length first. Another metric gives its weight for 1 km between a query
 # point and its node: here, no toll.
 LENGTH_IN_KM = {"name": "length", "unit": "km"}
-TOLL = {"name": "toll", "unit": "EUR", "off_graph_per_km": 0.0}
+TOLL = {"name": "toll", "unit": "EUR", "off_graph_weight_per_km": 0.0}
 ROAD_AND_PORT = [
     {"name": "road", "source": "roads"},
     {"name": "port", "source": "ports"},
@@ -755,8 +757,8 @@ def test_a_file_whose_arrays_do_not_fit_together_is_refused(
         GeoGraph.load_from_scgraph(path)
 
 
-# A row of the list `classes` gives a class and the mode of its edges.
-MOTORWAY = {"name": "motorway", "mode": "road"}
+# A row of the list `classes` gives a class and the edge mode of its edges.
+MOTORWAY = {"name": "motorway", "edge_mode": "road"}
 
 
 # A value of `node_modes` is a row of the list `modes` of the metadata, and a
@@ -810,13 +812,13 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL
             | {"metrics": [LENGTH_IN_KM, {"name": "toll"}]},
-            "must give off_graph_per_km",
-            id="a toll without off_graph_per_km",
+            "must give off_graph_weight_per_km",
+            id="a toll without off_graph_weight_per_km",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"classes": ["motorway"]},
-            "a row with a name and a mode",
-            id="a class without the mode of its edges",
+            "a row with a name and an edge mode",
+            id="a class without its edge mode",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL
@@ -931,11 +933,11 @@ def test_loading_a_mode_that_the_file_does_not_have_is_refused(tmp_path):
 
 
 EDGE_CLASSES = [
-    {"name": "connector", "mode": "sea"},
-    {"name": "motorway", "mode": "road"},
-    {"name": "primary", "mode": "road"},
-    {"name": "lane", "mode": "sea"},
-    {"name": "strait", "mode": "sea"},
+    {"name": "connector", "edge_mode": "sea"},
+    {"name": "motorway", "edge_mode": "road"},
+    {"name": "primary", "edge_mode": "road"},
+    {"name": "lane", "edge_mode": "sea"},
+    {"name": "strait", "edge_mode": "sea"},
 ]
 
 
@@ -1082,7 +1084,7 @@ def test_loading_two_modes_gives_their_nodes_in_the_order_of_the_file(
         {},
         {2: [[31, 30]]},
     ]
-    classes = [edge["class"] for edge in geograph.get_edges()]
+    classes = [edge["edge_class"] for edge in geograph.get_edges()]
     assert classes == ["motorway", "primary", "lane", "strait"]
 
 

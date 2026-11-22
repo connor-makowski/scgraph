@@ -31,11 +31,11 @@ from scgraph.helpers.hilbert import hilbert_order
 from scgraph.edge_classes import EdgeClasses, find_edge_index
 from scgraph.metrics import (
     Metric,
-    check_off_graph_per_km,
+    check_off_graph_weight_per_km,
     compute_weights_from_sum,
     compute_weights_from_function,
     build_default_description,
-    resolve_rates,
+    resolve_weights_per_km,
     set_edge_weights,
 )
 from scgraph import built_in_geographs, network_cache, network_file
@@ -64,10 +64,10 @@ try:
     from scgraph.cpp import (
         NodeOrderError,
         SnapIndex,
-        compute_weights_from_rates,
+        compute_weights_from_km,
     )
 except ImportError:
-    from scgraph.helpers.metric_weights import compute_weights_from_rates
+    from scgraph.helpers.metric_weights import compute_weights_from_km
     from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
 
 if (
@@ -663,8 +663,8 @@ class GeoGraphIO:
             # As in a network file of a pipeline: every class of the classes table
             geograph._edge_classes = EdgeClasses.build_from_class_names(
                 [
-                    {"name": name, "mode": mode}
-                    for name, mode in CLASSES.items()
+                    {"name": name, "edge_mode": edge_mode}
+                    for name, edge_mode in CLASSES.items()
                 ],
                 edge_class_names,
             )
@@ -890,7 +890,7 @@ class GeoGraphIO:
                 row.get("unit"),
                 row.get("description"),
                 arrays[f"weights_{row['name']}"],
-                row["off_graph_per_km"],
+                row["off_graph_weight_per_km"],
             )
         geograph.default_node_addition_modes = metadata.get(
             "node_addition_modes"
@@ -1449,7 +1449,7 @@ class GeoGraphIO:
                 - 'length': Use the length attribute (in kilometers)
                 - 'travel_time': Use the travel_time attribute (in seconds)
             - Default: 'length'
-            - Note: With 'travel_time', the lengths of the geograph are seconds: it has no other metric, `metrics` gives the unit `s`, and `create_metric` refuses `per_km`
+            - Note: With 'travel_time', the lengths of the geograph are seconds: it has no other metric, `metrics` gives the unit `s`, and `create_metric` refuses `weight_per_km`
         - `off_graph_travel_speed`
             - Type: int | float | None
             - What: The travel speed (km/h) to assume for off-graph travel when using travel_time (seconds) as the weight key
@@ -1460,7 +1460,7 @@ class GeoGraphIO:
                     - The default_node_addition_circuity will be set to 240
                         - This assumes 15 km/h off graph travel speed when optimizing for entry
                         - This is not included in final returned length, but only used to choose an optimal entry node into the graph
-                - If weight_key is 'length', this speed only sets the weight of 1 km off the graph in the metric `travel_time` (`off_graph_per_km`): 3600 / speed, or 240 seconds if None (15 km/h)
+                - If weight_key is 'length', this speed only sets the weight of 1 km off the graph in the metric `travel_time` (`off_graph_weight_per_km`): 3600 / speed, or 240 seconds if None (15 km/h)
                 - If a number, the function will use this speed to convert off-graph distances to travel times in seconds
         - `load_intermediate_nodes`
             - Type: bool
@@ -1590,7 +1590,7 @@ class GeoGraphIO:
         )
         if class_names:
             geograph._edge_classes = EdgeClasses.build_from_class_names(
-                [{"name": name, "mode": "road"} for name in class_names],
+                [{"name": name, "edge_mode": "road"} for name in class_names],
                 edge_class_names,
             )
         # The attributes of each edge, lined up with the edges
@@ -1837,7 +1837,7 @@ class GeoGraphModifiers:
         Optional Arguments:
 
         - `symmetric`: Whether to add the edge in both directions
-        - `edge_class`: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError. With None, the edge has no class: a metric made from rates weighs it as an access leg (see `create_metric`)
+        - `edge_class`: The name of the class of the new edge, a name of `classes`; an unknown name raises a ValueError. With None, the edge has no class: a metric made from weights per km weighs it as an off-graph leg (see `create_metric`)
         """
         self._edge_classes.check_class(edge_class)
         self.graph_object.add_edge(
@@ -1958,7 +1958,7 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
-            - Default: None (no class: a metric made from rates weighs the new edge as an access leg)
+            - Default: None (no class: a metric made from weights per km weighs the new edge as an off-graph leg)
         """
         if not (isinstance(origin_coord_dict, dict)):
             raise ValueError("Origin node must be a dictionary")
@@ -2032,7 +2032,7 @@ class GeoGraphModifiers:
         lat_lon_bound: float = 5,
         silent: bool | None = None,
         temp_node: bool = False,
-        mode: str | None = None,
+        node_mode: str | None = None,
         *,
         edge_class: str | None = None,
     ) -> int:
@@ -2082,14 +2082,14 @@ class GeoGraphModifiers:
             - Type: bool
             - What: If True, the node is considered temporary and will not be used to increase the __original_graph_length__ value
             - Default: False
-        - `mode`
+        - `node_mode`
             - Type: str | None
-            - What: The name of the node's mode: the first mode of that name in `modes`, added if there is none
-            - Default: None (the mode without a name)
+            - What: The name of the node mode of the node: the first node mode of that name in `modes`, added if there is none
+            - Default: None (the node mode without a name)
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edges (see `add_edge`)
-            - Default: None (no class: a metric made from rates weighs each new edge as an access leg)
+            - Default: None (no class: a metric made from weights per km weighs each new edge as an off-graph leg)
 
         Returns:
 
@@ -2145,7 +2145,7 @@ class GeoGraphModifiers:
         if not temp_node:
             self.__original_graph_length__ += 1
 
-        mode_row = self._get_mode_row(mode)  # before any change: may raise
+        mode_row = self._get_mode_row(node_mode)  # before any change: may raise
         # Create the node
         new_node_id = self.graph_object.add_node(
             node_dict=node_dict, symmetric=True
@@ -2221,7 +2221,7 @@ class GeoGraphModifiers:
         - `edge_class`
             - Type: str | None
             - What: The name of the class of the new edge (see `add_edge`)
-            - Default: None (no class: a metric made from rates weighs the new edge as an access leg)
+            - Default: None (no class: a metric made from weights per km weighs the new edge as an off-graph leg)
         """
         if not (origin_idx < len(self.graph_object.graph)):
             raise ValueError("Origin node does not exist")
@@ -2246,7 +2246,7 @@ class GeoGraphModifiers:
         node_addition_type_current_geograph: str = "closest",
         node_addition_type_other_geograph: str = "closest",
         node_addition_math: str = "euclidean",
-        mode: str | None = None,
+        node_mode: str | None = None,
     ) -> None:
         """
         Function:
@@ -2299,10 +2299,10 @@ class GeoGraphModifiers:
             - Options:
                 - 'euclidean': Use the euclidean distance between nodes. This is much faster but is not accurate (especially near the poles)
                 - 'haversine': Use the haversine distance between nodes. This is slower but is an accurate representation of the surface distance between two points
-        - `mode`
+        - `node_mode`
             - Type: str | None
-            - What: The name of the connection nodes' mode (see `add_coord_node`); the other geograph's modes are added after this geograph's, so that its nodes keep theirs
-            - Default: None (the mode without a name)
+            - What: The name of the node mode of the connection nodes (see `add_coord_node`); the node modes of the other geograph are added after those of this geograph, so that its nodes keep theirs
+            - Default: None (the node mode without a name)
         """
         node_connection_mapper = {}
         original_other_graph_length = len(other_geograph.nodes)
@@ -2333,7 +2333,7 @@ class GeoGraphModifiers:
                 circuity=circuity_to_current_geograph,
                 node_addition_type=node_addition_type_current_geograph,
                 node_addition_math=node_addition_math,
-                mode=mode,
+                node_mode=node_mode,
             )
             # Add the connection node to the other geograph
             other_node_id = other_geograph.add_coord_node(
@@ -2438,7 +2438,8 @@ def _reorder_edge_values(
 
 def _cut_legs(edges: list[dict]) -> list[dict]:
     """Cut the edges of a path into legs, and total each leg. A "leg" is a part of
-    a route on one mode: consecutive edges whose classes have the same mode.
+    a route on one edge mode: consecutive edges whose classes have the same edge
+    mode.
 
     Example, a path of four edges: a road of 2 km, two railways of 1 km and 90 km,
     and a road of 2 km. Its legs are a road leg of 2 km, a rail leg of 91 km and a
@@ -2449,29 +2450,29 @@ def _cut_legs(edges: list[dict]) -> list[dict]:
             `GeoGraph.get_path_edges`).
 
     Returns:
-        One dict for each leg: its `mode`, its total `length`, its totals `metrics`
-        by name, its lengths by class `class_lengths` and its node ids `path`. A leg
-        starts at the node where the leg before it ends.
+        One dict for each leg: its `mode`, its total `length`, its totals
+        `metric_totals` by name, its lengths by class `class_lengths` and its node
+        ids `path`. A leg starts at the node where the leg before it ends.
     """
     legs = []
     for edge in edges:
-        if not legs or legs[-1]["mode"] != edge["mode"]:
+        if not legs or legs[-1]["mode"] != edge["edge_mode"]:
             legs.append(
                 {
-                    "mode": edge["mode"],
+                    "mode": edge["edge_mode"],
                     "length": 0.0,
-                    "metrics": dict.fromkeys(edge["metrics"], 0.0),
+                    "metric_totals": dict.fromkeys(edge["metric_weights"], 0.0),
                     "class_lengths": {},
                     "path": [edge["origin_id"]],
                 }
             )
         leg = legs[-1]
         leg["length"] += edge["length"]
-        for name, weight in edge["metrics"].items():
-            leg["metrics"][name] += weight
+        for name, weight in edge["metric_weights"].items():
+            leg["metric_totals"][name] += weight
         class_lengths = leg["class_lengths"]
-        class_lengths[edge["class"]] = (
-            class_lengths.get(edge["class"], 0.0) + edge["length"]
+        class_lengths[edge["edge_class"]] = (
+            class_lengths.get(edge["edge_class"], 0.0) + edge["length"]
         )
         leg["path"].append(edge["destination_id"])
     return legs
@@ -2921,7 +2922,8 @@ class GeoGraphUtils:
             )
             return (
                 self._get_path_total(path, metric)
-                + off_graph_km * self._read_metric(metric).off_graph_per_km
+                + off_graph_km
+                * self._read_metric(metric).off_graph_weight_per_km
             )
         if len(path) == 0:
             # Edge case: origin and destination map to the same graph node
@@ -3207,8 +3209,8 @@ class GeoGraph(
     @property
     def classes(self) -> list[dict]:
         """
-        The rows of the classes of the edges: `{"name": ..., "mode": ...}`, with the
-        name of the class and the mode of its edges. The list is empty on a geograph
+        The rows of the classes of the edges: `{"name": ..., "edge_mode": ...}`, with
+        the name of the class and the edge mode of its edges. The list is empty on a geograph
         without classes: a loader or a merge gives classes to a geograph.
         `get_edges` gives the class of each edge.
         """
@@ -3516,8 +3518,9 @@ class GeoGraph(
         The rows of the metrics, as a network file stores them. The first row is
         `length`, with its unit: `geograph_units`, or `s` when a loader read travel
         times as the lengths. The row of another metric has its `name`, its `unit`
-        and its `description`, if it has them, and `off_graph_per_km`: the weight of
-        1 km of the straight line between a point of a query and its node.
+        and its `description`, if it has them, and `off_graph_weight_per_km`: the
+        weight of 1 km of an off-graph leg, the straight line between a point of a
+        query and its node.
         """
         return [{"name": "length", "unit": self._length_unit}] + [
             metric_record.get_row()
@@ -3528,8 +3531,9 @@ class GeoGraph(
         self,
         name: str,
         *,
-        per_km: float | dict | None = None,
-        at_hub: dict | None = None,
+        weight_per_km: float | dict | None = None,
+        class_weight_per_km: dict | None = None,
+        weight_at_hub: dict | None = None,
         weighted_sum_of: dict[str, float] | None = None,
         edge_weight_fn: Callable | None = None,
         edge_weights: dict | None = None,
@@ -3540,9 +3544,9 @@ class GeoGraph(
         Function:
 
         - Create a metric: one weight for each edge, under a name. `get_shortest_path(metric=name)` then finds the route with the smallest total of these weights
-        - A call gives exactly one of `per_km`, `weighted_sum_of` and `edge_weight_fn`. A weight is a number of zero or more. None in place of a rate or of a weight closes its edges: no route by this metric takes them
+        - A call gives exactly one of `weight_per_km`, `weighted_sum_of` and `edge_weight_fn`. A weight is a number of zero or more. None in place of a weight closes its edges: no route by this metric takes them
         - The weights are computed at the call. A metric of the same name is replaced, and no other metric changes. An edit of the network removes the metric (see `add_edge`)
-        - Example: `geograph.create_metric("hours", per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, at_hub={"rail_terminal": {"rail": 4}}, unit="h")`
+        - Example: `geograph.create_metric("hours", weight_per_km={"road": 1 / 60, "rail": 1 / 40, "off_graph": 1 / 30}, class_weight_per_km={"motorway": 1 / 90}, weight_at_hub={"rail_terminal": {"rail": 4}}, unit="h")`
 
         Required Arguments:
 
@@ -3550,13 +3554,14 @@ class GeoGraph(
 
         Optional Arguments:
 
-        - `per_km`: The rates: the weight of an edge is its rate times its km. The lengths of the geograph must be in km
-            - A number is the rate of every edge, and of the access legs: the straight lines between the points of a query and their nodes
-            - A dict gives the rate of each class that has an edge, under the name of the class or under its edge mode (the name wins), and the rate of the access legs under `"off_graph"`
-            - With a dict, an edge without a class weighs as an access leg: its km times the rate `"off_graph"`. It pays no weight of `at_hub`
-        - `at_hub`: With `per_km`, the weight that an edge pays at a hub: `{node mode: {class or edge mode: weight}}`. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port
+        - `weight_per_km`: The weight of 1 km: the weight of an edge is its weight per km times its km. The lengths of the geograph must be in km
+            - A number is the weight per km of every edge, and of the off-graph legs: the straight lines between the points of a query and their nodes
+            - A dict is `{mode of a leg: weight of 1 km}`. Its keys are the edge modes (see `classes`) and `"off_graph"`, for the off-graph legs. The dict must have `"off_graph"`, and the edge mode of each class that has an edge and that `class_weight_per_km` does not name. None closes an edge mode
+            - With a dict, an edge without a class weighs as an off-graph leg: its km times the weight of `"off_graph"`. It pays no weight of `weight_at_hub`
+        - `class_weight_per_km`: With `weight_per_km`, `{name of a class: weight of 1 km}`: the weight per km of the edges of this class, in place of the weight per km of their edge mode. None closes a class
+        - `weight_at_hub`: With `weight_per_km`, the weight that an edge pays at a hub: `{node mode of a hub: {edge mode: weight}}`. `{"port": {"sea": 12}}` adds 12 to each sea edge that enters a port, and to each sea edge that leaves a port
         - `weighted_sum_of`: `{name of a metric: coefficient}`: the weight of an edge is the sum of its weight in each metric times the coefficient, a finite number above zero. `length` may be one of the metrics. The sum keeps its weights when one of these metrics is created again
-        - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, then once for 1 km of access leg: `{"origin_id": None, "destination_id": None, "length": 1 km in geograph_units, "class": None, "mode": "off_graph", "metrics": {name: weight of 1 km of access leg}}`
+        - `edge_weight_fn`: A function that takes the dictionary of an edge (see `get_edges`) and returns its weight. It is called once for each edge, then once for 1 km of an off-graph leg: `{"origin_id": None, "destination_id": None, "length": 1 km in geograph_units, "edge_class": None, "edge_mode": "off_graph", "metric_weights": {name: weight of 1 km of an off-graph leg}}`
         - `edge_weights`: `{(origin_id, destination_id): weight}`: the weight of these edges, in place of the weight computed above
         - `unit`: The unit of the weights, as free text
         - `description`: Where the weights come from, as free text; the text of this call when None
@@ -3575,52 +3580,66 @@ class GeoGraph(
                 "The name of a metric has small letters, digits and '_', starts "
                 f"with a letter and is not 'length': got {name!r}"
             )
-        if [per_km, weighted_sum_of, edge_weight_fn].count(None) != 2:
+        if [weight_per_km, weighted_sum_of, edge_weight_fn].count(None) != 2:
             raise ValueError(
-                "create_metric takes exactly one of per_km, weighted_sum_of and "
-                "edge_weight_fn"
+                "create_metric takes exactly one of weight_per_km, "
+                "weighted_sum_of and edge_weight_fn"
             )
-        if at_hub is not None and per_km is None:
+        if weight_per_km is None:
+            if class_weight_per_km is not None:
+                raise ValueError(
+                    "class_weight_per_km needs weight_per_km: it replaces the "
+                    "weight per km of the edge mode of a class"
+                )
+            if weight_at_hub is not None:
+                raise ValueError(
+                    "weight_at_hub needs weight_per_km: a hub weight is added "
+                    "to the weight that a weight per km gives"
+                )
+        elif self._length_unit != "km":
             raise ValueError(
-                "at_hub needs per_km: a hub weight is added to the weight that a "
-                "rate gives"
-            )
-        if per_km is not None and self._length_unit != "km":
-            raise ValueError(
-                "per_km needs lengths in km: the lengths of this geograph are in "
-                f"{self._length_unit!r}"
+                "weight_per_km needs lengths in km: the lengths of this "
+                f"geograph are in {self._length_unit!r}"
             )
         offsets, heads, lengths = self._read_edge_arrays()
         units_per_km = get_units_per_km(self.geograph_units)
-        if per_km is not None:
+        if weight_per_km is not None:
             classes, edge_classes = self._edge_classes.list_class_rows(
                 offsets, heads
             )
             if edge_classes is None:
-                # Every edge has the row 0: `per_km` is one rate for every edge
+                # Every edge has the row 0: `weight_per_km` is one weight per km
+                # for every edge
                 edge_classes = array("B", bytes(len(heads)))
             # Nodes appended to `nodes` directly are in the first mode
             self.node_modes.extend(
                 bytes(len(offsets) - 1 - len(self.node_modes))
             )
-            class_rates_per_km, hub_weights, off_graph_per_km = resolve_rates(
-                per_km, at_hub, classes, self.modes, edge_classes
+            class_weights_per_km, hub_weights, off_graph_weight_per_km = (
+                resolve_weights_per_km(
+                    weight_per_km,
+                    class_weight_per_km,
+                    weight_at_hub,
+                    classes,
+                    self.modes,
+                    edge_classes,
+                )
             )
-            weights = compute_weights_from_rates(
+            weights = compute_weights_from_km(
                 offsets,
                 heads,
                 lengths,
                 edge_classes,
                 self.node_modes,
-                class_rates_per_km,
+                class_weights_per_km,
                 hub_weights,
             )
         elif weighted_sum_of is not None:
-            weights, off_graph_per_km = compute_weights_from_sum(
+            weights, off_graph_weight_per_km = compute_weights_from_sum(
                 weighted_sum_of, self._metrics, lengths, units_per_km
             )
         else:
-            weights, off_graph_per_km = compute_weights_from_function(
+            weights, off_graph_weight_per_km = compute_weights_from_function(
                 edge_weight_fn,
                 self._iter_edge_dicts(self._iter_edges()),
                 self._metrics,
@@ -3634,14 +3653,15 @@ class GeoGraph(
             unit,
             description
             or build_default_description(
-                per_km=per_km,
-                at_hub=at_hub,
+                weight_per_km=weight_per_km,
+                class_weight_per_km=class_weight_per_km,
+                weight_at_hub=weight_at_hub,
                 weighted_sum_of=weighted_sum_of,
                 edge_weight_fn=edge_weight_fn,
                 edge_weights=edge_weights,
             ),
             weights,
-            check_off_graph_per_km(name, off_graph_per_km),
+            check_off_graph_weight_per_km(name, off_graph_weight_per_km),
         )
 
     def remove_metric(self, name: str) -> None:
@@ -3690,27 +3710,28 @@ class GeoGraph(
 
     def get_nodes(
         self,
-        mode: str | None = None,
+        node_mode: str | None = None,
         bbox: Sequence[float] | None = None,
     ) -> list[dict]:
         """
         Function:
 
-        - Get the nodes of the geograph, or those of one mode or inside a bounding box
+        - Get the nodes of the geograph, or those of one node mode or inside a bounding box
 
         Optional Arguments:
 
-        - `mode`: The name of a mode of `modes`: only the nodes of this mode are returned; an unknown name raises a ValueError
+        - `node_mode`: The name of a node mode of `modes`: only the nodes of this node mode are returned; an unknown name raises a ValueError
         - `bbox`: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned
 
         Returns:
 
-        - A list with one dictionary for each node, in the order of the node ids: `{"node_id", "latitude", "longitude", "mode"}`. `mode` is the name of the mode of the node (None on a geograph without named modes)
+        - A list with one dictionary for each node, in the order of the node ids: `{"node_id", "latitude", "longitude", "node_mode"}`. `node_mode` is the name of the node mode of the node (None on a geograph without named node modes)
         """
         mode_names = [row.get("name") for row in self.modes]
-        if mode is not None and mode not in mode_names:
+        if node_mode is not None and node_mode not in mode_names:
             raise ValueError(
-                f"Unknown mode {mode!r}: the modes of this geograph are {mode_names}"
+                f"Unknown node mode {node_mode!r}: the node modes of this "
+                f"geograph are {mode_names}"
             )
         south, west, north, east = (
             (-inf, -inf, inf, inf) if bbox is None else bbox
@@ -3721,7 +3742,7 @@ class GeoGraph(
             zip_longest(self.nodes, self.node_modes, fillvalue=0)
         ):
             if (
-                mode in (None, mode_names[mode_row])
+                node_mode in (None, mode_names[mode_row])
                 and south <= point[0] <= north
                 and west <= point[1] <= east
             ):
@@ -3730,7 +3751,7 @@ class GeoGraph(
                         "node_id": node_id,
                         "latitude": point[0],
                         "longitude": point[1],
-                        "mode": mode_names[mode_row],
+                        "node_mode": mode_names[mode_row],
                     }
                 )
         return nodes
@@ -3752,9 +3773,9 @@ class GeoGraph(
 
         Returns:
 
-        - A list with one dictionary for each edge, by origin: `{"origin_id", "destination_id", "length", "class", "mode", "metrics"}`
-        - `length` is in `geograph_units`. `class` is the name of the class of the edge and `mode` is the mode of that class; both are None for an edge without a class
-        - `metrics` is a dictionary `{name: weight}`: the weight of the edge in each metric other than `length`; infinity for an edge that is closed in the metric
+        - A list with one dictionary for each edge, by origin: `{"origin_id", "destination_id", "length", "edge_class", "edge_mode", "metric_weights"}`
+        - `length` is in `geograph_units`. `edge_class` is the name of the class of the edge and `edge_mode` is the edge mode of that class; both are None for an edge without a class
+        - `metric_weights` is a dictionary `{name: weight}`: the weight of the edge in each metric other than `length`; infinity for an edge that is closed in the metric
         """
         offsets, heads, _ = self._read_edge_arrays()
         if origin_id is not None and not 0 <= origin_id < len(offsets) - 1:
@@ -3804,9 +3825,9 @@ class GeoGraph(
                 "origin_id": origin_id,
                 "destination_id": destination_id,
                 "length": lengths[edge_index],
-                "class": class_entry["name"],
-                "mode": class_entry["mode"],
-                "metrics": {
+                "edge_class": class_entry["name"],
+                "edge_mode": class_entry["edge_mode"],
+                "metric_weights": {
                     name: weights[edge_index]
                     for name, weights in weights_of_metrics
                 },
@@ -3863,16 +3884,17 @@ class GeoGraph(
         off_graph_circuity: float,
     ) -> dict[str, float]:
         """Return the total of each metric other than `length` along a route: the
-        weight of each edge of `path`, plus the access legs from the points `origin`
-        and `destination` of the query. An access leg weighs its km, times
-        `off_graph_circuity`, times `off_graph_per_km` of the metric."""
+        weight of each edge of `path`, plus the off-graph legs from the points
+        `origin` and `destination` of the query. An off-graph leg weighs its km,
+        times `off_graph_circuity`, times `off_graph_weight_per_km` of the metric.
+        """
         off_graph_km = off_graph_circuity * self._get_off_graph_km(
             path, origin, destination
         )
         edge_indexes = self._find_path_edge_indexes(path)
         return {
             name: sum(map(metric_record.weights.__getitem__, edge_indexes))
-            + off_graph_km * metric_record.off_graph_per_km
+            + off_graph_km * metric_record.off_graph_weight_per_km
             for name, metric_record in self._metrics.items()
         }
 
@@ -3882,8 +3904,8 @@ class GeoGraph(
         origin: Sequence[float],
         destination: Sequence[float],
     ) -> float:
-        # The km of the two access legs of a route, without circuity. A route
-        # without a node is one access leg from the origin to the destination.
+        # The km of the two off-graph legs of a route, without circuity. A route
+        # without a node is one off-graph leg from the origin to the destination.
         if not path:
             return haversine(origin, destination)
         return haversine(origin, self.nodes[path[0]]) + haversine(
@@ -3900,16 +3922,18 @@ class GeoGraph(
         output_coordinate_path: str,
         get_intermediate_nodes: bool,
     ) -> tuple[list[dict], list[dict]]:
-        """Return the legs and the hubs of a route, as `get_shortest_path` describes
-        them. The edges of `path` make the legs on the network (`_cut_legs`). An
-        access leg joins each point of the query to its node, and weighs as in the
-        totals of the route. A route without an edge is one access leg, through the
-        node of its path if it has one."""
+        """Return the legs and the transfers of a route, as `get_shortest_path`
+        describes them. The edges of `path` make the legs on the network
+        (`_cut_legs`). An off-graph leg joins each point of the query to its node,
+        and weighs as in the totals of the route. A route without an edge is one
+        off-graph leg, through the node of its path if it has one."""
         legs = _cut_legs(self.get_path_edges(path))
-        hubs = [
+        transfers = [
             {
                 "node_id": leg["path"][0],
-                "mode": self.modes[self.node_modes[leg["path"][0]]].get("name"),
+                "node_mode": self.modes[self.node_modes[leg["path"][0]]].get(
+                    "name"
+                ),
             }
             for leg in legs[1:]
         ]
@@ -3918,21 +3942,21 @@ class GeoGraph(
                 leg.pop("path"), get_intermediate_nodes=get_intermediate_nodes
             )
         if legs:
-            access_paths = [
+            off_graph_paths = [
                 [origin, self.nodes[path[0]]],
                 [self.nodes[path[-1]], destination],
             ]
         else:
-            access_paths = [
+            off_graph_paths = [
                 [origin, *map(self.nodes.__getitem__, path), destination]
             ]
-        access_legs = []
-        for points in access_paths:
+        off_graph_legs = []
+        for points in off_graph_paths:
             hops = list(zip(points, points[1:]))
             off_graph_km = off_graph_circuity * sum(
                 haversine(start, end) for start, end in hops
             )
-            access_leg = {
+            off_graph_leg = {
                 "mode": "off_graph",
                 "length": sum(
                     haversine(
@@ -3943,15 +3967,15 @@ class GeoGraph(
                     )
                     for start, end in hops
                 ),
-                "metrics": {
-                    name: off_graph_km * metric_record.off_graph_per_km
+                "metric_totals": {
+                    name: off_graph_km * metric_record.off_graph_weight_per_km
                     for name, metric_record in self._metrics.items()
                 },
                 "class_lengths": {},
                 "coordinate_path": points,
             }
-            access_legs.append(access_leg)
-        legs = [access_legs[0], *legs, *access_legs[1:]]
+            off_graph_legs.append(off_graph_leg)
+        legs = [off_graph_legs[0], *legs, *off_graph_legs[1:]]
         convert_length = partial(
             distance_converter,
             input_units=self.geograph_units,
@@ -3968,8 +3992,8 @@ class GeoGraph(
                 output_format=output_coordinate_path,
             )
             if not self._metrics:
-                del leg["metrics"]
-        return legs, hubs
+                del leg["metric_totals"]
+        return legs, transfers
 
     def validate_nodes(self) -> None:
         """
@@ -4119,14 +4143,14 @@ class GeoGraph(
             - `id_path`: A list of node ids in the order they are visited
             - `path`: A list of nodes  (list of lat then long) in the order they are visited
             - `length`: The length of the path
-            - `metrics`: On a geograph that has metrics other than `length` (see `metrics`), a dictionary `{name: total}` with the total of each of these metrics along the path
-            - `legs`: With `output_legs=True`, the legs of the path in their order. A leg is a part of the path on one mode, as a dictionary `{"mode", "length", "metrics", "class_lengths", "coordinate_path"}`
-                - `mode` is the mode of the edges of the leg (see `classes`). A new leg starts where this mode changes. The edges of a geograph without classes make one leg of the mode None
-                - The first and the last leg are the off-graph access legs, of the mode 'off_graph': origin -> entrance node and exit node -> destination. A path without an edge is one leg of the mode 'off_graph'
-                - `length` and `metrics` are the totals of the leg, as those of the path. The length of the path is the sum of the lengths of its legs, and so is each total of `metrics`. A leg has the key `metrics` only when the path has it
-                - `class_lengths` is a dictionary `{class name: length}`: the length of the leg on each class of edges, in `output_units`. It is empty for an access leg
+            - `metric_totals`: On a geograph that has metrics other than `length` (see `metrics`), a dictionary `{name: total}` with the total of each of these metrics along the path
+            - `legs`: With `output_legs=True`, the legs of the path in their order. A leg is a part of the path on one mode, as a dictionary `{"mode", "length", "metric_totals", "class_lengths", "coordinate_path"}`
+                - `mode` is the edge mode of the edges of the leg (see `classes`). A new leg starts where this edge mode changes. The edges of a geograph without classes make one leg of the mode None
+                - The first and the last leg are the off-graph legs, of the mode 'off_graph': origin -> entrance node and exit node -> destination. A path without an edge is one leg of the mode 'off_graph'
+                - `length` and `metric_totals` are the totals of the leg, as those of the path. The length of the path is the sum of the lengths of its legs, and so is each total of `metric_totals`. A leg has the key `metric_totals` only when the path has it
+                - `class_lengths` is a dictionary `{class name: length}`: the length of the leg on each class of edges, in `output_units`. It is empty for an off-graph leg
                 - `coordinate_path` holds the coordinates of the leg, in the format of `output_coordinate_path`
-            - `hubs`: With `output_legs=True`, a list of dictionaries `{"node_id", "mode"}`: the node between two legs that are not access legs, with the mode of this node (see `modes`)
+            - `transfers`: With `output_legs=True`, a list of dictionaries `{"node_id", "node_mode"}`: each node where the path goes from a leg of one edge mode to a leg of another, with the node mode of this node (see `modes`). The two nodes where an off-graph leg meets the network are not transfers
 
          Required Arguments:
 
@@ -4257,7 +4281,7 @@ class GeoGraph(
         - `length_only`
             - Type: bool
             - What: If True, only returns the length of the path
-            - Note: With a `metric` other than 'length', only returns the total of this metric: `{"metrics": {metric: total}}`
+            - Note: With a `metric` other than 'length', only returns the total of this metric: `{"metric_totals": {metric: total}}`
             - Note: `output_legs` is then ignored, as `output_path` is
             - Default: False
         - `get_intermediate_nodes`
@@ -4273,18 +4297,18 @@ class GeoGraph(
                 - The search runs on `get_graph_object(metric)`. An unknown name raises a ValueError
                 - When no route by the metric joins the two points, the PathNotFoundError names the metric: an edge that is closed in the metric cannot be taken
                 - With `algorithm_fn='a_star'`, the bound of `geograph.haversine` or of `geograph.cheap_ruler` is a length: the geograph multiplies it by the smallest weight of 1 km of an edge in the metric. Another `heuristic_fn` is used as it is: it must give a lower bound of the total of the metric between two nodes
-                - An off-graph access leg weighs its km times the weight of 1 km in the metric (`off_graph_per_km` in `metrics`), with `node_addition_circuity` during pathfinding and with `off_graph_circuity` in the reported totals
+                - An off-graph leg weighs its km times the weight of 1 km in the metric (`off_graph_weight_per_km` in `metrics`), with `node_addition_circuity` during pathfinding and with `off_graph_circuity` in the reported totals
         - `node_addition_modes`
             - Type: list of str | None
             - What: The names of the modes of nodes (see `modes`) that the origin and the destination may snap to: each one is connected only to nodes of these modes, for every `node_addition_type`
-            - Default: None (the modes of `default_node_addition_modes` that have a node in the geograph, and the nodes without a named mode, such as a node that `add_coord_node` added without `mode`; every mode if there are none)
+            - Default: None (the modes of `default_node_addition_modes` that have a node in the geograph, and the nodes without a named mode, such as a node that `add_coord_node` added without `node_mode`; every mode if there are none)
             - Notes:
                 - EG: `geograph.get_shortest_path(origin_node, destination_node, node_addition_modes=["road"])` starts and ends the path on a road, also when a railway or a sea lane is closer
                 - An empty list, a name that is not in `modes`, or modes that no node has, raise a ValueError
                 - The first query with a set of modes builds the snapping index of their nodes. The geograph keeps it until its nodes change
         - `output_legs`
             - Type: bool
-            - What: Whether to output the legs of the path and its hubs, under the keys `legs` and `hubs` described above
+            - What: Whether to output the legs of the path and its transfers, under the keys `legs` and `transfers` described above
             - Default: False
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
@@ -4432,12 +4456,14 @@ class GeoGraph(
             )
             is_direct = direct_node_addition_length <= min_entry_exit
             if is_by_metric:
-                # The search weighs an access leg by its km times the weight of
-                # 1 km. The test above compares lengths: a metric whose access
+                # The search weighs an off-graph leg by its km times the weight of
+                # 1 km. The test above compares lengths: a metric whose off-graph
                 # legs weigh nothing must not make every route direct.
                 off_graph_per_unit = self._read_metric(
                     metric
-                ).off_graph_per_km / get_units_per_km(self.geograph_units)
+                ).off_graph_weight_per_km / get_units_per_km(
+                    self.geograph_units
+                )
                 direct_node_addition_length *= off_graph_per_unit
                 origin_id = {
                     node_id: length * off_graph_per_unit
@@ -4489,7 +4515,7 @@ class GeoGraph(
                 # length of the route.
                 metric_total = output["length"]
                 if length_only:
-                    return {"metrics": {metric: metric_total}}
+                    return {"metric_totals": {metric: metric_total}}
                 output["length"] = self.get_path_weight(
                     {
                         "path": output["path"],
@@ -4508,11 +4534,11 @@ class GeoGraph(
             if length_only:
                 return {"length": output["length"]}
             if self._read_metrics():
-                output["metrics"] = self._get_metric_totals(
+                output["metric_totals"] = self._get_metric_totals(
                     output["path"], origin, destination, off_graph_circuity
                 )
                 if is_by_metric:
-                    output["metrics"][metric] = metric_total
+                    output["metric_totals"][metric] = metric_total
 
             # Get the coordinate path
             output["coordinate_path"] = (
@@ -4534,7 +4560,7 @@ class GeoGraph(
                     output["long_first"] = True
 
             if output_legs:
-                output["legs"], output["hubs"] = self._get_legs(
+                output["legs"], output["transfers"] = self._get_legs(
                     output["path"],
                     origin,
                     destination,
@@ -4552,7 +4578,7 @@ class GeoGraph(
                 raise PathNotFoundError(
                     f"No route by the metric {metric!r} joins the two points. An "
                     "edge that is closed in this metric cannot be taken: check the "
-                    "rates of the metric, and `node_addition_modes`, which names "
+                    "weights of the metric, and `node_addition_modes`, which names "
                     "the node modes that the points snap to."
                 ) from error
             error.add_note(
@@ -4704,12 +4730,12 @@ class GeoGraph(
             )
             off_graph_per_unit = 1
         else:
-            # The total of a metric is not converted. An access leg weighs its km
+            # The total of a metric is not converted. An off-graph leg weighs its km
             # times the weight of 1 km in the metric.
             dist_multiplier, output_units = 1, "km"
             off_graph_per_unit = self._read_metric(
                 output_metric
-            ).off_graph_per_km
+            ).off_graph_weight_per_km
         snap_index = (
             self._get_mode_snap_index(node_addition_modes) or self.snap_index
         )

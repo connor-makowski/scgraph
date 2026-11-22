@@ -1,5 +1,5 @@
 """
-Pure-Python version of the C++ kernels `compute_weights_from_rates` and
+Pure-Python version of the C++ kernels `compute_weights_from_km` and
 `compute_weighted_sum`, with the same result, bit for bit. The kernels and their
 parameters are described in `scgraph/cpp/src/metric_weights.hpp`. Read it first.
 
@@ -19,17 +19,17 @@ from math import inf
 from operator import add, mul
 
 
-def compute_weights_from_rates(
+def compute_weights_from_km(
     offsets: array | memoryview,
     heads: array | memoryview,
     lengths: array | memoryview,
     edge_classes: array | memoryview,
     node_modes: array | memoryview,
-    class_rates_per_km: array | memoryview,
+    class_weights_per_km: array | memoryview,
     hub_weights: array | memoryview,
 ) -> array:
     """
-    Compute the weight of each edge from the rate of its class and from the weight
+    Compute the weight of each edge from the weight per km of its class and from the weight
     that it pays at a hub: one float64 weight of zero or more for each edge, and
     infinity for a closed edge.
 
@@ -38,7 +38,7 @@ def compute_weights_from_rates(
             not a number.
     """
     node_count, edge_count = len(offsets) - 1, len(heads)
-    class_count = len(class_rates_per_km)
+    class_count = len(class_weights_per_km)
     if (
         node_count < 0
         or len(node_modes) != node_count
@@ -52,15 +52,19 @@ def compute_weights_from_rates(
         raise ValueError("expected one hub weight per mode and per class")
     if max(node_modes, default=-1) >= len(hub_weights) // class_count:
         raise ValueError(
-            "an edge has a class without a rate, or a node has a mode without hub weights"
+            "an edge has a class without a weight per km, or a node has a mode without hub weights"
         )
     try:
-        # 1. The rate of the class times the km, or infinity for a closed class
-        # A list holds the rates as Python floats: an array would make a new float
+        # 1. The weight per km of the class times the km, or infinity for a closed class
+        # A list holds the weights per km as Python floats: an array would make a new float
         # at each read
-        rates = map(list(class_rates_per_km).__getitem__, edge_classes)
-        weights = array("d", map(mul, lengths, rates))
-        is_closed = bytes(rate == inf for rate in class_rates_per_km)
+        weights_per_km = map(
+            list(class_weights_per_km).__getitem__, edge_classes
+        )
+        weights = array("d", map(mul, lengths, weights_per_km))
+        is_closed = bytes(
+            weight_per_km == inf for weight_per_km in class_weights_per_km
+        )
         if 1 in is_closed:
             closed_edges = bytes(edge_classes).translate(
                 is_closed.ljust(256, b"\0")
@@ -93,7 +97,7 @@ def compute_weights_from_rates(
                     weights[edge_index] += weight
     except IndexError:
         raise ValueError(
-            "an edge has a class without a rate, or a node has a mode without hub weights"
+            "an edge has a class without a weight per km, or a node has a mode without hub weights"
         ) from None
 
     # 4. A comparison with a value that is not a number is false

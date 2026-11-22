@@ -116,7 +116,7 @@ A pipeline that fills `edge_classes` itself may define its own `CLASSES` dict in
 module, with the same form. A value of `edge_classes` is then a row of that table,
 and the runner writes that table into the header.
 
-A network file holds the class of each edge and one row `{"name", "mode"}` for each
+A network file holds the class of each edge and one row `{"name", "edge_mode"}` for each
 class (`ARCHITECTURE.md`, section 7), and `network_file.read` returns them. A GeoGraph
 loaded from the file holds them: `GeoGraph.classes` and `GeoGraph.get_edges`.
 
