@@ -260,7 +260,7 @@ class GeoGraphIO:
 
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
-        - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_node_addition_modes` and the GeoGraph defaults are saved
+        - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_metric`, `default_node_addition_modes` and the GeoGraph defaults are saved
         - The nodes are written in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `source_node_ids`
         - Coordinates that are not finite numbers raise a ValueError
 
@@ -324,6 +324,7 @@ class GeoGraphIO:
             metrics=self.metrics,
             classes=classes,
             node_addition_modes=self.default_node_addition_modes,
+            default_metric=self.default_metric,
         )
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
@@ -798,7 +799,7 @@ class GeoGraphIO:
         - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `source_node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_mode_ids` and `node_modes` give the node mode of each node
         - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge; `default_node_addition_modes` holds the `node_addition_modes` of the file: the node modes that the points of a query snap to by default (see `get_shortest_path`)
-        - `metrics` holds the metrics of the file, with their weights. An edit of the network removes them, as every metric other than `length` (see `add_edge`)
+        - `metrics` holds the metrics of the file, with their weights. An edit of the network removes them, as every metric other than `length` (see `add_edge`). `default_metric` holds the `default_metric` of the file: the metric that a call without `metric` uses
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones. On a file with `node_addition_modes`, the first query also builds the index of the nodes of these node modes
@@ -857,7 +858,6 @@ class GeoGraphIO:
             graph = Graph.from_csr(*edge_arrays, copy=False)
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
-        length_unit = metadata["metrics"][0]["unit"]
         geograph = GeoGraph(
             graph=graph,
             nodes=network_file.NodePoints(arrays["node_points"]),
@@ -866,8 +866,7 @@ class GeoGraphIO:
                 if "shape_offsets" in arrays
                 else None
             ),
-            # Beside lengths in seconds, a distance off the graph is in km
-            geograph_units="km" if length_unit == "s" else length_unit,
+            geograph_units=metadata["metrics"][0]["unit"],
             source_node_ids=arrays.get("source_node_ids"),
             node_mode_ids=arrays.get("node_mode_ids"),
             node_modes=metadata.get("node_modes"),
@@ -879,7 +878,6 @@ class GeoGraphIO:
             if key not in network_file.RESERVED_METADATA_KEYS
         }
         geograph.scgraph_file = filename
-        geograph._length_unit = length_unit
         # The arrays of the file are the edges of the new graph, in the same order
         geograph._set_edge_arrays(edge_arrays)
         if "edge_class_ids" in arrays:
@@ -900,6 +898,7 @@ class GeoGraphIO:
         geograph.default_node_addition_modes = metadata.get(
             "node_addition_modes"
         )
+        geograph.default_metric = metadata.get("default_metric", "length")
         geograph.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
         # index is built now, not at the first query (an empty network has none)
@@ -1423,12 +1422,14 @@ class GeoGraphIO:
         - This function:
             - Will convert the OSMnx graph into a GeoGraph object
             - Rounds the coordinates to the specified precision
-            - Rounds the weights to the specified precision (in kilometers)
+            - Rounds the lengths (in kilometers) and the travel times (in seconds) to the specified precision
             - This preserves directionality of edges from the OSMnx graph
             - Numbers the nodes along a Hilbert curve (nodes close on the globe get close ids); `source_node_ids[i]` is node i's OSMnx id (its OSM id), when the ids are integers
             - Keeps the `highway` value of each edge as its class, of the edge mode `road` (see `classes` and `get_edges`): the first value when `highway` is a list, and no class for an edge without `highway`
-            - With the weight key 'length', keeps the `travel_time` of each edge as the metric `travel_time`, in seconds, when every edge has one: `get_shortest_path(metric="travel_time")` then finds the fastest path and returns its kilometers in `length`
-            - Of several edges from one node to another, keeps the one with the smallest weight, with its class and its travel time. So `travel_time` holds the time of the shortest edge, which may not be the fastest
+            - The lengths of the geograph are always the `length` of the edges, in kilometers
+            - Keeps the `travel_time` of each edge as the metric `travel_time`, in seconds, when every edge has one: `get_shortest_path(metric="travel_time")` then finds the fastest path. Its result has the kilometers of this path in `length` and its seconds in `metric_totals["travel_time"]`
+            - An off-graph leg, the straight line between a query point and its node, weighs its kilometers times 3600 / `off_graph_travel_speed` seconds in the metric `travel_time`, or times 240 seconds without a speed
+            - Of several edges from one node to another, keeps the one with the smallest value of `weight_key`, with its length, its class and its travel time. So with the weight key 'length', `travel_time` holds the time of the shortest edge, which may not be the fastest
 
         Required Arguments:
 
@@ -1450,24 +1451,20 @@ class GeoGraphIO:
             - Note: By default, OSMNX returns meters, but they are adjusted to kilometers in this function before rounding
         - `weight_key`
             - Type: str
-            - What: The edge attribute to use as the weight for the graph
+            - What: The edge attribute that the queries minimise. It sets the `default_metric` of the geograph: the metric of a query that names no `metric`
             - Options:
                 - 'length': Use the length attribute (in kilometers)
-                - 'travel_time': Use the travel_time attribute (in seconds)
+                - 'travel_time': Use the travel_time attribute (in seconds). Every edge must have one
             - Default: 'length'
-            - Note: With 'travel_time', the lengths of the geograph are seconds: it has no other metric, `metrics` gives the unit `s`, and `create_metric` refuses `weight_per_km`
+            - Note: With 'travel_time', a query without `metric` finds the fastest path: `length` is its kilometers and `metric_totals["travel_time"]` its seconds. `metric="length"` finds the shortest path on the same geograph
         - `off_graph_travel_speed`
             - Type: int | float | None
-            - What: The travel speed (km/h) to assume for off-graph travel when using travel_time (seconds) as the weight key
+            - What: The travel speed (km/h) to assume for off-graph travel in the metric `travel_time`
             - Default: None
             - Options:
-                - If None and weight_key is 'travel_time'
-                    - The default_off_graph_circiuity will be set to 0 (assuming instant travel off graph)
-                    - The default_node_addition_circuity will be set to 240
-                        - This assumes 15 km/h off graph travel speed when optimizing for entry
-                        - This is not included in final returned length, but only used to choose an optimal entry node into the graph
-                - If weight_key is 'length', this speed only sets the weight of 1 km off the graph in the metric `travel_time` (`off_graph_weight_per_km`): 3600 / speed, or 240 seconds if None (15 km/h)
-                - If a number, the function will use this speed to convert off-graph distances to travel times in seconds
+                - If a number, 1 km off the graph weighs 3600 / speed seconds in the metric `travel_time` (`off_graph_weight_per_km`)
+                - If None, 1 km off the graph weighs 240 seconds: 15 km/h
+            - Note: The speed does not change the lengths: an off-graph leg counts its kilometers in `length`
         - `load_intermediate_nodes`
             - Type: bool
             - What: Whether to load the intermediate nodes for each edge (if they exist)
@@ -1486,6 +1483,10 @@ class GeoGraphIO:
 
         """
         warn_deprecated_parameter("silent", silent)
+        if weight_key not in ("length", "travel_time"):
+            raise ValueError(
+                f"weight_key must be 'length' or 'travel_time': got {weight_key!r}"
+            )
         if lazy:
             return LazyGeoGraph(
                 lambda: GeoGraph.load_from_osmnx_graph(
@@ -1517,8 +1518,10 @@ class GeoGraphIO:
         graph = [dict() for _ in range(len(node_list))]
         if load_intermediate_nodes:
             intermediate_nodes = [dict() for _ in range(len(node_list))]
+        # OSMnx gives a length in meters and a travel time in seconds
         weight_divisor = 1000 if weight_key == "length" else 1
-        # The attributes of the kept edge from a node to another
+        # The weight of the kept edge from a node to another, and its attributes
+        kept_weights = [dict() for _ in range(len(node_list))]
         kept_attributes = [dict() for _ in range(len(node_list))]
         for u, v, data in osmnx_graph.edges(data=True):
             i = node_to_idx[u]
@@ -1526,10 +1529,14 @@ class GeoGraphIO:
             weight = round(
                 float(data.get(weight_key)) / weight_divisor, weight_precision
             )
-            # Keep only the shortest of parallel edges, with its own geometry
-            if weight >= graph[i].get(j, float("inf")):
+            # Keep only the parallel edge with the smallest weight, with its own
+            # length and its own geometry
+            if weight >= kept_weights[i].get(j, float("inf")):
                 continue
-            graph[i][j] = weight
+            kept_weights[i][j] = weight
+            graph[i][j] = round(
+                float(data.get("length")) / 1000, weight_precision
+            )
             kept_attributes[i][j] = data
             if load_intermediate_nodes and "geometry" in data:
                 intermediate_nodes[i][j] = [
@@ -1552,26 +1559,6 @@ class GeoGraphIO:
             # An edge's geometry should run from its first node to its second
             _keep_interior_points(intermediate_nodes, nodes)
             kwargs["intermediate_nodes"] = intermediate_nodes
-        # Handle travel_time specific parameters
-        if weight_key == "travel_time":
-            if off_graph_travel_speed is None:
-                warnings.warn(
-                    "No off_graph_travel_speed provided but weight_key = 'travel_time'. Assuming instant travel off graph. Setting default_off_graph_circuity to 0 and default_node_addition_circuity to 240.",
-                    stacklevel=2,
-                )
-                kwargs["default_off_graph_circuity"] = 0
-                kwargs["default_node_addition_circuity"] = 240
-            else:
-                off_graph_speed_km_per_s = off_graph_travel_speed / 3600
-                kwargs["default_off_graph_circuity"] = (
-                    1 / off_graph_speed_km_per_s
-                )
-                kwargs["default_node_addition_circuity"] = (
-                    1 / off_graph_speed_km_per_s
-                )
-
-        # TODO: Handle time based geograph units in a better way by default.
-        # See: self.geograph_units
         geograph = GeoGraph(
             graph=graph,
             nodes=nodes,
@@ -1606,9 +1593,7 @@ class GeoGraphIO:
             for origin_id, attributes_of_origin in enumerate(kept_attributes)
             for edge_id in range(offsets[origin_id], offsets[origin_id + 1])
         ]
-        if weight_key == "travel_time":
-            geograph._length_unit = "s"
-        elif all("travel_time" in data for data in edge_attributes):
+        if all("travel_time" in data for data in edge_attributes):
             geograph._metrics["travel_time"] = Metric(
                 "travel_time",
                 "s",
@@ -1626,6 +1611,7 @@ class GeoGraphIO:
                     else 3600 / off_graph_travel_speed
                 ),
             )
+        geograph.default_metric = weight_key
         geograph.reduce(reduce_iterations)
         return geograph
 
@@ -2868,7 +2854,7 @@ class GeoGraphUtils:
         off_graph_circuity: float | None = None,
         output_units: str = "km",
         *,
-        metric: str = "length",
+        metric: str | None = None,
     ) -> float:
         """
         Function:
@@ -2910,7 +2896,8 @@ class GeoGraphUtils:
               `off_graph_circuity` times the weight of 1 km in the metric
             - Note: The total of a metric other than 'length' is not converted to
               `output_units`. An unknown name raises a ValueError
-            - Default: 'length'
+            - Default: None (the `default_metric` of the geograph, which is
+              'length' unless a loader or the caller set it)
 
         Returns:
 
@@ -2919,6 +2906,8 @@ class GeoGraphUtils:
         """
         if off_graph_circuity is None:
             off_graph_circuity = self.default_off_graph_circuity
+        if metric is None:
+            metric = self.default_metric
         path = path_result.get("path")
         coordinate_path = path_result.get("coordinate_path")
         if not (path is not None):
@@ -3069,6 +3058,8 @@ class GeoGraph(
         Function:
 
         - Create a GeoGraph object
+        - The attribute `default_metric` is the name of the metric that a call without `metric` uses (`get_shortest_path`, `distance_matrix`, `get_path_weight`, `get_graph_object`). It is 'length', until a loader or the caller sets it to another name of `metrics`
+        - A call fails with a ValueError while `default_metric` names a metric that the geograph does not have, for example after an edit of the network, which removes the metrics other than 'length'
 
         Required Arguments:
 
@@ -3219,9 +3210,8 @@ class GeoGraph(
             True if intermediate_nodes is not None else False
         )
         self.geograph_units = geograph_units
-        # The unit of the lengths of the edges: `geograph_units`, or "s" when a loader
-        # read travel times as the lengths
-        self._length_unit = geograph_units
+        # The name of the metric that a call without `metric` uses
+        self.default_metric = "length"
         # Built at the first snap, not here: a GeoGraph that never snaps never pays for it
         self.snap_index = None
         # len(nodes), not len(graph): a C++ graph would be copied to Python to count it
@@ -3289,6 +3279,12 @@ class GeoGraph(
                 f"Unknown metric {metric!r}: the metrics of this geograph are "
                 f"{['length', *metrics]}. An edit of the network removes the "
                 "metrics other than 'length'"
+                + (
+                    f". {metric!r} is the `default_metric` of this geograph: "
+                    "create this metric again, or set `default_metric`"
+                    if metric == self.default_metric
+                    else ""
+                )
             )
         return metrics[metric]
 
@@ -3544,13 +3540,12 @@ class GeoGraph(
     def metrics(self) -> list[dict]:
         """
         The rows of the metrics, as a network file stores them. The first row is
-        `length`, with its unit: `geograph_units`, or `s` when a loader read travel
-        times as the lengths. The row of another metric has its `name`, its `unit`
+        `length`, with its unit: `geograph_units`. The row of another metric has its `name`, its `unit`
         and its `description`, if it has them, and `off_graph_weight_per_km`: the
         weight of 1 km of an off-graph leg, the straight line between a point of a
         query and its node.
         """
-        return [{"name": "length", "unit": self._length_unit}] + [
+        return [{"name": "length", "unit": self.geograph_units}] + [
             metric_record.get_row()
             for metric_record in self._read_metrics().values()
         ]
@@ -3626,10 +3621,10 @@ class GeoGraph(
                     "weight_at_hub needs weight_per_km: a hub weight is added "
                     "to the weight that a weight per km gives"
                 )
-        elif self._length_unit != "km":
+        elif self.geograph_units != "km":
             raise ValueError(
                 "weight_per_km needs lengths in km: the lengths of this "
-                f"geograph are in {self._length_unit!r}"
+                f"geograph are in {self.geograph_units!r}"
             )
         if edge_weight_fn is None:
             if off_graph_weight_per_km is not None:
@@ -3720,7 +3715,7 @@ class GeoGraph(
         self._read_metric(name)
         del self._metrics[name]
 
-    def get_graph_object(self, metric: str = "length") -> Graph:
+    def get_graph_object(self, metric: str | None = None) -> Graph:
         """
         Function:
 
@@ -3730,8 +3725,10 @@ class GeoGraph(
 
         Optional Arguments:
 
-        - `metric`: The name of a metric of `metrics`; an unknown name raises a ValueError
+        - `metric`: The name of a metric of `metrics`; an unknown name raises a ValueError. None is the `default_metric` of the geograph, which is 'length' unless a loader or the caller set it
         """
+        if metric is None:
+            metric = self.default_metric
         if metric == "length":
             return self.graph_object
         metric_record = self._read_metric(metric)
@@ -4170,7 +4167,7 @@ class GeoGraph(
         silent: bool | None = None,
         length_only: bool = False,
         get_intermediate_nodes: bool | None = None,
-        metric: str = "length",
+        metric: str | None = None,
         node_addition_modes: list[str] | None = None,
         output_legs: bool = False,
         **kwargs,
@@ -4332,7 +4329,7 @@ class GeoGraph(
         - `metric`
             - Type: str
             - What: The name of the metric to minimise, a name of `metrics`: the path is the one with the smallest total of this metric. `length` in the result stays the length of the path
-            - Default: 'length'
+            - Default: None (the `default_metric` of the geograph, which is 'length' unless a loader or the caller set it)
             - Notes:
                 - EG: `geograph.get_shortest_path(origin_node, destination_node, metric="hours")`
                 - The search runs on `get_graph_object(metric)`. An unknown name raises a ValueError
@@ -4376,6 +4373,8 @@ class GeoGraph(
         algorithm_kwargs = (
             dict(algorithm_kwargs) if algorithm_kwargs is not None else dict()
         )
+        if metric is None:
+            metric = self.default_metric
         # The graph whose weights are those of the metric
         graph_object = self.get_graph_object(metric)
         is_metric_other_than_length = metric != "length"
@@ -4566,6 +4565,7 @@ class GeoGraph(
                     },
                     off_graph_circuity=off_graph_circuity,
                     output_units=self.geograph_units,
+                    metric="length",
                 )
             # Convert the length to the desired output units
             output["length"] = distance_converter(
@@ -4695,7 +4695,7 @@ class GeoGraph(
         output_units: str = "km",
         silent: bool | None = None,
         *,
-        metric: str = "length",
+        metric: str | None = None,
         output_metric: str | None = None,
         node_addition_modes: list[str] | None = None,
     ) -> list[list[int | float | None]]:
@@ -4731,7 +4731,7 @@ class GeoGraph(
         - `metric`
             - Type: str
             - What: The name of the metric to minimise, a name of `metrics`: the path between two nodes is the one with the smallest total of this metric
-            - Default: 'length'
+            - Default: None (the `default_metric` of the geograph, which is 'length' unless a loader or the caller set it)
         - `output_metric`
             - Type: str | None
             - What: The name of the metric that the matrix holds: the entry at (i, j) is the total of this metric along the path between node i and node j
@@ -4762,6 +4762,8 @@ class GeoGraph(
         warn_deprecated_parameter("silent", silent)
         failed_pairs = 0
         output_matrix = [[None] * len(nodes) for _ in range(len(nodes))]
+        if metric is None:
+            metric = self.default_metric
         graph_object = self.get_graph_object(metric)
         if output_metric is None:
             output_metric = metric

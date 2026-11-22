@@ -213,7 +213,7 @@ On `world_highways_and_marnet`, a query point snaps to its closest node, on a ro
 
 ## Quick Start: OSMNx Integration
 
-Route on any OpenStreetMap network (including bike, drive, and walk) using [OSMNx](https://osmnx.readthedocs.io/). This example finds the fastest and shortest bike paths between two points in Somerville and Cambridge, MA, then cross-evaluates each path's time and distance:
+Route on any OpenStreetMap network (including bike, drive, and walk) using [OSMNx](https://osmnx.readthedocs.io/). This example finds the fastest and shortest bike paths between two points in Somerville and Cambridge, MA, then cross-evaluates each path's time and distance. `weight_key` chooses what the queries of a geograph minimise:
 
 ```py
 import osmnx as ox
@@ -227,7 +227,7 @@ G = ox.graph_from_place(
 G = ox.add_edge_speeds(G)
 G = ox.add_edge_travel_times(G)
 
-# Build a time-based and a distance-based GeoGraph from the same OSMNx graph
+# Build a GeoGraph that finds fastest paths and one that finds shortest paths, from the same OSMNx graph
 geograph_time     = GeoGraph.load_from_osmnx_graph(G, weight_key='travel_time')
 geograph_distance = GeoGraph.load_from_osmnx_graph(G, weight_key='length')
 
@@ -241,15 +241,14 @@ distance_result = geograph_distance.get_shortest_path(origin_node=origin, destin
 time_path_distance_km = geograph_distance.get_path_weight(time_result)
 distance_path_time_s  = geograph_time.get_path_weight(distance_result)
 
-print(f"Time-optimal path:     {time_result['length']:.1f} s  |  {time_path_distance_km:.3f} km")
+# The `length` of a result is always its km. Its seconds are in `metric_totals`
+print(f"Time-optimal path:     {time_result['metric_totals']['travel_time']:.1f} s  |  {time_path_distance_km:.3f} km")
 print(f"Distance-optimal path: {distance_path_time_s:.1f} s  |  {distance_result['length']:.3f} km")
-# Time-optimal path:     340.9 s  |  3.920 km
-# Distance-optimal path: 369.3 s  |  3.605 km
 ```
 
 See the [OSMNx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) for a full example with folium map visualization.
 
-One geograph can also hold the lengths and the travel times: see [Loading from OSMNx](#loading-from-osmnx).
+Each of these geographs holds the lengths and the travel times, so one geograph can give both paths: see [Loading from OSMNx](#loading-from-osmnx).
 
 ---
 
@@ -401,6 +400,7 @@ route["metric_totals"]  # {'hours': ...}: its hours
 - **Off-graph leg.** A query point is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. `"off_graph"` is the weight per km of the off-graph legs. The total of a route counts its two off-graph legs.
 - **Hub.** A **hub** is a port, an airport or a rail terminal. `weight_at_hub` adds a weight at a hub. Its first key is the node mode of the hub. Its second key is an edge mode. Only the edges of this edge mode pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches.
 - **The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
+- **The default metric.** A call that names no `metric` uses the **default metric** of the geograph, `geograph.default_metric`. It is `length`, unless a loader or you set it: `europe.default_metric = "hours"`. `get_shortest_path`, `distance_matrix`, `get_path_weight` and `get_graph_object` follow this rule. A call fails with a `ValueError` while the default metric is not in `metrics`, for example after an edit of the network.
 
 ### The Legs of a Route
 
@@ -510,7 +510,7 @@ route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, met
 europe.get_path_edges(route["path"])
 ```
 
-**Files and edits.** `save_as_scgraph` writes the weights of each metric to the network file, and `load_from_scgraph` reads them. An edit of the network removes its metrics: create them again after it (see [Modifying a GeoGraph](#modifying-a-geograph)).
+**Files and edits.** `save_as_scgraph` writes the weights of each metric and the default metric to the network file, and `load_from_scgraph` reads them. An edit of the network removes its metrics: create them again after it (see [Modifying a GeoGraph](#modifying-a-geograph)).
 
 ### Metrics and Algorithms
 
@@ -617,7 +617,7 @@ km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours",
 | `nodes` | required | The query points, as a list of dicts with the keys `latitude` and `longitude` |
 | `off_graph_circuity` | `1` | Multiplier of the km of each off-graph leg: the straight line from a query point to its node |
 | `output_units` | `'km'` | Unit of the lengths of the matrix; ignored when the matrix holds another metric than `length` |
-| `metric` | `'length'` | The metric that each route minimises |
+| `metric` | `None` | The metric that each route minimises; `None` is the default metric of the geograph |
 | `output_metric` | `None` | The metric that the matrix holds; `None` is the metric of `metric`. With another metric, the call is slower: it reads the path of each pair |
 | `node_addition_modes` | `None` | The node modes that a query point may snap to, as in `get_shortest_path` |
 
@@ -896,10 +896,12 @@ fastest = ann_arbor_geograph.get_shortest_path(
     destination_node={"latitude": 42.2622, "longitude": -83.7482},
     metric="travel_time",
 )
-print(fastest['length'], fastest['metrics']['travel_time'])  # its km, then its seconds
+print(fastest['length'], fastest['metric_totals']['travel_time'])  # its km, then its seconds
 ```
 
-OSMnx can give several edges from one node to another. The geograph keeps the shortest one, with its class and its travel time. So the metric `travel_time` holds the time of the shortest edge, which may not be the fastest.
+`weight_key='travel_time'` makes `travel_time` the default metric of the geograph (`geograph.default_metric`): a query that names no `metric` then finds the fastest path. The `length` of its result is still the km of the path, and `metric="length"` still finds the shortest path.
+
+OSMnx can give several edges from one node to another. The geograph keeps the one with the smallest value of `weight_key`, with its length, its class and its travel time. So with `weight_key='length'`, the metric `travel_time` holds the time of the shortest edge, which may not be the fastest.
 
 ### `load_from_osmnx_graph` Parameters
 
@@ -908,8 +910,8 @@ OSMnx can give several edges from one node to another. The geograph keeps the sh
 | `osmnx_graph` | required | An OSMNx graph object |
 | `coord_precision` | `5` | Decimal places for lat/lon coordinates |
 | `weight_precision` | `3` | Decimal places for edge weights |
-| `weight_key` | `'length'` | Edge attribute that gives the lengths of the geograph: `'length'` (kilometers) or `'travel_time'` (seconds). With `'travel_time'`, the geograph has no metric `travel_time`: its lengths are the times |
-| `off_graph_travel_speed` | `None` | Speed (km/h) between a query point and its node. With `weight_key='length'`, it gives the weight per km of the off-graph legs of the metric `travel_time`: 3600 / speed seconds per km, or 240 for `None` (15 km/h). With `weight_key='travel_time'`, it sets `default_off_graph_circuity` and `default_node_addition_circuity` to 3600 / speed, or to 0 and 240 for `None` |
+| `weight_key` | `'length'` | Edge attribute that the queries minimise: `'length'` (kilometers) or `'travel_time'` (seconds). It sets the default metric of the geograph. The lengths of the geograph are kilometers with both values |
+| `off_graph_travel_speed` | `None` | Speed (km/h) between a query point and its node, for the metric `travel_time`: an off-graph leg weighs 3600 / speed seconds per km, or 240 for `None` (15 km/h) |
 | `load_intermediate_nodes` | `True` | Load intermediate shape points for accurate path visualization |
 | `silent` | `None` | Deprecated and without effect. scgraph reports its messages through `logging`. |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
@@ -1046,7 +1048,7 @@ my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 
 The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, node modes, classes, metrics, `node_addition_modes`, number of nodes and edges, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
 
-**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each [metric](#routes-by-time-cost-and-co2), and the node modes that a query point snaps to by default (`default_node_addition_modes`). A `.graphjson` file and a GeoJSON file hold no class and no metric.
+**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each [metric](#routes-by-time-cost-and-co2), the default metric (`default_metric`), and the node modes that a query point snaps to by default (`default_node_addition_modes`). A `.graphjson` file and a GeoJSON file hold no class and no metric.
 
 **Coordinates.** Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node). The `coordinate_dtype` parameter of `save_as_scgraph` chooses the form: `"float64"`, `"int32"` or `"auto"` (the default). With `"auto"`, a GeoGraph keeps its own `coordinate_dtype`. It is `"int32"` for a network read from an int32 file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), and `"float64"` otherwise.
 
@@ -1432,7 +1434,8 @@ Release 4.0 changes these calls of release 3.6.
 | `'kdclosest'` and `'kdquadrant'` are deprecated values of `node_addition_type` | Use `'closest'` and `'quadrant'`, which give the same results |
 | `geograph_url` is deprecated | Load your own file with `load_from_graphjson` or `load_from_scgraph` |
 | In pure Python, `get_path_weight` raises `ValueError` for a missing edge, and `bmssp` raises `PathNotFoundError` when no path exists | These are the exceptions of the C++ build |
-| `load_from_osmnx_graph` gives the metric `travel_time` to a geograph, when every edge of the OSMnx graph has a `travel_time` and `weight_key` is `'length'`. Each result of this geograph has one more key, `metrics` | Read the travel time of a route in `metrics`, or call `geograph.remove_metric("travel_time")`: the results then have the keys of 3.6 |
+| `load_from_osmnx_graph` gives the metric `travel_time` to a geograph, when every edge of the OSMnx graph has a `travel_time`. Each result of this geograph has one more key, `metric_totals` | Read the travel time of a route in `metric_totals`, or call `geograph.remove_metric("travel_time")` on a geograph loaded with `weight_key='length'`: the results then have the keys of 3.6 |
+| With `weight_key='travel_time'`, `load_from_osmnx_graph` keeps the kilometers as the lengths of the geograph. A query still finds the fastest route, and its `length` is the kilometers of this route. Release 3.6 gave its seconds there. An off-graph leg now counts 3600 / `off_graph_travel_speed` seconds per km, or 240 without a speed | Read the seconds of a route in `route["metric_totals"]["travel_time"]`. `get_path_weight` and `distance_matrix` give seconds on this geograph, as in 3.6 |
 
 Release 5.0 removes what 4.0 deprecates.
 
@@ -1445,7 +1448,7 @@ The public names of scgraph are the names that this README uses. scgraph keeps t
 | For | Public names |
 |---|---|
 | Routes on a network | `scgraph.GeoGraph` and its methods, `scgraph.network_release.TAG` |
-| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `classes`, `node_modes` and `default_node_addition_modes` |
+| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `default_metric`, `classes`, `node_modes` and `default_node_addition_modes` |
 | Your own graph or grid | `scgraph.Graph`, `scgraph.CHGraph`, `scgraph.TNRGraph`, `scgraph.GridGraph`, `scgraph.PathNotFoundError`, `scgraph.NegativeCycleError` |
 | Distances | `scgraph.utils`: `haversine`, `cheap_ruler`, `distance_converter`, `has_cpp` |
 | Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |

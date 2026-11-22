@@ -144,6 +144,7 @@ RESERVED_METADATA_KEYS = frozenset(
         "node_modes",
         "classes",
         "node_addition_modes",
+        "default_metric",
         "symmetric",
         "node_order",
         "content_sha256",
@@ -166,6 +167,7 @@ def build_header_metadata(
     metrics: list[dict] | None = None,
     classes: list[dict] | None = None,
     node_addition_modes: Sequence[str] | None = None,
+    default_metric: str = "length",
 ) -> dict:
     """Return the metadata that `write` takes, for a network whose nodes are in the
     order of a network file: by node mode, then along a Hilbert curve
@@ -186,10 +188,13 @@ def build_header_metadata(
             gives the `name` of the class and the `edge_mode` of its edges.
         node_addition_modes: The names of the node modes that a query point snaps to
             by default. None writes no such key.
+        default_metric: The name of the metric that a query without `metric`
+            minimises. 'length' writes no such key.
 
     Returns:
         The keys that scgraph sets itself (`crs`, `metrics`, `node_modes`, `classes`,
-        `node_addition_modes`, `node_order`), then the keys of `build_metadata`.
+        `node_addition_modes`, `default_metric`, `node_order`), then the keys of
+        `build_metadata`.
 
     Raises:
         ValueError: `build_metadata` sets a key that scgraph writes itself, or a node
@@ -225,6 +230,11 @@ def build_header_metadata(
         **(
             {"node_addition_modes": list(node_addition_modes)}
             if node_addition_modes is not None
+            else {}
+        ),
+        **(
+            {"default_metric": default_metric}
+            if default_metric != "length"
             else {}
         ),
         "node_order": NODE_ORDER,
@@ -986,6 +996,11 @@ def _check(filename, arrays, metadata, should_check_values=True):
     require(
         set(metadata.get("node_addition_modes", [])) <= set(node_mode_names),
         "node_addition_modes names a node mode that the file does not have",
+    )
+    require(
+        metadata.get("default_metric", "length")
+        in [row["name"] for row in metrics],
+        "default_metric names a metric that the file does not have",
     )
 
 
