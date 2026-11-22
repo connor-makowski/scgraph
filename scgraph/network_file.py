@@ -539,7 +539,7 @@ def _select_modes(filename, arrays, metadata, is_mode_kept, in_place):
         selected["shape_offsets"] = shape_offsets
     # Each other array, the runs that it follows, and its values per position
     for name, runs, width in (
-        *((name, edge_runs, 1) for name in arrays if _is_weights(name)),
+        *((name, edge_runs, 1) for name in arrays if _is_weights_array(name)),
         ("edge_classes", edge_runs, 1),
         ("node_points", node_runs, 2),
         ("node_ids", node_runs, 1),
@@ -881,7 +881,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
         metrics and metrics[0]["name"] == "length" and "unit" in metrics[0],
         "the first metric must be length, with its unit",
     )
-    weights_names = sorted(filter(_is_weights, arrays))
+    weights_names = sorted(filter(_is_weights_array, arrays))
     require(
         sorted(f"weights_{row['name']}" for row in metrics) == weights_names,
         "one array of weights per metric expected",
@@ -994,7 +994,7 @@ def _is_symmetric(offsets, heads, weights):
     return unmatched == 0
 
 
-def _is_weights(name):
+def _is_weights_array(name):
     # Whether `name` is the array of the weights of a metric
     return name.startswith("weights_")
 
@@ -1002,7 +1002,7 @@ def _is_weights(name):
 def _get_dtypes(name):
     # The dtypes that the array `name` may have. None for an array that this version
     # of scgraph does not know. The weights of every metric have the same dtype.
-    return ARRAYS.get("weights_length" if _is_weights(name) else name)
+    return ARRAYS.get("weights_length" if _is_weights_array(name) else name)
 
 
 def _count_values(shape):

@@ -86,13 +86,13 @@ private:
 
 struct EdgeTable {
     std::vector<int64_t> node_ids;
-    // parallel: the input index of each parallel edge, in rising order (the Python
-    // docstring of build_csr_from_edges says what a parallel edge is)
-    std::vector<int32_t> offsets, heads, kept, parallel;
+    // parallel_edges: the input index of each parallel edge, in rising order (the
+    // Python docstring of build_csr_from_edges says what a parallel edge is)
+    std::vector<int32_t> offsets, heads, kept, parallel_edges;
     std::vector<double> weights;
 };
 
-// edge_classes is null for edges without classes: parallel is then empty
+// edge_classes is null for edges without classes: parallel_edges is then empty
 inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* destinations,
                               const double* weights, int64_t edge_count,
                               const uint8_t* edge_classes = nullptr) {
@@ -185,13 +185,13 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
             }
             for (int32_t j = first; j < i; ++j) {
                 int64_t& shortest = shortest_of_class[edge_classes[static_cast<uint32_t>(edges[j])]];
-                if (shortest >= 0 && shortest != best) table.parallel.push_back(static_cast<int32_t>(shortest));
+                if (shortest >= 0 && shortest != best) table.parallel_edges.push_back(static_cast<int32_t>(shortest));
                 shortest = -1;  // each class once, and the table is empty for the next two nodes
             }
         }
         begin = end;
     }
-    std::sort(table.parallel.begin(), table.parallel.end());
+    std::sort(table.parallel_edges.begin(), table.parallel_edges.end());
     start[n] = static_cast<int32_t>(table.heads.size());
     table.offsets = std::move(start);
     return table;

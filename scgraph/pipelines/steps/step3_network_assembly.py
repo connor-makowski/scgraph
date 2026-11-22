@@ -194,7 +194,7 @@ def build_csr_from_edges_python(
             and weights[i] < weights[best_of_class.setdefault(edge, i)]
         ):
             best_of_class[edge] = i
-    parallel = sorted(
+    parallel_edges = sorted(
         i for edge, i in best_of_class.items() if best[edge[:2]] != i
     )
     node_ids = array("q", sorted({id for edge in best for id in edge}))
@@ -214,7 +214,7 @@ def build_csr_from_edges_python(
         heads,
         array("d", (weights[i] for i in kept)),
         kept,
-        array("i", parallel),
+        array("i", parallel_edges),
     )
 
 
@@ -241,17 +241,17 @@ def build_csr_from_edges(
             without classes.
 
     Returns:
-        `(node_ids, offsets, heads, weights, kept, parallel)`. `node_ids` (int64) lists
-        the ids of the ends, sorted, each once. Node `u` is the id at position `u`. The
-        edges of node `u` are `heads[offsets[u]:offsets[u + 1]]` (int32), sorted by
-        head, with their `weights`. `kept[a]` (int32) is the input index of edge `a`:
-        the caller finds the shape of the edge with it. The function drops an edge from
-        a node to itself, and an id that has only such edges gives no node. Of several
-        edges between the same two nodes, the function keeps the shortest, and the first
-        of the input when two are as short. `parallel` (int32) lists the input indices
-        of the parallel edges, in rising order. A parallel edge is the shortest edge of
-        its class between its two nodes, by the same rule, and it is not the kept edge.
-        Without `edge_classes`, `parallel` is empty.
+        `(node_ids, offsets, heads, weights, kept, parallel_edges)`. `node_ids` (int64)
+        lists the ids of the ends, sorted, each once. Node `u` is the id at position
+        `u`. The edges of node `u` are `heads[offsets[u]:offsets[u + 1]]` (int32),
+        sorted by head, with their `weights`. `kept[a]` (int32) is the input index of
+        edge `a`: the caller finds the shape of the edge with it. The function drops an
+        edge from a node to itself, and an id that has only such edges gives no node.
+        Of several edges between the same two nodes, the function keeps the shortest,
+        and the first of the input when two are as short. `parallel_edges` (int32)
+        lists the input indices of the parallel edges, in rising order. A parallel edge
+        is the shortest edge of its class between its two nodes, by the same rule, and
+        it is not the kept edge. Without `edge_classes`, `parallel_edges` is empty.
     """
     if _cpp_build_csr_from_edges is not None and isinstance(
         origins, (array, memoryview)
@@ -643,23 +643,23 @@ def _list_edges(pieces, skipped=frozenset()):
     ]
 
 
-def _split_pieces(pieces, split, first_new_id):
+def _split_pieces(pieces, split_pieces, first_new_id):
     """Split pieces in two halves, by the rule of the module docstring (*How a piece is
     split*).
 
     Args:
         pieces: The pieces, with their classes.
-        split: The indices of the pieces to split.
+        split_pieces: The indices of the pieces to split.
         first_new_id: The id of the new node of the first split piece. Each next new
             node gets the id below.
 
     Returns:
         The halves, as pieces kept in memory. The pieces `2 * j` and `2 * j + 1` are the
-        halves of piece `split[j]`: from its origin to the new node, then from the new
+        halves of piece `split_pieces[j]`: from its origin to the new node, then from the new
         node to its destination.
     """
     halves = PieceArrays(tolerance_meters=None)
-    for j, i in enumerate(split):
+    for j, i in enumerate(split_pieces):
         first, last = pieces.offsets[i], pieces.offsets[i + 1]
         units = [  # the latitude, then the longitude of each point, in 1e-7 degree
             *pieces.ends[4 * i : 4 * i + 2],
@@ -731,22 +731,22 @@ def build_graph_from_pieces(
     if len(pieces.class_rows) not in (0, len(pieces.km)):
         raise ValueError("Some pieces have a class and the others have none")
     piece, back, *columns = _list_edges(pieces)
-    node_ids, offsets, heads, weights, kept, parallel = build_csr_from_edges(
-        *columns
+    node_ids, offsets, heads, weights, kept, parallel_edges = (
+        build_csr_from_edges(*columns)
     )
     if not len(node_ids):
         raise ValueError("The pieces join no two points: every one is a loop")
     # The new nodes get the ids below zero and below every id of the pieces
-    split = sorted({piece[e] for e in parallel})
-    halves = _split_pieces(pieces, split, min(0, node_ids[0]) - 1)
+    split_pieces = sorted({piece[e] for e in parallel_edges})
+    halves = _split_pieces(pieces, split_pieces, min(0, node_ids[0]) - 1)
     # The edges below this index are edges of `pieces`. The others are edges of `halves`.
     first_edge_of_halves = len(piece)
-    if split:
+    if split_pieces:
         # The edges are stored again, with the halves in place of the split pieces.
         # This run gets no classes, so it splits nothing more. With classes, the
         # second shortest edge of the class of a split piece would be parallel.
         piece = back = columns = None  # freed before the edges are listed again
-        piece, back, *columns = _list_edges(pieces, set(split))
+        piece, back, *columns = _list_edges(pieces, set(split_pieces))
         first_edge_of_halves = len(piece)
         for column, more in zip((piece, back, *columns), _list_edges(halves)):
             column.extend(more)
@@ -758,16 +758,16 @@ def build_graph_from_pieces(
     for u in range(len(node_ids)):
         for a in range(offsets[u], offsets[u + 1]):
             i, b = piece[kept[a]], back[kept[a]]
-            table = pieces if kept[a] < first_edge_of_halves else halves
-            e = table.ends[4 * i : 4 * i + 4]
+            source_pieces = pieces if kept[a] < first_edge_of_halves else halves
+            e = source_pieces.ends[4 * i : 4 * i + 4]
             # e holds the points of the two ends of the piece, in the order of the
             # piece. For an edge that goes against the piece, the ends swap.
             origin, destination = (e[2:], e[:2]) if b else (e[:2], e[2:])
             v = heads[a]
             node_points[2 * u], node_points[2 * u + 1] = origin
             node_points[2 * v], node_points[2 * v + 1] = destination
-            first, last = table.offsets[i], table.offsets[i + 1]
-            line = array("i", table.points[2 * first : 2 * last])
+            first, last = source_pieces.offsets[i], source_pieces.offsets[i + 1]
+            line = array("i", source_pieces.points[2 * first : 2 * last])
             if b:  # its points from the destination
                 line[0::2], line[1::2] = line[-2::-2], line[-1::-2]
             points.extend(line)

@@ -27,7 +27,7 @@ void bind_pipelines(nb::module_& m) {
                                                 edge_classes ? edge_classes->data() : nullptr);
         return nb::make_tuple(owned_view(std::move(t.node_ids)), owned_view(std::move(t.offsets)),
                               owned_view(std::move(t.heads)), owned_view(std::move(t.weights)),
-                              owned_view(std::move(t.kept)), owned_view(std::move(t.parallel)));
+                              owned_view(std::move(t.kept)), owned_view(std::move(t.parallel_edges)));
     };
     m.def("build_csr_from_edges", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"),
           nb::arg("edge_classes") = nb::none());
