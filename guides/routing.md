@@ -39,11 +39,16 @@ The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgr
 
 ## Where a Query Point Snaps
 
-A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point **snaps** to this node. The route starts or ends at this node. An **off-graph leg** is the straight line from a query point to its node.
+A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node: the point **snaps** to this node. An **off-graph leg** is the straight line from a query point to its node.
 
-A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph.
+The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` lists the node modes of a geograph. The rule is the same for every metric:
 
-By default, a query point snaps to its closest road node when the geograph has roads, and to its closest node otherwise. A geograph has roads when one of its nodes has the node mode `road`. In a geograph with roads, a point at sea also snaps to a road node, at any distance. `snap_to_node_modes` lists the node modes that a query point may snap to, in place of this default:
+| Geograph | `snap_to_node_modes` | A query point snaps to |
+|---|---|---|
+| Has road nodes | Not given | The closest road node at any distance, or a node that `add_coord_node` added without `node_mode` |
+| Has no road node | Not given | The closest node |
+| Any | A list of node modes, for example `["sea", "port"]` | The closest node of these node modes |
+| Any | An empty list, or a node mode that no node has | No node: the query raises `ValueError` |
 
 ```py
 oceania = GeoGraph.load_geograph("oceania")
@@ -56,9 +61,7 @@ route = oceania.get_shortest_path(
 )
 ```
 
-`snap_to_node_modes` chooses only the two nodes where the route starts and ends. Between them, the route takes any edge: here it takes a flight. With `snap_to_node_modes=["road", "rail"]`, a route may also start or end at a rail node. A node mode that the geograph does not have raises a `ValueError`.
-
-The default rule holds for every metric. `add_coord_node` without `node_mode` adds a node that has no node mode. In a geograph with roads, a query point also snaps to such a node by default. So a route can start at a node that you added.
+`snap_to_node_modes` chooses only the two nodes where the route starts and ends. Between them, the route can take any edge: here it takes a flight.
 
 `node_addition_type` chooses the nodes that the origin is joined to, among the nodes of these node modes. `destination_node_addition_type` does the same for the destination:
 
