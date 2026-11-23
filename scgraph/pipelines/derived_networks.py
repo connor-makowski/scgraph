@@ -502,10 +502,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m scgraph.pipelines.derived_networks",
         description="Write the derived files of a network release from the file "
-        "of world_multimodal, with no download, and print their paths.",
+        "of osm_world_multimodal, with no download, and print their paths.",
     )
     parser.add_argument(
-        "world_file", help="the network file of world_multimodal"
+        "world_file", help="the network file of osm_world_multimodal"
     )
     parser.add_argument("output_dir", help="the folder of the derived files")
     parser.add_argument(

@@ -44,8 +44,8 @@ WHAT A PIPELINE MODULE HOLDS
       file: by node mode, then along a Hilbert curve (`step3_network_assembly.assemble_network`
       gives this order). `metric_length` holds km. `arrays` also holds `node_mode_ids`, the
       node mode id of each node, when the network has several node modes; the runner
-      writes the count of the nodes of each node mode in its place. `node_modes` is the
-      node modes table (see below). `osm_region_multimodal` and `osm_world_multimodal`
+      writes the count of the nodes of each node mode in its place. `node_modes` lists
+      the node modes (see below). `osm_region_multimodal` and `osm_world_multimodal`
       do this. `arrays` may hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
       writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
@@ -57,8 +57,8 @@ WHAT A PIPELINE MODULE HOLDS
   of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
-- `CLASSES`, optional: the classes table of the pipeline, in place of the table of
-  this package (see *The classes*).
+- `CLASSES`, optional: the classes of the pipeline, in place of the classes of this
+  package (see *The classes*).
 
 The runner reads no other name. Names such as `MODES`, `MARGIN_DEGREES` or
 `MAX_KM_BETWEEN_NODES` are choices of one pipeline.
@@ -79,17 +79,17 @@ When that function returns a dict, the dict must identify the source, and the ru
 does not compute `sha256` and `bytes`. `step1_osm_ways.download_streamed` gives the `bytes` and
 the `md5` that the server publishes.
 
-THE NODE MODES TABLE
+THE NODE MODES
 
 The node mode of a node is the kind of place where the node is: on a network (`road`,
-`rail`, `sea`) or at a hub (`port`, `airport`, `rail_terminal`). The node modes table is
-a list with one dict per node mode: its `name`, and the `source` that gives the ids of
-its nodes. A network with one node mode gives `[{"name": None}]`.
+`rail`, `sea`) or at a hub (`port`, `airport`, `rail_terminal`). `node_modes`,
+the second value of `build`, lists the node modes: one dict for each node mode, with its
+`name` and the `source` that gives the ids of its nodes. A network with one node mode gives `[{"name": None}]`.
 
 THE CLASSES
 
 The class of an edge is its category in the source: a motorway, a vehicle ferry, a
-main railway line, a sea passage. `CLASSES` is the classes table: it gives the edge mode
+main railway line, a sea passage. `CLASSES` gives the edge mode
 of each class. The edge mode of a class is the kind of transport of its edges: `road`,
 `rail`, `sea` or `air`:
 
@@ -113,7 +113,7 @@ uses the names of `CLASSES` only.
 
 A pipeline that fills `edge_class_ids` itself may define its own `CLASSES` dict in its
 module, with the same form. A value of `edge_class_ids` is then the id of a class of
-that table, and the runner writes that table into the header.
+that `CLASSES`, and the runner writes its classes into the header.
 
 A network file holds the class of each edge and one row `{"name", "edge_mode"}` for each
 class (`ARCHITECTURE.md`, section 7), and `network_file.read` returns them. A GeoGraph
