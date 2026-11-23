@@ -7,7 +7,7 @@ mixin through `self`.
 """
 
 from dataclasses import replace
-from scgraph.utils import earth_radius
+from scgraph.utils import get_units_per_km
 from scgraph.metrics import (
     Metric,
     parse_off_graph_weight_per_km,
@@ -62,14 +62,14 @@ class GeoGraphMetrics:
                 or record.graph_object is not self.graph_object
                 or record.unit != self.geograph_units
             ):
-                # 1 km of an off-graph leg in `geograph_units`, with the
-                # radius that `haversine` uses for these units
+                # The weight of 1 km of an off-graph leg is 1 km in
+                # `geograph_units`
                 record = self._length_metric = Metric(
                     "length",
                     self.geograph_units,
                     None,
                     None,
-                    earth_radius.get(self.geograph_units, 6371) / 6371,
+                    get_units_per_km(self.geograph_units),
                     min_weight_per_length_unit=1.0,
                     graph_object=self.graph_object,
                 )

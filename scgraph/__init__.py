@@ -370,6 +370,8 @@ Supported `output_units`:
 | `mi` | Miles |
 | `ft` | Feet |
 
+Every conversion uses 1 mile = 1.609344 km and 1 foot = 0.3048 m. The radius of the earth is 6371 km.
+
 ## Routes by Time, Cost and CO2
 
 A network gives each edge a length. A **metric** gives each edge another weight, under a name: its hours, its cost, its kg of CO2. You create a metric on a geograph, then you name it in a query. The **total** of a metric along a route is the sum of the weights of its edges. A query by a metric returns the route with the smallest total.
@@ -1458,6 +1460,7 @@ Release 4.0 changes these calls of release 3.6.
 | In pure Python, `get_path_weight` raises `ValueError` for a missing edge, and `bmssp` raises `PathNotFoundError` when no path exists | These are the exceptions of the C++ build |
 | Each result of `get_shortest_path` has one more key, `metric_totals`: the total of each metric along the route, as `{name: total}`. `metric_totals["length"]` is `length` | Nothing: `length` does not change. A test that compares a whole result can first remove `metric_totals` from it |
 | `load_from_osmnx_graph` gives the metric `travel_time` to a geograph, when every edge of the OSMnx graph has a `travel_time` | Read the travel time of a route in `route["metric_totals"]["travel_time"]` |
+| A length in miles or in feet moves by 6.2e-5 at most. Release 3.6 used an earth radius of 3959 miles in `haversine`, and 0.621371 mile for 1 km in `distance_converter`. Release 4.0 uses 1 mile = 1.609344 km in both | Nothing: a length in km does not change |
 | `length_only` of `get_shortest_path` is deprecated and gives a `DeprecationWarning`. It raises a `ValueError` for a query by a metric other than `length` | Write `totals_only=True`. The result is then `{"metric_totals": {metric: total}}` |
 | With `weight_key='travel_time'`, `load_from_osmnx_graph` keeps the kilometers as the lengths of the geograph. A query still finds the fastest route, and its `length` is the kilometers of this route. Release 3.6 gave its seconds there. An off-graph leg now counts 3600 / `off_graph_travel_speed` seconds per km, or 240 without a speed | Read the seconds of a route in `route["metric_totals"]["travel_time"]`. `get_path_weight` and `distance_matrix` give seconds on this geograph, as in 3.6 |
 

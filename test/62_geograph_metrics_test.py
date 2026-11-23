@@ -1132,7 +1132,7 @@ def test_a_metric_of_a_geograph_in_miles_counts_the_miles_of_an_off_graph_leg():
     # One edge of 2.5 miles. The metric `cost` is a weighted sum, and the
     # metric `toll` is a function: each gives the weight 2 to 1 mile. The call
     # of the function gives the weight of 1 km of an off-graph leg. 1 km is
-    # 3959 / 6371 mile: the radius of the Earth in miles and in km.
+    # 1 / 1.609344 mile.
     geograph_in_miles = GeoGraph(
         graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]], geograph_units="mi"
     )
@@ -1140,7 +1140,7 @@ def test_a_metric_of_a_geograph_in_miles_counts_the_miles_of_an_off_graph_leg():
     geograph_in_miles.create_metric(
         "toll",
         edge_weight_fn=_get_twice_the_length,
-        off_graph_weight_per_km=2 * 3959 / 6371,
+        off_graph_weight_per_km=2 / 1.609344,
     )
 
     route = geograph_in_miles.get_shortest_path(
