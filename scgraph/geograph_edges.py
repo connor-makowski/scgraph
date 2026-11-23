@@ -19,7 +19,6 @@ from scgraph import network_file
 import warnings
 import re
 from array import array
-from itertools import zip_longest
 from math import inf
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from scgraph import Graph
@@ -335,10 +334,6 @@ class GeoGraphEdges:
             edge_class_ids = array(
                 "B", bytes([network_file.NO_CLASS_ID]) * len(heads)
             )
-        # Nodes appended to `nodes` directly are in the first node mode
-        node_mode_ids = self.node_mode_ids + array(
-            "B", bytes(len(offsets) - 1 - len(self.node_mode_ids))
-        )
         class_weights_per_km, hub_weights, off_graph_weight_per_km = (
             resolve_weights_per_km(
                 weight_per_km,
@@ -354,7 +349,7 @@ class GeoGraphEdges:
             heads,
             lengths,
             edge_class_ids,
-            node_mode_ids,
+            self._read_node_mode_ids(),
             class_weights_per_km,
             hub_weights,
         )
@@ -435,9 +430,8 @@ class GeoGraphEdges:
             (-inf, -inf, inf, inf) if bbox is None else bbox
         )
         nodes = []
-        # A node appended to `nodes` directly is in the first node mode
         for node_id, (point, node_mode_id) in enumerate(
-            zip_longest(self.nodes, self.node_mode_ids, fillvalue=0)
+            zip(self.nodes, self._read_node_mode_ids())
         ):
             if (
                 node_mode in (None, node_mode_names[node_mode_id])

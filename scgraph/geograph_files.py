@@ -291,9 +291,7 @@ class GeoGraphIO:
         # Written in Hilbert order within each node mode (nodes close on the globe get
         # close ids, and the nodes of a node mode stay together); the geograph is not
         # renumbered
-        nodes, node_mode_ids = self.nodes, self.node_mode_ids
-        # Nodes appended to `nodes` directly are in the first node mode
-        node_mode_ids.extend(bytes(len(nodes) - len(node_mode_ids)))
+        nodes, node_mode_ids = self.nodes, self._read_node_mode_ids()
         # (by node mode only if there are several: the key is cheaper without)
         multimodal = len(self.node_modes) > 1
         try:

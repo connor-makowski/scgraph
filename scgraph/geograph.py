@@ -267,6 +267,16 @@ class GeoGraph(
         # len(nodes), not len(graph): a C++ graph would be copied to Python to count it
         self.__original_graph_length__ = len(self.nodes)
 
+    def _read_node_mode_ids(self) -> array:
+        # Return the node mode id of each node. A node appended to `nodes`
+        # directly has no id in `node_mode_ids`: it is in the first node mode, as
+        # a node of the constructor without `node_mode_ids`. The attribute does
+        # not change.
+        missing = len(self.nodes) - len(self.node_mode_ids)
+        if missing <= 0:
+            return self.node_mode_ids
+        return self.node_mode_ids + array("B", bytes(missing))
+
     @property
     def graph(self) -> list[dict[int, int | float]]:
         if self._graph is None:
