@@ -86,9 +86,9 @@ def run_network_test(geograph_name, geograph):
     # Timing verification completed
 
 
-def test_reduction_consistency(published):
-    run_network_test("us_freeway", published("us_freeway"))
-    run_network_test("marnet", published("marnet"))
+def test_reduction_consistency(built_in):
+    run_network_test("us_freeway", built_in("us_freeway"))
+    run_network_test("marnet", built_in("marnet"))
 
 
 # Each graph catches reduction faults the others miss: two-way with unit

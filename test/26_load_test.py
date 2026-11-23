@@ -176,7 +176,7 @@ def cache_with_marnet(tmp_path):
     return tmp_path
 
 
-def test_first_load_converts_the_published_geograph_into_a_network_file(
+def test_first_load_converts_the_built_in_geograph_into_a_network_file(
     cache_with_marnet,
 ):
     geo = GeoGraph.load_geograph("marnet", cache_dir=str(cache_with_marnet))
@@ -303,8 +303,8 @@ def test_local_files_only_false_downloads_despite_scgraph_offline(
     assert len(requested) == 1
 
 
-# The names of the published geographs are a fixed list in scgraph.
-def test_list_geographs_makes_no_request_for_the_published_geographs(
+# The names of the built-in geographs are a fixed list in scgraph.
+def test_list_geographs_makes_no_request_for_the_built_in_geographs(
     tmp_path, requested
 ):
     GeoGraph.list_geographs(cache_dir=str(tmp_path))
@@ -345,7 +345,7 @@ def test_the_name_of_a_released_network_at_another_url_loads_from_that_url(
 
 @pytest.fixture
 def filled_cache(tmp_path):
-    """A cache holding a published geograph, two files of a network release, built
+    """A cache holding a built-in geograph, two files of a network release, built
     networks (eurostat_sea_lanes, a real network file, and osm_region_multimodal of a region
     and of a sub-region), a cache.json that names no file, a build's work folder and a
     user file.
@@ -387,8 +387,8 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         (i["kind"], i["name"], i["region"], Path(i["file"]).name, i["bytes"])
         for i in info
     ] == [
-        ("published", "marnet", None, "marnet.graphjson", 10),
-        ("published", "marnet", None, "marnet.scgraph", 5),
+        ("built-in", "marnet", None, "marnet.graphjson", 10),
+        ("built-in", "marnet", None, "marnet.scgraph", 5),
         ("released", "europe", None, "europe.no_shapes.scgraph", 3),
         ("released", "europe", None, "europe.scgraph", 7),
         ("built", "eurostat_sea_lanes", None, "m.scgraph", built_bytes),
@@ -422,7 +422,7 @@ def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
         pytest.param(
             {"name": "marnet"},
             {"marnet.graphjson", "marnet.scgraph"},
-            id="the published files of a name",
+            id="the built-in files of a name",
         ),
         pytest.param(
             {"name": "eurostat_sea_lanes"},

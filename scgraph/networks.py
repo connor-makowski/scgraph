@@ -43,7 +43,7 @@ from scgraph.utils import resolve_cache_dir
 from scgraph.step_logs import log_step
 
 logger = logging.getLogger(__name__)
-# The record of the conversion of a published network keeps the logger name that it had
+# The record of the conversion of a built-in network keeps the logger name that it had
 # in `scgraph.geograph`: the documents show this name, and a user filters on it.
 _geograph_logger = logging.getLogger("scgraph.geograph")
 
@@ -312,10 +312,10 @@ def clear_cache(
 
     # Only what scgraph writes there, so that a folder given as the cache keeps the
     # user's own files; then the folder itself if nothing else is left
-    for published in built_in_geographs.BUILT_IN_GEOGRAPHS:
-        if name in (None, published) and region is None:
+    for built_in in built_in_geographs.BUILT_IN_GEOGRAPHS:
+        if name in (None, built_in) and region is None:
             for suffix in (".graphjson", ".scgraph"):
-                remove(cache_path.joinpath(published + suffix))
+                remove(cache_path.joinpath(built_in + suffix))
     if name is None:
         remove(root)
         remove(cache_path.joinpath("releases"))
@@ -342,7 +342,7 @@ def get_cache_info(cache_dir: str | os.PathLike | None = None) -> list[dict]:
     cache_path = resolve_cache_dir(cache_dir)
     info = [
         {
-            "kind": "published",
+            "kind": "built-in",
             "name": name,
             "region": None,
             "file": str(file),
@@ -570,7 +570,7 @@ def _load_network(
     try:
         geograph.metadata = {"sources": [source]}
         with log_step(
-            _geograph_logger, "convert the published network", {"name": name}
+            _geograph_logger, "convert the built-in network", {"name": name}
         ):
             geograph.save_as_scgraph(str(converted))
     except OSError:

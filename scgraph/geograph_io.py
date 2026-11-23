@@ -1110,7 +1110,7 @@ class GeoGraphIO:
         Returns:
 
         - A list of dicts, one per file or folder:
-            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"released"` (a network file `load_geograph` downloaded from a network release), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
+            - `kind`: str — `"built-in"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"released"` (a network file `load_geograph` downloaded from a network release), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
             - `name`: str | None — the network name
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder

@@ -59,7 +59,7 @@ def own_cache(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def published():
+def built_in():
     # A built-in network in the node numbering of its .graphjson, for the tests that name
     # nodes by id (load_geograph and network files number the nodes along a Hilbert curve)
     def load(name):
