@@ -8,8 +8,8 @@ heading, a code block or a table, and reads each sentence once.
 ## Rules
 
 1. **Subject, verb, object.** One idea in a sentence of about 20 words.
-2. **Common verbs with one meaning.** No verb of two words that do not say its meaning ("set
-   up", "fall back"). No verb in a sense it does not have ("an edge pays").
+2. **Common verbs with one meaning.** Write "use", not "fall back to". Write "create", not
+   "set up". Write "an edge gets a weight", not "an edge pays a weight".
 3. **The verb, not a noun made from it.** Write "`read` checks the header", not "the check of
    the header on a read".
 4. **One word for one thing.** Use the words of `ARCHITECTURE.md`. Do not invent a word.
