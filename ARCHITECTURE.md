@@ -593,7 +593,7 @@ edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 
 A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which becomes node 3. It keeps six edges, `heads` = `[1, 2, 0, 3, 1, 1]`, and drops the four sea edges. `metadata.node_modes` keeps the counts of the whole file, and `metadata.classes` stays whole. `build_node_mode_ids` gives the kept nodes the ids `[0, 0, 0, 2]`.
 
-#### The Checks of a Read
+#### What scgraph Checks When It Reads a File
 
 `read` raises a `ValueError` when one of these checks fails:
 
