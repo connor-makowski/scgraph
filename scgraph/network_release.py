@@ -14,34 +14,34 @@ download that is not the published file.
 """
 
 # The tag of the pinned network release
-TAG = "networks-2026.11.23-dev.1"
+TAG = "networks-2026.11.23-dev.2"
 # The `content_sha256` of each network file of this release. A key is the name of a
 # network. It ends with `.no_shapes` for the file without the shapes of the edges.
 # `load_geograph` checks each file that it downloads from this release against its
 # value here.
 CONTENT_SHA256 = {
-    "africa.no_shapes": "ad3be952f4a42f498413f682cb5697ced98548c3a126bdb13a2506f1472410c6",
-    "africa": "c7a56a7e99e080df0671951204657f224d9001efd437b7285458cb0b65ad66e0",
-    "east_southeast_asia.no_shapes": "0c44da538a43dcb7f7dcf8cbbdf9a62f38b4a28cd5e36992606b7b02fd45727f",
-    "east_southeast_asia": "09009d9fee31cef898b66c6d38ee6891ca9067bcd8d29e39bbb4f851f186b010",
-    "europe.no_shapes": "391456ef011c1cd4d28b71b7cd747f625099692f4e97e1d1c1a33c33401c1cfb",
-    "europe": "b3671590aa87050b4a5314692af876abef88fda5d951dcaa6b5902c1fc6f1ff0",
-    "north_america.no_shapes": "b99a3613a7077367e697b0b8e4ac2a484f64034127914e135ddd65ab156ff7a5",
-    "north_america": "95973f50fed91b5b292423e9dc71c58162ef62cd62319ff4984d4b0559a20111",
-    "north_asia.no_shapes": "da9b77be96e2af6ef2afff4d9d6c32f112bb4cd01f5424d6a07d0f92dc495111",
-    "north_asia": "ec2abd8d0d7da6f20fc2a2b1704e4761bc0111916bdf7ee0f194df2e74322c74",
-    "oceania.no_shapes": "ed87c44c6a90a4a9360042c0cc14c6a1b9b326ecd6c01def9546cd51f7193cf1",
-    "oceania": "e280164dda7f80d6424db0281bccff70a9e513e03e467b39b6e67dcc8cd9950a",
-    "south_america.no_shapes": "5e738b5e90c7921b9a432a9f8e527db958bd0165f1579f20d12f72f482bf5567",
-    "south_america": "d5cb6aa39e2bc90cee8352c3f2d54e4ad847abc6067fa5161f7201d54d57650e",
-    "west_south_asia.no_shapes": "36e767dc8989061717663d493dfdd8c591efa14ea1ccf37afcf0016a7b08558b",
-    "west_south_asia": "b490e9cc526ee6e52786b3beaa6a4a8c980fb5558f0e73c5edc1a6f05d648fdd",
-    "world_multimodal.no_shapes": "b9f645fe154bffdb0f57b7d6b5c9e14228785dd8bf14eaaf112b908e1f962cb5",
-    "world_multimodal": "cf6a3bac915315c5d5b0cc2af0a7cba9f35253fea704c34b1c6f70fe0918de71",
-    "world_rail.no_shapes": "b48f49587d11e2873131d02c51cdd13f15b2906ca1337e7cf79ae7d130bcd2d1",
-    "world_rail": "1c9b6e1bc5c9bc86bd356e322968d645eff611fdc87a6eeae8fc5671e15d1c3d",
-    "world_sea.no_shapes": "96f237ac41bded06e65f8966000646dbd80d80e3319c9b87ff88ad73fdf45287",
-    "world_sea": "081ac0c9fb9fa93b4a54a0dc2ef02664cb99a0b214e6b91a801b15d1b6af9c02",
+    "africa.no_shapes": "a3cce3dfd6944bd679bb573e8843f65fb76798edbb63c8008312f8e8b5d95b74",
+    "africa": "8ae2f3e01716ca1ae07ff10e1de051818a6de18bee96429ddab0c39222f70797",
+    "east_southeast_asia.no_shapes": "a5b8aa6fa4b58e6752558922165628a4e03062c6df6d7b34e1f0d8946590521d",
+    "east_southeast_asia": "c4a22888d03db799c1ea7a519cedc52da049aa008e659144eb9de786184ffa79",
+    "europe.no_shapes": "6e97fdbc8e44cd5f3ce1f3b770c47ad14bfd25d8657da1496e59e1478a6d2a66",
+    "europe": "20012cb4c37bad10a4ee08fab294308dc36edeede4f23bf783d09309bf22a058",
+    "north_america.no_shapes": "c14ec6c959e151bf0236378ebd3b08eedbe2960021d5e86337b733ce7565c0d9",
+    "north_america": "62d0cfa2125d7761bc460cd22bc58e39f821b005a69811dd4497fdc1987b33b8",
+    "north_asia.no_shapes": "76c860a652a5407bf1b0ac4df0c1793945e3f0554de596fca92b7adec30546e6",
+    "north_asia": "030e6aa35eb84a49a867c6aca108b1a66a29edfd621f99f1a862154c24536cfe",
+    "oceania.no_shapes": "a4ea80ea871d7b2ae9237ef0e4fba5c62efe7b56853dc4511c310294a561b5c2",
+    "oceania": "af24f32b6750f43bf185803a0507a7a4632c8aac4e495777f2f8d9ad78030737",
+    "south_america.no_shapes": "ab303127bf00b4015e6948bf55c8f3501a7c25b73b61e5178ae2b7710e6ea128",
+    "south_america": "efcf8fde8e7c1aa0d9d1272029421e08e10ad70238a37291c8594693a8796ad8",
+    "west_south_asia.no_shapes": "94223ae376715444a2706b82c167266c72b709692237ff45c10b4a6195502042",
+    "west_south_asia": "fbac100845060c4d878c253ac28c5f8833671a7133cdd65cede4c9b73ab5eee3",
+    "world_multimodal.no_shapes": "e74b3f41170db616061d3e34eeea548ba1ba51c2188a8507ea7f57e027291567",
+    "world_multimodal": "926a857a7998aa1c113f7457cb6a5714c0b4d686cdf9f8b425237deab20fc688",
+    "world_rail.no_shapes": "2eb5299e81265a361f381e18b55904ee05cffb7dfed5808779782e4c90cbdb2a",
+    "world_rail": "c9807a872111a6932600e1d3e3ea66f757f958c02d13d8c5f23a122efe5282f2",
+    "world_sea.no_shapes": "be06d817d25bcec16023fa6a7d504b383a6e728444951a993bf9b5de337ad58f",
+    "world_sea": "405c992443cfe53428e4e1df1a1d5054dd3be2af64ab54a7bd606fbde2e552e9",
 }
 # What `GeoGraph.list_geographs` says of each network of this release: its numbers of
 # nodes and of edges, the size in MB of its download with and without the shapes of the
@@ -118,7 +118,7 @@ NETWORKS = {
         "download_mb": 197.8,
         "download_mb_without_shapes": 90.0,
         "data_up_to": "2026-11-02T00:59:53Z",
-        "description": "Roads, railways, sea lanes and flights of the world, joined at ports, airports and rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.",
+        "description": "Roads, railways, sea lanes and flights of the world, joined at ports, airports and rail terminals: `osm_region_multimodal` for the OpenStreetMap planet.",
     },
     "world_rail": {
         "nodes": 378045,
