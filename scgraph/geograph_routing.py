@@ -10,6 +10,7 @@ from scgraph.utils import (
     distance_converter,
     cheap_ruler,
     get_lat_lon_bound_between_pts,
+    get_units_per_km,
     earth_radius,
     radians_per_degree,
 )
@@ -893,9 +894,10 @@ class GeoGraphRouting:
         )
         if metric is None:
             metric = self.default_metric
-        self._check_totals_arguments(
-            metric, length_only, totals_only, output_path, output_legs
-        )
+        if length_only or totals_only:
+            self._check_totals_arguments(
+                metric, length_only, totals_only, output_path, output_legs
+            )
         # The graph whose weights are those of the metric
         graph_object = self.get_graph_object(metric)
         search_function = self._build_search_function(
@@ -1135,10 +1137,9 @@ class GeoGraphRouting:
         an off-graph leg is its length times the weight of 1 length unit of an
         off-graph leg in the metric. A weight of 1 per length unit, as for
         `length`, returns the arguments without a copy."""
-        off_graph_weight_per_unit = (
-            self._read_metric(metric).off_graph_weight_per_km
-            / self._read_metric("length").off_graph_weight_per_km
-        )
+        off_graph_weight_per_unit = self._read_metric(
+            metric
+        ).off_graph_weight_per_km / get_units_per_km(self.geograph_units)
         if off_graph_weight_per_unit == 1.0:
             return direct_length, origin_id, destination_id
         return (
