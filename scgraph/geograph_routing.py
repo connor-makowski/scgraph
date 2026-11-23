@@ -284,7 +284,7 @@ class GeoGraphUtils:
 
         - `get_intermediate_nodes`
             - Type: bool
-            - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
+            - What: If True, returns the intermediate nodes in the path (if they exist for each edge)
             - Default: False
         """
         nodes = self.nodes
@@ -336,7 +336,7 @@ class GeoGraphUtils:
 
         - This allows computing the weight of a path optimized for one metric
           (e.g., time) using a different geograph's weights (e.g., distance),
-          including the off-graph entry and exit segments using this geograph's
+          including the two off-graph legs using this geograph's
           circuity.
 
         Required Arguments:
@@ -873,7 +873,7 @@ class GeoGraphRouting:
             - Default: False
         - `get_intermediate_nodes`
             - Type: bool
-            - What: If True, returns the intermediate nodes in the path (if they exist for each segment)
+            - What: If True, returns the intermediate nodes in the path (if they exist for each edge)
             - Default: self.default_get_intermediate_nodes
         - `metric`
             - Type: str
