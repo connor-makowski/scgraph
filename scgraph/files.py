@@ -13,7 +13,8 @@ from pathlib import Path
 
 import requests
 
-logger = logging.getLogger(__name__)
+# The records of a download keep the logger name that the documents show.
+logger = logging.getLogger("scgraph.pipelines")
 
 # In bytes. A larger download is logged at WARNING, which shows without a logging
 # setup.
