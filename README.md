@@ -83,7 +83,9 @@ The guide of the metrics gives more detail in [The Legs of a Route](https://gith
 
 ### A Route by Time, by Cost or by CO2
 
-A **metric** gives each edge a weight other than its length. Here the weight is a cost in euros. `weight_per_km` gives the cost of 1 km by road, by rail, by sea and by air. Its key `off_graph` is for the straight lines between the two points and the network. `weight_at_hub` adds a fee at each port and at each airport. These numbers are examples.
+A **metric** gives each edge a weight other than its length. Here the weight is a cost in euros.
+
+`weight_per_km` gives the cost of 1 km by road, by rail, by sea and by air. Its key `off_graph` is for the straight lines between the two points and the network. `weight_at_hub` adds a fee at each port and at each airport. These numbers are examples.
 
 ```py
 euros_per_km = {"road": 1.2, "rail": 0.4, "sea": 0.1, "air": 5, "off_graph": 1.2}

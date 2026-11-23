@@ -85,7 +85,16 @@ print(output)
 # Birmingham and Zaragoza are off the graph. The path joins them to London and to Madrid, their closest nodes
 ```
 
-**Classes of your own.** The **class** of an edge is its category, such as `motorway`. `edge_classes` gives the class of each edge, in the form of `graph`. An edge that is not in `edge_classes` has no class. `classes` gives each class with its edge mode. The **edge mode** of a class is the kind of transport of its edges: `road`, `rail`, `sea` or `air`. A geograph holds 255 classes at most. A **metric** gives each edge a weight other than its length, under a name, such as its hours. A **weight per km** is the weight of 1 km of an edge in a metric. A metric gives a weight per km to an edge mode, and another one to a class:
+**Classes of your own.**
+
+- The **class** of an edge is its category, such as `motorway`. A geograph holds 255 classes at most.
+- `edge_classes` gives the class of each edge, in the form of `graph`. An edge that is not in `edge_classes` has no class.
+- `classes` gives each class with its edge mode.
+- The **edge mode** of a class is the kind of transport of its edges: `road`, `rail`, `sea` or `air`.
+- A **metric** gives each edge a weight other than its length, under a name, such as its hours.
+- A **weight per km** is the weight of 1 km of an edge in a metric.
+
+A metric gives a weight per km to an edge mode, and another one to a class:
 
 ```py
 # Paris (0), Dijon (1) and Lyon (2): a motorway from Paris to Lyon, and a main road through Dijon
@@ -124,7 +133,9 @@ my_geograph.graph_object.add_edge(origin_id=0, destination_id=5, distance=1850, 
 my_geograph.remove_coord_node()
 ```
 
-**An edit of the network removes its metrics: create them again after it.** An edit is a node or an edge that you add or remove, or a merge. A warning then names the removed metrics once, with those that a loader read. An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them. Change the edges of `graph_object` only with `add_edge`, `remove_edge`, `add_node` and `remove_node`: `create_metric` and `save_as_scgraph` raise a `ValueError` after another change.
+**An edit of the network removes its metrics: create them again after it.** An edit is a node or an edge that you add or remove, or a merge. A warning then names the removed metrics once, with those that a loader read.
+
+An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them. Change the edges of `graph_object` only with `add_edge`, `remove_edge`, `add_node` and `remove_node`: `create_metric` and `save_as_scgraph` raise a `ValueError` after another change.
 
 **The classes stay.** `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take the keyword `edge_class`. It is the class of the new edge: a name of `geograph.classes`. A metric that you create after the edit gives the new edge the weight per km of its class.
 
@@ -139,7 +150,11 @@ world_sea.add_coord_node(coord_dict={"latitude": 43.0, "longitude": 6.0}, edge_c
 world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 100})
 ```
 
-Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly keeps the class of the edge that it replaces. Between two nodes that had no edge, it has no class. An **off-graph leg** is the straight line from the origin or the destination of a query to its node. In a metric made from weights per km, an edge without a class has the weight per km of `off_graph`. So a route by the metric can start at a node that you added. A function of an edge receives such an edge with `None` as its `edge_class` and as its `edge_mode`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
+Without `edge_class`, the new edge has no class: its `edge_class` and its `edge_mode` are `None`. An edge added on `graph_object` directly keeps the class of the edge that it replaces. Between two nodes that had no edge, it has no class.
+
+An **off-graph leg** is the straight line from the origin or the destination of a query to its node. In a metric made from weights per km, an edge without a class has the weight per km of `off_graph`. So a route by the metric can start at a node that you added.
+
+A function of an edge receives such an edge with `None` as its `edge_class` and as its `edge_mode`. It must return a weight for it. To close such an edge, name it in `edge_weights` with `None`. The guide of the metrics gives this call in [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
 
 The [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) has more examples.
 
