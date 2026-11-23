@@ -55,24 +55,27 @@ MAGIC = b"SCGRAPH1"
 FORMAT_VERSION = 1
 # dtype -> array typecode
 DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
-# array name -> the dtypes it may have; shape_* hold the edge shapes, if any.
-# source_node_ids (optional): the id of each node in its source.
+# array name -> the dtypes it may have. `write` stores the arrays in the order of
+# this table: the graph that a search reads, the class of each edge, the nodes,
+# then the edge shapes, if any.
+# metric_length: the length of each edge. The array `metric_<name>` of another metric
+# is not listed here: it has the dtype of metric_length (see `_get_dtypes`), and it
+# is stored after metric_length.
 # edge_class_ids (optional): for each edge, the position of its class in
 # metadata["classes"], or NO_CLASS_ID for an edge without a class.
-# metric_length: the length of each edge. The array `metric_<name>` of another metric
-# is not listed here: it has the dtype of metric_length (see `_get_dtypes`).
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `encode_coordinates`).
+# source_node_ids (optional): the id of each node in its source.
 ARRAYS = {
     "offsets": ("int32",),
     "heads": ("int32",),
     "metric_length": ("float64",),
+    "edge_class_ids": ("uint8",),
     "node_points": ("int32", "float64"),
+    "source_node_ids": ("int32", "int64"),
     "shape_offsets": ("int32",),
     "shape_points": ("int32", "float64"),
-    "source_node_ids": ("int32", "int64"),
-    "edge_class_ids": ("uint8",),
 }
 POINT_ARRAYS = ("node_points", "shape_points")
 # The value of `edge_class_ids` for an edge without a class. The id of a class is
@@ -284,6 +287,7 @@ def write(
         "arrays": {},
         "metadata": {**metadata, "symmetric": symmetric},
     }
+    arrays = _sort_arrays(arrays)
     position = 0
     for name, values in arrays.items():
         size = memoryview(values).itemsize
@@ -806,6 +810,20 @@ def _is_symmetric(offsets, heads, weights):
 def _is_weights_array(name):
     # Whether `name` is the array of the weights of a metric
     return name.startswith("metric_")
+
+
+def _sort_arrays(arrays):
+    # The arrays in the order of `ARRAYS`. The weights of the other metrics come
+    # after metric_length, in the order that the caller gave them.
+    names = list(ARRAYS)
+    at = names.index("metric_length") + 1
+    names[at:at] = [
+        name
+        for name in arrays
+        if _is_weights_array(name) and name != "metric_length"
+    ]
+    names += [name for name in arrays if name not in names]
+    return {name: arrays[name] for name in names if name in arrays}
 
 
 def _get_dtypes(name):
