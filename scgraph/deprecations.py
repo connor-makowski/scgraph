@@ -1,23 +1,28 @@
-"""The warnings of a deprecated function or parameter of the former printing.
+"""The warnings of a deprecated function or parameter.
 
-Each warning sends the user to the logging module. This module is internal.
+Each warning says what to use in its place: by default, the logging module, which
+replaces the former printing. This module is internal.
 """
 
 import warnings
 
 
-def warn_deprecated(name: str, stacklevel: int = 3) -> None:
+def warn_deprecated(
+    name: str,
+    stacklevel: int = 3,
+    instead: str = "scgraph reports its messages through the logging module "
+    "(guides/routing.md, section Logging)",
+) -> None:
     """
-    Warns that a function or a parameter of the former printing is deprecated. The
-    message sends the user to the section Logging of `guides/routing.md`.
+    Warns that a function or a parameter is deprecated.
 
     - `name`: the function or the parameter, as the message names it
     - `stacklevel`: the default points the warning at the caller of the function that
       calls this one
+    - `instead`: the sentence that says what to use in its place
     """
     warnings.warn(
-        f"{name} is deprecated. scgraph reports its messages through the logging"
-        " module (guides/routing.md, section Logging)",
+        f"{name} is deprecated. {instead}",
         DeprecationWarning,
         stacklevel=stacklevel,
     )

@@ -6,7 +6,7 @@ The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides
 
 ## Routing Options and Result Keys
 
-A `GeoGraph` is a graph with a point for each node. `get_shortest_path` takes two points anywhere on the globe, and returns the shortest route between them:
+A **geograph** is a `GeoGraph` object: a graph with a point for each node. `get_shortest_path` takes two points and returns the shortest route between them:
 
 ```py
 from scgraph import GeoGraph
@@ -24,22 +24,24 @@ route["coordinate_path"]  # [[31.23, 121.47], ..., [32.08, -81.09]]
 route["path"]             # the node ids of the route
 ```
 
-The result is a dictionary. It always has these two keys:
+The result is a dictionary. It always has three keys:
 
 - `length`: the length of the route, in `output_units`.
 - `coordinate_path`: the points of the route, as `[latitude, longitude]` pairs. `output_coordinate_path` chooses another form.
+- `metric_totals`: the **total** of each metric, `length` among them. A **metric** gives each edge a weight under a name, such as its hours. Its total is the sum of these weights along the route.
+
+`totals_only=True` returns only `{"metric_totals": {metric: total}}`. It replaces the deprecated `length_only`.
 
 A query can add these keys:
 
 - `path`, with `output_path=True`: the node ids of the route.
-- `metric_totals`. A **metric** gives each edge a weight under a name, such as its hours. When the geograph has a metric other than `length`, `metric_totals` holds the sum of these weights along the route, for each metric.
 - `legs` and `transfers`, with `output_legs=True`. A **leg** is a part of a route by road, by rail, by sea or by air. A **transfer** is a node where the route goes from one of these four to another, such as a port.
 
-The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) shows metrics, legs and transfers. To route by a metric, pass `metric=name` with any option of this guide.
+The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) shows metrics, legs and transfers. Pass `metric=name` with any option to route by a metric.
 
 ## Where a Query Point Snaps
 
-A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node: the point **snaps** to this node. An **off-graph leg** is the straight line from a query point to its node.
+A **query point** is the origin or the destination of a query. Each query point **snaps** to a node of the network: the route starts or ends at this node. An **off-graph leg** is the straight line from a query point to its node.
 
 The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` lists the node modes of a geograph. The rule is the same for every metric:
 
@@ -63,11 +65,11 @@ route = oceania.get_shortest_path(
 
 `snap_to_node_modes` chooses only the two nodes where the route starts and ends. Between them, the route can take any edge: here it takes a flight.
 
-`node_addition_type` chooses the nodes that the origin is joined to, among the nodes of these node modes. `destination_node_addition_type` does the same for the destination:
+`node_addition_type` chooses the candidate nodes of the origin, among the nodes of these node modes. The search links the origin to each candidate by an off-graph leg, and the route starts at one of them. `destination_node_addition_type` does the same for the destination:
 
 - `'closest'`, the default: the closest node.
 - `'quadrant'`: the closest node in each of the four quadrants around the point (NE, NW, SE, SW).
-- `'all'`: every node within `node_addition_lat_lon_bound` degrees of the point. The default bound is `'auto'`.
+- `'all'`: every node within `node_addition_lat_lon_bound` degrees of the point. The default, `'auto'`, is about the distance between the two query points in degrees, and at most `auto_lat_lon_bound_max` (2).
 
 [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-answering-a-geographic-query) explains the weight of the off-graph legs in a search, when a point has several nodes.
 
@@ -75,7 +77,7 @@ route = oceania.get_shortest_path(
 
 `algorithm_fn` names the algorithm of a query. The default, `'bidirectional_buckets'`, is adapted to a single query on a geographic network.
 
-A **bucket** holds the nodes whose distance from the origin is in one range. A bucket search scans the buckets in the order of their distances. `n` is the number of nodes, `m` the number of edges, and `W` the number of buckets that the search scans.
+A **bucket** holds the nodes whose distance from the origin is in one range. A bucket search scans the buckets in the order of their distances. `n` is the number of nodes, `m` the number of edges, `W` the number of buckets that the search scans, and `k` the number of nodes that a query in a hierarchy visits.
 
 | `algorithm_fn` | Use it for | Time |
 |---|---|---|
@@ -97,7 +99,7 @@ In every algorithm, a weight of infinity (`float("inf")`) closes its edge: no pa
 
 ## Making Many Queries Fast
 
-One query needs no preparation. For many queries, choose a way by the form of your queries:
+One query needs no preparation. For many queries, choose a way by the form of your queries. A **sparse network** has long chains of nodes with only two neighbors, such as roads, railways and sea lanes:
 
 | Your queries | Way | The work that it needs |
 |---|---|---|
@@ -109,7 +111,7 @@ One query needs no preparation. For many queries, choose a way by the form of yo
 
 ### Cached Queries from One Origin
 
-Use `cached_shortest_path` for many queries from the same origin, for example from one distribution center to many customers. The first call computes the shortest path tree of the origin, and keeps it. A later call from the same origin reads the tree:
+Use `cached_shortest_path` for many queries from the same origin. The first call computes the shortest path tree of the origin and keeps it:
 
 ```py
 shanghai = {"latitude": 31.23, "longitude": 121.47}
@@ -146,9 +148,9 @@ matrix = north_america.distance_matrix(cities, output_units="km")
 matrix[0][1]  # the km from Los Angeles to New York City
 ```
 
-`output_units` takes `km`, `m`, `mi` or `ft`. The two directions of a pair can differ a little: a one-way road is followed in its direction. A pair without a route has the distance `None`.
+The two directions of a pair can differ a little: a one-way road is followed in its direction. A pair without a route has the distance `None`.
 
-The **total** of a metric along a route is the sum of the weights of its edges. With a metric, the matrix holds the totals of this metric. `output_metric` names another metric, and the matrix holds its totals on the same routes:
+With a metric, the matrix holds the totals of this metric. `output_metric` names another metric, and the matrix holds its totals on the same routes:
 
 ```py
 north_america.create_metric("hours", weight_per_km={"road": 1 / 80, "off_graph": 1 / 30})
@@ -158,7 +160,7 @@ km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours",
 
 ### Graph Reduction
 
-Use `reduce()` on a sparse network, such as roads, railways or sea lanes. Such a network has long chains of nodes with only two neighbors. The reduction replaces each chain by one edge. A search then visits fewer nodes, and every route keeps its exact length and its full path:
+Use `reduce()` on a sparse network. The reduction replaces each chain of nodes with two neighbors by one edge. A search then visits fewer nodes, and every route keeps its exact length and its full path:
 
 ```py
 north_america.reduce()
@@ -187,7 +189,7 @@ europe.load()  # loads the network now; without this call, the first query loads
 
 ### Hierarchies: CH and TNR
 
-Use a contraction hierarchy (CH) for very many queries between any points of one large graph. The preprocessing runs once and is slow: seconds to minutes, by the size of the graph. The query of a long route is then much faster than with Dijkstra. For many queries from one origin, a cached tree is still faster.
+Use a contraction hierarchy (CH) for very many queries between any points of one large graph. The query of a long route is then much faster than with Dijkstra. For many queries from one origin, a cached tree is still faster.
 
 ```py
 oceania_roads = GeoGraph.load_geograph("oceania", node_modes=["road"])
@@ -202,7 +204,7 @@ route = oceania_roads.get_shortest_path(
 )
 ```
 
-A hierarchy belongs to one metric. `oceania_roads.graph_object` is the graph of the lengths. For another metric, build the hierarchy on `oceania_roads.get_graph_object(metric)`, and pass `metric` to `get_shortest_path`. When you create a metric again, its graph is new: build its hierarchy again.
+A hierarchy belongs to one metric. `oceania_roads.graph_object` is the graph of the lengths. For another metric, build the hierarchy on `oceania_roads.get_graph_object(metric)`, and pass `metric` to `get_shortest_path`. When you create the same metric a second time, it gets a new graph: build its hierarchy again.
 
 A hierarchy can be saved, and loaded again in place of a new preprocessing. A hierarchy with transit nodes (`algorithm_fn='tnr'`) is built and saved the same way:
 
@@ -238,7 +240,7 @@ route = world_sea.get_shortest_path(
 - `geograph.haversine`: the great-circle distance. It is exact, and the C++ build computes it inside the search.
 - `geograph.cheap_ruler`: a fast approximate distance (the method of Mapbox).
 
-A* returns the shortest path when the heuristic never exceeds the real distance left to the destination. With a metric other than `length`, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination.
+With any metric, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination.
 
 [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-shortest-path-search) gives the rule of the scale, and the case where A* computes no lower bound.
 
@@ -254,11 +256,13 @@ dist_km = cheap_ruler([31.23, 121.47], [32.08, -81.09], units="km")  # fast and 
 dist_mi = distance_converter(dist_km, input_units="km", output_units="mi")
 ```
 
+Each conversion uses 1 mile = 1.609344 km and 1 foot = 0.3048 m.
+
 ## Logging
 
 scgraph prints nothing. It reports through the `logging` module of Python, on the logger `scgraph`.
 
-Show the INFO messages to see the progress of a long call. These calls are the first load of a released network, `build_geograph`, `load_from_geojson` and `get_multi_path_geojson`. A download then logs its progress at each tenth of its size:
+Show the INFO messages to see the progress of a long call. Four calls can be long: the first load of a released network, `build_geograph`, `load_from_geojson` and `get_multi_path_geojson`. A download then logs its progress at each tenth of its size:
 
 ```py
 import logging
@@ -267,7 +271,7 @@ logging.basicConfig()  # send log messages to the console
 logging.getLogger("scgraph").setLevel(logging.INFO)
 ```
 
-Show the DEBUG messages to see how much work a load or a query did. Each step of a `GeoGraph` then logs one line:
+Show the DEBUG messages to see how much work a load or a query did. Each step then logs one line:
 
 ```py
 logging.getLogger("scgraph").setLevel(logging.DEBUG)
@@ -278,6 +282,11 @@ world_sea.get_shortest_path({"latitude": 31.23, "longitude": 121.47}, {"latitude
 # DEBUG:scgraph.geograph:find the shortest path: {'algorithm': 'bidirectional_buckets', 'node_scans': ..., ...}
 ```
 
+- `node_scans` is the size of the search: the number of times that the search read the edges of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
+- `origin_snap_distance` and `destination_snap_distance` are the distances from each query point to the closest node that it snaps to, in `distance_units`.
+- `kept_nodes` is the number of nodes left after the reduction.
+- `mapped` is true when the load maps the file and reads it in place. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
+
 | Step | Values |
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `edges`, `duration_ms` |
@@ -285,11 +294,6 @@ world_sea.get_shortest_path({"latitude": 31.23, "longitude": 121.47}, {"latitude
 | `build the snapping index` | `nodes`, `node_mode` (the name of the node mode, only for the index of one node mode), `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |
-
-- `node_scans` is the size of the search: the number of times that the search read the edges of a node. Dijkstra, bidirectional Dijkstra, A* and the bucket searches report it.
-- `origin_snap_distance` and `destination_snap_distance` are the distances from each query point to the closest node that it snaps to, in `distance_units`.
-- `kept_nodes` is the number of nodes left after the reduction.
-- `mapped` is true when the load maps the file and reads it in place. `sorted_for_the_index` is true when scgraph had to sort a copy of the nodes.
 
 `build_geograph` also logs one line for each step of the OSM pipelines, with its counts and `duration_ms`. A step that removes nodes logs the counts that it received and the counts that it kept (`kept_nodes`, `kept_edges`).
 

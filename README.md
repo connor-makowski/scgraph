@@ -38,7 +38,7 @@ route = world_sea.get_shortest_path(
 print(route["length"])  # the km of the route
 ```
 
-`world_sea` is a **released network**: the maintainers of scgraph build it and publish it. The first load downloads it and keeps it in a cache. The two points need not be on the network: each one is joined to its closest node. The result also holds `coordinate_path`: the points of the route, as `[latitude, longitude]` pairs.
+`world_sea` is a **released network**: the maintainers of scgraph build it and publish it. The first load downloads it and keeps it in a cache. The two points need not be on the network: each one **snaps** to its closest node, where the route starts or ends. The result also holds `coordinate_path`: the points of the route, as `[latitude, longitude]` pairs.
 
 ## Which Network?
 
@@ -50,20 +50,20 @@ print(route["length"])  # the km of the route
 | Routes by road only | a released network, with `node_modes`. The **node mode** of a node is the kind of place where the node is, such as `road`, `sea` or `port` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
 | Routes by road and by sea | a released network, with `node_modes` and the ports that join them | `GeoGraph.load_geograph("europe", node_modes=["road", "sea", "port"])` |
 | Routes by time, by cost or by CO2 | a released network, with a **metric**: a weight for each edge other than its length | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
-| The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
-| The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")` |
+| The same result later, on any machine | a released network, with its network release and its `content_sha256` | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
+| Current data for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)` |
 | A result of scgraph 3.6.0, unchanged | a deprecated network of 3.6.0 | `GeoGraph.load_geograph("marnet")`, with a `DeprecationWarning` |
 
-`GeoGraph.list_geographs()` lists every network that `load_geograph` takes, with what it holds and the size of its download. The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) describes each network, and each way to load, build and save one.
+`GeoGraph.list_geographs()` lists every network that `load_geograph` takes, with what it holds and the size of its download. The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) describes each network, and how to load, build and save one.
 
 ## Common Tasks
 
-The code blocks below run in order, after the first route: a block may use a name of an earlier one.
+The code blocks below run in order, after the first route: a block may use a name of an earlier one. The **edge mode** of an edge is its kind of transport: `road`, `rail`, `sea` or `air`. A **leg** is a part of a route on one edge mode.
 
 ### A Route on Several Edge Modes, with Its Legs
 
-The **edge mode** of an edge is the kind of transport of the edge: `road`, `rail`, `sea` or `air`. `europe` has edges of the four edge modes. `output_legs=True` returns the **legs** of a route: a leg is a part of the route on one edge mode.
+`europe` has edges of the four edge modes. `output_legs=True` returns the legs of a route.
 
 ```py
 europe = GeoGraph.load_geograph("europe")
@@ -75,13 +75,13 @@ for leg in route["legs"]:
     print(leg["mode"], round(leg["length"]), "km")
 ```
 
-The guide of the metrics gives more detail in [The Legs of a Route](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#the-legs-of-a-route).
+The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#the-legs-of-a-route) explains the legs.
 
 ### A Route by Time, by Cost or by CO2
 
-A **metric** gives each edge a weight other than its length. Here the weight is a cost in euros.
+Here the metric gives each edge a cost in euros.
 
-`weight_per_km` gives the cost of 1 km by road, by rail, by sea and by air. Its key `off_graph` is for the straight lines between the two points and the network. `weight_at_hub` adds a fee at each port and at each airport. These numbers are examples.
+`weight_per_km` gives the cost of 1 km by road, by rail, by sea and by air. Its key `off_graph` is for the two **off-graph legs**: the straight lines from each point to its node. `weight_at_hub` adds a fee at each port and at each airport. These numbers are examples.
 
 ```py
 euros_per_km = {"road": 1.2, "rail": 0.4, "sea": 0.1, "air": 5, "off_graph": 1.2}
@@ -111,7 +111,7 @@ The routing guide gives more detail in [Distance Matrix](https://github.com/conn
 
 ### A Network of a Region, or of Your Own Data
 
-`build_geograph` builds the network of a region from the OpenStreetMap data of today. `GeoGraph` makes a network from your own nodes and edges.
+`build_geograph` builds the network of a region from current OpenStreetMap data. `GeoGraph` makes a network from your own nodes and edges.
 
 ```py
 # Needs `pip install scgraph[osm]`, and downloads the extract of the region
@@ -135,7 +135,7 @@ for city in cities[1:]:  # many destinations from one origin
     roads.get_shortest_path(origin_node=cities[0], destination_node=city, algorithm_fn="cached_shortest_path")
 ```
 
-The routing guide explains when to use each way in [Making Many Queries Fast](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#making-many-queries-fast).
+The routing guide compares these and other methods in [Making Many Queries Fast](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#making-many-queries-fast).
 
 ## Documentation
 
@@ -143,7 +143,7 @@ The routing guide explains when to use each way in [Making Many Queries Fast](ht
 |---|---|
 | Choose the options of a route, read its result, choose an algorithm, make many queries fast | [Routing on a Network](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md) |
 | Route by time, by cost or by CO2, read the legs of a route, close a canal | [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) |
-| Choose, load, pin, build or save a network | [Networks: Load, Build and Save](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) |
+| Choose, load, build or save a network, or load the same network again | [Networks: Load, Build and Save](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) |
 | Route on my own graph, edit or merge networks, route on a grid | [Your Own Graphs and Grids](https://github.com/connor-makowski/scgraph/blob/main/guides/custom_graphs.md) |
 | Move from scgraph 3.6 to 4.0 | [Migrating from 3.6 to 4.0](https://github.com/connor-makowski/scgraph/blob/main/MIGRATING.md) |
 | Find every parameter, default, result key and exception of a method | The [API documentation](https://connor-makowski.github.io/scgraph/scgraph.html) |

@@ -199,7 +199,7 @@ class _Network:
     def __init__(self, network: dict):
         points = memoryview(network["node_points"])
         self.latitudes, self.longitudes = points[0::2], points[1::2]
-        self.ids = array("q", network["source_node_ids"])
+        self.ids = array("q", network["external_node_ids"])
         self.node_first_edge_ids, self.edge_destination_node_ids = (
             network["node_first_edge_ids"],
             network["edge_destination_node_ids"],
@@ -273,7 +273,7 @@ def join_networks_at_hubs(
     Returns:
         The joined network as the network file's arrays, and the number of hubs
         joined of each kind. `node_mode_ids` gives the position of the node mode of each
-        node in `node_modes`. `source_node_ids` keeps each layer's ids and gives each
+        node in `node_modes`. `external_node_ids` keeps each layer's ids and gives each
         hub its id in its table. `edge_class_ids` gives the id of the class of each edge
         in `scgraph.pipelines.CLASSES`.
     """
@@ -370,11 +370,11 @@ def join_networks_at_hubs(
     for node_mode_id, size in zip(layer_node_mode_ids, sizes):
         node_mode_ids += bytes([node_mode_id]) * size
     node_mode_ids += bytes(node_modes.index(kind) for kind in kinds)
-    # build_graph_from_pieces renumbers the nodes; its source_node_ids are the numbers
+    # build_graph_from_pieces renumbers the nodes; its external_node_ids are the numbers
     # the nodes had here
-    old = joined["source_node_ids"]
+    old = joined["external_node_ids"]
     joined["node_mode_ids"] = array("B", (node_mode_ids[u] for u in old))
-    joined["source_node_ids"] = array("q", (all_ids[u] for u in old))
+    joined["external_node_ids"] = array("q", (all_ids[u] for u in old))
     return joined, {kind: kinds.count(kind) for kind in dict.fromkeys(kinds)}
 
 

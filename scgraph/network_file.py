@@ -66,14 +66,14 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `encode_coordinates`).
-# source_node_ids (optional): the id of each node in its source.
+# external_node_ids (optional): the id of each node in its source.
 ARRAYS = {
     "node_first_edge_ids": ("int32",),
     "edge_destination_node_ids": ("int32",),
     "metric_length": ("float64",),
     "edge_class_ids": ("uint8",),
     "node_points": ("int32", "float64"),
-    "source_node_ids": ("int32", "int64"),
+    "external_node_ids": ("int32", "int64"),
     "edge_first_shape_point_ids": ("int32",),
     "shape_points": ("int32", "float64"),
 }
@@ -145,8 +145,6 @@ RESERVED_METADATA_KEYS = frozenset(
         "metrics",
         "node_modes",
         "classes",
-        "default_metric",
-        "symmetric",
         "node_order",
         "content_sha256",
         "format_version",
@@ -154,7 +152,7 @@ RESERVED_METADATA_KEYS = frozenset(
         "edges",
         "coordinate_dtype",
         "shapes",
-        "source_node_ids",
+        "external_node_ids",
         "attribution",
         "data_up_to",
     }
@@ -168,7 +166,6 @@ def build_header_metadata(
     node_mode_ids: bytes | array | memoryview,
     metrics: list[dict] | None = None,
     classes: list[dict] | None = None,
-    default_metric: str = "length",
 ) -> dict:
     """Return the metadata that `write` takes, for a network whose nodes are in the
     order of a network file: by node mode, then along a Hilbert curve
@@ -190,12 +187,10 @@ def build_header_metadata(
             its node. The default, None, is the info of lengths in km.
         classes: One row for each class, for a network with `edge_class_ids`. A row
             gives the `name` of the class and the `edge_mode` of its edges.
-        default_metric: The name of the metric that a query without `metric`
-            minimises. 'length' writes no such key.
 
     Returns:
         The keys that scgraph sets itself (`crs`, `metrics`, `node_modes`, `classes`,
-        `default_metric`, `node_order`), then the keys of `build_metadata`.
+        `node_order`), then the keys of `build_metadata`.
 
     Raises:
         ValueError: `build_metadata` sets a key that scgraph writes itself, a node
@@ -243,11 +238,6 @@ def build_header_metadata(
             else {}
         ),
         **({"classes": classes} if classes is not None else {}),
-        **(
-            {"default_metric": default_metric}
-            if default_metric != "length"
-            else {}
-        ),
         "node_order": NODE_ORDER,
         **build_metadata,
     }
@@ -278,16 +268,10 @@ def write(
         PermissionError: On Windows, a process has mapped the file at `filename`, so
             the file cannot be replaced.
     """
-    symmetric = _is_symmetric(
-        arrays["node_first_edge_ids"],
-        arrays["edge_destination_node_ids"],
-        arrays["metric_length"],
-    )
-
     header = {
         "format_version": FORMAT_VERSION,
         "arrays": {},
-        "metadata": {**metadata, "symmetric": symmetric},
+        "metadata": dict(metadata),
     }
     arrays = _sort_arrays(arrays)
     position = 0
@@ -371,9 +355,8 @@ def read(
         each node from the rows of `metadata["node_modes"]`.
 
     Raises:
-        ValueError: The header or the layout of the arrays is not valid. Or an
-            earlier development version of scgraph wrote the file. `read` does not
-            check the digest (see `check_content`).
+        ValueError: The header or the layout of the arrays is not valid. `read`
+            does not check the digest (see `check_content`).
         FileNotFoundError: The file does not exist.
     """
     mapped = mapped and sys.byteorder == "little"
@@ -409,8 +392,8 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
     Returns:
         The keys of the metadata of the file, then `content_sha256`,
         `format_version`, `nodes`, `edges`, `coordinate_dtype`, `shapes` and
-        `source_node_ids`. `nodes` and `edges` are counts. `shapes` and
-        `source_node_ids` are True when the file holds these arrays.
+        `external_node_ids`. `nodes` and `edges` are counts. `shapes` and
+        `external_node_ids` are True when the file holds these arrays.
 
     Raises:
         ValueError: The header of the file is not valid.
@@ -423,7 +406,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         "edges": len(arrays["edge_destination_node_ids"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
         "shapes": "shape_points" in arrays,
-        "source_node_ids": "source_node_ids" in arrays,
+        "external_node_ids": "external_node_ids" in arrays,
     }
 
 
@@ -474,38 +457,6 @@ def _read(filename, file, mapped, node_modes):
         raise ValueError(
             f"{filename} has format version {header.get('format_version')}; "
             f"this version of scgraph reads version {FORMAT_VERSION}"
-        )
-    # A file of an earlier development version has `units` and no `metrics`, or a
-    # name that this version no longer reads. Without this message, the error would
-    # only name the missing array or key.
-    metadata = header["metadata"]
-    if (
-        ("units" in metadata and "metrics" not in metadata)
-        or {
-            "offsets",
-            "heads",
-            "shape_offsets",
-            "node_ids",
-            "node_modes",
-            "edge_classes",
-            "weights_length",
-        }
-        & set(header["arrays"])
-        or "node_mode_ids" in header["arrays"]
-        or any(
-            isinstance(row, dict) and "node_count" not in row
-            for row in metadata.get("node_modes", ())
-        )
-        or any(
-            isinstance(row, dict)
-            and ("mode" in row or row.get("name", "") is None)
-            for row in metadata.get("classes", ())
-        )
-        or any("off_graph_per_km" in row for row in metadata.get("metrics", ()))
-    ):
-        raise ValueError(
-            f"{filename} has the format of an earlier development version of "
-            "scgraph: build or download the network again"
         )
     is_node_mode_kept = None
     if node_modes is not None:
@@ -628,15 +579,15 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
         *((name, edge_runs, 1) for name in arrays if _is_weights_array(name)),
         ("edge_class_ids", edge_runs, 1),
         ("node_points", node_runs, 2),
-        ("source_node_ids", node_runs, 1),
+        ("external_node_ids", node_runs, 1),
         ("shape_points", shape_point_runs, 2),
     ):
         if name in arrays:
             selected[name] = _take_runs(arrays[name], runs, in_place, width)
-    if "source_node_ids" not in arrays:
+    if "external_node_ids" not in arrays:
         # The id of a node is its position in the file
         positions = chain.from_iterable(starmap(range, node_runs))
-        selected["source_node_ids"] = array("q", positions)
+        selected["external_node_ids"] = array("q", positions)
     if "edge_class_ids" in arrays:
         # `_check` does not read the class ids of a mapped file. `translate`
         # deletes the valid ids in one pass in C: a byte that is left is no id of a
@@ -745,7 +696,8 @@ def _check(filename, arrays, metadata, should_check_values=True):
             "invalid edge_first_shape_point_ids",
         )
     require(
-        "source_node_ids" not in arrays or len(arrays["source_node_ids"]) == n,
+        "external_node_ids" not in arrays
+        or len(arrays["external_node_ids"]) == n,
         "one node id per node expected",
     )
     # The nodes of each node mode are a range of node ids (module docstring)
@@ -793,52 +745,14 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "each class must be a row with a name and an edge mode",
     )
     require(
+        "classes" not in metadata or "edge_class_ids" in arrays,
+        "the header has classes, and the file has no array `edge_class_ids`",
+    )
+    require(
         "edge_class_ids" not in arrays
         or len(metadata["classes"]) <= NO_CLASS_ID,
         f"a network file holds {NO_CLASS_ID} classes at most",
     )
-    require(
-        metadata.get("default_metric", "length")
-        in [row["name"] for row in metrics],
-        "default_metric names a metric that the file does not have",
-    )
-
-
-def _is_symmetric(node_first_edge_ids, edge_destination_node_ids, weights):
-    # Return whether every edge has a reverse edge of the same weight.
-    #
-    # The degree of a node is its number of edges. For an edge u -> v, the function
-    # searches the row of v for the reverse edge, but only when v has at most the
-    # degree of u. A hub is a node of high degree. With this rule, the function does
-    # not read the long row of a hub once for each of its neighbors.
-    #
-    # An edge to a node of higher degree is counted in `unmatched`. Its reverse edge is
-    # found later, from the side of that node, and takes one from the count. A row
-    # holds each destination id once, so the graph is symmetric when the count ends
-    # at zero.
-    unmatched = 0
-    for origin in range(len(node_first_edge_ids) - 1):
-        degree = node_first_edge_ids[origin + 1] - node_first_edge_ids[origin]
-        for edge in range(
-            node_first_edge_ids[origin], node_first_edge_ids[origin + 1]
-        ):
-            destination_id = edge_destination_node_ids[edge]
-            start, end = (
-                node_first_edge_ids[destination_id],
-                node_first_edge_ids[destination_id + 1],
-            )
-            if end - start > degree:
-                unmatched += 1
-                continue
-            unmatched -= end - start < degree
-            for back in range(start, end):
-                if edge_destination_node_ids[back] == origin:
-                    if weights[back] != weights[edge]:
-                        return False
-                    break
-            else:
-                return False
-    return unmatched == 0
 
 
 def _is_weights_array(name):

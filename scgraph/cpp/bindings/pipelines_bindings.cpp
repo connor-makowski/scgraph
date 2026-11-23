@@ -25,21 +25,22 @@ void bind_pipelines(nb::module_& m) {
             throw std::invalid_argument("expected one destination, one weight and one class for each edge");
         auto t = assembly::build_csr_from_edges(origins.data(), destinations.data(), weights.data(), m,
                                                 edge_class_ids ? edge_class_ids->data() : nullptr);
-        return nb::make_tuple(owned_view(std::move(t.source_node_ids)), owned_view(std::move(t.node_first_edge_ids)),
+        return nb::make_tuple(owned_view(std::move(t.external_node_ids)), owned_view(std::move(t.node_first_edge_ids)),
                               owned_view(std::move(t.edge_destination_node_ids)), owned_view(std::move(t.weights)),
                               owned_view(std::move(t.kept)), owned_view(std::move(t.parallel_edges)));
     };
     m.def("build_csr_from_edges", bind_csr, nb::arg("origins"), nb::arg("destinations"), nb::arg("weights"),
           nb::arg("edge_class_ids") = nb::none());
     auto bind_scc = [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids) {
-        auto c = assembly::find_strongly_connected_components(node_first_edge_ids.data(), edge_destination_node_ids.data(),
-                                                              (int64_t)node_first_edge_ids.shape(0) - 1,
-                                                              (int64_t)edge_destination_node_ids.shape(0));
+        auto c = assembly::find_strongly_connected_components(
+            node_first_edge_ids.data(), edge_destination_node_ids.data(),
+            (int64_t)node_first_edge_ids.shape(0) - 1, (int64_t)edge_destination_node_ids.shape(0));
         return nb::make_tuple(owned_view(std::move(c.labels)), owned_view(std::move(c.sizes)));
     };
-    m.def("find_strongly_connected_components", bind_scc, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"));
-    m.def("contract_chains", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, DoubleArray weights,
-                                std::optional<Uint8Array> node_mode_ids,
+    m.def("find_strongly_connected_components", bind_scc, nb::arg("node_first_edge_ids"),
+          nb::arg("edge_destination_node_ids"));
+    m.def("contract_chains", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids,
+                                DoubleArray weights, std::optional<Uint8Array> node_mode_ids,
                                 double max_km_between_nodes, std::optional<Uint8Array> edge_class_ids) {
         const int64_t n = (int64_t)node_first_edge_ids.shape(0) - 1;
         if (weights.shape(0) != edge_destination_node_ids.shape(0) || (node_mode_ids && (int64_t)node_mode_ids->shape(0) != n)
@@ -52,16 +53,17 @@ void bind_pipelines(nb::module_& m) {
         return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
                               owned_view(std::move(c.edge_destination_node_ids)), owned_view(std::move(c.weights)),
                               owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
-    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights"), nb::arg("node_mode_ids") = nb::none(),
+    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights"),
+       nb::arg("node_mode_ids") = nb::none(),
        nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("edge_class_ids") = nb::none());
-    m.def("simplify_shapes", [](Int32Array shape_points, Int32Array edge_first_shape_point_ids, Int32Array endpoint_coords,
-                                double tolerance_meters) {
+    m.def("simplify_shapes", [](Int32Array shape_points, Int32Array edge_first_shape_point_ids,
+                                Int32Array endpoint_coords, double tolerance_meters) {
         const int64_t shapes = (int64_t)edge_first_shape_point_ids.shape(0) - 1;
         if (shape_points.shape(0) % 2 || (int64_t)endpoint_coords.shape(0) != 4 * shapes)
             throw std::invalid_argument("expected two ints per point and four ends per shape");
         auto r = assembly::simplify_shapes(shape_points.data(), (int64_t)shape_points.shape(0) / 2,
-                                           edge_first_shape_point_ids.data(), endpoint_coords.data(),
-                                           shapes, tolerance_meters);
+                                           edge_first_shape_point_ids.data(), endpoint_coords.data(), shapes,
+                                           tolerance_meters);
         return nb::make_tuple(owned_view(std::move(r.points)), owned_view(std::move(r.edge_first_shape_point_ids)));
     }, nb::arg("shape_points"), nb::arg("edge_first_shape_point_ids"), nb::arg("endpoint_coords"), nb::arg("tolerance_meters"));
 

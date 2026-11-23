@@ -2,12 +2,14 @@
 
 This guide shows three ways to get a network: load one that scgraph publishes, build one from open data, or load your own data. It also shows how to save a network and load it again.
 
-A **released network** is a network that the maintainers of scgraph build and publish, such as `europe`.
+- A **released network** is a network that the maintainers of scgraph build and publish, such as `europe`.
+- A **geograph** is a `GeoGraph` object: a network in memory.
+- A **region** is a part of the world, such as a country, that has its own OpenStreetMap file.
 
 | You have | Call | Section |
 |---|---|---|
 | The name of a released network | `GeoGraph.load_geograph(name)` | [Released Networks](#released-networks) |
-| A region, and the need of its data of today | `GeoGraph.build_geograph(name, region=...)` | [Building Networks from Their Sources](#building-networks-from-their-sources) |
+| A region, and you need its current data | `GeoGraph.build_geograph(name, region=...)` | [Building Networks from Their Sources](#building-networks-from-their-sources) |
 | A released network that is too large | `derive_network_file(parent_file, derived_file, bbox=...)` | [Deriving a Part of a Released Network](#deriving-a-part-of-a-released-network) |
 | An OSMnx graph | `GeoGraph.load_from_osmnx_graph(graph)` | [Loading from OSMnx](#loading-from-osmnx) |
 | An OpenStreetMap file | `GeoGraph.load_from_osm(file)` | [Loading an OpenStreetMap File](#loading-an-openstreetmap-file) |
@@ -17,7 +19,7 @@ The [API documentation](https://connor-makowski.github.io/scgraph/scgraph.html) 
 
 ## Released Networks
 
-The maintainers of scgraph build networks of the whole world from OpenStreetMap and other open sources. A **network release** is a set of these networks, published together on GitHub under one tag, for example `networks-2026.11.20`. Each released network belongs to one network release. `load_geograph` loads a released network by its name.
+The maintainers of scgraph build networks of the whole world from OpenStreetMap and other open sources. A **network release** is a set of these networks, published together on GitHub under one tag, for example `networks-2026.11.20`. `load_geograph` loads a released network by its name.
 
 | Name | What it holds |
 |---|---|
@@ -33,9 +35,9 @@ The maintainers of scgraph build networks of the whole world from OpenStreetMap 
 | `north_asia` | Latitudes 40 to 78, longitudes 45 to 180 |
 | `oceania` | Latitudes -50 to 0, longitudes 110 to 180 |
 
-Each of the eight networks from `europe` to `oceania` is a part of `world_multimodal`. It holds the roads, the railways and the rail terminals inside the rectangle of its row. It also holds every sea lane, port and airport of the world, so a route can leave the rectangle by sea or by air.
+Each of the eight networks from `europe` to `oceania` is a part of `world_multimodal`. It holds the roads, the railways and the rail terminals inside the latitudes and longitudes of its row. It also holds every sea lane, port and airport of the world, so a route can leave this area by sea or by air.
 
-Distances are in kilometers. `GeoGraph.list_geographs()` lists every network that `load_geograph` takes. For a released network, it gives the numbers of nodes and of edges, the sizes of the downloads and the time of the data. The [releases page](https://github.com/connor-makowski/scgraph/releases) of the repository shows the files of each network release.
+Distances are in kilometers. `GeoGraph.list_geographs()` lists every network that `load_geograph` takes. For a released network, it gives the numbers of nodes and of edges, the sizes of the downloads and the date of the newest source data. The [releases page](https://github.com/connor-makowski/scgraph/releases) of the repository shows the files of each network release.
 
 ```py
 from scgraph import GeoGraph
@@ -53,6 +55,11 @@ roads.get_shortest_path(origin_node=paris, destination_node=berlin)["length"]  #
 
 The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`.
 
+- A **hub** is a port, an airport or a rail terminal. A route goes from a road to a sea lane only at a port.
+- A **metric** gives each edge a weight, such as its hours. Without a metric, the shortest route between distant places often takes a flight.
+- By default, the origin and the destination snap to their closest road node.
+- The **shape** of an edge is the list of points that draw the edge on a map. Without the shapes, the `coordinate_path` of a route is straight from node to node.
+
 | You want | Write |
 |---|---|
 | The roads only | `node_modes=["road"]` |
@@ -60,11 +67,6 @@ The **node mode** of a node is the kind of place where the node is: `road`, `rai
 | The fastest or the cheapest route | A metric: see [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) |
 | A route that starts or ends off the roads | `snap_to_node_modes`: see [Where a Query Point Snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps) |
 | A smaller download, with the same lengths | `load_intermediate_nodes=False` |
-
-- A **hub** is a port, an airport or a rail terminal. A route goes from a road to a sea lane only at a port. So load the hubs with the node modes that they join.
-- A **metric** gives each edge another weight than its length, such as its hours. Without a metric, the shortest route between two distant places often takes a flight.
-- By default, `get_shortest_path` joins the origin and the destination to their closest road node.
-- The **shape** of an edge is the list of points that draw the edge on a map. Without the shapes, the `coordinate_path` of a route goes in a straight line from node to node.
 
 | Case | What `load_geograph` does |
 |---|---|
@@ -77,7 +79,7 @@ The **node mode** of a node is the kind of place where the node is: `road`, `rai
 
 After an error, the cache is as it was before the call. You can make the call again.
 
-### Loading a Recorded Network Release
+### Loading the Same Network Again
 
 Each version of scgraph loads one network release, so the same version loads the same network on every machine. A later version of scgraph may load a newer network release. To load exactly the same network then, record the tag of the network release and the `content_sha256` of the file. The `content_sha256` is the SHA-256 digest of the content of a network file.
 
@@ -98,11 +100,11 @@ europe = GeoGraph.load_geograph("europe", network_release=tag, content_sha256=di
 
 A result that uses a released network cites the credit line of the file, `info["attribution"]` above. The header of the file lists each source with its license (`info["sources"]`).
 
-The guide [Network Pipelines](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
+A **pipeline** is a Python module that builds one network from its sources. The guide [Network Pipelines](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
 
 ## The Cache
 
-`load_geograph` and `build_geograph` keep their files in a local cache. A network in the cache loads without network access.
+`load_geograph` and `build_geograph` keep their files in a local cache.
 
 ```py
 # Never download: use only the cache (FileNotFoundError if the network is not there)
@@ -126,9 +128,9 @@ GeoGraph.get_cache_info()
 
 ## Building Networks from Their Sources
 
-`build_geograph` builds a network on your machine from its online sources, with the data of today. It downloads the sources once and keeps the built network in the cache. Later calls load the network from the cache, without network access.
+`build_geograph` builds a network on your machine from its online sources, with current data.
 
-A source can be large, such as the OpenStreetMap extract of a country. A warning is logged before a large download.
+A source can be large, such as the OpenStreetMap file of a country: its **extract**. A warning is logged before a large download.
 
 ```py
 import logging
@@ -145,17 +147,19 @@ GeoGraph.list_buildable_geographs()
 #   "needs_region": False, "cached": False, "cached_regions": []}, ...]
 ```
 
-Each network is built by a **pipeline**: a module of `scgraph.pipelines`, whose docstring describes the network, its rules and its limits. The **class** of an edge is its category in the source, such as `motorway`, `ferry`, `rail_main`, `suez` or `flight`.
+Each pipeline of scgraph is a module of `scgraph.pipelines`. Its docstring describes the network, its rules and its limits. The **class** of an edge is its category in the source, such as `motorway`, `ferry`, `rail_main`, `suez` or `flight`.
 
 | Pipeline | Network | Source |
 |---|---|---|
-| `eurostat_sea_lanes` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages removed (unlike `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
+| `eurostat_sea_lanes` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages removed (the older `marnet` has them) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
 | `osm_region_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its node mode, and each edge has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
 | `osm_world_multimodal` | `osm_region_multimodal` for the world (needs the C++ extension). This pipeline builds the released network `world_multimodal` | The sources of `osm_region_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
 
 **The region.** The region of `osm_region_multimodal` is the path of a [Geofabrik extract](https://download.geofabrik.de) in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas`. Geofabrik lists [all its extracts](https://download.geofabrik.de/index-v1-nogeom.json) in a JSON file. A region that Geofabrik does not have raises a `ValueError` before the download of the extract.
 
 **The command line.** `python -m scgraph.pipelines.network_builder NAME [--region R] [--cache-dir D]` builds a network without loading it, and prints the path of its file.
+
+A build keeps its downloaded sources in a **work folder** of the cache.
 
 | Case | What `build_geograph` does |
 |---|---|
@@ -164,12 +168,12 @@ Each network is built by a **pipeline**: a module of `scgraph.pipelines`, whose 
 | An upgrade of scgraph changed the pipeline or the file format | Builds the network again |
 | The file is missing or damaged | Builds the network again |
 | `refresh=True` | Empties the work folder, downloads the sources and builds the network again |
-| A build fails | Keeps the downloaded sources in a work folder. The next build uses them |
+| A build fails | Keeps the work folder. The next build uses its sources |
 | `local_files_only=True`, and the cache does not have the network | Raises `FileNotFoundError` |
 | `local_files_only=True`, and another version of the pipeline built the file | Loads the file, with a warning |
 | `local_files_only=True`, and the file has another file format | Raises `ValueError` |
 
-A new build removes the old file. On Windows, a file that another process has open stays until you clear the cache. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the folders of the cache.
+A new build removes the old file. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the folders of the cache.
 
 Two versions of scgraph can use one cache. If their pipelines differ, each version builds again the networks of the other. Give each version its own `SCGRAPH_CACHE_DIR`, or pass `local_files_only=True` in the older one.
 
@@ -179,7 +183,7 @@ Two versions of scgraph can use one cache. If their pipelines differ, each versi
 - A multimodal network has node modes and hubs. Each edge has a class, and `geograph.classes` lists the classes.
 - `osm_region_multimodal` adds nodes along a long road or railway, so the origin of a query finds a node close to it. `reduce_iterations=-1` removes the nodes that routing does not need.
 - The build simplifies the shape of each road, ferry or railway edge. The length of the edge is the length of its full shape.
-- `build_geograph(..., node_modes=["road", "rail", "rail_terminal"])` loads the roads and the railways, with their rail terminals.
+- `build_geograph` takes `node_modes`, as `load_geograph` does.
 
 **A pipeline of your own.** `build_geograph(pipeline=my_module)` builds the network of your own pipeline module, for example an adapted copy of a pipeline of scgraph. The cache keeps it in `networks/<last part of the module name>/`. A module with the name of a pipeline of scgraph raises a `ValueError`.
 
@@ -232,13 +236,13 @@ print(fastest["length"], fastest["metric_totals"]["travel_time"])  # still its k
 shortest = by_time.get_shortest_path(origin_node=origin, destination_node=destination, metric="length")
 ```
 
-OSMnx can give several edges from one node to another. The geograph keeps the one with the smallest value of `weight_key`, with its length, its class and its travel time. So with `weight_key='length'`, the geograph keeps the shortest of these edges. The metric `travel_time` holds the travel time of this edge, and another of these edges may be faster.
+OSMnx can give several edges from one node to another. The geograph keeps the one with the smallest value of `weight_key`, with its length, its class and its travel time. With `weight_key='length'`, the metric `travel_time` holds the travel time of the shortest edge, and another of these edges may be faster.
 
-The [OSMnx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) compares the fastest route and the shortest route on a bike network, and draws them.
+The [OSMnx notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/osmnx.ipynb) compares the fastest and the shortest route on a bike network.
 
 ## Loading an OpenStreetMap File
 
-`load_from_osm` builds a geograph from an OpenStreetMap file, for example a regional extract from [Geofabrik](https://download.geofabrik.de/). It needs an optional dependency: `pip install scgraph[osm]`.
+`load_from_osm` builds a geograph from an OpenStreetMap file, for example an extract. It needs an optional dependency: `pip install scgraph[osm]`. An OpenStreetMap **way** is a line of a road, of a railway or of another feature.
 
 ```py
 # Main roads (motorway to primary, with their links); one-way streets are respected
@@ -247,8 +251,8 @@ michigan_roads = GeoGraph.load_from_osm("michigan-latest.osm.pbf")
 michigan_roads.create_metric("minutes", weight_per_km={"road": 60 / 80, "off_graph": 60 / 30}, class_weight_per_km={"motorway": 60 / 110})
 
 # Other ways: select(tags) gives the direction of a way (1 or -1: one way, 0: both
-# ways) or None to exclude it; only ways with one of the tag keys reach select.
-# Here railway lines without yards, sidings and spurs, both ways. The crossovers
+# directions) or None to exclude it; only ways with one of the tag keys reach select.
+# Here railway lines without yards, sidings and spurs, in both directions. The crossovers
 # stay: they join the two tracks of a double line drawn track by track
 michigan_rail = GeoGraph.load_from_osm(
     "michigan-latest.osm.pbf",
@@ -270,7 +274,7 @@ Ways meet only where they share an OSM node, so roads that cross on a bridge or 
 
 ### The Pipeline of scgraph 3.6.0 for OpenStreetMap
 
-The paper of scgraph, in its Appendix B.1, refers to an earlier pipeline for its OpenStreetMap networks. The pipeline uses osmium-tool, a GeoJSON export, Mapshaper and `load_from_geojson`. It still works:
+The paper of scgraph, in its Appendix B.1, refers to an earlier pipeline for its OpenStreetMap networks. This pipeline is not a module of scgraph: it uses osmium-tool, a GeoJSON export, Mapshaper and `load_from_geojson`. It still works:
 
 ```bash
 # 1. Get an OSM PBF file: a regional extract from https://download.geofabrik.de/, or the full planet (needs the AWS CLI)
@@ -311,13 +315,13 @@ my_network = GeoGraph.load_from_graphjson("my_network.graphjson")
 GeoGraph.get_scgraph_info("my_network.scgraph")  # what the file holds, without loading the network
 ```
 
-| Format | Graph, nodes and shapes | Node modes, classes, metrics, default metric | Build metadata |
+| Format | Graph, nodes and shapes | Node modes, classes, metrics | Build metadata |
 |---|---|---|---|
-| `.scgraph` | Yes, with the ids of the nodes in their source | Yes | Yes |
+| `.scgraph` | Yes, with the external ids of the nodes | Yes | Yes |
 | `.graphjson` | Yes | No | No |
 | GeoJSON | One line for each edge, with its shape and its length | No | No |
 
-**The metadata of a network file.** The header of a `.scgraph` file stores the pipeline, the sources with the time of their data, and the software of the build. `get_scgraph_info` reads the header, with the credit line to cite (`attribution`) and the `content_sha256`.
+**The metadata of a network file.** The header of a `.scgraph` file stores the pipeline, the sources with the date of their data, and the software of the build. `get_scgraph_info` reads the header, with the credit line to cite (`attribution`) and the `content_sha256`.
 
 A geograph loaded from a file keeps this metadata (`geograph.metadata`) and the path of the file (`geograph.scgraph_file`). `save_as_scgraph` writes this metadata again, unless you give other `metadata`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) describes the format.
 

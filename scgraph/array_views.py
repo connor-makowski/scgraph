@@ -4,7 +4,7 @@ This module is internal. A network file stores the points of the nodes, the shap
 the edges and the source ids of the nodes as flat arrays, which `network_file.read`
 can map into memory. A `GeoGraph` loaded from a file holds the three classes below in
 place of Python lists: `NodePoints` is its `nodes`, `EdgeShapes` its
-`intermediate_nodes`, and `SourceNodeIds` its `source_node_ids`. Each class reads a
+`intermediate_nodes`, and `ExternalNodeIds` its `external_node_ids`. Each class reads a
 value from the arrays when it is asked for, and behaves as the list that it replaces.
 Example: `NodePoints(node_points)[3]` builds the list `[latitude, longitude]` of the
 node 3 from its two values in `node_points`, and keeps no list of it.
@@ -27,7 +27,7 @@ try:
 except ImportError:
     _coordinate_lists = _shape_path = None
 
-__all__ = ["EdgeShapes", "NodePoints", "SourceNodeIds"]
+__all__ = ["EdgeShapes", "NodePoints", "ExternalNodeIds"]
 
 
 class EdgeShapes(Sequence):
@@ -136,9 +136,9 @@ class EdgeShapes(Sequence):
         return list, ([dict(row) for row in self],)
 
 
-class SourceNodeIds(Sequence):
+class ExternalNodeIds(Sequence):
     """
-    The `source_node_ids` of a GeoGraph: the stable id of each node (its id in the
+    The `external_node_ids` of a GeoGraph: the stable id of each node (its id in the
     source it came from, or its position if it has none), then, for each node added
     since, a negative id below all the others. Read-only; pickled with its ids as a
     list.
@@ -169,7 +169,7 @@ class SourceNodeIds(Sequence):
         return self._floor - 1 - (i - len(ids))
 
     def __eq__(self, other):
-        if not isinstance(other, (list, SourceNodeIds)):
+        if not isinstance(other, (list, ExternalNodeIds)):
             return NotImplemented
         return len(self) == len(other) and all(map(eq, self, other))
 
@@ -177,7 +177,7 @@ class SourceNodeIds(Sequence):
         return repr(list(self))
 
     def __reduce__(self):
-        return SourceNodeIds, (list(self), self._nodes)
+        return ExternalNodeIds, (list(self), self._nodes)
 
     def take(self, positions: Iterable[int]) -> array:
         """The ids of the nodes at `positions`, as an int64 array."""

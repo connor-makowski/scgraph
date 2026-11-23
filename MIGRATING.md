@@ -5,7 +5,7 @@ This page lists what release 4.0 changes for a user of scgraph 3.6, and what to 
 | What changes | What to do |
 |---|---|
 | The seven networks of 3.6 (`marnet`, `us_freeway`, ...) are deprecated. They still load, with the same results and a `DeprecationWarning` | Load the network that replaces it, in the table below. Its lengths differ, because its data is newer |
-| `load_geograph` numbers the nodes in another order. Of two routes with the same length, it can return the other one | `geograph.source_node_ids[i]` gives the id that node `i` had in 3.6 |
+| `load_geograph` numbers the nodes in another order. Of two routes with the same length, it can return the other one | `geograph.external_node_ids[i]` gives the id that node `i` had in 3.6 |
 | The first load of a deprecated network converts its `<name>.graphjson` file into a faster `<name>.scgraph` file, in the cache | To keep the node ids of 3.6, call `load_from_graphjson` on the `<name>.graphjson` file of the cache |
 | The `.scgraph` file rounds the coordinates of a deprecated network to 1e-7 degree | Nothing: a node moves by less than 1 cm |
 | A route on `world_highways_and_marnet` starts and ends at the closest node. On its replacement, it uses the closest road node | Pass `snap_to_node_modes=["road", "sea", "port"]` to `get_shortest_path` to use the closest node of these node modes |
@@ -18,8 +18,12 @@ This page lists what release 4.0 changes for a user of scgraph 3.6, and what to 
 | `geograph_url` is deprecated. Another URL than the default still loads `<name>.graphjson` from that URL, with a `DeprecationWarning` | Load your own file with `load_from_graphjson` or `load_from_scgraph` |
 | scgraph prints nothing. The parameters `silent` and `show_progress` have no effect and give a `DeprecationWarning` | Remove them from your calls. Show the messages with `logging`: see [Logging](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#logging) |
 | In pure Python, `get_path_weight` raises `ValueError` for a missing edge, and `bmssp` raises `PathNotFoundError` when no path exists | These are the exceptions of the C++ build |
-| `load_from_osmnx_graph` adds the metric `travel_time` when each edge has a `travel_time`. Each result then has `metric_totals` | Read the travel time of a route in `metric_totals`. With `weight_key="length"`, `geograph.remove_metric("travel_time")` gives the result keys of 3.6 |
+| Each result of `get_shortest_path` has one more key, `metric_totals`: the total of each metric along the route | Nothing, unless your code compares a whole result |
+| `length_only` is deprecated, and gives a `DeprecationWarning` | Write `totals_only=True`, and read `metric_totals["length"]` |
+| A length in miles or in feet moves by 0.006 % at most. A length in km does not move | Nothing |
 | With `load_from_osmnx_graph(graph, weight_key="travel_time")`, `route["length"]` is now the km of the fastest route, not its seconds | Read the seconds in `route["metric_totals"]["travel_time"]`. `get_path_weight` and `distance_matrix` still give seconds on this geograph |
+| With `load_from_osmnx_graph(graph, weight_key="travel_time")`, `length_only=True` raises a `ValueError` | Write `totals_only=True`, and read `metric_totals["travel_time"]` |
+| After an edit of a geograph of `load_from_osmnx_graph(graph, weight_key="travel_time")`, a query without `metric` raises a `ValueError` | Pass `metric="length"`: the query gives the shortest route |
 | Without `off_graph_travel_speed`, `travel_time` adds 240 seconds for each km off the graph. Release 3.6 added no time | Pass `off_graph_travel_speed`, in km/h, to choose another speed |
 
 Release 5.0 removes what 4.0 deprecates.

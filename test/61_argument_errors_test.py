@@ -122,6 +122,15 @@ def test_get_shortest_path_refuses_an_option_passed_by_position(geograph):
         )
 
 
+def test_length_only_is_deprecated(geograph):
+    with pytest.warns(DeprecationWarning, match="totals_only"):
+        geograph.get_shortest_path(
+            origin_node={"latitude": 0, "longitude": 0},
+            destination_node={"latitude": 0, "longitude": 2},
+            length_only=True,
+        )
+
+
 def test_an_alias_of_a_node_addition_type_is_deprecated(geograph):
     with pytest.warns(DeprecationWarning, match="Use 'closest'"):
         geograph.get_shortest_path(

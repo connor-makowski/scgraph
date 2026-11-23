@@ -19,7 +19,7 @@ flowchart TD
         F["A draft of the network release"]
         B --> D --> F
     end
-    P["Part 3: publish<br/>a maintainer publishes the network release,<br/>and a version of scgraph pins it"]
+    P["Part 3: publish<br/>a maintainer publishes the network release,<br/>and a version of scgraph loads it"]
     subgraph USER["On the machine of a user, at a call of load_geograph"]
         L["Part 4: load<br/>one file is downloaded once,<br/>then read from the cache"]
         G["A GeoGraph, then a route"]
@@ -52,8 +52,8 @@ python -m scgraph.pipelines.network_builder osm_region_multimodal --region europ
 ```
 
 The command prints the path of the **network file**: the file `<name>.scgraph` that stores one
-network. The command logs each download. To see each step with its counts, call the runner
-from Python with the logging level DEBUG:
+network. The command logs each download. To see each step with its counts, call the **runner**, the
+module `network_builder.py`, from Python with the logging level DEBUG:
 
 ```py
 import logging
@@ -67,7 +67,8 @@ build_network_file("osm_region_multimodal", region="europe/denmark", validate=Tr
 
 The build below has eight steps. The modules of `scgraph/pipelines/steps` group them in four:
 read the sources (`step1_…`), join the networks (`step2_…`), assemble the network (`step3_…`) and
-validate (`step4_…`).
+validate (`step4_…`). A module name gives the group of a step, not its number:
+`step2_land_mask` does step 4.
 
 ```mermaid
 flowchart TD
@@ -87,8 +88,8 @@ flowchart TD
 #### 1. Downloading the Sources
 
 A **source** is a file that a pipeline reads. `SOURCES` of the pipeline lists nine sources.
-The **runner** is the module `network_builder.py`: it brings each source into its work folder,
-calls the pipeline and keeps the network file in the cache. The runner downloads five sources
+The runner brings each source into its work folder, calls the pipeline and keeps the network
+file in the cache. The runner downloads five sources
 and copies the four others, which are small tables kept with scgraph.
 
 | Source | What it is | Size |
@@ -121,7 +122,7 @@ The **node mode** of a node is the kind of place where the node is: `road`, `rai
 modes `rail` and `road`. The log line of this step gives the sum of the two counts: 26,457
 pieces.
 
-| Node mode | Ways kept | Pieces |
+| Node mode | Which ways it keeps | Pieces |
 |---|---|---|
 | `rail` | railway lines | 5,680 |
 | `road` | main roads | 20,777 |
@@ -182,7 +183,7 @@ A hub reaches a network within a limit: 20 km in a straight line to a road, 10 k
 railway, and a water path of 2,500 km to a sea lane. This build joins 63 ports, 10 airports and
 1 rail terminal. The other hubs stay out.
 
-For example, the port of Arhus gets three connectors: 0.91 km to a rail node, 4.89 km to a road
+For example, the port of Aarhus gets three connectors: 0.91 km to a rail node, 4.89 km to a road
 node and 0.99 km over water to a sea node.
 
 The step also joins each pair of airports that has regular flights, by one edge each way. The
@@ -193,7 +194,8 @@ Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 
 #### 6. Assembling the Graph
 
-`step3_network_assembly.assemble_network` does three things.
+`step3_network_assembly.assemble_network` keeps the connected part, contracts the chains and
+orders the nodes.
 
 | Step | Nodes | Edges |
 |---|---|---|
@@ -244,7 +246,7 @@ With `--validate`, `validate_network` checks the file against the cases of the p
 describes one known fact of the real world. Most cases give two points and a reference value
 for the route between them. This build has three cases, and all three pass.
 
-For example, one case checks that the port of Arhus has a connector to a road, to a railway and
+For example, one case checks that the port of Aarhus has a connector to a road, to a railway and
 to a sea lane. Each kind of case has its node modes, and the two points of a case snap to nodes
 of these node modes. A road distance uses road nodes, and a hub uses any node. The default rule
 of a query does not apply here.
@@ -266,9 +268,6 @@ The file holds 50,320 nodes and 171,999 edges.
 | `port` | 63 |
 | `airport` | 10 |
 | `rail_terminal` | 1 |
-
-A route may use every network. It starts and ends at a road node, and it goes from one network
-to another at hubs.
 
 `GeoGraph.build_geograph` calls the runner, then loads the file. It builds nothing when the
 cache holds the file. The guide
@@ -307,7 +306,7 @@ gives each edge mode a speed or a cost, and finds the fastest or the cheapest ro
 ## Part 2. Deriving a Network from a Network File
 
 `derive_network_file` of `derived_networks.py` reads one network file, the parent file, and
-writes a smaller one, the derived file. It downloads nothing. The docstring of the module
+writes a smaller one, the derived file. It downloads nothing. The docstring of
 `derived_networks.py` gives the rules.
 
 A derivation takes a list of node modes and a bbox: a rectangle `(south, west, north, east)` in
@@ -327,8 +326,7 @@ output folder must exist. The command writes two files and prints their paths:
 - `derived/oceania.no_shapes.scgraph`, the same network without the shapes of its edges.
 
 Without a name, the command writes the files of the ten derived networks, and the world file
-without shapes. The workflow of Part 3 runs the command in this way, once for each network
-release.
+without shapes. The workflow of Part 3 runs the command in this way.
 
 The numbers below come from one derivation of `oceania` on 2026-11-22, on Linux, with the C++
 extension. The parent file is the `world_multimodal` of a development network release of
@@ -348,9 +346,10 @@ that day (335.4 MB).
   contract the chains again: a junction that lost a road stays as a node.
 
 The derivation took 1.5 s. The derived file is 19.7 MB, and 7.1 MB without the shapes. Its
-header records the node modes, the bbox and the `content_sha256` of the parent file. The
-**`content_sha256`** of a network file is the SHA-256 digest of all its bytes after the first
-40, which hold this digest.
+header records the node modes, the bbox and the `content_sha256` of the parent file.
+
+The **`content_sha256`** of a network file is the SHA-256 digest of its bytes from byte 40 to
+the end. The first 40 bytes hold `SCGRAPH1` (8 bytes) and this digest (32 bytes).
 
 A derived file keeps the length and the class of each edge. `oceania` has roads, so a query
 point snaps to its closest road node by default. `world_sea` holds no road, and a query point
@@ -360,10 +359,10 @@ The command checks the derived network against some cases of `world_multimodal`
 (`--no-validate` skips this check). It takes the cases whose two points are inside the bbox,
 on node modes that the file holds. There are 16 such cases here, and the file fails none.
 
-The validation of the world passes when at most 1 % of the cities of a list have no road
-route. So the world file can pass with a few failed cases. A derived network has fewer cities,
-so the same failed city can be more than 1 % of them. For this reason, a derived file passes
-when it fails no case that the parent file passes.
+A **coverage case** checks that a road route joins a city to the main city of its landmass.
+The world passes when at most 1 % of its coverage cases fail. A derived network has fewer
+coverage cases, so the same failed case can be more than 1 % of them. So a derived file
+passes when it fails no case that the parent file passes.
 
 ## Part 3. Publishing a Network Release
 
@@ -393,7 +392,7 @@ git push origin networks-2026.11.20
 
 A tag that ends with `-dev.N` makes a development network release, to try the networks before a
 new version of scgraph. GitHub shows it as a pre-release. By convention, a version of scgraph
-on PyPI pins a network release without `-dev`.
+on PyPI loads a network release without `-dev`.
 
 ### Run Steps
 
@@ -429,10 +428,10 @@ the world. A run of 2026-11-19 took the world file of the network release before
 - **Job 2 reads the planet from another server.** The workflow first replaces the planet URL
   of the code by a mirror that is faster from a machine of GitHub. The header of the world
   file records the URL that was read.
-- **Job 2 builds the world only when something changed.** It reads the header of the world file
-  of the last published network release. It takes this file when the pipeline has the same name,
-  the same `PIPELINE_VERSION` and the same source URLs, the mirror on both sides. A new planet
-  URL therefore gives a new build.
+- **Job 2 builds the world only when something changed.** It takes the world file of the last
+  published network release when its header has the pipeline name, `PIPELINE_VERSION` and source
+  URLs of the code. Both planet URLs are those of the mirror, because the workflow changed the
+  code first. A new planet URL therefore gives a new build.
 - **Job 2 has 5 h 55 min.** GitHub stops a job at 6 hours. A job that is run again starts from
   nothing.
 
@@ -446,8 +445,8 @@ The network release `networks-2026.11.23-dev.1` holds 23 files.
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
   with and without the shapes of its edges.
   - For example `oceania.scgraph.gz` (9.2 MB) and `oceania.no_shapes.scgraph.gz` (3.5 MB).
-  - The shapes are half of a file or more. A user who needs only the route lengths loads the
-    file without them (`load_intermediate_nodes=False`).
+  - The shapes are half of a file or more. With `load_intermediate_nodes=False`,
+    `load_geograph` loads the file without shapes, for a user who needs only the route lengths.
 - `networks.json`, the index of the network release. It gives for each file its size, its
   `content_sha256`, its number of nodes and of edges, its sources and its credit line. The
   **credit line** of a network names its sources and their licenses, and a user cites it with
@@ -471,12 +470,12 @@ maintainers see.
    GitHub release also starts the workflow that publishes scgraph on PyPI. That workflow skips
    a tag that starts with `networks-`.
 3. **Pin the network release.** Each version of scgraph **pins** one network release: it
-   records the tag of this release, and loads its networks. The maintainer runs
+   records the tag of this network release, and loads its networks. The maintainer runs
    `python utils/pin_network_release.py TAG`, and a PR adds the new module to `dev`.
    - The script writes the tag, the `content_sha256` of each file and the counts of each
      network into `scgraph/network_release.py`.
-   - The script writes the module in the form of the formatter, so `utils/prettify.py` changes
-     no line.
+   - The script formats the module as `utils/prettify.py` does, so this formatter changes no
+     line.
 4. **Update the documents.** The README and the guides of `guides/` hold no number of a
    network release. In the same PR, the maintainer runs their examples again, and updates the
    numbers of Parts 2 to 4 of this guide.
@@ -547,15 +546,15 @@ Where to read more: the docstring of `fetch_released_file`, in `networks.py`.
 - **Another pipeline.** Copy the pipeline that is closest to your need, and change its sources,
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.
-- **The classes of your pipeline.** A pipeline module can define `CLASSES`, the edge mode of
-  each class. The runner reads `CLASSES` when `build` returns the arrays of the network file.
-  The docstring of `scgraph.pipelines` gives the contract of this name.
+- **The classes of your pipeline.** A pipeline module can define `CLASSES`: a dict from the name
+  of each class to its edge mode, as in `scgraph/edge_classes.py`. The runner reads `CLASSES`
+  when `build` returns the arrays of the network file.
 - **The road nodes.** A query point snaps to a road node by default when your pipeline names
   the node mode of its road nodes `road`.
 
 ## Glossary
 
-The parts of this guide use these terms. Each term is defined at its first use.
+Each term is defined at its first use.
 
 | Term | Meaning |
 |---|---|
@@ -569,5 +568,5 @@ The parts of this guide use these terms. Each term is defined at its first use.
 | `content_sha256` | The SHA-256 digest of the bytes of a network file after its first 40 bytes |
 | network release | A set of network files that scgraph publishes together on GitHub, under a tag `networks-YYYY.MM.DD` |
 | released network | A network of a network release |
-| pin | A version of scgraph pins one network release: it records its tag and loads its networks |
+| pin | To record the tag of one network release in a version of scgraph, which then loads its networks |
 | cache | The folder where scgraph keeps network files on the machine of a user |
