@@ -5,8 +5,10 @@
   of scgraph.
 - `GeoGraphModifiers`, in `scgraph/geograph_modifiers.py`, adds and removes nodes and
   edges, by id or by coordinates.
-- `GeoGraphEdges`, in `scgraph/geograph_edges.py`, holds the edge classes and the metrics,
-  reads the arrays of the edges, and lists the edges of the network or of a path.
+- `GeoGraphEdges`, in `scgraph/geograph_edges.py`, holds the edge classes, reads the
+  arrays of the edges, and lists the edges of the network or of a path.
+- `GeoGraphMetrics`, in `scgraph/geograph_metrics.py`, creates, reads and removes the
+  metrics, and builds the graph that a search by a metric runs on.
 - `GeoGraphRouting`, `GeoGraphUtils` and `GeoGraphDistanceCalculations`, in
   `scgraph/geograph_routing.py`, answer `get_shortest_path` and `distance_matrix`, connect a
   point to nearby nodes, build the coordinates of a path, and give the haversine and
@@ -28,6 +30,7 @@ from scgraph import geograph_io
 from scgraph.geograph_io import GeoGraphIO
 from scgraph.geograph_modifiers import GeoGraphModifiers
 from scgraph.geograph_edges import GeoGraphEdges
+from scgraph.geograph_metrics import GeoGraphMetrics
 from scgraph.geograph_routing import (
     GeoGraphUtils,
     GeoGraphDistanceCalculations,
@@ -36,7 +39,9 @@ from scgraph.geograph_routing import (
 import logging
 import warnings
 from array import array
+from math import inf
 from typing import TYPE_CHECKING, Literal
+from collections.abc import Sequence
 from scgraph import Graph
 
 if (
@@ -53,6 +58,7 @@ class GeoGraph(
     GeoGraphIO,
     GeoGraphModifiers,
     GeoGraphEdges,
+    GeoGraphMetrics,
     GeoGraphRouting,
     GeoGraphUtils,
     GeoGraphDistanceCalculations,
@@ -295,6 +301,53 @@ class GeoGraph(
         if missing <= 0:
             return self.node_mode_ids
         return self.node_mode_ids + array("B", bytes(missing))
+
+    def get_nodes(
+        self,
+        node_mode: str | None = None,
+        bbox: Sequence[float] | None = None,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - Get the nodes of the geograph, or those of one node mode or inside a bounding box
+
+        Optional Arguments:
+
+        - `node_mode`: The name of a node mode of `node_modes`: only the nodes of this node mode are returned; an unknown name raises a ValueError
+        - `bbox`: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned
+
+        Returns:
+
+        - A list with one dictionary for each node, in the order of the node ids: `{"node_id", "latitude", "longitude", "node_mode"}`. `node_mode` is the name of the node mode of the node (None on a geograph without named node modes)
+        """
+        node_mode_names = [row.get("name") for row in self.node_modes]
+        if node_mode is not None and node_mode not in node_mode_names:
+            raise ValueError(
+                f"Unknown node mode {node_mode!r}: the node modes of this "
+                f"geograph are {node_mode_names}"
+            )
+        south, west, north, east = (
+            (-inf, -inf, inf, inf) if bbox is None else bbox
+        )
+        nodes = []
+        for node_id, (point, node_mode_id) in enumerate(
+            zip(self.nodes, self._read_node_mode_ids())
+        ):
+            if (
+                node_mode in (None, node_mode_names[node_mode_id])
+                and south <= point[0] <= north
+                and west <= point[1] <= east
+            ):
+                nodes.append(
+                    {
+                        "node_id": node_id,
+                        "latitude": point[0],
+                        "longitude": point[1],
+                        "node_mode": node_mode_names[node_mode_id],
+                    }
+                )
+        return nodes
 
     @property
     def graph(self) -> list[dict[int, int | float]]:

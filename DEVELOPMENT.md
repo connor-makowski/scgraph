@@ -39,7 +39,7 @@ scgraph/
   errors.py, files.py            # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file
   array_views.py                 # Internal: list-like views of the arrays of a network file (NodePoints, EdgeShapes, SourceNodeIds)
   geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, snapping, validation of nodes, reduce
-  geograph_io.py, geograph_modifiers.py, geograph_edges.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call networks.py); edits; classes, metrics and edges; queries and legs
+  geograph_io.py, geograph_modifiers.py, geograph_edges.py, geograph_metrics.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call networks.py); edits; edges and their classes; metrics; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
   node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
   contraction_hierarchies.py, transit_node_routing.py  # CHGraph — CH preprocessing and queries; TNRGraph — Transit Node Routing (extends CHGraph)

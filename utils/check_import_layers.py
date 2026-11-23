@@ -40,6 +40,7 @@ LAYERS = {
     "geograph_io": 4,
     "geograph_modifiers": 4,
     "geograph_edges": 4,
+    "geograph_metrics": 4,
     "geograph_routing": 4,
     "network_release": 5,
     "networks": 5,
@@ -73,9 +74,9 @@ ALLOWED = [
         "`GeoGraphModifiers` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
-        "geograph_edges",
+        "geograph_metrics",
         "",
-        "`GeoGraphEdges` builds the `Graph` that the package chooses: the C++ one when it is built.",
+        "`GeoGraphMetrics` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
         "geograph_io",

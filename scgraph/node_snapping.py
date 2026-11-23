@@ -201,7 +201,11 @@ QuerySnapIndex = SortedSnapIndex | _NodeModeSnapIndexes | EveryNodeSnapIndex
 
 
 class SnapIndexes:
-    """The snapping indexes of a geograph: of every node, and of each node mode."""
+    """The snapping indexes of a geograph: of every node, and of each node mode.
+
+    A `SnapIndexes` does not keep its geograph: each call receives it. So a
+    geograph that the caller drops is freed at once.
+    """
 
     def __init__(self, index_of_every_node=None):
         # A `SnapIndex`, a `SortedSnapIndex`, or the `GeoKDTree` that the caller set
