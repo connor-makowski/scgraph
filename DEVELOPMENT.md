@@ -36,20 +36,20 @@ scgraph/
   __init__.py                    # Exports: Graph, CHGraph, TNRGraph, GeoGraph, GridGraph, PathNotFoundError, NegativeCycleError
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
-  geograph.py                    # GeoGraph + LazyGeoGraph — snapping, loaders and savers, cache management, build_geograph, metrics, edges and legs of a path
-  edge_classes.py                # Internal: the class of each edge, found by the two nodes of the edge
-  metrics.py                     # Internal: the record of a metric, and how its weights are computed (weights per km, weighted sum, function)
+  errors.py, files.py            # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file
+  columns.py                     # Internal: the columns of a geograph over the arrays of a network file (NodePoints, EdgeShapes, SourceNodeIds)
+  geograph.py                    # GeoGraph + LazyGeoGraph — snapping, metrics, edges and legs of a path, edits, queries
+  geograph_files.py              # Internal: GeoGraphIO, the loaders and savers of a GeoGraph; its methods for the networks of scgraph call network_cache
+  edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
   node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
-  contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
-  transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
+  contraction_hierarchies.py, transit_node_routing.py  # CHGraph — CH preprocessing and queries; TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   network_release.py             # The network release that this version of scgraph loads (written by utils/pin_network_release.py)
-  network_cache.py               # Internal: the files of the released networks in the cache, and their download
+  network_cache.py               # Internal: load, build, list and clear the networks of scgraph, and the files of the released networks in the cache
   built_in_geographs.py          # Internal: the seven networks of release 3.6.0, with their download
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
-  utils.py                       # Distance math, coordinate helpers, has_cpp and the cache directory
-  _internal.py                   # Internal: deprecation warnings, the log of a step, the check of a sorted array
+  utils.py, _internal.py         # Distance math, coordinate helpers, has_cpp, the cache directory; deprecation warnings, the log of a step
   pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
     geofabrik_multimodal.py      # Roads, railways, sea lanes and flights of one Geofabrik region
     osm_world_multimodal.py      # The same network for the world, from the OpenStreetMap planet
