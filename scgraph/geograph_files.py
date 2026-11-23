@@ -822,7 +822,20 @@ class GeoGraphIO:
             graph = Graph.from_edge_arrays(*edge_arrays, copy=False)
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
-        geograph = GeoGraph(
+        # The arrays of the file are the edges of the new graph, in the same order
+        geograph = GeoGraph._build_from_edge_arrays(
+            edge_arrays,
+            arrays.get("edge_class_ids"),
+            {
+                row["name"]: Metric(
+                    row["name"],
+                    row.get("unit"),
+                    row.get("description"),
+                    arrays[f"weights_{row['name']}"],
+                    row["off_graph_weight_per_km"],
+                )
+                for row in metadata["metrics"][1:]
+            },
             graph=graph,
             nodes=columns.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
@@ -836,20 +849,6 @@ class GeoGraphIO:
             node_modes=metadata.get("node_modes"),
             coordinate_dtype=network_file.get_coordinate_dtype(arrays),
             classes=metadata["classes"] if "edge_class_ids" in arrays else None,
-            # The arrays of the file are the edges of the new graph, in the same
-            # order
-            _edge_arrays=edge_arrays,
-            _edge_class_ids=arrays.get("edge_class_ids"),
-            _metrics={
-                row["name"]: Metric(
-                    row["name"],
-                    row.get("unit"),
-                    row.get("description"),
-                    arrays[f"weights_{row['name']}"],
-                    row["off_graph_weight_per_km"],
-                )
-                for row in metadata["metrics"][1:]
-            },
         )
         geograph.metadata = {
             key: value
@@ -1451,12 +1450,12 @@ class GeoGraphIO:
                     else 3600 / off_graph_travel_speed
                 ),
             )
-            kwargs["_metrics"] = {"travel_time": travel_time}
-        geograph = GeoGraph(
+            kwargs["metrics"] = {"travel_time": travel_time}
+        geograph = GeoGraph._build_from_edge_arrays(
+            edge_arrays,
             graph=graph_object,
             nodes=nodes,
             coordinate_dtype="int32" if coord_precision <= 7 else "float64",
-            _edge_arrays=edge_arrays,
             **kwargs,
         )
         # The list of dicts itself, as for a geograph built from a list
