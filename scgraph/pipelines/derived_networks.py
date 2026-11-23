@@ -241,7 +241,7 @@ def derive_network_file(
     with log_step(
         logger,
         "select the nodes",
-        step3_network_assembly._count_nodes_and_edges(parent_arrays),
+        step3_network_assembly.count_nodes_and_edges(parent_arrays),
     ) as counts:
         # 1. Select the nodes
         land_node_mode_ids = {
@@ -269,12 +269,12 @@ def derive_network_file(
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
         graph = step3_network_assembly.renumber_nodes(parent_arrays, selected)
         counts.update(
-            step3_network_assembly._count_nodes_and_edges(graph, "kept_")
+            step3_network_assembly.count_nodes_and_edges(graph, "kept_")
         )
     with log_step(
         logger,
         "keep the strongly connected components",
-        step3_network_assembly._count_nodes_and_edges(graph),
+        step3_network_assembly.count_nodes_and_edges(graph),
     ) as counts:
         # 3. Keep the strongly connected components
         kept_nodes, component_of_node = (
@@ -292,7 +292,7 @@ def derive_network_file(
             graph, kept_nodes, component_of_node
         )
         counts.update(
-            step3_network_assembly._count_nodes_and_edges(graph, "kept_")
+            step3_network_assembly.count_nodes_and_edges(graph, "kept_")
         )
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
