@@ -230,7 +230,7 @@ lanes. `step2_hub_connectors.join_networks_at_hubs` adds the hubs and their conn
 The tables give 242 hubs inside the raster, which is wider than Denmark.
 `step2_hub_connectors.join_networks_at_hubs` joins a hub that reaches at least two networks:
 
-- a port can reach a road, a sea lane, and a railway when its table says that it has one;
+- a port can reach a road, a sea lane, and a railway when the column `rail` of the ports table is 1;
 - an airport can reach a road, and its flights count as a second network;
 - a rail terminal can reach a road and a railway.
 
@@ -297,7 +297,7 @@ records*, and `ARCHITECTURE.md`, section 7.
 
 With `--validate`, `validate_network` checks the file against the cases of the pipeline. A case
 describes one known fact of the real world. Most cases give two points and a reference value
-for the route between them. This build has three cases, and all three pass. One of them says
+for the route between them. This build has three cases, and all three pass. One of them states
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
 Each kind of case has its node modes. The two points of a case snap to nodes of these node
