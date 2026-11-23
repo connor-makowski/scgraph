@@ -16,6 +16,7 @@ from scgraph.metrics import Metric
 from scgraph import array_views, built_in_geographs, network_file
 import json
 import os
+import warnings
 import types
 from array import array
 from collections import Counter
@@ -222,7 +223,7 @@ class GeoGraphIO:
 
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
-        - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_metric` and the GeoGraph defaults are saved
+        - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights and the GeoGraph defaults are saved; `default_metric` is not saved
         - The nodes are written node mode by node mode, in the order of `node_modes`, and in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `external_node_ids`
         - Coordinates that are not finite numbers raise a ValueError
 
@@ -263,6 +264,14 @@ class GeoGraphIO:
         if coordinate_dtype not in ("auto", "float64", "int32"):
             raise ValueError(
                 "coordinate_dtype must be 'auto', 'float64' or 'int32'"
+            )
+        if self.default_metric != "length":
+            warnings.warn(
+                "The file does not keep the default metric "
+                f"{self.default_metric!r}. After the load, pass "
+                f"metric={self.default_metric!r} to each query, or set "
+                "geograph.default_metric.",
+                stacklevel=2,
             )
         # The class id and the weights of each edge, in arrays "by edge id": one
         # value for each edge, at the id of the edge. A geograph without classes
@@ -333,7 +342,6 @@ class GeoGraphIO:
             node_mode_ids=node_mode_ids,
             metrics=self.metrics,
             classes=classes,
-            default_metric=self.default_metric,
         )
         shapes = self.intermediate_nodes if save_intermediate_nodes else None
         if shapes is not None:
@@ -760,7 +768,7 @@ class GeoGraphIO:
         - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `external_node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_mode_ids` and `node_modes` give the node mode of each node
         - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge
-        - `metrics` holds the metrics of the file, with their weights. An edit of the network removes them, as every metric other than `length` (see `add_edge`). `default_metric` holds the `default_metric` of the file: the metric that a call without `metric` uses
+        - `metrics` holds the metrics of the file, with their weights. An edit of the network removes them, as every metric other than `length` (see `add_edge`). `default_metric` is 'length'
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
         - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones. On a file with road nodes and other nodes, the first query also builds the index of the road nodes
@@ -870,7 +878,6 @@ class GeoGraphIO:
             if key not in network_file.RESERVED_METADATA_KEYS
         }
         geograph.scgraph_file = filename
-        geograph.default_metric = metadata.get("default_metric", "length")
         geograph.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
         # index is built now, not at the first query (an empty network has none)

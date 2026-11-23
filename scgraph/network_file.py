@@ -145,7 +145,6 @@ RESERVED_METADATA_KEYS = frozenset(
         "metrics",
         "node_modes",
         "classes",
-        "default_metric",
         "symmetric",
         "node_order",
         "content_sha256",
@@ -168,7 +167,6 @@ def build_header_metadata(
     node_mode_ids: bytes | array | memoryview,
     metrics: list[dict] | None = None,
     classes: list[dict] | None = None,
-    default_metric: str = "length",
 ) -> dict:
     """Return the metadata that `write` takes, for a network whose nodes are in the
     order of a network file: by node mode, then along a Hilbert curve
@@ -190,12 +188,10 @@ def build_header_metadata(
             its node. The default, None, is the info of lengths in km.
         classes: One row for each class, for a network with `edge_class_ids`. A row
             gives the `name` of the class and the `edge_mode` of its edges.
-        default_metric: The name of the metric that a query without `metric`
-            minimises. 'length' writes no such key.
 
     Returns:
         The keys that scgraph sets itself (`crs`, `metrics`, `node_modes`, `classes`,
-        `default_metric`, `node_order`), then the keys of `build_metadata`.
+        `node_order`), then the keys of `build_metadata`.
 
     Raises:
         ValueError: `build_metadata` sets a key that scgraph writes itself, a node
@@ -243,11 +239,6 @@ def build_header_metadata(
             else {}
         ),
         **({"classes": classes} if classes is not None else {}),
-        **(
-            {"default_metric": default_metric}
-            if default_metric != "length"
-            else {}
-        ),
         "node_order": NODE_ORDER,
         **build_metadata,
     }
@@ -744,11 +735,6 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "edge_class_ids" not in arrays
         or len(metadata["classes"]) <= NO_CLASS_ID,
         f"a network file holds {NO_CLASS_ID} classes at most",
-    )
-    require(
-        metadata.get("default_metric", "length")
-        in [row["name"] for row in metrics],
-        "default_metric names a metric that the file does not have",
     )
 
 

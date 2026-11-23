@@ -288,14 +288,17 @@ def test_a_load_by_travel_time_gives_the_fastest_route_with_its_km_as_length(
     assert route["metric_totals"] == {"travel_time": 100.0}
 
 
-def test_a_geograph_read_from_a_file_keeps_its_default_metric_and_its_routes(
+def test_a_file_keeps_the_metrics_and_not_the_default_metric(
     town_by_travel_time, tmp_path
 ):
     path = str(tmp_path / "town.scgraph")
-    town_by_travel_time.save_as_scgraph(path)
+    with pytest.warns(UserWarning, match="metric='travel_time'"):
+        town_by_travel_time.save_as_scgraph(path)
 
     loaded = GeoGraph.load_from_scgraph(path)
 
-    assert loaded.default_metric == "travel_time"
-    route = loaded.get_shortest_path(POINT_OF_WEST, POINT_OF_EAST)
+    assert loaded.default_metric == "length"
+    route = loaded.get_shortest_path(
+        POINT_OF_WEST, POINT_OF_EAST, metric="travel_time"
+    )
     assert route["metric_totals"] == {"travel_time": 100.0}
