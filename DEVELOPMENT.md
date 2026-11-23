@@ -38,14 +38,14 @@ scgraph/
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
   errors.py, files.py, columns.py  # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file; the columns of a geograph over the arrays of a network file
   geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, validation of nodes, reduce
-  geograph_files.py, geograph_edits.py, geograph_edges.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call network_cache); edits; classes, metrics and edges; queries and legs
+  geograph_files.py, geograph_edits.py, geograph_edges.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call networks.py); edits; classes, metrics and edges; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
   node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
   contraction_hierarchies.py, transit_node_routing.py  # CHGraph — CH preprocessing and queries; TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
   network_file.py                # Reading and writing .scgraph network files (stdlib)
   network_release.py             # The network release that this version of scgraph loads (written by utils/pin_network_release.py)
-  network_cache.py               # Internal: load, build, list and clear the networks of scgraph, and the files of the released networks in the cache
+  networks.py                    # Internal: load, build, list and clear the networks of scgraph, and the files of the released networks in the cache
   built_in_geographs.py          # Internal: the seven networks of release 3.6.0, with their download
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py, _internal.py         # Distance math, coordinate helpers, has_cpp, the cache directory; deprecation warnings, the log of a step
