@@ -220,9 +220,9 @@ class SnapIndexes:
                 logger,
                 "build the snapping index",
                 {"nodes": len(geograph.nodes)},
-            ) as indicators:
+            ) as values:
                 self._index_of_every_node = _build_snap_index(geograph.nodes)
-                indicators["sorted_for_the_index"] = isinstance(
+                values["sorted_for_the_index"] = isinstance(
                     self._index_of_every_node, SortedSnapIndex
                 )
         return self._index_of_every_node
@@ -293,9 +293,9 @@ def _build_index_of_node_mode(
         logger,
         "build the snapping index",
         {"nodes": len(node_ids), "node_mode": node_mode},
-    ) as indicators:
+    ) as values:
         index = _build_snap_index(geograph.nodes, node_ids)
-        indicators["sorted_for_the_index"] = index.node_ids is not node_ids
+        values["sorted_for_the_index"] = index.node_ids is not node_ids
     return index
 
 

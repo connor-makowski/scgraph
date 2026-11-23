@@ -1002,7 +1002,7 @@ class GeoGraphRouting:
                     origin_id[entry_node] + destination_id[exit_node]
                 ) * (circuity_ratio - 1.0)
         if logger.isEnabledFor(logging.DEBUG):
-            self._log_query_indicators(
+            self._log_query_values(
                 algorithm_name, origin, destination, origin_id, destination_id
             )
         if metric != "length":
@@ -1193,7 +1193,7 @@ class GeoGraphRouting:
             )
             raise
 
-    def _log_query_indicators(
+    def _log_query_values(
         self,
         algorithm_name: str,
         origin: Sequence[float],
@@ -1202,7 +1202,7 @@ class GeoGraphRouting:
         destination_entries: dict[int, int | float],
     ) -> None:
         """
-        Logs at DEBUG the indicators of a shortest-path query: what the query did, which
+        Logs at DEBUG the values of a shortest-path query: what the query did, which
         its result does not show.
 
         - `algorithm_name`: the name of the search, or "custom" for a search function
@@ -1221,7 +1221,7 @@ class GeoGraphRouting:
             destination_entries, key=destination_entries.__getitem__
         )
         step = "find the shortest path"
-        indicators = {
+        values = {
             "algorithm": algorithm_name,
             "distance_units": self.geograph_units,
             "origin_snap_distance": round(
@@ -1241,12 +1241,12 @@ class GeoGraphRouting:
         }
         node_scans = self.graph_object.get_last_node_scans()
         if node_scans is not None:
-            indicators["node_scans"] = node_scans
+            values["node_scans"] = node_scans
         logger.debug(
             "%s: %s",
             step,
-            indicators,
-            extra={"scgraph": {"step": step, **indicators}},
+            values,
+            extra={"scgraph": {"step": step, **values}},
         )
 
     def distance_matrix(

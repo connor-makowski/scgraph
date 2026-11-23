@@ -809,10 +809,10 @@ class GeoGraphIO:
             logger,
             "read the network file",
             {"file": filename, "mapped": mapped},
-        ) as indicators:
+        ) as values:
             arrays, metadata = network_file.read(filename, mapped, node_modes)
-            indicators["nodes"] = len(arrays["node_points"]) // 2
-            indicators["edges"] = len(arrays["heads"])
+            values["nodes"] = len(arrays["node_points"]) // 2
+            values["edges"] = len(arrays["heads"])
         edge_arrays = (
             arrays["offsets"],
             arrays["heads"],

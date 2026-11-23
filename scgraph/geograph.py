@@ -428,11 +428,11 @@ class GeoGraph(
             return
         with log_step(
             logger, "reduce the graph", {"iterations": iterations}
-        ) as indicators:
+        ) as values:
             self.graph_object.reduce(iterations)
             is_reduced = self.graph_object.is_reduced or []
-            indicators["nodes"] = len(is_reduced)
-            indicators["kept_nodes"] = len(is_reduced) - sum(is_reduced)
+            values["nodes"] = len(is_reduced)
+            values["kept_nodes"] = len(is_reduced) - sum(is_reduced)
         self._reduce_iterations = iterations
         for metric_record in self._metrics.values():
             if metric_record.graph_object is not None:
