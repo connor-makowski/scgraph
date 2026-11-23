@@ -499,10 +499,10 @@ def simplify_shapes(
 
 
 class PieceArrays:
-    """The pieces of the cut ways, stored as columns that grow.
+    """The pieces of the cut ways, stored as arrays that grow.
 
     A piece is the part of a way between two consecutive nodes (`cut_polylines`). Entry
-    `i` of each column describes piece `i`:
+    `i` of each array describes piece `i`:
 
     - `origins`, `destinations` (int64): the ids of its two ends in the source;
     - `ends` (int32, four values per piece): the latitude and the longitude of its two
@@ -512,14 +512,14 @@ class PieceArrays:
     - `points` (int32 pairs) and `offsets`: its shape points. The points of piece `i` are
       `points[2 * offsets[i]:2 * offsets[i + 1]]`;
     - `class_ids` (uint8): the id of its class in `scgraph.pipelines.CLASSES`. The
-      column is empty when the pieces have no class.
+      array is empty when the pieces have no class.
 
     `flush` simplifies the shapes of the new pieces to within `tolerance_meters`
     (`simplify_shapes`) and stores them. `append` calls it every BATCH pieces.
     `tolerance_meters=None` stores the shapes as they are.
 
-    Without `work_dir`, the columns are `array`s in memory. With `work_dir`, each column
-    is a file of that folder, read through a memory map. The columns hold the pieces up to
+    Without `work_dir`, the arrays are `array`s in memory. With `work_dir`, each array
+    is a file of that folder, read through a memory map. The arrays hold the pieces up to
     the last `flush`.
     """
 

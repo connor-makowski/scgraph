@@ -48,17 +48,17 @@ logger = logging.getLogger(__name__)
 _geograph_logger = logging.getLogger("scgraph.geograph")
 
 
-def find_cached_file(pointer: Path) -> Path | None:
+def find_cached_file(cache_json_path: Path) -> Path | None:
     """Return the network file that a `cache.json` names, or None if it is not there.
 
     Args:
-        pointer: The path of a `cache.json`. It names a file of its own folder. The
+        cache_json_path: The path of a `cache.json`. It names a file of its own folder. The
             function keeps only the name, so it never returns a file of another
             folder.
     """
     try:
-        file = pointer.parent.joinpath(
-            Path(json.loads(pointer.read_text())["file"]).name
+        file = cache_json_path.parent.joinpath(
+            Path(json.loads(cache_json_path.read_text())["file"]).name
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None

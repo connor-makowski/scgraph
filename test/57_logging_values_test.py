@@ -60,9 +60,7 @@ def test_a_query_logs_how_far_its_ends_are_from_the_network(caplog):
     # 0.1 degree of latitude is 11.12 km. The log gives the straight distance,
     # without the circuity factor of the query
     assert values["origin_snap_distance"] == pytest.approx(11.12, abs=0.01)
-    assert values["destination_snap_distance"] == pytest.approx(
-        22.24, abs=0.01
-    )
+    assert values["destination_snap_distance"] == pytest.approx(22.24, abs=0.01)
 
 
 def test_a_search_that_counts_nothing_logs_no_node_scans(caplog):

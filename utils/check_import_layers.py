@@ -1,6 +1,7 @@
 """Check that the modules of `scgraph` import only from their own layer or a lower one.
 
-`LAYERS` gives the layer of each module (DEVELOPMENT.md and the rework brief, decision D1).
+`LAYERS` gives the layer of each module, and `ALLOWED` lists the imports that may go to
+a higher layer.
 The script reads every `import` of every module under `scgraph/` with `ast`, at the top
 of the file and inside functions. It prints each import that goes to a higher layer, and
 exits with 1 if one of them is not in `ALLOWED`.
@@ -89,7 +90,7 @@ ALLOWED = [
         "geograph_io",
         "networks",
         "The static methods of `GeoGraph` that release 3.6.0 exposes (`load_geograph` "
-        "and the like) import the work from a higher layer inside the function (D1).",
+        "and the like) import the work from a higher layer inside the function.",
     ),
     (
         "networks",
