@@ -298,7 +298,7 @@ def test_get_path_edges_gives_the_edges_of_a_path_in_its_order(network):
     ]
 
 
-# A table of cases is a dict. The key of a case says what the case checks, and
+# A table of cases is a dict. The key of a case names what the case checks, and
 # is the id of the case in a test run. The value holds the inputs of the case,
 # then the result that the test expects, when the cases have different results.
 

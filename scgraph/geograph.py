@@ -3296,7 +3296,7 @@ class GeoGraph(
         """
         The classes of the edges, as rows `{"name": ..., "edge_mode": ...}`. A class
         is the category of an edge, such as `motorway`. Its edge mode is the kind of
-        network of its edges, such as `road`. A loader, the arguments `classes` and
+        transport of its edges, such as `road`. A loader, the arguments `classes` and
         `edge_classes` of the constructor, or a merge gives classes to a geograph.
         Without them, the list is empty. `get_edges` gives the class of each edge.
         """

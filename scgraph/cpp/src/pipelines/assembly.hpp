@@ -87,7 +87,7 @@ private:
 struct EdgeTable {
     std::vector<int64_t> source_node_ids;
     // parallel_edges: the input index of each parallel edge, in rising order (the
-    // Python docstring of build_csr_from_edges says what a parallel edge is)
+    // Python docstring of build_csr_from_edges defines a parallel edge)
     std::vector<int32_t> offsets, heads, kept, parallel_edges;
     std::vector<double> weights;
 };

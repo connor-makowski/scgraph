@@ -30,11 +30,11 @@
 //     to. The id of an edge is its position in `heads`.
 //   - `lengths_km` gives the km of each edge.
 //   - `edge_class_ids` gives the "class" of each edge, as the id of the class: its position
-//     in the list of the classes. A class is the category of an edge: motorway, sea
-//     connector, and so on.
+//     in the list of the classes. A class is the category of an edge, such as motorway.
 //   - `node_mode_ids` gives the "node mode" of each node, as the id of the node mode: its
-//     position in the list of the node modes. A node mode says where a node is: road, port,
-//     sea, and so on. A "hub" is a node whose node mode has a weight in `hub_weights`.
+//     position in the list of the node modes. The node mode of a node is the kind of place
+//     where the node is: road, port, sea, and so on. A "hub" is a node whose node mode has
+//     a weight in `hub_weights`.
 //   Example: offsets = [0, 1, 3, 4], heads = [1, 0, 2, 1], lengths_km = [3, 3, 5, 5],
 //   edge_class_ids = [0, 0, 1, 1] and node_mode_ids = [0, 1, 2]. The class 0 is the road
 //   connector and the class 1 is the sea connector. The node mode 1 is the port.

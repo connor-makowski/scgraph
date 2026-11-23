@@ -28,7 +28,7 @@
 //     positions offsets[u] to offsets[u + 1] - 1, and heads[a] is the head of the edge a.
 //   - `node_mode_ids` gives the node mode of each node. Its values do not decrease: the nodes
 //     of one node mode are consecutive.
-//   - `is_node_mode_kept` says, for each node mode of the file, whether the load keeps it.
+//   - `is_node_mode_kept` is true for each node mode of the file that the load keeps.
 //   - `shape_offsets` is empty for a file without edge shapes. In a file with shapes, the
 //     shape of the edge a is the shape points at the positions shape_offsets[a] to
 //     shape_offsets[a + 1] - 1.
