@@ -1,6 +1,6 @@
 # Networks: Load, Build and Save
 
-This guide is for a user who needs a network. After it, you can load a network that scgraph publishes, build one from open data or from your own lines, and save it.
+This guide shows three ways to get a network: load one that scgraph publishes, build one from open data, or load your own data. It also shows how to save a network and load it again.
 
 A **released network** is a network that the maintainers of scgraph build and publish, such as `europe`.
 

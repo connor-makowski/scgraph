@@ -1,6 +1,6 @@
 # Routes by Time, Cost and CO2
 
-This guide is for a user who routes by time, by cost or by CO2. After it, you can give each edge your own weight, find the best route by these weights, read its parts, and close a canal.
+This guide shows how to route by time, by cost or by CO2. You give each edge your own weight, find the best route by these weights, read its legs, and close a canal.
 
 A network gives each edge a length. A **metric** gives each edge another weight, under a name: its hours, its cost, its kg of CO2. The **total** of a metric along a route is the sum of the weights of its edges.
 

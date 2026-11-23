@@ -1,6 +1,6 @@
 # Routing on a Network
 
-This guide is for a user who routes on a network that exists, such as a network that scgraph publishes. After it, you can choose the options of a query, read its result, and make many queries fast.
+This guide shows how to query a network that you already have. It covers the options of a query, the keys of its result, and ways to make many queries fast.
 
 The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) explains how to get a network. The [API documentation](https://connor-makowski.github.io/scgraph/scgraph.html) gives every parameter of each method.
 

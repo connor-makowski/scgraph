@@ -1,6 +1,6 @@
 # Migrating from 3.6 to 4.0
 
-This page is for a user of scgraph 3.6. It lists what release 4.0 changes, and what to write in its place.
+This page lists what release 4.0 changes for a user of scgraph 3.6, and what to write in place of each call.
 
 | What changes | What to do |
 |---|---|
