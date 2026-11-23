@@ -20,14 +20,13 @@ import json
 import logging
 import os
 import re
-import secrets
 import shutil
 import zlib
 from pathlib import Path
 
 import requests
 
-from scgraph import network_file, network_release
+from scgraph import files, network_file, network_release
 from scgraph import built_in_geographs
 from scgraph.utils import resolve_cache_dir
 from scgraph._internal import log_step
@@ -110,8 +109,6 @@ def fetch_released_file(
             True, or the network release does not have the file.
         ConnectionError: The server answers the download with another error status.
     """
-    from scgraph.pipelines import download_file
-
     tag = network_release.TAG if tag is None else tag
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tag):
         raise ValueError(
@@ -130,58 +127,56 @@ def fetch_released_file(
         url = f"{_RELEASE_URL}/{tag}/{stem}.scgraph.gz"
         releases = cache_path.joinpath("releases")
         releases.mkdir(parents=True, exist_ok=True)
-        download = releases.joinpath(
-            f".{file.name}.{os.getpid()}.{secrets.token_hex(4)}.download"
-        )
-        compressed = download.with_name(f"{download.name}.gz")
+        compressed = None
         try:
-            with log_step(
-                logger, "download the released network", {"url": url}
-            ):
-                try:
-                    download_file(url, compressed)
-                except requests.HTTPError as error:
-                    if error.response.status_code == 404:
-                        raise FileNotFoundError(
-                            f"The network release '{tag}' has no file "
-                            f"'{stem}.scgraph.gz' ({url})"
+            with files.write_atomically(
+                file, "download", folder=releases
+            ) as download:
+                compressed = download.with_name(f"{download.name}.gz")
+                with log_step(
+                    logger, "download the released network", {"url": url}
+                ):
+                    try:
+                        files.download_file(url, compressed)
+                    except requests.HTTPError as error:
+                        if error.response.status_code == 404:
+                            raise FileNotFoundError(
+                                f"The network release '{tag}' has no file "
+                                f"'{stem}.scgraph.gz' ({url})"
+                            ) from error
+                        raise ConnectionError(
+                            f"Failed to download '{url}'. "
+                            f"HTTP status: {error.response.status_code}."
                         ) from error
-                    raise ConnectionError(
-                        f"Failed to download '{url}'. "
-                        f"HTTP status: {error.response.status_code}."
-                    ) from error
-                logger.info("Decompressing %s.scgraph.gz", stem)
-                try:
-                    with (
-                        gzip.open(compressed) as source,
-                        open(download, "wb") as target,
-                    ):
-                        shutil.copyfileobj(source, target)
-                except (EOFError, gzip.BadGzipFile, zlib.error) as error:
-                    raise ValueError(
-                        f"{url}: damaged download ({error})"
-                    ) from error
-                compressed.unlink()  # frees the disk before the check
-                logger.info("Checking the content_sha256 of %s", file.name)
-                found = network_file.check_content(download)
-            if tag == network_release.TAG:
-                recorded = network_release.CONTENT_SHA256[stem]
-                if found != recorded:
-                    raise ValueError(
-                        f"{url} has the content_sha256 {found}, and scgraph "
-                        f"records {recorded} for this file"
-                    )
-            file.parent.mkdir(exist_ok=True)
-            try:
-                os.replace(download, file)
-            except PermissionError:
-                # Windows does not replace a file that a process has mapped. Another
-                # process then downloaded the same file first, and the cache has it.
-                if not file.is_file():
-                    raise
+                    logger.info("Decompressing %s.scgraph.gz", stem)
+                    try:
+                        with (
+                            gzip.open(compressed) as source,
+                            open(download, "wb") as target,
+                        ):
+                            shutil.copyfileobj(source, target)
+                    except (EOFError, gzip.BadGzipFile, zlib.error) as error:
+                        raise ValueError(
+                            f"{url}: damaged download ({error})"
+                        ) from error
+                    compressed.unlink()  # frees the disk before the check
+                    logger.info("Checking the content_sha256 of %s", file.name)
+                    found = network_file.check_content(download)
+                if tag == network_release.TAG:
+                    recorded = network_release.CONTENT_SHA256[stem]
+                    if found != recorded:
+                        raise ValueError(
+                            f"{url} has the content_sha256 {found}, and scgraph "
+                            f"records {recorded} for this file"
+                        )
+        except PermissionError:
+            # Windows does not replace a file that a process has mapped. Another
+            # process then downloaded the same file first, and the cache has it.
+            if not file.is_file():
+                raise
         finally:
-            compressed.unlink(missing_ok=True)
-            download.unlink(missing_ok=True)
+            if compressed is not None:
+                compressed.unlink(missing_ok=True)
     if content_sha256 is not None:
         found = network_file.get_scgraph_info(file)["content_sha256"]
         if found != content_sha256:

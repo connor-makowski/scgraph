@@ -15,12 +15,12 @@ scgraph 5.0 removes these networks: this module and its calls then go.
 `GeoGraph.load_geograph` and `GeoGraph.list_geographs` call this module.
 """
 
-import os
-import secrets
 import warnings
 from pathlib import Path
 
 import requests
+
+from scgraph import files
 
 GEOGRAPH_URL = (
     "https://raw.githubusercontent.com/connor-makowski/scgraph/main/geographs"
@@ -123,12 +123,5 @@ def fetch_built_in_geograph(
         )
     # The download is written next to the cache file, then moved onto it. A download that
     # fails never leaves a part of a file under the name that later loads read.
-    download = cached_file.with_name(
-        f".{cached_file.name}.{os.getpid()}.{secrets.token_hex(4)}.download"
-    )
-    try:
+    with files.write_atomically(cached_file, "download") as download:
         download.write_bytes(response.content)
-        os.replace(download, cached_file)
-    except BaseException:
-        download.unlink(missing_ok=True)
-        raise

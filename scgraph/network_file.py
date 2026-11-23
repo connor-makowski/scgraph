@@ -29,7 +29,6 @@ import json
 import math
 import mmap
 import os
-import secrets
 import sys
 from array import array
 from collections.abc import Iterable, MutableSequence, Sequence
@@ -37,6 +36,7 @@ from itertools import chain, starmap
 from operator import eq, index
 from types import MappingProxyType
 
+from scgraph import files
 from scgraph.helpers.hilbert import NODE_ORDER
 from scgraph._internal import is_sorted
 
@@ -302,45 +302,36 @@ def write(
     start = _align(_PREAMBLE + len(text))
     # Written next to the target, then moved onto it: a failed save leaves the previous
     # file whole, and the file is never rewritten in place
-    folder, base = os.path.split(os.path.abspath(filename))
-    temporary = os.path.join(
-        folder, f".{base}.{os.getpid()}.{secrets.token_hex(4)}.saving"
-    )
-    file = open(temporary, "xb")
     try:
-        with file:
-            content = hashlib.sha256()
+        with files.write_atomically(filename, "saving") as temporary:
+            with open(temporary, "xb") as file:
+                content = hashlib.sha256()
 
-            def put(chunk):
-                file.write(chunk)
-                content.update(chunk)
+                def put(chunk):
+                    file.write(chunk)
+                    content.update(chunk)
 
-            file.write(MAGIC + bytes(32))  # the digest, written last
-            put(len(text).to_bytes(8, "little") + text)
-            for name, values in arrays.items():
-                at = start + header["arrays"][name]["offset"]
-                put(bytes(at - file.tell()))
-                # The arrays may be the graph's own: swapped in a copy (big-endian)
-                if sys.byteorder == "big":
-                    values = array(
-                        DTYPES[header["arrays"][name]["dtype"]], values
-                    )
-                put(memoryview(_to_little_endian(values)).cast("B"))
-            file.seek(len(MAGIC))
-            file.write(content.digest())
-        try:
-            os.replace(temporary, filename)
-        except PermissionError as error:
-            if os.name != "nt":
-                raise
-            # Windows does not replace a file that a process has mapped
-            raise PermissionError(
-                f"{filename} is open in a graph (its file is mapped): save to another "
-                "name, or release every graph read from it first"
-            ) from error
-    except BaseException:
-        os.unlink(temporary)
-        raise
+                file.write(MAGIC + bytes(32))  # the digest, written last
+                put(len(text).to_bytes(8, "little") + text)
+                for name, values in arrays.items():
+                    at = start + header["arrays"][name]["offset"]
+                    put(bytes(at - file.tell()))
+                    # The arrays may be the graph's own: swapped in a copy (big-endian)
+                    if sys.byteorder == "big":
+                        values = array(
+                            DTYPES[header["arrays"][name]["dtype"]], values
+                        )
+                    put(memoryview(_to_little_endian(values)).cast("B"))
+                file.seek(len(MAGIC))
+                file.write(content.digest())
+    except PermissionError as error:
+        if os.name != "nt":
+            raise
+        # Windows does not replace a file that a process has mapped
+        raise PermissionError(
+            f"{filename} is open in a graph (its file is mapped): save to another "
+            "name, or release every graph read from it first"
+        ) from error
     return content.hexdigest()
 
 

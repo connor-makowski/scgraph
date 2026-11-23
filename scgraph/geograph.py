@@ -25,6 +25,7 @@ from scgraph.utils import (
     radians_per_degree,
 )
 from scgraph._internal import warn_deprecated_parameter, log_step
+from scgraph.files import is_offline
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
@@ -1045,7 +1046,7 @@ class GeoGraphIO:
         """Load the network of `load_geograph` now. The arguments are those of
         `load_geograph`, which gives the deprecation warnings."""
         if local_files_only is None:
-            local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
+            local_files_only = is_offline()
         cache_path = resolve_cache_dir(cache_dir)
         # A caller that passes its own `geograph_url` hosts `.graphjson` files, and
         # one of them may have the name of a released network. That name then loads
