@@ -32,7 +32,7 @@ from scgraph.edge_classes import EdgeClasses, find_edge_id
 from scgraph.metrics import (
     Metric,
     parse_off_graph_weight_per_km,
-    compute_weights_from_sum,
+    compute_weights_from_weighted_sum,
     compute_weights_from_function,
     build_default_description,
     resolve_weights_per_km,
@@ -3819,8 +3819,10 @@ class GeoGraph(
                 hub_weights,
             )
         elif weighted_sum_of is not None:
-            weights, off_graph_weight_per_km = compute_weights_from_sum(
-                weighted_sum_of, self._metrics, lengths, units_per_km
+            weights, off_graph_weight_per_km = (
+                compute_weights_from_weighted_sum(
+                    weighted_sum_of, self._metrics, lengths, units_per_km
+                )
             )
         else:
             weights = compute_weights_from_function(

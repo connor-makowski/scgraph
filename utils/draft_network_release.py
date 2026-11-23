@@ -1,11 +1,11 @@
-"""Assemble a network release from the files that the workflow `build_networks.yml` made.
+"""Write the draft of a network release from the files that `build_networks.yml` made.
 
 Usage: python utils/draft_network_release.py FILES PREVIOUS RELEASE TAG COMMIT
 
 A network release is a set of network files published as the assets of one GitHub release.
 FILES holds the network files of this run: the world network, and the files that
 `scgraph.pipelines.derived_networks` derived from it. PREVIOUS holds `networks.json` of the
-previous network release, or nothing. The script writes into RELEASE:
+previous network release, or nothing. The script writes the draft into RELEASE:
 
 - each network file, compressed with gzip. A user decompresses a file before loading
   it;

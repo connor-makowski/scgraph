@@ -26,7 +26,7 @@ HOW THE WEIGHTS ARE COMPUTED
 - From weights per km. The weight of an edge is the weight per km of its class
   times its km, plus the weight of each hub that the edge leaves or enters.
   `resolve_weights_per_km` gives its arrays to the kernel `compute_weights_from_km`.
-- As a weighted sum of other metrics (`compute_weights_from_sum`).
+- As a weighted sum of other metrics (`compute_weights_from_weighted_sum`).
 - From a function of the caller (`compute_weights_from_function`).
 
 `copy_with_edge_weights` then replaces the weights of the edges that the caller
@@ -169,7 +169,7 @@ def resolve_weights_per_km(
             raise ValueError(
                 "weight_per_km must be a number: this geograph has no classes"
             )
-        _check_edge_modes(
+        _refuse_unknown_edge_modes(
             set(weight_per_km) - {"off_graph"}, "weight_per_km", edge_modes
         )
         if weight_per_km.get("off_graph") is None:
@@ -213,7 +213,7 @@ def resolve_weights_per_km(
                 f"weight_at_hub has the key {hub_mode!r}, which is no node "
                 f"mode: the node modes of this geograph are {node_mode_names}"
             )
-        _check_edge_modes(
+        _refuse_unknown_edge_modes(
             weights_of_hub, f"weight_at_hub[{hub_mode!r}]", edge_modes
         )
         for class_id, class_row in enumerate(classes):
@@ -236,7 +236,7 @@ def resolve_weights_per_km(
     return class_weights_per_km, hub_weights, off_graph_weight_per_km
 
 
-def compute_weights_from_sum(
+def compute_weights_from_weighted_sum(
     weighted_sum_of: dict[str, float],
     metrics: dict[str, Metric],
     lengths: array | memoryview,
@@ -311,7 +311,7 @@ def compute_weights_from_function(
     )
 
 
-def _check_edge_modes(
+def _refuse_unknown_edge_modes(
     keys: Iterable, argument_name: str, edge_modes: list[str]
 ) -> None:
     # Refuse a key of `weight_per_km` or of a dict of hub weights that is no edge
