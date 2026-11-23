@@ -24,6 +24,7 @@ from pathlib import Path
 import requests
 
 from scgraph import network_file, pipelines
+from scgraph.files import download_file, is_offline
 from scgraph.geograph import GeoGraph
 from scgraph.network_cache import find_cached_file, join_source_values
 from scgraph.utils import resolve_cache_dir
@@ -177,7 +178,7 @@ def _should_build(
             warnings.warn(
                 f"The cached {name} was built with pipeline version "
                 f"{built_by}, now {pipeline.PIPELINE_VERSION}; loading it as {_OFFLINE}",
-                stacklevel=4,  # the line that called GeoGraph.build_geograph
+                stacklevel=5,  # the line that called GeoGraph.build_geograph
             )
         return False
     if stale:
@@ -214,9 +215,7 @@ def _download_sources(
             except (json.JSONDecodeError, OSError):
                 pass
         own_download = about.get("download")
-        download = own_download or getattr(
-            pipeline, "download", pipelines.download_file
-        )
+        download = own_download or getattr(pipeline, "download", download_file)
         try:
             learnt = download(url, str(source_path))
         except requests.HTTPError as error:
@@ -285,7 +284,6 @@ def _write_network(
             metadata,
             node_modes=node_modes,
             classes=classes,
-            node_addition_modes=getattr(pipeline, "NODE_ADDITION_MODES", None),
         ),
     )
 
@@ -382,7 +380,7 @@ def build_network_file(
         requests.HTTPError: A source cannot be downloaded.
     """
     if local_files_only is None:
-        local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
+        local_files_only = is_offline()
     pipeline, name = _resolve_pipeline(name)
     _check_region(pipeline, name, region)
     cache = resolve_cache_dir(cache_dir)

@@ -10,7 +10,7 @@ of the folder `guides/` has a page of its own on the site.
 
 import logging
 
-from scgraph.graph import NegativeCycleError, PathNotFoundError
+from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_reducer import algorithm
 
 try:

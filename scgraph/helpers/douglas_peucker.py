@@ -3,15 +3,10 @@
 import math
 from array import array
 from collections.abc import Sequence
-from scgraph._internal import is_sorted
+from scgraph._internal import is_sorted_from_zero
 
 # Metres per 1e-7 degree of latitude
 _METRES = 6371000.0 * math.pi / 1.8e9
-
-
-def _is_monotonically_increasing(offsets):
-    """Return True if offsets start at 0 and are monotonically non-decreasing."""
-    return offsets[0] == 0 and is_sorted(offsets)
 
 
 def perpendicular_distance(
@@ -152,7 +147,7 @@ def simplify_shapes(
         raise ValueError("expected two ints per point and four ends per shape")
     if shape_offsets[shapes] != len(
         shape_points
-    ) // 2 or not _is_monotonically_increasing(shape_offsets):
+    ) // 2 or not is_sorted_from_zero(shape_offsets):
         raise ValueError("offsets must rise from 0 to the number of items")
 
     tolerance2 = tolerance_meters * tolerance_meters

@@ -55,9 +55,6 @@ WHAT A PIPELINE MODULE HOLDS
   of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
-- `NODE_ADDITION_MODES`, optional: a tuple of names of the node modes table. A query
-  point then snaps to a node of these node modes by default. The runner writes them into
-  the header of a network that `build` returns as arrays.
 - `CLASSES`, optional: the classes table of the pipeline, in place of the table of
   this package (see *The classes*).
 
@@ -219,8 +216,9 @@ pipelines. Two modules with the same last name share one cache entry.
 HOW TO ADD A NETWORK TO SCGRAPH
 
 1. Add the module to this package, with the names above.
-2. Add its name to `NAMES` below and to the `Literal` of `GeoGraph.build_geograph`,
-   in alphabetical order. A test checks that the two lists are the same.
+2. Add its name to `BUILDABLE_NETWORKS` of `scgraph/network_cache.py` and to the
+   `Literal` of `GeoGraph.build_geograph`, in alphabetical order. A test checks that the
+   two lists are the same.
 3. Add its row to the table of *Building Networks from Their Sources*, in
    `guides/networks.md`.
 4. Add its cases to `steps/step4_validation_cases/cases/` and list them in `VALIDATION`.
@@ -234,64 +232,17 @@ of a network release.
 
 import importlib.metadata
 import inspect
-import logging
-import os
 import platform
 import sysconfig
 
-import requests
-
+from scgraph.edge_classes import CLASS_IDS, CLASSES
+from scgraph.files import download_file
+from scgraph.network_cache import BUILDABLE_NETWORKS
 from scgraph.utils import has_cpp
-
-logger = logging.getLogger(__name__)
 
 __all__ = ["CLASSES", "NAMES", "download_file"]
 
-NAMES = (
-    "eurostat_sea_lanes",
-    "geofabrik_multimodal",
-    "osm_world_multimodal",
-)
-# The edge mode of each class, by the name of the class (the docstring of this
-# module, *The classes*)
-CLASSES = {
-    # Roads: the `highway` value of the way, or the `route` value of a vehicle ferry
-    "motorway": "road",
-    "motorway_link": "road",
-    "trunk": "road",
-    "trunk_link": "road",
-    "primary": "road",
-    "primary_link": "road",
-    "ferry": "road",
-    "shuttle_train": "road",
-    "road_connector": "road",
-    # A high-speed line is `rail_highspeed`. Another line takes its class from its
-    # `usage` value.
-    "rail_highspeed": "rail",
-    "rail_main": "rail",
-    "rail_branch": "rail",
-    "rail_other": "rail",
-    "rail_connector": "rail",
-    # Sea lanes: `open_sea` outside a passage, then the passages of the source
-    "open_sea": "sea",
-    "babelmandeb": "sea",
-    "bering": "sea",
-    "corinth": "sea",
-    "dover": "sea",
-    "gibraltar": "sea",
-    "kiel": "sea",
-    "magellan": "sea",
-    "malacca": "sea",
-    "panama": "sea",
-    "suez": "sea",
-    "sea_connector": "sea",
-    "flight": "air",
-}
-# The id of each class: the value that `edge_class_ids` holds for an edge of the class
-CLASS_IDS = {name: class_id for class_id, name in enumerate(CLASSES)}
-# In bytes. A larger download is logged at WARNING, which shows without a logging
-# setup.
-LARGE_DOWNLOAD_BYTES = 100e6
+NAMES = BUILDABLE_NETWORKS
 
 
 def build_metadata(
@@ -338,34 +289,3 @@ def build_metadata(
             else {}
         ),
     }
-
-
-def download_file(url: str, filename: str | os.PathLike) -> None:
-    """Download `url` to `filename`. The function first logs the size of the file: at
-    WARNING above `LARGE_DOWNLOAD_BYTES`, at INFO below. When the server gives the size, it
-    then logs at INFO the megabytes done at each tenth of the download.
-
-    Raises:
-        requests.HTTPError: The server refuses the request.
-    """
-    with requests.get(url, stream=True, timeout=60) as response:
-        response.raise_for_status()
-        size = int(response.headers.get("Content-Length", 0))
-        logger.log(
-            logging.WARNING if size > LARGE_DOWNLOAD_BYTES else logging.INFO,
-            "Downloading %s (%.1f MB)",
-            url,
-            size / 1e6,
-        )
-        next_tenth = 1
-        with open(filename, "wb") as file:
-            for chunk in response.iter_content(chunk_size=1 << 20):
-                file.write(chunk)
-                # The raw stream counts the bytes received, as Content-Length does,
-                # also when requests decompresses them.
-                done = response.raw.tell()
-                if size and done >= next_tenth * size / 10:
-                    logger.info(
-                        "Downloaded %.1f of %.1f MB", done / 1e6, size / 1e6
-                    )
-                    next_tenth = done * 10 // size + 1

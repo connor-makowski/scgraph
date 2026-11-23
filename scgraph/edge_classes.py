@@ -61,6 +61,44 @@ from collections.abc import Iterable
 
 from scgraph.network_file import NO_CLASS_ID
 
+# The edge mode of each class, by the name of the class (the docstring of
+# `scgraph.pipelines`, *The classes*)
+CLASSES = {
+    # Roads: the `highway` value of the way, or the `route` value of a vehicle ferry
+    "motorway": "road",
+    "motorway_link": "road",
+    "trunk": "road",
+    "trunk_link": "road",
+    "primary": "road",
+    "primary_link": "road",
+    "ferry": "road",
+    "shuttle_train": "road",
+    "road_connector": "road",
+    # A high-speed line is `rail_highspeed`. Another line takes its class from its
+    # `usage` value.
+    "rail_highspeed": "rail",
+    "rail_main": "rail",
+    "rail_branch": "rail",
+    "rail_other": "rail",
+    "rail_connector": "rail",
+    # Sea lanes: `open_sea` outside a passage, then the passages of the source
+    "open_sea": "sea",
+    "babelmandeb": "sea",
+    "bering": "sea",
+    "corinth": "sea",
+    "dover": "sea",
+    "gibraltar": "sea",
+    "kiel": "sea",
+    "magellan": "sea",
+    "malacca": "sea",
+    "panama": "sea",
+    "suez": "sea",
+    "sea_connector": "sea",
+    "flight": "air",
+}
+# The id of each class: the value that `edge_class_ids` holds for an edge of the class
+CLASS_IDS = {name: class_id for class_id, name in enumerate(CLASSES)}
+
 # What `find_class` gives for an edge without a class
 _NO_CLASS_ROW = {"name": None, "edge_mode": None}
 

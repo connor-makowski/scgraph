@@ -340,7 +340,7 @@ def test_geograph_snaps_a_query_point_to_its_modes_among_nodes_in_any_order():
     route = geograph.get_shortest_path(
         {"latitude": origin[0], "longitude": origin[1]},
         {"latitude": destination[0], "longitude": destination[1]},
-        node_addition_modes=["rail"],
+        snap_to_node_modes=["rail"],
         output_path=True,
     )
 

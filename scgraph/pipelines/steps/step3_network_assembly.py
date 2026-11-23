@@ -145,7 +145,6 @@ except ImportError:
     _cpp_simplify_shapes = None
 
 from scgraph.helpers.components import (
-    _cpp_strongly_connected_components as _cpp_strongly_connected_components,
     build_csr_from_adjacency_list,
     find_strongly_connected_components as find_strongly_connected_components,
     find_strongly_connected_components_python,
@@ -153,13 +152,12 @@ from scgraph.helpers.components import (
     keep_strongly_connected_components,
 )
 from scgraph.helpers.douglas_peucker import (
-    _is_monotonically_increasing,
     simplify_shapes as simplify_shapes_python,
 )
 from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
 from scgraph.network_file import encode_coordinates
 from scgraph.utils import haversine
-from scgraph._internal import log_step
+from scgraph._internal import is_sorted_from_zero, log_step
 
 logger = logging.getLogger(__name__)
 
@@ -306,11 +304,7 @@ def contract_chains_python(
         raise ValueError(
             "expected one weight and one class per edge, and one node mode per node"
         )
-    if (
-        n < 0
-        or offsets[n] != len(heads)
-        or not _is_monotonically_increasing(offsets)
-    ):
+    if n < 0 or offsets[n] != len(heads) or not is_sorted_from_zero(offsets):
         raise ValueError("offsets must rise from 0 to the number of items")
     rows = [heads[offsets[u] : offsets[u + 1]] for u in range(n)]
     ins = [[] for _ in range(n)]
@@ -816,7 +810,7 @@ def assemble_network(
     with log_step(
         logger,
         "keep the strongly connected components",
-        _count_nodes_and_edges(graph),
+        count_nodes_and_edges(graph),
     ) as counts:
         order = keep_strongly_connected_components(
             graph["offsets"],
@@ -825,9 +819,9 @@ def assemble_network(
         )
         given, graph = graph, renumber_nodes(graph, *order)
         given.clear()  # freed now, not when the caller lets it go: one copy at a time
-        counts.update(_count_nodes_and_edges(graph, "kept_"))
+        counts.update(count_nodes_and_edges(graph, "kept_"))
     with log_step(
-        logger, "contract the chains", _count_nodes_and_edges(graph)
+        logger, "contract the chains", count_nodes_and_edges(graph)
     ) as counts:
         node_mode_ids, edge_class_ids = graph.get("node_mode_ids"), graph.get(
             "edge_class_ids"
@@ -860,7 +854,7 @@ def assemble_network(
             graph["edge_class_ids"] = array(
                 "B", (edge_class_ids[members[i]] for i in member_offsets[:-1])
             )
-        counts.update(_count_nodes_and_edges(graph, "kept_"))
+        counts.update(count_nodes_and_edges(graph, "kept_"))
     node_points = memoryview(graph["node_points"])
     latitudes, longitudes = node_points[0::2], node_points[1::2]
     node_mode_ids = graph.get("node_mode_ids") or bytes(len(kept))
@@ -963,7 +957,7 @@ def renumber_nodes(graph, order, labels=None):
     return {**out, **_select_nodes(graph, order)}
 
 
-def _count_nodes_and_edges(graph, prefix=""):
+def count_nodes_and_edges(graph: dict, prefix: str = "") -> dict[str, int]:
     """The number of nodes and the number of edges of `graph`, as the values of a log:
     `nodes` and `edges`, each with `prefix` before it."""
     return {

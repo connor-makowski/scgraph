@@ -1268,12 +1268,12 @@ def test_a_route_from_the_road_to_the_sea_lane_passes_through_a_port(
     coast_network,
 ):
     # The destination is at sea. Without the modes, a point of a query snaps to
-    # a road node: the network file names this mode.
+    # a road node, because the network has roads.
     route = coast_network.get_shortest_path(
         origin_node={"latitude": -0.01, "longitude": 0},
         destination_node={"latitude": 0, "longitude": 0.3},
         output_coordinate_path="list_of_lists",
-        node_addition_modes=["road", "sea"],
+        snap_to_node_modes=["road", "sea"],
     )
 
     assert [-0.004, 0.001] in route["coordinate_path"]  # the bend of the road
@@ -1488,13 +1488,17 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
     assert {"name": "flight", "edge_mode": "air"} in metadata["classes"]
 
 
-# A query point snaps to a road node of the multimodal network by default.
-def test_the_file_of_a_multimodal_network_names_road_as_the_node_mode_to_snap_to(
+def test_a_query_point_at_sea_snaps_to_a_road_node_of_a_multimodal_network(
     coast_network,
 ):
-    info = GeoGraph.get_scgraph_info(coast_network.scgraph_file)
+    # The destination is on the sea lane, 0.3 degree east of the road.
+    route = coast_network.get_shortest_path(
+        origin_node={"latitude": -0.01, "longitude": 0},
+        destination_node={"latitude": 0, "longitude": 0.3},
+        output_path=True,
+    )
 
-    assert info["node_addition_modes"] == ["road"]
+    assert _get_node_mode_names(coast_network)[route["path"][-1]] == "road"
 
 
 # A high-speed line is also a main line (`usage=main`): `highspeed` comes

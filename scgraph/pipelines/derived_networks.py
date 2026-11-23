@@ -73,8 +73,6 @@ WHAT THE HEADER OF A DERIVED FILE RECORDS
   is kept, because the header does not record what uses it. For example, the land mask
   of the connectors uses Natural Earth;
 - `software`: the software that derived the file;
-- `node_addition_modes`: those of the parent file that the derived file holds. The
-  header has no such key when none is left;
 - `derivation`: the `parent_content_sha256`, and the `node_modes`, the `bbox` and the
   `min_component_nodes` of the call.
 
@@ -241,7 +239,7 @@ def derive_network_file(
     with log_step(
         logger,
         "select the nodes",
-        step3_network_assembly._count_nodes_and_edges(parent_arrays),
+        step3_network_assembly.count_nodes_and_edges(parent_arrays),
     ) as counts:
         # 1. Select the nodes
         land_node_mode_ids = {
@@ -269,12 +267,12 @@ def derive_network_file(
         # 2. Cut the graph. Node `selected[i]` becomes node `i`.
         graph = step3_network_assembly.renumber_nodes(parent_arrays, selected)
         counts.update(
-            step3_network_assembly._count_nodes_and_edges(graph, "kept_")
+            step3_network_assembly.count_nodes_and_edges(graph, "kept_")
         )
     with log_step(
         logger,
         "keep the strongly connected components",
-        step3_network_assembly._count_nodes_and_edges(graph),
+        step3_network_assembly.count_nodes_and_edges(graph),
     ) as counts:
         # 3. Keep the strongly connected components
         kept_nodes, component_of_node = (
@@ -292,7 +290,7 @@ def derive_network_file(
             graph, kept_nodes, component_of_node
         )
         counts.update(
-            step3_network_assembly._count_nodes_and_edges(graph, "kept_")
+            step3_network_assembly.count_nodes_and_edges(graph, "kept_")
         )
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
@@ -337,11 +335,6 @@ def derive_network_file(
         "bbox": bbox,
         "min_component_nodes": min_component_nodes,
     }
-    node_addition_modes = [
-        name
-        for name in parent_metadata.get("node_addition_modes", [])
-        if node_modes is None or name in node_modes
-    ]
     return network_file.write(
         derived_file,
         graph,
@@ -351,8 +344,6 @@ def derive_network_file(
             # The derived file holds the lengths, and no other metric
             metrics=parent_metadata["metrics"][:1],
             classes=parent_metadata.get("classes"),
-            # Without a kept node mode among them, the derived file has no such key
-            node_addition_modes=node_addition_modes or None,
         ),
     )
 

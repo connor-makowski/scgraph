@@ -9,8 +9,7 @@ There is one CSV file for each kind of case. Each kind has its own rule, and its
 are searched on the node modes of that kind only. The node mode of a node is the kind of
 place where the node is, such as `road` or `port`. For example, a road distance is
 measured on roads only, so a sea route cannot replace it. The two ends of a case snap to
-the nodes of these node modes, whatever node modes the network names for its query
-points (`node_addition_modes`).
+the nodes of these node modes, and the default rule of a query does not count.
 
     Kind (file name)  Node modes  The case passes when
     ----------------  ----------  -------------------------------------------------

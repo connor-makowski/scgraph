@@ -88,6 +88,7 @@ from functools import wraps
 from heapq import heappop, heappush
 from typing import TYPE_CHECKING
 
+from scgraph.errors import PathNotFoundError
 from scgraph.graph_utils import _last_search_in_thread
 
 if TYPE_CHECKING:  # annotations only
@@ -620,8 +621,6 @@ class GraphReducer:
                         effective_origin_dict[exit_u] = tot
                         origin_map[exit_u] = oid
             if not effective_origin_dict:
-                from scgraph.graph import PathNotFoundError
-
                 raise PathNotFoundError(
                     "Something went wrong, the origin and destination nodes are not connected."
                 )
@@ -676,8 +675,6 @@ class GraphReducer:
                         boundary_entries_map[entry_u] = (did, entry_u)
 
         if not effective_dest_dict:
-            from scgraph.graph import PathNotFoundError
-
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
@@ -789,8 +786,6 @@ class GraphReducer:
                             )
         _last_search_in_thread.node_scans = node_scans
         if best_dest_node == -1 or best_dist == float("inf"):
-            from scgraph.graph import PathNotFoundError
-
             raise PathNotFoundError(
                 "Something went wrong, the origin and destination nodes are not connected."
             )
