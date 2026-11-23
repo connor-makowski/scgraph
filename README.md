@@ -19,13 +19,9 @@ SCGraph finds the shortest route between two points of the globe, by road, by ra
 pip install scgraph
 ```
 
-scgraph has an optional C++ extension, which makes it faster. Without a C++ compiler, the install uses pure Python instead, with the same results. To install the pure-Python version on a machine that has a compiler, run this command on Linux, macOS or WSL2:
+pip installs an optional C++ extension, which makes scgraph faster. Without the extension, scgraph uses its pure-Python code, with the same results.
 
-```bash
-SCGRAPH_NO_BUILD=1 pip install --no-binary scgraph scgraph
-```
-
-On Windows, set the variable first: `$env:SCGRAPH_NO_BUILD="1"` in PowerShell, or `set SCGRAPH_NO_BUILD=1` in CMD. `uv pip install` takes the same arguments.
+To install the pure-Python code only, set `SCGRAPH_NO_BUILD=1` in the environment, then run `pip install --no-binary scgraph scgraph`.
 
 ## A First Route
 
