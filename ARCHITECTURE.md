@@ -460,7 +460,7 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | :--- | :--- | :--- | :--- |
 | `offsets` | `int32` | $N + 1$ | CSR row index. Edges originating from node $u$ span index `offsets[u]` to `offsets[u+1] - 1`. |
 | `heads` | `int32` | $M$ | The destination node of each edge, from `0` to $N - 1$. |
-| `metric_length` | `float64` | $M$ | The length of each edge, in the unit of the row `length` of `metadata.metrics`. |
+| `metric_length` | `float64` | $M$ | The length of each edge, in the unit of the row `length` of `metadata.metrics`. The weights of every metric are `float64`: a reader refuses another dtype with a message that names it. |
 | `metric_<name>` *(opt)* | `float64` | $M$ | One array for each other row of `metadata.metrics`: the weight of each edge in the metric `<name>`. The value is infinity for a closed edge. No value is below zero or not a number. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed edge polylines. |

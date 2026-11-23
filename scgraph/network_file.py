@@ -516,6 +516,12 @@ def _read(filename, file, mapped, node_modes):
         dtypes = _get_dtypes(name)
         if dtypes is None:
             continue  # added by a later version, not needed to read the graph
+        if _is_weights_array(name) and entry["dtype"] not in dtypes:
+            raise ValueError(
+                f"{filename}: the metric '{name.removeprefix('metric_')}' has "
+                f"{entry['dtype']} weights; this version of scgraph reads "
+                f"{' or '.join(dtypes)} weights only"
+            )
         if entry["dtype"] not in dtypes:
             raise ValueError(f"{filename}: invalid array '{name}'")
         typecode = DTYPES[entry["dtype"]]

@@ -1414,6 +1414,12 @@ def _give_an_array_a_wrong_dtype(data):
     return _replace_header(data, header)
 
 
+def _declare_float32_lengths(data):
+    header = _read_header(data)
+    header["arrays"]["metric_length"]["dtype"] = "float32"
+    return _replace_header(data, header)
+
+
 def _say_the_header_as_long_as_the_file(data):
     return data[:40] + len(data).to_bytes(8, "little") + data[48:]
 
@@ -1453,6 +1459,11 @@ def _set_an_offset_past_the_edges(data):
         (_set_a_later_format_version, "format version 2"),
         (_cut_before_the_end, "invalid array"),
         (_give_an_array_a_wrong_dtype, "invalid array"),
+        (
+            _declare_float32_lengths,
+            "the metric 'length' has float32 weights; this version of scgraph"
+            " reads float64 weights only",
+        ),
         (_say_the_header_as_long_as_the_file, "invalid header length"),
         (_place_an_array_before_the_arrays, "invalid array"),
         (_remove_the_list_of_arrays, "invalid header"),
