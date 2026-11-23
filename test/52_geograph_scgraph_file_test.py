@@ -1437,6 +1437,14 @@ def _put_the_header_in_a_json_list(data):
     return _replace_header(data, [_read_header(data)])
 
 
+def _give_two_arrays_the_names_of_an_earlier_development_version(data):
+    header = _read_header(data)
+    arrays = header["arrays"]
+    arrays["offsets"] = arrays.pop("node_first_edge_ids")
+    arrays["heads"] = arrays.pop("edge_destination_ids")
+    return _replace_header(data, header)
+
+
 def _point_an_edge_to_a_node_that_does_not_exist(data):
     return _replace_int32(data, "edge_destination_ids", 0, 99)
 
@@ -1460,6 +1468,10 @@ def _set_a_first_edge_id_past_the_edges(data):
         (_place_an_array_before_the_arrays, "invalid array"),
         (_remove_the_list_of_arrays, "invalid header"),
         (_put_the_header_in_a_json_list, "invalid header"),
+        (
+            _give_two_arrays_the_names_of_an_earlier_development_version,
+            "build or download the network again",
+        ),
         (
             _point_an_edge_to_a_node_that_does_not_exist,
             "edge to a missing node|is not in the graph",

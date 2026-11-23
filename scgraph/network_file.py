@@ -455,7 +455,15 @@ def _read(filename, file, mapped, node_modes):
     metadata = header["metadata"]
     if (
         ("units" in metadata and "metrics" not in metadata)
-        or {"node_ids", "node_modes", "edge_classes"} & set(header["arrays"])
+        or {
+            "offsets",
+            "heads",
+            "shape_offsets",
+            "node_ids",
+            "node_modes",
+            "edge_classes",
+        }
+        & set(header["arrays"])
         or any(
             isinstance(row, dict)
             and ("mode" in row or row.get("name", "") is None)
