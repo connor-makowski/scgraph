@@ -2498,7 +2498,18 @@ def _keep_interior_points(shapes, nodes):
 
 def _order_by_hilbert(geograph):
     # A copy of the geograph with its nodes in Hilbert order within each node mode: ids
-    # change, lengths do not (where two routes tie, another may be returned)
+    # change, lengths do not (where two routes tie, another may be returned). Each
+    # caller orders a geograph that it just read from a list of edges, and drops it.
+    # So the copy takes no class and no metric, and it shares the `metadata` dict.
+    if (
+        geograph.classes
+        or geograph._metrics
+        or geograph.default_metric != "length"
+    ):
+        raise ValueError(
+            "The Hilbert order of the nodes drops the classes and the "
+            "metrics: it takes a geograph without them"
+        )
     multimodal = len(geograph.node_modes) > 1
     order = hilbert_order(
         geograph.nodes, geograph.node_mode_ids if multimodal else None
