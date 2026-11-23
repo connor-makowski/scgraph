@@ -22,7 +22,9 @@ Release 5.0 removes what 4.0 deprecates.
 
 ## Deprecated Networks of scgraph 3.6.0
 
-These are the seven networks of scgraph 3.6.0. They are deprecated. `load_geograph` still loads them, with the same results as 3.6.0 and a `DeprecationWarning`. scgraph 5.0 removes them. A **released network** replaces each one, with newer data: the maintainers of scgraph build it and publish it. Its results differ, because the data differ. All seven networks measure distances in kilometers. In `GeoGraph.list_geographs()`, the key `superseded_by` of each one names its replacement.
+These seven networks of scgraph 3.6.0 are deprecated. `load_geograph` still loads them, with the same results as 3.6.0 and a `DeprecationWarning`. scgraph 5.0 removes them. All seven networks measure distances in kilometers.
+
+A **released network** replaces each one, with newer data: the maintainers of scgraph build it and publish it. Its results differ, because the data differ. In `GeoGraph.list_geographs()`, the key `superseded_by` of each one names its replacement.
 
 | Name | Use instead | Description | Attribution |
 |---|---|---|---|
@@ -34,7 +36,9 @@ These are the seven networks of scgraph 3.6.0. They are deprecated. `load_geogra
 | `world_highways` | `GeoGraph.load_geograph("world_multimodal", node_modes=["road"])` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 | `world_railways` | `GeoGraph.load_geograph("world_rail")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
-**Where a route starts.** A **query point** is the origin or the destination of a query. A query point **snaps** to the node where its route starts or ends. On `world_highways_and_marnet`, a query point snaps to its closest node, on a road or on a sea lane. On the replacement, a query point snaps to its closest road node. The **node mode** of a node is the kind of place where the node is, such as `road`, `sea` or `port`. To snap to the closest node of any node mode, as before, pass `snap_to_node_modes=["road", "sea", "port"]` to `get_shortest_path`.
+**Where a route starts.** A **query point** is the origin or the destination of a query. A query point **snaps** to the node where its route starts or ends. The **node mode** of a node is the kind of place where the node is, such as `road`, `sea` or `port`.
+
+On `world_highways_and_marnet`, a query point snaps to its closest node, on a road or on a sea lane. On the replacement, a query point snaps to its closest road node. To snap to the closest node of any node mode, as before, pass `snap_to_node_modes=["road", "sea", "port"]` to `get_shortest_path`.
 
 **The files of these networks.** The first load downloads `<name>.graphjson` into the cache, and converts it into a binary network file, `<name>.scgraph`, beside it. Later loads read the binary file, which is much faster. The `.graphjson` is kept. The conversion changes three things:
 

@@ -41,7 +41,9 @@ The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgr
 
 A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point **snaps** to this node. The route starts or ends at this node. An **off-graph leg** is the straight line from a query point to its node.
 
-A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph. By default, a query point snaps to its closest road node when the geograph has roads, and to its closest node otherwise. A geograph has roads when one of its nodes has the node mode `road`. In a geograph with roads, a point at sea also snaps to a road node, at any distance. `snap_to_node_modes` lists the node modes that a query point may snap to, in place of this default:
+A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph.
+
+By default, a query point snaps to its closest road node when the geograph has roads, and to its closest node otherwise. A geograph has roads when one of its nodes has the node mode `road`. In a geograph with roads, a point at sea also snaps to a road node, at any distance. `snap_to_node_modes` lists the node modes that a query point may snap to, in place of this default:
 
 ```py
 oceania = GeoGraph.load_geograph("oceania")
@@ -68,7 +70,9 @@ The default rule holds for every metric. `add_coord_node` without `node_mode` ad
 
 ## Choosing an Algorithm
 
-`algorithm_fn` names the algorithm of a query. The default, `'bidirectional_buckets'`, is adapted to a single query on a geographic network. A **bucket** holds the nodes whose distance from the origin is in one range. A bucket search scans the buckets in the order of their distances. `n` is the number of nodes, `m` the number of edges, and `W` the number of buckets that the search scans.
+`algorithm_fn` names the algorithm of a query. The default, `'bidirectional_buckets'`, is adapted to a single query on a geographic network.
+
+A **bucket** holds the nodes whose distance from the origin is in one range. A bucket search scans the buckets in the order of their distances. `n` is the number of nodes, `m` the number of edges, and `W` the number of buckets that the search scans.
 
 | `algorithm_fn` | Use it for | Time |
 |---|---|---|
@@ -164,7 +168,9 @@ route = north_america.get_shortest_path(
 )
 ```
 
-`reduce()` repeats its passes until a pass reduces nothing. Pass `iterations=1` for a single pass. It also reduces the graph of each metric of the geograph. A loader does the same at the load with `reduce_iterations=-1`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#4-graph-reduction) explains the reduction.
+`reduce()` repeats its passes until a pass reduces nothing. Pass `iterations=1` for a single pass. It also reduces the graph of each metric of the geograph.
+
+A loader does the same at the load with `reduce_iterations=-1`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#4-graph-reduction) explains the reduction.
 
 ### Lazy Loading
 
@@ -229,7 +235,9 @@ route = world_sea.get_shortest_path(
 - `geograph.haversine`: the great-circle distance. It is exact, and the C++ build computes it inside the search.
 - `geograph.cheap_ruler`: a fast approximate distance (the method of Mapbox).
 
-A* returns the shortest path when the heuristic never exceeds the real distance left to the destination. With a metric other than `length`, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-shortest-path-search) gives the rule of the scale, and the case where A* computes no lower bound.
+A* returns the shortest path when the heuristic never exceeds the real distance left to the destination. With a metric other than `length`, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination.
+
+[ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-shortest-path-search) gives the rule of the scale, and the case where A* computes no lower bound.
 
 ## Distance Utilities
 
