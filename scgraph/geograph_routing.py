@@ -13,7 +13,7 @@ from scgraph.utils import (
     earth_radius,
     radians_per_degree,
 )
-from scgraph.deprecations import warn_deprecated_parameter
+from scgraph.deprecations import warn_deprecated, warn_deprecated_parameter
 from scgraph import array_views
 import logging
 import warnings
@@ -650,8 +650,8 @@ class GeoGraphRouting:
     ) -> None:
         """Give a leg of `_get_legs` the form that a query asks for: its lengths in
         `output_units`, and its coordinate path in the format
-        `output_coordinate_path`. A geograph without a metric gives no
-        `metric_totals`. The leg is changed in place."""
+        `output_coordinate_path`. Its `metric_totals` get its length. The leg is
+        changed in place."""
         leg["length"] = distance_converter(
             leg["length"],
             input_units=self.geograph_units,
@@ -669,8 +669,7 @@ class GeoGraphRouting:
             coordinate_path=leg["coordinate_path"],
             output_format=output_coordinate_path,
         )
-        if not self._read_metrics():
-            del leg["metric_totals"]
+        leg["metric_totals"] = {"length": leg["length"], **leg["metric_totals"]}
 
     def get_shortest_path(
         self,
@@ -695,6 +694,7 @@ class GeoGraphRouting:
         metric: str | None = None,
         snap_to_node_modes: list[str] | None = None,
         output_legs: bool = False,
+        totals_only: bool = False,
         **kwargs,
     ) -> dict:
         """
@@ -705,12 +705,12 @@ class GeoGraphRouting:
         - Return a dictionary of various path information including:
             - `path`: With `output_path=True`, a list of node ids in the order they are visited
             - `coordinate_path`: A list of coordinates (latitude then longitude) in the order they are visited, in the format of `output_coordinate_path`
-            - `length`: The length of the path
-            - `metric_totals`: On a geograph that has metrics other than `length` (see `metrics`), a dictionary `{name: total}` with the total of each of these metrics along the path
+            - `length`: The length of the path, in `output_units`
+            - `metric_totals`: A dictionary `{name: total}` with the total of each metric of `metrics` along the path. `metric_totals["length"]` is `length`. The total of another metric is in the unit of this metric
             - `legs`: With `output_legs=True`, the legs of the path in their order. A leg is a part of the path on one mode, as a dictionary `{"mode", "length", "metric_totals", "class_lengths", "coordinate_path"}`
                 - `mode` is the edge mode of the edges of the leg (see `classes`). A new leg starts where this edge mode changes. The edges of a geograph without classes make one leg of the mode None
                 - The first and the last leg are the off-graph legs, of the mode 'off_graph': the straight lines from the origin to the first node of the path, and from its last node to the destination. A path without an edge is one leg of the mode 'off_graph'
-                - `length` and `metric_totals` are the totals of the leg, as those of the path. The length of the path is the sum of the lengths of its legs, and so is each total of `metric_totals`. A leg has the key `metric_totals` only when the path has it
+                - `length` and `metric_totals` are the totals of the leg, as those of the path. The length of the path is the sum of the lengths of its legs, and so is each total of `metric_totals`
                 - `class_lengths` is a dictionary `{class name: length}`: the length of the leg on each class of edges, in `output_units`. It is empty for an off-graph leg
                 - `coordinate_path` holds the coordinates of the leg, in the format of `output_coordinate_path`
             - `transfers`: With `output_legs=True`, a list of dictionaries `{"node_id", "node_mode"}`: each node where the path goes from a leg of one edge mode to a leg of another, with the node mode of this node (see `node_modes`). The two nodes where an off-graph leg meets the network are not transfers
@@ -842,10 +842,8 @@ class GeoGraphRouting:
         - `silent`
             - Deprecated and without effect. scgraph reports its messages through `logging`.
         - `length_only`
-            - Type: bool
-            - What: If True, only returns the length of the path
-            - Note: With a `metric` other than 'length', only returns the total of this metric: `{"metric_totals": {metric: total}}`
-            - Note: `output_legs` is then ignored, as `output_path` is
+            - Deprecated: use `totals_only`. If True, only returns the length of a path by length: `{"length": length}`
+            - Note: With a `metric` other than 'length', it raises a ValueError
             - Default: False
         - `get_intermediate_nodes`
             - Type: bool
@@ -873,6 +871,10 @@ class GeoGraphRouting:
             - Type: bool
             - What: Whether to output the legs of the path and its transfers, under the keys `legs` and `transfers` described above
             - Default: False
+        - `totals_only`
+            - Type: bool
+            - What: If True, only returns the total of the metric of the search: `{"metric_totals": {metric: total}}`. With `output_path` or `output_legs`, it raises a ValueError
+            - Default: False
         - `**kwargs`
             - Additional keyword arguments. These are included for forwards and backwards compatibility reasons, but are not currently used.
         """
@@ -891,6 +893,9 @@ class GeoGraphRouting:
         )
         if metric is None:
             metric = self.default_metric
+        self._check_totals_arguments(
+            metric, length_only, totals_only, output_path, output_legs
+        )
         # The graph whose weights are those of the metric
         graph_object = self.get_graph_object(metric)
         search_function = self._build_search_function(
@@ -985,36 +990,42 @@ class GeoGraphRouting:
                 origin_id,
                 destination_id,
             )
-        if metric != "length":
-            # The search returned the total of the metric. `length` stays the
-            # length of the route.
-            metric_total = output["length"]
-            if length_only:
-                return {"metric_totals": {metric: metric_total}}
-            output["length"] = self.get_path_weight(
+        # The search returned the total of the metric
+        metric_total = output["length"]
+        if metric == "length":
+            # Release 3.6.0 gives the length of a route in `output_units`
+            metric_total = distance_converter(
+                metric_total,
+                input_units=self.geograph_units,
+                output_units=output_units,
+            )
+        if totals_only:
+            return {"metric_totals": {metric: metric_total}}
+        if length_only:
+            return {"length": metric_total}
+        # The key `length` of release 3.6.0 holds the length of the route, which
+        # `get_path_weight` computes for a search by another metric
+        if metric == "length":
+            length = metric_total
+        else:
+            length = self.get_path_weight(
                 {
                     "path": output["path"],
                     "coordinate_path": [origin, destination],
                 },
                 off_graph_circuity=off_graph_circuity,
-                output_units=self.geograph_units,
+                output_units=output_units,
                 metric="length",
             )
-        # Convert the length to the desired output units
-        output["length"] = distance_converter(
-            output["length"],
-            input_units=self.geograph_units,
-            output_units=output_units,
-        )
-        # Early return if only length is needed
-        if length_only:
-            return {"length": output["length"]}
+        output["length"] = length
+        output["metric_totals"] = {"length": length}
         if self._read_metrics():
-            output["metric_totals"] = self._get_metric_totals(
-                output["path"], origin, destination, off_graph_circuity
+            output["metric_totals"].update(
+                self._get_metric_totals(
+                    output["path"], origin, destination, off_graph_circuity
+                )
             )
-            if metric != "length":
-                output["metric_totals"][metric] = metric_total
+            output["metric_totals"][metric] = metric_total
         # Get the coordinate path
         output["coordinate_path"] = (
             [origin]
@@ -1141,6 +1152,36 @@ class GeoGraphRouting:
                 for node_id, length in destination_id.items()
             },
         )
+
+    def _check_totals_arguments(
+        self,
+        metric: str,
+        length_only: bool,
+        totals_only: bool,
+        output_path: bool,
+        output_legs: bool,
+    ) -> None:
+        """Raise a ValueError when `totals_only` comes with an argument that needs
+        the path, or when `length_only` comes with a metric other than `length`.
+        Warn that `length_only` is deprecated."""
+        if totals_only and (output_path or output_legs):
+            raise ValueError(
+                "totals_only=True returns no path: it cannot be used with "
+                f"{'output_path' if output_path else 'output_legs'}=True"
+            )
+        if length_only:
+            # `length_only` of release 3.6.0 gives a length, and no other total
+            if metric != "length":
+                raise ValueError(
+                    "length_only=True gives the length of a route by length. "
+                    f"For the metric {metric!r}, use totals_only=True"
+                )
+            warn_deprecated(
+                "The parameter `length_only`",
+                stacklevel=4,
+                instead="Use `totals_only=True`: it returns "
+                "{'metric_totals': {metric: total}}",
+            )
 
     def _find_route(
         self,

@@ -96,12 +96,12 @@ The output dictionary always contains:
 |---|---|
 | `length` | Distance along the shortest path in the requested `output_units` |
 | `coordinate_path` | List of `[latitude, longitude]` pairs making up the path |
+| `metric_totals` | For each metric of the geograph, the sum of its weights along the path, as `{name: total}`. `metric_totals["length"]` is `length` (see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)) |
 
 A query can add these keys:
 
 | Key | When | Description |
 |---|---|---|
-| `metric_totals` | The geograph has a metric other than `length` | For each of these metrics, the sum of its weights along the path, as `{name: total}` (see [Routes by Time, Cost and CO2](#routes-by-time-cost-and-co2)) |
 | `path` | `output_path=True` | The node ids of the path |
 | `legs`, `transfers` | `output_legs=True` | The parts of the path by road, by rail, by sea or by air, and the nodes where the path goes from one edge mode to another (see [The Legs of a Route](#the-legs-of-a-route)) |
 
@@ -391,7 +391,7 @@ paris = {"latitude": 48.8566, "longitude": 2.3522}
 berlin = {"latitude": 52.52, "longitude": 13.405}
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours")
 route["length"]   # the km of the fastest route
-route["metric_totals"]  # {'hours': ...}: its hours
+route["metric_totals"]  # {'length': ..., 'hours': ...}: its km and its hours
 ```
 
 - **The weights are examples.** scgraph ships no speed, no cost and no emission factor: you give your own.
@@ -400,7 +400,7 @@ route["metric_totals"]  # {'hours': ...}: its hours
 - **Class.** Each edge of a released network has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. Each class has one edge mode. `class_weight_per_km` gives a class its own weight per km, which replaces the weight per km of its edge mode: `class_weight_per_km={"motorway": 1 / 90}`.
 - **Off-graph leg.** A query point is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. `"off_graph"` is the weight per km of the off-graph legs. The total of a route counts its two off-graph legs.
 - **Hub.** A **hub** is a port, an airport or a rail terminal. `weight_at_hub` adds a weight at a hub. Its first key is the node mode of the hub. Its second key is an edge mode. Only the edges of this edge mode pay: here a truck pays nothing at a port. An edge into the hub pays, and so does an edge out of the hub. Here a flight pays 3 hours at the airport that it leaves and 3 hours at the airport that it reaches.
-- **The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
+- **The result.** `length` is always the length of the route, in `output_units`. `metric_totals` holds the total of each metric along the route: `length`, then the others, each in its own unit.
 - **The default metric.** A call that names no `metric` uses the **default metric** of the geograph, `geograph.default_metric`. It is `length`, unless a loader or you set it: `europe.default_metric = "hours"`. `get_shortest_path`, `distance_matrix`, `get_path_weight` and `get_graph_object` follow this rule. A call fails with a `ValueError` while the default metric is not in `metrics`, for example after an edit of the network.
 
 ### The Legs of a Route
@@ -1456,7 +1456,9 @@ Release 4.0 changes these calls of release 3.6.
 | `'kdclosest'` and `'kdquadrant'` are deprecated values of `node_addition_type` | Use `'closest'` and `'quadrant'`, which give the same results |
 | `geograph_url` is deprecated | Load your own file with `load_from_graphjson` or `load_from_scgraph` |
 | In pure Python, `get_path_weight` raises `ValueError` for a missing edge, and `bmssp` raises `PathNotFoundError` when no path exists | These are the exceptions of the C++ build |
-| `load_from_osmnx_graph` gives the metric `travel_time` to a geograph, when every edge of the OSMnx graph has a `travel_time`. Each result of this geograph has one more key, `metric_totals` | Read the travel time of a route in `metric_totals`, or call `geograph.remove_metric("travel_time")` on a geograph loaded with `weight_key='length'`: the results then have the keys of 3.6 |
+| Each result of `get_shortest_path` has one more key, `metric_totals`: the total of each metric along the route, as `{name: total}`. `metric_totals["length"]` is `length` | Nothing: `length` does not change. A test that compares a whole result can first remove `metric_totals` from it |
+| `load_from_osmnx_graph` gives the metric `travel_time` to a geograph, when every edge of the OSMnx graph has a `travel_time` | Read the travel time of a route in `route["metric_totals"]["travel_time"]` |
+| `length_only` of `get_shortest_path` is deprecated and gives a `DeprecationWarning`. It raises a `ValueError` for a query by a metric other than `length` | Write `totals_only=True`. The result is then `{"metric_totals": {metric: total}}` |
 | With `weight_key='travel_time'`, `load_from_osmnx_graph` keeps the kilometers as the lengths of the geograph. A query still finds the fastest route, and its `length` is the kilometers of this route. Release 3.6 gave its seconds there. An off-graph leg now counts 3600 / `off_graph_travel_speed` seconds per km, or 240 without a speed | Read the seconds of a route in `route["metric_totals"]["travel_time"]`. `get_path_weight` and `distance_matrix` give seconds on this geograph, as in 3.6 |
 
 Release 5.0 removes what 4.0 deprecates.

@@ -216,9 +216,9 @@ def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_do_not_have(
     )
 
     # The route goes through node 2.
-    assert route["metric_totals"] == {
-        "minutes": pytest.approx(2.0 * (_km(1, 2) + _km(2, 4)))
-    }
+    assert route["metric_totals"]["minutes"] == pytest.approx(
+        2.0 * (_km(1, 2) + _km(2, 4))
+    )
 
 
 def test_a_select_that_gives_no_class_gives_a_network_without_classes(osm_file):

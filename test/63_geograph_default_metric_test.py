@@ -44,7 +44,7 @@ def test_a_query_without_metric_minimises_the_default_metric(towns):
 
     # The way through NORTH: 2 km + 2 km, in 0.02 h + 0.02 h.
     assert route["length"] == pytest.approx(4.0)
-    assert route["metric_totals"] == {"hours": pytest.approx(0.04)}
+    assert route["metric_totals"]["hours"] == pytest.approx(0.04)
 
 
 # An edit of the network removes its metrics. A query must then not return

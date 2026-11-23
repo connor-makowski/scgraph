@@ -246,7 +246,7 @@ def test_a_route_by_travel_time_is_the_fastest_and_has_its_km_as_length():
 
     # The avenue: 0.8 km + 0.8 km, in 60 s + 60 s.
     assert route["length"] == pytest.approx(1.6)
-    assert route["metric_totals"] == {"travel_time": 120.0}
+    assert route["metric_totals"]["travel_time"] == 120.0
 
 
 def test_an_osmnx_edge_has_the_class_of_its_highway_value():
@@ -285,7 +285,7 @@ def test_a_load_by_travel_time_gives_the_fastest_route_with_its_km_as_length(
 
     # The bypass takes 100 s, and the avenue 60 s + 60 s.
     assert route["length"] == pytest.approx(3.0)
-    assert route["metric_totals"] == {"travel_time": 100.0}
+    assert route["metric_totals"]["travel_time"] == 100.0
 
 
 def test_a_file_keeps_the_metrics_and_not_the_default_metric(
@@ -301,4 +301,4 @@ def test_a_file_keeps_the_metrics_and_not_the_default_metric(
     route = loaded.get_shortest_path(
         POINT_OF_WEST, POINT_OF_EAST, metric="travel_time"
     )
-    assert route["metric_totals"] == {"travel_time": 100.0}
+    assert route["metric_totals"]["travel_time"] == 100.0

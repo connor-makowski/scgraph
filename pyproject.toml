@@ -115,6 +115,7 @@ filterwarnings = [
     "ignore:The network .* of scgraph 3.6.0 is deprecated:DeprecationWarning",
     "ignore:The node addition type .* is deprecated:DeprecationWarning",
     "ignore:`geograph_url` is deprecated:DeprecationWarning",
+    "ignore:The parameter `length_only` is deprecated:DeprecationWarning",
 ]
 
 [tool.uv]

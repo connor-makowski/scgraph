@@ -22,6 +22,14 @@ needs_the_cpp_extension = pytest.mark.skipif(
 
 
 def assert_result(realized, expected):
+    # Every route has `metric_totals`, and the expected results of release
+    # 3.6.0 do not have it: the comparison ignores it when they do not.
+    if isinstance(realized, dict) and "metric_totals" not in expected:
+        realized = {
+            key: value
+            for key, value in realized.items()
+            if key != "metric_totals"
+        }
     if isinstance(realized, dict) and "length" in realized:
         realized = {**realized, "length": hard_round(3, realized["length"])}
     if isinstance(expected, dict) and "length" in expected:
