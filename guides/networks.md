@@ -145,7 +145,7 @@ Each network is built by a **pipeline**: a module of `scgraph.pipelines`, whose 
 
 **Offline.** With `local_files_only=True`, nothing is downloaded. A network that is not in the cache raises a `FileNotFoundError`. A network built with another version of its pipeline is loaded with a warning that names what differs. A network in another file format is refused.
 
-**What a built network holds.** The networks of `build_geograph` are not the networks of `load_geograph`: their sources are newer, so their nodes and their results differ. A multimodal network has node modes and hubs, as a released network. Each edge has a class, and `geograph.classes` lists the classes. A query point snaps to a road node by default (`geograph.default_node_addition_modes`). To route on some node modes only, load the file with these node modes and with their hubs: `GeoGraph.load_from_scgraph(file, node_modes=["road", "rail", "rail_terminal"])`.
+**What a built network holds.** The networks of `build_geograph` are not the networks of `load_geograph`: their sources are newer, so their nodes and their results differ. A multimodal network has node modes and hubs, as a released network. Each edge has a class, and `geograph.classes` lists the classes. The network has roads, so a query point snaps to its closest road node by default. To route on some node modes only, load the file with these node modes and with their hubs: `GeoGraph.load_from_scgraph(file, node_modes=["road", "rail", "rail_terminal"])`.
 
 **Nodes along a road.** `geofabrik_multimodal` has a node at every junction, and more nodes along a long road or railway. A query point then finds a node close to it. `reduce_iterations=-1` removes the nodes that routing does not need. The shape of each road, ferry or railway edge is simplified, and its length is measured on the full shape. The docstring of each pipeline gives its distances.
 
@@ -275,7 +275,7 @@ my_network = GeoGraph.load_from_graphjson("my_network.graphjson")
 GeoGraph.get_scgraph_info("my_network.scgraph")  # what the file holds, without loading the network
 ```
 
-**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each metric, the default metric (`default_metric`), and `default_node_addition_modes`. A `.graphjson` file and a GeoJSON file hold no class and no metric.
+**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each metric, and the default metric (`default_metric`). A `.graphjson` file and a GeoJSON file hold no class and no metric.
 
 **The metadata of a network file.** The header of a `.scgraph` file stores the pipeline, the sources with the time of their data, and the software of the build. `get_scgraph_info` reads it, with the credit line to cite (`attribution`) and the `content_sha256`. A geograph loaded from a file keeps this metadata (`geograph.metadata`) and the path of the file (`geograph.scgraph_file`). `save_as_scgraph` writes this metadata again unless given other `metadata`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) describes the format.
 
