@@ -195,49 +195,14 @@ class GeoGraphEdges:
 
         - `ValueError`: An argument breaks a rule above. The message names the argument, or the two nodes of the first edge with a weight below zero or not a number
         """
-        if (
-            not (
-                isinstance(name, str) and re.fullmatch("[a-z][a-z0-9_]*", name)
-            )
-            or name == "length"
-        ):
-            raise ValueError(
-                "The name of a metric has small letters, digits and '_', starts "
-                f"with a letter and is not 'length': got {name!r}"
-            )
-        if [weight_per_km, weighted_sum_of, edge_weight_fn].count(None) != 2:
-            raise ValueError(
-                "create_metric takes exactly one of weight_per_km, "
-                "weighted_sum_of and edge_weight_fn"
-            )
-        if weight_per_km is None:
-            if class_weight_per_km is not None:
-                raise ValueError(
-                    "class_weight_per_km needs weight_per_km: it replaces the "
-                    "weight per km of the edge mode of a class"
-                )
-            if weight_at_hub is not None:
-                raise ValueError(
-                    "weight_at_hub needs weight_per_km: a hub weight is added "
-                    "to the weight that a weight per km gives"
-                )
-        elif self.geograph_units != "km":
-            raise ValueError(
-                "weight_per_km needs lengths in km: the lengths of this "
-                f"geograph are in {self.geograph_units!r}"
-            )
-        if edge_weight_fn is None:
-            if off_graph_weight_per_km is not None:
-                raise ValueError(
-                    "off_graph_weight_per_km needs edge_weight_fn: weight_per_km "
-                    "and weighted_sum_of give the weight of 1 km of an off-graph "
-                    "leg themselves"
-                )
-        elif off_graph_weight_per_km is None:
-            raise ValueError(
-                "edge_weight_fn needs off_graph_weight_per_km: the weight of 1 km "
-                "of an off-graph leg. The function is called for the edges only"
-            )
+        self._check_metric_name(name)
+        self._check_one_way(weight_per_km, weighted_sum_of, edge_weight_fn)
+        self._check_weight_per_km_arguments(
+            weight_per_km, class_weight_per_km, weight_at_hub
+        )
+        self._check_edge_weight_fn_arguments(
+            edge_weight_fn, off_graph_weight_per_km
+        )
         description = description or build_default_description(
             weight_per_km=weight_per_km,
             class_weight_per_km=class_weight_per_km,
@@ -247,44 +212,13 @@ class GeoGraphEdges:
             off_graph_weight_per_km=off_graph_weight_per_km,
             edge_weights=edge_weights,
         )
-        offsets, heads, lengths = self._read_edge_arrays(check_edge_count=True)
-        units_per_km = get_units_per_km(self.geograph_units)
-        if weight_per_km is not None:
-            edge_class_ids = self._read_edge_class_ids()
-            if edge_class_ids is None:
-                # No edge has a class: `weight_per_km` is one weight per km for
-                # every edge
-                edge_class_ids = array(
-                    "B", bytes([network_file.NO_CLASS_ID]) * len(heads)
-                )
-            # Nodes appended to `nodes` directly are in the first node mode
-            node_mode_ids = self.node_mode_ids + array(
-                "B", bytes(len(offsets) - 1 - len(self.node_mode_ids))
-            )
-            class_weights_per_km, hub_weights, off_graph_weight_per_km = (
-                resolve_weights_per_km(
-                    weight_per_km,
-                    class_weight_per_km,
-                    weight_at_hub,
-                    self.classes,
-                    self.node_modes,
-                    edge_class_ids,
-                )
-            )
-            weights = compute_weights_from_km(
-                offsets,
-                heads,
-                lengths,
-                edge_class_ids,
-                node_mode_ids,
-                class_weights_per_km,
-                hub_weights,
-            )
-        elif weighted_sum_of is not None:
-            weights, off_graph_weight_per_km = (
-                compute_weights_from_weighted_sum(
-                    weighted_sum_of, self._metrics, lengths, units_per_km
-                )
+        offsets, heads, _ = self._read_edge_arrays(check_edge_count=True)
+        if edge_weight_fn is None:
+            weights, off_graph_weight_per_km = self._compute_metric_weights(
+                weight_per_km,
+                class_weight_per_km,
+                weight_at_hub,
+                weighted_sum_of,
             )
         else:
             weights = compute_weights_from_function(
@@ -302,6 +236,129 @@ class GeoGraphEdges:
             weights,
             parse_off_graph_weight_per_km(name, off_graph_weight_per_km),
         )
+
+    def _check_metric_name(self, name: str) -> None:
+        """Raise a ValueError when `name` cannot name a metric: small letters,
+        digits and `_`, starting with a letter, and not `length`."""
+        if (
+            not (
+                isinstance(name, str) and re.fullmatch("[a-z][a-z0-9_]*", name)
+            )
+            or name == "length"
+        ):
+            raise ValueError(
+                "The name of a metric has small letters, digits and '_', starts "
+                f"with a letter and is not 'length': got {name!r}"
+            )
+
+    def _check_one_way(
+        self,
+        weight_per_km: float | dict | None,
+        weighted_sum_of: dict[str, float] | None,
+        edge_weight_fn: Callable | None,
+    ) -> None:
+        """Raise a ValueError unless exactly one of the three ways of a metric
+        is given: `weight_per_km`, `weighted_sum_of` or `edge_weight_fn`."""
+        if [weight_per_km, weighted_sum_of, edge_weight_fn].count(None) != 2:
+            raise ValueError(
+                "create_metric takes exactly one of weight_per_km, "
+                "weighted_sum_of and edge_weight_fn"
+            )
+
+    def _check_weight_per_km_arguments(
+        self,
+        weight_per_km: float | dict | None,
+        class_weight_per_km: dict | None,
+        weight_at_hub: dict | None,
+    ) -> None:
+        """Raise a ValueError when `class_weight_per_km` or `weight_at_hub` comes
+        without `weight_per_km`, or when `weight_per_km` comes on a geograph whose
+        lengths are not in km."""
+        if weight_per_km is None:
+            if class_weight_per_km is not None:
+                raise ValueError(
+                    "class_weight_per_km needs weight_per_km: it replaces the "
+                    "weight per km of the edge mode of a class"
+                )
+            if weight_at_hub is not None:
+                raise ValueError(
+                    "weight_at_hub needs weight_per_km: a hub weight is added "
+                    "to the weight that a weight per km gives"
+                )
+        elif self.geograph_units != "km":
+            raise ValueError(
+                "weight_per_km needs lengths in km: the lengths of this "
+                f"geograph are in {self.geograph_units!r}"
+            )
+
+    def _check_edge_weight_fn_arguments(
+        self,
+        edge_weight_fn: Callable | None,
+        off_graph_weight_per_km: float | None,
+    ) -> None:
+        """Raise a ValueError when `edge_weight_fn` and `off_graph_weight_per_km`
+        do not come together."""
+        if edge_weight_fn is None:
+            if off_graph_weight_per_km is not None:
+                raise ValueError(
+                    "off_graph_weight_per_km needs edge_weight_fn: weight_per_km "
+                    "and weighted_sum_of give the weight of 1 km of an off-graph "
+                    "leg themselves"
+                )
+        elif off_graph_weight_per_km is None:
+            raise ValueError(
+                "edge_weight_fn needs off_graph_weight_per_km: the weight of 1 km "
+                "of an off-graph leg. The function is called for the edges only"
+            )
+
+    def _compute_metric_weights(
+        self,
+        weight_per_km: float | dict | None,
+        class_weight_per_km: dict | None,
+        weight_at_hub: dict | None,
+        weighted_sum_of: dict[str, float] | None,
+    ) -> tuple[array, float | None]:
+        """Return the weight of each edge, by edge id, and the weight of 1 km of
+        an off-graph leg, for a metric by `weight_per_km` (with
+        `class_weight_per_km` and `weight_at_hub`) or by `weighted_sum_of`.
+        `create_metric` has checked the arguments and the count of the edges."""
+        offsets, heads, lengths = self._read_edge_arrays()
+        units_per_km = get_units_per_km(self.geograph_units)
+        if weighted_sum_of is not None:
+            return compute_weights_from_weighted_sum(
+                weighted_sum_of, self._metrics, lengths, units_per_km
+            )
+        edge_class_ids = self._read_edge_class_ids()
+        if edge_class_ids is None:
+            # No edge has a class: `weight_per_km` is one weight per km for
+            # every edge
+            edge_class_ids = array(
+                "B", bytes([network_file.NO_CLASS_ID]) * len(heads)
+            )
+        # Nodes appended to `nodes` directly are in the first node mode
+        node_mode_ids = self.node_mode_ids + array(
+            "B", bytes(len(offsets) - 1 - len(self.node_mode_ids))
+        )
+        class_weights_per_km, hub_weights, off_graph_weight_per_km = (
+            resolve_weights_per_km(
+                weight_per_km,
+                class_weight_per_km,
+                weight_at_hub,
+                self.classes,
+                self.node_modes,
+                edge_class_ids,
+            )
+        )
+        weights = compute_weights_from_km(
+            offsets,
+            heads,
+            lengths,
+            edge_class_ids,
+            node_mode_ids,
+            class_weights_per_km,
+            hub_weights,
+        )
+        return weights, off_graph_weight_per_km
 
     def remove_metric(self, name: str) -> None:
         """
