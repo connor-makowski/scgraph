@@ -23,7 +23,7 @@ from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_IDS, CLASSES
 from scgraph.pipelines.steps import step3_network_assembly
 
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 4
 
 SOURCES = {
     "sea_lanes": {
@@ -161,7 +161,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     return {
         "offsets": offsets,
         "heads": heads,
-        "weights_length": weights,
+        "metric_length": weights,
         "node_points": array(
             "i",
             (x for point in sea.nodes for x in _convert_to_e7_degrees(point)),

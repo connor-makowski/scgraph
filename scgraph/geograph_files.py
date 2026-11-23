@@ -274,7 +274,7 @@ class GeoGraphIO:
                 classes = self.classes
                 edge_value_arrays["edge_class_ids"] = edge_class_ids
             for name, metric_record in self._metrics.items():
-                edge_value_arrays[f"weights_{name}"] = metric_record.weights
+                edge_value_arrays[f"metric_{name}"] = metric_record.weights
         metadata = network_file.build_header_metadata(
             self.metadata if metadata == "auto" else metadata or {},
             node_modes=self.node_modes,
@@ -323,7 +323,7 @@ class GeoGraphIO:
         arrays = {
             "offsets": offsets,
             "heads": heads,
-            "weights_length": weights,
+            "metric_length": weights,
             **edge_value_arrays,
         }
         node_points = array("d", (value for i in old for value in nodes[i][:2]))
@@ -816,7 +816,7 @@ class GeoGraphIO:
         edge_arrays = (
             arrays["offsets"],
             arrays["heads"],
-            arrays["weights_length"],
+            arrays["metric_length"],
         )
         try:
             graph = Graph.from_edge_arrays(*edge_arrays, copy=False)
@@ -831,7 +831,7 @@ class GeoGraphIO:
                     row["name"],
                     row.get("unit"),
                     row.get("description"),
-                    arrays[f"weights_{row['name']}"],
+                    arrays[f"metric_{row['name']}"],
                     row["off_graph_weight_per_km"],
                 )
                 for row in metadata["metrics"][1:]

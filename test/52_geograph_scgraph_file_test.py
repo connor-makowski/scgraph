@@ -689,7 +689,7 @@ def _two_road_nodes_and_a_port():
     return {
         "offsets": array("i", [0, 1, 2, 2]),
         "heads": array("i", [1, 0]),
-        "weights_length": array("d", [1.0, 1.0]),
+        "metric_length": array("d", [1.0, 1.0]),
         "node_points": array("d", [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
         "source_node_ids": array("q", [2**40, 7, -1]),
         "node_mode_ids": array("B", [0, 0, 1]),
@@ -863,7 +863,7 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
     path = str(tmp_path / "arrays.scgraph")
     arrays = _two_road_nodes_and_a_port() | {
         "edge_class_ids": array("B", [0, 0]),
-        "weights_toll": array("d", [2.0, 2.0]),
+        "metric_toll": array("d", [2.0, 2.0]),
     }
     network_file.write(path, arrays, invalid_header)
 
@@ -990,8 +990,8 @@ def _write_road_port_and_sea(
     arrays = {
         "offsets": array("i", [0, 1, 3, 4, 5, 7]),
         "heads": array("i", [1, 0, 2, 3, 4, 2, 3]),
-        "weights_length": array("d", [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]),
-        "weights_toll": array("d", [10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
+        "metric_length": array("d", [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "metric_toll": array("d", [10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
         "node_points": array(
             coordinate_typecode,
             [10, -10, 11, -11, 20, -20, 30, -30, 31, -31],
@@ -1044,8 +1044,8 @@ def test_reading_some_modes_keeps_the_class_and_the_weights_of_each_kept_edge(
     # The kept edges are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30. They are
     # 1, 1.5, 4 and 6 km long.
     assert list(arrays["edge_class_ids"]) == [1, 2, 3, 4]
-    assert list(arrays["weights_length"]) == [1.0, 1.5, 4.0, 6.0]
-    assert list(arrays["weights_toll"]) == [10.0, 15.0, 40.0, 60.0]
+    assert list(arrays["metric_length"]) == [1.0, 1.5, 4.0, 6.0]
+    assert list(arrays["metric_toll"]) == [10.0, 15.0, 40.0, 60.0]
 
 
 def test_a_geograph_loaded_from_a_file_is_saved_with_its_classes_and_metrics(
@@ -1063,7 +1063,7 @@ def test_a_geograph_loaded_from_a_file_is_saved_with_its_classes_and_metrics(
     arrays, metadata = network_file.read(saved_path)
     assert list(arrays["edge_class_ids"]) == [1, 2, 0, 0, 0, 4, 3]
     assert metadata["classes"] == EDGE_CLASSES
-    assert list(arrays["weights_toll"]) == [10, 15, 20, 30, 50, 60, 40]
+    assert list(arrays["metric_toll"]) == [10, 15, 20, 30, 50, 60, 40]
     assert metadata["metrics"] == [LENGTH_IN_KM, TOLL]
 
 
@@ -1188,7 +1188,7 @@ def test_a_save_that_fails_leaves_the_previous_file_and_no_other_file(
     arrays = {
         "offsets": array("i", [0, 1, 2]),
         "heads": array("i", [1, 0]),
-        "weights_length": every_second_value,
+        "metric_length": every_second_value,
         "node_points": array("d", [0.0, 0.0, 0.0, 1.0]),
     }
 

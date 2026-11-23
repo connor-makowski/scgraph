@@ -13,13 +13,13 @@ A file has these parts, in this order:
 
 The edges are stored by origin, in Compressed Sparse Row (CSR) arrays. The edges of
 node `u` go to the nodes `heads[offsets[u]:offsets[u + 1]]`, in the order that a
-search visits them. `weights_length` holds the length of each edge at the same
+search visits them. `metric_length` holds the length of each edge at the same
 positions.
 
 A metric is one weight for every edge, under a name. The header lists the metrics of
 the file in `metadata["metrics"]`, and `length` is the first one. The file holds one
-array `weights_<name>` for each metric. Example: a file with the metrics `length` and
-`travel_time` holds `weights_length` and `weights_travel_time`.
+array `metric_<name>` for each metric. Example: a file with the metrics `length` and
+`travel_time` holds `metric_length` and `metric_travel_time`.
 
 The public functions are `read`, `write`, `get_scgraph_info` and `check_content`.
 """
@@ -55,15 +55,15 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # metadata["node_modes"].
 # edge_class_ids (optional): for each edge, the position of its class in
 # metadata["classes"], or NO_CLASS_ID for an edge without a class.
-# weights_length: the length of each edge. The array `weights_<name>` of another metric
-# is not listed here: it has the dtype of weights_length (see `_get_dtypes`).
+# metric_length: the length of each edge. The array `metric_<name>` of another metric
+# is not listed here: it has the dtype of metric_length (see `_get_dtypes`).
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `encode_coordinates`).
 ARRAYS = {
     "offsets": ("int32",),
     "heads": ("int32",),
-    "weights_length": ("float64",),
+    "metric_length": ("float64",),
     "node_points": ("int32", "float64"),
     "shape_offsets": ("int32",),
     "shape_points": ("int32", "float64"),
@@ -238,9 +238,9 @@ def write(
     Args:
         filename: The path of the `.scgraph` file to write.
         arrays: The arrays of the network, by name (`offsets`, `heads`,
-            `weights_length`, `node_points`, ...). `ARRAYS` gives the names and the
+            `metric_length`, `node_points`, ...). `ARRAYS` gives the names and the
             dtypes that a file may hold. The file may also hold one array
-            `weights_<name>` for each other metric.
+            `metric_<name>` for each other metric.
         metadata: The metadata of the network (metrics, node modes, sources, ...), as
             `build_header_metadata` returns it. It must be serializable as JSON.
 
@@ -254,7 +254,7 @@ def write(
             the file cannot be replaced.
     """
     symmetric = _is_symmetric(
-        arrays["offsets"], arrays["heads"], arrays["weights_length"]
+        arrays["offsets"], arrays["heads"], arrays["metric_length"]
     )
 
     header = {
@@ -337,7 +337,7 @@ def read(
 
     Returns:
         `(arrays, metadata)`. `arrays` holds the arrays of the network by name
-        (`offsets`, `heads`, `weights_length`, ...), with the array `weights_<name>`
+        (`offsets`, `heads`, `metric_length`, ...), with the array `metric_<name>`
         of each other metric. `metadata` holds the metadata of the header, and the
         `content_sha256` of the file.
 
@@ -452,7 +452,8 @@ def _read(filename, file, mapped, node_modes):
     metadata = header["metadata"]
     if (
         ("units" in metadata and "metrics" not in metadata)
-        or {"node_ids", "node_modes", "edge_classes"} & set(header["arrays"])
+        or {"node_ids", "node_modes", "edge_classes", "weights_length"}
+        & set(header["arrays"])
         or any(
             isinstance(row, dict)
             and ("mode" in row or row.get("name", "") is None)
@@ -590,7 +591,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
         if not condition:
             raise ValueError(f"{filename}: {what}")
 
-    required = {"offsets", "heads", "weights_length", "node_points"}
+    required = {"offsets", "heads", "metric_length", "node_points"}
     require(required <= set(arrays), "missing arrays")
     require(
         ("shape_offsets" in arrays) == ("shape_points" in arrays),
@@ -607,7 +608,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
     )
     weights_array_names = sorted(filter(_is_weights_array, arrays))
     require(
-        sorted(f"weights_{row['name']}" for row in metrics)
+        sorted(f"metric_{row['name']}" for row in metrics)
         == weights_array_names,
         "one array of weights per metric expected",
     )
@@ -734,13 +735,13 @@ def _is_symmetric(offsets, heads, weights):
 
 def _is_weights_array(name):
     # Whether `name` is the array of the weights of a metric
-    return name.startswith("weights_")
+    return name.startswith("metric_")
 
 
 def _get_dtypes(name):
     # The dtypes that the array `name` may have. None for an array that this version
     # of scgraph does not know. The weights of every metric have the same dtype.
-    return ARRAYS.get("weights_length" if _is_weights_array(name) else name)
+    return ARRAYS.get("metric_length" if _is_weights_array(name) else name)
 
 
 def _count_values(shape):
