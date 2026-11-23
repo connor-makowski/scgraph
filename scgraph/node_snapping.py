@@ -7,8 +7,8 @@ WORDS
 
 - A "query point" is the origin or the destination of a query. It "snaps" to a
   node: the route starts or ends at this node.
-- A "node mode" says where a node is, such as `road` or `rail`. A "road node" is
-  a node of the node mode `road`. A node that `add_coord_node` added without
+- A "node mode" is the kind of place where a node is, such as `road` or `rail`. A
+  "road node" is a node of the node mode `road`. A node that `add_coord_node` added without
   `node_mode` has the node mode None.
 - A "snapping index" finds the node closest to a point, among its own nodes. Each
   snapping index of this module has `closest_idx(point)`,
