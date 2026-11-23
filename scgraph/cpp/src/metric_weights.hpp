@@ -25,9 +25,10 @@
 //
 // WHAT THEY READ
 //   The arrays of the network, in place. The kernels do not copy them.
-//   - `node_first_edge_ids` and `edge_destination_ids` store the edges by origin: the edges of the node u have the ids
-//     node_first_edge_ids[u] to node_first_edge_ids[u + 1] - 1, and edge_destination_ids[e] is the node that the edge of id e goes
-//     to. The id of an edge is its position in `edge_destination_ids`.
+//   - `node_first_edge_ids` and `edge_destination_ids` store the edges by origin. The edges of
+//     the node u have the ids node_first_edge_ids[u] to node_first_edge_ids[u + 1] - 1, and
+//     edge_destination_ids[e] is the node that the edge of id e goes to. The id of an edge is
+//     its position in `edge_destination_ids`.
 //   - `lengths_km` gives the km of each edge.
 //   - `edge_class_ids` gives the "class" of each edge, as the id of the class: its position
 //     in the list of the classes. A class is the category of an edge, such as motorway.

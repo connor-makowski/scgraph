@@ -57,9 +57,13 @@ EdgeSelection select_edges(std::span<const int32_t> node_first_edge_ids, std::sp
         if (!is_node_mode_kept[mode]) continue;
         const int64_t first = first_node[mode], last = first_node[mode + 1];
         // Step 3 uses the first edge ids of these nodes as positions in `edge_destination_ids`
-        if (node_first_edge_ids[first] < 0 || node_first_edge_ids[last] > edge_count) throw std::invalid_argument("invalid node_first_edge_ids");
+        if (node_first_edge_ids[first] < 0 || node_first_edge_ids[last] > edge_count) {
+            throw std::invalid_argument("invalid node_first_edge_ids");
+        }
         for (int64_t node = first; node < last; ++node) {
-            if (node_first_edge_ids[node] > node_first_edge_ids[node + 1]) throw std::invalid_argument("invalid node_first_edge_ids");
+            if (node_first_edge_ids[node] > node_first_edge_ids[node + 1]) {
+                throw std::invalid_argument("invalid node_first_edge_ids");
+            }
         }
         add_run(node_runs, first, last);
         shift[mode] = kept_nodes - first;
@@ -80,13 +84,16 @@ EdgeSelection select_edges(std::span<const int32_t> node_first_edge_ids, std::sp
         for (int64_t node = first; node < last; ++node) {
             for (int64_t edge = node_first_edge_ids[node]; edge < node_first_edge_ids[node + 1]; ++edge) {
                 const int32_t destination_id = edge_destination_ids[edge];
-                if (destination_id < 0 || destination_id >= node_count) throw std::invalid_argument("edge to a missing node");
+                if (destination_id < 0 || destination_id >= node_count) {
+                    throw std::invalid_argument("edge to a missing node");
+                }
                 const uint8_t mode = node_mode_ids[destination_id];
                 if (!is_node_mode_kept[mode]) continue;
                 new_edge_destination_ids.push_back((int32_t)(destination_id + shift[mode]));
                 add_run(edge_runs, edge, edge + 1);
                 if (!has_shapes) continue;
-                const int32_t first_point = edge_first_shape_point_ids[edge], last_point = edge_first_shape_point_ids[edge + 1];
+                const int32_t first_point = edge_first_shape_point_ids[edge];
+                const int32_t last_point = edge_first_shape_point_ids[edge + 1];
                 if (first_point < 0 || first_point > last_point || last_point > edge_first_shape_point_ids[edge_count]) {
                     throw std::invalid_argument("invalid edge_first_shape_point_ids");
                 }
@@ -99,6 +106,7 @@ EdgeSelection select_edges(std::span<const int32_t> node_first_edge_ids, std::sp
             new_node_first_edge_ids.push_back((int32_t)new_edge_destination_ids.size());
         }
     }
-    return {std::move(new_node_first_edge_ids), std::move(new_edge_destination_ids), std::move(new_edge_first_shape_point_ids),
+    return {std::move(new_node_first_edge_ids), std::move(new_edge_destination_ids),
+            std::move(new_edge_first_shape_point_ids),
             std::move(node_runs), std::move(edge_runs), std::move(shape_point_runs)};
 }
