@@ -1,10 +1,10 @@
 """Geographic graphs: a `Graph` whose nodes have a latitude and a longitude.
 
-- `GeoGraphIO`, in `scgraph/geograph_files.py`, loads and saves networks (GeoJSON,
+- `GeoGraphIO`, in `scgraph/geograph_io.py`, loads and saves networks (GeoJSON,
   graphjson, `.scgraph` files, OpenStreetMap, OSMnx), and loads or builds the networks
   of scgraph.
-- `GeoGraphModifiers`, in `scgraph/geograph_edits.py`, adds and removes nodes and edges, by id
-  or by coordinates.
+- `GeoGraphModifiers`, in `scgraph/geograph_modifiers.py`, adds and removes nodes and
+  edges, by id or by coordinates.
 - `GeoGraphEdges`, in `scgraph/geograph_edges.py`, holds the edge classes and the metrics,
   reads the arrays of the edges, and lists the edges of the network or of a path.
 - `GeoGraphRouting`, `GeoGraphUtils` and `GeoGraphDistanceCalculations`, in
@@ -24,9 +24,9 @@ from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric
 from scgraph import array_views
-from scgraph import geograph_files
-from scgraph.geograph_files import GeoGraphIO
-from scgraph.geograph_edits import GeoGraphModifiers
+from scgraph import geograph_io
+from scgraph.geograph_io import GeoGraphIO
+from scgraph.geograph_modifiers import GeoGraphModifiers
 from scgraph.geograph_edges import GeoGraphEdges
 from scgraph.geograph_routing import (
     GeoGraphUtils,
@@ -519,6 +519,6 @@ class LazyGeoGraph(GeoGraph):
         return super().__dir__()
 
 
-# The methods of `GeoGraphIO` annotate their result as "GeoGraph". `geograph_files` cannot
+# The methods of `GeoGraphIO` annotate their result as "GeoGraph". `geograph_io` cannot
 # import the class at the top, so `typing.get_type_hints` finds it through this name.
-geograph_files.GeoGraph = GeoGraph
+geograph_io.GeoGraph = GeoGraph

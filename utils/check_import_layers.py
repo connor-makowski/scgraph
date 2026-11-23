@@ -37,8 +37,8 @@ LAYERS = {
     "metrics": 3,
     "node_snapping": 3,
     "geograph": 4,
-    "geograph_files": 4,
-    "geograph_edits": 4,
+    "geograph_io": 4,
+    "geograph_modifiers": 4,
     "geograph_edges": 4,
     "geograph_routing": 4,
     "network_release": 5,
@@ -63,12 +63,12 @@ ALLOWED = [
         "`GeoGraph` builds on the `Graph` that the package chooses, and raises its errors.",
     ),
     (
-        "geograph_files",
+        "geograph_io",
         "",
         "`GeoGraphIO` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
-        "geograph_edits",
+        "geograph_modifiers",
         "",
         "`GeoGraphModifiers` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
@@ -78,14 +78,14 @@ ALLOWED = [
         "`GeoGraphEdges` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
-        "geograph_files",
+        "geograph_io",
         "built_in_geographs",
         "The default of `geograph_url` in the signatures of `load_geograph` and "
         "`list_geographs` is `built_in_geographs.GEOGRAPH_URL`, and a default is "
         "read when the module loads.",
     ),
     (
-        "geograph_files",
+        "geograph_io",
         "networks",
         "The static methods of `GeoGraph` that release 3.6.0 exposes (`load_geograph` "
         "and the like) import the work from a higher layer inside the function (D1).",
