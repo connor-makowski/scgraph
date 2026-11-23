@@ -15,6 +15,7 @@ extension is built and the inputs are `array` or `memoryview` buffers.
 from array import array
 from collections.abc import Sequence
 
+# The C++ kernel takes typed buffers only, so each call chooses its kernel.
 try:
     from scgraph.cpp import (
         find_strongly_connected_components as _cpp_strongly_connected_components,

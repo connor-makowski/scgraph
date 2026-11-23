@@ -803,6 +803,7 @@ class GeoGraphIO:
             raise ValueError("Filename must end with .scgraph")
         # The C++ graph reads the edges in place and checks them. The edges are in the
         # mapped file, or in the new arrays of a selection of node modes.
+        # Not a choice of kernel: the test chooses a layout of the data.
         mapped = Graph.__module__ == "scgraph.cpp"
         with log_step(
             logger,
@@ -1722,6 +1723,7 @@ def renumber_in_hilbert_order(geograph):
     new_id = [0] * len(order)
     for new, old in enumerate(order):
         new_id[old] = new
+    # Not a choice of kernel: the test chooses a layout of the data.
     if Graph.__module__ == "scgraph.cpp":
         # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
         # the new graph keeps instead of copying them again
