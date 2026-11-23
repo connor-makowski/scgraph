@@ -14,7 +14,7 @@
 - `GeoGraph` joins these classes.
 - `LazyGeoGraph` stands for a `GeoGraph` and loads it at its first use.
 
-Users reach this module through `scgraph.GeoGraph`. `scgraph/network_cache.py` downloads
+Users reach this module through `scgraph.GeoGraph`. `scgraph/networks.py` downloads
 the released networks, and `scgraph/built_in_geographs.py` holds the seven networks
 of scgraph 3.6.0.
 """
@@ -72,16 +72,11 @@ class GeoGraph(
         coordinate_dtype: Literal["float64", "int32"] = "float64",
         classes: list[dict] | None = None,
         edge_classes: list[dict[int, str]] | None = None,
-        *,
-        _edge_arrays: tuple[array | memoryview, ...] | None = None,
-        _edge_class_ids: array | memoryview | None = None,
-        _metrics: dict[str, Metric] | None = None,
     ) -> None:
         """
         Function:
 
         - Create a GeoGraph object
-        - The arguments that start with `_` are internal: a loader of scgraph passes the arrays of the edges of `graph`, the class id of each edge and the metrics with them
         - The attribute `graph_object` is the `Graph` of the edges. Change its edges only with `add_edge`, `remove_edge`, `add_node` and `remove_node`, of the geograph or of `graph_object`: `create_metric` and `save_as_scgraph` raise a ValueError when the count of the edges changed otherwise. In the C++ build, `graph_object.graph` is a copy: a write into it changes nothing
         - The attribute `default_metric` is the name of the metric that a call without `metric` uses (`get_shortest_path`, `distance_matrix`, `get_path_weight`, `get_graph_object`). It is 'length', until a loader or the caller sets it to another name of `metrics`
         - A call fails with a ValueError while `default_metric` names a metric that the geograph does not have, for example after an edit of the network, which removes the metrics other than 'length'
@@ -212,7 +207,7 @@ class GeoGraph(
         # The metrics other than `length`, by name (`scgraph/metrics.py`). A
         # method reads them with `_read_metrics`: an edit of `graph_object`
         # removes them.
-        self._metrics = dict(_metrics or {})
+        self._metrics = {}
         # The arrays of the edges of `graph_object`
         # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
         # `edge_destination_ids` and the lengths. The id of an edge is its position in `edge_destination_ids`.
@@ -225,13 +220,7 @@ class GeoGraph(
         # `_read_edge_class_ids` computed it. None before the first call and
         # after an edit.
         self._edge_class_ids = None
-        if _edge_arrays is not None:
-            self._set_edge_arrays(_edge_arrays, _edge_class_ids)
-        if _edge_arrays is not None and _edge_class_ids is not None:
-            self._edge_classes = EdgeClasses(
-                classes, _edge_arrays[0], _edge_arrays[1], _edge_class_ids
-            )
-        elif classes is not None or edge_classes is not None:
+        if classes is not None or edge_classes is not None:
             node_first_edge_ids, edge_destination_ids, _ = (
                 self._read_edge_arrays()
             )
@@ -269,6 +258,39 @@ class GeoGraph(
         self.snap_index = None
         # len(nodes), not len(graph): a C++ graph would be copied to Python to count it
         self.__original_graph_length__ = len(self.nodes)
+
+    @classmethod
+    def _build_from_edge_arrays(
+        cls,
+        edge_arrays: tuple[array | memoryview, ...],
+        edge_class_ids: array | memoryview | None = None,
+        metrics: dict[str, Metric] | None = None,
+        classes: list[dict] | None = None,
+        edge_classes: list[dict[int, str]] | None = None,
+        **kwargs,
+    ) -> "GeoGraph":
+        # Create a geograph from what a loader read, with the other arguments of
+        # the constructor. `edge_arrays` are the node_first_edge_ids, the edge_destination_ids and the
+        # lengths of the edges of the graph, in the order of
+        # `Graph.get_edge_arrays`. The geograph keeps them without a copy.
+        # `edge_class_ids` is the class id of each edge, by edge id, when a
+        # network file holds it. `metrics` are the metrics other than `length`.
+        geograph = cls(**kwargs)
+        geograph._set_edge_arrays(edge_arrays, edge_class_ids)
+        node_first_edge_ids, edge_destination_ids, _ = edge_arrays
+        if edge_class_ids is not None:
+            geograph._edge_classes = EdgeClasses(
+                classes,
+                node_first_edge_ids,
+                edge_destination_ids,
+                edge_class_ids,
+            )
+        elif classes is not None or edge_classes is not None:
+            geograph._edge_classes = EdgeClasses.build_from_class_names(
+                classes, edge_classes, node_first_edge_ids, edge_destination_ids
+            )
+        geograph._metrics = dict(metrics or {})
+        return geograph
 
     def _read_node_mode_ids(self) -> array:
         # Return the node mode id of each node. A node appended to `nodes`

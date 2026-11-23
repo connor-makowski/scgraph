@@ -1,7 +1,8 @@
-"""The networks that scgraph loads or builds by name, and their files in the cache.
+"""This module loads, builds, lists and clears the networks of scgraph.
 
-This module is internal. It loads, builds, lists and clears these networks, and it
-finds and downloads their files in the cache directory. It holds five things:
+This module is internal. A network of scgraph is a network that scgraph loads or builds
+by name. The module keeps the files of these networks in the cache directory: it finds
+them there and downloads them. It holds five things:
 
 - `RELEASED_GEOGRAPHS`, the names of the released networks. `scgraph.network_release`
   lists them, with what the network release says of each one;

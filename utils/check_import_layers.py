@@ -40,7 +40,7 @@ LAYERS = {
     "geograph_edges": 4,
     "geograph_routing": 4,
     "network_release": 5,
-    "network_cache": 5,
+    "networks": 5,
     "built_in_geographs": 5,
     "pipelines": 6,
     "": 7,  # `scgraph/__init__.py`
@@ -84,15 +84,15 @@ ALLOWED = [
     ),
     (
         "geograph_files",
-        "network_cache",
+        "networks",
         "The static methods of `GeoGraph` that release 3.6.0 exposes (`load_geograph` "
         "and the like) import the work from a higher layer inside the function (D1).",
     ),
     (
-        "network_cache",
+        "networks",
         "pipelines.network_builder",
         "`build_network` runs the build of a network. The pipelines import "
-        "`network_cache` at the top, so this import is inside the function.",
+        "`networks` at the top, so this import is inside the function.",
     ),
 ]
 
