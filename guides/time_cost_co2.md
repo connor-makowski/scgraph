@@ -1,10 +1,6 @@
 # Routes by Time, Cost and CO2
 
-This guide shows how to route by time, by cost or by CO2. You give each edge your own weight, find the best route by these weights, read its legs, and close a canal.
-
-A network gives each edge a length. A **metric** gives each edge another weight, under a name: its hours, its cost, its kg of CO2. The **total** of a metric along a route is the sum of the weights of its edges.
-
-You create a metric on a geograph, then you name it in a query. A query by a metric returns the route with the smallest total. In the example below, `class_weight_per_km` gives the motorways their own speed, and `weight_at_hub` adds a wait at each port, airport and rail terminal.
+This guide shows how to find the fastest route, the cheapest route or the route with the least CO2. You give each edge your own weight, read the legs of a route, and close a canal.
 
 ```py
 from scgraph import GeoGraph
@@ -27,21 +23,19 @@ route["length"]         # the km of the fastest route
 route["metric_totals"]  # {'hours': ...}: its hours
 ```
 
-- **Weight per km.** A **weight per km** is the weight of 1 km of an edge. Here it is in hours per km: `1 / 70` means 70 km/h. These numbers are examples: the library provides no speed, no cost and no emission factor, and you give your own.
-- **Edge mode.** The **edge mode** of an edge is the kind of transport of the edge: `road`, `rail`, `sea` or `air`.
-- **Leg.** A **leg** is a part of a route on one edge mode. The mode of a leg is this edge mode.
-- **Query point.** A **query point** is the origin or the destination of a query. The routing guide explains [where a query point snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps).
-- **Off-graph leg.** An **off-graph leg** is the straight line from a query point to its node. Its mode is `off_graph`. The total of a route counts its two off-graph legs.
-- **Class.** Each edge of `europe` has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. So does each edge of the other networks that scgraph publishes. Each class has one edge mode.
-- **Hub.** A **hub** is a port, an airport or a rail terminal. The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. The node mode of a hub is one of the last three.
+A **metric** gives each edge a weight under a name, such as its hours. The **total** of a metric along a route is the sum of the weights of its edges. A query with `metric="hours"` returns the route with the smallest total of hours.
 
-Each of the three dicts of the call has one kind of key:
+| Argument | Its keys | Its values | In `hours` above |
+|---|---|---|---|
+| `weight_per_km` | The edge modes and `off_graph` | The weight of 1 km | `1 / 70`: 70 km/h on a road |
+| `class_weight_per_km` | Classes | The weight of 1 km, in place of the weight of the edge mode | `1 / 90`: 90 km/h on a motorway |
+| `weight_at_hub` | The node mode of a hub, then an edge mode | A weight, added to each edge of this edge mode that enters or leaves the hub | 3 hours at each end of a flight |
 
-- **`weight_per_km`.** Its keys are the modes that a leg can have: the edge modes and `off_graph`. They are the values of `leg["mode"]` in a result. One number in place of the dict is the weight per km of every edge and of the off-graph legs.
-- **`class_weight_per_km`.** Its keys are classes. The weight per km of a class replaces the weight per km of its edge mode. Here a motorway is travelled at 90 km/h, and every other road at 70 km/h.
-- **`weight_at_hub`.** It adds a weight at a hub. Its first key is the node mode of the hub, and its second key is an edge mode.
-  - The weight is added only to the edges of this edge mode: here nothing is added to a road edge at a port.
-  - It is added to an edge that enters the hub, and to an edge that leaves the hub. Here 3 hours are added to a flight at the airport that it leaves, and 3 hours at the airport that it reaches.
+- A **weight per km** is the weight of 1 km of an edge. One number as `weight_per_km` gives this weight to every edge and to the off-graph legs. The numbers above are examples: scgraph gives no speed, no cost and no emission factor.
+- The **edge mode** of an edge is its kind of transport: `road`, `rail`, `sea` or `air`.
+- The **class** of an edge is its category in the source, such as `motorway`, `suez` or `flight`. Each class has one edge mode.
+- The **node mode** of a node is the kind of place where the node is. A **hub** is a node of the node mode `port`, `airport` or `rail_terminal`.
+- A **query point** is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. The total of a route includes its two off-graph legs.
 
 **The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
 
@@ -51,7 +45,7 @@ An edit of the network removes the metrics. If it removes the default metric, ea
 
 ## The Legs of a Route
 
-A **transfer** is a node where a route goes from a leg of one edge mode to a leg of another. `output_legs=True` returns the legs of a route, and its transfers:
+A **leg** is a part of a route on one edge mode. The mode of the leg is this edge mode. A **transfer** is a node where a route goes from a leg of one edge mode to a leg of another. `output_legs=True` returns the legs of a route, and its transfers:
 
 ```py
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_legs=True)
