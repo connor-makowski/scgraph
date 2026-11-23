@@ -145,7 +145,6 @@ RESERVED_METADATA_KEYS = frozenset(
         "metrics",
         "node_modes",
         "classes",
-        "symmetric",
         "node_order",
         "content_sha256",
         "format_version",
@@ -269,14 +268,10 @@ def write(
         PermissionError: On Windows, a process has mapped the file at `filename`, so
             the file cannot be replaced.
     """
-    symmetric = _is_symmetric(
-        arrays["offsets"], arrays["heads"], arrays["metric_length"]
-    )
-
     header = {
         "format_version": FORMAT_VERSION,
         "arrays": {},
-        "metadata": {**metadata, "symmetric": symmetric},
+        "metadata": dict(metadata),
     }
     arrays = _sort_arrays(arrays)
     position = 0
@@ -736,37 +731,6 @@ def _check(filename, arrays, metadata, should_check_values=True):
         or len(metadata["classes"]) <= NO_CLASS_ID,
         f"a network file holds {NO_CLASS_ID} classes at most",
     )
-
-
-def _is_symmetric(offsets, heads, weights):
-    # Return whether every edge has a reverse edge of the same weight.
-    #
-    # The degree of a node is its number of edges. For an edge u -> v, the function
-    # searches the row of v for the reverse edge, but only when v has at most the
-    # degree of u. A hub is a node of high degree. With this rule, the function does
-    # not read the long row of a hub once for each of its neighbors.
-    #
-    # An edge to a node of higher degree is counted in `unmatched`. Its reverse edge is
-    # found later, from the side of that node, and takes one from the count. A row
-    # holds each head once, so the graph is symmetric when the count ends at zero.
-    unmatched = 0
-    for origin in range(len(offsets) - 1):
-        degree = offsets[origin + 1] - offsets[origin]
-        for edge in range(offsets[origin], offsets[origin + 1]):
-            head = heads[edge]
-            start, end = offsets[head], offsets[head + 1]
-            if end - start > degree:
-                unmatched += 1
-                continue
-            unmatched -= end - start < degree
-            for back in range(start, end):
-                if heads[back] == origin:
-                    if weights[back] != weights[edge]:
-                        return False
-                    break
-            else:
-                return False
-    return unmatched == 0
 
 
 def _is_weights_array(name):

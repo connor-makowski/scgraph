@@ -633,41 +633,6 @@ def test_a_network_file_gives_the_route_of_the_graph_where_two_tie(
     assert _route_west_to_east(loaded) == _route_west_to_east(geograph)
 
 
-# A file says `symmetric` when each edge has a reverse edge of its weight. In
-# the one-way cycle, each node has one edge out and one edge in, and no edge has
-# a reverse edge. In the last graph, node 0 has edges to 2 and 3 and edges back
-# from 1, 2 and 3: the edge from 1 to 0 has no reverse edge.
-@pytest.mark.parametrize(
-    "graph, symmetric",
-    [
-        pytest.param(
-            [{1: 1.0, 2: 1.0}, {0: 1.0}, {0: 1.0}],
-            True,
-            id="each edge has a reverse edge of its weight",
-        ),
-        pytest.param(
-            [{1: 2.0}, {0: 3.0}],
-            False,
-            id="a reverse edge has another weight",
-        ),
-        pytest.param(
-            [{1: 1.0}, {2: 1.0}, {0: 1.0}], False, id="a one-way cycle"
-        ),
-        pytest.param(
-            [{2: 1.0, 3: 1.0}, {0: 1.0}, {0: 1.0}, {0: 1.0}],
-            False,
-            id="one edge to a hub has no reverse edge",
-        ),
-    ],
-)
-def test_a_file_says_whether_its_graph_is_symmetric(tmp_path, graph, symmetric):
-    path = str(tmp_path / "graph.scgraph")
-    nodes_in_a_row = [[0.0, 0.01 * i] for i in range(len(graph))]
-    GeoGraph(graph=graph, nodes=nodes_in_a_row).save_as_scgraph(path)
-
-    assert GeoGraph.get_scgraph_info(path)["symmetric"] is symmetric
-
-
 # The tests below write a file from arrays with `network_file.write`, as a
 # pipeline does. This is the way to write a file that `save_as_scgraph` would
 # never write. The edges are stored by origin: the edges of node u go to
