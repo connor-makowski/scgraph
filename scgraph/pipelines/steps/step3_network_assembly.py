@@ -10,18 +10,19 @@ HOW A GRAPH IS STORED
 
 A graph is a dict of arrays, with the names of the network file. Node `u` has the edges
 `offsets[u]` to `offsets[u + 1] - 1`. Edge `a` goes to node `heads[a]` and is
-`weights_length[a]` km long. `node_points` holds the latitude, then the longitude of each
+`metric_length[a]` km long. `node_points` holds the latitude, then the longitude of each
 node, in units of 1e-7 degree. The shape points of edge `a` are
 `shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `source_node_ids` holds
 the id of each node in its source. A node that step 1 adds has an id below zero.
 The node mode of a node is the kind of place where the node is, such as `port`.
 `node_mode_ids` holds the node mode id of each node, in a graph of several node modes.
+A network file does not hold it: its header gives the count of the nodes of each node mode.
 
 `edge_class_ids`, if the pieces have classes, holds the id of the class of each edge in the classes
 table (`scgraph.pipelines.CLASSES`).
 
 Example: two nodes joined both ways by a trunk road of 1.5 km give
-`offsets = [0, 1, 2]`, `heads = [1, 0]` and `weights_length = [1.5, 1.5]`. `trunk` has
+`offsets = [0, 1, 2]`, `heads = [1, 0]` and `metric_length = [1.5, 1.5]`. `trunk` has
 the id 2 in the classes table, so `edge_class_ids = [2, 2]`.
 
 HOW A RUN GOES
@@ -716,7 +717,7 @@ def build_graph_from_pieces(
         pieces: The pieces, as `step1_osm_ways.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
 
     Returns:
-        The graph as a dict of arrays: `offsets`, `heads`, `weights_length`,
+        The graph as a dict of arrays: `offsets`, `heads`, `metric_length`,
         `node_points`, `shape_offsets`, `shape_points` and `source_node_ids`, and
         `edge_class_ids` when the pieces have classes. The module docstring describes
         them.
@@ -773,7 +774,7 @@ def build_graph_from_pieces(
     graph = {
         "offsets": offsets,
         "heads": heads,
-        "weights_length": weights,
+        "metric_length": weights,
         "node_points": node_points,
         "shape_offsets": shape_offsets,
         "shape_points": points,
@@ -806,7 +807,8 @@ def assemble_network(
             only the largest component.
 
     Returns:
-        The arrays of the network file, as `network_file.write` takes them.
+        The arrays of the network file, as `network_file.write` takes them, and
+        `node_mode_ids` if the graph has several node modes.
     """
     with log_step(
         logger,
@@ -831,7 +833,7 @@ def assemble_network(
             contract_chains(
                 graph["offsets"],
                 graph["heads"],
-                graph["weights_length"],
+                graph["metric_length"],
                 node_mode_ids=node_mode_ids,
                 max_km_between_nodes=max_km_between_nodes,
                 edge_class_ids=edge_class_ids,
@@ -846,7 +848,7 @@ def assemble_network(
         graph = {  # the graph before contraction is freed
             "offsets": array("i", accumulate(offsets)),
             "heads": heads,
-            "weights_length": weights,
+            "metric_length": weights,
             "shape_offsets": shape_offsets,
             "shape_points": points,
             **_select_nodes(graph, kept),
@@ -929,13 +931,13 @@ def renumber_nodes(graph, order, labels=None):
     for i, u in enumerate(order):
         new[u] = i
     offsets, heads, weights = (
-        graph[key] for key in ("offsets", "heads", "weights_length")
+        graph[key] for key in ("offsets", "heads", "metric_length")
     )
     starts, line = graph["shape_offsets"], graph["shape_points"]
     out = {
         "offsets": array("i", [0]),
         "heads": array("i"),
-        "weights_length": array("d"),
+        "metric_length": array("d"),
     }
     out["shape_offsets"], out["shape_points"] = array("i", [0]), array("i")
     edge_class_ids = graph.get("edge_class_ids")
@@ -947,7 +949,7 @@ def renumber_nodes(graph, order, labels=None):
         ):
             if v >= 0 and (labels is None or labels[u] == labels[heads[a]]):
                 out["heads"].append(v)
-                out["weights_length"].append(weights[a])
+                out["metric_length"].append(weights[a])
                 out["shape_points"].extend(
                     line[2 * starts[a] : 2 * starts[a + 1]]
                 )

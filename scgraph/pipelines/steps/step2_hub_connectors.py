@@ -222,7 +222,7 @@ class _Layer:
         shape are in degrees.
         """
         network = self.network
-        weights = network["weights_length"]
+        weights = network["metric_length"]
         starts, line = network["shape_offsets"], network["shape_points"]
         edge_class_ids = network["edge_class_ids"]
         for u in range(len(self)):

@@ -222,7 +222,7 @@ class GeoGraphIO:
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
         - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_metric` and the GeoGraph defaults are saved
-        - The nodes are written in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `source_node_ids`
+        - The nodes are written node mode by node mode, in the order of `node_modes`, and in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `source_node_ids`
         - Coordinates that are not finite numbers raise a ValueError
 
         Required Arguments:
@@ -274,14 +274,7 @@ class GeoGraphIO:
                 classes = self.classes
                 edge_value_arrays["edge_class_ids"] = edge_class_ids
             for name, metric_record in self._metrics.items():
-                edge_value_arrays[f"weights_{name}"] = metric_record.weights
-        metadata = network_file.build_header_metadata(
-            self.metadata if metadata == "auto" else metadata or {},
-            node_modes=self.node_modes,
-            metrics=self.metrics,
-            classes=classes,
-            default_metric=self.default_metric,
-        )
+                edge_value_arrays[f"metric_{name}"] = metric_record.weights
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
         if Path(filename).resolve().is_relative_to(built):
@@ -323,7 +316,7 @@ class GeoGraphIO:
         arrays = {
             "offsets": offsets,
             "heads": heads,
-            "weights_length": weights,
+            "metric_length": weights,
             **edge_value_arrays,
         }
         node_points = array("d", (value for i in old for value in nodes[i][:2]))
@@ -332,9 +325,15 @@ class GeoGraphIO:
         if source_node_ids is not None:
             arrays["source_node_ids"] = source_node_ids
         if multimodal:
-            arrays["node_mode_ids"] = array(
-                "B", (node_mode_ids[i] for i in old)
-            )
+            node_mode_ids = array("B", (node_mode_ids[i] for i in old))
+        metadata = network_file.build_header_metadata(
+            self.metadata if metadata == "auto" else metadata or {},
+            node_modes=self.node_modes,
+            node_mode_ids=node_mode_ids,
+            metrics=self.metrics,
+            classes=classes,
+            default_metric=self.default_metric,
+        )
         shapes = self.intermediate_nodes if save_intermediate_nodes else None
         if shapes is not None:
             starts, points = array("i", [0]), array("d")
@@ -723,7 +722,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes`, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `source_node_ids`
+        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes` with the `node_count` of each node mode, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `source_node_ids`
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
         info = network_file.get_scgraph_info(filename)
@@ -816,7 +815,7 @@ class GeoGraphIO:
         edge_arrays = (
             arrays["offsets"],
             arrays["heads"],
-            arrays["weights_length"],
+            arrays["metric_length"],
         )
         try:
             graph = Graph.from_edge_arrays(*edge_arrays, copy=False)
@@ -831,7 +830,7 @@ class GeoGraphIO:
                     row["name"],
                     row.get("unit"),
                     row.get("description"),
-                    arrays[f"weights_{row['name']}"],
+                    arrays[f"metric_{row['name']}"],
                     row["off_graph_weight_per_km"],
                 )
                 for row in metadata["metrics"][1:]
@@ -845,8 +844,22 @@ class GeoGraphIO:
             ),
             geograph_units=metadata["metrics"][0]["unit"],
             source_node_ids=arrays.get("source_node_ids"),
-            node_mode_ids=arrays.get("node_mode_ids"),
-            node_modes=metadata.get("node_modes"),
+            node_mode_ids=(
+                network_file.build_node_mode_ids(
+                    metadata["node_modes"], node_modes
+                )
+                if "node_modes" in metadata
+                else None
+            ),
+            # A count of nodes would be wrong after an edit: the save counts them
+            node_modes=[
+                {
+                    key: value
+                    for key, value in row.items()
+                    if key != "node_count"
+                }
+                for row in metadata.get("node_modes", [{"name": None}])
+            ],
             coordinate_dtype=network_file.get_coordinate_dtype(arrays),
             classes=metadata["classes"] if "edge_class_ids" in arrays else None,
         )

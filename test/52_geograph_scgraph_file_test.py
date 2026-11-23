@@ -680,7 +680,16 @@ ROAD_AND_PORT = [
     {"name": "road", "source": "roads"},
     {"name": "port", "source": "ports"},
 ]
-ROAD_AND_PORT_HEADER = {"metrics": [LENGTH_IN_KM], "node_modes": ROAD_AND_PORT}
+# In a file, the row of a node mode also gives the count of its nodes. The
+# nodes 0 and 1 are road nodes, and the node 2 is a port.
+ROAD_AND_PORT_IN_A_FILE = [
+    {"name": "road", "source": "roads", "node_count": 2},
+    {"name": "port", "source": "ports", "node_count": 1},
+]
+ROAD_AND_PORT_HEADER = {
+    "metrics": [LENGTH_IN_KM],
+    "node_modes": ROAD_AND_PORT_IN_A_FILE,
+}
 
 
 def _two_road_nodes_and_a_port():
@@ -689,10 +698,9 @@ def _two_road_nodes_and_a_port():
     return {
         "offsets": array("i", [0, 1, 2, 2]),
         "heads": array("i", [1, 0]),
-        "weights_length": array("d", [1.0, 1.0]),
+        "metric_length": array("d", [1.0, 1.0]),
         "node_points": array("d", [0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
         "source_node_ids": array("q", [2**40, 7, -1]),
-        "node_mode_ids": array("B", [0, 0, 1]),
     }
 
 
@@ -713,9 +721,7 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
 
 # A file may come from another tool, or be damaged. `load_from_scgraph` must
 # refuse arrays that do not fit together, and name what is wrong. Each case
-# below replaces or adds arrays of the valid network above. The C++ build
-# finds a node mode beyond the list of modes later than pure Python, with
-# another message.
+# below replaces or adds arrays of the valid network above.
 @pytest.mark.parametrize(
     "invalid_arrays, message",
     [
@@ -723,16 +729,6 @@ def test_a_file_written_from_arrays_is_loaded_as_the_network_of_the_arrays(
             {"source_node_ids": array("q", [1, 2])},
             "one node id per node",
             id="fewer node ids than nodes",
-        ),
-        pytest.param(
-            {"node_mode_ids": array("B", [0, 0])},
-            "one node mode per node",
-            id="fewer node modes than nodes",
-        ),
-        pytest.param(
-            {"node_mode_ids": array("B", [0, 0, 2])},
-            "invalid node modes|a row of node_modes",
-            id="a node mode beyond the list of modes",
         ),
         pytest.param(
             {
@@ -764,34 +760,28 @@ def test_a_file_whose_arrays_do_not_fit_together_is_refused(
 MOTORWAY = {"name": "motorway", "edge_mode": "road"}
 
 
-# A value of `node_mode_ids` is the position of a row of the list `node_modes`
-# of the metadata, and a value of `edge_class_ids` is the position of a row of
-# the list `classes`.
-@pytest.mark.parametrize("missing_list", ["node_modes", "classes"])
-def test_a_file_with_rows_and_without_their_list_is_refused(
-    tmp_path, missing_list
-):
+# A value of `edge_class_ids` is the position of a row of the list `classes`
+# of the metadata.
+def test_a_file_with_rows_and_without_their_list_is_refused(tmp_path):
     path = str(tmp_path / "arrays.scgraph")
     arrays = _two_road_nodes_and_a_port() | {
         "edge_class_ids": array("B", [0, 0])
     }
-    metadata = ROAD_AND_PORT_HEADER | {"classes": [MOTORWAY]}
-    del metadata[missing_list]
-    network_file.write(path, arrays, metadata)
+    network_file.write(path, arrays, ROAD_AND_PORT_HEADER)
 
-    with pytest.raises(ValueError, match=f"without a list of {missing_list}"):
+    with pytest.raises(ValueError, match="without a list of classes"):
         GeoGraph.load_from_scgraph(path)
 
 
 # The header must describe the arrays of the file, and `load_from_scgraph`
 # must name what is wrong. Here the valid network above also has a class and a
 # toll for each edge. Each case below replaces or adds a key of the valid
-# header. The last two are headers of an earlier development version of
-# scgraph: `units` and no `metrics`, then a class row with the key `mode`. No
-# released version wrote such a file.
+# header. Some cases are headers of an earlier development version of scgraph,
+# which no released version wrote: `units` and no `metrics`, a class row with
+# the key `mode`, a node mode without its count of nodes.
 ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
     "metrics": [LENGTH_IN_KM, TOLL],
-    "node_modes": ROAD_AND_PORT,
+    "node_modes": ROAD_AND_PORT_IN_A_FILE,
     "classes": [MOTORWAY],
 }
 
@@ -826,6 +816,22 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
             ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"classes": ["motorway"]},
             "a row with a name and an edge mode",
             id="a class without its edge mode",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL
+            | {
+                "node_modes": [
+                    {"name": "road", "node_count": 2},
+                    {"name": "port", "node_count": 2},
+                ]
+            },
+            "must add up to the count of the nodes",
+            id="four nodes in the node modes of three nodes",
+        ),
+        pytest.param(
+            ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"node_modes": ROAD_AND_PORT},
+            "build or download the network again",
+            id="node modes without their counts of an earlier development version",
         ),
         pytest.param(
             {"units": "km", "node_modes": ROAD_AND_PORT, "classes": [MOTORWAY]},
@@ -863,7 +869,7 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
     path = str(tmp_path / "arrays.scgraph")
     arrays = _two_road_nodes_and_a_port() | {
         "edge_class_ids": array("B", [0, 0]),
-        "weights_toll": array("d", [2.0, 2.0]),
+        "metric_toll": array("d", [2.0, 2.0]),
     }
     network_file.write(path, arrays, invalid_header)
 
@@ -880,16 +886,6 @@ def test_a_file_whose_header_does_not_describe_its_arrays_is_refused(
 @pytest.mark.parametrize(
     "invalid_arrays, message",
     [
-        pytest.param(
-            {"node_mode_ids": array("B", [1, 0, 0])},
-            "unsorted",
-            id="node modes that are not sorted",
-        ),
-        pytest.param(
-            {"node_mode_ids": array("B", [0, 0, 2])},
-            "unknown node",
-            id="a node mode beyond the list of modes",
-        ),
         pytest.param(
             {"source_node_ids": array("q", [1, 2, 3, 4])},
             "per node",
@@ -990,14 +986,13 @@ def _write_road_port_and_sea(
     arrays = {
         "offsets": array("i", [0, 1, 3, 4, 5, 7]),
         "heads": array("i", [1, 0, 2, 3, 4, 2, 3]),
-        "weights_length": array("d", [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]),
-        "weights_toll": array("d", [10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
+        "metric_length": array("d", [1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0]),
+        "metric_toll": array("d", [10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0]),
         "node_points": array(
             coordinate_typecode,
             [10, -10, 11, -11, 20, -20, 30, -30, 31, -31],
         ),
         "source_node_ids": array("i", [10, 11, 20, 30, 31]),
-        "node_mode_ids": array("B", [0, 0, 1, 2, 2]),
         "shape_offsets": array("i", [0, 1, 3, 5, 7, 7, 8, 9]),
         "shape_points": array(
             coordinate_typecode,
@@ -1012,7 +1007,11 @@ def _write_road_port_and_sea(
     }
     if not with_source_node_ids:
         del arrays["source_node_ids"]
-    names = [{"name": name} for name in ("road", "port", "sea")]
+    names = [
+        {"name": "road", "node_count": 2},
+        {"name": "port", "node_count": 1},
+        {"name": "sea", "node_count": 2},
+    ]
     metadata = {
         "metrics": [LENGTH_IN_KM, TOLL],
         "node_modes": names,
@@ -1044,8 +1043,8 @@ def test_reading_some_modes_keeps_the_class_and_the_weights_of_each_kept_edge(
     # The kept edges are 10 -> 11, 11 -> 10, 30 -> 31 and 31 -> 30. They are
     # 1, 1.5, 4 and 6 km long.
     assert list(arrays["edge_class_ids"]) == [1, 2, 3, 4]
-    assert list(arrays["weights_length"]) == [1.0, 1.5, 4.0, 6.0]
-    assert list(arrays["weights_toll"]) == [10.0, 15.0, 40.0, 60.0]
+    assert list(arrays["metric_length"]) == [1.0, 1.5, 4.0, 6.0]
+    assert list(arrays["metric_toll"]) == [10.0, 15.0, 40.0, 60.0]
 
 
 def test_a_geograph_loaded_from_a_file_is_saved_with_its_classes_and_metrics(
@@ -1063,7 +1062,7 @@ def test_a_geograph_loaded_from_a_file_is_saved_with_its_classes_and_metrics(
     arrays, metadata = network_file.read(saved_path)
     assert list(arrays["edge_class_ids"]) == [1, 2, 0, 0, 0, 4, 3]
     assert metadata["classes"] == EDGE_CLASSES
-    assert list(arrays["weights_toll"]) == [10, 15, 20, 30, 50, 60, 40]
+    assert list(arrays["metric_toll"]) == [10, 15, 20, 30, 50, 60, 40]
     assert metadata["metrics"] == [LENGTH_IN_KM, TOLL]
 
 
@@ -1188,7 +1187,7 @@ def test_a_save_that_fails_leaves_the_previous_file_and_no_other_file(
     arrays = {
         "offsets": array("i", [0, 1, 2]),
         "heads": array("i", [1, 0]),
-        "weights_length": every_second_value,
+        "metric_length": every_second_value,
         "node_points": array("d", [0.0, 0.0, 0.0, 1.0]),
     }
 
@@ -1415,6 +1414,12 @@ def _give_an_array_a_wrong_dtype(data):
     return _replace_header(data, header)
 
 
+def _declare_float32_lengths(data):
+    header = _read_header(data)
+    header["arrays"]["metric_length"]["dtype"] = "float32"
+    return _replace_header(data, header)
+
+
 def _say_the_header_as_long_as_the_file(data):
     return data[:40] + len(data).to_bytes(8, "little") + data[48:]
 
@@ -1454,6 +1459,11 @@ def _set_an_offset_past_the_edges(data):
         (_set_a_later_format_version, "format version 2"),
         (_cut_before_the_end, "invalid array"),
         (_give_an_array_a_wrong_dtype, "invalid array"),
+        (
+            _declare_float32_lengths,
+            "the metric 'length' has float32 weights; this version of scgraph"
+            " reads float64 weights only",
+        ),
         (_say_the_header_as_long_as_the_file, "invalid header length"),
         (_place_an_array_before_the_arrays, "invalid array"),
         (_remove_the_list_of_arrays, "invalid header"),

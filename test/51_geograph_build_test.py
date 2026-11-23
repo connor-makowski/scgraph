@@ -1464,7 +1464,8 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
     arrays, metadata = network_file.read(path)
 
     node_modes = [
-        metadata["node_modes"][row]["name"] for row in arrays["node_mode_ids"]
+        metadata["node_modes"][row]["name"]
+        for row in network_file.build_node_mode_ids(metadata["node_modes"])
     ]
     classes = {}  # the modes of the two ends of an edge -> the classes found
     for u, mode in enumerate(node_modes):

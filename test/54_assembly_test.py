@@ -350,7 +350,7 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
     # out. Place 2 is between 1 and 3 only: it is contracted. The edge from 1
     # to 3 has the length of the two pieces, 1 km + 2 km.
     edges = _by_source_node_ids(
-        assembled, lambda edge: assembled["weights_length"][edge]
+        assembled, lambda edge: assembled["metric_length"][edge]
     )
 
     assert edges == {(1, 3): 3.0, (3, 1): 3.0, (4, 5): 4.0, (5, 4): 4.0}
@@ -448,7 +448,7 @@ def test_a_longer_road_of_another_class_between_two_junctions_is_split():
         graph,
         lambda edge: (
             graph["edge_class_ids"][edge],
-            graph["weights_length"][edge],
+            graph["metric_length"][edge],
         ),
     )
     assert edges == {
