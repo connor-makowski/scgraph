@@ -315,9 +315,9 @@ my_network = GeoGraph.load_from_graphjson("my_network.graphjson")
 GeoGraph.get_scgraph_info("my_network.scgraph")  # what the file holds, without loading the network
 ```
 
-| Format | Graph, nodes and shapes | Node modes, classes, metrics, default metric | Build metadata |
+| Format | Graph, nodes and shapes | Node modes, classes, metrics | Build metadata |
 |---|---|---|---|
-| `.scgraph` | Yes, with the ids of the nodes in their source | Yes | Yes |
+| `.scgraph` | Yes, with the external ids of the nodes | Yes | Yes |
 | `.graphjson` | Yes | No | No |
 | GeoJSON | One line for each edge, with its shape and its length | No | No |
 

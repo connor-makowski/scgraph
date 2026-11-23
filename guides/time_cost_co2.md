@@ -20,7 +20,7 @@ paris = {"latitude": 48.8566, "longitude": 2.3522}
 berlin = {"latitude": 52.52, "longitude": 13.405}
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours")
 route["length"]         # the km of the fastest route
-route["metric_totals"]  # {'hours': ...}: its hours
+route["metric_totals"]  # {'length': ..., 'hours': ...}: its km and its hours
 ```
 
 A **metric** gives each edge a weight under a name, such as its hours. The **total** of a metric along a route is the sum of the weights of its edges. A query with `metric="hours"` returns the route with the smallest total of hours.
@@ -40,9 +40,9 @@ The call above gives the weights in three arguments:
 | `class_weight_per_km` | Classes | The weight of 1 km, in place of the weight of the edge mode | `1 / 90`: 90 km/h on a motorway |
 | `weight_at_hub` | The node mode of a hub, then an edge mode | A weight, added to each edge of this edge mode that enters or leaves the hub | 3 hours at each end of a flight |
 
-**The result.** `length` is always the length of the route. `metric_totals` holds the total of each metric other than `length` along the route.
+**The result.** `length` is the length of the route, in `output_units`. `metric_totals` holds the total of each metric, each in its own unit.
 
-**The default metric.** A query that names no metric uses the **default metric** of the geograph: `geograph.default_metric`. It is `length`, unless a loader or you set it: `europe.default_metric = "hours"`. `guides/networks.md` shows a loader that sets it, in [Loading from OSMnx](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#loading-from-osmnx). `get_shortest_path`, `distance_matrix`, `get_path_weight` and `get_graph_object` apply this rule.
+**The default metric.** A query that names no metric uses the **default metric** of the geograph: `geograph.default_metric`. It is `length`, unless a loader or you set it: `europe.default_metric = "hours"`. [Loading from OSMnx](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#loading-from-osmnx) shows a loader that sets it. `get_shortest_path`, `distance_matrix`, `get_path_weight` and `get_graph_object` apply this rule.
 
 An edit of the network removes the metrics. If it removes the default metric, each of these calls raises a `ValueError` until you create this metric again.
 
@@ -54,7 +54,7 @@ A **leg** is a part of a route on one edge mode. The mode of the leg is this edg
 route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, metric="hours", output_legs=True)
 for leg in route["legs"]:
     print(leg["mode"], round(leg["length"]), "km", round(leg["metric_totals"]["hours"], 1), "h")
-# One line for each leg: its mode, its km and its hours
+# One line for each leg: mode, km, hours
 route["transfers"]  # [{'node_id': ..., 'node_mode': 'airport'}, ...]: each transfer with its node mode
 ```
 
@@ -114,7 +114,7 @@ A weighted sum can also add two metrics of different units: `weighted_sum_of={"c
 - **The off-graph legs.** A call that gives `edge_weight_fn` also gives `off_graph_weight_per_km`. A call without `edge_weight_fn` does not give it. A dict of `weight_per_km` gives a weight per km for `off_graph`.
 - **The classes.** Each class that has an edge needs a weight per km: its own, or that of its edge mode. A geograph without classes takes one number as `weight_per_km`.
 - **The values.** A weight is a number of zero or more. A wrong argument raises a `ValueError` that names it.
-- **The name.** A metric that has the same name is replaced, and `remove_metric(name)` removes a metric.
+- **The name.** A metric of the same name is replaced, and `remove_metric(name)` removes a metric.
 
 The docstring of [`create_metric`](https://connor-makowski.github.io/scgraph/scgraph.html#GeoGraph.create_metric) gives every argument.
 
@@ -161,7 +161,7 @@ route = europe.get_shortest_path(origin_node=paris, destination_node=berlin, met
 europe.get_path_edges(route["path"])
 ```
 
-**Files and edits.** `save_as_scgraph` writes the weights of each metric and the default metric to the network file, and `load_from_scgraph` reads them. `guides/custom_graphs.md` explains the edits in [Modifying a GeoGraph](https://github.com/connor-makowski/scgraph/blob/main/guides/custom_graphs.md#modifying-a-geograph).
+**Files and edits.** `save_as_scgraph` writes the weights of each metric to the network file, but not the default metric. `load_from_scgraph` reads them. `guides/custom_graphs.md` explains the edits in [Modifying a GeoGraph](https://github.com/connor-makowski/scgraph/blob/main/guides/custom_graphs.md#modifying-a-geograph).
 
 ## Metrics and Algorithms
 

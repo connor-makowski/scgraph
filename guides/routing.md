@@ -24,18 +24,20 @@ route["coordinate_path"]  # [[31.23, 121.47], ..., [32.08, -81.09]]
 route["path"]             # the node ids of the route
 ```
 
-The result is a dictionary. It always has these two keys:
+The result is a dictionary. It always has three keys:
 
 - `length`: the length of the route, in `output_units`.
 - `coordinate_path`: the points of the route, as `[latitude, longitude]` pairs. `output_coordinate_path` chooses another form.
+- `metric_totals`: the **total** of each metric, `length` among them. A **metric** gives each edge a weight under a name, such as its hours. Its total is the sum of these weights along the route.
+
+`totals_only=True` returns only `{"metric_totals": {metric: total}}`. It replaces the deprecated `length_only`.
 
 A query can add these keys:
 
 - `path`, with `output_path=True`: the node ids of the route.
-- `metric_totals`. A **metric** gives each edge a weight under a name, such as its hours. When the geograph has a metric other than `length`, `metric_totals` holds the sum of these weights along the route, for each metric.
 - `legs` and `transfers`, with `output_legs=True`. A **leg** is a part of a route by road, by rail, by sea or by air. A **transfer** is a node where the route goes from one of these four to another, such as a port.
 
-The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) shows metrics, legs and transfers. To route by a metric, pass `metric=name` with any option of this guide.
+The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) shows metrics, legs and transfers. Pass `metric=name` with any option to route by a metric.
 
 ## Where a Query Point Snaps
 
@@ -148,7 +150,7 @@ matrix[0][1]  # the km from Los Angeles to New York City
 
 The two directions of a pair can differ a little: a one-way road is followed in its direction. A pair without a route has the distance `None`.
 
-The **total** of a metric along a route is the sum of the weights of its edges. With a metric, the matrix holds the totals of this metric. `output_metric` names another metric, and the matrix holds its totals on the same routes:
+With a metric, the matrix holds the totals of this metric. `output_metric` names another metric, and the matrix holds its totals on the same routes:
 
 ```py
 north_america.create_metric("hours", weight_per_km={"road": 1 / 80, "off_graph": 1 / 30})
@@ -238,7 +240,7 @@ route = world_sea.get_shortest_path(
 - `geograph.haversine`: the great-circle distance. It is exact, and the C++ build computes it inside the search.
 - `geograph.cheap_ruler`: a fast approximate distance (the method of Mapbox).
 
-With a metric other than `length`, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination.
+With any metric, scgraph scales its two heuristics to the weights of the metric. It does not scale a function of your own. Such a function must never exceed the total of the metric left to the destination.
 
 [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#3-shortest-path-search) gives the rule of the scale, and the case where A* computes no lower bound.
 
@@ -253,6 +255,8 @@ dist_km = haversine([31.23, 121.47], [32.08, -81.09], units="km")    # great-cir
 dist_km = cheap_ruler([31.23, 121.47], [32.08, -81.09], units="km")  # fast and approximate
 dist_mi = distance_converter(dist_km, input_units="km", output_units="mi")
 ```
+
+Each conversion uses 1 mile = 1.609344 km and 1 foot = 0.3048 m.
 
 ## Logging
 
