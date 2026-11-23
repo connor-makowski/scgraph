@@ -133,6 +133,7 @@ from operator import add
 from types import SimpleNamespace
 from typing import NamedTuple
 
+# The C++ kernels take typed buffers only, so each call chooses its kernel.
 try:
     from scgraph.cpp import (
         build_csr_from_edges as _cpp_build_csr_from_edges,

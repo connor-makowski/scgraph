@@ -350,25 +350,20 @@ def _find_node_ids(
     - A merge or an added node changes the order of a network file: the ids are
       then an array. A merge can also give the same name to two rows of
       `node_modes`, and a geograph may have no row for a name
-    - A node appended to `nodes` directly is not in `node_mode_ids`: it has the
-      node mode None
+    - A node appended to `nodes` directly is in the first node mode
     """
     wanted_node_mode_ids = [
         node_mode_id
         for node_mode_id, row in enumerate(geograph.node_modes)
         if row.get("name") == node_mode
     ]
-    appended_node_ids = (
-        range(len(geograph.node_mode_ids), len(geograph.nodes))
-        if node_mode is None
-        else range(0)
-    )
     if not wanted_node_mode_ids:
-        return appended_node_ids
-    if len(wanted_node_mode_ids) == 1 and not appended_node_ids:
+        return range(0)
+    node_mode_ids = geograph._read_node_mode_ids()
+    if len(wanted_node_mode_ids) == 1:
         # `bytes` searches a value in C: a search in the array costs as much as
         # the build of the index
-        node_mode_ids = bytes(geograph.node_mode_ids)
+        node_mode_ids = bytes(node_mode_ids)
         node_mode_id = wanted_node_mode_ids[0]
         first = node_mode_ids.find(node_mode_id)
         last = node_mode_ids.rfind(node_mode_id)
@@ -378,8 +373,7 @@ def _find_node_ids(
         "q",
         [
             node_id
-            for node_id, node_mode_id in enumerate(geograph.node_mode_ids)
+            for node_id, node_mode_id in enumerate(node_mode_ids)
             if node_mode_id in wanted_node_mode_ids
-        ]
-        + list(appended_node_ids),
+        ],
     )

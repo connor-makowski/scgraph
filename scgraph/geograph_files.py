@@ -291,9 +291,7 @@ class GeoGraphIO:
         # Written in Hilbert order within each node mode (nodes close on the globe get
         # close ids, and the nodes of a node mode stay together); the geograph is not
         # renumbered
-        nodes, node_mode_ids = self.nodes, self.node_mode_ids
-        # Nodes appended to `nodes` directly are in the first node mode
-        node_mode_ids.extend(bytes(len(nodes) - len(node_mode_ids)))
+        nodes, node_mode_ids = self.nodes, self._read_node_mode_ids()
         # (by node mode only if there are several: the key is cheaper without)
         multimodal = len(self.node_modes) > 1
         try:
@@ -490,7 +488,7 @@ class GeoGraphIO:
             # load_intermediate_nodes=load_intermediate_nodes,
         )
         # In Hilbert order: nodes close on the globe get close ids
-        geograph = _order_by_hilbert(
+        geograph = renumber_in_hilbert_order(
             GeoGraph(
                 graph=data["graph"],
                 nodes=data["nodes"],
@@ -805,6 +803,7 @@ class GeoGraphIO:
             raise ValueError("Filename must end with .scgraph")
         # The C++ graph reads the edges in place and checks them. The edges are in the
         # mapped file, or in the new arrays of a selection of node modes.
+        # Not a choice of kernel: the test chooses a layout of the data.
         mapped = Graph.__module__ == "scgraph.cpp"
         with log_step(
             logger,
@@ -820,7 +819,7 @@ class GeoGraphIO:
             arrays["weights_length"],
         )
         try:
-            graph = Graph.from_csr(*edge_arrays, copy=False)
+            graph = Graph.from_edge_arrays(*edge_arrays, copy=False)
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
@@ -1699,11 +1698,11 @@ def _keep_interior_points(shapes, nodes):
                 del row[destination]
 
 
-def _order_by_hilbert(geograph):
-    # A copy of the geograph with its nodes in Hilbert order within each node mode: ids
-    # change, lengths do not (where two routes tie, another may be returned). Each
-    # caller orders a geograph that it just read from a list of edges, and drops it.
-    # So the copy takes no class and no metric, and it shares the `metadata` dict.
+def renumber_in_hilbert_order(geograph):
+    """Copy a geograph with its nodes in Hilbert order within each node mode."""
+    # The ids change, the lengths do not (where two routes tie, another may be
+    # returned). Each caller orders a geograph that it just read from a list of
+    # edges, and drops it. So the copy takes no class and no metric, and it shares the `metadata` dict.
     from scgraph.geograph import GeoGraph
 
     if (
@@ -1724,14 +1723,15 @@ def _order_by_hilbert(geograph):
     new_id = [0] * len(order)
     for new, old in enumerate(order):
         new_id[old] = new
+    # Not a choice of kernel: the test chooses a layout of the data.
     if Graph.__module__ == "scgraph.cpp":
         # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
         # the new graph keeps instead of copying them again
-        graph = Graph.from_csr(
+        graph = Graph.from_edge_arrays(
             *geograph.graph_object.get_edge_arrays(order), copy=False
         )
     else:
-        # Renumbered dicts, sharing the graph's weight objects (from_csr would not)
+        # Renumbered dicts, sharing the graph's weight objects (from_edge_arrays would not)
         rows = geograph.graph_object.unreduced_graph
         graph = [
             {new_id[head]: weight for head, weight in rows[old].items()}

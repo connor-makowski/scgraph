@@ -164,6 +164,7 @@ def find_water_path_cells(
     return None
 
 
+# The twin stays beside its explanation, so the C++ function replaces it here.
 python = SimpleNamespace(find_water_path_cells=find_water_path_cells)
 try:
     from scgraph.cpp import find_water_path_cells

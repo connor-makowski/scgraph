@@ -268,7 +268,7 @@ def test_a_graph_made_from_arrays_does_not_follow_a_later_change_of_them(
 ):
     # Node 0 has one edge, to node 1.
     weights = array("d", [2.5])
-    graph = graph_class.from_csr(
+    graph = graph_class.from_edge_arrays(
         array("i", [0, 1, 1]), array("i", [1]), weights
     )
 

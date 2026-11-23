@@ -1582,7 +1582,7 @@ class Graph(
             self.validate()
 
     @staticmethod
-    def from_csr(
+    def from_edge_arrays(
         offsets: array | memoryview,
         heads: array | memoryview,
         weights: array | memoryview,
@@ -1633,6 +1633,7 @@ class Graph(
     def reset_node_scans() -> None:
         """
         Forgets the number of node scans of the last search in this thread.
+        `GeoGraph` calls this method: it is not in the public API and may change.
         """
         _last_search_in_thread.node_scans = None
 
@@ -1645,6 +1646,8 @@ class Graph(
           search can scan a node more than once
         - Dijkstra, A* and bucket searches count their node scans. Returns None if no
           such search ran since `reset_node_scans`
+
+        `GeoGraph` calls this method: it is not in the public API and may change.
         """
         return getattr(_last_search_in_thread, "node_scans", None)
 

@@ -1,9 +1,11 @@
-"""The cache directory of scgraph: what it holds and how it is filled.
+"""The networks that scgraph loads or builds by name, and their files in the cache.
 
-This module is internal. It holds three things:
+This module is internal. It loads, builds, lists and clears these networks, and it
+finds and downloads their files in the cache directory. It holds five things:
 
 - `RELEASED_GEOGRAPHS`, the names of the released networks. `scgraph.network_release`
   lists them, with what the network release says of each one;
+- `BUILDABLE_NETWORKS`, the names of the networks that scgraph can build;
 - `fetch_released_file`, which downloads the file of a released network into the
   cache directory;
 - `find_cached_file`, which finds the network file of a build in the cache;
@@ -30,12 +32,12 @@ from typing import Literal
 
 import requests
 
-from scgraph import files, network_file, network_release
+from scgraph import files, network_file
 from scgraph import built_in_geographs
 from scgraph import network_release as pinned_network_release
 from scgraph.files import is_offline
 from scgraph.geograph import GeoGraph, LazyGeoGraph
-from scgraph.geograph_files import _order_by_hilbert
+from scgraph.geograph_files import renumber_in_hilbert_order
 from scgraph.utils import resolve_cache_dir
 from scgraph._internal import log_step
 
@@ -68,7 +70,7 @@ def find_cached_file(pointer: Path) -> Path | None:
 # the network followed by `.no_shapes`.
 RELEASED_GEOGRAPHS = tuple(
     name
-    for name in network_release.CONTENT_SHA256
+    for name in pinned_network_release.CONTENT_SHA256
     if not name.endswith(".no_shapes")
 )
 # The names of the networks that scgraph builds: one module of `scgraph.pipelines` for
@@ -127,11 +129,11 @@ def fetch_released_file(
             True, or the network release does not have the file.
         ConnectionError: The server answers the download with another error status.
     """
-    tag = network_release.TAG if tag is None else tag
+    tag = pinned_network_release.TAG if tag is None else tag
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", tag):
         raise ValueError(
             f"Invalid network_release '{tag}': a network release is named by its tag, "
-            f"such as '{network_release.TAG}'"
+            f"such as '{pinned_network_release.TAG}'"
         )
     stem = name if shapes else f"{name}.no_shapes"
     file = cache_path.joinpath("releases", tag, f"{stem}.scgraph")
@@ -180,8 +182,8 @@ def fetch_released_file(
                     compressed.unlink()  # frees the disk before the check
                     logger.info("Checking the content_sha256 of %s", file.name)
                     found = network_file.check_content(download)
-                if tag == network_release.TAG:
-                    recorded = network_release.CONTENT_SHA256[stem]
+                if tag == pinned_network_release.TAG:
+                    recorded = pinned_network_release.CONTENT_SHA256[stem]
                     if found != recorded:
                         raise ValueError(
                             f"{url} has the content_sha256 {found}, and scgraph "
@@ -219,7 +221,7 @@ def list_networks(
     The docstring of `GeoGraph.list_geographs` gives the arguments and the result.
     """
     cache_path = resolve_cache_dir(cache_dir)
-    release_folder = cache_path.joinpath("releases", network_release.TAG)
+    release_folder = cache_path.joinpath("releases", pinned_network_release.TAG)
     available = sorted(
         {
             *built_in_geographs.BUILT_IN_GEOGRAPHS,
@@ -251,7 +253,7 @@ def list_networks(
             )
             about = {
                 "kind": "released",
-                **network_release.NETWORKS[name],
+                **pinned_network_release.NETWORKS[name],
             }
         else:
             is_cached = cache_path.joinpath(f"{name}.graphjson").exists()
@@ -572,7 +574,7 @@ def _load_network(
     except OSError:
         # A cache that can't be written: the .graphjson is read at every load, its
         # nodes ordered as the file would have them
-        geograph = _order_by_hilbert(geograph)
+        geograph = renumber_in_hilbert_order(geograph)
         geograph.reduce(reduce_iterations)
         if len(geograph.nodes):  # as load_from_scgraph
             geograph.snap_index  # noqa: B018 (reading it builds the index)
