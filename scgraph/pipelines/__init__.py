@@ -131,7 +131,7 @@ network enters the cache only if it passes its cases.
 THE STEPS OF A BUILD
 
 A build runs steps, such as "read and cut the ways" or "contract the chains". Each
-step logs one line at DEBUG, with its counts and its duration (`_internal.log_step`).
+step logs one line at DEBUG, with its counts and its duration (`step_logs.log_step`).
 The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for
 each step:
 

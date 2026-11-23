@@ -14,7 +14,7 @@ from scgraph.utils import (
     earth_radius,
     radians_per_degree,
 )
-from scgraph._internal import warn_deprecated_parameter
+from scgraph.deprecations import warn_deprecated_parameter
 from scgraph import array_views
 import logging
 import warnings

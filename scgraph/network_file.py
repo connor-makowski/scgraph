@@ -42,7 +42,7 @@ from itertools import chain, starmap
 
 from scgraph import files
 from scgraph.helpers.hilbert import NODE_ORDER
-from scgraph._internal import is_sorted
+from scgraph.array_checks import is_sorted
 
 try:
     from scgraph.cpp import select_edges

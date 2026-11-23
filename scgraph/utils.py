@@ -16,7 +16,7 @@ import warnings
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from math import pi, sin, cos, asin
-from scgraph._internal import warn_deprecated
+from scgraph.deprecations import warn_deprecated
 
 # Constants for haversine and cheap ruler calculations
 earth_radius = {

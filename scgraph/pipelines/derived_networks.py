@@ -112,7 +112,7 @@ from scgraph.pipelines.steps.step4_validation_cases import (
     load_validation_cases,
     validate_network,
 )
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 logger = logging.getLogger(__name__)
 

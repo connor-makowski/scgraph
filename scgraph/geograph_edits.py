@@ -5,7 +5,7 @@ nodes and edges, by id or by coordinates, and that merges another geograph.
 """
 
 from scgraph.utils import haversine
-from scgraph._internal import warn_deprecated_parameter
+from scgraph.deprecations import warn_deprecated_parameter
 from scgraph.node_snapping import EveryNodeSnapIndex
 from scgraph import array_views
 from copy import deepcopy

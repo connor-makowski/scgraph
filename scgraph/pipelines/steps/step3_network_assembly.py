@@ -159,7 +159,8 @@ from scgraph.helpers.douglas_peucker import (
 from scgraph.helpers.hilbert import CURVE_ORDER, hilbert_key
 from scgraph.network_file import encode_coordinates
 from scgraph.utils import haversine
-from scgraph._internal import is_sorted_from_zero, log_step
+from scgraph.array_checks import is_sorted_from_zero
+from scgraph.step_logs import log_step
 
 logger = logging.getLogger(__name__)
 

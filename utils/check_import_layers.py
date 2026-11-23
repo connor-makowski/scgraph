@@ -18,7 +18,9 @@ ROOT = Path(__file__).resolve().parents[1] / "scgraph"
 # package (`helpers` holds every module of `scgraph/helpers/`). A module imports only
 # from its own layer or a lower one. The package `scgraph` itself is the highest layer.
 LAYERS = {
-    "_internal": 0,
+    "deprecations": 0,
+    "step_logs": 0,
+    "array_checks": 0,
     "utils": 0,
     "errors": 0,
     "files": 0,

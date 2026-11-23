@@ -19,7 +19,7 @@ the released networks, and `scgraph/built_in_geographs.py` holds the seven netwo
 of scgraph 3.6.0.
 """
 
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric

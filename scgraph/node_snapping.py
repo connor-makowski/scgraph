@@ -79,7 +79,7 @@ from itertools import chain
 from typing import TYPE_CHECKING
 
 from scgraph import array_views
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.utils import haversine
 

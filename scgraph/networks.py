@@ -40,7 +40,7 @@ from scgraph.files import is_offline
 from scgraph.geograph import GeoGraph, LazyGeoGraph
 from scgraph.geograph_files import renumber_in_hilbert_order
 from scgraph.utils import resolve_cache_dir
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 logger = logging.getLogger(__name__)
 # The record of the conversion of a published network keeps the logger name that it had

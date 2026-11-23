@@ -6,7 +6,8 @@ loads or builds the networks of scgraph. `scgraph.geograph` imports it and re-ex
 """
 
 from scgraph.utils import get_line_path, resolve_cache_dir
-from scgraph._internal import warn_deprecated_parameter, log_step
+from scgraph.deprecations import warn_deprecated_parameter
+from scgraph.step_logs import log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order

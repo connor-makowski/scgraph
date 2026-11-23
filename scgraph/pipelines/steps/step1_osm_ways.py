@@ -55,7 +55,7 @@ from scgraph.pipelines.steps.step3_network_assembly import (
     PieceArrays,
 )
 from scgraph.utils import has_cpp
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium

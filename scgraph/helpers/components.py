@@ -23,7 +23,7 @@ try:
 except ImportError:
     _cpp_strongly_connected_components = None
 
-from scgraph._internal import is_sorted_from_zero
+from scgraph.array_checks import is_sorted_from_zero
 
 
 def find_strongly_connected_components_python(
