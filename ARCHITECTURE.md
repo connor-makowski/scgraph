@@ -435,7 +435,7 @@ The example shows one source and one metric. It does not show the arrays and the
 | `format_version` | `int` | Format specification version (currently `1`). See *Compatibility Between Versions* for when it changes. |
 | `arrays` | `dict` | Map of array names to their `dtype`, `shape`, and byte `offset` (relative to the end of the padded header). |
 | `metadata.crs` | `str` | Coordinate reference system (standard: `EPSG:4326`). |
-| `metadata.metrics` | `list[dict]` | The metrics of the file: one row for each metric, and `length` first. A row has the `name` of the metric: small letters, digits and `_`, starting with a letter. It may have a `unit` and a `description`, as free text. The row of `length` has its `unit`: `km`, `m`, `mi` or `ft`. Each other row has `off_graph_weight_per_km`: the weight of 1 km of an off-graph leg in the metric, zero or more. |
+| `metadata.metrics` | `list[dict]` | The info of each metric of the file, `length` first: what describes the metric, without its weights. An info has the `name` of the metric: small letters, digits and `_`, starting with a letter. It may have a `unit` and a `description`, as free text. The info of `length` has its `unit`: `km`, `m`, `mi` or `ft`. Each other info has `off_graph_weight_per_km`: the weight of 1 km of an off-graph leg in the metric, zero or more. |
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. It is computed on `weights_length`. |
 | `metadata.node_order` | `str` | How the nodes are numbered. `"hilbert"`: along a 2D Hilbert space-filling curve. With several node modes, the nodes are grouped by node mode first, in the order of `metadata.node_modes`, then numbered along the curve within each node mode. A read of one node mode (`load_from_scgraph(node_modes=...)`) relies on this order. |
 | `metadata.node_modes` | `list[dict]` | The node modes of the network. Each node mode is a dict. `name` gives the name of the node mode. When a source gave the node ids of the node mode, `source` holds the name of that source in `sources`. A network with one node mode has no `node_mode_ids`: all its nodes are in that node mode. If that node mode has no name, the file has no `node_modes`. |
@@ -461,8 +461,8 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | :--- | :--- | :--- | :--- |
 | `offsets` | `int32` | $N + 1$ | For each node, the id of its first edge. The edges that leave node $u$ have the ids `offsets[u]` to `offsets[u+1] - 1`. |
 | `heads` | `int32` | $M$ | The destination node of each edge, from `0` to $N - 1$. |
-| `weights_length` | `float64` | $M$ | The length of each edge, in the unit of the row `length` of `metadata.metrics`. |
-| `weights_<name>` *(opt)* | `float64` | $M$ | One array for each other row of `metadata.metrics`: the weight of each edge in the metric `<name>`. The value is infinity for a closed edge. No value is below zero or not a number. |
+| `weights_length` | `float64` | $M$ | The length of each edge, in the unit that `metadata.metrics` gives for `length`. |
+| `weights_<name>` *(opt)* | `float64` | $M$ | One array for each other metric of `metadata.metrics`: the weight of each edge in the metric `<name>`. The value is infinity for a closed edge. No value is below zero or not a number. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | The shape of edge $e$ has the points of ids `shape_offsets[e]` to `shape_offsets[e+1] - 1` in `shape_points`. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior edge point, in the dtype of `node_points`. |
@@ -505,7 +505,7 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - the end of the array is inside the file.
 5. The file has all the arrays that the table does not mark *(opt)*. The file has both `shape_offsets` and `shape_points`, or neither. The arrays have the correct lengths:
    - `offsets` has $N + 1$ values. The first value is `0`, and the last value is $M$.
-   - The first row of `metadata.metrics` is `length`, with a `unit`. Each row has its array `weights_<name>`, and each such array has its row. Each of these arrays has $M$ values. Each row other than `length` has `off_graph_weight_per_km`.
+   - The first metric of `metadata.metrics` is `length`, with a `unit`. Each metric has its array `weights_<name>`, and each such array has its metric. Each of these arrays has $M$ values. Each metric other than `length` has `off_graph_weight_per_km`.
    - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
    - Each node has one point. If the file has `source_node_ids` or `node_mode_ids`, each node also has one id or one node mode.
    - If the file has `edge_class_ids`, each edge has one class id.
