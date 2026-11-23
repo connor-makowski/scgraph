@@ -818,7 +818,7 @@ class GeoGraphIO:
             arrays["weights_length"],
         )
         try:
-            graph = Graph.from_csr(*edge_arrays, copy=False)
+            graph = Graph.from_edge_arrays(*edge_arrays, copy=False)
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
@@ -1725,11 +1725,11 @@ def _order_by_hilbert(geograph):
     if Graph.__module__ == "scgraph.cpp":
         # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
         # the new graph keeps instead of copying them again
-        graph = Graph.from_csr(
+        graph = Graph.from_edge_arrays(
             *geograph.graph_object.get_edge_arrays(order), copy=False
         )
     else:
-        # Renumbered dicts, sharing the graph's weight objects (from_csr would not)
+        # Renumbered dicts, sharing the graph's weight objects (from_edge_arrays would not)
         rows = geograph.graph_object.unreduced_graph
         graph = [
             {new_id[head]: weight for head, weight in rows[old].items()}

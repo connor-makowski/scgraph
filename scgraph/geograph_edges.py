@@ -389,7 +389,7 @@ class GeoGraphEdges:
         if metric_record.graph_object is None:
             offsets, heads, _ = self._read_edge_arrays()
             # The graph reads the three arrays in place and keeps them alive
-            graph = Graph.from_csr(
+            graph = Graph.from_edge_arrays(
                 offsets, heads, metric_record.weights, copy=False
             )
             if self.graph_object.is_reduced is not None:
