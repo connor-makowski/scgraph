@@ -1,6 +1,6 @@
 # Your Own Graphs and Grids
 
-This guide shows how to route on your own data. It covers a graph without coordinates, a graph with coordinates, edits and merges of geographs, and a grid.
+This guide shows how to route on your own data: a graph without coordinates, a graph with coordinates, edits and merges of networks, and a grid.
 
 ## Custom Graph
 
@@ -26,7 +26,7 @@ print(output)  #=> {'path': [0, 2, 1, 3, 5], 'length': 10.0}
 graph.reduce(iterations=1)
 ```
 
-Nodes are numbered from zero. An edge has one direction: a two-way link is two edges. The routing guide lists the algorithms in [Choosing an Algorithm](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#choosing-an-algorithm). Each one is a method of `Graph`.
+Nodes are numbered from zero. An edge has one direction: a two-way link is two edges. Each algorithm of [Choosing an Algorithm](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#choosing-an-algorithm) is a method of `Graph`.
 
 The decorator `@Graph.algorithm` adds an algorithm of your own, which also runs on a reduced graph:
 
@@ -49,7 +49,7 @@ def custom_bidirectional_solver(self, origin_id: int | dict, destination_id: int
 
 ## Custom GeoGraph
 
-Use `GeoGraph` to attach a point to each node of your own graph. A point is a `[latitude, longitude]` pair. A query then takes any two points: each one is joined to its closest node.
+Use `GeoGraph` to attach a point to each node of your own graph. A **geograph** is a `GeoGraph` object, and a point is a `[latitude, longitude]` pair. A query takes any two points: each one snaps to its closest node.
 
 ```py
 from scgraph import GeoGraph
@@ -82,17 +82,18 @@ output = my_geograph.get_shortest_path(
 )
 print(output)
 # {'length': 1799.4323, 'coordinate_path': [[52.4862, -1.8904], [51.5074, -0.1278], [48.8566, 2.3522], [40.4168, -3.7038], [41.6488, -0.8891]]}
-# Birmingham and Zaragoza are off the graph. The path joins them to London and to Madrid, their closest nodes
+# Birmingham and Zaragoza are off the graph. They snap to London and to Madrid, their closest nodes
 ```
 
-**Classes of your own.**
+**Edge classes.**
 
 - The **class** of an edge is its category, such as `motorway`. A geograph holds 255 classes at most.
-- `edge_classes` gives the class of each edge, in the form of `graph`. An edge that is not in `edge_classes` has no class.
-- `classes` gives each class with its edge mode.
+- `edge_classes` has one dict for each node, like `graph`: the name of the class of each edge, by its destination. An edge that is not in it has no class.
+- `classes` has one dict for each class: its name and its edge mode.
 - The **edge mode** of a class is the kind of transport of its edges: `road`, `rail`, `sea` or `air`.
-- A **metric** gives each edge a weight other than its length, under a name, such as its hours.
+- A **metric** gives each edge a weight under a name, such as its hours.
 - A **weight per km** is the weight of 1 km of an edge in a metric.
+- An **off-graph leg** is the straight line from the origin or the destination of a query to its node. `off_graph` is its key in `weight_per_km`.
 
 A metric gives a weight per km to an edge mode, and another one to a class:
 
@@ -116,7 +117,7 @@ The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides
 
 ## Modifying a GeoGraph
 
-Add or remove nodes and edges of a geograph that is loaded:
+Add or remove nodes and edges of a geograph. `graph_object` is the `Graph` of a geograph, without the points. The **circuity** multiplies the straight-line distance to give the length of a new edge: `1.2` adds 20 %.
 
 ```py
 # Add a node at a point, and join it to the graph
@@ -133,9 +134,9 @@ my_geograph.graph_object.add_edge(origin_id=0, destination_id=5, distance=1850, 
 my_geograph.remove_coord_node()
 ```
 
-**An edit of the network removes its metrics: create them again after it.** An edit is a node or an edge that you add or remove, or a merge. A warning names the removed metrics once.
+**An edit of the network removes its metrics: create them again after it.** An edit is a node or an edge that you add or remove, or a merge.
 
-An edit on `graph_object` directly, as above, removes the metrics at the next call that reads them. Change the edges of `graph_object` only with `add_edge`, `remove_edge`, `add_node` and `remove_node`. After another change, `create_metric` and `save_as_scgraph` raise a `ValueError`.
+An edit on `graph_object`, as above, removes the metrics at the next call that reads them. Change the edges of `graph_object` only with `add_edge`, `remove_edge`, `add_node` and `remove_node`. If you change the edges in another way, `create_metric` and `save_as_scgraph` raise a `ValueError`.
 
 **The classes stay.** The methods `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take the keyword `edge_class`: a name of `geograph.classes`.
 
@@ -154,18 +155,18 @@ world_sea.create_metric("days", weight_per_km={"sea": 1 / 600, "off_graph": 1 / 
 |---|---|---|
 | A geograph method, with `edge_class` | That class | The weight of its class |
 | A geograph method, without `edge_class` | None: `edge_class` and `edge_mode` are `None` | The weight of `off_graph` |
-| `graph_object.add_edge`, in place of a loaded or added edge | The class of the replaced edge | The weight of its class |
+| `graph_object.add_edge`, between the two nodes of an existing edge | The class of the replaced edge | The weight of its class |
 | `graph_object.add_edge`, between two other nodes | None | The weight of `off_graph` |
 
-An **off-graph leg** is the straight line from the origin or the destination of a query to its node. An edge without a class has the weight per km of an off-graph leg. So a route can start at a node that you added.
+With this weight, a route by a metric can take an edge that you add without a class.
 
-`edge_weight_fn` receives `None` as the `edge_class` and the `edge_mode` of an edge without a class. The function must return a weight for this edge. To close the edge, give it `None` in `edge_weights`: see [Closing an Edge Mode, a Class or an Edge](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge).
+`edge_weight_fn` receives `None` as the `edge_class` and the `edge_mode` of an edge without a class. The function must return a weight for this edge. To close the edge, give it `None` in `edge_weights` ([time_cost_co2.md](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md#closing-an-edge-mode-a-class-or-an-edge)).
 
 The [modification notebook](https://colab.research.google.com/github/connor-makowski/scgraph/blob/main/examples/geograph_modifications.ipynb) has more examples.
 
 ## Merging Two GeoGraphs
 
-Use `merge_with_other_geograph` to join two networks, for example roads and railways, at the points where a route may change network:
+Use `merge_with_other_geograph` to join two networks at the points where a route may change network:
 
 ```py
 # New York City and Chicago by road; New York City, Chicago and Denver by rail
@@ -207,7 +208,7 @@ print(output)
 # {'length': 20.9704, 'coordinate_path': [[2, 10], [3, 9], ..., [18, 10]]}
 ```
 
-Without the wall, the direct path would have a length of 16. Around the wall, the shortest path has a length of 20.9704.
+The wall makes the path longer: 20.9704 in place of 16.
 
 `conn_data` replaces the 8 default moves of a cell by moves of your own:
 
