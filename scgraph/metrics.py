@@ -2,7 +2,8 @@
 
 This module is internal. `GeoGraph.create_metric` calls it. A geograph keeps one
 `Metric` record for each metric other than `length`, by name, in
-`GeoGraph._metrics`. The weights of `length` are the lengths of its graph.
+`GeoGraph._metrics`. The record of `length` has no weights: they are the lengths
+of its graph.
 
 WORDS
 
@@ -73,7 +74,8 @@ if TYPE_CHECKING:  # Only for an annotation
 
 @dataclass
 class Metric:
-    """A metric of a geograph other than `length`."""
+    """A metric of a geograph. The record of `length` is built on demand by
+    `GeoGraph._read_metric`, without reading the edges."""
 
     name: str
     # The unit of the weights as free text, such as `h` or `kg CO2e`, or None
@@ -81,8 +83,9 @@ class Metric:
     # Where the weights come from, as free text, or None
     description: str | None
     # The float64 weight of each edge, by edge id. Never changed in place: the
-    # graph of the metric reads this array.
-    weights: array | memoryview
+    # graph of the metric reads this array. None for `length`: its weights are
+    # the lengths of `graph_object`.
+    weights: array | memoryview | None
     # The weight of 1 km of an off-graph leg
     off_graph_weight_per_km: float
     # The result of `get_min_weight_per_length_unit`, at the first A* search.
@@ -101,14 +104,16 @@ class Metric:
         return {key: value for key, value in info.items() if value is not None}
 
     def get_min_weight_per_length_unit(
-        self, lengths: array | memoryview
+        self, read_lengths: Callable[[], array | memoryview]
     ) -> float:
         """Return the smallest weight of one unit of length: the weight of an edge
         divided by its length, over the open edges longer than zero. Return 0.0
         without such an edge. The total of a route of length `d` is at least `d`
         times this value, so an A* search by the metric multiplies its bound by it.
+        `read_lengths` returns the lengths; it is called at the first call only.
         """
         if self.min_weight_per_length_unit is None:
+            lengths = read_lengths()
             # `compress` removes the edges of length zero. The loops run in C.
             ratios = map(
                 truediv,
@@ -239,20 +244,15 @@ def resolve_weights_per_km(
 def compute_weights_from_weighted_sum(
     weighted_sum_of: dict[str, float],
     metrics: dict[str, Metric],
-    lengths: array | memoryview,
-    units_per_km: float,
 ) -> tuple[array | memoryview, float]:
     """Return the weights of a weighted sum of metrics, and the weight of 1 km of
     an off-graph leg in the sum. Each one is the sum of its value in each metric
     times the coefficient of the metric.
 
     Args:
-        weighted_sum_of: `{name of a metric: coefficient}`. `length` may be one of
-            the metrics.
-        metrics: The metrics of the geograph other than `length`, by name.
-        lengths: The weights of the metric `length`, in `geograph_units`.
-        units_per_km: 1 km in the unit of `lengths`: the weight of 1 km of an
-            off-graph leg in the metric `length`.
+        weighted_sum_of: `{name of a metric: coefficient}`.
+        metrics: The metrics of the geograph, `length` first, by name, each
+            with its weights.
 
     Raises:
         ValueError: The sum names no metric or an unknown metric, or a coefficient
@@ -260,10 +260,10 @@ def compute_weights_from_weighted_sum(
     """
     weights_of_metrics, off_graph_weight_per_km = [], 0.0
     for summed_name, coefficient in weighted_sum_of.items():
-        if summed_name != "length" and summed_name not in metrics:
+        if summed_name not in metrics:
             raise ValueError(
                 f"weighted_sum_of names the unknown metric {summed_name!r}: the "
-                f"metrics of this geograph are {['length', *metrics]}. An edit of "
+                f"metrics of this geograph are {list(metrics)}. An edit of "
                 "the network removes the metrics other than 'length'"
             )
         if not (isfinite(coefficient) and coefficient > 0):
@@ -271,14 +271,10 @@ def compute_weights_from_weighted_sum(
                 f"The coefficient of {summed_name!r} in weighted_sum_of must be "
                 f"a finite number above zero: got {coefficient!r}"
             )
-        if summed_name == "length":
-            weights_of_metrics.append(lengths)
-            off_graph_weight_per_km += coefficient * units_per_km
-        else:
-            weights_of_metrics.append(metrics[summed_name].weights)
-            off_graph_weight_per_km += (
-                coefficient * metrics[summed_name].off_graph_weight_per_km
-            )
+        weights_of_metrics.append(metrics[summed_name].weights)
+        off_graph_weight_per_km += (
+            coefficient * metrics[summed_name].off_graph_weight_per_km
+        )
     weights = compute_weighted_sum(
         weights_of_metrics, array("d", weighted_sum_of.values())
     )

@@ -6,7 +6,8 @@ arrays of the edges with the methods of `GeoGraphEdges`: a mixin calls a method 
 mixin through `self`.
 """
 
-from scgraph.utils import get_units_per_km
+from dataclasses import replace
+from scgraph.utils import earth_radius
 from scgraph.metrics import (
     Metric,
     parse_off_graph_weight_per_km,
@@ -52,8 +53,27 @@ class GeoGraphMetrics:
         return self._metrics
 
     def _read_metric(self, metric: str) -> Metric:
-        # Return the record of a metric other than `length`, as `_read_metrics`
-        # reads it.
+        # Return the record of a metric, as `_read_metrics` reads it. The record
+        # of `length` is built without a read of the edges.
+        if metric == "length":
+            record = self._length_metric
+            if (
+                record is None
+                or record.graph_object is not self.graph_object
+                or record.unit != self.geograph_units
+            ):
+                # 1 km of an off-graph leg in `geograph_units`, with the
+                # radius that `haversine` uses for these units
+                record = self._length_metric = Metric(
+                    "length",
+                    self.geograph_units,
+                    None,
+                    None,
+                    earth_radius.get(self.geograph_units, 6371) / 6371,
+                    min_weight_per_length_unit=1.0,
+                    graph_object=self.graph_object,
+                )
+            return record
         metrics = self._read_metrics()
         if metric not in metrics:
             raise ValueError(
@@ -258,10 +278,10 @@ class GeoGraphMetrics:
         `class_weight_per_km` and `weight_at_hub`) or by `weighted_sum_of`.
         `create_metric` has checked the arguments and the count of the edges."""
         offsets, heads, lengths = self._read_edge_arrays()
-        units_per_km = get_units_per_km(self.geograph_units)
         if weighted_sum_of is not None:
+            length = replace(self._read_metric("length"), weights=lengths)
             return compute_weights_from_weighted_sum(
-                weighted_sum_of, self._metrics, lengths, units_per_km
+                weighted_sum_of, {"length": length, **self._metrics}
             )
         edge_class_ids = self._read_edge_class_ids()
         if edge_class_ids is None:
@@ -319,8 +339,6 @@ class GeoGraphMetrics:
         """
         if metric is None:
             metric = self.default_metric
-        if metric == "length":
-            return self.graph_object
         metric_record = self._read_metric(metric)
         if metric_record.graph_object is None:
             offsets, heads, _ = self._read_edge_arrays()

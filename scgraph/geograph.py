@@ -220,6 +220,8 @@ class GeoGraph(
         # method reads them with `_read_metrics`: an edit of `graph_object`
         # removes them.
         self._metrics = {}
+        # The record of `length`, as `_read_metric("length")` last built it
+        self._length_metric = None
         # The offsets, the heads and the lengths of the edges of `graph_object`
         # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them. The id of an edge
         # is its position in the heads. The graph and its count of edits at that

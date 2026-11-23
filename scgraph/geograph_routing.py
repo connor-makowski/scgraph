@@ -10,7 +10,6 @@ from scgraph.utils import (
     distance_converter,
     cheap_ruler,
     get_lat_lon_bound_between_pts,
-    get_units_per_km,
     earth_radius,
     radians_per_degree,
 )
@@ -392,39 +391,17 @@ class GeoGraphUtils:
         origin = coordinate_path[0]
         destination = coordinate_path[-1]
 
+        off_graph_km = off_graph_circuity * self._get_off_graph_km(
+            path, origin, destination
+        )
+        total = (
+            self.get_graph_object(metric).get_path_weight(path)
+            + off_graph_km * self._read_metric(metric).off_graph_weight_per_km
+        )
         if metric != "length":
-            off_graph_km = off_graph_circuity * self._get_off_graph_km(
-                path, origin, destination
-            )
-            return (
-                self._get_path_total(path, metric)
-                + off_graph_km
-                * self._read_metric(metric).off_graph_weight_per_km
-            )
-        if len(path) == 0:
-            # Edge case: origin and destination map to the same graph node
-            total = haversine(
-                origin,
-                destination,
-                circuity=off_graph_circuity,
-                units=self.geograph_units,
-            )
-        else:
-            on_graph_weight = self.graph_object.get_path_weight(path)
-            origin_off = haversine(
-                origin,
-                self.nodes[path[0]],
-                circuity=off_graph_circuity,
-                units=self.geograph_units,
-            )
-            destination_off = haversine(
-                self.nodes[path[-1]],
-                destination,
-                circuity=off_graph_circuity,
-                units=self.geograph_units,
-            )
-            total = on_graph_weight + origin_off + destination_off
-
+            # Release 3.6.0 converts a length only: a total of another metric
+            # stays in the unit of the metric
+            return total
         return distance_converter(
             total,
             input_units=self.geograph_units,
@@ -530,11 +507,10 @@ class GeoGraphRouting:
 
     def _get_path_total(self, path: list[int], metric: str) -> float:
         # The total of a metric along the edges of a path. The metric may be
-        # `length`.
-        lengths = self._read_edge_arrays()[2]
-        weights = (
-            lengths if metric == "length" else self._read_metric(metric).weights
-        )
+        # `length`, whose record has no weights: they are the lengths.
+        weights = self._read_metric(metric).weights
+        if weights is None:
+            weights = self._read_edge_arrays()[2]
         return sum(
             weights[edge_id] for edge_id in self._find_path_edge_ids(path)
         )
@@ -975,13 +951,12 @@ class GeoGraphRouting:
         is_direct = direct_length <= min(
             min(origin_id.values()), min(destination_id.values())
         )
-        if metric != "length":
-            # In the search, the weight of an off-graph leg is its km times the
-            # weight of 1 km. The test above compares lengths: a metric whose
-            # off-graph legs have a weight of zero must not make every route direct.
-            direct_length, origin_id, destination_id = self._convert_to_metric(
-                metric, direct_length, origin_id, destination_id
-            )
+        # In the search, the weight of an off-graph leg is its km times the
+        # weight of 1 km. The test above compares lengths: a metric whose
+        # off-graph legs have a weight of zero must not make every route direct.
+        direct_length, origin_id, destination_id = self._convert_to_metric(
+            metric, direct_length, origin_id, destination_id
+        )
         if logger.isEnabledFor(logging.DEBUG):
             graph_object.reset_node_scans()
         if is_direct:
@@ -1081,7 +1056,6 @@ class GeoGraphRouting:
         of `metric`, for the argument `algorithm_fn` of `get_shortest_path`. The
         method sets in `algorithm_kwargs` what this function needs: the graph for
         a function of the caller, or the A* bound of the metric."""
-        is_metric_other_than_length = metric != "length"
         if callable(algorithm_fn):
             algorithm_kwargs["graph"] = graph_object.unreduced_graph
             return algorithm_fn
@@ -1107,13 +1081,13 @@ class GeoGraphRouting:
             # The built-in haversine heuristic is computed natively in the C++ build
             latitudes, longitudes = self._get_node_radians()
             algorithm_kwargs.pop("heuristic_fn")
-            radius = earth_radius.get(self.geograph_units, 6371)
-            if is_metric_other_than_length:
-                # The total of a route of the length d is at least d times
-                # `min_weight_per_length_unit`: the radius times it is the bound.
-                radius *= self._read_metric(
-                    metric
-                ).get_min_weight_per_length_unit(self._read_edge_arrays()[2])
+            # The total of a route of the length d is at least d times
+            # `min_weight_per_length_unit`: the radius times it is the bound.
+            radius = earth_radius.get(
+                self.geograph_units, 6371
+            ) * self._read_metric(metric).get_min_weight_per_length_unit(
+                lambda: self._read_edge_arrays()[2]
+            )
             return partial(
                 graph_object.a_star_great_circle,
                 latitudes=latitudes,
@@ -1122,20 +1096,20 @@ class GeoGraphRouting:
             )
         if not hasattr(graph_object, algorithm_fn):
             raise ValueError("algorithm_fn must be a string or callable")
-        if (
-            is_metric_other_than_length
-            and algorithm_fn == "a_star"
-            and heuristic_fn == cheap_ruler_of_scgraph
-        ):
+        if algorithm_fn == "a_star" and heuristic_fn == cheap_ruler_of_scgraph:
             # `cheap_ruler` gives a length. The bound of the metric is this
             # length times `min_weight_per_length_unit`, as for `haversine`.
             min_weight_per_length_unit = self._read_metric(
                 metric
-            ).get_min_weight_per_length_unit(self._read_edge_arrays()[2])
-            algorithm_kwargs["heuristic_fn"] = (
-                lambda origin_id, destination_id: min_weight_per_length_unit
-                * heuristic_fn(origin_id, destination_id)
+            ).get_min_weight_per_length_unit(
+                lambda: self._read_edge_arrays()[2]
             )
+            # A weight of 1 per length unit, as for `length`, keeps the function
+            if min_weight_per_length_unit != 1.0:
+                algorithm_kwargs["heuristic_fn"] = (
+                    lambda origin_id, destination_id: min_weight_per_length_unit
+                    * heuristic_fn(origin_id, destination_id)
+                )
         return getattr(graph_object, algorithm_fn)
 
     def _convert_to_metric(
@@ -1148,10 +1122,14 @@ class GeoGraphRouting:
         """Return the length of the direct line and the lengths from each query
         point to its nodes as weights of `metric`: in the search, the weight of
         an off-graph leg is its length times the weight of 1 length unit of an
-        off-graph leg in the metric."""
-        off_graph_weight_per_unit = self._read_metric(
-            metric
-        ).off_graph_weight_per_km / get_units_per_km(self.geograph_units)
+        off-graph leg in the metric. A weight of 1 per length unit, as for
+        `length`, returns the arguments without a copy."""
+        off_graph_weight_per_unit = (
+            self._read_metric(metric).off_graph_weight_per_km
+            / self._read_metric("length").off_graph_weight_per_km
+        )
+        if off_graph_weight_per_unit == 1.0:
+            return direct_length, origin_id, destination_id
         return (
             direct_length * off_graph_weight_per_unit,
             {
@@ -1183,6 +1161,7 @@ class GeoGraphRouting:
                 **algorithm_kwargs,
             )
         except PathNotFoundError as error:
+            # A search by length raises the error of release 3.6.0, with a note
             if metric != "length":
                 raise PathNotFoundError(
                     f"No route by the metric {metric!r} joins the two points. An "
@@ -1335,20 +1314,22 @@ class GeoGraphRouting:
         graph_object = self.get_graph_object(metric)
         if output_metric is None:
             output_metric = metric
-        if output_metric == "length":
-            dist_multiplier = distance_converter(
+        # Release 3.6.0 gives the lengths in `output_units`. A total of another
+        # metric stays in the unit of the metric.
+        dist_multiplier = (
+            distance_converter(
                 distance=1,
                 input_units=self.geograph_units,
                 output_units=output_units,
             )
-            off_graph_units, off_graph_weight_per_unit = output_units, 1
-        else:
-            # The total of a metric is not converted. The weight of an off-graph leg
-            # is its km times the weight of 1 km in the metric.
-            dist_multiplier, off_graph_units = 1, "km"
-            off_graph_weight_per_unit = self._read_metric(
-                output_metric
-            ).off_graph_weight_per_km
+            if output_metric == "length"
+            else 1
+        )
+        # The weight of an off-graph leg is its km times the weight of 1 km
+        off_graph_weight_per_km = (
+            self._read_metric(output_metric).off_graph_weight_per_km
+            * dist_multiplier
+        )
         snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
@@ -1362,9 +1343,8 @@ class GeoGraphRouting:
                     [node["latitude"], node["longitude"]],
                     self.nodes[node_idx],
                     circuity=off_graph_circuity,
-                    units=off_graph_units,  # Store directly as output units since this is a post processing step
                 )
-                * off_graph_weight_per_unit
+                * off_graph_weight_per_km
             )
             entry_idx_and_distance.append((node_idx, distance))
 
