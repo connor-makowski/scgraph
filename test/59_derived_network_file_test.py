@@ -214,7 +214,7 @@ def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
         parent_file,
         no_shapes_file,
         bbox=BBOX,
-        keep_shapes=False,
+        keep_intermediate_nodes=False,
         min_component_nodes=1,
     )
 

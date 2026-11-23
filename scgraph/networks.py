@@ -87,7 +87,7 @@ _RELEASE_URL = "https://github.com/connor-makowski/scgraph/releases/download"
 def fetch_released_file(
     name: str,
     tag: str | None,
-    shapes: bool,
+    load_intermediate_nodes: bool,
     content_sha256: str | None,
     cache_path: Path,
     local_files_only: bool,
@@ -95,7 +95,7 @@ def fetch_released_file(
     """Return the path, in the cache, of a network file of a network release. Download
     the file if the cache does not hold it.
 
-    Example: `name="europe"` and `shapes=False`, for the network release
+    Example: `name="europe"` and `load_intermediate_nodes=False`, for the network release
     `networks-2026.11.20`.
 
     1. The cache keeps the file as
@@ -119,7 +119,8 @@ def fetch_released_file(
     Args:
         name: The name of a network of `RELEASED_GEOGRAPHS`.
         tag: The tag of the network release, or None for `network_release.TAG`.
-        shapes: False for the file without the shapes of the edges.
+        load_intermediate_nodes: False for the file without the intermediate nodes
+            of the edges.
         content_sha256: The digest that the file must have, or None.
         cache_path: The cache directory.
         local_files_only: If True, the function never downloads.
@@ -136,7 +137,7 @@ def fetch_released_file(
             f"Invalid network_release '{tag}': a network release is named by its tag, "
             f"such as '{pinned_network_release.TAG}'"
         )
-    stem = name if shapes else f"{name}.no_shapes"
+    stem = name if load_intermediate_nodes else f"{name}.no_shapes"
     file = cache_path.joinpath("releases", tag, f"{stem}.scgraph")
     if not file.is_file():
         if local_files_only:
@@ -502,7 +503,7 @@ def _load_network(
         released_file = fetch_released_file(
             name=name,
             tag=network_release,
-            shapes=load_intermediate_nodes,
+            load_intermediate_nodes=load_intermediate_nodes,
             content_sha256=content_sha256,
             cache_path=cache_path,
             local_files_only=local_files_only,
