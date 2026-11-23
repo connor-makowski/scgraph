@@ -137,7 +137,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     to other networks.
 
     The nodes and the edges are those of the GeoGraph that `build` returns, with
-    the nodes in the same order. The edges of a node are sorted by head.
+    the nodes in the same order. The edges of a node are sorted by destination id.
 
     Args:
         files: The path of the downloaded file of the source `sea_lanes`.
@@ -153,20 +153,22 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         ]
         for edge in sea.get_edges()
     }
-    offsets, heads, weights = (
+    node_first_edge_ids, edge_destination_ids, weights = (
         step3_network_assembly.build_csr_from_adjacency_list(
             sea.graph_object.graph
         )
     )
     return {
-        "offsets": offsets,
-        "heads": heads,
+        "node_first_edge_ids": node_first_edge_ids,
+        "edge_destination_ids": edge_destination_ids,
         "weights_length": weights,
         "node_points": array(
             "i",
             (x for point in sea.nodes for x in _convert_to_e7_degrees(point)),
         ),
-        "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
+        "edge_first_shape_point_ids": array(
+            "i", bytes(4 * (len(edge_destination_ids) + 1))
+        ),
         "shape_points": array("i"),
         "source_node_ids": array("q", sea.source_node_ids),
         "edge_class_ids": array(
@@ -174,7 +176,9 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
             (
                 class_id_of_edge[u, v]
                 for u in range(len(sea.nodes))
-                for v in heads[offsets[u] : offsets[u + 1]]
+                for v in edge_destination_ids[
+                    node_first_edge_ids[u] : node_first_edge_ids[u + 1]
+                ]
             ),
         ),
     }

@@ -101,16 +101,16 @@ A Python dictionary per node takes much memory on a large network, and its entri
 In the C++ extension, [`CsrGraph`](scgraph/cpp/src/csr_graph.hpp) stores the same graph in **three arrays**:
 
 ```
-Node IDs:      0         1      2   3
-Offsets:     [ 0,        2,     3,  4,  4 ]  (length: n + 1)
-               │         │      │   │   │
-               └──┬───┘  └──┬─┘ └─┬─┘ └─┴─ (Node 3 has 0 edges: 4 - 4 = 0)
-                  ▼         ▼     ▼
-Heads:       [ 1,   2,     2,     0   ]      (length: m = total edges)
-Weights:     [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
+Node IDs:                      0         1      2   3
+First edge ids:  [ 0,        2,     3,  4,  4 ]  (length: n + 1)
+                   │         │      │   │   │
+                   └──┬───┘  └──┬─┘ └─┬─┘ └─┴─ (Node 3 has 0 edges: 4 - 4 = 0)
+                      ▼         ▼     ▼
+Destination ids: [ 1,   2,     2,     0   ]      (length: m = total edges)
+Weights:         [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 ```
 
-* **Reading the edges of a node**: The edges of node `u` are at the positions `offsets_[u]` to `offsets_[u + 1] - 1` of `heads_` and `weights_`.
+* **Reading the edges of a node**: The edges of node `u` are at the positions `node_first_edge_ids_[u]` to `node_first_edge_ids_[u + 1] - 1` of `edge_destination_ids_` and `weights_`.
 * **Mapped files (`mmap`)**: When scgraph opens a `.scgraph` network file, `CsrGraph` reads the arrays in the mapped file. It makes no copy.
 * **Edits**:
   * A CSR array is not edited in place. `add_node`, `add_edge` and `remove_edge` record their changes in a hash map (`RowEdits`).
@@ -130,10 +130,10 @@ A `GeoGraph` adds these attributes to its `Graph`:
 
 A `GeoGraph` also holds the class of each edge and the metrics of the network. `scgraph/edge_classes.py` holds the class of each edge, and finds it by the two nodes of the edge. `scgraph/metrics.py` holds the record of a metric, and computes its weights. `scgraph/geograph.py` holds the constructor, the properties and the validation of nodes. `scgraph/geograph_edges.py` holds the code that reads the classes, the metrics and the edges. `scgraph/geograph_routing.py` holds the queries, their totals and their legs. `scgraph/geograph_edits.py` holds the edits of the network, and `scgraph/geograph_files.py` holds the loaders and savers. The docstring of each of the first two modules gives an example with real values.
 
-* **The edges and their ids**: `graph_object.get_edge_arrays()` gives the edges by origin, in three arrays: `offsets`, `heads` and the lengths. The id of an edge is its position in `heads`. An array is by edge id when its value at the position `i` belongs to the edge of id `i`.
+* **The edges and their ids**: `graph_object.get_edge_arrays()` gives the edges by origin, in three arrays: `node_first_edge_ids`, `edge_destination_ids` and the lengths. The id of an edge is its position in `edge_destination_ids`. An array is by edge id when its value at the position `i` belongs to the edge of id `i`.
 * **The classes**: `classes` gives the rows `{"name", "edge_mode"}` of the classes. The geograph finds the class of an edge by its two nodes. For a network file and for the weights per km of `create_metric`, it computes a `uint8` array by edge id: the id of the class of each edge, its position in `classes`. The id 255 is the id of no class, so a geograph holds 255 classes at most. The geograph keeps this array beside the arrays of the edges. A loader gives the classes, or the arguments `classes` and `edge_classes` of the constructor. `classes` gives the rows. `edge_classes` gives, for each node, a dict from the destination of an edge to the name of its class, as `intermediate_nodes`. Without them, a geograph made from a list of dictionaries has no classes.
 * **The metrics**: The geograph keeps its metrics in a dict by name. Each metric other than `length` is one record. The record holds a `float64` array of weights by edge id, and the weight per km of the off-graph legs (`off_graph_weight_per_km`). The weights of `length` are those of `graph_object`. `default_metric` names the metric of a query that names no metric. It is `length`, until a loader or the caller sets it: `load_from_osmnx_graph` sets it to `travel_time` with `weight_key="travel_time"`, and the `length` of this geograph is still in km. A query raises a `ValueError` while the geograph lacks its default metric, for example after an edit.
-* **One `Graph` for each metric**: `get_graph_object(metric)` returns `graph_object` for `length`. For another metric, it builds a `Graph` from `offsets`, `heads` and the weights of the metric, at the first query by this metric. In the C++ build, the graphs of all the metrics share `offsets` and `heads`. A search called on the graph of a metric returns the total of the metric under the key `length`.
+* **One `Graph` for each metric**: `get_graph_object(metric)` returns `graph_object` for `length`. For another metric, it builds a `Graph` from `node_first_edge_ids`, `edge_destination_ids` and the weights of the metric, at the first query by this metric. In the C++ build, the graphs of all the metrics share `node_first_edge_ids` and `edge_destination_ids`. A search called on the graph of a metric returns the total of the metric under the key `length`.
 
 **The weights of a metric.** `create_metric` computes the weights once, at the call, in one of three ways: from weights per km, as a weighted sum, or with a function of an edge. The first two ways have a kernel each: `compute_weights_from_km` and `compute_weighted_sum`. Each kernel has a C++ version (`scgraph/cpp/src/metric_weights.hpp`) and a pure-Python version (`scgraph/helpers/metric_weights.py`). An edge without a class has the class id 255. `create_metric` gives this id the weight per km of the off-graph legs and no weight at a hub, so `compute_weights_from_km` gives such an edge the weight of an off-graph leg: its km times `off_graph_weight_per_km`. No metric depends on another. A weighted sum keeps the weights of its creation, and the caller creates it again to update it.
 
@@ -258,9 +258,9 @@ flowchart TD
 ### Static CSR Contraction (`step3_network_assembly.contract_chains`)
 
 `contract_chains` works on the CSR arrays of a build:
-* It takes `(offsets, heads, weights, node_mode_ids, max_km_between_nodes, edge_class_ids)` and returns a `ContractedGraph` namedtuple:
+* It takes `(node_first_edge_ids, edge_destination_ids, weights, node_mode_ids, max_km_between_nodes, edge_class_ids)` and returns a `ContractedGraph` namedtuple:
   * `kept`: the ids of the kept nodes.
-  * `origins`, `heads`, `weights`: the contracted edges.
+  * `origins`, `edge_destination_ids`, `weights`: the contracted edges.
   * `member_offsets`, `members`: the ids of the input edges that each contracted edge replaces.
 * `node_mode_ids` is optional. A chain is never contracted across two node modes.
 * `edge_class_ids` is optional: the class of each edge. The header of `step3_network_assembly.py` gives its rule.
@@ -337,7 +337,7 @@ flowchart TD
 | :--- | :--- | :--- |
 | The snapping index of every node (`snap_index`), and the coordinates in radians | At the load of a network file, or at the first snap | When the nodes change: `add_coord_node`, `remove_node`, `remove_coord_node`, `merge_with_other_geograph` |
 | One snapping index for each node mode | At the first query that snaps to this node mode | With `snap_index` |
-| The edges (`offsets`, `heads`, lengths) | At the first read of an edge or of a metric | At the first read after an edit of `graph_object` (section 2, *Classes and Metrics*) |
+| The edges (`node_first_edge_ids`, `edge_destination_ids`, lengths) | At the first read of an edge or of a metric | At the first read after an edit of `graph_object` (section 2, *Classes and Metrics*) |
 | The id of the class of each edge, by edge id | At the load of a network file with classes. After an edit, at the first call that needs the array: `create_metric` from weights per km, or `save_as_scgraph` | With the edges |
 | The `Graph` of each metric other than `length`, with its reduced graph, its trees and its hierarchies | At the first query by this metric | With its metric: at an edit of the network, at `remove_metric`, and when `create_metric` makes this metric again |
 
@@ -389,8 +389,8 @@ The header contains top-level structural fields and a nested `metadata` dictiona
 {
   "format_version": 1,
   "arrays": {
-    "offsets": {"dtype": "int32", "shape": [10001], "offset": 0},
-    "heads": {"dtype": "int32", "shape": [25000], "offset": 40064},
+    "node_first_edge_ids": {"dtype": "int32", "shape": [10001], "offset": 0},
+    "edge_destination_ids": {"dtype": "int32", "shape": [25000], "offset": 40064},
     "weights_length": {"dtype": "float64", "shape": [25000], "offset": 140096},
     "node_points": {"dtype": "int32", "shape": [10000, 2], "offset": 340096}
   },
@@ -458,12 +458,12 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 
 | Array Name | Data Type | Dimensions | Description |
 | :--- | :--- | :--- | :--- |
-| `offsets` | `int32` | $N + 1$ | For each node, the id of its first edge. The edges that leave node $u$ have the ids `offsets[u]` to `offsets[u+1] - 1`. |
-| `heads` | `int32` | $M$ | The destination node of each edge, from `0` to $N - 1$. |
+| `node_first_edge_ids` | `int32` | $N + 1$ | For each node, the id of its first edge. The edges that leave node $u$ have the ids `node_first_edge_ids[u]` to `node_first_edge_ids[u+1] - 1`. |
+| `edge_destination_ids` | `int32` | $M$ | The destination node id of each edge, from `0` to $N - 1$. |
 | `weights_length` | `float64` | $M$ | The length of each edge, in the unit that `metadata.metrics` gives for `length`. |
 | `weights_<name>` *(opt)* | `float64` | $M$ | One array for each other metric of `metadata.metrics`: the weight of each edge in the metric `<name>`. The value is infinity for a closed edge. No value is below zero or not a number. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
-| `shape_offsets` *(opt)* | `int32` | $M + 1$ | The shape of edge $e$ has the points of ids `shape_offsets[e]` to `shape_offsets[e+1] - 1` in `shape_points`. |
+| `edge_first_shape_point_ids` *(opt)* | `int32` | $M + 1$ | The shape of edge $e$ has the points of ids `edge_first_shape_point_ids[e]` to `edge_first_shape_point_ids[e+1] - 1` in `shape_points`. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior edge point, in the dtype of `node_points`. |
 | `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). A node that the build adds has an id below zero. No two nodes of one node mode have the same id. |
 | `node_mode_ids` *(opt)* | `uint8` | $N$ | The node mode of each node: the position of its node mode in `metadata.node_modes`, counted from 0. Each node has one node mode, so the value is a position, not a set of bits. A file has at most 256 node modes. |
@@ -502,24 +502,24 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - the offset is zero or more;
    - the start of the array is a multiple of 64 bytes;
    - the end of the array is inside the file.
-5. The file has all the arrays that the table does not mark *(opt)*. The file has both `shape_offsets` and `shape_points`, or neither. The arrays have the correct lengths:
-   - `offsets` has $N + 1$ values. The first value is `0`, and the last value is $M$.
+5. The file has all the arrays that the table does not mark *(opt)*. The file has both `edge_first_shape_point_ids` and `shape_points`, or neither. The arrays have the correct lengths:
+   - `node_first_edge_ids` has $N + 1$ values. The first value is `0`, and the last value is $M$.
    - The first metric of `metadata.metrics` is `length`, with a `unit`. Each metric has its array `weights_<name>`, and each such array has its metric. Each of these arrays has $M$ values. Each metric other than `length` has `off_graph_weight_per_km`.
-   - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
+   - If the file has `edge_first_shape_point_ids`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
    - Each node has one point. If the file has `source_node_ids` or `node_mode_ids`, each node also has one id or one node mode.
    - If the file has `edge_class_ids`, each edge has one class id.
 
    `node_points` and `shape_points` have the same dtype. If the file has `node_mode_ids`, `metadata.node_modes` is a list. If the file has `edge_class_ids`, `metadata.classes` is a list of 255 rows at most, each with a `name` and an `edge_mode`.
 6. If `read` copies the arrays into memory, it also checks each value:
-   - the values of `offsets` do not decrease;
-   - each head is a node;
-   - the values of `shape_offsets` do not decrease;
+   - the values of `node_first_edge_ids` do not decrease;
+   - each destination id is a node;
+   - the values of `edge_first_shape_point_ids` do not decrease;
    - each value of `node_mode_ids` is the position of a row of `metadata.node_modes`;
    - each value of `edge_class_ids` is the position of a row of `metadata.classes`, or 255.
 
-   `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer. In the C++ build, `load_from_scgraph` always maps the file. A mapped read does not check the values. The C++ graph checks the offsets and the heads when it is built.
+   `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer. In the C++ build, `load_from_scgraph` always maps the file. A mapped read does not check the values. The C++ graph checks `node_first_edge_ids` and `edge_destination_ids` when it is built.
 
-If `read` gets `node_modes`, it keeps only the nodes of these node modes and the edges between them. It first checks that each name is in `metadata.node_modes`. The function `select_edges` then visits each edge of the kept nodes once. `scgraph/cpp/src/edge_selection.hpp` explains this function, and `scgraph/helpers/edge_selection.py` is its pure-Python version. `select_edges` checks each value that it reads, as step 6 does, and it checks that the values of `node_mode_ids` do not decrease. It writes new `offsets`, `heads` and `shape_offsets`, because their values change. Every other array keeps its values. A mapped read takes these values in place when they are consecutive in the file, and copies them otherwise. Each kept edge keeps its class and its weight in each metric. `metadata.classes` stays the whole list.
+If `read` gets `node_modes`, it keeps only the nodes of these node modes and the edges between them. It first checks that each name is in `metadata.node_modes`. The function `select_edges` then visits each edge of the kept nodes once. `scgraph/cpp/src/edge_selection.hpp` explains this function, and `scgraph/helpers/edge_selection.py` is its pure-Python version. `select_edges` checks each value that it reads, as step 6 does, and it checks that the values of `node_mode_ids` do not decrease. It writes new `node_first_edge_ids`, `edge_destination_ids` and `edge_first_shape_point_ids`, because their values change. Every other array keeps its values. A mapped read takes these values in place when they are consecutive in the file, and copies them otherwise. Each kept edge keeps its class and its weight in each metric. `metadata.classes` stays the whole list.
 
 `read` does not check the values of the weights. `create_metric` refuses a weight below zero or not a number.
 

@@ -154,13 +154,18 @@ def test_a_route_of_a_derived_file_has_its_length_in_the_parent_file(bbox_file):
 def _name_each_edge(arrays):
     """A name for each edge of the arrays of a network, in the order of the
     edges: "1-2" for the edge from node 1 to node 2."""
-    ids, offsets, heads = (
-        arrays[name] for name in ("source_node_ids", "offsets", "heads")
+    ids, node_first_edge_ids, edge_destination_ids = (
+        arrays[name]
+        for name in (
+            "source_node_ids",
+            "node_first_edge_ids",
+            "edge_destination_ids",
+        )
     )
     return [
-        f"{ids[u]}-{ids[heads[edge]]}"
+        f"{ids[u]}-{ids[edge_destination_ids[edge]]}"
         for u in range(len(ids))
-        for edge in range(offsets[u], offsets[u + 1])
+        for edge in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
     ]
 
 

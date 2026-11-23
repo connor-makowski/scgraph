@@ -748,7 +748,9 @@ def test_the_file_of_a_pipeline_with_its_own_classes_table_names_those_classes(
 ):
     def build_canals(files):
         arrays = eurostat_sea_lanes.build_sea_lane_arrays(files)
-        arrays["edge_class_ids"] = array("B", bytes(len(arrays["heads"])))
+        arrays["edge_class_ids"] = array(
+            "B", bytes(len(arrays["edge_destination_ids"]))
+        )
         return arrays, [{"name": None}]
 
     pipeline = _lines_pipeline(source, build=build_canals)
@@ -1142,13 +1144,16 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
     )
     graph = step3_network_assembly.build_graph_from_pieces(pieces["road"])
 
-    ids, offsets = graph["source_node_ids"], graph["offsets"]
+    ids, node_first_edge_ids = (
+        graph["source_node_ids"],
+        graph["node_first_edge_ids"],
+    )
     class_names = {
-        (ids[u], ids[graph["heads"][edge]]): list(pipelines.CLASSES)[
-            graph["edge_class_ids"][edge]
-        ]
+        (ids[u], ids[graph["edge_destination_ids"][edge]]): list(
+            pipelines.CLASSES
+        )[graph["edge_class_ids"][edge]]
         for u in range(len(ids))
-        for edge in range(offsets[u], offsets[u + 1])
+        for edge in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
     }
     # Road 1 joins the nodes 1 and 2. Ferry 3 joins the nodes 2 and 3. The
     # shuttle train 7 joins the nodes 5 and 1.
@@ -1468,8 +1473,13 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
     ]
     classes = {}  # the modes of the two ends of an edge -> the classes found
     for u, mode in enumerate(node_modes):
-        for edge in range(arrays["offsets"][u], arrays["offsets"][u + 1]):
-            ends = tuple(sorted((mode, node_modes[arrays["heads"][edge]])))
+        for edge in range(
+            arrays["node_first_edge_ids"][u],
+            arrays["node_first_edge_ids"][u + 1],
+        ):
+            ends = tuple(
+                sorted((mode, node_modes[arrays["edge_destination_ids"][edge]]))
+            )
             class_row = metadata["classes"][arrays["edge_class_ids"][edge]]
             classes.setdefault(ends, set()).add(class_row["name"])
     assert classes == {
@@ -1534,11 +1544,13 @@ def test_the_edges_of_a_lane_of_a_passage_have_the_class_of_the_passage(
 
     latitudes = [round(value * 1e-7) for value in sea["node_points"][0::2]]
     classes = {
-        (latitudes[u], latitudes[sea["heads"][edge]]): list(pipelines.CLASSES)[
-            sea["edge_class_ids"][edge]
-        ]
+        (latitudes[u], latitudes[sea["edge_destination_ids"][edge]]): list(
+            pipelines.CLASSES
+        )[sea["edge_class_ids"][edge]]
         for u in range(len(latitudes))
-        for edge in range(sea["offsets"][u], sea["offsets"][u + 1])
+        for edge in range(
+            sea["node_first_edge_ids"][u], sea["node_first_edge_ids"][u + 1]
+        )
     }
     assert classes == {
         (30, 31): "suez",

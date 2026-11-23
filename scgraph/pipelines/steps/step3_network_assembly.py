@@ -9,10 +9,10 @@ two nodes of the same kept component has the same length before and after `assem
 HOW A GRAPH IS STORED
 
 A graph is a dict of arrays, with the names of the network file. Node `u` has the edges
-`offsets[u]` to `offsets[u + 1] - 1`. Edge `a` goes to node `heads[a]` and is
+`node_first_edge_ids[u]` to `node_first_edge_ids[u + 1] - 1`. Edge `a` goes to node `edge_destination_ids[a]` and is
 `weights_length[a]` km long. `node_points` holds the latitude, then the longitude of each
 node, in units of 1e-7 degree. The shape points of edge `a` are
-`shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `source_node_ids` holds
+`shape_points[2 * edge_first_shape_point_ids[a]:2 * edge_first_shape_point_ids[a + 1]]`. `source_node_ids` holds
 the id of each node in its source. A node that step 1 adds has an id below zero.
 The node mode of a node is the kind of place where the node is, such as `port`.
 `node_mode_ids` holds the node mode id of each node, in a graph of several node modes.
@@ -21,7 +21,7 @@ The node mode of a node is the kind of place where the node is, such as `port`.
 table (`scgraph.pipelines.CLASSES`).
 
 Example: two nodes joined both ways by a trunk road of 1.5 km give
-`offsets = [0, 1, 2]`, `heads = [1, 0]` and `weights_length = [1.5, 1.5]`. `trunk` has
+`node_first_edge_ids = [0, 1, 2]`, `edge_destination_ids = [1, 0]` and `weights_length = [1.5, 1.5]`. `trunk` has
 the id 2 in the classes table, so `edge_class_ids = [2, 2]`.
 
 HOW A RUN GOES
@@ -201,16 +201,20 @@ def build_csr_from_edges_python(
     rows = [[] for _ in source_node_ids]
     for (origin, destination), i in best.items():
         rows[position[origin]].append((position[destination], i))
-    offsets, heads, kept = array("i", [0]), array("i"), array("i")
+    node_first_edge_ids, edge_destination_ids, kept = (
+        array("i", [0]),
+        array("i"),
+        array("i"),
+    )
     for row in rows:
-        for head, i in sorted(row):
-            heads.append(head)
+        for destination_id, i in sorted(row):
+            edge_destination_ids.append(destination_id)
             kept.append(i)
-        offsets.append(len(heads))
+        node_first_edge_ids.append(len(edge_destination_ids))
     return (
         source_node_ids,
-        offsets,
-        heads,
+        node_first_edge_ids,
+        edge_destination_ids,
         array("d", (weights[i] for i in kept)),
         kept,
         array("i", parallel_edges),
@@ -240,11 +244,11 @@ def build_csr_from_edges(
             without classes.
 
     Returns:
-        `(source_node_ids, offsets, heads, weights, kept, parallel_edges)`.
+        `(source_node_ids, node_first_edge_ids, edge_destination_ids, weights, kept, parallel_edges)`.
         `source_node_ids` (int64) lists the ids of the ends, sorted, each once. Node `u`
         is the id at position `u`. The edges of node `u` are
-        `heads[offsets[u]:offsets[u + 1]]` (int32),
-        sorted by head, with their `weights`. `kept[a]` (int32) is the input index of
+        `edge_destination_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]]` (int32),
+        sorted by destination id, with their `weights`. `kept[a]` (int32) is the input index of
         edge `a`: the caller finds the shape of the edge with it. The function drops an
         edge from a node to itself, and an id that has only such edges gives no node.
         Of several edges between the same two nodes, the function keeps the shortest,
@@ -270,7 +274,7 @@ class ContractedGraph(NamedTuple):
     Attributes:
         kept: The nodes of the input graph that stay, in rising order.
         origins: The origin of each contracted edge, as a position in `kept`.
-        heads: The head of each contracted edge, as a position in `kept`.
+        edge_destination_ids: The destination id of each contracted edge, as a position in `kept`.
         weights: The length of each contracted edge in km: the sum of its members.
         member_offsets: Where the members of each contracted edge start in `members`.
         members: The edges of the input graph that each contracted edge replaces, in
@@ -280,33 +284,47 @@ class ContractedGraph(NamedTuple):
 
     kept: array | memoryview
     origins: array | memoryview
-    heads: array | memoryview
+    edge_destination_ids: array | memoryview
     weights: array | memoryview
     member_offsets: array | memoryview
     members: array | memoryview
 
 
 def contract_chains_python(
-    offsets: Sequence[int],
-    heads: Sequence[int],
+    node_first_edge_ids: Sequence[int],
+    edge_destination_ids: Sequence[int],
     weights: Sequence[int | float],
     node_mode_ids: Sequence[int] | None = None,
     max_km_between_nodes: float = math.inf,
     edge_class_ids: Sequence[int] | None = None,
 ) -> ContractedGraph:
     """Pure-Python version of `contract_chains`."""
-    n = len(offsets) - 1
+    n = len(node_first_edge_ids) - 1
     if (
-        len(weights) != len(heads)
+        len(weights) != len(edge_destination_ids)
         or (node_mode_ids is not None and len(node_mode_ids) != n)
-        or (edge_class_ids is not None and len(edge_class_ids) != len(heads))
+        or (
+            edge_class_ids is not None
+            and len(edge_class_ids) != len(edge_destination_ids)
+        )
     ):
         raise ValueError(
             "expected one weight and one class per edge, and one node mode per node"
         )
-    if n < 0 or offsets[n] != len(heads) or not is_sorted_from_zero(offsets):
-        raise ValueError("offsets must rise from 0 to the number of items")
-    rows = [heads[offsets[u] : offsets[u + 1]] for u in range(n)]
+    if (
+        n < 0
+        or node_first_edge_ids[n] != len(edge_destination_ids)
+        or not is_sorted_from_zero(node_first_edge_ids)
+    ):
+        raise ValueError(
+            "node_first_edge_ids must rise from 0 to the number of items"
+        )
+    rows = [
+        edge_destination_ids[
+            node_first_edge_ids[u] : node_first_edge_ids[u + 1]
+        ]
+        for u in range(n)
+    ]
     ins = [[] for _ in range(n)]
     for u, row in enumerate(rows):
         if any(
@@ -333,19 +351,21 @@ def contract_chains_python(
     def has_one_class(v, inn):
         # The edges that leave v, then the edge that enters v from each node of inn
         edges = [
-            *range(offsets[v], offsets[v + 1]),
-            *(offsets[u] + bisect_left(rows[u], v) for u in inn),
+            *range(node_first_edge_ids[v], node_first_edge_ids[v + 1]),
+            *(node_first_edge_ids[u] + bisect_left(rows[u], v) for u in inn),
         ]
         return len({edge_class_ids[a] for a in edges}) == 1
 
     def contract(s, a):
         nodes, path = [s], [a]  # walk to the next kept node
-        while not keep[heads[path[-1]]]:
-            v = heads[path[-1]]
+        while not keep[edge_destination_ids[path[-1]]]:
+            v = edge_destination_ids[path[-1]]
             row, seen[v] = rows[v], True
             nodes.append(v)
-            path.append(offsets[v] + (len(row) == 2 and row[0] == nodes[-2]))
-        nodes.append(heads[path[-1]])
+            path.append(
+                node_first_edge_ids[v] + (len(row) == 2 and row[0] == nodes[-2])
+            )
+        nodes.append(edge_destination_ids[path[-1]])
         # Cut where the length from the canonical end reaches max_km_between_nodes
         pieces, start, total = [], 0, 0.0
         for i in range(1, len(path) + 1):
@@ -364,7 +384,7 @@ def contract_chains_python(
             emit(b, e, path[i:j], path[i:j])
             if both:
                 back = [
-                    offsets[nodes[k + 1]]
+                    node_first_edge_ids[nodes[k + 1]]
                     + bisect_left(rows[nodes[k + 1]], nodes[k])
                     for k in range(i, j)
                 ]
@@ -383,20 +403,24 @@ def contract_chains_python(
     chain = [through(v) for v in range(n)]
     keep, seen = [not c for c in chain], [False] * n
     edges = [
-        (u, heads[a], weights[a], [a])
+        (u, edge_destination_ids[a], weights[a], [a])
         for u in range(n)
-        for a in range(offsets[u], offsets[u + 1])
-        if keep[u] and keep[heads[a]]
+        for a in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
+        if keep[u] and keep[edge_destination_ids[a]]
     ]
-    pairs = set()  # (origin, head) of the edges made by contraction
+    pairs = set()  # (origin, destination id) of the edges made by contraction
     for s in range(n):
-        for a in range(offsets[s], offsets[s + 1]):
-            if not chain[s] and chain[heads[a]] and not seen[heads[a]]:
+        for a in range(node_first_edge_ids[s], node_first_edge_ids[s + 1]):
+            if (
+                not chain[s]
+                and chain[edge_destination_ids[a]]
+                and not seen[edge_destination_ids[a]]
+            ):
                 contract(s, a)
     for v in range(n):
         if chain[v] and not seen[v]:
             keep[v] = seen[v] = True
-            contract(v, offsets[v])
+            contract(v, node_first_edge_ids[v])
     kept = array("i", (v for v in range(n) if keep[v]))
     position = {v: i for i, v in enumerate(kept)}
     edges.sort(key=lambda edge_: edge_[:2])
@@ -411,8 +435,8 @@ def contract_chains_python(
 
 
 def contract_chains(
-    offsets: array | memoryview,
-    heads: array | memoryview,
+    node_first_edge_ids: array | memoryview,
+    edge_destination_ids: array | memoryview,
     weights: array | memoryview,
     node_mode_ids: array | memoryview | None = None,
     max_km_between_nodes: float = math.inf,
@@ -427,8 +451,9 @@ def contract_chains(
     pass-through nodes is walked from its lowest node, which is kept.
 
     Args:
-        offsets: The CSR offsets of the graph, one more than its nodes (int32).
-        heads: The head of each edge (int32).
+        node_first_edge_ids: For each node, the id of its first edge, and one more
+            value at the end: the count of the edges (int32).
+        edge_destination_ids: The destination id of each edge (int32).
         weights: The length of each edge in km (float64).
         node_mode_ids: The node mode of each node (uint8), or None. A chain is never
             contracted across two node modes.
@@ -441,12 +466,12 @@ def contract_chains(
         A `ContractedGraph`.
     """
     if _cpp_contract_chains is not None and isinstance(
-        offsets, (array, memoryview)
+        node_first_edge_ids, (array, memoryview)
     ):
         return ContractedGraph(
             *_cpp_contract_chains(
-                offsets,
-                heads,
+                node_first_edge_ids,
+                edge_destination_ids,
                 weights,
                 node_mode_ids,
                 max_km_between_nodes,
@@ -454,8 +479,8 @@ def contract_chains(
             )
         )
     return contract_chains_python(
-        offsets,
-        heads,
+        node_first_edge_ids,
+        edge_destination_ids,
         weights,
         node_mode_ids=node_mode_ids,
         max_km_between_nodes=max_km_between_nodes,
@@ -465,7 +490,7 @@ def contract_chains(
 
 def simplify_shapes(
     shape_points: array | memoryview,
-    shape_offsets: array | memoryview,
+    edge_first_shape_point_ids: array | memoryview,
     endpoint_coords: array | memoryview,
     tolerance_meters: float,
 ) -> tuple[array | memoryview, array | memoryview]:
@@ -476,22 +501,28 @@ def simplify_shapes(
 
     Args:
         shape_points: The shape points of all the edges (int32 pairs, 1e-7 degree).
-        shape_offsets: Where the points of each edge start.
+        edge_first_shape_point_ids: Where the points of each edge start.
         endpoint_coords: The latitude and the longitude of the two ends of each edge
             (int32, four values per edge).
         tolerance_meters: The tolerance, in meters.
 
     Returns:
-        `(shape_points, shape_offsets)` of the simplified shapes.
+        `(shape_points, edge_first_shape_point_ids)` of the simplified shapes.
     """
     if _cpp_simplify_shapes is not None and isinstance(
         shape_points, (array, memoryview)
     ):
         return _cpp_simplify_shapes(
-            shape_points, shape_offsets, endpoint_coords, tolerance_meters
+            shape_points,
+            edge_first_shape_point_ids,
+            endpoint_coords,
+            tolerance_meters,
         )
     return simplify_shapes_python(
-        shape_points, shape_offsets, endpoint_coords, tolerance_meters
+        shape_points,
+        edge_first_shape_point_ids,
+        endpoint_coords,
+        tolerance_meters,
     )
 
 
@@ -506,8 +537,8 @@ class PieceArrays:
       ends, in units of 1e-7 degree;
     - `km` (float64): its length;
     - `directions` (int8): its direction, as in a polyline (1, -1 or 0);
-    - `points` (int32 pairs) and `offsets`: its shape points. The points of piece `i` are
-      `points[2 * offsets[i]:2 * offsets[i + 1]]`;
+    - `points` (int32 pairs) and `piece_first_shape_point_ids`: its shape points. The points of piece `i` are
+      `points[2 * piece_first_shape_point_ids[i]:2 * piece_first_shape_point_ids[i + 1]]`;
     - `class_ids` (uint8): the id of its class in `scgraph.pipelines.CLASSES`. The
       column is empty when the pieces have no class.
 
@@ -522,7 +553,12 @@ class PieceArrays:
 
     BATCH = 10_000
     COLUMNS = dict(origins="q", destinations="q", ends="i", km="d")
-    COLUMNS.update(directions="b", points="i", offsets="q", class_ids="B")
+    COLUMNS.update(
+        directions="b",
+        points="i",
+        piece_first_shape_point_ids="q",
+        class_ids="B",
+    )
 
     def __init__(self, tolerance_meters=50, work_dir=None, truncate=True):
         self.tolerance_meters, self.work_dir = tolerance_meters, work_dir
@@ -546,7 +582,7 @@ class PieceArrays:
                 if work_dir is not None and truncate:
                     open(path, "wb").close()
         self._new = {name: array(code) for name, code in self.COLUMNS.items()}
-        self._new["offsets"].append(0)
+        self._new["piece_first_shape_point_ids"].append(0)
         self._starts = [0]
 
     def append(
@@ -592,7 +628,9 @@ class PieceArrays:
                 self.tolerance_meters,
             )
         stored = len(self.points) // 2
-        new["offsets"].extend(stored + start for start in starts[1:])
+        new["piece_first_shape_point_ids"].extend(
+            stored + start for start in starts[1:]
+        )
         for name, column in new.items():
             if self.work_dir is None:
                 getattr(self, name).extend(column)
@@ -656,7 +694,10 @@ def _split_pieces(pieces, split_pieces, first_new_id):
     """
     halves = PieceArrays(tolerance_meters=None)
     for j, i in enumerate(split_pieces):
-        first, last = pieces.offsets[i], pieces.offsets[i + 1]
+        first, last = (
+            pieces.piece_first_shape_point_ids[i],
+            pieces.piece_first_shape_point_ids[i + 1],
+        )
         units = [  # the latitude, then the longitude of each point, in 1e-7 degree
             *pieces.ends[4 * i : 4 * i + 2],
             *pieces.points[2 * first : 2 * last],
@@ -715,8 +756,8 @@ def build_graph_from_pieces(
         pieces: The pieces, as `step1_osm_ways.build_way_pieces` or `step2_hub_connectors.join_networks_at_hubs` fill them.
 
     Returns:
-        The graph as a dict of arrays: `offsets`, `heads`, `weights_length`,
-        `node_points`, `shape_offsets`, `shape_points` and `source_node_ids`, and
+        The graph as a dict of arrays: `node_first_edge_ids`, `edge_destination_ids`, `weights_length`,
+        `node_points`, `edge_first_shape_point_ids`, `shape_points` and `source_node_ids`, and
         `edge_class_ids` when the pieces have classes. The module docstring describes
         them.
 
@@ -728,9 +769,14 @@ def build_graph_from_pieces(
     if len(pieces.class_ids) not in (0, len(pieces.km)):
         raise ValueError("Some pieces have a class and the others have none")
     piece, back, *columns = _list_edges(pieces)
-    source_node_ids, offsets, heads, weights, kept, parallel_edges = (
-        build_csr_from_edges(*columns)
-    )
+    (
+        source_node_ids,
+        node_first_edge_ids,
+        edge_destination_ids,
+        weights,
+        kept,
+        parallel_edges,
+    ) = build_csr_from_edges(*columns)
     if not len(source_node_ids):
         raise ValueError("The pieces join no two points: every one is a loop")
     # The new nodes get the ids below zero and below every id of the pieces
@@ -747,34 +793,42 @@ def build_graph_from_pieces(
         first_edge_of_halves = len(piece)
         for column, more in zip((piece, back, *columns), _list_edges(halves)):
             column.extend(more)
-        source_node_ids, offsets, heads, weights, kept, _ = (
-            build_csr_from_edges(*columns[:3])
-        )
+        (
+            source_node_ids,
+            node_first_edge_ids,
+            edge_destination_ids,
+            weights,
+            kept,
+            _,
+        ) = build_csr_from_edges(*columns[:3])
     node_points = array("i", bytes(8 * len(source_node_ids)))
-    points, shape_offsets = array("i"), array("i", [0])
+    points, edge_first_shape_point_ids = array("i"), array("i", [0])
     for u in range(len(source_node_ids)):
-        for a in range(offsets[u], offsets[u + 1]):
+        for a in range(node_first_edge_ids[u], node_first_edge_ids[u + 1]):
             i, b = piece[kept[a]], back[kept[a]]
             source_pieces = pieces if kept[a] < first_edge_of_halves else halves
             e = source_pieces.ends[4 * i : 4 * i + 4]
             # e holds the points of the two ends of the piece, in the order of the
             # piece. For an edge that goes against the piece, the ends swap.
             origin, destination = (e[2:], e[:2]) if b else (e[:2], e[2:])
-            v = heads[a]
+            v = edge_destination_ids[a]
             node_points[2 * u], node_points[2 * u + 1] = origin
             node_points[2 * v], node_points[2 * v + 1] = destination
-            first, last = source_pieces.offsets[i], source_pieces.offsets[i + 1]
+            first, last = (
+                source_pieces.piece_first_shape_point_ids[i],
+                source_pieces.piece_first_shape_point_ids[i + 1],
+            )
             line = array("i", source_pieces.points[2 * first : 2 * last])
             if b:  # its points from the destination
                 line[0::2], line[1::2] = line[-2::-2], line[-1::-2]
             points.extend(line)
-            shape_offsets.append(len(points) // 2)
+            edge_first_shape_point_ids.append(len(points) // 2)
     graph = {
-        "offsets": offsets,
-        "heads": heads,
+        "node_first_edge_ids": node_first_edge_ids,
+        "edge_destination_ids": edge_destination_ids,
         "weights_length": weights,
         "node_points": node_points,
-        "shape_offsets": shape_offsets,
+        "edge_first_shape_point_ids": edge_first_shape_point_ids,
         "shape_points": points,
         "source_node_ids": source_node_ids,
     }
@@ -813,8 +867,8 @@ def assemble_network(
         count_nodes_and_edges(graph),
     ) as counts:
         order = keep_strongly_connected_components(
-            graph["offsets"],
-            graph["heads"],
+            graph["node_first_edge_ids"],
+            graph["edge_destination_ids"],
             min_component_nodes,
         )
         given, graph = graph, renumber_nodes(graph, *order)
@@ -826,27 +880,32 @@ def assemble_network(
         node_mode_ids, edge_class_ids = graph.get("node_mode_ids"), graph.get(
             "edge_class_ids"
         )
-        kept, origins, heads, weights, member_offsets, members = (
-            contract_chains(
-                graph["offsets"],
-                graph["heads"],
-                graph["weights_length"],
-                node_mode_ids=node_mode_ids,
-                max_km_between_nodes=max_km_between_nodes,
-                edge_class_ids=edge_class_ids,
-            )
+        (
+            kept,
+            origins,
+            edge_destination_ids,
+            weights,
+            member_offsets,
+            members,
+        ) = contract_chains(
+            graph["node_first_edge_ids"],
+            graph["edge_destination_ids"],
+            graph["weights_length"],
+            node_mode_ids=node_mode_ids,
+            max_km_between_nodes=max_km_between_nodes,
+            edge_class_ids=edge_class_ids,
         )
-        points, shape_offsets = build_chain_shapes(
+        points, edge_first_shape_point_ids = build_chain_shapes(
             graph, member_offsets, members
         )
-        offsets = array("i", bytes(4 * (len(kept) + 1)))
+        node_first_edge_ids = array("i", bytes(4 * (len(kept) + 1)))
         for u in origins:  # rows by origin, as contract_chains sorts them
-            offsets[u + 1] += 1
+            node_first_edge_ids[u + 1] += 1
         graph = {  # the graph before contraction is freed
-            "offsets": array("i", accumulate(offsets)),
-            "heads": heads,
+            "node_first_edge_ids": array("i", accumulate(node_first_edge_ids)),
+            "edge_destination_ids": edge_destination_ids,
             "weights_length": weights,
-            "shape_offsets": shape_offsets,
+            "edge_first_shape_point_ids": edge_first_shape_point_ids,
             "shape_points": points,
             **_select_nodes(graph, kept),
         }
@@ -880,20 +939,23 @@ def build_chain_shapes(
     members, it holds the point of the node that the contraction removed.
 
     Returns:
-        `(points, offsets)`, as `shape_points` and `shape_offsets` of a graph.
+        `(points, edge_first_shape_point_ids)`, as `shape_points` and `edge_first_shape_point_ids` of a graph.
     """
-    heads, node_points = graph["heads"], graph["node_points"]
-    starts, line = graph["shape_offsets"], graph["shape_points"]
-    points, offsets = array("i"), array("i", [0])
+    edge_destination_ids, node_points = (
+        graph["edge_destination_ids"],
+        graph["node_points"],
+    )
+    starts, line = graph["edge_first_shape_point_ids"], graph["shape_points"]
+    points, edge_first_shape_point_ids = array("i"), array("i", [0])
     for i in range(len(member_offsets) - 1):
         chain = members[member_offsets[i] : member_offsets[i + 1]]
         for k, a in enumerate(chain):
             if k:
-                node = heads[chain[k - 1]]
+                node = edge_destination_ids[chain[k - 1]]
                 points.extend(node_points[2 * node : 2 * node + 2])
             points.extend(line[2 * starts[a] : 2 * starts[a + 1]])
-        offsets.append(len(points) // 2)
-    return points, offsets
+        edge_first_shape_point_ids.append(len(points) // 2)
+    return points, edge_first_shape_point_ids
 
 
 def _select_nodes(graph, nodes):
@@ -920,40 +982,52 @@ def _select_nodes(graph, nodes):
 
 def renumber_nodes(graph, order, labels=None):
     """Return `graph` with the nodes of `order` only. Node `order[i]` becomes node `i`, and
-    the edges of each node are sorted by head. With `labels`, an edge is kept only when
+    the edges of each node are sorted by destination id. With `labels`, an edge is kept only when
     its two ends have the same label. A kept edge keeps its shape, and its class if
     `graph` has `edge_class_ids`.
     """
-    new = array("i", [-1]) * (len(graph["offsets"]) - 1)
+    new = array("i", [-1]) * (len(graph["node_first_edge_ids"]) - 1)
     for i, u in enumerate(order):
         new[u] = i
-    offsets, heads, weights = (
-        graph[key] for key in ("offsets", "heads", "weights_length")
+    node_first_edge_ids, edge_destination_ids, weights = (
+        graph[key]
+        for key in (
+            "node_first_edge_ids",
+            "edge_destination_ids",
+            "weights_length",
+        )
     )
-    starts, line = graph["shape_offsets"], graph["shape_points"]
+    starts, line = graph["edge_first_shape_point_ids"], graph["shape_points"]
     out = {
-        "offsets": array("i", [0]),
-        "heads": array("i"),
+        "node_first_edge_ids": array("i", [0]),
+        "edge_destination_ids": array("i"),
         "weights_length": array("d"),
     }
-    out["shape_offsets"], out["shape_points"] = array("i", [0]), array("i")
+    out["edge_first_shape_point_ids"], out["shape_points"] = array(
+        "i", [0]
+    ), array("i")
     edge_class_ids = graph.get("edge_class_ids")
     if edge_class_ids is not None:
         out["edge_class_ids"] = array("B")
     for u in order:
         for v, a in sorted(
-            (new[heads[a]], a) for a in range(offsets[u], offsets[u + 1])
+            (new[edge_destination_ids[a]], a)
+            for a in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
         ):
-            if v >= 0 and (labels is None or labels[u] == labels[heads[a]]):
-                out["heads"].append(v)
+            if v >= 0 and (
+                labels is None or labels[u] == labels[edge_destination_ids[a]]
+            ):
+                out["edge_destination_ids"].append(v)
                 out["weights_length"].append(weights[a])
                 out["shape_points"].extend(
                     line[2 * starts[a] : 2 * starts[a + 1]]
                 )
-                out["shape_offsets"].append(len(out["shape_points"]) // 2)
+                out["edge_first_shape_point_ids"].append(
+                    len(out["shape_points"]) // 2
+                )
                 if edge_class_ids is not None:
                     out["edge_class_ids"].append(edge_class_ids[a])
-        out["offsets"].append(len(out["heads"]))
+        out["node_first_edge_ids"].append(len(out["edge_destination_ids"]))
     return {**out, **_select_nodes(graph, order)}
 
 
@@ -961,8 +1035,8 @@ def count_nodes_and_edges(graph: dict, prefix: str = "") -> dict[str, int]:
     """The number of nodes and the number of edges of `graph`, as the values of a log:
     `nodes` and `edges`, each with `prefix` before it."""
     return {
-        f"{prefix}nodes": len(graph["offsets"]) - 1,
-        f"{prefix}edges": len(graph["heads"]),
+        f"{prefix}nodes": len(graph["node_first_edge_ids"]) - 1,
+        f"{prefix}edges": len(graph["edge_destination_ids"]),
     }
 
 

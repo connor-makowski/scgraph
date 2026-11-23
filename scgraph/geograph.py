@@ -213,9 +213,10 @@ class GeoGraph(
         # method reads them with `_read_metrics`: an edit of `graph_object`
         # removes them.
         self._metrics = dict(_metrics or {})
-        # The offsets, the heads and the lengths of the edges of `graph_object`
-        # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them. The id of an edge
-        # is its position in the heads. The graph and its count of edits at that
+        # The arrays of the edges of `graph_object`
+        # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them: `node_first_edge_ids`,
+        # `edge_destination_ids` and the lengths. The id of an edge is its position in `edge_destination_ids`.
+        # The graph and its count of edits at that
         # time show whether the graph was edited since.
         self._edge_arrays = None
         self._edge_arrays_graph = None
@@ -231,9 +232,11 @@ class GeoGraph(
                 classes, _edge_arrays[0], _edge_arrays[1], _edge_class_ids
             )
         elif classes is not None or edge_classes is not None:
-            offsets, heads, _ = self._read_edge_arrays()
+            node_first_edge_ids, edge_destination_ids, _ = (
+                self._read_edge_arrays()
+            )
             self._edge_classes = EdgeClasses.build_from_class_names(
-                classes, edge_classes, offsets, heads
+                classes, edge_classes, node_first_edge_ids, edge_destination_ids
             )
         # The argument of the last `reduce`, for the graph of each metric
         self._reduce_iterations = None

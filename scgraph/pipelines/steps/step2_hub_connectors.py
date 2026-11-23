@@ -200,7 +200,10 @@ class _Layer:
         points = memoryview(network["node_points"])
         self.latitudes, self.longitudes = points[0::2], points[1::2]
         self.ids = array("q", network["source_node_ids"])
-        self.offsets, self.heads = network["offsets"], network["heads"]
+        self.node_first_edge_ids, self.edge_destination_ids = (
+            network["node_first_edge_ids"],
+            network["edge_destination_ids"],
+        )
         self.network = network
 
     def __len__(self):
@@ -210,7 +213,9 @@ class _Layer:
         """Free the arrays of the network, and keep only its node ids. The function
         empties the dict of arrays that the caller gave.
         """
-        self.latitudes = self.longitudes = self.offsets = self.heads = None
+        self.latitudes = self.longitudes = self.node_first_edge_ids = (
+            self.edge_destination_ids
+        ) = None
         self.network.clear()
         self.network = None
 
@@ -223,16 +228,23 @@ class _Layer:
         """
         network = self.network
         weights = network["weights_length"]
-        starts, line = network["shape_offsets"], network["shape_points"]
+        starts, line = (
+            network["edge_first_shape_point_ids"],
+            network["shape_points"],
+        )
         edge_class_ids = network["edge_class_ids"]
         for u in range(len(self)):
-            for a in range(self.offsets[u], self.offsets[u + 1]):
+            for a in range(
+                self.node_first_edge_ids[u], self.node_first_edge_ids[u + 1]
+            ):
                 points = line[2 * starts[a] : 2 * starts[a + 1]]
                 shape = [
                     [x * 1e-7, y * 1e-7]
                     for x, y in zip(points[::2], points[1::2])
                 ]
-                yield u, self.heads[a], weights[a], shape, edge_class_ids[a]
+                yield u, self.edge_destination_ids[a], weights[
+                    a
+                ], shape, edge_class_ids[a]
 
 
 def join_networks_at_hubs(
@@ -368,7 +380,7 @@ def _build_land_connector(layer: _Layer, land_mask: "LandMask", max_km: float):
     """`connect(hub)` -> (node of `layer`, km, shape) or None, by the rule of the module
     docstring for road and rail."""
     labels, sizes = find_strongly_connected_components(
-        layer.offsets, layer.heads
+        layer.node_first_edge_ids, layer.edge_destination_ids
     )
     components = array("i", (sizes[label] for label in labels))
     near = NearNodes(layer.latitudes, layer.longitudes, scale=1e-7)

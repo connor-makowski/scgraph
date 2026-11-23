@@ -268,7 +268,9 @@ class GeoGraphIO:
         # and without metrics does not read the arrays of its edges here.
         classes, edge_value_arrays = None, {}
         if self.classes or self._metrics:
-            geograph_offsets = self._read_edge_arrays(check_edge_count=True)[0]
+            geograph_node_first_edge_ids = self._read_edge_arrays(
+                check_edge_count=True
+            )[0]
             edge_class_ids = self._read_edge_class_ids()
             if edge_class_ids is not None:
                 classes = self.classes
@@ -316,15 +318,19 @@ class GeoGraphIO:
             order = None  # already in that order: written as it is
         old = range(len(nodes)) if order is None else order
         # In the order searches visit the edges, so that the file gives the same paths
-        offsets, heads, weights = self.graph_object.get_edge_arrays(order)
+        node_first_edge_ids, edge_destination_ids, weights = (
+            self.graph_object.get_edge_arrays(order)
+        )
         if order is not None and edge_value_arrays:
             edge_value_arrays = {
-                name: _reorder_edge_values(edge_values, geograph_offsets, order)
+                name: _reorder_edge_values(
+                    edge_values, geograph_node_first_edge_ids, order
+                )
                 for name, edge_values in edge_value_arrays.items()
             }
         arrays = {
-            "offsets": offsets,
-            "heads": heads,
+            "node_first_edge_ids": node_first_edge_ids,
+            "edge_destination_ids": edge_destination_ids,
             "weights_length": weights,
             **edge_value_arrays,
         }
@@ -343,18 +349,20 @@ class GeoGraphIO:
             for new, origin in enumerate(old):
                 # Nodes added after loading (add_coord_node, merges) have no shapes
                 row = shapes[origin] if origin < len(shapes) else {}
-                for edge in range(offsets[new], offsets[new + 1]):
-                    head = old[heads[edge]]
-                    for latitude, longitude in row.get(head, ()):
+                for edge in range(
+                    node_first_edge_ids[new], node_first_edge_ids[new + 1]
+                ):
+                    destination_id = old[edge_destination_ids[edge]]
+                    for latitude, longitude in row.get(destination_id, ()):
                         if not (isfinite(latitude) and isfinite(longitude)):
                             raise ValueError(
-                                f"The shape of edge {origin} -> {head} has a point "
+                                f"The shape of edge {origin} -> {destination_id} has a point "
                                 "that is not a finite number"
                             )
                         points.append(latitude)
                         points.append(longitude)
                     starts.append(len(points) // 2)
-            arrays["shape_offsets"] = starts
+            arrays["edge_first_shape_point_ids"] = starts
         point_arrays = [node_points] + ([points] if shapes is not None else [])
         if coordinate_dtype == "auto":
             coordinate_dtype = self.coordinate_dtype
@@ -813,10 +821,10 @@ class GeoGraphIO:
         ) as indicators:
             arrays, metadata = network_file.read(filename, mapped, node_modes)
             indicators["nodes"] = len(arrays["node_points"]) // 2
-            indicators["edges"] = len(arrays["heads"])
+            indicators["edges"] = len(arrays["edge_destination_ids"])
         edge_arrays = (
-            arrays["offsets"],
-            arrays["heads"],
+            arrays["node_first_edge_ids"],
+            arrays["edge_destination_ids"],
             arrays["weights_length"],
         )
         try:
@@ -828,7 +836,7 @@ class GeoGraphIO:
             nodes=columns.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
                 columns.EdgeShapes(arrays)
-                if "shape_offsets" in arrays
+                if "edge_first_shape_point_ids" in arrays
                 else None
             ),
             geograph_units=metadata["metrics"][0]["unit"],
@@ -1428,11 +1436,14 @@ class GeoGraphIO:
         # weights of a metric. The attributes of each edge, by edge id:
         graph_object = Graph(graph)
         edge_arrays = graph_object.get_edge_arrays()
-        offsets, heads, _ = edge_arrays
+        node_first_edge_ids, edge_destination_ids, _ = edge_arrays
         edge_attributes = [
-            attributes_of_origin[heads[edge_id]]
+            attributes_of_origin[edge_destination_ids[edge_id]]
             for origin_id, attributes_of_origin in enumerate(kept_attributes)
-            for edge_id in range(offsets[origin_id], offsets[origin_id + 1])
+            for edge_id in range(
+                node_first_edge_ids[origin_id],
+                node_first_edge_ids[origin_id + 1],
+            )
         ]
         if all("travel_time" in data for data in edge_attributes):
             travel_time = Metric(
@@ -1659,21 +1670,24 @@ class GeoGraphIO:
 
 def _reorder_edge_values(
     edge_values: array | memoryview,
-    offsets: array | memoryview,
+    node_first_edge_ids: array | memoryview,
     order: list[int],
 ) -> array:
     """Return the values of the edges in the order of a graph with reordered nodes.
 
     Args:
         edge_values: An array by edge id: one value for each edge, at its id.
-        offsets: The id of the first edge of each node, before the new order.
+        node_first_edge_ids: The id of the first edge of each node, before the new order.
         order: The nodes in their new order: `order[new id] = id`. A node keeps the
             order of its edges, as `Graph.get_edge_arrays(order)` does.
     """
     edge_values = memoryview(edge_values)
     reordered_edge_values = array(edge_values.format)
     for origin_id in order:
-        first, last = offsets[origin_id], offsets[origin_id + 1]
+        first, last = (
+            node_first_edge_ids[origin_id],
+            node_first_edge_ids[origin_id + 1],
+        )
         reordered_edge_values.frombytes(edge_values[first:last].cast("B"))
     return reordered_edge_values
 
@@ -1734,7 +1748,10 @@ def _order_by_hilbert(geograph):
         # Renumbered dicts, sharing the graph's weight objects (from_csr would not)
         rows = geograph.graph_object.unreduced_graph
         graph = [
-            {new_id[head]: weight for head, weight in rows[old].items()}
+            {
+                new_id[destination_id]: weight
+                for destination_id, weight in rows[old].items()
+            }
             for old in order
         ]
     shapes = geograph.intermediate_nodes
@@ -1746,7 +1763,10 @@ def _order_by_hilbert(geograph):
             if shapes is None
             else [
                 (
-                    {new_id[head]: shape for head, shape in shapes[old].items()}
+                    {
+                        new_id[destination_id]: shape
+                        for destination_id, shape in shapes[old].items()
+                    }
                     if old < len(shapes)
                     else {}
                 )

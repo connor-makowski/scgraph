@@ -14,16 +14,16 @@ from bisect import bisect_left
 
 from scgraph._internal import is_sorted
 
-# The highest value of an int32, the type of the offsets of a network file
+# The highest value of an int32, the type of `node_first_edge_ids` in a network file
 INT32_MAX = 2**31 - 1
 
 
 def select_edges(
-    offsets: array | memoryview,
-    heads: array | memoryview,
+    node_first_edge_ids: array | memoryview,
+    edge_destination_ids: array | memoryview,
     node_mode_ids: array | memoryview,
     is_node_mode_kept: list[bool],
-    shape_offsets: array | memoryview | None = None,
+    edge_first_shape_point_ids: array | memoryview | None = None,
 ) -> tuple:
     """
     Select the nodes of some node modes of a network file, and the edges between them.
@@ -32,32 +32,37 @@ def select_edges(
     the file. A "run" (first, last) is the range of positions from first to last - 1.
 
     Args:
-        offsets: The edges of node u are at the positions offsets[u] to
-            offsets[u + 1] - 1 (int32).
-        heads: The head of each edge, as the position of a node (int32).
+        node_first_edge_ids: The edges of node u are at the positions node_first_edge_ids[u] to
+            node_first_edge_ids[u + 1] - 1 (int32).
+        edge_destination_ids: The destination id of each edge, as the position of a node (int32).
         node_mode_ids: The node mode of each node (uint8). The values must not decrease.
         is_node_mode_kept: For each node mode of the file, True if the selection
             keeps it.
-        shape_offsets: The shape of edge a is the shape points at the positions
-            shape_offsets[a] to shape_offsets[a + 1] - 1 (int32). None for a file
+        edge_first_shape_point_ids: The shape of edge a is the shape points at the positions
+            edge_first_shape_point_ids[a] to edge_first_shape_point_ids[a + 1] - 1 (int32). None for a file
             without edge shapes.
 
     Returns:
-        A tuple (offsets, heads, shape_offsets, node_runs, edge_runs,
+        A tuple (node_first_edge_ids, edge_destination_ids, edge_first_shape_point_ids, node_runs, edge_runs,
         shape_point_runs). The first three are the arrays of the selection, where a
-        position counts only the kept nodes, edges and shape points. `shape_offsets`
+        position counts only the kept nodes, edges and shape points. `edge_first_shape_point_ids`
         is None without edge shapes. The last three are lists of runs: the positions
         in the file of the kept nodes, of the kept edges and of their shape points.
 
     Raises:
         ValueError: If a value of the arrays cannot be used as a position.
     """
-    node_count, edge_count = len(offsets) - 1, len(heads)
+    node_count, edge_count = len(node_first_edge_ids) - 1, len(
+        edge_destination_ids
+    )
     mode_count = len(is_node_mode_kept)
     if node_count < 0 or len(node_mode_ids) != node_count:
         raise ValueError("one node mode per node expected")
-    if shape_offsets is not None and len(shape_offsets) != edge_count + 1:
-        raise ValueError("invalid shape offsets")
+    if (
+        edge_first_shape_point_ids is not None
+        and len(edge_first_shape_point_ids) != edge_count + 1
+    ):
+        raise ValueError("invalid edge_first_shape_point_ids")
 
     # 1. Find the nodes of each node mode
     if not is_sorted(node_mode_ids) or (
@@ -76,53 +81,64 @@ def select_edges(
         if not is_node_mode_kept[mode]:
             continue
         first, last = first_node[mode], first_node[mode + 1]
-        # Step 3 uses the offsets of these nodes as positions in `heads`
-        mode_offsets = offsets[first : last + 1]
+        # Step 3 uses the first edge ids of these nodes as positions in `edge_destination_ids`
+        mode_node_first_edge_ids = node_first_edge_ids[first : last + 1]
         if (
-            mode_offsets[0] < 0
-            or mode_offsets[-1] > edge_count
-            or not is_sorted(mode_offsets)
+            mode_node_first_edge_ids[0] < 0
+            or mode_node_first_edge_ids[-1] > edge_count
+            or not is_sorted(mode_node_first_edge_ids)
         ):
-            raise ValueError("invalid offsets")
+            raise ValueError("invalid node_first_edge_ids")
         _add_run(node_runs, first, last)
         shift[mode] = kept_nodes - first
         kept_nodes += last - first
 
     # 3. Visit the edges of each kept node
-    new_offsets, new_heads = array("i", [0]), array("i")
-    new_shape_offsets = None if shape_offsets is None else array("i", [0])
+    new_node_first_edge_ids, new_edge_destination_ids = array("i", [0]), array(
+        "i"
+    )
+    new_edge_first_shape_point_ids = (
+        None if edge_first_shape_point_ids is None else array("i", [0])
+    )
     edge_runs, shape_point_runs = [], []
     kept_shape_points = 0
     for first, last in node_runs:
         for node in range(first, last):
-            for edge in range(offsets[node], offsets[node + 1]):
-                head = heads[edge]
-                if not 0 <= head < node_count:
+            for edge in range(
+                node_first_edge_ids[node], node_first_edge_ids[node + 1]
+            ):
+                destination_id = edge_destination_ids[edge]
+                if not 0 <= destination_id < node_count:
                     raise ValueError("edge to a missing node")
-                mode = node_mode_ids[head]
+                mode = node_mode_ids[destination_id]
                 if not is_node_mode_kept[mode]:
                     continue
-                new_heads.append(head + shift[mode])
+                new_edge_destination_ids.append(destination_id + shift[mode])
                 _add_run(edge_runs, edge, edge + 1)
-                if shape_offsets is None:
+                if edge_first_shape_point_ids is None:
                     continue
                 first_point, last_point = (
-                    shape_offsets[edge],
-                    shape_offsets[edge + 1],
+                    edge_first_shape_point_ids[edge],
+                    edge_first_shape_point_ids[edge + 1],
                 )
-                if not 0 <= first_point <= last_point <= shape_offsets[-1]:
-                    raise ValueError("invalid shape offsets")
+                if (
+                    not 0
+                    <= first_point
+                    <= last_point
+                    <= edge_first_shape_point_ids[-1]
+                ):
+                    raise ValueError("invalid edge_first_shape_point_ids")
                 _add_run(shape_point_runs, first_point, last_point)
                 kept_shape_points += last_point - first_point
-                # The offsets of a damaged file can count a shape point twice
+                # A damaged file can count a shape point twice in `edge_first_shape_point_ids`
                 if kept_shape_points > INT32_MAX:
-                    raise ValueError("invalid shape offsets")
-                new_shape_offsets.append(kept_shape_points)
-            new_offsets.append(len(new_heads))
+                    raise ValueError("invalid edge_first_shape_point_ids")
+                new_edge_first_shape_point_ids.append(kept_shape_points)
+            new_node_first_edge_ids.append(len(new_edge_destination_ids))
     return (
-        new_offsets,
-        new_heads,
-        new_shape_offsets,
+        new_node_first_edge_ids,
+        new_edge_destination_ids,
+        new_edge_first_shape_point_ids,
         node_runs,
         edge_runs,
         shape_point_runs,

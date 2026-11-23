@@ -277,7 +277,9 @@ def derive_network_file(
         # 3. Keep the strongly connected components
         kept_nodes, component_of_node = (
             step3_network_assembly.keep_strongly_connected_components(
-                graph["offsets"], graph["heads"], min_component_nodes
+                graph["node_first_edge_ids"],
+                graph["edge_destination_ids"],
+                min_component_nodes,
             )
         )
         if not len(kept_nodes):
@@ -307,7 +309,7 @@ def derive_network_file(
             .translate(node_mode_id_translation),
         )
     if not keep_shapes:
-        del graph["shape_offsets"], graph["shape_points"]
+        del graph["edge_first_shape_point_ids"], graph["shape_points"]
     kept_modes = [
         parent_metadata["node_modes"][node_mode_id]
         for node_mode_id in kept_node_mode_ids
