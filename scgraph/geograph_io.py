@@ -268,13 +268,13 @@ class GeoGraphIO:
         # value for each edge, at the id of the edge. A geograph without classes
         # and without metrics does not read the arrays of its edges here.
         classes, edge_value_arrays = None, {}
-        if self.classes or self._metrics:
+        if self.classes or self._read_metrics():
             geograph_offsets = self._read_edge_arrays(check_edge_count=True)[0]
             edge_class_ids = self._read_edge_class_ids()
             if edge_class_ids is not None:
                 classes = self.classes
                 edge_value_arrays["edge_class_ids"] = edge_class_ids
-            for name, metric_record in self._metrics.items():
+            for name, metric_record in self._read_metrics().items():
                 edge_value_arrays[f"metric_{name}"] = metric_record.weights
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()

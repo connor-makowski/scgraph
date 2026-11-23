@@ -558,7 +558,7 @@ class GeoGraphRouting:
         return {
             name: sum(metric_record.weights[edge_id] for edge_id in edge_ids)
             + off_graph_km * metric_record.off_graph_weight_per_km
-            for name, metric_record in self._metrics.items()
+            for name, metric_record in self._read_metrics().items()
         }
 
     def _get_off_graph_km(
@@ -661,7 +661,7 @@ class GeoGraphRouting:
                     "metric_totals": {
                         name: off_graph_km
                         * metric_record.off_graph_weight_per_km
-                        for name, metric_record in self._metrics.items()
+                        for name, metric_record in self._read_metrics().items()
                     },
                     "class_lengths": {},
                     "coordinate_path": points,
@@ -693,7 +693,7 @@ class GeoGraphRouting:
             coordinate_path=leg["coordinate_path"],
             output_format=output_coordinate_path,
         )
-        if not self._metrics:
+        if not self._read_metrics():
             del leg["metric_totals"]
 
     def get_shortest_path(

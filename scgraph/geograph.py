@@ -434,7 +434,7 @@ class GeoGraph(
             values["nodes"] = len(is_reduced)
             values["kept_nodes"] = len(is_reduced) - sum(is_reduced)
         self._reduce_iterations = iterations
-        for metric_record in self._metrics.values():
+        for metric_record in self._read_metrics().values():
             if metric_record.graph_object is not None:
                 metric_record.graph_object.reduce(iterations)
 
