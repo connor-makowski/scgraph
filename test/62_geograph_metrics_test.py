@@ -350,6 +350,15 @@ def test_the_other_edges_keep_their_classes_when_a_node_is_removed(network):
     }
 
 
+def test_a_node_added_after_a_removed_node_does_not_take_its_classes(network):
+    # The east terminal is the last node. The new node gets its id, 9.
+    network.remove_node()
+    network.graph_object.add_node({EAST_STATION: 1.0}, symmetric=True)
+
+    classes = _get_class_of_each_edge(network)
+    assert [classes[9, EAST_STATION], classes[EAST_STATION, 9]] == [None, None]
+
+
 def test_the_edges_of_a_node_added_on_the_graph_object_have_no_class(network):
     # The new node is the node 10.
     network.graph_object.add_node({JUNCTION: 30.0}, symmetric=True)

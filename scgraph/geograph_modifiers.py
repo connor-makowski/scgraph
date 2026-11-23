@@ -86,15 +86,7 @@ class GeoGraphModifiers:
             symmetric_node=symmetric_node
         )
         self.nodes.pop()
-        removed_node_id = len(self.nodes)
-        self._edge_classes.forget_added_edges(
-            edge
-            for destination_id in removed_edges
-            for edge in (
-                (removed_node_id, destination_id),
-                (destination_id, removed_node_id),
-            )
-        )
+        self._edge_classes.forget_node(len(self.nodes))
         self._remove_metrics()
         del self.node_mode_ids[len(self.nodes) :]
         self.snap_index = None
