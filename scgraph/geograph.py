@@ -866,6 +866,21 @@ class GeoGraphIO:
             node_mode_ids=arrays.get("node_mode_ids"),
             node_modes=metadata.get("node_modes"),
             coordinate_dtype=network_file.get_coordinate_dtype(arrays),
+            classes=metadata["classes"] if "edge_class_ids" in arrays else None,
+            # The arrays of the file are the edges of the new graph, in the same
+            # order
+            _edge_arrays=edge_arrays,
+            _edge_class_ids=arrays.get("edge_class_ids"),
+            _metrics={
+                row["name"]: Metric(
+                    row["name"],
+                    row.get("unit"),
+                    row.get("description"),
+                    arrays[f"weights_{row['name']}"],
+                    row["off_graph_weight_per_km"],
+                )
+                for row in metadata["metrics"][1:]
+            },
         )
         geograph.metadata = {
             key: value
@@ -873,23 +888,6 @@ class GeoGraphIO:
             if key not in network_file.RESERVED_METADATA_KEYS
         }
         geograph.scgraph_file = filename
-        # The arrays of the file are the edges of the new graph, in the same order
-        geograph._set_edge_arrays(edge_arrays, arrays.get("edge_class_ids"))
-        if "edge_class_ids" in arrays:
-            geograph._edge_classes = EdgeClasses(
-                metadata["classes"],
-                arrays["offsets"],
-                arrays["heads"],
-                arrays["edge_class_ids"],
-            )
-        for row in metadata["metrics"][1:]:
-            geograph._metrics[row["name"]] = Metric(
-                row["name"],
-                row.get("unit"),
-                row.get("description"),
-                arrays[f"weights_{row['name']}"],
-                row["off_graph_weight_per_km"],
-            )
         geograph.default_metric = metadata.get("default_metric", "length")
         geograph.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
@@ -1572,21 +1570,18 @@ class GeoGraphIO:
                 {"name": name, "edge_mode": "road"} for name in class_names
             ]
             kwargs["edge_classes"] = edge_class_names
-        geograph = GeoGraph(
-            graph=graph,
-            nodes=nodes,
-            coordinate_dtype="int32" if coord_precision <= 7 else "float64",
-            **kwargs,
-        )
-        # The attributes of each edge, by edge id
-        offsets, heads, _ = geograph._read_edge_arrays()
+        # The graph is built first: the ids of its edges give the order of the
+        # weights of a metric. The attributes of each edge, by edge id:
+        graph_object = Graph(graph)
+        edge_arrays = graph_object._csr()
+        offsets, heads, _ = edge_arrays
         edge_attributes = [
             attributes_of_origin[heads[edge_id]]
             for origin_id, attributes_of_origin in enumerate(kept_attributes)
             for edge_id in range(offsets[origin_id], offsets[origin_id + 1])
         ]
         if all("travel_time" in data for data in edge_attributes):
-            geograph._metrics["travel_time"] = Metric(
+            travel_time = Metric(
                 "travel_time",
                 "s",
                 "Attribute travel_time of the OSMnx graph.",
@@ -1603,6 +1598,16 @@ class GeoGraphIO:
                     else 3600 / off_graph_travel_speed
                 ),
             )
+            kwargs["_metrics"] = {"travel_time": travel_time}
+        geograph = GeoGraph(
+            graph=graph_object,
+            nodes=nodes,
+            coordinate_dtype="int32" if coord_precision <= 7 else "float64",
+            _edge_arrays=edge_arrays,
+            **kwargs,
+        )
+        # The list of dicts itself, as for a geograph built from a list
+        geograph.graph = graph
         geograph.default_metric = weight_key
         geograph.reduce(reduce_iterations)
         return geograph
@@ -3005,11 +3010,16 @@ class GeoGraph(
         coordinate_dtype: Literal["float64", "int32"] = "float64",
         classes: list[dict] | None = None,
         edge_classes: list[dict[int, str]] | None = None,
+        *,
+        _edge_arrays: tuple[array | memoryview, ...] | None = None,
+        _edge_class_ids: array | memoryview | None = None,
+        _metrics: dict[str, Metric] | None = None,
     ) -> None:
         """
         Function:
 
         - Create a GeoGraph object
+        - The arguments that start with `_` are internal: a loader of scgraph passes the arrays of the edges of `graph`, the class id of each edge and the metrics with them
         - The attribute `graph_object` is the `Graph` of the edges. Change its edges only with `add_edge`, `remove_edge`, `add_node` and `remove_node`, of the geograph or of `graph_object`: a read of the edges or of the metrics raises a ValueError when their count changed otherwise. In the C++ build, `graph_object.graph` is a copy: a write into it changes nothing
         - The attribute `default_metric` is the name of the metric that a call without `metric` uses (`get_shortest_path`, `distance_matrix`, `get_path_weight`, `get_graph_object`). It is 'length', until a loader or the caller sets it to another name of `metrics`
         - A call fails with a ValueError while `default_metric` names a metric that the geograph does not have, for example after an edit of the network, which removes the metrics other than 'length'
@@ -3140,7 +3150,7 @@ class GeoGraph(
         # The metrics other than `length`, by name (`scgraph/metrics.py`). A
         # method reads them with `_read_metrics`: an edit of `graph_object`
         # removes them.
-        self._metrics = {}
+        self._metrics = dict(_metrics or {})
         # The offsets, the heads and the lengths of the edges of `graph_object`
         # (`Graph._csr`), as `_read_edge_arrays` last read them. The id of an edge
         # is its position in the heads. The graph and its count of edits at that
@@ -3152,7 +3162,13 @@ class GeoGraph(
         # `_read_edge_class_ids` computed it. None before the first call and
         # after an edit.
         self._edge_class_ids = None
-        if classes is not None or edge_classes is not None:
+        if _edge_arrays is not None:
+            self._set_edge_arrays(_edge_arrays, _edge_class_ids)
+        if _edge_arrays is not None and _edge_class_ids is not None:
+            self._edge_classes = EdgeClasses(
+                classes, _edge_arrays[0], _edge_arrays[1], _edge_class_ids
+            )
+        elif classes is not None or edge_classes is not None:
             offsets, heads, _ = self._read_edge_arrays()
             self._edge_classes = EdgeClasses.build_from_class_names(
                 classes, edge_classes, offsets, heads
