@@ -61,9 +61,9 @@ print(route["length"])  # the km of the route
 
 `GeoGraph.list_geographs()` lists every network that `load_geograph` takes, with what it holds and the size of its download. The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) describes each network, and each way to load, build and save one.
 
-## Recipes
+## Common Tasks
 
-The recipes run in order, after the first route: a recipe may use a name of an earlier one.
+The code blocks below run in order, after the first route: a block may use a name of an earlier one.
 
 ### A Route on Several Edge Modes, with Its Legs
 
