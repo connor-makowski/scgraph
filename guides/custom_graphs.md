@@ -81,7 +81,7 @@ output = my_geograph.get_shortest_path(
     destination_node={'latitude': 41.6488, 'longitude': -0.8891},
 )
 print(output)
-# {'length': 1799.4323, 'coordinate_path': [[52.4862, -1.8904], [51.5074, -0.1278], [48.8566, 2.3522], [40.4168, -3.7038], [41.6488, -0.8891]]}
+# {'length': 1799.4323, 'metric_totals': {'length': 1799.4323}, 'coordinate_path': [[52.4862, -1.8904], [51.5074, -0.1278], [48.8566, 2.3522], [40.4168, -3.7038], [41.6488, -0.8891]]}
 # Birmingham and Zaragoza are off the graph. They snap to London and to Madrid, their closest nodes
 ```
 
