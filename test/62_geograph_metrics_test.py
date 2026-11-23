@@ -973,7 +973,7 @@ def test_an_edit_made_on_the_graph_object_removes_the_metrics_at_their_next_read
     assert metrics == [{"name": "length", "unit": "km"}]
 
 
-def test_a_query_by_a_metric_refuses_an_edge_written_into_the_graph_list():
+def test_create_metric_refuses_an_edge_written_into_the_graph_list():
     # A pure-Python graph keeps its edges in a list of dicts. A write into this
     # list adds the edge without `add_edge`. The geograph gets a pure-Python
     # graph in both builds: a C++ graph gives a copy of this list. The primary
@@ -988,7 +988,7 @@ def test_a_query_by_a_metric_refuses_an_edge_written_into_the_graph_list():
     network.graph_object.graph[JUNCTION][EAST_TOWN] = 40.0
 
     with pytest.raises(ValueError, match="add_edge, remove_edge"):
-        network.get_shortest_path(WEST_POINT, EAST_POINT, metric="minutes")
+        network.create_metric("hours", weight_per_km=0.025)
 
 
 def test_a_metric_created_again_after_an_edit_has_a_weight_for_the_new_edge(

@@ -305,7 +305,7 @@ class GeoGraphIO:
         # and without metrics does not read the arrays of its edges here.
         classes, edge_value_arrays = None, {}
         if self.classes or self._metrics:
-            geograph_offsets = self._read_edge_arrays()[0]
+            geograph_offsets = self._read_edge_arrays(check_edge_count=True)[0]
             edge_class_ids = self._read_edge_class_ids()
             if edge_class_ids is not None:
                 classes = self.classes
@@ -3031,7 +3031,7 @@ class GeoGraph(
 
         - Create a GeoGraph object
         - The arguments that start with `_` are internal: a loader of scgraph passes the arrays of the edges of `graph`, the class id of each edge and the metrics with them
-        - The attribute `graph_object` is the `Graph` of the edges. Change its edges only with `add_edge`, `remove_edge`, `add_node` and `remove_node`, of the geograph or of `graph_object`: a read of the edges or of the metrics raises a ValueError when their count changed otherwise. In the C++ build, `graph_object.graph` is a copy: a write into it changes nothing
+        - The attribute `graph_object` is the `Graph` of the edges. Change its edges only with `add_edge`, `remove_edge`, `add_node` and `remove_node`, of the geograph or of `graph_object`: `create_metric` and `save_as_scgraph` raise a ValueError when the count of the edges changed otherwise. In the C++ build, `graph_object.graph` is a copy: a write into it changes nothing
         - The attribute `default_metric` is the name of the metric that a call without `metric` uses (`get_shortest_path`, `distance_matrix`, `get_path_weight`, `get_graph_object`). It is 'length', until a loader or the caller sets it to another name of `metrics`
         - A call fails with a ValueError while `default_metric` names a metric that the geograph does not have, for example after an edit of the network, which removes the metrics other than 'length'
 
@@ -3227,7 +3227,9 @@ class GeoGraph(
         """
         return self._edge_classes.classes
 
-    def _read_edge_arrays(self) -> tuple[array | memoryview, ...]:
+    def _read_edge_arrays(
+        self, check_edge_count: bool = False
+    ) -> tuple[array | memoryview, ...]:
         # Return the offsets, the heads and the lengths of the edges of
         # `graph_object`. The method reads them again when the graph or its count
         # of edits has changed: the caller may have edited `graph_object` itself.
@@ -3236,7 +3238,9 @@ class GeoGraph(
         graph = self.graph_object
         # A pure-Python graph keeps its edges in the list `__graph__`, which a
         # caller can change without a counted edit. A C++ graph has no such list.
-        rows = getattr(graph, "__graph__", None)
+        # The count reads every node, so only a call that computes or writes one
+        # value for each edge asks for it: a query does not.
+        rows = getattr(graph, "__graph__", None) if check_edge_count else None
         if (
             graph is not self._edge_arrays_graph
             or graph._edit_count != self._edge_arrays_edit_count
@@ -3531,7 +3535,7 @@ class GeoGraph(
             off_graph_weight_per_km=off_graph_weight_per_km,
             edge_weights=edge_weights,
         )
-        offsets, heads, lengths = self._read_edge_arrays()
+        offsets, heads, lengths = self._read_edge_arrays(check_edge_count=True)
         units_per_km = get_units_per_km(self.geograph_units)
         if weight_per_km is not None:
             edge_class_ids = self._read_edge_class_ids()
