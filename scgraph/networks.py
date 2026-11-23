@@ -78,7 +78,7 @@ RELEASED_GEOGRAPHS = tuple(
 # each.
 BUILDABLE_NETWORKS = (
     "eurostat_sea_lanes",
-    "geofabrik_multimodal",
+    "osm_region_multimodal",
     "osm_world_multimodal",
 )
 _RELEASE_URL = "https://github.com/connor-makowski/scgraph/releases/download"
@@ -590,7 +590,7 @@ def build_network(
     name: (
         Literal[
             "eurostat_sea_lanes",
-            "geofabrik_multimodal",
+            "osm_region_multimodal",
             "osm_world_multimodal",
         ]
         | types.ModuleType

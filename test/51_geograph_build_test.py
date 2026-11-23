@@ -26,7 +26,7 @@ from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph, network_file, pipelines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph.pipelines import eurostat_sea_lanes, geofabrik_multimodal
+from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
 from scgraph.pipelines.steps import step3_network_assembly, step1_osm_ways
 from scgraph.utils import has_cpp
@@ -153,7 +153,7 @@ def _build_tangled_lines_gpkg():
 
 _FILES["/tangled_lines.gpkg"] = _build_tangled_lines_gpkg()
 
-# Where the local server has each source of `geofabrik_multimodal`
+# Where the local server has each source of `osm_region_multimodal`
 _LOCAL_SOURCES = {
     "osm": "/{region}.osm",
     "land": "/land.geojson",
@@ -773,7 +773,7 @@ def test_a_pipeline_module_named_like_a_built_in_network_is_refused(tmp_path):
 # child processes, as separate users do. A child takes the URL of the local
 # server, its cache folder, the name of the network, its region or "", the
 # backend ("pure python" hides the C++ extension from the child), and where
-# the local server has each source of `geofabrik_multimodal`.
+# the local server has each source of `osm_region_multimodal`.
 _BUILD_IN_A_CHILD_PROCESS = """
 import sys
 import json
@@ -781,11 +781,11 @@ server, cache_dir, name, region, backend, local_sources = sys.argv[1:]
 if backend == "pure python":
     sys.modules["scgraph.cpp"] = None  # importing the extension now fails
 from scgraph import GeoGraph
-from scgraph.pipelines import eurostat_sea_lanes, geofabrik_multimodal
+from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 eurostat_sea_lanes.SOURCES["sea_lanes"]["url"] = server + "/tangled_lines.gpkg"
 for source, path in json.loads(local_sources).items():
-    geofabrik_multimodal.SOURCES[source] = {
-        **geofabrik_multimodal.SOURCES[source], "url": server + path
+    osm_region_multimodal.SOURCES[source] = {
+        **osm_region_multimodal.SOURCES[source], "url": server + path
     }
 GeoGraph.build_geograph(name, region=region or None, cache_dir=cache_dir)
 """
@@ -820,14 +820,14 @@ def _build_in_a_child_process(
 
 
 # The two kinds of pipeline. eurostat_sea_lanes returns a GeoGraph, which scgraph
-# then writes to a network file. geofabrik_multimodal returns the arrays of the
+# then writes to a network file. osm_region_multimodal returns the arrays of the
 # network file: its region "roads" is the file /roads.osm of the local server.
 _NETWORKS_OF_BOTH_KINDS = [
     pytest.param("eurostat_sea_lanes", None, id="eurostat_sea_lanes"),
     pytest.param(
-        "geofabrik_multimodal",
+        "osm_region_multimodal",
         "roads",
-        id="geofabrik_multimodal",
+        id="osm_region_multimodal",
         marks=pytest.mark.skipif(
             importlib.util.find_spec("osmium") is None,
             reason="osmium is not installed",
@@ -883,14 +883,14 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
     pytest.importorskip("osmium")  # checked before the download
     for name, path in _LOCAL_SOURCES.items():
         monkeypatch.setitem(
-            geofabrik_multimodal.SOURCES,
+            osm_region_multimodal.SOURCES,
             name,
-            {**geofabrik_multimodal.SOURCES[name], "url": source + path},
+            {**osm_region_multimodal.SOURCES[name], "url": source + path},
         )
     # The local server has no file /nowhere.osm
     with pytest.raises(ValueError, match="No extract 'nowhere'"):
         GeoGraph.build_geograph(
-            "geofabrik_multimodal", region="nowhere", cache_dir=str(tmp_path)
+            "osm_region_multimodal", region="nowhere", cache_dir=str(tmp_path)
         )
     # The small sources were downloaded before the extract. No network is built.
     kinds = {entry["kind"] for entry in GeoGraph.get_cache_info(str(tmp_path))}
@@ -904,13 +904,13 @@ def test_a_region_without_a_railway_builds_without_rail_nodes(
     pytest.importorskip("osmium")
     for name, path in _LOCAL_SOURCES.items():
         monkeypatch.setitem(
-            geofabrik_multimodal.SOURCES,
+            osm_region_multimodal.SOURCES,
             name,
-            {**geofabrik_multimodal.SOURCES[name], "url": source + path},
+            {**osm_region_multimodal.SOURCES[name], "url": source + path},
         )
 
     strait = GeoGraph.build_geograph(
-        "geofabrik_multimodal", region="strait", cache_dir=tmp_path
+        "osm_region_multimodal", region="strait", cache_dir=tmp_path
     )
 
     assert _points_of(strait, "rail") == []
@@ -1035,7 +1035,7 @@ _FILES["/strait.osm"] = _build_strait_osm()
 def _main_roads_pipeline(server):
     """A pipeline module of one's own, cached as "main_roads". It builds the main
     roads and the vehicle ferries of the file /{region}.osm of the local server,
-    with the steps of `geofabrik_multimodal` (`helpers.build_main_roads`). Its
+    with the steps of `osm_region_multimodal` (`helpers.build_main_roads`). Its
     select functions give no class."""
     module = types.ModuleType("my_pipelines.main_roads")
     module.SOURCES = {
@@ -1123,7 +1123,7 @@ def test_ferries_are_attached_the_same_way_with_a_work_folder(tmp_path):
     assert built_in_files == built_in_memory
 
 
-# The select functions of `geofabrik_multimodal` give the class of each way.
+# The select functions of `osm_region_multimodal` give the class of each way.
 # The fixture of that pipeline has no ferry. So this test runs the two steps
 # of a build that cut the ways of the strait and store them.
 def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
@@ -1132,8 +1132,8 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
     strait_file.write_bytes(_FILES["/strait.osm"])
     selects = {
         "road": {
-            "ways": geofabrik_multimodal.select_main_roads_with_class,
-            "ferries": geofabrik_multimodal.select_vehicle_ferries_with_class,
+            "ways": osm_region_multimodal.select_main_roads_with_class,
+            "ferries": osm_region_multimodal.select_vehicle_ferries_with_class,
         }
     }
 
@@ -1158,13 +1158,13 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
 
 
 def _build_coast_network(tmp_path):
-    """The network that `geofabrik_multimodal` builds from the coast that the
+    """The network that `osm_region_multimodal` builds from the coast that the
     comment above `_FILES` describes: the road, the railways, the sea lane and
     the hubs. The local server stands for every source. The OSM file is served
     as a Geofabrik extract: a PBF whose header gives the time of its data. The
     region "roads" is the file /roads.osm.pbf.
     """
-    pipeline = geofabrik_multimodal
+    pipeline = osm_region_multimodal
     paths = {**_LOCAL_SOURCES, "osm": "/{region}.osm.pbf"}
     osmium = pytest.importorskip("osmium")
     xml, pbf = tmp_path / "roads.osm", tmp_path / "roads.osm.pbf"
@@ -1183,7 +1183,7 @@ def _build_coast_network(tmp_path):
                 {**pipeline.SOURCES[name], "url": server + path},
             )
         return GeoGraph.build_geograph(
-            "geofabrik_multimodal", region="roads", cache_dir=tmp_path
+            "osm_region_multimodal", region="roads", cache_dir=tmp_path
         )
 
 
@@ -1199,7 +1199,7 @@ def coast_cache(tmp_path_factory):
 @pytest.fixture(scope="module")
 def coast_network(coast_cache):
     return GeoGraph.build_geograph(
-        "geofabrik_multimodal",
+        "osm_region_multimodal",
         region="roads",
         cache_dir=coast_cache,
         local_files_only=True,
@@ -1247,7 +1247,7 @@ def test_nodes_are_stored_by_node_mode_and_each_node_mode_names_its_source(
 
 def test_build_geograph_loads_only_the_modes_asked(coast_cache):
     roads = GeoGraph.build_geograph(
-        "geofabrik_multimodal",
+        "osm_region_multimodal",
         region="roads",
         cache_dir=coast_cache,
         local_files_only=True,
@@ -1455,7 +1455,7 @@ def test_each_edge_has_the_class_of_its_way_its_connector_or_its_flight(
     coast_cache,
 ):
     path = network_builder.build_network_file(
-        "geofabrik_multimodal",
+        "osm_region_multimodal",
         region="roads",
         cache_dir=coast_cache,
         local_files_only=True,
@@ -1518,7 +1518,7 @@ def test_a_railway_line_takes_its_class_from_highspeed_then_from_usage(
 ):
     tags = {"railway": "rail", **tags}
 
-    assert geofabrik_multimodal.select_rail_with_class(tags) == (0, class_name)
+    assert osm_region_multimodal.select_rail_with_class(tags) == (0, class_name)
 
 
 def test_the_edges_of_a_lane_of_a_passage_have_the_class_of_the_passage(
@@ -1603,9 +1603,9 @@ def test_eurostat_sea_lanes_leaves_out_the_lanes_of_the_arctic_passages(
     [
         ("nowhere", None, "Unknown network"),
         ("eurostat_marnett", None, "Did you mean 'eurostat_sea_lanes'"),
-        ("geofabrik_multimodal", None, "needs a region"),
+        ("osm_region_multimodal", None, "needs a region"),
         ("eurostat_sea_lanes", "europe/luxembourg", "has no region"),
-        ("geofabrik_multimodal", "../europe", "Invalid region"),
+        ("osm_region_multimodal", "../europe", "Invalid region"),
     ],
 )
 def test_build_geograph_checks_its_arguments_before_downloading(

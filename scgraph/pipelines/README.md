@@ -90,7 +90,7 @@ the call that derives a network.
 
 This part follows one build from its sources to its network file.
 
-The example runs the pipeline `geofabrik_multimodal` on the region `europe/denmark`. A region is
+The example runs the pipeline `osm_region_multimodal` on the region `europe/denmark`. A region is
 the path of an extract on Geofabrik, a server of OpenStreetMap extracts. The build ran on
 2026-11-20 on Linux, with the C++ extension, from the extract of 2026-11-18. The numbers come
 from its log. Another day gives other numbers, because the extract changes every day.
@@ -120,7 +120,7 @@ from its log. Another day gives other numbers, because the extract changes every
 
 ```
 pip install "scgraph[osm]"
-python -m scgraph.pipelines.network_builder geofabrik_multimodal --region europe/denmark --validate
+python -m scgraph.pipelines.network_builder osm_region_multimodal --region europe/denmark --validate
 ```
 
 The command prints the path of the network file. It logs each download. To see each step with
@@ -131,7 +131,7 @@ import logging
 from scgraph.pipelines.network_builder import build_network_file
 
 logging.basicConfig(level=logging.DEBUG)
-build_network_file("geofabrik_multimodal", region="europe/denmark", validate=True)
+build_network_file("osm_region_multimodal", region="europe/denmark", validate=True)
 ```
 
 ### The steps
@@ -334,7 +334,7 @@ cache holds the file.
 ```py
 from scgraph import GeoGraph
 
-denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
+denmark = GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")
 route = denmark.get_shortest_path(
     {"latitude": 56.1629, "longitude": 10.2039},  # the center of Aarhus
     {"latitude": 55.6761, "longitude": 12.5683},  # the center of Copenhagen
@@ -350,7 +350,7 @@ the same two points is 302.2 km:
 ```py
 from scgraph.pipelines.network_builder import build_network_file
 
-file = build_network_file("geofabrik_multimodal", region="europe/denmark")  # the file of the cache
+file = build_network_file("osm_region_multimodal", region="europe/denmark")  # the file of the cache
 roads = GeoGraph.load_from_scgraph(file, node_modes=["road"])
 ```
 
@@ -370,7 +370,7 @@ Each edge has a class. A two-way road gives two edges, and the table counts the 
 ### The network of the world
 
 The pipeline `osm_world_multimodal` runs the same steps on the whole planet. It builds the
-network `world_multimodal`. The pipeline differs from `geofabrik_multimodal` in three points:
+network `world_multimodal`. The pipeline differs from `osm_region_multimodal` in three points:
 
 - It reads the planet file by HTTP byte ranges, and never stores it.
 - It cuts a road or a railway every 10 km, not every 2 km. This gives about 3.4 million nodes.

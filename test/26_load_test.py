@@ -346,7 +346,7 @@ def test_the_name_of_a_released_network_at_another_url_loads_from_that_url(
 @pytest.fixture
 def filled_cache(tmp_path):
     """A cache holding a published geograph, two files of a network release, built
-    networks (eurostat_sea_lanes, a real network file, and geofabrik_multimodal of a region
+    networks (eurostat_sea_lanes, a real network file, and osm_region_multimodal of a region
     and of a sub-region), a cache.json that names no file, a build's work folder and a
     user file.
     """
@@ -357,12 +357,12 @@ def filled_cache(tmp_path):
         "releases/networks-1/europe.no_shapes.scgraph": b"x" * 3,
         "releases/networks-1/europe.scgraph": b"x" * 7,
         "networks/eurostat_sea_lanes/cache.json": "m.scgraph",
-        "networks/geofabrik_multimodal/europe/e.scgraph": b"x" * 30,
-        "networks/geofabrik_multimodal/europe/cache.json": "e.scgraph",
-        "networks/geofabrik_multimodal/europe/france/f.scgraph": b"x" * 40,
-        "networks/geofabrik_multimodal/europe/france/cache.json": "f.scgraph",
+        "networks/osm_region_multimodal/europe/e.scgraph": b"x" * 30,
+        "networks/osm_region_multimodal/europe/cache.json": "e.scgraph",
+        "networks/osm_region_multimodal/europe/france/f.scgraph": b"x" * 40,
+        "networks/osm_region_multimodal/europe/france/cache.json": "f.scgraph",
         "networks/osm_world_multimodal/cache.json": "gone.scgraph",
-        ".work/geofabrik_multimodal/europe/sources/rail.osm.pbf": b"x" * 50,
+        ".work/osm_region_multimodal/europe/sources/rail.osm.pbf": b"x" * 50,
     }
     for path, content in files.items():
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
@@ -392,9 +392,15 @@ def test_cache_info_lists_what_scgraph_keeps_on_disk(filled_cache):
         ("released", "europe", None, "europe.no_shapes.scgraph", 3),
         ("released", "europe", None, "europe.scgraph", 7),
         ("built", "eurostat_sea_lanes", None, "m.scgraph", built_bytes),
-        ("built", "geofabrik_multimodal", "europe", "e.scgraph", 30),
-        ("built", "geofabrik_multimodal", "europe/france", "f.scgraph", 40),
-        ("building", "geofabrik_multimodal", None, "geofabrik_multimodal", 50),
+        ("built", "osm_region_multimodal", "europe", "e.scgraph", 30),
+        ("built", "osm_region_multimodal", "europe/france", "f.scgraph", 40),
+        (
+            "building",
+            "osm_region_multimodal",
+            None,
+            "osm_region_multimodal",
+            50,
+        ),
     ]
     assert info[2]["network_release"] == "networks-1"
     # Versions read from the file; None for a file that can't be read
@@ -435,20 +441,20 @@ def test_clear_geograph_cache_keeps_the_files_that_scgraph_did_not_write(
             id="the files of a name in every network release",
         ),
         pytest.param(
-            {"name": "geofabrik_multimodal"},
+            {"name": "osm_region_multimodal"},
             {
-                "networks/geofabrik_multimodal/europe/e.scgraph",
-                "networks/geofabrik_multimodal/europe/cache.json",
-                "networks/geofabrik_multimodal/europe/france/f.scgraph",
-                "networks/geofabrik_multimodal/europe/france/cache.json",
+                "networks/osm_region_multimodal/europe/e.scgraph",
+                "networks/osm_region_multimodal/europe/cache.json",
+                "networks/osm_region_multimodal/europe/france/f.scgraph",
+                "networks/osm_region_multimodal/europe/france/cache.json",
             },
             id="every region of a name without region",
         ),
         pytest.param(
-            {"name": "geofabrik_multimodal", "region": "europe"},
+            {"name": "osm_region_multimodal", "region": "europe"},
             {
-                "networks/geofabrik_multimodal/europe/e.scgraph",
-                "networks/geofabrik_multimodal/europe/cache.json",
+                "networks/osm_region_multimodal/europe/e.scgraph",
+                "networks/osm_region_multimodal/europe/cache.json",
             },
             id="a region without its sub-regions",
         ),
@@ -468,7 +474,7 @@ def test_clear_geograph_cache_removes_only_the_files_of_the_selected_network(
     "selector",
     [
         {"name": "../networks"},
-        {"name": "geofabrik_multimodal", "region": "../.."},
+        {"name": "osm_region_multimodal", "region": "../.."},
         {"region": "europe"},
     ],
 )

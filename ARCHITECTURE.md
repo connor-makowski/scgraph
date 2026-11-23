@@ -402,7 +402,7 @@ The header contains top-level structural fields and a nested `metadata` dictiona
     "symmetric": false,
     "node_order": "hilbert",
     "pipeline": {
-      "name": "geofabrik_multimodal",
+      "name": "osm_region_multimodal",
       "region": "europe/luxembourg",
       "version": 2
     },
@@ -468,7 +468,7 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). A node that the build adds has an id below zero. No two nodes of one node mode have the same id. |
 | `edge_class_ids` *(opt)* | `uint8` | $M$ | The id of the class of each edge: the position of its class in `metadata.classes`, counted from 0. The id 255 is the id of no class: it is the value of an edge without a class. |
 
-For example, the first node modes of `geofabrik_multimodal` are:
+For example, the first node modes of `osm_region_multimodal` are:
 
 ```json
 "node_modes": [

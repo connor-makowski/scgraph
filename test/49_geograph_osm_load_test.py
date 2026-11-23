@@ -6,7 +6,7 @@ import pytest
 from helpers import build_main_roads, great_circle_km
 
 from scgraph import GeoGraph
-from scgraph.pipelines import geofabrik_multimodal
+from scgraph.pipelines import osm_region_multimodal
 from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.utils import has_cpp
@@ -389,7 +389,7 @@ def test_a_work_folder_is_not_reused_for_another_selection_of_ways(
     with pytest.raises(ValueError, match="No way"):
         step1_osm_ways.build_way_pieces(
             osm_file,
-            {"rail": {"ways": geofabrik_multimodal.select_rail}},
+            {"rail": {"ways": osm_region_multimodal.select_rail}},
             ("railway",),
             step1_osm_ways.MAX_KM_BETWEEN_NODES,
             os.path.join(work_dir, "ways"),  # the folder of `build_main_roads`

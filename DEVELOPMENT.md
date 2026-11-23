@@ -51,7 +51,7 @@ scgraph/
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
   utils.py, _internal.py         # Distance math, coordinate helpers, has_cpp, the cache directory; deprecation warnings, the log of a step
   pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
-    geofabrik_multimodal.py      # Roads, railways, sea lanes and flights of one Geofabrik region
+    osm_region_multimodal.py     # Roads, railways, sea lanes and flights of one region, from an OpenStreetMap extract
     osm_world_multimodal.py      # The same network for the world, from the OpenStreetMap planet
     eurostat_sea_lanes.py        # Sea lanes of Eurostat SeaRoute
     network_builder.py           # The runner: build_network_file (download, build, cache); runs with python -m

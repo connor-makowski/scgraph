@@ -45,7 +45,7 @@ WHAT A PIPELINE MODULE HOLDS
       gives this order). `metric_length` holds km. `arrays` also holds `node_mode_ids`, the
       node mode id of each node, when the network has several node modes; the runner
       writes the count of the nodes of each node mode in its place. `node_modes` is the
-      node modes table (see below). `geofabrik_multimodal` and `osm_world_multimodal`
+      node modes table (see below). `osm_region_multimodal` and `osm_world_multimodal`
       do this. `arrays` may hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
       writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
@@ -121,8 +121,8 @@ loaded from the file holds them: `GeoGraph.classes` and `GeoGraph.get_edges`.
 
 HOW TO RUN A PIPELINE
 
-    GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
-    python -m scgraph.pipelines.network_builder geofabrik_multimodal --region europe/denmark --validate
+    GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")
+    python -m scgraph.pipelines.network_builder osm_region_multimodal --region europe/denmark --validate
 
 The first line builds the network, or loads it from the cache. The command builds the
 network without loading it, and prints the path of its file. With `--validate`, the
@@ -186,7 +186,7 @@ with the same C library or macOS version. A test checks this. The C++ build and 
 pure-Python build give the same nodes, the same edges and the same lengths. Two
 things may differ: the order of the edges of a node, and the choice between two
 routes of the same length. A test checks this with `eurostat_sea_lanes` and
-`geofabrik_multimodal`, on small inputs. Between two platforms, a few lengths or
+`osm_region_multimodal`, on small inputs. Between two platforms, a few lengths or
 shape points may differ in the last bit, because the math libraries differ.
 
 A PIPELINE OF YOUR OWN
