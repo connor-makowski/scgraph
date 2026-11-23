@@ -1129,13 +1129,14 @@ class GeoGraphIO:
                 "osm_region_multimodal",
                 "osm_world_multimodal",
             ]
-            | types.ModuleType
-        ),
+            | None
+        ) = None,
         region: str | None = None,
         cache_dir: str | os.PathLike | None = None,
         reduce_iterations: int = 0,
         lazy: bool = False,
         *,
+        pipeline: types.ModuleType | None = None,
         refresh: bool = False,
         local_files_only: bool | None = None,
         node_modes: list[str] | str | None = None,
@@ -1148,15 +1149,17 @@ class GeoGraphIO:
         - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its pipeline is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
         - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows each download and the credit to cite, and the DEBUG level shows each step of the build with its counts
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
-        - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
         - The network file's header says what built it (pipeline, sources and the time their data is up to, software): `GeoGraph.get_scgraph_info(file)` reads it
+        - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
 
-        Required Arguments:
+        Required Arguments: one of `name` and `pipeline`
 
         - `name`
-            - Type: str | module
-            - What: The name of the network (see `GeoGraph.list_buildable_geographs()`), or a pipeline module with the contract of `scgraph.pipelines` (for example a copy of one, adapted)
-            - Note: A module is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a built-in pipeline; two modules with the same last name share that cache entry; `list_buildable_geographs` does not list it
+            - Type: str | None
+            - What: The name of a network of scgraph (see `GeoGraph.list_buildable_geographs()`)
+        - `pipeline`
+            - Type: module | None
+            - What: A pipeline module of your own, with the contract of `scgraph.pipelines` (for example a copy of one, adapted); it is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a network of scgraph; two modules with the same last name share that cache entry, and `list_buildable_geographs` does not list it
 
         - The runner behind this function, `scgraph.pipelines.network_builder.build_network_file`, has one more option: keeping the work folder of a long build to resume it.
 
@@ -1164,10 +1167,8 @@ class GeoGraphIO:
 
         - `region`
             - Type: str | None
-            - What: For `osm_region_multimodal`, the path of a Geofabrik extract, as in its download URL
+            - What: The region of a network that needs one (`needs_region` in `list_buildable_geographs()`, or a pipeline with `{region}` in a source URL); for `osm_region_multimodal`, the path of a Geofabrik extract, as in its download URL: 'europe/luxembourg', 'north-america/us/texas' (all of them: https://download.geofabrik.de/index-v1-nogeom.json)
             - Default: None
-            - Examples: 'europe/luxembourg', 'europe/france/bretagne', 'north-america/us/texas'
-            - See: https://download.geofabrik.de for the extracts and their paths (all of them, machine-readable: https://download.geofabrik.de/index-v1-nogeom.json)
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory
@@ -1205,7 +1206,7 @@ class GeoGraphIO:
 
         - `RuntimeError` with `validate` if the network fails a validation case
         - `ValueError` if `node_modes` names a node mode that the network does not have
-        - `ValueError` for an unknown name or a pipeline module named like a built-in one, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
+        - `ValueError` for not one of `name` and `pipeline`, an unknown name, a pipeline module named like a network of scgraph, a missing, refused or invalid region, or a region without a source, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
         - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps its downloaded sources in the work folder (`.work/` of the cache directory). The next call resumes from it. `clear_geograph_cache()` removes it
@@ -1218,6 +1219,7 @@ class GeoGraphIO:
             cache_dir,
             reduce_iterations,
             lazy,
+            pipeline=pipeline,
             refresh=refresh,
             local_files_only=local_files_only,
             node_modes=node_modes,
@@ -1248,7 +1250,7 @@ class GeoGraphIO:
             - `description`: str — what the network is and where it comes from
             - `credit`: str — who to credit with results
             - `license`: str — the licences of the sources (SPDX identifiers; `NOASSERTION` when not established)
-            - `needs_region`: bool — whether `build_geograph` needs a `region` (see https://download.geofabrik.de)
+            - `needs_region`: bool — whether `build_geograph` needs a `region`
             - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
             - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
         """

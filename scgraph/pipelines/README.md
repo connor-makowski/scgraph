@@ -652,6 +652,7 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
 - **Another pipeline.** Copy the pipeline that is closest to your need, and change its sources,
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.
+  `GeoGraph.build_geograph(pipeline=module)` builds the network of your module.
 
 - **The classes of your pipeline.** A pipeline module can define one more name. The runner
   reads it when `build` returns the arrays of the network file.

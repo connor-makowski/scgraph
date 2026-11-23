@@ -91,8 +91,10 @@ ALLOWED = [
     (
         "networks",
         "pipelines.network_builder",
-        "`build_network` runs the build of a network. The pipelines import "
-        "`networks` at the top, so this import is inside the function.",
+        "`build_network` runs the build of a network, and "
+        "`list_buildable_networks` reads which pipelines need a region. The "
+        "pipelines import `networks` at the top, so these imports are inside the "
+        "functions.",
     ),
 ]
 

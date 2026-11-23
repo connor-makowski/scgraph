@@ -804,7 +804,7 @@ GeoGraph.list_buildable_geographs()
 #  ...]
 ```
 
-The region of `osm_region_multimodal` is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region that Geofabrik does not have raises a `ValueError`, before any large download.
+The region of `osm_region_multimodal` is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas` ([all extracts](https://download.geofabrik.de/index-v1-nogeom.json), machine-readable). A region that Geofabrik does not have raises a `ValueError`, before any large download. A pipeline of your own takes a region when one of its source URLs holds `{region}`.
 
 | Name | Network | Source |
 |---|---|---|
@@ -840,7 +840,7 @@ The file of these networks also records the class of each edge, for example `mot
 
 These networks have roads, so a query point snaps to its closest road node by default.
 
-**A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
+**A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph(pipeline=module)` builds the network of a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
 The networks that `build_geograph` builds are not the built-in geographs of `load_geograph`. They come from other sources, or from a newer version of a source, so their nodes and their results differ.
 
@@ -852,11 +852,12 @@ In these networks, the shape of each road, ferry or railway edge is simplified t
 
 | Parameter | Default | Description |
 |---|---|---|
-| `name` | required | Name of the network (table above), or a pipeline module |
-| `region` | `None` | For `osm_region_multimodal`: the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL (e.g. `'europe/luxembourg'`, `'north-america/us/texas'`) |
+| `name` | `None` | Name of the network (table above); give `name` or `pipeline` |
+| `region` | `None` | The region of a network that needs one (`needs_region`): for `osm_region_multimodal`, the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL (e.g. `'europe/luxembourg'`, `'north-america/us/texas'`) |
 | `cache_dir` | `None` | Custom cache directory; defaults to `SCGRAPH_CACHE_DIR` if set, else the OS cache dir above |
 | `reduce_iterations` | `0` | Number of reduction iterations to perform upon loading (`0` = none, `1` = single pass, `-1` = full convergence) |
 | `lazy` | `False` | Defer downloading/loading until the geograph is first accessed |
+| `pipeline` | `None` | A pipeline module of your own, in place of `name` |
 | `refresh` | `False` | Download the sources and build the network again, even if the cache holds a current build |
 | `local_files_only` | `None` | Use only the cache, never download; defaults to `True` if `SCGRAPH_OFFLINE=1`, else `False` |
 | `node_modes` | `None` | The node modes to load from the built network, e.g. `["road"]`; `None` loads every node mode |

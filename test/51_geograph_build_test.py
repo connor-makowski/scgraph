@@ -528,11 +528,11 @@ def test_build_file_caches_a_network_that_passes_its_validation(
     pipeline = _lines_pipeline(source)
 
     built_file = network_builder.build_network_file(
-        pipeline, cache_dir=tmp_path, validate=True
+        pipeline=pipeline, cache_dir=tmp_path, validate=True
     )
 
     cached = GeoGraph.build_geograph(
-        pipeline, cache_dir=tmp_path, local_files_only=True
+        pipeline=pipeline, cache_dir=tmp_path, local_files_only=True
     )
     assert len(cached.nodes) == 4
     assert built_file.startswith(str(tmp_path / "networks" / "lines"))
@@ -546,7 +546,7 @@ def test_build_file_does_not_cache_a_network_that_fails_its_validation(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         network_builder.build_network_file(
-            pipeline, cache_dir=tmp_path, validate=True
+            pipeline=pipeline, cache_dir=tmp_path, validate=True
         )
 
     assert not (tmp_path / "networks" / "lines").exists()
@@ -556,7 +556,7 @@ def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
     tmp_path, source, monkeypatch
 ):
     earlier_file = network_builder.build_network_file(
-        _lines_pipeline(source), cache_dir=tmp_path
+        pipeline=_lines_pipeline(source), cache_dir=tmp_path
     )
     earlier_bytes = Path(earlier_file).read_bytes()
     # The source has changed since, and the network it gives fails its validation
@@ -565,11 +565,11 @@ def test_a_failed_validation_leaves_the_network_of_an_earlier_build_cached(
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         network_builder.build_network_file(
-            failing, cache_dir=tmp_path, refresh=True, validate=True
+            pipeline=failing, cache_dir=tmp_path, refresh=True, validate=True
         )
 
     cached_file = network_builder.build_network_file(
-        failing, cache_dir=tmp_path, local_files_only=True
+        pipeline=failing, cache_dir=tmp_path, local_files_only=True
     )
     assert cached_file == earlier_file
     assert Path(cached_file).read_bytes() == earlier_bytes
@@ -582,21 +582,26 @@ def test_build_geograph_refuses_a_network_that_fails_its_validation(
     pipeline = _lines_pipeline(source, expected_km=100)
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
-        GeoGraph.build_geograph(pipeline, cache_dir=tmp_path, validate=True)
+        GeoGraph.build_geograph(
+            pipeline=pipeline, cache_dir=tmp_path, validate=True
+        )
 
 
 def test_validate_checks_a_cached_network_without_building_it_again(
     tmp_path, source
 ):
     network_builder.build_network_file(
-        _lines_pipeline(source), cache_dir=tmp_path
+        pipeline=_lines_pipeline(source), cache_dir=tmp_path
     )
     # The same pipeline, with a case that its network fails
     failing = _lines_pipeline(source, expected_km=100)
 
     with pytest.raises(RuntimeError, match="validation failed for lines"):
         network_builder.build_network_file(
-            failing, cache_dir=tmp_path, validate=True, local_files_only=True
+            pipeline=failing,
+            cache_dir=tmp_path,
+            validate=True,
+            local_files_only=True,
         )
 
     assert _Source.served == ["/lines.gpkg"]  # the first build only
@@ -609,10 +614,10 @@ def _fail_to_build(files):
 def test_a_failed_build_keeps_its_sources_for_the_next_build(tmp_path, source):
     broken = _lines_pipeline(source, build=_fail_to_build)
     with pytest.raises(RuntimeError, match="build failed"):
-        GeoGraph.build_geograph(broken, cache_dir=tmp_path)
+        GeoGraph.build_geograph(pipeline=broken, cache_dir=tmp_path)
 
     repaired = _lines_pipeline(source)
-    geo = GeoGraph.build_geograph(repaired, cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph(pipeline=repaired, cache_dir=tmp_path)
 
     assert len(geo.nodes) == 4
     assert _Source.served == ["/lines.gpkg"]  # downloaded once
@@ -623,10 +628,10 @@ def test_refresh_downloads_the_sources_again_after_a_failed_build(
 ):
     broken = _lines_pipeline(source, build=_fail_to_build)
     with pytest.raises(RuntimeError, match="build failed"):
-        GeoGraph.build_geograph(broken, cache_dir=tmp_path)
+        GeoGraph.build_geograph(pipeline=broken, cache_dir=tmp_path)
 
     repaired = _lines_pipeline(source)
-    GeoGraph.build_geograph(repaired, cache_dir=tmp_path, refresh=True)
+    GeoGraph.build_geograph(pipeline=repaired, cache_dir=tmp_path, refresh=True)
 
     assert _Source.served == ["/lines.gpkg"] * 2
 
@@ -642,7 +647,7 @@ def test_a_build_keeps_its_files_in_the_work_folder_that_the_caller_gives(
     work_dir = tmp_path / "work"
 
     network_builder.build_network_file(
-        pipeline, cache_dir=tmp_path / "cache", work_dir=work_dir
+        pipeline=pipeline, cache_dir=tmp_path / "cache", work_dir=work_dir
     )
 
     # The runner removes its own work folder after a build, not the caller's
@@ -662,11 +667,15 @@ def test_a_build_works_in_a_folder_on_another_disk_than_the_cache(
 ):
     with tempfile.TemporaryDirectory(dir="/dev/shm") as work_dir:
         network_builder.build_network_file(
-            _lines_pipeline(source), cache_dir=tmp_path, work_dir=work_dir
+            pipeline=_lines_pipeline(source),
+            cache_dir=tmp_path,
+            work_dir=work_dir,
         )
 
     cached = GeoGraph.build_geograph(
-        _lines_pipeline(source), cache_dir=tmp_path, local_files_only=True
+        pipeline=_lines_pipeline(source),
+        cache_dir=tmp_path,
+        local_files_only=True,
     )
     assert len(cached.nodes) == 4
 
@@ -677,12 +686,14 @@ def test_a_build_works_in_a_folder_on_another_disk_than_the_cache(
 def test_build_geograph_builds_again_for_another_pipeline_version(
     tmp_path, source
 ):
-    GeoGraph.build_geograph(_lines_pipeline(source), cache_dir=tmp_path)
+    GeoGraph.build_geograph(
+        pipeline=_lines_pipeline(source), cache_dir=tmp_path
+    )
     next_version = _lines_pipeline(source)
     next_version.PIPELINE_VERSION = 2
 
-    GeoGraph.build_geograph(next_version, cache_dir=tmp_path)
-    GeoGraph.build_geograph(next_version, cache_dir=tmp_path)
+    GeoGraph.build_geograph(pipeline=next_version, cache_dir=tmp_path)
+    GeoGraph.build_geograph(pipeline=next_version, cache_dir=tmp_path)
 
     assert _Source.served == ["/lines.gpkg"] * 2  # once for each version
 
@@ -690,7 +701,9 @@ def test_build_geograph_builds_again_for_another_pipeline_version(
 def test_local_files_only_loads_a_network_of_another_pipeline_version(
     tmp_path, source
 ):
-    GeoGraph.build_geograph(_lines_pipeline(source), cache_dir=tmp_path)
+    GeoGraph.build_geograph(
+        pipeline=_lines_pipeline(source), cache_dir=tmp_path
+    )
     next_version = _lines_pipeline(source)
     next_version.PIPELINE_VERSION = 2
 
@@ -699,7 +712,7 @@ def test_local_files_only_loads_a_network_of_another_pipeline_version(
         UserWarning, match="pipeline version 1, now 2;"
     ) as caught:
         geo = GeoGraph.build_geograph(
-            next_version, cache_dir=tmp_path, local_files_only=True
+            pipeline=next_version, cache_dir=tmp_path, local_files_only=True
         )
 
     (warning,) = [w for w in caught if "pipeline version" in str(w.message)]
@@ -713,7 +726,9 @@ def test_a_new_build_replaces_the_network_file_of_the_earlier_build(
 ):
     pipeline = _lines_pipeline(source)
     earlier_file = Path(
-        network_builder.build_network_file(pipeline, cache_dir=tmp_path)
+        network_builder.build_network_file(
+            pipeline=pipeline, cache_dir=tmp_path
+        )
     )
     # The source has changed since. The new network has another content,
     # so its file has another name.
@@ -721,7 +736,7 @@ def test_a_new_build_replaces_the_network_file_of_the_earlier_build(
 
     new_file = Path(
         network_builder.build_network_file(
-            pipeline, cache_dir=tmp_path, refresh=True
+            pipeline=pipeline, cache_dir=tmp_path, refresh=True
         )
     )
 
@@ -735,7 +750,7 @@ def test_a_pipeline_module_gives_the_last_part_of_its_name_to_its_network(
 ):
     pipeline = _lines_pipeline(source)  # the module my_pipelines.lines
 
-    geo = GeoGraph.build_geograph(pipeline, cache_dir=tmp_path)
+    geo = GeoGraph.build_geograph(pipeline=pipeline, cache_dir=tmp_path)
 
     assert geo.metadata["pipeline"]["name"] == "lines"
 
@@ -754,7 +769,9 @@ def test_the_file_of_a_pipeline_with_its_own_classes_table_names_those_classes(
     pipeline = _lines_pipeline(source, build=build_canals)
     pipeline.CLASSES = {"canal": "inland_water"}
 
-    file = network_builder.build_network_file(pipeline, cache_dir=tmp_path)
+    file = network_builder.build_network_file(
+        pipeline=pipeline, cache_dir=tmp_path
+    )
 
     canal = {"name": "canal", "edge_mode": "inland_water"}
     assert GeoGraph.get_scgraph_info(file)["classes"] == [canal]
@@ -765,7 +782,7 @@ def test_a_pipeline_module_named_like_a_built_in_network_is_refused(tmp_path):
     namesake = types.ModuleType("my_pipelines.eurostat_sea_lanes")
 
     with pytest.raises(ValueError, match="Invalid pipeline module name"):
-        GeoGraph.build_geograph(namesake, cache_dir=tmp_path)
+        GeoGraph.build_geograph(pipeline=namesake, cache_dir=tmp_path)
 
 
 # The same sources must give the same network file in every process, so
@@ -888,7 +905,7 @@ def test_build_geograph_names_a_region_geofabrik_does_not_have(
             {**osm_region_multimodal.SOURCES[name], "url": source + path},
         )
     # The local server has no file /nowhere.osm
-    with pytest.raises(ValueError, match="No extract 'nowhere'"):
+    with pytest.raises(ValueError, match="The region 'nowhere' has no source"):
         GeoGraph.build_geograph(
             "osm_region_multimodal", region="nowhere", cache_dir=str(tmp_path)
         )
@@ -969,7 +986,7 @@ def test_build_geograph_calls_the_download_hook_of_a_source(tmp_path):
     }
     module.PIPELINE_VERSION, module.build = 1, eurostat_sea_lanes.build
     module.download = lambda url, filename: pytest.fail("module's hook called")
-    geo = GeoGraph.build_geograph(module, cache_dir=str(tmp_path))
+    geo = GeoGraph.build_geograph(pipeline=module, cache_dir=str(tmp_path))
     (record,) = geo.metadata["sources"]
     assert calls == [url] and "sha256" not in record
     assert (record["bytes"], record["md5"]) == (10**11, "0" * 32)
@@ -981,7 +998,7 @@ def test_list_buildable_geographs_matches_the_names_build_geograph_takes(
     listing = GeoGraph.list_buildable_geographs(str(tmp_path))
     names = [n["name"] for n in listing]
     annotation = typing.get_type_hints(GeoGraph.build_geograph)["name"]
-    literal = typing.get_args(annotation)[0]  # Literal[...] | ModuleType
+    literal = typing.get_args(annotation)[0]  # Literal[...] | None
     assert names == list(pipelines.NAMES) == list(typing.get_args(literal))
 
 
@@ -1064,7 +1081,7 @@ def strait_network(tmp_path_factory):
     pytest.importorskip("osmium")
     with _local_server() as server:
         return GeoGraph.build_geograph(
-            _main_roads_pipeline(server),
+            pipeline=_main_roads_pipeline(server),
             region="strait",
             cache_dir=tmp_path_factory.mktemp("strait"),
         )
@@ -1212,7 +1229,9 @@ def test_a_pipeline_whose_selects_give_no_class_builds_no_edge_classes(
 ):
     pytest.importorskip("osmium")
     path = network_builder.build_network_file(
-        _main_roads_pipeline(source), region="strait", cache_dir=tmp_path
+        pipeline=_main_roads_pipeline(source),
+        region="strait",
+        cache_dir=tmp_path,
     )
 
     arrays, metadata = network_file.read(path)
@@ -1599,21 +1618,33 @@ def test_eurostat_sea_lanes_leaves_out_the_lanes_of_the_arctic_passages(
 
 
 @pytest.mark.parametrize(
-    "name, region, message",
+    "arguments, message",
     [
-        ("nowhere", None, "Unknown network"),
-        ("eurostat_marnett", None, "Did you mean 'eurostat_sea_lanes'"),
-        ("osm_region_multimodal", None, "needs a region"),
-        ("eurostat_sea_lanes", "europe/luxembourg", "has no region"),
-        ("osm_region_multimodal", "../europe", "Invalid region"),
+        ({"name": "nowhere"}, "Unknown network"),
+        ({"name": "eurostat_marnett"}, "Did you mean 'eurostat_sea_lanes'"),
+        ({"name": eurostat_sea_lanes}, "as pipeline=<module>"),
+        ({}, "Give one of name"),
+        (
+            {"name": "eurostat_sea_lanes", "pipeline": eurostat_sea_lanes},
+            "Give one of name",
+        ),
+        ({"name": "osm_region_multimodal"}, "'osm_region_multimodal' needs"),
+        (
+            {"name": "eurostat_sea_lanes", "region": "europe/luxembourg"},
+            "'eurostat_sea_lanes' takes no region",
+        ),
+        (
+            {"name": "osm_region_multimodal", "region": "../europe"},
+            "Invalid region",
+        ),
     ],
 )
 def test_build_geograph_checks_its_arguments_before_downloading(
-    tmp_path, monkeypatch, name, region, message
+    tmp_path, monkeypatch, arguments, message
 ):
     monkeypatch.setattr("requests.get", None)  # any download fails at once
     with pytest.raises(ValueError, match=message):
-        GeoGraph.build_geograph(name, region=region, cache_dir=str(tmp_path))
+        GeoGraph.build_geograph(**arguments, cache_dir=str(tmp_path))
     assert list(tmp_path.iterdir()) == []
 
 

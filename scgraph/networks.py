@@ -411,13 +411,13 @@ def list_buildable_networks(
 
     The docstring of `GeoGraph.list_buildable_geographs` gives the arguments and the result.
     """
+    from scgraph.pipelines.network_builder import find_region_url
+
     root = resolve_cache_dir(cache_dir).joinpath("networks")
     listing = []
     for name in BUILDABLE_NETWORKS:
         network = importlib.import_module(f"scgraph.pipelines.{name}")
-        needs_region = any(
-            "{region}" in source["url"] for source in network.SOURCES.values()
-        )
+        needs_region = find_region_url(network) is not None
         folder = root.joinpath(name)
         built = [m for m in folder.rglob("cache.json") if find_cached_file(m)]
         listing.append(
@@ -593,13 +593,14 @@ def build_network(
             "osm_region_multimodal",
             "osm_world_multimodal",
         ]
-        | types.ModuleType
+        | None
     ),
     region: str | None,
     cache_dir: str | os.PathLike | None,
     reduce_iterations: int,
     lazy: bool,
     *,
+    pipeline: types.ModuleType | None,
     refresh: bool,
     local_files_only: bool | None,
     node_modes: list[str] | str | None,
@@ -619,6 +620,7 @@ def build_network(
                 cache_dir=cache_dir,
                 reduce_iterations=reduce_iterations,
                 lazy=False,
+                pipeline=pipeline,
                 refresh=refresh,
                 local_files_only=local_files_only,
                 node_modes=node_modes,
@@ -632,6 +634,7 @@ def build_network(
             name,
             region,
             cache_dir,
+            pipeline=pipeline,
             refresh=refresh,
             local_files_only=local_files_only,
             validate=validate,

@@ -25,7 +25,7 @@ WHAT A PIPELINE MODULE HOLDS
 - `SOURCES`: a dict that gives a name to each source. A source is a dict:
     - `url`: where the source is. The runner replaces `{region}` in it by the `region`
       argument of `build_geograph`. A pipeline needs a region when one of its URLs
-      holds `{region}`.
+      holds `{region}`, and takes none otherwise: the runner refuses another call.
     - `credit`: the credit line that a user cites with results.
     - `license`: an SPDX identifier. Write `LicenseRef-…` when SPDX has no identifier,
       and `NOASSERTION` when the license could not be established.
@@ -209,7 +209,8 @@ def build(files):
 ```
 
 Save it as `cycleways.py`. Then `import cycleways` and
-`GeoGraph.build_geograph(cycleways, region="europe/luxembourg")` build the network.
+`GeoGraph.build_geograph(pipeline=cycleways, region="europe/luxembourg")` build the
+network.
 The cache keeps it under the last part of the name of the module, in
 `networks/cycleways/europe/luxembourg/`. To adapt a pipeline of scgraph, copy its
 module under another name: scgraph refuses a module that has the name of one of its
