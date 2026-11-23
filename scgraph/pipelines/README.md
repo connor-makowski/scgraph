@@ -280,14 +280,15 @@ Where to read more: the docstring at the top of `steps/step3_network_assembly.py
 
 The runner writes the arrays to one file of 4.2 MB, in its work folder. The header of the file
 records the pipeline, each source with its version and its license, and the software of the
-build. It also records three things that a query uses:
+build. It also records two things that a query uses:
 
 - `metrics`: the metrics of the file. A built file has one metric, `length`, in km. A user
   adds other metrics on the loaded network (`GeoGraph.create_metric`).
 - `classes`: one row for each class, with its name and its edge mode, such as
   `{"name": "motorway", "edge_mode": "road"}`.
-- `node_addition_modes`: the node modes that a query point snaps to by default. This pipeline
-  names `road`, so a route starts and ends on a road.
+
+A query point snaps to its closest road node by default, because this network has nodes of the
+node mode `road`. So a route starts and ends on a road.
 
 `GeoGraph.get_scgraph_info(file)` reads this back.
 
@@ -302,8 +303,8 @@ for the route between them. This build has three cases, and all three pass. One 
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
 Each kind of case has its node modes. The two points of a case snap to nodes of these node
-node modes: a road node for a road distance, any node for a hub. The `node_addition_modes` of the
-file do not count here.
+node modes: a road node for a road distance, any node for a hub. The default rule of a query does
+not count here.
 
 Then the runner moves the file into the cache. A network that fails a case does not enter the
 cache.
@@ -424,9 +425,9 @@ extension. The parent file is the `world_multimodal` of the network release
 The derivation took 1.5 s. The derived file is 19.7 MB, and 7.1 MB without the shapes. Its
 header records the `content_sha256` of the parent file, the node modes and the bbox.
 
-A derived file keeps the length and the class of each edge. It keeps the node modes of
-`node_addition_modes` that it holds. So a query point snaps to a road node in `oceania`.
-`world_sea` holds no road, and a query point snaps to its closest node of any node mode.
+A derived file keeps the length and the class of each edge. `oceania` has roads, so a query
+point snaps to its closest road node by default. `world_sea` holds no road, and a query point
+snaps to its closest node.
 
 The command checks the derived network against some cases of `world_multimodal` (`--no-validate`
 skips this check): the cases whose two points are inside the bbox, on node modes that the file
@@ -652,17 +653,16 @@ Where to read more: the docstring of `_fetch_released_file`, in `geograph.py`.
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.
 
-- **The classes and the default node modes of your pipeline.** A pipeline module can define
-  two more names. The runner reads them when `build` returns the arrays of the network file.
+- **The classes of your pipeline.** A pipeline module can define one more name. The runner
+  reads it when `build` returns the arrays of the network file.
 
   ```py
-  # A query point snaps to a node of these node modes by default
-  NODE_ADDITION_MODES = ("road",)
   # The edge mode of each class, by the name of the class
   CLASSES = {"cycleway": "road", "towpath": "road", "ferry": "road"}
   ```
 
   The array `edge_class_ids` holds the id of the class of each edge in `CLASSES`, counted from
   0: `0` for `cycleway`, `1` for `towpath`. Without `CLASSES`, the runner writes the classes of
-  `scgraph.pipelines.CLASSES`. The docstring of `scgraph.pipelines` gives the contract of the
-  two names.
+  `scgraph.pipelines.CLASSES`. The docstring of `scgraph.pipelines` gives the contract of this
+  name. A query point snaps to a road node by default when your pipeline names the node mode
+  of its road nodes `road`.

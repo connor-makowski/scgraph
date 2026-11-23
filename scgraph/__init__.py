@@ -165,7 +165,7 @@ route = roads.get_shortest_path(origin_node=paris, destination_node=berlin)
 print(route["length"])  #=> 1031.6 (km, by road)
 ```
 
-**Where a route starts and ends.** A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point snaps to this node. In a released network with roads, a query point snaps to its closest road node, so a route starts and ends on a road. A point at sea snaps to a road node too, however far. For such a point, pass `node_addition_modes=["sea", "port"]` to `get_shortest_path`. [Where a Query Point Snaps](#where-a-query-point-snaps) says more.
+**Where a route starts and ends.** A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point snaps to this node. In a released network with roads, a query point snaps to its closest road node, so a route starts and ends on a road. A point at sea snaps to a road node too, however far. For such a point, pass `snap_to_node_modes=["sea", "port"]` to `get_shortest_path`. [Where a Query Point Snaps](#where-a-query-point-snaps) says more.
 
 **A smaller download.** `load_intermediate_nodes=False` downloads the file without the shapes. The route lengths are the same. The `coordinate_path` of a route then goes in a straight line from node to node.
 
@@ -210,7 +210,7 @@ These are the seven networks of scgraph 3.6.0. They are deprecated: `load_geogra
 | `world_highways` | `GeoGraph.load_geograph("world_multimodal", node_modes=["road"])` | World highway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 | `world_railways` | `GeoGraph.load_geograph("world_rail")` | World railway network | [OpenStreetMap](https://www.openstreetmap.org/) |
 
-On `world_highways_and_marnet`, a query point snaps to its closest node, on a road or on a sea lane. On its replacement, a query point snaps to its closest road node. To snap to the closest node of any node mode, as before, pass `node_addition_modes=["road", "sea", "port"]` to `get_shortest_path`.
+On `world_highways_and_marnet`, a query point snaps to its closest node, on a road or on a sea lane. On its replacement, a query point snaps to its closest road node. To snap to the closest node of any node mode, as before, pass `snap_to_node_modes=["road", "sea", "port"]` to `get_shortest_path`.
 
 ## Quick Start: OSMNx Integration
 
@@ -487,7 +487,7 @@ To close one edge, name it in `edge_weights`: `edge_weights={(origin_id, destina
 
 ### Where a Query Point Snaps
 
-A query point snaps to a node of the network: the route starts or ends at this node. In a released network with roads, a query point snaps to its closest road node, for every metric. `node_addition_modes` lists the node modes that a query point may snap to. With `node_addition_modes=["road", "rail"]`, a route may also start or end at a rail node. `europe.node_modes` gives the node modes. [Node Addition Options](#node-addition-options) gives the exact rule of the default.
+A query point snaps to a node of the network: the route starts or ends at this node. In a released network with roads, a query point snaps to its closest road node, for every metric. `snap_to_node_modes` lists the node modes that a query point may snap to. With `snap_to_node_modes=["road", "rail"]`, a route may also start or end at a rail node. `europe.node_modes` gives the node modes. [Node Addition Options](#node-addition-options) gives the exact rule of the default.
 
 ### Reading the Network
 
@@ -620,7 +620,7 @@ km_of_the_fastest_routes = north_america.distance_matrix(cities, metric="hours",
 | `output_units` | `'km'` | Unit of the lengths of the matrix; ignored when the matrix holds another metric than `length` |
 | `metric` | `None` | The metric that each route minimises; `None` is the default metric of the geograph |
 | `output_metric` | `None` | The metric that the matrix holds; `None` is the metric of `metric`. With another metric, the call is slower: it reads the path of each pair |
-| `node_addition_modes` | `None` | The node modes that a query point may snap to, as in `get_shortest_path` |
+| `snap_to_node_modes` | `None` | The node modes that a query point may snap to, as in `get_shortest_path` |
 
 ## Graph Reduction
 
@@ -695,9 +695,9 @@ output = world_sea.get_shortest_path(
 | `'quadrant'` | Closest node in each quadrant |
 | `'all'` | All nodes within the bound |
 
-`node_addition_modes` limits these nodes to some node modes, for each `node_addition_type`: `node_addition_modes=["road"]` joins the origin and the destination to road nodes only. A node mode that the geograph does not have raises a `ValueError`.
+`snap_to_node_modes` limits these nodes to some node modes, for each `node_addition_type`: `snap_to_node_modes=["road"]` joins the origin and the destination to road nodes only. A node mode that the geograph does not have raises a `ValueError`.
 
-The default is `None`. A query point then snaps to the node modes that the network file names: `default_node_addition_modes`, the roads for a released network with roads. It also snaps to a node without a named node mode: a node that you added with `add_coord_node` without `node_mode=`. A geograph without `default_node_addition_modes` snaps a query point to every node.
+The default is `None`. By default, a query point snaps to its closest road node when the geograph has roads, and to its closest node otherwise. A geograph has roads when one of its nodes has the node mode `road`. With roads, a query point also snaps to a node that you added with `add_coord_node` without `node_mode=`.
 
 
 ---
@@ -839,7 +839,7 @@ In these networks, the shortest route in kilometers between two distant places t
 
 The file of these networks also records the class of each edge, for example `motorway`, `primary`, `ferry`, `rail_main`, `suez` or `flight`. `geo.classes` lists the classes, each with its edge mode, and `geo.get_edges()` gives the class of each edge. The docstring of `scgraph.pipelines` lists the classes.
 
-These networks also name the node modes that a query point snaps to by default: the roads (`geo.default_node_addition_modes`).
+These networks have roads, so a query point snaps to its closest road node by default.
 
 **A pipeline of your own.** The docstring of `scgraph.pipelines` states what a pipeline holds and how to write one. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md), Part 1, follows one build step by step, with its numbers. `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused, and `list_buildable_geographs` does not list your module.
 
@@ -1047,9 +1047,9 @@ my_geograph = GeoGraph.load_from_scgraph('my_geograph.scgraph')
 my_geograph = GeoGraph.load_from_graphjson('my_geograph.graphjson')
 ```
 
-The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, node modes, classes, metrics, `node_addition_modes`, number of nodes and edges, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
+The `.scgraph` format is described in [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) and in the header of each file. `GeoGraph.get_scgraph_info(filename)` reads that header without loading the network: metadata, sources, node modes, classes, metrics, number of nodes and edges, `coordinate_dtype`, `content_sha256`. A GeoGraph loaded from a file keeps that metadata (`geo.metadata`), and `save_as_scgraph` writes it back unless given other `metadata`. It also keeps the path of the file (`geo.scgraph_file`).
 
-**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each [metric](#routes-by-time-cost-and-co2), the default metric (`default_metric`), and the node modes that a query point snaps to by default (`default_node_addition_modes`). A `.graphjson` file and a GeoJSON file hold no class and no metric.
+**What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each [metric](#routes-by-time-cost-and-co2) and the default metric (`default_metric`). A `.graphjson` file and a GeoJSON file hold no class and no metric.
 
 **Coordinates.** Coordinates are stored as float64 (exact) or as int32 in 1e-7 degree (OSM's encoding, about 1 cm, 8 bytes less per node). The `coordinate_dtype` parameter of `save_as_scgraph` chooses the form: `"float64"`, `"int32"` or `"auto"` (the default). With `"auto"`, a GeoGraph keeps its own `coordinate_dtype`. It is `"int32"` for a network read from an int32 file or loaded from OSM, OSMnx or GeoJSON (rounded to 7 decimals or fewer), and `"float64"` otherwise.
 
@@ -1469,7 +1469,7 @@ The public names of scgraph are the names that this README uses. scgraph keeps t
 | For | Public names |
 |---|---|
 | Routes on a network | `scgraph.GeoGraph` and its methods, `scgraph.network_release.TAG` |
-| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `default_metric`, `classes`, `node_modes` and `default_node_addition_modes` |
+| Metrics, classes, node modes and edge modes of a network | The methods `create_metric`, `remove_metric`, `get_graph_object`, `get_nodes`, `get_edges` and `get_path_edges` of `scgraph.GeoGraph`, and its attributes `metrics`, `default_metric`, `classes` and `node_modes` |
 | Your own graph or grid | `scgraph.Graph`, `scgraph.CHGraph`, `scgraph.TNRGraph`, `scgraph.GridGraph`, `scgraph.PathNotFoundError`, `scgraph.NegativeCycleError` |
 | Distances | `scgraph.utils`: `haversine`, `cheap_ruler`, `distance_converter`, `has_cpp` |
 | Lines and GeoJSON | `scgraph.helpers.geojson`, `scgraph.helpers.visvalingam`, `scgraph.helpers.douglas_peucker` |
