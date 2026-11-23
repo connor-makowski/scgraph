@@ -148,7 +148,7 @@ The routing guide explains when to use each way in [Making Many Queries Fast](ht
 | Move from scgraph 3.6 to 4.0 | [Migrating from 3.6 to 4.0](https://github.com/connor-makowski/scgraph/blob/main/MIGRATING.md) |
 | Find every parameter, default, result key and exception of a method | The [API documentation](https://connor-makowski.github.io/scgraph/scgraph.html) |
 | Understand how scgraph works inside | [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md) |
-| Build a network from open data, or publish a network release | [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) |
+| Build a network from open data, or publish a network release | [Network Pipelines](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) |
 | Contribute to scgraph | [DEVELOPMENT.md](https://github.com/connor-makowski/scgraph/blob/dev/DEVELOPMENT.md) |
 
 ## Examples

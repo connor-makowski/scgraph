@@ -98,7 +98,7 @@ europe = GeoGraph.load_geograph("europe", network_release=tag, content_sha256=di
 
 A result that uses a released network cites the credit line of the file, `info["attribution"]` above. The header of the file lists each source with its license (`info["sources"]`).
 
-The guide [From Open Data to a Route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
+The guide [Network Pipelines](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
 
 ## The Cache
 
@@ -183,7 +183,7 @@ Two versions of scgraph can use one cache. If their pipelines differ, each versi
 
 **A pipeline of your own.** `build_geograph(pipeline=my_module)` builds the network of your own pipeline module, for example an adapted copy of a pipeline of scgraph. The cache keeps it in `networks/<last part of the module name>/`. A module with the name of a pipeline of scgraph raises a `ValueError`.
 
-The docstring of `scgraph.pipelines` states what a pipeline holds. The guide [From Open Data to a Route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md#part-1-a-pipeline-builds-a-network) describes each step of one build.
+The docstring of `scgraph.pipelines` states what a pipeline holds. The guide [Network Pipelines](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md#part-1-building-a-network) describes each step of one build.
 
 ## Deriving a Part of a Released Network
 
