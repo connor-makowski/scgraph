@@ -16,6 +16,7 @@ node, in units of 1e-7 degree. The shape points of edge `a` are
 the id of each node in its source. A node that step 1 adds has an id below zero.
 The node mode of a node is the kind of place where the node is, such as `port`.
 `node_mode_ids` holds the node mode id of each node, in a graph of several node modes.
+A network file does not hold it: its header gives the count of the nodes of each node mode.
 
 `edge_class_ids`, if the pieces have classes, holds the id of the class of each edge in the classes
 table (`scgraph.pipelines.CLASSES`).
@@ -806,7 +807,8 @@ def assemble_network(
             only the largest component.
 
     Returns:
-        The arrays of the network file, as `network_file.write` takes them.
+        The arrays of the network file, as `network_file.write` takes them, and
+        `node_mode_ids` if the graph has several node modes.
     """
     with log_step(
         logger,

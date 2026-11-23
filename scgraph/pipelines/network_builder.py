@@ -277,12 +277,17 @@ def _write_network(
                 pipeline, "CLASSES", pipelines.CLASSES
             ).items()
         ]
+    # A file gives the count of the nodes of each node mode, and not the node mode
+    # id of each node
     return network_file.write(
         str(filename),
-        arrays,
+        {name: arrays[name] for name in arrays if name != "node_mode_ids"},
         network_file.build_header_metadata(
             metadata,
             node_modes=node_modes,
+            node_mode_ids=arrays.get(
+                "node_mode_ids", bytes(len(arrays["offsets"]) - 1)
+            ),
             classes=classes,
         ),
     )

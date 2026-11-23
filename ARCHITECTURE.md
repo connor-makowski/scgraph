@@ -438,7 +438,7 @@ The example shows one source and one metric. It does not show the arrays and the
 | `metadata.metrics` | `list[dict]` | The metrics of the file: one row for each metric, and `length` first. A row has the `name` of the metric: small letters, digits and `_`, starting with a letter. It may have a `unit` and a `description`, as free text. The row of `length` has its `unit`: `km`, `m`, `mi` or `ft`. Each other row has `off_graph_weight_per_km`: the weight of 1 km of an off-graph leg in the metric, zero or more. |
 | `metadata.symmetric` | `bool` | Whether the graph's CSR topology is bidirectional with identical forward and reverse weights. It is computed on `metric_length`. |
 | `metadata.node_order` | `str` | How the nodes are numbered. `"hilbert"`: along a 2D Hilbert space-filling curve. With several node modes, the nodes are grouped by node mode first, in the order of `metadata.node_modes`, then numbered along the curve within each node mode. A read of one node mode (`load_from_scgraph(node_modes=...)`) relies on this order. |
-| `metadata.node_modes` | `list[dict]` | The node modes of the network. Each node mode is a dict. `name` gives the name of the node mode. When a source gave the node ids of the node mode, `source` holds the name of that source in `sources`. A network with one node mode has no `node_mode_ids`: all its nodes are in that node mode. If that node mode has no name, the file has no `node_modes`. |
+| `metadata.node_modes` | `list[dict]` | The node modes of the network. Each node mode is a dict. `name` gives the name of the node mode. When a source gave the node ids of the node mode, `source` holds the name of that source in `sources`. `node_count` gives the count of its nodes: the nodes of the first row have the ids `0` to `node_count - 1`, those of the next row follow. A network of one node mode without a name has no `node_modes`. |
 | `metadata.classes` | `list[dict]` | Only in a file with `edge_class_ids`: one row for each class, with its `name` and its `edge_mode`, for example `{"name": "motorway", "edge_mode": "road"}` (docstring of `scgraph.pipelines`, *The classes*). A file holds 255 classes at most. |
 | `metadata.default_metric` | `str` | Optional. The name of the metric that a query without `metric` minimises: a `name` of `metadata.metrics`. Without this key, it is `length`. |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: its name, the region, and its `PIPELINE_VERSION`. |
@@ -466,21 +466,20 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed edge polylines. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior edge point, in the dtype of `node_points`. |
 | `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). A node that the build adds has an id below zero. No two nodes of one node mode have the same id. |
-| `node_mode_ids` *(opt)* | `uint8` | $N$ | The node mode of each node: the position of its node mode in `metadata.node_modes`, counted from 0. Each node has one node mode, so the value is a position, not a set of bits. A file has at most 256 node modes. |
 | `edge_class_ids` *(opt)* | `uint8` | $M$ | The id of the class of each edge: the position of its class in `metadata.classes`, counted from 0. The id 255 is the id of no class: it is the value of an edge without a class. |
 
 For example, the first node modes of `geofabrik_multimodal` are:
 
 ```json
 "node_modes": [
-  {"name": "road", "source": "osm"},
-  {"name": "rail", "source": "osm"},
-  {"name": "sea", "source": "sea"},
-  {"name": "port", "source": "ports"}
+  {"name": "road", "source": "osm", "node_count": 9000},
+  {"name": "rail", "source": "osm", "node_count": 700},
+  {"name": "sea", "source": "sea", "node_count": 250},
+  {"name": "port", "source": "ports", "node_count": 50}
 ]
 ```
 
-Its road nodes have the value `0` in `node_mode_ids`, its rail nodes `1`, its sea nodes `2` and its ports `3`. The road nodes come first, then the rail nodes, then the sea nodes, then the ports. Each node mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
+The nodes `0` to `8999` are road nodes, then come 700 rail nodes, 250 sea nodes and 50 ports. Each node mode names its source. The id of a port node is its World Port Index number, from the table `ports`.
 
 A pipeline may record the class of each edge in `edge_class_ids`. A program reads the name of a class from the header of the file. A later version of scgraph may give a class another position.
 
@@ -506,20 +505,19 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - `offsets` has $N + 1$ values. The first value is `0`, and the last value is $M$.
    - The first row of `metadata.metrics` is `length`, with a `unit`. Each row has its array `metric_<name>`, and each such array has its row. Each of these arrays has $M$ values. Each row other than `length` has `off_graph_weight_per_km`.
    - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
-   - Each node has one point. If the file has `source_node_ids` or `node_mode_ids`, each node also has one id or one node mode.
+   - Each node has one point. If the file has `source_node_ids`, each node also has one id.
    - If the file has `edge_class_ids`, each edge has one class id.
 
-   `node_points` and `shape_points` have the same dtype. If the file has `node_mode_ids`, `metadata.node_modes` is a list. If the file has `edge_class_ids`, `metadata.classes` is a list of 255 rows at most, each with a `name` and an `edge_mode`.
+   `node_points` and `shape_points` have the same dtype. If the file has `metadata.node_modes`, it is a list of 256 rows at most, and their `node_count` values add up to $N$. If the file has `edge_class_ids`, `metadata.classes` is a list of 255 rows at most, each with a `name` and an `edge_mode`.
 6. If `read` copies the arrays into memory, it also checks each value:
    - the values of `offsets` do not decrease;
    - each head is a node;
    - the values of `shape_offsets` do not decrease;
-   - each value of `node_mode_ids` is the position of a row of `metadata.node_modes`;
    - each value of `edge_class_ids` is the position of a row of `metadata.classes`, or 255.
 
    `read` maps the file into memory instead of copying it when its caller passes `mapped=True`, on a little-endian computer. In the C++ build, `load_from_scgraph` always maps the file. A mapped read does not check the values. The C++ graph checks the offsets and the heads when it is built.
 
-If `read` gets `node_modes`, it keeps only the nodes of these node modes and the edges between them. It first checks that each name is in `metadata.node_modes`. The function `select_edges` then visits each edge of the kept nodes once. `scgraph/cpp/src/edge_selection.hpp` explains this function, and `scgraph/helpers/edge_selection.py` is its pure-Python version. `select_edges` checks each value that it reads, as step 6 does, and it checks that the values of `node_mode_ids` do not decrease. It writes new `offsets`, `heads` and `shape_offsets`, because their values change. Every other array keeps its values. A mapped read takes these values in place when they are consecutive in the file, and copies them otherwise. Each kept edge keeps its class and its weight in each metric. `metadata.classes` stays the whole list.
+If `read` gets `node_modes`, it keeps only the nodes of these node modes and the edges between them. It first checks that each name is in `metadata.node_modes`, and builds the node mode of each node from the counts of the rows. The function `select_edges` then visits each edge of the kept nodes once. `scgraph/cpp/src/edge_selection.hpp` explains this function, and `scgraph/helpers/edge_selection.py` is its pure-Python version. `select_edges` checks each value that it reads, as step 6 does. It writes new `offsets`, `heads` and `shape_offsets`, because their values change. Every other array keeps its values. A mapped read takes these values in place when they are consecutive in the file, and copies them otherwise. Each kept edge keeps its class and its weight in each metric. `metadata.classes` stays the whole list.
 
 `read` does not check the values of the weights. `create_metric` refuses a weight below zero or not a number.
 

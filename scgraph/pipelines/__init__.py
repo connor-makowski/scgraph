@@ -42,9 +42,11 @@ WHAT A PIPELINE MODULE HOLDS
     - `(arrays, node_modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
       file: by node mode, then along a Hilbert curve (`step3_network_assembly.assemble_network`
-      gives this order). `metric_length` holds km. `node_modes` is the node modes table (see
-      below). `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may
-      hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
+      gives this order). `metric_length` holds km. `arrays` also holds `node_mode_ids`, the
+      node mode id of each node, when the network has several node modes; the runner
+      writes the count of the nodes of each node mode in its place. `node_modes` is the
+      node modes table (see below). `geofabrik_multimodal` and `osm_world_multimodal`
+      do this. `arrays` may hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
       writes the rows of `CLASSES` into the header of the network file.
   `build` may take a keyword `work_dir`. The runner then passes its work folder. A
   long build keeps files there between its steps, and a later build resumes from
