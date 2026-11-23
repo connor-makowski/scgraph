@@ -124,7 +124,7 @@ my_geograph.graph_object.add_edge(origin_id=0, destination_id=5, distance=1850, 
 my_geograph.remove_coord_node()
 ```
 
-**An edit of the network removes its metrics: create them again after it.** An edit is a node or an edge that you add or remove, or a merge. A warning then names the removed metrics, once. A metric that a loader read is removed too. An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them.
+**An edit of the network removes its metrics: create them again after it.** An edit is a node or an edge that you add or remove, or a merge. A warning then names the removed metrics once, with those that a loader read. An edit made on `graph_object` directly, as above, removes the metrics at the next call that reads them. Change the edges of `graph_object` only with `add_edge`, `remove_edge`, `add_node` and `remove_node`: `create_metric` and `save_as_scgraph` raise a `ValueError` after another change.
 
 **The classes stay.** `add_edge`, `add_coord_edge`, `add_coord_node` and `add_haversine_edge` of a geograph take the keyword `edge_class`. It is the class of the new edge: a name of `geograph.classes`. A metric that you create after the edit gives the new edge the weight per km of its class.
 

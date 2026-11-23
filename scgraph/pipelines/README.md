@@ -301,7 +301,7 @@ describes one known fact of the real world. Most cases give two points and a ref
 for the route between them. This build has three cases, and all three pass. One of them states
 that the port of Arhus has a connector to a road, to a railway and to a sea lane.
 
-Each kind of case has its node modes. The two points of a case snap to nodes of these node
+Each kind of case has its node modes. The two points of a case snap to nodes of these
 node modes: a road node for a road distance, any node for a hub. The default rule of a query does
 not count here.
 
