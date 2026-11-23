@@ -55,8 +55,8 @@ class GraphUtils:
         weights, in the order in which searches visit the edges (the C++ backend gives
         views of its own arrays). The id of an edge is its position in these arrays.
         With `order` (order[new] = old), the rows of the nodes in that order, their
-        edge_destination_ids renumbered. `Graph.from_csr` builds a graph from the three arrays.
-        `GeoGraph` calls this method: it is not in the public API and may change.
+        edge_destination_ids renumbered. `Graph.from_edge_arrays` builds a graph from the three
+        arrays. `GeoGraph` calls this method: it is not in the public API and may change.
         """
         rows, new_id = self.graph, None
         if order is not None:
@@ -538,7 +538,8 @@ class GraphModifiers:
     def edit_count(self) -> int:
         """The number of calls of `add_node`, `add_edge`, `remove_node` and
         `remove_edge` that changed the graph. A GeoGraph reads it to know that its
-        graph was edited. An assignment into `graph` does not change it."""
+        graph was edited. An assignment into `graph` does not change it. It is
+        not in the public API and may change."""
         return getattr(self, "_edit_counter", 0)
 
     def add_node(

@@ -404,9 +404,9 @@ NB_MODULE(cpp, m) {
              nb::arg("check_symmetry") = true, nb::arg("check_connected") = true,
              "Validate that the graph is properly formatted")
         .def_static("reset_node_scans", &reset_node_scans,
-            "Forgets the number of node scans of the last search in this thread")
+            "Forgets the number of node scans of the last search in this thread. GeoGraph calls this method: it is not in the public API and may change")
         .def_static("get_last_node_scans", &get_last_node_scans,
-            "Number of node scans of the last search in this thread (Dijkstra, A* and bucket searches), or None")
+            "Number of node scans of the last search in this thread (Dijkstra, A* and bucket searches), or None. GeoGraph calls this method: it is not in the public API and may change")
         .def("reset_cache", &Graph::reset_cache,
              "Reset the cached shortest path trees")
         .def("get", &Graph::get, nb::arg("idx"),
@@ -414,13 +414,13 @@ NB_MODULE(cpp, m) {
         .def("size", &Graph::size,
              "Get the number of nodes in the graph")
         .def_prop_ro("edit_count", &Graph::edit_count,
-             "The number of calls of add_node, add_edge, remove_node and remove_edge that changed the graph")
+             "The number of calls of add_node, add_edge, remove_node and remove_edge that changed the graph. GeoGraph reads it: it is not in the public API and may change")
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
              "Same as graph")
         .def("get_edge_arrays", &graph_csr, nb::arg("order") = nb::none(),
-             "The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_ids, float64 weights, in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows in that order, edge_destination_ids renumbered (one copy)")
+             "The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_ids, float64 weights, in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows in that order, edge_destination_ids renumbered (one copy). GeoGraph calls this method: it is not in the public API and may change")
         .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
              "Get the inverse of the graph: every edge reversed")
         .def_prop_ro("search_graph", [](const Graph& self) -> std::vector<std::unordered_map<int, double>> {
@@ -652,7 +652,7 @@ NB_MODULE(cpp, m) {
            nb::arg("latitudes"), nb::arg("longitudes"), nb::arg("radius"),
            "A* with the great-circle distance as heuristic, computed natively from node latitudes and longitudes in radians")
 
-        .def_static("from_csr", &csr_graph,
+        .def_static("from_edge_arrays", &csr_graph,
            nb::arg("node_first_edge_ids"), nb::arg("edge_destination_ids"), nb::arg("weights"), nb::arg("copy") = true,
            "Create a Graph from its edges stored by origin (compressed sparse rows), as in a .scgraph network file. With copy=False, the graph reads the three arrays in place and keeps them alive")
 

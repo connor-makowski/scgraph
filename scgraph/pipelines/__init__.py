@@ -280,6 +280,7 @@ def build_metadata(
         "sources": sources,
         "software": {
             "scgraph": scgraph_version,
+            # The record names the build that ran: it chooses no kernel.
             "backend": "cpp" if has_cpp() else "python",
             "platform": f"{sysconfig.get_platform()} {system}".strip(),
         },

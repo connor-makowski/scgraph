@@ -20,6 +20,7 @@ from types import MappingProxyType
 
 from scgraph import network_file
 
+# The C++ kernels take typed buffers only, so each call chooses its kernel.
 try:
     from scgraph.cpp import coordinate_lists as _coordinate_lists
     from scgraph.cpp import shape_path as _shape_path

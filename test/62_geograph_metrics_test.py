@@ -1313,6 +1313,27 @@ def test_the_legs_of_a_route_are_its_parts_on_one_mode(network_with_minutes):
     assert route["length"] == pytest.approx(1000 * (96 + 2 * OFF_GRAPH_LEG_KM))
 
 
+def test_a_node_appended_directly_is_a_transfer_in_the_first_node_mode(
+    network,
+):
+    # The node 10 is 0.01 degree north of the west town and south of the west
+    # station. The fastest route now goes from the road to the railway there.
+    network.nodes.append([0.01, 0.0])
+    network.graph_object.add_node({})
+    network.add_edge(WEST_TOWN, 10, 1.2, True, edge_class="road_connector")
+    network.add_edge(10, WEST_STATION, 1.2, True, edge_class="rail_connector")
+    network.create_metric("minutes", **MINUTES)
+
+    route = network.get_shortest_path(
+        WEST_POINT, EAST_POINT, metric="minutes", output_legs=True
+    )
+
+    assert route["transfers"] == [
+        {"node_id": 10, "node_mode": "road"},
+        {"node_id": EAST_TERMINAL, "node_mode": "rail_terminal"},
+    ]
+
+
 def test_the_legs_of_a_route_add_up_to_its_length_and_to_its_totals(
     network_with_minutes,
 ):

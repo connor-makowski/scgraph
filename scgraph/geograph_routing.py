@@ -605,9 +605,10 @@ class GeoGraphRouting:
         ends and the next one starts. `legs` are the legs of `_cut_legs`, which
         still have the node ids of their `path`."""
         transfers = []
+        node_mode_ids = self._read_node_mode_ids()
         for leg in legs[1:]:
             node_id = leg["path"][0]
-            node_mode = self.node_modes[self.node_mode_ids[node_id]]
+            node_mode = self.node_modes[node_mode_ids[node_id]]
             transfers.append(
                 {"node_id": node_id, "node_mode": node_mode.get("name")}
             )

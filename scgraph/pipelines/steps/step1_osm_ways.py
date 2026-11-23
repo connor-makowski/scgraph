@@ -489,6 +489,7 @@ def download_streamed(
     """Write the layout file of an OSM PBF file, so that a build reads the file by HTTP
     byte ranges (`StreamedPbf.download`). Raise a RuntimeError without the C++ extension.
     """
+    # The reader exists in C++ only: it has no pure-Python twin to choose.
     if not has_cpp():
         raise RuntimeError(
             "Reading an OSM file by byte ranges needs the C++ extension of scgraph"
