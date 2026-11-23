@@ -983,7 +983,7 @@ class GeoGraphRouting:
                 metric, direct_length, origin_id, destination_id
             )
         if logger.isEnabledFor(logging.DEBUG):
-            self.graph_object.reset_node_scans()
+            graph_object.reset_node_scans()
         if is_direct:
             output = {"path": [], "length": direct_length * circuity_ratio}
         else:
@@ -1003,7 +1003,12 @@ class GeoGraphRouting:
                 ) * (circuity_ratio - 1.0)
         if logger.isEnabledFor(logging.DEBUG):
             self._log_query_values(
-                algorithm_name, origin, destination, origin_id, destination_id
+                algorithm_name,
+                graph_object,
+                origin,
+                destination,
+                origin_id,
+                destination_id,
             )
         if metric != "length":
             # The search returned the total of the metric. `length` stays the
@@ -1196,6 +1201,7 @@ class GeoGraphRouting:
     def _log_query_values(
         self,
         algorithm_name: str,
+        graph_object: "Graph",
         origin: Sequence[float],
         destination: Sequence[float],
         origin_entries: dict[int, int | float],
@@ -1206,6 +1212,7 @@ class GeoGraphRouting:
         its result does not show.
 
         - `algorithm_name`: the name of the search, or "custom" for a search function
+        - `graph_object`: the graph that the query searched, which counts the node scans
         - `origin`, `destination`: the [latitude, longitude] of the two ends of the query
         - `origin_entries`, `destination_entries`: the graph nodes that each end was
           joined to, with the cost to reach each node
@@ -1239,7 +1246,7 @@ class GeoGraphRouting:
                 3,
             ),
         }
-        node_scans = self.graph_object.get_last_node_scans()
+        node_scans = graph_object.get_last_node_scans()
         if node_scans is not None:
             values["node_scans"] = node_scans
         logger.debug(
