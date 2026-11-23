@@ -488,7 +488,7 @@ class GeoGraphIO:
             # load_intermediate_nodes=load_intermediate_nodes,
         )
         # In Hilbert order: nodes close on the globe get close ids
-        geograph = _order_by_hilbert(
+        geograph = renumber_in_hilbert_order(
             GeoGraph(
                 graph=data["graph"],
                 nodes=data["nodes"],
@@ -1697,11 +1697,11 @@ def _keep_interior_points(shapes, nodes):
                 del row[destination]
 
 
-def _order_by_hilbert(geograph):
-    # A copy of the geograph with its nodes in Hilbert order within each node mode: ids
-    # change, lengths do not (where two routes tie, another may be returned). Each
-    # caller orders a geograph that it just read from a list of edges, and drops it.
-    # So the copy takes no class and no metric, and it shares the `metadata` dict.
+def renumber_in_hilbert_order(geograph):
+    """Copy a geograph with its nodes in Hilbert order within each node mode."""
+    # The ids change, the lengths do not (where two routes tie, another may be
+    # returned). Each caller orders a geograph that it just read from a list of
+    # edges, and drops it. So the copy takes no class and no metric, and it shares the `metadata` dict.
     from scgraph.geograph import GeoGraph
 
     if (
