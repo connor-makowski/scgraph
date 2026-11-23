@@ -185,8 +185,8 @@ the sum of the two counts: 26,457 pieces.
 | `rail` | railway lines | 5,680 |
 | `road` | main roads | 20,777 |
 
-A pipeline has one select function for each of these node modes. The function says whether a
-way is kept, and gives the class of the way. Each piece has the class of its way.
+A pipeline has one select function for each of these node modes. The function chooses the
+ways to keep, and gives the class of each way. Each piece has the class of its way.
 
 Each node mode has its own junctions and its own pieces, so the roads and the railways stay
 apart. A road and a railway can share a node of OpenStreetMap at a level crossing. The build
