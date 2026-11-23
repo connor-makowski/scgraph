@@ -137,7 +137,7 @@ class GeoGraphEdges:
         find_class = self._edge_classes.find_class
         weights_of_metrics = [
             (name, metric_record.weights)
-            for name, metric_record in self._metrics.items()
+            for name, metric_record in self._read_metrics().items()
         ]
         for origin_id, edge_id in edges:
             destination_id = heads[edge_id]

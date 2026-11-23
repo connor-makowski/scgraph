@@ -25,7 +25,7 @@ void bind_pipelines(nb::module_& m) {
             throw std::invalid_argument("expected one destination, one weight and one class for each edge");
         auto t = assembly::build_csr_from_edges(origins.data(), destinations.data(), weights.data(), m,
                                                 edge_class_ids ? edge_class_ids->data() : nullptr);
-        return nb::make_tuple(owned_view(std::move(t.source_node_ids)), owned_view(std::move(t.offsets)),
+        return nb::make_tuple(owned_view(std::move(t.external_node_ids)), owned_view(std::move(t.offsets)),
                               owned_view(std::move(t.heads)), owned_view(std::move(t.weights)),
                               owned_view(std::move(t.kept)), owned_view(std::move(t.parallel_edges)));
     };

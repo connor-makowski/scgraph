@@ -134,7 +134,7 @@ def test_csr_from_random_edges_finds_the_kept_and_the_parallel_edges(
         )
     }
 
-    source_node_ids, offsets, heads, weights, kept, parallel_edges = (
+    external_node_ids, offsets, heads, weights, kept, parallel_edges = (
         backend.build_csr_from_edges(*_columns(edges))
     )
 
@@ -142,8 +142,8 @@ def test_csr_from_random_edges_finds_the_kept_and_the_parallel_edges(
     assert list(kept) == [i for _, _, _, i in expected]
     assert list(weights) == [weight for _, _, weight, _ in expected]
     stored_pairs = [
-        (source_node_ids[u], source_node_ids[heads[a]])
-        for u in range(len(source_node_ids))
+        (external_node_ids[u], external_node_ids[heads[a]])
+        for u in range(len(external_node_ids))
         for a in range(offsets[u], offsets[u + 1])
     ]
     assert stored_pairs == [
@@ -304,11 +304,11 @@ POINTS_FROM_1_TO_2 = [[0.003, 0.003], [0.004, 0.006]]
 POINTS_FROM_2_TO_3 = [[0.003, 0.013], [0.004, 0.016]]
 
 
-def _by_source_node_ids(arrays, value_of_edge):
+def _by_external_node_ids(arrays, value_of_edge):
     """One value per edge of the network arrays, as a dict. Its keys are the
     pairs (id of the origin, id of the destination)."""
     ids, offsets, heads = (
-        arrays[name] for name in ("source_node_ids", "offsets", "heads")
+        arrays[name] for name in ("external_node_ids", "offsets", "heads")
     )
     return {
         (ids[u], ids[heads[edge]]): value_of_edge(edge)
@@ -349,7 +349,7 @@ def test_assemble_keeps_closed_components_and_contracts_their_chains(
     # The piece from 3 to 4 joins two components one way only: it is left
     # out. Place 2 is between 1 and 3 only: it is contracted. The edge from 1
     # to 3 has the length of the two pieces, 1 km + 2 km.
-    edges = _by_source_node_ids(
+    edges = _by_external_node_ids(
         assembled, lambda edge: assembled["metric_length"][edge]
     )
 
@@ -367,7 +367,7 @@ def _shape_points(arrays, edge):
 def test_the_shape_of_a_contracted_edge_passes_through_the_contracted_node(
     assembled,
 ):
-    shapes = _by_source_node_ids(
+    shapes = _by_external_node_ids(
         assembled, lambda edge: _shape_points(assembled, edge)
     )
 
@@ -402,7 +402,7 @@ def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
     )
 
     # Place 2 is contracted. Place 3 stays, and each edge has its class.
-    class_ids = _by_source_node_ids(
+    class_ids = _by_external_node_ids(
         arrays, lambda edge: arrays["edge_class_ids"][edge]
     )
     assert class_ids == {
@@ -444,7 +444,7 @@ def test_a_longer_road_of_another_class_between_two_junctions_is_split():
     # halves are 4/3 km and 8/3 km long.
     graph = _motorway_and_primary_road([[0, 0.01]])
 
-    edges = _by_source_node_ids(
+    edges = _by_external_node_ids(
         graph,
         lambda edge: (
             graph["edge_class_ids"][edge],
@@ -464,7 +464,7 @@ def test_the_new_node_of_a_split_road_has_an_id_below_every_other_id():
     # A source may give ids below zero: here the junction -7
     graph = _motorway_and_primary_road([], junctions=(-7, 20))
 
-    assert list(graph["source_node_ids"]) == [-8, -7, 20]
+    assert list(graph["external_node_ids"]) == [-8, -7, 20]
 
 
 # A road is split at its middle shape point, or halfway between its two ends
@@ -487,7 +487,9 @@ def test_a_road_is_split_at_its_middle_point_and_its_halves_keep_the_others(
 ):
     graph = _motorway_and_primary_road(points_of_primary_road)
 
-    shapes = _by_source_node_ids(graph, lambda edge: _shape_points(graph, edge))
+    shapes = _by_external_node_ids(
+        graph, lambda edge: _shape_points(graph, edge)
+    )
     # The new node has the lowest id, so it is node 0
     new_node = tuple(graph["node_points"][0:2])
     assert (shapes[10, -1], new_node, shapes[-1, 20]) == expected

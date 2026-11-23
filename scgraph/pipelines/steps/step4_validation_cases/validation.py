@@ -77,7 +77,8 @@ def _find_path(
         return network.get_shortest_path(
             {"latitude": origin[0], "longitude": origin[1]},
             {"latitude": destination[0], "longitude": destination[1]},
-            length_only=not with_path,
+            metric="length",
+            totals_only=not with_path,
             snap_to_node_modes=_list_snap_to_node_modes(network, case),
             **options,
         )
@@ -89,7 +90,7 @@ def _find_path_km(
     network, case, origin, destination, **options
 ) -> float | None:
     route = _find_path(network, case, origin, destination, **options)
-    return None if route is None else route["length"]
+    return None if route is None else route["metric_totals"]["length"]
 
 
 def _find_closest_node(network, point, node_mode=None) -> tuple:

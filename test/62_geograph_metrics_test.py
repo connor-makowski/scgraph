@@ -350,6 +350,15 @@ def test_the_other_edges_keep_their_classes_when_a_node_is_removed(network):
     }
 
 
+def test_a_node_added_after_a_removed_node_does_not_take_its_classes(network):
+    # The east terminal is the last node. The new node gets its id, 9.
+    network.remove_node()
+    network.graph_object.add_node({EAST_STATION: 1.0}, symmetric=True)
+
+    classes = _get_class_of_each_edge(network)
+    assert [classes[9, EAST_STATION], classes[EAST_STATION, 9]] == [None, None]
+
+
 def test_the_edges_of_a_node_added_on_the_graph_object_have_no_class(network):
     # The new node is the node 10.
     network.graph_object.add_node({JUNCTION: 30.0}, symmetric=True)
@@ -915,7 +924,7 @@ def test_a_route_has_no_total_of_a_removed_metric(network_with_minutes):
     network_with_minutes.remove_metric("minutes")
 
     route = network_with_minutes.get_shortest_path(WEST_POINT, EAST_POINT)
-    assert "metric_totals" not in route
+    assert route["metric_totals"] == {"length": route["length"]}
 
 
 def test_remove_metric_refuses_a_metric_that_the_geograph_does_not_have(
@@ -1035,6 +1044,7 @@ def test_a_route_by_a_metric_has_the_smallest_total_of_this_metric(
     assert route["path"] == RAILWAY_PATH
     assert route["length"] == pytest.approx(96 + off_graph_km)
     assert route["metric_totals"] == {
+        "length": route["length"],
         "minutes": pytest.approx(31 + off_graph_km * 4.0),
         "cost": pytest.approx(110 + off_graph_km * 8.5),
     }
@@ -1047,8 +1057,17 @@ def test_a_route_by_the_length_has_the_total_of_each_metric(
 
     # The shortest route takes the primary road: 80 km at 1.5 minutes per km.
     assert route["metric_totals"] == {
-        "minutes": pytest.approx(120 + 2 * OFF_GRAPH_LEG_KM * 4.0)
+        "length": pytest.approx(80 + 2 * OFF_GRAPH_LEG_KM),
+        "minutes": pytest.approx(120 + 2 * OFF_GRAPH_LEG_KM * 4.0),
     }
+
+
+def test_the_totals_of_a_route_hold_its_length_in_the_unit_of_the_query(
+    network,
+):
+    route = network.get_shortest_path(WEST_POINT, EAST_POINT, output_units="mi")
+
+    assert route["metric_totals"] == {"length": route["length"]}
 
 
 # The metric `minutes` closes the railway. The metric `cost` is a sum of the
@@ -1113,7 +1132,7 @@ def test_a_metric_of_a_geograph_in_miles_counts_the_miles_of_an_off_graph_leg():
     # One edge of 2.5 miles. The metric `cost` is a weighted sum, and the
     # metric `toll` is a function: each gives the weight 2 to 1 mile. The call
     # of the function gives the weight of 1 km of an off-graph leg. 1 km is
-    # 3959 / 6371 mile: the radius of the Earth in miles and in km.
+    # 1 / 1.609344 mile.
     geograph_in_miles = GeoGraph(
         graph=[{1: 2.5}, {}], nodes=[[0, 0], [0, 1]], geograph_units="mi"
     )
@@ -1121,7 +1140,7 @@ def test_a_metric_of_a_geograph_in_miles_counts_the_miles_of_an_off_graph_leg():
     geograph_in_miles.create_metric(
         "toll",
         edge_weight_fn=_get_twice_the_length,
-        off_graph_weight_per_km=2 * 3959 / 6371,
+        off_graph_weight_per_km=2 / 1.609344,
     )
 
     route = geograph_in_miles.get_shortest_path(
@@ -1134,6 +1153,7 @@ def test_a_metric_of_a_geograph_in_miles_counts_the_miles_of_an_off_graph_leg():
     # The length of the route is in miles, with its two off-graph legs.
     two_per_mile = pytest.approx(2 * route["length"])
     assert route["metric_totals"] == {
+        "length": route["length"],
         "cost": two_per_mile,
         "toll": two_per_mile,
     }
@@ -1161,11 +1181,11 @@ def test_a_star_with_a_bound_of_the_geograph_finds_the_best_route(
     assert route["path"] == RAILWAY_PATH
 
 
-def test_length_only_with_a_metric_gives_the_total_of_this_metric_alone(
+def test_totals_only_gives_the_total_of_the_metric_of_the_query_alone(
     network_with_minutes,
 ):
     result = network_with_minutes.get_shortest_path(
-        WEST_POINT, EAST_POINT, metric="minutes", length_only=True
+        WEST_POINT, EAST_POINT, metric="minutes", totals_only=True
     )
 
     assert result == {
@@ -1173,6 +1193,23 @@ def test_length_only_with_a_metric_gives_the_total_of_this_metric_alone(
             "minutes": pytest.approx(31 + 2 * OFF_GRAPH_LEG_KM * 4.0)
         }
     }
+
+
+# totals_only returns no path, and length_only gives a length only
+@pytest.mark.parametrize(
+    "arguments, words",
+    [
+        ({"totals_only": True, "output_legs": True}, "output_legs"),
+        ({"length_only": True, "metric": "minutes"}, "totals_only"),
+    ],
+)
+def test_a_query_refuses_totals_that_it_cannot_give(
+    network_with_minutes, arguments, words
+):
+    with pytest.raises(ValueError, match=words):
+        network_with_minutes.get_shortest_path(
+            WEST_POINT, EAST_POINT, **arguments
+        )
 
 
 def test_get_path_weight_gives_the_total_of_a_metric_along_a_route(
@@ -1353,7 +1390,7 @@ def test_the_legs_of_a_route_add_up_to_its_length_and_to_its_totals(
     assert sum(leg["length"] for leg in legs) == pytest.approx(route["length"])
     assert {
         name: sum(leg["metric_totals"][name] for leg in legs)
-        for name in ("minutes", "cost")
+        for name in route["metric_totals"]
     } == pytest.approx(route["metric_totals"])
 
 
@@ -1387,6 +1424,7 @@ def test_a_route_without_an_edge_is_one_leg_off_the_graph(
         {
             "mode": "off_graph",
             "length": pytest.approx(route["length"]),
+            "metric_totals": {"length": pytest.approx(route["length"])},
             "class_lengths": {},
             "coordinate_path": coordinate_path,
         }

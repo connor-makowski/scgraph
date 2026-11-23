@@ -890,7 +890,9 @@ def test_a_network_built_in_pure_python_is_the_same_graph(
     installed = GeoGraph.load_from_scgraph(str(installed_file))
     pure_python = GeoGraph.load_from_scgraph(str(pure_python_file))
     assert pure_python.nodes == installed.nodes
-    assert list(pure_python.source_node_ids) == list(installed.source_node_ids)
+    assert list(pure_python.external_node_ids) == list(
+        installed.external_node_ids
+    )
     assert pure_python.graph_object.graph == installed.graph_object.graph
 
 
@@ -1094,7 +1096,7 @@ def strait_network(tmp_path_factory):
 def _by_osm_ids(geograph, rows):
     """The values of `rows`, a list of one dict per node, as one dict. Its
     keys are the pairs (OSM id of the origin, OSM id of the destination)."""
-    osm_ids = list(geograph.source_node_ids)
+    osm_ids = list(geograph.external_node_ids)
     return {
         (osm_ids[u], osm_ids[v]): value
         for u, row in enumerate(rows)
@@ -1163,7 +1165,7 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
     )
     graph = step3_network_assembly.build_graph_from_pieces(pieces["road"])
 
-    ids, offsets = graph["source_node_ids"], graph["offsets"]
+    ids, offsets = graph["external_node_ids"], graph["offsets"]
     class_names = {
         (ids[u], ids[graph["heads"][edge]]): list(pipelines.CLASSES)[
             graph["edge_class_ids"][edge]
@@ -1448,7 +1450,7 @@ def test_a_railway_is_read_both_ways_and_without_its_sidings(
 
 def test_each_hub_joins_the_modes_it_serves(coast_network):
     node_modes = _get_node_mode_names(coast_network)
-    ids = list(coast_network.source_node_ids)
+    ids = list(coast_network.external_node_ids)
 
     reached = {
         (node_modes[u], ids[u]): sorted({node_modes[v] for v in edges})

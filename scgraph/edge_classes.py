@@ -15,8 +15,8 @@ WORDS
 WHAT IT HOLDS
 
 - The "loaded edges": the edges that a loader or the constructor gave, as the two
-  arrays above, with `edge_class_ids`: the class id of each of them. No edit of
-  the graph changes these three arrays.
+  arrays above, with `edge_class_ids`: the class id of each of them. Only the
+  removal of a node changes these three arrays: it removes the edges of the node.
 - The "added edges": a dict `{(origin id, destination id): class id}` of the
   edges that an `add_` method of the geograph added.
 
@@ -350,6 +350,31 @@ class EdgeClasses:
         one an (origin id, destination id)."""
         for edge in edges:
             self._class_ids_of_added_edges.pop(edge, None)
+
+    def forget_node(self, node_id: int) -> None:
+        """Forget the class of each edge from or to the last node, which the graph
+        removed. A node that the graph adds later gets the same id, and none of
+        these classes."""
+        self._class_ids_of_added_edges = {
+            edge: class_id
+            for edge, class_id in self._class_ids_of_added_edges.items()
+            if node_id not in edge
+        }
+        if node_id >= len(self._loaded_offsets) - 1:
+            # A loaded edge goes from a loaded node to a loaded node.
+            return
+        offsets, heads, edge_class_ids = array("i", [0]), array("i"), array("B")
+        for origin_id in range(node_id):
+            for edge_id in range(
+                self._loaded_offsets[origin_id],
+                self._loaded_offsets[origin_id + 1],
+            ):
+                if self._loaded_heads[edge_id] != node_id:
+                    heads.append(self._loaded_heads[edge_id])
+                    edge_class_ids.append(self._loaded_edge_class_ids[edge_id])
+            offsets.append(len(heads))
+        self._loaded_offsets, self._loaded_heads = offsets, heads
+        self._loaded_edge_class_ids = edge_class_ids
 
     def merge(self, other: "EdgeClasses", first_node_id: int) -> None:
         """Take the classes of the edges of another geograph, for a merge. A class

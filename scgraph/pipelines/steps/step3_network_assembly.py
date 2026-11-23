@@ -12,7 +12,7 @@ A graph is a dict of arrays, with the names of the network file. Node `u` has th
 `offsets[u]` to `offsets[u + 1] - 1`. Edge `a` goes to node `heads[a]` and is
 `metric_length[a]` km long. `node_points` holds the latitude, then the longitude of each
 node, in units of 1e-7 degree. The shape points of edge `a` are
-`shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `source_node_ids` holds
+`shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `external_node_ids` holds
 the id of each node in its source. A node that step 1 adds has an id below zero.
 The node mode of a node is the kind of place where the node is, such as `port`.
 `node_mode_ids` holds the node mode id of each node, in a graph of several node modes.
@@ -199,9 +199,9 @@ def build_csr_from_edges_python(
     parallel_edges = sorted(
         i for edge, i in best_of_class.items() if best[edge[:2]] != i
     )
-    source_node_ids = array("q", sorted({id for edge in best for id in edge}))
-    position = {id: u for u, id in enumerate(source_node_ids)}
-    rows = [[] for _ in source_node_ids]
+    external_node_ids = array("q", sorted({id for edge in best for id in edge}))
+    position = {id: u for u, id in enumerate(external_node_ids)}
+    rows = [[] for _ in external_node_ids]
     for (origin, destination), i in best.items():
         rows[position[origin]].append((position[destination], i))
     offsets, heads, kept = array("i", [0]), array("i"), array("i")
@@ -211,7 +211,7 @@ def build_csr_from_edges_python(
             kept.append(i)
         offsets.append(len(heads))
     return (
-        source_node_ids,
+        external_node_ids,
         offsets,
         heads,
         array("d", (weights[i] for i in kept)),
@@ -243,8 +243,8 @@ def build_csr_from_edges(
             without classes.
 
     Returns:
-        `(source_node_ids, offsets, heads, weights, kept, parallel_edges)`.
-        `source_node_ids` (int64) lists the ids of the ends, sorted, each once. Node `u`
+        `(external_node_ids, offsets, heads, weights, kept, parallel_edges)`.
+        `external_node_ids` (int64) lists the ids of the ends, sorted, each once. Node `u`
         is the id at position `u`. The edges of node `u` are
         `heads[offsets[u]:offsets[u + 1]]` (int32),
         sorted by head, with their `weights`. `kept[a]` (int32) is the input index of
@@ -719,7 +719,7 @@ def build_graph_from_pieces(
 
     Returns:
         The graph as a dict of arrays: `offsets`, `heads`, `metric_length`,
-        `node_points`, `shape_offsets`, `shape_points` and `source_node_ids`, and
+        `node_points`, `shape_offsets`, `shape_points` and `external_node_ids`, and
         `edge_class_ids` when the pieces have classes. The module docstring describes
         them.
 
@@ -731,14 +731,16 @@ def build_graph_from_pieces(
     if len(pieces.class_ids) not in (0, len(pieces.km)):
         raise ValueError("Some pieces have a class and the others have none")
     piece, back, *columns = _list_edges(pieces)
-    source_node_ids, offsets, heads, weights, kept, parallel_edges = (
+    external_node_ids, offsets, heads, weights, kept, parallel_edges = (
         build_csr_from_edges(*columns)
     )
-    if not len(source_node_ids):
+    if not len(external_node_ids):
         raise ValueError("The pieces join no two points: every one is a loop")
     # The new nodes get the ids below zero and below every id of the pieces
     split_pieces = sorted({piece[e] for e in parallel_edges})
-    halves = _split_pieces(pieces, split_pieces, min(0, source_node_ids[0]) - 1)
+    halves = _split_pieces(
+        pieces, split_pieces, min(0, external_node_ids[0]) - 1
+    )
     # The edges below this index are edges of `pieces`. The others are edges of `halves`.
     first_edge_of_halves = len(piece)
     if split_pieces:
@@ -750,12 +752,12 @@ def build_graph_from_pieces(
         first_edge_of_halves = len(piece)
         for column, more in zip((piece, back, *columns), _list_edges(halves)):
             column.extend(more)
-        source_node_ids, offsets, heads, weights, kept, _ = (
+        external_node_ids, offsets, heads, weights, kept, _ = (
             build_csr_from_edges(*columns[:3])
         )
-    node_points = array("i", bytes(8 * len(source_node_ids)))
+    node_points = array("i", bytes(8 * len(external_node_ids)))
     points, shape_offsets = array("i"), array("i", [0])
-    for u in range(len(source_node_ids)):
+    for u in range(len(external_node_ids)):
         for a in range(offsets[u], offsets[u + 1]):
             i, b = piece[kept[a]], back[kept[a]]
             source_pieces = pieces if kept[a] < first_edge_of_halves else halves
@@ -779,7 +781,7 @@ def build_graph_from_pieces(
         "node_points": node_points,
         "shape_offsets": shape_offsets,
         "shape_points": points,
-        "source_node_ids": source_node_ids,
+        "external_node_ids": external_node_ids,
     }
     if columns[3] is not None:
         graph["edge_class_ids"] = array("B", (columns[3][i] for i in kept))
@@ -904,7 +906,7 @@ def _select_nodes(graph, nodes):
     """Copy the arrays of `graph` that describe the nodes, for the nodes listed in
     `nodes` only. Node `nodes[i]` becomes node `i`.
 
-    The arrays are `node_points`, then `source_node_ids` and `node_mode_ids` if `graph`
+    The arrays are `node_points`, then `external_node_ids` and `node_mode_ids` if `graph`
     has them. `network_file.write` writes the arrays in the order of the returned dict.
     This order is fixed, so every run writes the same file.
     """
@@ -916,7 +918,7 @@ def _select_nodes(graph, nodes):
     points[0::2] = array("i", (latitudes[u] for u in nodes))
     points[1::2] = array("i", (longitudes[u] for u in nodes))
     selected = {"node_points": points}
-    for key, typecode in (("source_node_ids", "q"), ("node_mode_ids", "B")):
+    for key, typecode in (("external_node_ids", "q"), ("node_mode_ids", "B")):
         if key in graph:
             selected[key] = array(typecode, (graph[key][u] for u in nodes))
     return selected

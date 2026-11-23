@@ -552,7 +552,7 @@ def _load_network(
             )
         GeoGraph.__fetch_geograph_to_cache__(name, cached_file, geograph_url)
     # Written in Hilbert order (nodes close on the globe get close ids): node ids
-    # differ from the .graphjson's, which the nodes keep as their source_node_ids
+    # differ from the .graphjson's, which the nodes keep as their external_node_ids
     geograph = GeoGraph.load_from_graphjson(str(cached_file))
     geograph.node_modes = [{"name": None, "source": cached_file.name}]
     # To 1e-7 degree, as OSM: the file's compact encoding (a few published ports

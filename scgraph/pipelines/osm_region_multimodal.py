@@ -260,7 +260,7 @@ def build(
         sea = eurostat_sea_lanes.build_sea_lane_arrays(
             {"sea_lanes": files["sea"]}
         )
-        counts["nodes"] = len(sea["source_node_ids"])
+        counts["nodes"] = len(sea["external_node_ids"])
     # 3. The land and the water around the roads, where connectors are checked
     node_points = memoryview(roads["node_points"])  # 1e-7 degree
     latitudes, longitudes = node_points[0::2], node_points[1::2]

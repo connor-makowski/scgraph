@@ -2,6 +2,7 @@ import copy
 from itertools import permutations
 import pytest
 from scgraph import GeoGraph, Graph
+from scgraph.utils import distance_converter, haversine
 from helpers import assert_result
 
 _NODES = [
@@ -266,3 +267,25 @@ def test_custom_algorithm_finds_the_same_routes_on_a_reduced_geograph():
         }
         expected = unreduced.get_shortest_path(**query)
         assert reduced.get_shortest_path(**query) == expected
+
+
+# 1 mile is exactly 1.609344 km. A route of 1 mile on a geograph in miles,
+# `distance_converter` and `haversine` give 1.609344 km for 1 mile.
+def test_one_mile_is_exactly_1_609344_km_in_every_conversion_of_a_length():
+    # Two points of the equator, one degree of longitude apart
+    points = [[0, 0], [0, 1]]
+    geograph_in_miles = GeoGraph(
+        graph=[{1: 1.0}, {0: 1.0}], nodes=points, geograph_units="mi"
+    )
+
+    route = geograph_in_miles.get_shortest_path(
+        {"latitude": 0, "longitude": 0},
+        {"latitude": 0, "longitude": 1},
+        output_units="km",
+    )
+
+    assert [
+        route["length"],
+        distance_converter(1, input_units="mi", output_units="km"),
+        haversine(*points) / haversine(*points, units="mi"),
+    ] == pytest.approx([1.609344] * 3, rel=1e-12)

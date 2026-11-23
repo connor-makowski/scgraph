@@ -176,7 +176,7 @@ def test_select_decides_which_ways_are_kept_and_in_which_directions(osm_file):
 def test_an_edge_has_the_class_that_the_default_select_gives_to_its_way(
     whole_network, edges
 ):
-    osm_id = list(whole_network.source_node_ids)
+    osm_id = list(whole_network.external_node_ids)
     classes = {
         (osm_id[edge["origin_id"]], osm_id[edge["destination_id"]]): (
             edge["edge_class"]
@@ -216,9 +216,9 @@ def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_do_not_have(
     )
 
     # The route goes through node 2.
-    assert route["metric_totals"] == {
-        "minutes": pytest.approx(2.0 * (_km(1, 2) + _km(2, 4)))
-    }
+    assert route["metric_totals"]["minutes"] == pytest.approx(
+        2.0 * (_km(1, 2) + _km(2, 4))
+    )
 
 
 def test_a_select_that_gives_no_class_gives_a_network_without_classes(osm_file):
@@ -343,7 +343,7 @@ def test_load_from_osm_keeps_the_largest_strongly_connected_part(osm_file):
     # reaches every other; node 7 is only reached by a one-way street
     geo = GeoGraph.load_from_osm(osm_file)
     assert {node for edge in _edges(geo) for node in edge} == {1, 2, 3, 4}
-    assert dict(zip(geo.source_node_ids, map(tuple, geo.nodes))) == {
+    assert dict(zip(geo.external_node_ids, map(tuple, geo.nodes))) == {
         ref: _NODES[ref] for ref in (1, 2, 3, 4)
     }
 
@@ -352,12 +352,12 @@ def test_load_from_osm_stores_its_nodes_in_hilbert_order_with_their_osm_ids(
     whole_network,
 ):
     nodes = whole_network.nodes
-    places_of_source_node_ids = [
-        _NODES[osm_id] for osm_id in whole_network.source_node_ids
+    places_of_external_node_ids = [
+        _NODES[osm_id] for osm_id in whole_network.external_node_ids
     ]
 
     assert hilbert_order(nodes) == list(range(len(nodes)))
-    assert places_of_source_node_ids == [tuple(node) for node in nodes]
+    assert places_of_external_node_ids == [tuple(node) for node in nodes]
     # OSM stores a coordinate as an integer, in 1e-7 degree. A network file
     # stores it the same way, as an int32.
     assert whole_network.coordinate_dtype == "int32"
