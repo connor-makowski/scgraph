@@ -749,7 +749,7 @@ def test_a_metric_keeps_its_weights_when_a_metric_that_it_was_computed_from_is_c
     }
 
 
-def test_weights_per_km_weigh_an_edge_without_a_class_as_an_off_graph_leg(
+def test_an_edge_without_a_class_has_the_weight_per_km_of_an_off_graph_leg(
     network,
 ):
     network.add_edge(WEST_TOWN, PORT, 80.0)
@@ -977,7 +977,7 @@ def test_an_edit_made_on_the_graph_object_removes_the_metrics_at_their_next_read
     assert metrics == [{"name": "length", "unit": "km"}]
 
 
-def test_a_metric_created_again_after_an_edit_weighs_the_new_edge(
+def test_a_metric_created_again_after_an_edit_has_a_weight_for_the_new_edge(
     network_with_minutes,
 ):
     with pytest.warns(UserWarning, match="minutes"):
@@ -1077,7 +1077,7 @@ def test_the_error_for_a_route_that_a_metric_closes_names_the_metric(network):
         )
 
 
-def test_off_graph_legs_that_weigh_nothing_do_not_make_a_route_direct(network):
+def test_off_graph_legs_of_zero_weight_do_not_make_a_route_direct(network):
     network.create_metric(
         "minutes",
         weight_per_km={**MINUTES_PER_KM, "off_graph": 0.0},
@@ -1095,7 +1095,7 @@ def _get_twice_the_length(edge):
     return 2 * edge["length"]
 
 
-def test_a_metric_of_a_geograph_in_miles_weighs_an_off_graph_leg_by_its_miles():
+def test_a_metric_of_a_geograph_in_miles_counts_the_miles_of_an_off_graph_leg():
     # One edge of 2.5 miles. The metric `cost` is a weighted sum, and the
     # metric `toll` is a function: each gives the weight 2 to 1 mile. The call
     # of the function gives the weight of 1 km of an off-graph leg. 1 km is

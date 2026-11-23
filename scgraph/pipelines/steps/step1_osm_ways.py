@@ -228,7 +228,9 @@ def build_way_pieces(
         )
     for mode, mode_pieces in pieces.items():
         if not len(mode_pieces.km) and mode not in optional_modes:
-            raise ValueError(f"No way of {source} is kept for the mode {mode}")
+            raise ValueError(
+                f"No way of {source} is kept for the node mode {mode}"
+            )
     for mode, mode_pieces in pieces.items():
         if "ferries" not in selects[mode]:
             continue

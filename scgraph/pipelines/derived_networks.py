@@ -225,13 +225,13 @@ def derive_network_file(
         or network_file.get_coordinate_dtype(parent_arrays) != "int32"
     ):
         raise ValueError(
-            f"{parent_file} has one mode, no edge shapes or float64 coordinates: "
-            "a parent file needs several modes, edge shapes and int32 coordinates"
+            f"{parent_file} has one node mode, no edge shapes or float64 coordinates: "
+            "a parent file needs several node modes, edge shapes and int32 coordinates"
         )
     node_mode_names = [mode["name"] for mode in parent_metadata["node_modes"]]
     unknown = sorted(set(node_modes or ()) - set(node_mode_names))
     if unknown:
-        raise ValueError(f"{parent_file} has no mode named {unknown}")
+        raise ValueError(f"{parent_file} has no node mode named {unknown}")
     # The ids of the node modes of the parent file that the derived file keeps
     kept_node_mode_ids = [
         node_mode_id
@@ -285,7 +285,7 @@ def derive_network_file(
         if not len(kept_nodes):
             raise ValueError(
                 f"{parent_file} has no component of {min_component_nodes} nodes "
-                "or more with these modes inside the bbox"
+                "or more with these node modes inside the bbox"
             )
         # An edge between two components is dropped
         graph = step3_network_assembly.renumber_nodes(
