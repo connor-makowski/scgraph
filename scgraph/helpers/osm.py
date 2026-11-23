@@ -12,45 +12,46 @@ WHAT IT ANSWERS
 `read_osm` gives a graph in the layout of a GeoGraph, for `load_from_osm`. A select
 function chooses the ways. It takes the tags of a way. It returns
 the direction of the way: 1 (one way, in the order of its nodes), -1 (one way, against
-that order) or 0 (both ways). It returns None to leave the way out. In place of the
+that order) or 0 (both ways). It returns None to exclude the way. In place of the
 direction, it may return a pair: the direction and the name of the class of the way.
 
-A pipeline gives its select functions as `{mode: {kind: select}}`. A mode is a group
-of ways that are cut and joined together. A multimodal pipeline names it as in its
-modes table. A mode has one select function for each kind of way.
+A pipeline gives its select functions as `{node mode: {kind: select}}`. A node mode is
+the type of place where a node is, such as `road` or `rail`. The ways of one node mode
+are cut and joined together: their nodes get this node mode. A node mode has one select
+function for each kind of way. `read_osm` takes one select function for all its ways.
 
 HOW A FILE IS READ
 
 An OpenStreetMap file lists the nodes, then the ways. A way lists the ids of its
 nodes, not their positions. So `locate_ways` reads the file in three passes:
 
-1. It reads the ways. It notes the ids of the nodes of the kept ways. In each mode, a
-   node met a second time is a junction of that mode.
+1. It reads the ways. It notes the ids of the nodes of the kept ways. In the ways of
+   each node mode, a node met a second time is a junction of that node mode.
 2. It reads the nodes, and stores the position of each noted node.
 3. It reads the ways again, and gives each kept way with the positions of its nodes.
 
 These three passes are one read of the file.
 
-`cut_polylines` then cuts each way into pieces: at each junction of its mode, and at
-the first point where a piece reaches `max_km_between_nodes`.
+`cut_polylines` then cuts each way into pieces: at each junction of its node mode, and
+at the first point where a piece reaches `max_km_between_nodes`.
 
 Example: two roads share node 7, and no other node. Pass 1 meets node 7 twice, so node
 7 is a junction, and each road is cut there.
 
-HOW TWO MODES STAY APART
+HOW THE WAYS OF TWO NODE MODES ARE KEPT SEPARATE
 
-One read serves every mode. Each mode has its own junctions and its own pieces. So a
-piece of a road never joins a piece of a railway.
+One read is used for every node mode. Each node mode has its own junctions and its own
+pieces. So a piece of a road is never joined to a piece of a railway.
 
 Example: a road and a railway share node 9, at a level crossing. Pass 1 meets node 9
 once in the ways of `road` and once in the ways of `rail`. Node 9 is a junction of
-neither mode, and neither way is cut there.
+neither node mode, and neither way is cut there.
 
 Example: a way with the tags `railway=rail` and `route=shuttle_train` is a railway and
-a vehicle ferry, so both modes keep it. Each mode meets each of its nodes once. No node
-of the way is a junction for that reason. With one set of met nodes for the two modes,
-pass 1 would meet the way twice: each of its nodes would be a junction, and the way
-would be cut at every node.
+a vehicle ferry, so both node modes keep it. In the ways of each node mode, pass 1 meets
+each node of this way once. No node of the way is a junction for that reason. With one
+set of met nodes for the two node modes, pass 1 would meet the way twice: each of its
+nodes would be a junction, and the way would be cut at every node.
 """
 
 import gc
@@ -150,12 +151,12 @@ def _open_source(source, entities):
 
 
 def _select_ways(osmium, source, selects, tag_keys, *filters, class_names=()):
-    """Yield `(mode, kind, direction, class_name, way)` for each way, once for each
-    mode that keeps it. In a mode, a way goes to the first select function that keeps
-    it, in the order of the dict. `class_name` is None when the select function returns
-    a direction alone, and one of `class_names` otherwise. osmium drops the ways that
-    have none of `tag_keys`, and the ways that `filters` refuse, before Python sees
-    them.
+    """Yield `(node mode, kind, direction, class_name, way)` for each way, once for
+    each node mode that keeps it. In a node mode, a way goes to the first select
+    function that keeps it, in the order of the dict. `class_name` is None when the
+    select function returns a direction alone, and one of `class_names` otherwise.
+    osmium drops the ways that have none of `tag_keys`, and the ways that `filters`
+    refuse, before Python sees them.
     """
     with _open_source(source, osmium.osm.WAY) as file:
         ways = osmium.FileProcessor(file, osmium.osm.WAY)
@@ -192,11 +193,11 @@ def _select_ways(osmium, source, selects, tag_keys, *filters, class_names=()):
 
 class _Junctions:
     """The ids of the junctions, sorted, in one array: 8 bytes per junction.
-    `id in junctions` looks an id up by bisection.
+    `id in junctions` finds an id by bisection.
 
     Memory while the object is built: the list of the repeated node ids takes about 40
-    bytes per repeat. A node that the ways of a mode use k times appears k - 1 times in
-    this list.
+    bytes per repeat. A node that the ways of a node mode use k times appears k - 1
+    times in this list.
     """
 
     def __init__(self, ids):
@@ -215,12 +216,12 @@ class _PagedIdSet:
     covers 32,768 ids, and exists only when one of them is set. `get` and `set` are
     those of an osmium `IdSet`.
 
-    An osmium `IdSet` takes too much memory for one set per mode. It allocates 4 MB for
-    each range of 33.5 million ids that holds a node: 1.5 GB for the 41,009 rail node
-    ids of Denmark. This set takes about 15 MB for them (3,609 pages), and about 61 MB
-    for the 107,968 node ids of the main roads and ferries of Denmark (14,782 pages).
-    On the planet, a set takes at most about 1.9 GB, when every page exists: 14.4
-    billion ids / 32,768 ids per page * 4,096 bytes, and the Python object of each
+    An osmium `IdSet` takes too much memory for one set per node mode. It allocates 4 MB
+    for each range of 33.5 million ids that holds a node: 1.5 GB for the 41,009 rail
+    node ids of Denmark. This set takes about 15 MB for them (3,609 pages), and about
+    61 MB for the 107,968 node ids of the main roads and ferries of Denmark (14,782
+    pages). On the planet, a set takes at most about 1.9 GB, when every page exists:
+    14.4 billion ids / 32,768 ids per page * 4,096 bytes, and the Python object of each
     page. A Python `set` is not used, because it takes about 70 bytes per id. For the
     main roads of the planet, estimated at 57 million node ids, that is about 4 GB.
 
@@ -253,8 +254,8 @@ def locate_ways(
     """Locate the ways of `source` that the select functions keep.
 
     The function reads the file in three passes (ways, nodes, ways again), as the module
-    docstring explains. One call serves every mode. Example: the modes `road` and
-    `rail`, and the kinds `ways` and `ferries` of the mode `road`.
+    docstring explains. One call reads the ways of every node mode. Example: the node
+    modes `road` and `rail`, and the kinds `ways` and `ferries` of the node mode `road`.
 
     Args:
         source: The path of an OSM file, or a source object such as `StreamedPbf`. A
@@ -262,9 +263,9 @@ def locate_ways(
             `osmium.FileProcessor` at each call: one per pass, for the entities that the
             pass reads (`osmium.osm.WAY` or `NODE`). The function calls `close(stop)` at
             the end of each pass. `stop` is true when the pass ended on an exception.
-        selects: The select functions, as `{mode: {kind: select}}`. In a mode, a way
-            goes to the first function that keeps it, in the order of the dict. A way
-            that two modes keep goes to each of them.
+        selects: The select functions, as `{node mode: {kind: select}}`. In a node
+            mode, a way goes to the first function that keeps it, in the order of the
+            dict. A way that two node modes keep goes to each of them.
         tag_keys: If given, osmium drops the ways that have none of these tag keys,
             before a select function sees them.
         work_dir: A folder for the files of the function. Without it, the positions of
@@ -274,25 +275,24 @@ def locate_ways(
             marker `pass2.done` is there, the function reuses these files and skips
             passes 1 and 2. Otherwise it empties `nodes` first. The caller deletes the
             folder.
-        class_names: The class names that a select function may give with the
-            direction of a way. A pipeline gives the names of
-            `scgraph.pipelines.CLASSES`. Empty by default: a select function then gives
-            the direction alone.
+        class_names: The class names that a select function may give with the direction
+            of a way. A pipeline gives the names of `scgraph.pipelines.CLASSES`. Empty
+            by default: a select function then gives the direction alone.
 
     Returns:
         `(junctions, polylines)`. `junctions[mode]` holds the OSM ids of the nodes
-        where kept ways of the mode meet, or where one of them crosses itself.
-        `id in junctions[mode]` tests one id. `polylines` is a generator of
-        `(mode, kind, direction, class_name, vertices)`. `class_name` is the class
+        where kept ways of the node mode `mode` meet, or where one of them crosses
+        itself. `id in junctions[mode]` tests one id. `polylines` is a generator of
+        `(node mode, kind, direction, class_name, vertices)`. `class_name` is the class
         that the select function gave to the way, or None. `vertices` is a list of
         `(id, [latitude, longitude])`. The pair `(direction, vertices)` is a
         polyline, in the form that `cut_polylines` takes. A way is split where one
         of its nodes is missing from the file.
 
     Memory: the ids of the nodes of the kept ways take about 1.5 GB, whatever the file
-    (one bit for each possible id). With several modes, pass 1 also holds the ids of
-    the nodes of each mode (`_PagedIdSet`): at most about 1.9 GB for each mode on the
-    planet. The ids of the kept ways take about 0.2 GB.
+    (one bit for each possible id). With several node modes, pass 1 also holds the ids
+    of the nodes of each node mode (`_PagedIdSet`): at most about 1.9 GB for each node
+    mode on the planet. The ids of the kept ways take about 0.2 GB.
     """
     osmium = require_osmium()
     if work_dir:
@@ -337,12 +337,12 @@ def locate_ways(
         del kept_ways
         store = osmium.index.create_map(node_store)
     else:
-        # First pass: the nodes of kept ways. In each mode, a node met a second time
-        # is a junction of that mode.
+        # First pass: the nodes of kept ways. In the ways of each node mode, a node met
+        # a second time is a junction of that node mode.
         tracker, kept = osmium.IdTracker(), osmium.IdTracker()
-        # `noted_ids` holds the nodes of every mode, for the second pass.
-        # `seen_ids[mode]` holds the nodes of one mode. With one mode, the two sets
-        # hold the same ids, so `seen_ids[mode]` is `noted_ids`.
+        # `noted_ids` holds the nodes of every node mode, for the second pass.
+        # `seen_ids[mode]` holds the nodes of one node mode. When `selects` has one
+        # key, the two sets hold the same ids, so `seen_ids[mode]` is `noted_ids`.
         noted_ids = tracker.node_ids()
         seen_ids = {
             mode: noted_ids if len(selects) == 1 else _PagedIdSet()
@@ -350,7 +350,7 @@ def locate_ways(
         }
         repeats = {mode: array("q") for mode in selects}
         kept_ways = array("q") if work_dir else None
-        # The set and the repeats of the mode of the way that is read
+        # The set and the repeats of the node mode of the way that is read
         mode_seen_ids = mode_repeats = None
         for mode, _, _, _, way in _select_ways(
             osmium, source, selects, tag_keys, class_names=class_names
@@ -366,7 +366,7 @@ def locate_ways(
                     mode_seen_ids.set(node.ref)
                     noted_ids.set(node.ref)
 
-        # The sets of the modes are freed before the junctions are built
+        # The sets of the node modes are freed before the junctions are built
         del seen_ids, mode_seen_ids
         junctions = {mode: _Junctions(ids) for mode, ids in repeats.items()}
         del repeats, mode_repeats
