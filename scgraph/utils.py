@@ -25,6 +25,8 @@ earth_radius = {
     "mi": 3959,
     "ft": 3959 * 5280,
 }
+# The length of 1 km in each unit, for `distance_converter` and `get_units_per_km`
+units_per_km = {"mi": 0.621371, "m": 1000, "ft": 3280.84, "km": 1}
 radians_per_degree = pi / 180  # radians per degree
 cheap_e2 = (1 / 298.257223563) * (2 - (1 / 298.257223563))
 
@@ -196,20 +198,18 @@ def distance_converter(
         raise ValueError("input_units must be one of 'mi', 'km', 'm' or 'ft'")
     if output_units not in ["mi", "km", "m", "ft"]:
         raise ValueError("output_units must be one of 'mi', 'km', 'm' or 'ft'")
-    km_table = {"mi": 0.621371, "m": 1000, "ft": 3280.84, "km": 1}
-    return (distance / km_table[input_units]) * km_table[output_units]
+    return (distance / units_per_km[input_units]) * units_per_km[output_units]
 
 
 def get_units_per_km(geograph_units: str) -> float:
     """Return 1 km in the units of a geograph: 0.621 for `mi`.
 
-    `haversine` multiplies an angle by the Earth radius of a unit, so the ratio of
-    two radiuses converts a distance.
+    The value is the one of `distance_converter`. An unknown unit gives 1.
 
     Args:
         geograph_units: The `geograph_units` of the geograph.
     """
-    return earth_radius.get(geograph_units, 6371) / earth_radius["km"]
+    return units_per_km.get(geograph_units, 1)
 
 
 def get_line_path(
