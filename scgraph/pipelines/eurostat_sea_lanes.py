@@ -10,7 +10,7 @@ The class of an edge is the `pass` of its lane, for example `suez`. It is `open_
 for a lane outside a passage.
 
 `build_sea_lane_arrays` gives the same network as the arrays of a graph, for a pipeline
-that joins the sea lanes to other modes.
+that joins the sea lanes to other networks.
 """
 
 import contextlib
@@ -134,7 +134,7 @@ def _convert_to_e7_degrees(point):
 
 def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
     """Build the sea lanes as the arrays of a graph, for a pipeline that joins them
-    to other modes.
+    to other networks.
 
     The nodes and the edges are those of the GeoGraph that `build` returns, with
     the nodes in the same order. The edges of a node are sorted by head.

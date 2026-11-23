@@ -286,7 +286,7 @@ struct Contracted {
 
 // The same rules, in the same order of operations, as contract_chains_python in
 // assembly.py: the two versions give the same edges and the same sums.
-// node_mode_ids and edge_class_ids may be null: the graph then has no modes, or no classes.
+// node_mode_ids and edge_class_ids may be null: the graph then has no node modes, or no classes.
 inline Contracted contract_chains(const int32_t* offsets, const int32_t* heads, const double* weights,
                                   const uint8_t* node_mode_ids, int64_t node_count, int64_t edge_count,
                                   double max_km_between_nodes, const uint8_t* edge_class_ids) {

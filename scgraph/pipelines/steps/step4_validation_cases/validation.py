@@ -74,11 +74,11 @@ def _find_path_km(network, origin, destination, **options) -> float | None:
 
 
 def _find_closest_node(network, point, mode=None) -> tuple:
-    """Return the distance in km from `point` to the closest node, and the
-    coordinates of that node. With `mode`, only the nodes of that mode are
-    candidates. When the network does not have that mode, all its nodes are
-    candidates. This is the case of a published network and of a file with a
-    single mode."""
+    """Return the distance in km from `point` to the closest node, and the coordinates
+    of that node. The node mode of a node is the kind of place where the node is, such
+    as `road` or `port`. With `mode`, only the nodes of that node mode are candidates.
+    When the network does not have that node mode, all its nodes are candidates. This is
+    the case of a published network and of a file with a single node mode."""
     node_mode_names = [m["name"] for m in network.node_modes or []]
     if mode is None or mode not in node_mode_names:
         node = network.nodes[network.snap_index.closest_idx(point=list(point))]
@@ -237,10 +237,10 @@ def _check_route_length(network, case) -> str | None:
 
 
 def _check_hub(network, case) -> str | None:
-    # A hub that the pipeline left out, or a connector that it could not find, shows
-    # as a route that leaves the hub by another mode: modes meet only at hubs, so the
-    # first edge of the route from a hub to the closest node of a mode is the hub's
-    # connector to that mode, when it has one.
+    # A hub that the pipeline left out, or a connector that it could not find, shows as
+    # a route that leaves the hub by another network: two networks meet only at hubs, so
+    # the first edge of the route from a hub to the closest node of a network is the
+    # hub's connector to that network, when it has one.
     km, hub = _find_closest_node(network, case["origin"], case["hub_kind"])
     if km > 5.0:
         return f"the closest {case['hub_kind']} is {km:.1f} km away"
@@ -272,9 +272,9 @@ def _check_hub(network, case) -> str | None:
             return "no direct flight to the airport of the case"
 
 
-# For each kind: the modes that its routes may use, and its rule. An empty tuple
-# of modes means all the modes of the network. The points of a case snap to the
-# nodes of these modes (see `validate_network`).
+# For each kind: the node modes that its routes may use, and its rule. An empty tuple of
+# node modes means all the node modes of the network. The points of a case snap to the
+# nodes of these node modes (see `validate_network`).
 RULES = {
     "road_distances": (("road",), _check_road_distance),
     "crossings": (("road",), _check_crossing),
@@ -368,7 +368,7 @@ def load_validation_cases(
 def _load_on_node_modes(network, node_modes: tuple) -> GeoGraph:
     """Load the network file `network` with the nodes and edges of `node_modes` only.
     A GeoGraph is returned unchanged. The caller must then give only cases of the
-    modes of that GeoGraph."""
+    node modes of that GeoGraph."""
     if isinstance(network, GeoGraph):
         return network
     file_modes = {
@@ -389,14 +389,14 @@ def validate_network(
     cases are the exception: when at most `MAX_SHARE_OF_FAILED_CITIES` of them
     fail, they all count as passed.
 
-    The points of a case snap to the nodes of the modes of its kind: a road node
-    for a road distance, any node for a hub. The modes that the network names for
-    its query points (`default_node_addition_modes`) do not count: a hub case
-    starts at the node of its hub, which is not a road node.
+    The points of a case snap to the nodes of the node modes of its kind: a road node
+    for a road distance, any node for a hub. The node modes that the network names for
+    its query points (`default_node_addition_modes`) do not count: a hub case starts at
+    the node of its hub, which is not a road node.
 
     Args:
         network: The path of a network file, or a loaded GeoGraph. A file is read
-            again for each set of modes, one at a time, to limit the memory used.
+            again for each set of node modes, one at a time, to limit the memory used.
             The coverage rule resets the cache of trees of a loaded GeoGraph. The
             function sets `default_node_addition_modes` of a loaded GeoGraph for
             its queries, and sets it back before it returns.
@@ -419,8 +419,8 @@ def validate_network(
         loaded = None  # the previous network is released before the next load
         loaded = _load_on_node_modes(network, node_modes)
         failures = []
-        # The queries of the rules snap to the nodes of the modes of the kind. No
-        # list of modes means every node.
+        # The queries of the rules snap to the nodes of the node modes of the kind. No
+        # list of node modes means every node.
         default_node_addition_modes = loaded.default_node_addition_modes
         loaded.default_node_addition_modes = list(node_modes) or None
         try:

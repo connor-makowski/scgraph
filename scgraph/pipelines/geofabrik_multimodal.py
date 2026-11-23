@@ -33,11 +33,11 @@ WHAT THE NETWORK HOLDS
 
 HUBS AND CONNECTORS
 
-- The networks of two modes never share a node. A route goes from one network to
-  another only through a hub: a port (road, sea, and rail where the port has a
+- The road, rail and sea networks never share a node. A route goes from one network
+  to another only through a hub: a port (road, sea, and rail where the port has a
   railway), an airport (road, and its flights) or a rail terminal (road and rail).
-  A change of mode at a hub costs nothing.
-- A connector joins a hub to the network of one mode (`step2_hub_connectors.join_networks_at_hubs`). A hub joins the
+  A change of edge mode at a hub adds no km.
+- A connector joins a hub to one network (`step2_hub_connectors.join_networks_at_hubs`). A hub joins the
   network when it reaches at least two networks. A hub that reaches fewer than two
   networks stays out.
 - Road connector, and rail connector. It is a straight line from the hub to a node
@@ -52,13 +52,13 @@ HUBS AND CONNECTORS
   1:10m. The connector weighs the length of the path, plus the short line from its
   last cell to the sea node. Its shape points are the centres of the cells.
 
-MODES AND CLASSES
+NODE MODES AND CLASSES
 
-- Each node has its node mode (`node_mode_ids`, positions in `node_modes`): `road`,
-  `rail`, `sea`, `port`, `airport` or `rail_terminal`. Each mode cites the source of its
-  node ids: OpenStreetMap for roads and railways, the World Port Index number for a
-  port, the OurAirports id for an airport, the Wikidata number for a rail terminal. A
-  node with a negative id is in no source: the build added it (*Nodes and shapes*).
+- The node mode of a node is the kind of place where the node is (`node_mode_ids`):
+  `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. Each node mode names the
+  source of its node ids: OpenStreetMap for roads and railways, the World Port Index for
+  a port, OurAirports for an airport, Wikidata for a rail terminal. A node with a
+  negative id is in no source: the build added it (*Nodes and shapes*).
 - Each edge has a class. `edge_class_ids` gives its position in `classes`. A road edge
   has the `highway` value of its way, and a vehicle ferry is `ferry` or `shuttle_train`.
   A railway edge is `rail_highspeed`, `rail_main`, `rail_branch` or `rail_other`. A sea
@@ -70,7 +70,7 @@ NODES AND SHAPES
 
 - The network of a region keeps its largest strongly connected component.
 - A chain is a run of nodes without a junction. The build contracts a chain into one
-  edge. A chain is never contracted across two modes or two classes.
+  edge. A chain is never contracted across two node modes or two classes.
 - A road or a railway is cut every 2 km, and a contracted edge ends at the first node
   where it reaches 2 km. Two nodes along a road or a railway are then at most about
   4 km apart. A sea lane is not cut, but its chains are contracted like those of a
@@ -90,14 +90,14 @@ SOURCES AND LIMITS
   `utils/build_hub_tables.py`).
 - The Geofabrik URL always gives the newest extract, and `PIPELINE_VERSION` does not
   change when a source changes. So a rebuild can give another network.
-- A shortest route in km takes any mode. Between two distant places it takes a
-  flight, because a flight is a straight line. To compare modes, derive a cost per
-  mode (time, CO2) from the km, or load only some modes
-  (`load_from_scgraph(node_modes=...)`).
+- A shortest route in km takes any edge mode. Between two distant places it takes a
+  flight, because a flight is a straight line. To compare the edge modes, derive a
+  cost per edge mode (time, CO2) from the km, or load the nodes of some node modes
+  only (`load_from_scgraph(node_modes=...)`).
 - A region without a railway, such as `europe/malta`, has no rail node. Its hubs join
   the roads and the sea lanes.
 - `GeoGraph.load_from_osm` gives another graph from the same extract. That loader
-  reads one mode, attaches no ferry, contracts no chain and simplifies no shape.
+  reads one network, attaches no ferry, contracts no chain and simplifies no shape.
 - Not for navigation, timetables, the capacity of a terminal, or inland navigation
   between two points of a river.
 """
@@ -226,15 +226,15 @@ def build(
             build resumes from them. None keeps nothing.
 
     Returns:
-        `(arrays, modes)`: the arrays of the network file, and the modes table.
+        `(arrays, node_modes)`: the arrays of the network file and the node modes table.
     """
 
     def folder(step):
         return os.path.join(work_dir, step) if work_dir else None
 
-    # 1. The railways and the roads, in one read of the extract. Each mode has its
-    # own junctions and its own pieces, so that a level crossing is not a change of
-    # mode. Each select function gives the class of a way with its direction.
+    # 1. The railways and the roads, in one read of the extract. Each network has its
+    # own junctions and its own pieces, so that a level crossing does not join them.
+    # Each select function gives the class of a way with its direction.
     pieces = step1_osm_ways.build_way_pieces(
         files["osm"],
         {

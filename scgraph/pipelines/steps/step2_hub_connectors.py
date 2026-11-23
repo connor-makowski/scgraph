@@ -1,8 +1,8 @@
-"""Join hubs to the networks of several modes.
+"""Join hubs to the road, rail and sea networks.
 
-A hub is a place where goods change mode: a port, an airport or a rail terminal. Each hub
-becomes one node. It joins the network of each mode it serves by one connector, an edge
-in each direction:
+A hub is a place where goods change from one kind of transport to another: a port, an
+airport or a rail terminal. Each hub becomes one node. It joins each network that it
+serves by one connector, an edge in each direction:
 
 - road or rail: a straight line to a node of that network, at most CONNECTOR_KM away.
   The line crosses less than WATER_KM of water (ROADSTEAD_WATER_KM for an open
@@ -19,11 +19,11 @@ are joined by an edge in each direction, with the great-circle length. A rail te
 serves road and rail.
 
 A hub that reaches fewer than two networks stays out: a port without a road would join
-the sea to nothing. The networks of two modes never share a node, so a route goes from
-one network to another only through a hub.
+the sea to nothing. Two networks never share a node, so a route goes from one network
+to another only through a hub.
 
 When the networks have the class of each edge (`edge_class_ids`), the joined network has
-it too. A connector then has the class of the mode that it reaches, for example
+it too. A connector then has the class of the network that it reaches, for example
 `road_connector`, and a flight has the class `flight`.
 
 Example: the port of Arhus (World Port Index 30260, served by rail) lies 0.76 km from a
@@ -57,7 +57,7 @@ from scgraph.utils import haversine
 if TYPE_CHECKING:
     from scgraph.pipelines.steps.step2_land_mask import LandMask
 
-# The longest connector to each mode, in km: the straight line to a road or rail node,
+# The longest connector to each network, in km: the straight line to a road or rail node,
 # and the water path to a sea node
 CONNECTOR_KM = {"road": 20, "rail": 10, "sea": 2500}
 # The most water that the line of a land connector may cross, in km. An open
@@ -191,7 +191,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
 
 
 class _Layer:
-    """The network of one mode, from the network file's arrays
+    """One network, such as the road network, from the network file's arrays
     (`step3_network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
     node ids and its edges, each with its class.
     """
@@ -243,17 +243,17 @@ def join_networks_at_hubs(
     flights: Iterable[tuple[int, int]] = (),
     work_dir: str | os.PathLike | None = None,
 ) -> tuple[dict, dict[str, int]]:
-    """Join the networks of several modes at their hubs.
+    """Join several networks at their hubs.
 
-    A hub becomes a node when it reaches at least two modes. A flight is kept when
+    A hub becomes a node when it reaches at least two networks. A flight is kept when
     both its airports have a connector.
 
     Args:
-        layers: The network of each mode, as the network file's arrays, with
+        layers: Each network, by its node mode, as the network file's arrays, with
             `edge_class_ids`. The arrays are emptied.
         hubs: The hubs to join.
         land_mask: Land and water around the hubs. Its raster is released.
-        node_modes: The names of the rows of the modes table: every layer and every kind
+        node_modes: The names of the node modes table: every layer and every kind
             of hub.
         flights: The two airport ids of each pair with regular flights.
         work_dir: A folder that keeps the edges in files. None keeps them in memory.
@@ -266,7 +266,7 @@ def join_networks_at_hubs(
         in `scgraph.pipelines.CLASSES`.
     """
     layers = {mode: _Layer(network) for mode, network in layers.items()}
-    # The class id of a connector, by the mode that it reaches, and of a flight
+    # The class id of a connector, by the network that it reaches, and of a flight
     connector_class_id = {
         mode: CLASS_IDS[f"{mode}_connector"] for mode in layers
     }
@@ -290,7 +290,7 @@ def join_networks_at_hubs(
     for mode, layer in layers.items():
         for u, v, km, shape, class_id in layer.edges():
             add(first[mode] + u, first[mode] + v, km, shape, class_id)
-    # 2. The connectors of each hub, and its node if it reaches two modes
+    # 2. The connectors of each hub, and its node if it reaches two networks
     connect = {
         mode: _build_land_connector(layer, land_mask, CONNECTOR_KM[mode])
         for mode, layer in layers.items()
@@ -300,7 +300,7 @@ def join_networks_at_hubs(
         connect["sea"] = _build_sea_connector(layers["sea"], land_mask)
     connectors = (
         []
-    )  # each hub, with the connectors it finds: mode -> (node, km, shape)
+    )  # each hub, with the connectors it finds: network -> (node, km, shape)
     for hub in hubs:
         edges = {
             mode: connect[mode](hub)
@@ -339,7 +339,7 @@ def join_networks_at_hubs(
         km = haversine(at(a), at(b))
         add(a, b, km, [], flight_class_id)
         add(b, a, km, [], flight_class_id)
-    # 4. The graph, with the mode and the source id of each node
+    # 4. The graph, with the node mode and the source id of each node
     layer_ids = [layer.ids for layer in layers.values()]
     layer_node_mode_ids = [node_modes.index(mode) for mode in layers]
     sizes = [len(layer) for layer in layers.values()]

@@ -8,10 +8,10 @@
 // the edges that the load keeps, and it gives the place of each one in the smaller network.
 //
 // WHAT IT ANSWERS
-//   A network file gives a "node mode" to each node: road, rail, port, and so on. A load of
-//   some node modes keeps the nodes of these node modes, the "kept nodes". It keeps the edges
-//   whose origin and whose head are both kept nodes, the "kept edges". The kept nodes and the
-//   kept edges stay in the order of the file. They are the "selection".
+//   The "node mode" of a node is the kind of place where the node is: road, rail, port, and
+//   so on. A load of some node modes keeps the nodes of these node modes, the "kept nodes".
+//   It keeps the edges whose origin and whose head are both kept nodes, the "kept edges". The
+//   kept nodes and the kept edges stay in the order of the file. They are the "selection".
 //   The "position" of a node, of an edge or of a shape point is its rank in the arrays: the
 //   first one has the position 0. Each has a position in the file, and each kept one has a
 //   position in the selection.

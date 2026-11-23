@@ -1,11 +1,11 @@
 """Roads, railways, sea lanes and flights of the world, joined at ports, airports and
 rail terminals: `geofabrik_multimodal` for the OpenStreetMap planet.
 
-- Distances, modes, classes, hubs and their connectors are those of
-  `geofabrik_multimodal`.
-- A shortest route in km takes any mode. Between two distant places it takes a
-  flight, because a flight is a straight line. To compare modes, derive a cost per
-  mode from the km, or load only some modes (`load_from_scgraph(node_modes=...)`).
+- Distances, node modes, classes, hubs and connectors are as in `geofabrik_multimodal`.
+- A shortest route in km takes any edge mode. Between two distant places it takes a
+  flight, because a flight is a straight line. To compare the edge modes, derive a
+  cost per edge mode from the km, or load the nodes of some node modes only
+  (`load_from_scgraph(node_modes=...)`).
 - The flights inside mainland China, and between China and the rest of Asia, are
   missing: no open source counts them.
 - The network keeps each strongly connected component of at least 1,000 nodes, so an
