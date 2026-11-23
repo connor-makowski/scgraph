@@ -726,15 +726,33 @@ MOTORWAY = {"name": "motorway", "edge_mode": "road"}
 
 
 # A value of `edge_class_ids` is the position of a row of the list `classes`
-# of the metadata.
-def test_a_file_with_rows_and_without_their_list_is_refused(tmp_path):
+# of the metadata: a file has both, or neither. Each case gives the class ids
+# of the edges, the header, and words of the error.
+@pytest.mark.parametrize(
+    "class_id_arrays, header, message",
+    [
+        pytest.param(
+            {"edge_class_ids": array("B", [0, 0])},
+            ROAD_AND_PORT_HEADER,
+            "without a list of classes",
+            id="class ids without a list of classes",
+        ),
+        pytest.param(
+            {},
+            ROAD_AND_PORT_HEADER | {"classes": [MOTORWAY]},
+            "no array `edge_class_ids`",
+            id="a list of classes without class ids",
+        ),
+    ],
+)
+def test_a_file_with_class_ids_or_classes_alone_is_refused(
+    tmp_path, class_id_arrays, header, message
+):
     path = str(tmp_path / "arrays.scgraph")
-    arrays = _two_road_nodes_and_a_port() | {
-        "edge_class_ids": array("B", [0, 0])
-    }
-    network_file.write(path, arrays, ROAD_AND_PORT_HEADER)
+    arrays = _two_road_nodes_and_a_port() | class_id_arrays
+    network_file.write(path, arrays, header)
 
-    with pytest.raises(ValueError, match="without a list of classes"):
+    with pytest.raises(ValueError, match=message):
         GeoGraph.load_from_scgraph(path)
 
 
@@ -877,7 +895,11 @@ def test_loading_some_modes_refuses_arrays_that_do_not_fit_together(
     tmp_path, invalid_arrays, message
 ):
     path = str(tmp_path / "arrays.scgraph")
-    arrays = {**_two_road_nodes_and_a_port(), **invalid_arrays}
+    arrays = {
+        **_two_road_nodes_and_a_port(),
+        "edge_class_ids": array("B", [0, 0]),
+        **invalid_arrays,
+    }
     metadata = ROAD_AND_PORT_HEADER | {"classes": [MOTORWAY]}
     network_file.write(path, arrays, metadata)
 

@@ -727,6 +727,10 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "each class must be a row with a name and an edge mode",
     )
     require(
+        "classes" not in metadata or "edge_class_ids" in arrays,
+        "the header has classes, and the file has no array `edge_class_ids`",
+    )
+    require(
         "edge_class_ids" not in arrays
         or len(metadata["classes"]) <= NO_CLASS_ID,
         f"a network file holds {NO_CLASS_ID} classes at most",
