@@ -62,25 +62,22 @@ ALLOWED = [
     ),
     (
         "geograph",
-        "pipelines.network_builder",
-        "A static method of `GeoGraph` that release 3.6.0 exposes imports the work "
-        "from a higher layer inside the function (D1).",
-    ),
-    (
-        "geograph",
         "built_in_geographs",
-        "The loaders of release 3.6.0 call it until the split of `geograph.py` (D7) "
-        "moves them to `network_cache.py`.",
-    ),
-    (
-        "geograph",
-        "network_release",
-        "The same: the loading of the released networks (D7).",
+        "The default of `geograph_url` in the signatures of `load_geograph` and "
+        "`list_geographs` is `built_in_geographs.GEOGRAPH_URL`, and a default is "
+        "read when the module loads.",
     ),
     (
         "geograph",
         "network_cache",
-        "The same: the loading, listing and clearing of networks (D7).",
+        "The static methods of `GeoGraph` that release 3.6.0 exposes (`load_geograph` "
+        "and the like) import the work from a higher layer inside the function (D1).",
+    ),
+    (
+        "network_cache",
+        "pipelines.network_builder",
+        "`build_network` runs the build of a network. The pipelines import "
+        "`network_cache` at the top, so this import is inside the function.",
     ),
 ]
 

@@ -25,7 +25,6 @@ from scgraph.utils import (
     radians_per_degree,
 )
 from scgraph._internal import warn_deprecated_parameter, log_step
-from scgraph.files import is_offline
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
@@ -40,9 +39,7 @@ from scgraph.metrics import (
     resolve_weights_per_km,
     copy_with_edge_weights,
 )
-from scgraph import built_in_geographs, columns, network_cache, network_file
-from scgraph import network_release as pinned_network_release
-import hashlib
+from scgraph import built_in_geographs, columns, network_file
 import json
 import logging
 import warnings
@@ -1009,131 +1006,20 @@ class GeoGraphIO:
         # The warnings come from this call, also for a lazy load that reads the network
         # later.
         built_in_geographs.warn_deprecated_load(name, geograph_url)
-        options = {
-            "name": name,
-            "cache_dir": cache_dir,
-            "geograph_url": geograph_url,
-            "reduce_iterations": reduce_iterations,
-            "local_files_only": local_files_only,
-            "network_release": network_release,
-            "content_sha256": content_sha256,
-            "node_modes": node_modes,
-            "load_intermediate_nodes": load_intermediate_nodes,
-        }
-        if lazy:
-            return LazyGeoGraph(lambda: GeoGraph._load_geograph(**options))
-        return GeoGraph._load_geograph(**options)
 
-    @staticmethod
-    def _load_geograph(
-        name: str,
-        cache_dir: str | os.PathLike | None,
-        geograph_url: str,
-        reduce_iterations: int,
-        local_files_only: bool | None,
-        network_release: str | None,
-        content_sha256: str | None,
-        node_modes: list[str] | str | None,
-        load_intermediate_nodes: bool,
-    ) -> "GeoGraph":
-        """Load the network of `load_geograph` now. The arguments are those of
-        `load_geograph`, which gives the deprecation warnings."""
-        if local_files_only is None:
-            local_files_only = is_offline()
-        cache_path = resolve_cache_dir(cache_dir)
-        # A caller that passes its own `geograph_url` hosts `.graphjson` files, and
-        # one of them may have the name of a released network. That name then loads
-        # the file of the caller.
-        if (
-            name in network_cache.RELEASED_GEOGRAPHS
-            and geograph_url == built_in_geographs.GEOGRAPH_URL
-        ):
-            released_file = network_cache.fetch_released_file(
-                name=name,
-                tag=network_release,
-                shapes=load_intermediate_nodes,
-                content_sha256=content_sha256,
-                cache_path=cache_path,
-                local_files_only=local_files_only,
-            )
-            return GeoGraph.load_from_scgraph(
-                str(released_file),
-                reduce_iterations=reduce_iterations,
-                node_modes=node_modes,
-            )
-        if (
+        from scgraph import network_cache
+
+        return network_cache.load_network(
+            name,
+            cache_dir,
+            geograph_url,
+            reduce_iterations,
+            lazy,
+            local_files_only,
             network_release,
             content_sha256,
             node_modes,
             load_intermediate_nodes,
-        ) != (
-            None,
-            None,
-            None,
-            True,
-        ):
-            raise ValueError(
-                f"'{name}' is not loaded from a network release: its name is not in "
-                "the network release that this scgraph loads "
-                f"({pinned_network_release.TAG}), or `geograph_url` is given. "
-                "`network_release`, `content_sha256`, `node_modes` and "
-                "`load_intermediate_nodes` do not apply to it"
-            )
-        cache_path.mkdir(parents=True, exist_ok=True)
-        cached_file = cache_path.joinpath(f"{name}.graphjson")
-        # Converted once into a network file beside it, which every later load reads
-        converted = cache_path.joinpath(f"{name}.scgraph")
-        if converted.exists():
-            try:
-                return GeoGraph.load_from_scgraph(
-                    str(converted),
-                    reduce_iterations=reduce_iterations,
-                    lazy=False,
-                )
-            except ValueError:  # damaged, or another format: converted again
-                pass
-        if not cached_file.exists():
-            if local_files_only:
-                raise FileNotFoundError(
-                    f"Geograph '{name}' is not in the cache ({cache_path}) and "
-                    "local_files_only=True (or SCGRAPH_OFFLINE=1) forbids downloading it"
-                )
-            GeoGraph.__fetch_geograph_to_cache__(
-                name, cached_file, geograph_url
-            )
-        # Written in Hilbert order (nodes close on the globe get close ids): node ids
-        # differ from the .graphjson's, which the nodes keep as their source_node_ids
-        geograph = GeoGraph.load_from_graphjson(str(cached_file))
-        geograph.node_modes = [{"name": None, "source": cached_file.name}]
-        # To 1e-7 degree, as OSM: the file's compact encoding (a few published ports
-        # have 9 decimals, from arcseconds)
-        geograph.coordinate_dtype = "int32"
-        for node in geograph.nodes:
-            node[:] = round(node[0], 7), round(node[1], 7)
-        with open(cached_file, "rb") as file:
-            sha256 = hashlib.file_digest(file, "sha256").hexdigest()
-        source = {
-            "name": cached_file.name,
-            "url": f"{geograph_url}/{cached_file.name}",
-            "sha256": sha256,
-        }
-        try:
-            geograph.metadata = {"sources": [source]}
-            with log_step(
-                logger, "convert the published network", {"name": name}
-            ):
-                geograph.save_as_scgraph(str(converted))
-        except OSError:
-            # A cache that can't be written: the .graphjson is read at every load, its
-            # nodes ordered as the file would have them
-            geograph = _order_by_hilbert(geograph)
-            geograph.reduce(reduce_iterations)
-            if len(geograph.nodes):  # as load_from_scgraph
-                geograph.snap_index  # noqa: B018 (reading it builds the index)
-            return geograph
-        del geograph  # one copy of the network in memory at a time
-        return GeoGraph.load_from_scgraph(
-            str(converted), reduce_iterations=reduce_iterations, lazy=False
         )
 
     @staticmethod
@@ -1173,6 +1059,8 @@ class GeoGraphIO:
                 - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more node modes (load it with `node_modes`), and its results differ
         """
+        from scgraph import network_cache
+
         built_in_geographs.warn_deprecated_url(geograph_url)
         return network_cache.list_networks(
             cache_dir=cache_dir, geograph_url=geograph_url
@@ -1211,6 +1099,8 @@ class GeoGraphIO:
             - What: With `name`, the region of the built network to remove (its sub-regions are kept)
             - Default: None: every region
         """
+        from scgraph import network_cache
+
         return network_cache.clear_cache(
             cache_dir=cache_dir, name=name, region=region
         )
@@ -1243,6 +1133,8 @@ class GeoGraphIO:
             - for `"released"` only: `network_release`, the tag of the network release
             - for `"built"` only: `pipeline_version` and `scgraph`, the versions of the network's pipeline and of scgraph that built it, read from the file (None if it can't be read)
         """
+        from scgraph import network_cache
+
         return network_cache.get_cache_info(cache_dir=cache_dir)
 
     @staticmethod
@@ -1334,33 +1226,18 @@ class GeoGraphIO:
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
         - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps its downloaded sources in the work folder (`.work/` of the cache directory). The next call resumes from it. `clear_geograph_cache()` removes it
         """
-        if lazy:
-            return LazyGeoGraph(
-                lambda: GeoGraph.build_geograph(
-                    name=name,
-                    region=region,
-                    cache_dir=cache_dir,
-                    reduce_iterations=reduce_iterations,
-                    lazy=False,
-                    refresh=refresh,
-                    local_files_only=local_files_only,
-                    node_modes=node_modes,
-                    validate=validate,
-                )
-            )
-        from scgraph.pipelines.network_builder import build_network_file
+        from scgraph import network_cache
 
-        return GeoGraph.load_from_scgraph(
-            build_network_file(
-                name,
-                region,
-                cache_dir,
-                refresh=refresh,
-                local_files_only=local_files_only,
-                validate=validate,
-            ),
-            reduce_iterations=reduce_iterations,
+        return network_cache.build_network(
+            name,
+            region,
+            cache_dir,
+            reduce_iterations,
+            lazy,
+            refresh=refresh,
+            local_files_only=local_files_only,
             node_modes=node_modes,
+            validate=validate,
         )
 
     @staticmethod
@@ -1391,6 +1268,8 @@ class GeoGraphIO:
             - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
             - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
         """
+        from scgraph import network_cache
+
         return network_cache.list_buildable_networks(cache_dir=cache_dir)
 
     @staticmethod

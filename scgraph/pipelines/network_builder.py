@@ -178,7 +178,7 @@ def _should_build(
             warnings.warn(
                 f"The cached {name} was built with pipeline version "
                 f"{built_by}, now {pipeline.PIPELINE_VERSION}; loading it as {_OFFLINE}",
-                stacklevel=4,  # the line that called GeoGraph.build_geograph
+                stacklevel=5,  # the line that called GeoGraph.build_geograph
             )
         return False
     if stale:

@@ -7,7 +7,8 @@ This module is internal. It holds three things:
 - `fetch_released_file`, which downloads the file of a released network into the
   cache directory;
 - `find_cached_file`, which finds the network file of a build in the cache;
-- the code of the cache methods of `GeoGraph`: `list_networks`, `clear_cache`,
+- the code of the methods of `GeoGraph` that load, build, list and clear the networks
+  of scgraph: `load_network`, `build_network`, `list_networks`, `clear_cache`,
   `get_cache_info` and `list_buildable_networks`.
 
 The methods of `GeoGraph` call these functions. `ARCHITECTURE.md`, section 6, gives
@@ -15,23 +16,32 @@ the layout of the cache directory.
 """
 
 import gzip
+import hashlib
 import importlib
 import json
 import logging
 import os
 import re
 import shutil
+import types
 import zlib
 from pathlib import Path
+from typing import Literal
 
 import requests
 
 from scgraph import files, network_file, network_release
 from scgraph import built_in_geographs
+from scgraph import network_release as pinned_network_release
+from scgraph.files import is_offline
+from scgraph.geograph import GeoGraph, LazyGeoGraph, _order_by_hilbert
 from scgraph.utils import resolve_cache_dir
 from scgraph._internal import log_step
 
 logger = logging.getLogger(__name__)
+# The record of the conversion of a published network keeps the logger name that it had
+# in `scgraph.geograph`: the documents show this name, and a user filters on it.
+_geograph_logger = logging.getLogger("scgraph.geograph")
 
 
 def find_cached_file(pointer: Path) -> Path | None:
@@ -427,3 +437,201 @@ def list_buildable_networks(
             }
         )
     return listing
+
+
+def load_network(
+    name: str,
+    cache_dir: str | os.PathLike | None,
+    geograph_url: str,
+    reduce_iterations: int,
+    lazy: bool,
+    local_files_only: bool | None,
+    network_release: str | None,
+    content_sha256: str | None,
+    node_modes: list[str] | str | None,
+    load_intermediate_nodes: bool,
+) -> GeoGraph:
+    """Load a network of `GeoGraph.load_geograph`, or a lazy geograph that loads it.
+
+    The docstring of `GeoGraph.load_geograph` gives the arguments, the result and the
+    errors. That method gives the deprecation warnings before it calls this function.
+    """
+    options = {
+        "name": name,
+        "cache_dir": cache_dir,
+        "geograph_url": geograph_url,
+        "reduce_iterations": reduce_iterations,
+        "local_files_only": local_files_only,
+        "network_release": network_release,
+        "content_sha256": content_sha256,
+        "node_modes": node_modes,
+        "load_intermediate_nodes": load_intermediate_nodes,
+    }
+    if lazy:
+        return LazyGeoGraph(lambda: _load_network(**options))
+    return _load_network(**options)
+
+
+def _load_network(
+    name: str,
+    cache_dir: str | os.PathLike | None,
+    geograph_url: str,
+    reduce_iterations: int,
+    local_files_only: bool | None,
+    network_release: str | None,
+    content_sha256: str | None,
+    node_modes: list[str] | str | None,
+    load_intermediate_nodes: bool,
+) -> GeoGraph:
+    """Load the network of `load_network` now. The arguments are those of
+    `GeoGraph.load_geograph`."""
+    if local_files_only is None:
+        local_files_only = is_offline()
+    cache_path = resolve_cache_dir(cache_dir)
+    # A caller that passes its own `geograph_url` hosts `.graphjson` files, and
+    # one of them may have the name of a released network. That name then loads
+    # the file of the caller.
+    if (
+        name in RELEASED_GEOGRAPHS
+        and geograph_url == built_in_geographs.GEOGRAPH_URL
+    ):
+        released_file = fetch_released_file(
+            name=name,
+            tag=network_release,
+            shapes=load_intermediate_nodes,
+            content_sha256=content_sha256,
+            cache_path=cache_path,
+            local_files_only=local_files_only,
+        )
+        return GeoGraph.load_from_scgraph(
+            str(released_file),
+            reduce_iterations=reduce_iterations,
+            node_modes=node_modes,
+        )
+    if (
+        network_release,
+        content_sha256,
+        node_modes,
+        load_intermediate_nodes,
+    ) != (
+        None,
+        None,
+        None,
+        True,
+    ):
+        raise ValueError(
+            f"'{name}' is not loaded from a network release: its name is not in "
+            "the network release that this scgraph loads "
+            f"({pinned_network_release.TAG}), or `geograph_url` is given. "
+            "`network_release`, `content_sha256`, `node_modes` and "
+            "`load_intermediate_nodes` do not apply to it"
+        )
+    cache_path.mkdir(parents=True, exist_ok=True)
+    cached_file = cache_path.joinpath(f"{name}.graphjson")
+    # Converted once into a network file beside it, which every later load reads
+    converted = cache_path.joinpath(f"{name}.scgraph")
+    if converted.exists():
+        try:
+            return GeoGraph.load_from_scgraph(
+                str(converted),
+                reduce_iterations=reduce_iterations,
+                lazy=False,
+            )
+        except ValueError:  # damaged, or another format: converted again
+            pass
+    if not cached_file.exists():
+        if local_files_only:
+            raise FileNotFoundError(
+                f"Geograph '{name}' is not in the cache ({cache_path}) and "
+                "local_files_only=True (or SCGRAPH_OFFLINE=1) forbids downloading it"
+            )
+        GeoGraph.__fetch_geograph_to_cache__(name, cached_file, geograph_url)
+    # Written in Hilbert order (nodes close on the globe get close ids): node ids
+    # differ from the .graphjson's, which the nodes keep as their source_node_ids
+    geograph = GeoGraph.load_from_graphjson(str(cached_file))
+    geograph.node_modes = [{"name": None, "source": cached_file.name}]
+    # To 1e-7 degree, as OSM: the file's compact encoding (a few published ports
+    # have 9 decimals, from arcseconds)
+    geograph.coordinate_dtype = "int32"
+    for node in geograph.nodes:
+        node[:] = round(node[0], 7), round(node[1], 7)
+    with open(cached_file, "rb") as file:
+        sha256 = hashlib.file_digest(file, "sha256").hexdigest()
+    source = {
+        "name": cached_file.name,
+        "url": f"{geograph_url}/{cached_file.name}",
+        "sha256": sha256,
+    }
+    try:
+        geograph.metadata = {"sources": [source]}
+        with log_step(
+            _geograph_logger, "convert the published network", {"name": name}
+        ):
+            geograph.save_as_scgraph(str(converted))
+    except OSError:
+        # A cache that can't be written: the .graphjson is read at every load, its
+        # nodes ordered as the file would have them
+        geograph = _order_by_hilbert(geograph)
+        geograph.reduce(reduce_iterations)
+        if len(geograph.nodes):  # as load_from_scgraph
+            geograph.snap_index  # noqa: B018 (reading it builds the index)
+        return geograph
+    del geograph  # one copy of the network in memory at a time
+    return GeoGraph.load_from_scgraph(
+        str(converted), reduce_iterations=reduce_iterations, lazy=False
+    )
+
+
+def build_network(
+    name: (
+        Literal[
+            "eurostat_sea_lanes",
+            "geofabrik_multimodal",
+            "osm_world_multimodal",
+        ]
+        | types.ModuleType
+    ),
+    region: str | None,
+    cache_dir: str | os.PathLike | None,
+    reduce_iterations: int,
+    lazy: bool,
+    *,
+    refresh: bool,
+    local_files_only: bool | None,
+    node_modes: list[str] | str | None,
+    validate: bool,
+) -> GeoGraph:
+    """Build a network of `GeoGraph.build_geograph` and load it, or return a lazy
+    geograph that does.
+
+    The docstring of `GeoGraph.build_geograph` gives the arguments, the result and the
+    errors.
+    """
+    if lazy:
+        return LazyGeoGraph(
+            lambda: GeoGraph.build_geograph(
+                name=name,
+                region=region,
+                cache_dir=cache_dir,
+                reduce_iterations=reduce_iterations,
+                lazy=False,
+                refresh=refresh,
+                local_files_only=local_files_only,
+                node_modes=node_modes,
+                validate=validate,
+            )
+        )
+    from scgraph.pipelines.network_builder import build_network_file
+
+    return GeoGraph.load_from_scgraph(
+        build_network_file(
+            name,
+            region,
+            cache_dir,
+            refresh=refresh,
+            local_files_only=local_files_only,
+            validate=validate,
+        ),
+        reduce_iterations=reduce_iterations,
+        node_modes=node_modes,
+    )
