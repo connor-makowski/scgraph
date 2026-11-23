@@ -23,7 +23,7 @@ This page lists what release 4.0 changes for a user of scgraph 3.6, and what to 
 | A length in miles or in feet moves by 0.006 % at most. A length in km does not move | Nothing |
 | With `load_from_osmnx_graph(graph, weight_key="travel_time")`, `route["length"]` is now the km of the fastest route, not its seconds | Read the seconds in `route["metric_totals"]["travel_time"]`. `get_path_weight` and `distance_matrix` still give seconds on this geograph |
 | With `load_from_osmnx_graph(graph, weight_key="travel_time")`, `length_only=True` raises a `ValueError` | Write `totals_only=True`, and read `metric_totals["travel_time"]` |
-| After an edit of a geograph of `load_from_osmnx_graph(graph, weight_key="travel_time")`, a query without `metric` raises a `ValueError` | Pass `metric="length"`, or load the graph again |
+| After an edit of a geograph of `load_from_osmnx_graph(graph, weight_key="travel_time")`, a query without `metric` raises a `ValueError` | Pass `metric="length"`: the query gives the shortest route |
 | Without `off_graph_travel_speed`, `travel_time` adds 240 seconds for each km off the graph. Release 3.6 added no time | Pass `off_graph_travel_speed`, in km/h, to choose another speed |
 
 Release 5.0 removes what 4.0 deprecates.
