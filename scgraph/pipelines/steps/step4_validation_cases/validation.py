@@ -13,7 +13,8 @@ from functools import lru_cache
 from itertools import groupby
 from pathlib import Path
 
-from scgraph import GeoGraph, PathNotFoundError
+from scgraph.errors import PathNotFoundError
+from scgraph.geograph import GeoGraph
 from scgraph.utils import haversine
 
 logger = logging.getLogger(__name__)

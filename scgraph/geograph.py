@@ -29,7 +29,7 @@ from scgraph.files import is_offline
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph.edge_classes import EdgeClasses, find_edge_id
+from scgraph.edge_classes import CLASSES, EdgeClasses, find_edge_id
 from scgraph.node_snapping import EveryNodeSnapIndex, SnapIndexes
 from scgraph.metrics import (
     Metric,
@@ -630,7 +630,6 @@ class GeoGraphIO:
             read_osm,
             select_main_roads_with_class,
         )
-        from scgraph.pipelines import CLASSES
 
         graph, nodes, shapes, ids, edge_class_names = read_osm(
             filename,

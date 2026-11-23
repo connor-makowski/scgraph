@@ -1509,7 +1509,7 @@ The C++ extension includes [bmssp](https://github.com/lcs147/bmssp) by Lucas Cas
 
 import logging
 
-from scgraph.graph import NegativeCycleError, PathNotFoundError
+from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_reducer import algorithm
 
 try:

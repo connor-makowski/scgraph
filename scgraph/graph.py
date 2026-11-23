@@ -92,6 +92,7 @@ from array import array
 from collections.abc import Callable
 from heapq import heappop, heappush
 from math import asin, ceil, cos, isfinite, sin
+from scgraph.errors import NegativeCycleError, PathNotFoundError
 from scgraph.graph_utils import (
     _last_search_in_thread,
     GraphUtils,
@@ -102,22 +103,6 @@ from scgraph.contraction_hierarchies import CHGraph
 from scgraph.transit_node_routing import TNRGraph
 from bmsspy import Bmssp
 from scgraph.graph_reducer import GraphReducer, algorithm
-
-try:
-    from scgraph.cpp import PathNotFoundError
-except ImportError:
-
-    class PathNotFoundError(RuntimeError):
-        """Raised when no path exists between origin and destination nodes."""
-
-
-try:
-    from scgraph.cpp import NegativeCycleError
-except ImportError:
-
-    class NegativeCycleError(RuntimeError):
-        """Raised when a graph contains a negative weight cycle."""
-
 
 # A* computes the heuristic of a node with one call of heuristic_fn per
 # destination node. Above this number of destination nodes, A* is slower than

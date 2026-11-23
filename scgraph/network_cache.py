@@ -60,6 +60,13 @@ RELEASED_GEOGRAPHS = tuple(
     for name in network_release.CONTENT_SHA256
     if not name.endswith(".no_shapes")
 )
+# The names of the networks that scgraph builds: one module of `scgraph.pipelines` for
+# each.
+BUILDABLE_NETWORKS = (
+    "eurostat_sea_lanes",
+    "geofabrik_multimodal",
+    "osm_world_multimodal",
+)
 _RELEASE_URL = "https://github.com/connor-makowski/scgraph/releases/download"
 
 
@@ -260,12 +267,10 @@ def clear_cache(
 
     The docstring of `GeoGraph.clear_geograph_cache` gives the arguments and the result.
     """
-    from scgraph import pipelines
-
     if name is not None and name not in {
         *built_in_geographs.BUILT_IN_GEOGRAPHS,
         *RELEASED_GEOGRAPHS,
-        *pipelines.NAMES,
+        *BUILDABLE_NETWORKS,
     }:
         raise ValueError(f"Unknown network '{name}'")
     if region is not None and (
@@ -392,11 +397,9 @@ def list_buildable_networks(
 
     The docstring of `GeoGraph.list_buildable_geographs` gives the arguments and the result.
     """
-    from scgraph import pipelines
-
     root = resolve_cache_dir(cache_dir).joinpath("networks")
     listing = []
-    for name in pipelines.NAMES:
+    for name in BUILDABLE_NETWORKS:
         network = importlib.import_module(f"scgraph.pipelines.{name}")
         needs_region = any(
             "{region}" in source["url"] for source in network.SOURCES.values()

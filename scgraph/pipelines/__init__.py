@@ -219,8 +219,8 @@ pipelines. Two modules with the same last name share one cache entry.
 HOW TO ADD A NETWORK TO SCGRAPH
 
 1. Add the module to this package, with the names above.
-2. Add its name to `NAMES` below and to the `Literal` of `GeoGraph.build_geograph`,
-   in alphabetical order. A test checks that the two lists are the same.
+2. Add its name to `BUILDABLE_NETWORKS` of `scgraph/network_cache.py` and to the
+   `Literal` of `GeoGraph.build_geograph`, in alphabetical order. A test checks that the two lists are the same.
 3. Add its row to the table of *Building Networks from Their Sources*, in `README.md`
    and in the docstring of `scgraph/__init__.py`.
 4. Add its cases to `steps/step4_validation_cases/cases/` and list them in `VALIDATION`.
@@ -237,53 +237,14 @@ import inspect
 import platform
 import sysconfig
 
+from scgraph.edge_classes import CLASS_IDS, CLASSES
 from scgraph.files import download_file
+from scgraph.network_cache import BUILDABLE_NETWORKS
 from scgraph.utils import has_cpp
 
 __all__ = ["CLASSES", "NAMES", "download_file"]
 
-NAMES = (
-    "eurostat_sea_lanes",
-    "geofabrik_multimodal",
-    "osm_world_multimodal",
-)
-# The edge mode of each class, by the name of the class (the docstring of this
-# module, *The classes*)
-CLASSES = {
-    # Roads: the `highway` value of the way, or the `route` value of a vehicle ferry
-    "motorway": "road",
-    "motorway_link": "road",
-    "trunk": "road",
-    "trunk_link": "road",
-    "primary": "road",
-    "primary_link": "road",
-    "ferry": "road",
-    "shuttle_train": "road",
-    "road_connector": "road",
-    # A high-speed line is `rail_highspeed`. Another line takes its class from its
-    # `usage` value.
-    "rail_highspeed": "rail",
-    "rail_main": "rail",
-    "rail_branch": "rail",
-    "rail_other": "rail",
-    "rail_connector": "rail",
-    # Sea lanes: `open_sea` outside a passage, then the passages of the source
-    "open_sea": "sea",
-    "babelmandeb": "sea",
-    "bering": "sea",
-    "corinth": "sea",
-    "dover": "sea",
-    "gibraltar": "sea",
-    "kiel": "sea",
-    "magellan": "sea",
-    "malacca": "sea",
-    "panama": "sea",
-    "suez": "sea",
-    "sea_connector": "sea",
-    "flight": "air",
-}
-# The id of each class: the value that `edge_class_ids` holds for an edge of the class
-CLASS_IDS = {name: class_id for class_id, name in enumerate(CLASSES)}
+NAMES = BUILDABLE_NETWORKS
 
 
 def build_metadata(
