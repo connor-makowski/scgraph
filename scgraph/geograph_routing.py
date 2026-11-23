@@ -26,6 +26,7 @@ from collections.abc import Callable, Sequence
 from scgraph.errors import PathNotFoundError
 
 if TYPE_CHECKING:  # Only for annotations.
+    from scgraph import Graph
     from scgraph.node_snapping import QuerySnapIndex
 
 # The records keep the logger name that they had in `scgraph.geograph`: the documents
@@ -902,21 +903,12 @@ class GeoGraphRouting:
         algorithm_name = (
             algorithm_fn if isinstance(algorithm_fn, str) else "custom"
         )
-        get_intermediate_nodes = (
-            get_intermediate_nodes
-            if get_intermediate_nodes is not None
-            else self.default_get_intermediate_nodes
-        )
-        off_graph_circuity = (
-            off_graph_circuity
-            if off_graph_circuity is not None
-            else self.default_off_graph_circuity
-        )
-        node_addition_circuity = (
-            node_addition_circuity
-            if node_addition_circuity is not None
-            else self.default_node_addition_circuity
-        )
+        if get_intermediate_nodes is None:
+            get_intermediate_nodes = self.default_get_intermediate_nodes
+        if off_graph_circuity is None:
+            off_graph_circuity = self.default_off_graph_circuity
+        if node_addition_circuity is None:
+            node_addition_circuity = self.default_node_addition_circuity
         algorithm_kwargs = (
             dict(algorithm_kwargs) if algorithm_kwargs is not None else dict()
         )
@@ -924,74 +916,14 @@ class GeoGraphRouting:
             metric = self.default_metric
         # The graph whose weights are those of the metric
         graph_object = self.get_graph_object(metric)
-        is_metric_other_than_length = metric != "length"
-        if callable(algorithm_fn):
-            algorithm_kwargs["graph"] = graph_object.unreduced_graph
-        elif isinstance(algorithm_fn, str):
-            heuristic_fn = algorithm_kwargs.get("heuristic_fn")
-            # The methods `haversine` and `cheap_ruler` of scgraph, for this
-            # geograph: each gives a length between two of its nodes. The function
-            # of the caller is equal to one of them only when the caller passed
-            # this method of this geograph. A subclass that defines its own
-            # `haversine` passes another function, which is used as it is.
-            haversine_of_scgraph = types.MethodType(
-                GeoGraphDistanceCalculations.haversine, self
-            )
-            cheap_ruler_of_scgraph = types.MethodType(
-                GeoGraphDistanceCalculations.cheap_ruler, self
-            )
-            if (
-                algorithm_fn == "a_star"
-                and hasattr(graph_object, "a_star_great_circle")
-                and heuristic_fn == haversine_of_scgraph
-            ):
-                # The built-in haversine heuristic is computed natively in the C++ build
-                latitudes, longitudes = self._get_node_radians()
-                algorithm_kwargs.pop("heuristic_fn")
-                radius = earth_radius.get(self.geograph_units, 6371)
-                if is_metric_other_than_length:
-                    # The total of a route of the length d is at least d times
-                    # `min_weight_per_length_unit`: the radius times it is the bound.
-                    radius *= self._read_metric(
-                        metric
-                    ).get_min_weight_per_length_unit(
-                        self._read_edge_arrays()[2]
-                    )
-                algorithm_fn = partial(
-                    graph_object.a_star_great_circle,
-                    latitudes=latitudes,
-                    longitudes=longitudes,
-                    radius=radius,
-                )
-            elif hasattr(graph_object, algorithm_fn):
-                if (
-                    is_metric_other_than_length
-                    and algorithm_fn == "a_star"
-                    and heuristic_fn == cheap_ruler_of_scgraph
-                ):
-                    # `cheap_ruler` gives a length. The bound of the metric is this
-                    # length times `min_weight_per_length_unit`, as for `haversine`.
-                    min_weight_per_length_unit = self._read_metric(
-                        metric
-                    ).get_min_weight_per_length_unit(
-                        self._read_edge_arrays()[2]
-                    )
-                    algorithm_kwargs["heuristic_fn"] = (
-                        lambda origin_id, destination_id: min_weight_per_length_unit
-                        * heuristic_fn(origin_id, destination_id)
-                    )
-                algorithm_fn = getattr(graph_object, algorithm_fn)
-            else:
-                raise ValueError("algorithm_fn must be a string or callable")
-        else:
-            raise ValueError("algorithm_fn must be a string or callable")
-
+        search_function = self._build_search_function(
+            algorithm_fn, algorithm_kwargs, graph_object, metric
+        )
         node_addition_type = self.__get_node_addition_type__(node_addition_type)
         destination_node_addition_type = self.__get_node_addition_type__(
             destination_node_addition_type
         )
         snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
-
         # If auto lat lon bounds are needed, then calculate them.
         if "all" in [node_addition_type, destination_node_addition_type]:
             if node_addition_lat_lon_bound == "auto":
@@ -1000,178 +932,252 @@ class GeoGraphRouting:
                     * 1.01,
                     auto_lat_lon_bound_max,
                 )
-        try:
-            # Parse origin and destination
-            origin = [
-                origin_node.get("latitude"),
-                origin_node.get("longitude"),
-            ]
-            destination = [
-                destination_node.get("latitude"),
-                destination_node.get("longitude"),
-            ]
-            if len(origin) < 1 or len(destination) < 1:
-                raise ValueError(
-                    "Origin and destination must have valid latitude and longitude"
-                )
-
-            # Get the node addition direct distance between origin and destination
-            direct_node_addition_length = haversine(
+        # Parse origin and destination
+        origin = [origin_node.get("latitude"), origin_node.get("longitude")]
+        destination = [
+            destination_node.get("latitude"),
+            destination_node.get("longitude"),
+        ]
+        if len(origin) < 1 or len(destination) < 1:
+            raise ValueError(
+                "Origin and destination must have valid latitude and longitude"
+            )
+        # Get the node addition direct distance between origin and destination
+        direct_length = haversine(
+            origin,
+            destination,
+            circuity=node_addition_circuity,
+            units=self.geograph_units,
+        )
+        # Snap the origin and destination to their closest nodes in the graph
+        origin_id = self.__get_node_distances__(
+            node=origin,
+            circuity=node_addition_circuity,
+            node_addition_type=node_addition_type,
+            lat_lon_bound=node_addition_lat_lon_bound,
+            snap_index=snap_index,
+        )
+        destination_id = self.__get_node_distances__(
+            node=destination,
+            circuity=node_addition_circuity,
+            node_addition_type=destination_node_addition_type,
+            lat_lon_bound=node_addition_lat_lon_bound,
+            snap_index=snap_index,
+        )
+        # Calculate the circuity ratio for the node addition
+        circuity_ratio = (
+            off_graph_circuity / node_addition_circuity
+            if node_addition_circuity != 0
+            else 1.0
+        )
+        # If direct distance is better than any entry or exit distance, bypass graph search
+        is_direct = direct_length <= min(
+            min(origin_id.values()), min(destination_id.values())
+        )
+        if metric != "length":
+            # In the search, the weight of an off-graph leg is its km times the
+            # weight of 1 km. The test above compares lengths: a metric whose
+            # off-graph legs have a weight of zero must not make every route direct.
+            direct_length, origin_id, destination_id = self._convert_to_metric(
+                metric, direct_length, origin_id, destination_id
+            )
+        if logger.isEnabledFor(logging.DEBUG):
+            self.graph_object.reset_node_scans()
+        if is_direct:
+            output = {"path": [], "length": direct_length * circuity_ratio}
+        else:
+            output = self._find_route(
+                search_function,
+                algorithm_kwargs,
+                origin_id,
+                destination_id,
+                metric,
+            )
+            if circuity_ratio != 1.0:
+                path = output.get("path")
+                entry_node = path[0] if path else next(iter(origin_id))
+                exit_node = path[-1] if path else next(iter(destination_id))
+                output["length"] += (
+                    origin_id[entry_node] + destination_id[exit_node]
+                ) * (circuity_ratio - 1.0)
+        if logger.isEnabledFor(logging.DEBUG):
+            self._log_query_indicators(
+                algorithm_name, origin, destination, origin_id, destination_id
+            )
+        if metric != "length":
+            # The search returned the total of the metric. `length` stays the
+            # length of the route.
+            metric_total = output["length"]
+            if length_only:
+                return {"metric_totals": {metric: metric_total}}
+            output["length"] = self.get_path_weight(
+                {
+                    "path": output["path"],
+                    "coordinate_path": [origin, destination],
+                },
+                off_graph_circuity=off_graph_circuity,
+                output_units=self.geograph_units,
+                metric="length",
+            )
+        # Convert the length to the desired output units
+        output["length"] = distance_converter(
+            output["length"],
+            input_units=self.geograph_units,
+            output_units=output_units,
+        )
+        # Early return if only length is needed
+        if length_only:
+            return {"length": output["length"]}
+        if self._read_metrics():
+            output["metric_totals"] = self._get_metric_totals(
+                output["path"], origin, destination, off_graph_circuity
+            )
+            if metric != "length":
+                output["metric_totals"][metric] = metric_total
+        # Get the coordinate path
+        output["coordinate_path"] = (
+            [origin]
+            + self.__get_coordinate_path__(
+                output["path"], get_intermediate_nodes=get_intermediate_nodes
+            )
+            + [destination]
+        )
+        # Format the coordinate path to the desired output format
+        if output_coordinate_path != "list_of_lists":
+            output["coordinate_path"] = self.__format_coordinates__(
+                coordinate_path=output["coordinate_path"],
+                output_format=output_coordinate_path,
+            )
+            if output_coordinate_path == "list_of_lists_long_first":
+                output["long_first"] = True
+        if output_legs:
+            output["legs"], output["transfers"] = self._get_legs(
+                output["path"],
                 origin,
                 destination,
-                circuity=node_addition_circuity,
-                units=self.geograph_units,
+                off_graph_circuity,
+                get_intermediate_nodes,
             )
+            for leg in output["legs"]:
+                self._format_leg(leg, output_units, output_coordinate_path)
+        if not output_path:
+            del output["path"]
+        return output
 
-            # Snap the origin and destination to their closest nodes in the graph
-            origin_id = self.__get_node_distances__(
-                node=origin,
-                circuity=node_addition_circuity,
-                node_addition_type=node_addition_type,
-                lat_lon_bound=node_addition_lat_lon_bound,
-                snap_index=snap_index,
-            )
-            destination_id = self.__get_node_distances__(
-                node=destination,
-                circuity=node_addition_circuity,
-                node_addition_type=destination_node_addition_type,
-                lat_lon_bound=node_addition_lat_lon_bound,
-                snap_index=snap_index,
-            )
-
-            # Calculate the circuity ratio for the node addition
-            circuity_ratio = (
-                off_graph_circuity / node_addition_circuity
-                if node_addition_circuity != 0
-                else 1.0
-            )
-
-            # If direct distance is better than any entry or exit distance, bypass graph search
-            min_entry_exit = min(
-                min(origin_id.values()), min(destination_id.values())
-            )
-            is_direct = direct_node_addition_length <= min_entry_exit
+    def _build_search_function(
+        self,
+        algorithm_fn: str | Callable,
+        algorithm_kwargs: dict,
+        graph_object: "Graph",
+        metric: str,
+    ) -> Callable:
+        """Return the function that searches a route on `graph_object`, the graph
+        of `metric`, for the argument `algorithm_fn` of `get_shortest_path`. The
+        method sets in `algorithm_kwargs` what this function needs: the graph for
+        a function of the caller, or the A* bound of the metric."""
+        is_metric_other_than_length = metric != "length"
+        if callable(algorithm_fn):
+            algorithm_kwargs["graph"] = graph_object.unreduced_graph
+            return algorithm_fn
+        if not isinstance(algorithm_fn, str):
+            raise ValueError("algorithm_fn must be a string or callable")
+        heuristic_fn = algorithm_kwargs.get("heuristic_fn")
+        # The methods `haversine` and `cheap_ruler` of scgraph, for this
+        # geograph: each gives a length between two of its nodes. The function
+        # of the caller is equal to one of them only when the caller passed
+        # this method of this geograph. A subclass that defines its own
+        # `haversine` passes another function, which is used as it is.
+        haversine_of_scgraph = types.MethodType(
+            GeoGraphDistanceCalculations.haversine, self
+        )
+        cheap_ruler_of_scgraph = types.MethodType(
+            GeoGraphDistanceCalculations.cheap_ruler, self
+        )
+        if (
+            algorithm_fn == "a_star"
+            and hasattr(graph_object, "a_star_great_circle")
+            and heuristic_fn == haversine_of_scgraph
+        ):
+            # The built-in haversine heuristic is computed natively in the C++ build
+            latitudes, longitudes = self._get_node_radians()
+            algorithm_kwargs.pop("heuristic_fn")
+            radius = earth_radius.get(self.geograph_units, 6371)
             if is_metric_other_than_length:
-                # In the search, the weight of an off-graph leg is its km times the
-                # weight of 1 km. The test above compares lengths: a metric whose
-                # off-graph legs have a weight of zero must not make every route direct.
-                off_graph_weight_per_unit = self._read_metric(
+                # The total of a route of the length d is at least d times
+                # `min_weight_per_length_unit`: the radius times it is the bound.
+                radius *= self._read_metric(
                     metric
-                ).off_graph_weight_per_km / get_units_per_km(
-                    self.geograph_units
-                )
-                direct_node_addition_length *= off_graph_weight_per_unit
-                origin_id = {
-                    node_id: length * off_graph_weight_per_unit
-                    for node_id, length in origin_id.items()
-                }
-                destination_id = {
-                    node_id: length * off_graph_weight_per_unit
-                    for node_id, length in destination_id.items()
-                }
-
-            if logger.isEnabledFor(logging.DEBUG):
-                self.graph_object.reset_node_scans()
-            if is_direct:
-                output = {
-                    "path": [],
-                    "length": direct_node_addition_length * circuity_ratio,
-                }
-            else:
-                output = algorithm_fn(
-                    origin_id=origin_id,
-                    destination_id=destination_id,
-                    **algorithm_kwargs,
-                )
-                if circuity_ratio != 1.0:
-                    entry_node = (
-                        output["path"][0]
-                        if output.get("path")
-                        else next(iter(origin_id.keys()))
-                    )
-                    exit_node = (
-                        output["path"][-1]
-                        if output.get("path")
-                        else next(iter(destination_id.keys()))
-                    )
-                    output["length"] += (
-                        origin_id[entry_node] + destination_id[exit_node]
-                    ) * (circuity_ratio - 1.0)
-            if logger.isEnabledFor(logging.DEBUG):
-                self._log_query_indicators(
-                    algorithm_name,
-                    origin,
-                    destination,
-                    origin_id,
-                    destination_id,
-                )
-
-            if is_metric_other_than_length:
-                # The search returned the total of the metric. `length` stays the
-                # length of the route.
-                metric_total = output["length"]
-                if length_only:
-                    return {"metric_totals": {metric: metric_total}}
-                output["length"] = self.get_path_weight(
-                    {
-                        "path": output["path"],
-                        "coordinate_path": [origin, destination],
-                    },
-                    off_graph_circuity=off_graph_circuity,
-                    output_units=self.geograph_units,
-                    metric="length",
-                )
-            # Convert the length to the desired output units
-            output["length"] = distance_converter(
-                output["length"],
-                input_units=self.geograph_units,
-                output_units=output_units,
+                ).get_min_weight_per_length_unit(self._read_edge_arrays()[2])
+            return partial(
+                graph_object.a_star_great_circle,
+                latitudes=latitudes,
+                longitudes=longitudes,
+                radius=radius,
             )
-            # Early return if only length is needed
-            if length_only:
-                return {"length": output["length"]}
-            if self._read_metrics():
-                output["metric_totals"] = self._get_metric_totals(
-                    output["path"], origin, destination, off_graph_circuity
-                )
-                if is_metric_other_than_length:
-                    output["metric_totals"][metric] = metric_total
-
-            # Get the coordinate path
-            output["coordinate_path"] = (
-                [origin]
-                + self.__get_coordinate_path__(
-                    output["path"],
-                    get_intermediate_nodes=get_intermediate_nodes,
-                )
-                + [destination]
+        if not hasattr(graph_object, algorithm_fn):
+            raise ValueError("algorithm_fn must be a string or callable")
+        if (
+            is_metric_other_than_length
+            and algorithm_fn == "a_star"
+            and heuristic_fn == cheap_ruler_of_scgraph
+        ):
+            # `cheap_ruler` gives a length. The bound of the metric is this
+            # length times `min_weight_per_length_unit`, as for `haversine`.
+            min_weight_per_length_unit = self._read_metric(
+                metric
+            ).get_min_weight_per_length_unit(self._read_edge_arrays()[2])
+            algorithm_kwargs["heuristic_fn"] = (
+                lambda origin_id, destination_id: min_weight_per_length_unit
+                * heuristic_fn(origin_id, destination_id)
             )
+        return getattr(graph_object, algorithm_fn)
 
-            # Format the coordinate path to the desired output format
-            if output_coordinate_path != "list_of_lists":
-                output["coordinate_path"] = self.__format_coordinates__(
-                    coordinate_path=output["coordinate_path"],
-                    output_format=output_coordinate_path,
-                )
-                if output_coordinate_path == "list_of_lists_long_first":
-                    output["long_first"] = True
+    def _convert_to_metric(
+        self,
+        metric: str,
+        direct_length: float,
+        origin_id: dict[int, float],
+        destination_id: dict[int, float],
+    ) -> tuple[float, dict[int, float], dict[int, float]]:
+        """Return the length of the direct line and the lengths from each query
+        point to its nodes as weights of `metric`: in the search, the weight of
+        an off-graph leg is its length times the weight of 1 length unit of an
+        off-graph leg in the metric."""
+        off_graph_weight_per_unit = self._read_metric(
+            metric
+        ).off_graph_weight_per_km / get_units_per_km(self.geograph_units)
+        return (
+            direct_length * off_graph_weight_per_unit,
+            {
+                node_id: length * off_graph_weight_per_unit
+                for node_id, length in origin_id.items()
+            },
+            {
+                node_id: length * off_graph_weight_per_unit
+                for node_id, length in destination_id.items()
+            },
+        )
 
-            if output_legs:
-                output["legs"], output["transfers"] = self._get_legs(
-                    output["path"],
-                    origin,
-                    destination,
-                    off_graph_circuity,
-                    get_intermediate_nodes,
-                )
-                for leg in output["legs"]:
-                    self._format_leg(leg, output_units, output_coordinate_path)
-            if not output_path:
-                del output["path"]
-            return output
-
+    def _find_route(
+        self,
+        search_function: Callable,
+        algorithm_kwargs: dict,
+        origin_id: dict[int, float],
+        destination_id: dict[int, float],
+        metric: str,
+    ) -> dict:
+        """Return the result of the search between the nodes of the two query
+        points: `{"path": node ids, "length": total of the metric}`. When no route
+        joins them, the PathNotFoundError names the metric, or gets a note on a
+        disconnected graph."""
+        try:
+            return search_function(
+                origin_id=origin_id,
+                destination_id=destination_id,
+                **algorithm_kwargs,
+            )
         except PathNotFoundError as error:
-            if is_metric_other_than_length:
+            if metric != "length":
                 raise PathNotFoundError(
                     f"No route by the metric {metric!r} joins the two points. An "
                     "edge that is closed in this metric cannot be taken: check the "
