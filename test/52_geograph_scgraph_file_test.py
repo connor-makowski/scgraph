@@ -776,9 +776,7 @@ def test_a_file_with_rows_and_without_their_list_is_refused(tmp_path):
 # The header must describe the arrays of the file, and `load_from_scgraph`
 # must name what is wrong. Here the valid network above also has a class and a
 # toll for each edge. Each case below replaces or adds a key of the valid
-# header. Some cases are headers of an earlier development version of scgraph,
-# which no released version wrote: `units` and no `metrics`, a class row with
-# the key `mode`, a node mode without its count of nodes.
+# header.
 ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
     "metrics": [LENGTH_IN_KM, TOLL],
     "node_modes": ROAD_AND_PORT_IN_A_FILE,
@@ -827,28 +825,6 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
             },
             "must add up to the count of the nodes",
             id="four nodes in the node modes of three nodes",
-        ),
-        pytest.param(
-            ROAD_AND_PORT_HEADER_WITH_A_TOLL | {"node_modes": ROAD_AND_PORT},
-            "build or download the network again",
-            id="node modes without their counts of an earlier development version",
-        ),
-        pytest.param(
-            {"units": "km", "node_modes": ROAD_AND_PORT, "classes": [MOTORWAY]},
-            "build or download the network again",
-            id="the header of an earlier development version",
-        ),
-        pytest.param(
-            ROAD_AND_PORT_HEADER_WITH_A_TOLL
-            | {"classes": [{"name": "motorway", "mode": "road"}]},
-            "build or download the network again",
-            id="the class rows of an earlier development version",
-        ),
-        pytest.param(
-            ROAD_AND_PORT_HEADER_WITH_A_TOLL
-            | {"classes": [{"name": None, "edge_mode": None}]},
-            "build or download the network again",
-            id="a class without a name of an earlier development version",
         ),
         pytest.param(
             ROAD_AND_PORT_HEADER_WITH_A_TOLL

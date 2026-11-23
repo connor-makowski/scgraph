@@ -369,9 +369,8 @@ def read(
         each node from the rows of `metadata["node_modes"]`.
 
     Raises:
-        ValueError: The header or the layout of the arrays is not valid. Or an
-            earlier development version of scgraph wrote the file. `read` does not
-            check the digest (see `check_content`).
+        ValueError: The header or the layout of the arrays is not valid. `read`
+            does not check the digest (see `check_content`).
         FileNotFoundError: The file does not exist.
     """
     mapped = mapped and sys.byteorder == "little"
@@ -472,30 +471,6 @@ def _read(filename, file, mapped, node_modes):
         raise ValueError(
             f"{filename} has format version {header.get('format_version')}; "
             f"this version of scgraph reads version {FORMAT_VERSION}"
-        )
-    # A file of an earlier development version has `units` and no `metrics`, or a
-    # name that this version no longer reads. Without this message, the error would
-    # only name the missing array or key.
-    metadata = header["metadata"]
-    if (
-        ("units" in metadata and "metrics" not in metadata)
-        or {"node_ids", "node_modes", "edge_classes", "weights_length"}
-        & set(header["arrays"])
-        or "node_mode_ids" in header["arrays"]
-        or any(
-            isinstance(row, dict) and "node_count" not in row
-            for row in metadata.get("node_modes", ())
-        )
-        or any(
-            isinstance(row, dict)
-            and ("mode" in row or row.get("name", "") is None)
-            for row in metadata.get("classes", ())
-        )
-        or any("off_graph_per_km" in row for row in metadata.get("metrics", ()))
-    ):
-        raise ValueError(
-            f"{filename} has the format of an earlier development version of "
-            "scgraph: build or download the network again"
         )
     is_node_mode_kept = None
     if node_modes is not None:
