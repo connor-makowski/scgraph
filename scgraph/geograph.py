@@ -29,6 +29,7 @@ from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.edge_classes import EdgeClasses, find_edge_id
+from scgraph.node_snapping import EveryNodeSnapIndex, SnapIndexes
 from scgraph.metrics import (
     Metric,
     parse_off_graph_weight_per_km,
@@ -49,7 +50,7 @@ import re
 import types
 from array import array
 from collections import Counter
-from itertools import chain, zip_longest
+from itertools import zip_longest
 from math import inf, isfinite
 from operator import eq
 from copy import deepcopy
@@ -61,20 +62,17 @@ from collections.abc import Callable, Iterable, Iterator, Sequence
 from scgraph import Graph, PathNotFoundError
 
 try:
-    from scgraph.cpp import (
-        NodeOrderError,
-        SnapIndex,
-        compute_weights_from_km,
-    )
+    from scgraph.cpp import compute_weights_from_km
 except ImportError:
     from scgraph.helpers.metric_weights import compute_weights_from_km
-    from scgraph.helpers.snap_index import NodeOrderError, SnapIndex
 
 if (
     TYPE_CHECKING
 ):  # Only for annotations. A function that needs one of these modules imports it.
     import networkx
     from geokdtree import GeoKDTree
+    from scgraph.helpers.snap_index import SnapIndex
+    from scgraph.node_snapping import QuerySnapIndex, SortedSnapIndex
 
 logger = logging.getLogger(__name__)
 
@@ -2128,6 +2126,7 @@ class GeoGraphModifiers:
                 circuity=circuity,
                 node_addition_type=node_addition_type,
                 lat_lon_bound=lat_lon_bound,
+                snap_index=EveryNodeSnapIndex(self),
             )
         else:
             node_dict = {}
@@ -2475,83 +2474,6 @@ def _cut_legs(edges: list[dict]) -> list[dict]:
     return legs
 
 
-class _SortedSnapIndex:
-    """
-    A snapping index over nodes in an order that is not the order of their ids. It
-    answers with the ids of the nodes. The nodes are every node in Hilbert order (an
-    exact tie between two places goes to the node earlier on the curve, not to the
-    lower id), or the nodes of one node mode (`GeoGraph._get_snap_index_of_node_mode`).
-    """
-
-    def __init__(self, order: array | range, index: SnapIndex):
-        # order[position in the index] = node id. An array or a range, not a list: the
-        # garbage collector never walks it (a list of 572,009 ids cost a 16 ms pause)
-        self.order, self.index = order, index
-
-    def closest_idx(self, point) -> int:
-        return self.order[self.index.closest_idx(point)]
-
-    def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
-        # Changes the index's dict in place and creates no object the garbage collector
-        # tracks, so that queries don't make it run more often
-        found = self.index.closest_idx_per_quadrant(point)
-        for quadrant in ("ne", "nw", "se", "sw"):
-            p = found[quadrant]
-            if p is not None:
-                found[quadrant] = self.order[p]
-        return found
-
-
-class _NodeModeSnapIndexes:
-    """
-    The snapping indexes of several node modes, used as one index. Each index gives
-    its closest node, and the answer is the closest of these nodes.
-
-    Example: a point is 3 km from its closest road node and 1 km from its closest rail
-    node. The index of the road nodes gives the road node, the index of the rail nodes
-    gives the rail node, and `closest_idx` returns the rail node.
-
-    Of two nodes at the same distance, the answer is the lowest id, as in one index.
-    """
-
-    def __init__(self, indexes: list[_SortedSnapIndex], nodes: Sequence):
-        # `nodes` are the nodes of the geograph: an answer of an index is a node id
-        self.indexes, self.nodes = indexes, nodes
-
-    @property
-    def order(self) -> Iterator[int]:
-        # The ids of the nodes of every index, as `_SortedSnapIndex.order`
-        return chain.from_iterable(index.order for index in self.indexes)
-
-    def _find_closest(self, point, node_ids: list[int | None]) -> int | None:
-        # The node closest to `point` among the answers of the indexes. An index
-        # answers None for a quadrant without a node.
-        return min(
-            (node_id for node_id in node_ids if node_id is not None),
-            key=lambda node_id: (
-                haversine(point, self.nodes[node_id]),
-                node_id,
-            ),
-            default=None,
-        )
-
-    def closest_idx(self, point) -> int:
-        return self._find_closest(
-            point, [index.closest_idx(point) for index in self.indexes]
-        )
-
-    def closest_idx_per_quadrant(self, point) -> dict[str, int | None]:
-        answers = [
-            index.closest_idx_per_quadrant(point) for index in self.indexes
-        ]
-        return {
-            quadrant: self._find_closest(
-                point, [answer[quadrant] for answer in answers]
-            )
-            for quadrant in ("ne", "nw", "se", "sw")
-        }
-
-
 def _keep_interior_points(shapes, nodes):
     # Edge shapes hold the points between the edge's two nodes, from origin to destination:
     # reverse a shape that runs from the destination to the origin, remove the points
@@ -2640,9 +2562,8 @@ class GeoGraphUtils:
     def __get_quadrant_node_indices__(
         self,
         node: list,
-        node_mode_snap_index: "_SortedSnapIndex | _NodeModeSnapIndexes | None" = None,
+        snap_index: "QuerySnapIndex",
     ) -> set[int]:
-        snap_index = node_mode_snap_index or self.snap_index
         indices = snap_index.closest_idx_per_quadrant(point=node)
         node_indices = {idx for idx in indices.values() if idx is not None}
         if not node_indices:
@@ -2655,7 +2576,7 @@ class GeoGraphUtils:
         circuity: float,
         node_addition_type: str,
         lat_lon_bound: float,
-        node_mode_snap_index: "_SortedSnapIndex | _NodeModeSnapIndexes | None" = None,
+        snap_index: "QuerySnapIndex",
     ) -> dict[int, float]:
         """
         Function:
@@ -2684,19 +2605,13 @@ class GeoGraphUtils:
         - `lat_lon_bound`
             - Type: int | float
             - What: Forms a bounding box around the node that is to be added to graph. Only selects graph nodes to consider joining that are within this bounding box.
-
-        Optional Arguments:
-
-        - `node_mode_snap_index`
-            - Type: _SortedSnapIndex | _NodeModeSnapIndexes | None
-            - What: The snapping index of the nodes of some node modes (see `_get_node_mode_snap_index`): only these nodes are selected
-            - Default: None (every node may be selected)
+        - `snap_index`
+            - Type: QuerySnapIndex
+            - What: The snapping index of the nodes that may be selected (see `scgraph/node_snapping.py`)
 
         """
         if node_addition_type in ["kdclosest", "closest"]:
-            closest_idx = (node_mode_snap_index or self.snap_index).closest_idx(
-                point=node
-            )
+            closest_idx = snap_index.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
                 closest_idx: haversine(
@@ -2714,9 +2629,7 @@ class GeoGraphUtils:
                     circuity=circuity,
                     units=self.geograph_units,
                 )
-                for idx in self.__get_quadrant_node_indices__(
-                    node, node_mode_snap_index
-                )
+                for idx in self.__get_quadrant_node_indices__(node, snap_index)
             }
         if not (node_addition_type == "all"):
             raise ValueError(
@@ -2730,14 +2643,7 @@ class GeoGraphUtils:
         bottom_lon = node[1] - lat_lon_bound
         nodes = {
             node_idx: node_i
-            for node_idx, node_i in (
-                enumerate(self.nodes)
-                if node_mode_snap_index is None
-                else (
-                    (node_id, self.nodes[node_id])
-                    for node_id in node_mode_snap_index.order
-                )
-            )
+            for node_idx, node_i in snap_index.list_nodes()
             if node_i[0] >= bottom_lat
             and node_i[0] <= top_lat
             and node_i[1] >= bottom_lon
@@ -2749,9 +2655,7 @@ class GeoGraphUtils:
                 lat_lon_bound,
                 node,
             )
-            closest_idx = (node_mode_snap_index or self.snap_index).closest_idx(
-                point=node
-            )
+            closest_idx = snap_index.closest_idx(point=node)
             closest_point = self.nodes[closest_idx]
             return {
                 closest_idx: haversine(
@@ -3391,7 +3295,7 @@ class GeoGraph(
         self._graph = graph
 
     @property
-    def snap_index(self) -> "SnapIndex | _SortedSnapIndex | GeoKDTree":
+    def snap_index(self) -> "SnapIndex | SortedSnapIndex | GeoKDTree":
         """
         The index that snaps coordinates to their closest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
@@ -3401,211 +3305,21 @@ class GeoGraph(
           to a network file) are indexed in Hilbert order, sorted in Python at each build:
           an exact tie between two places then goes to the node earlier on the curve
         """
-        # Dropped by add_coord_node, remove_coord_node and merge_with_other_geograph (merge
-        # keeps the index of the networks before the merge while it connects them); direct
-        # edits of nodes are not detected
-        if self.__snap_index__ is None:
-            with log_step(
-                logger, "build the snapping index", {"nodes": len(self.nodes)}
-            ) as indicators:
-                self.__snap_index__ = self._build_snap_index()
-                indicators["sorted_for_the_index"] = isinstance(
-                    self.__snap_index__, _SortedSnapIndex
-                )
-        return self.__snap_index__
+        return self._snap_indexes.get_index_of_every_node(self)
 
     @snap_index.setter
     def snap_index(
-        self, snap_index: "SnapIndex | _SortedSnapIndex | GeoKDTree | None"
+        self, snap_index: "SnapIndex | SortedSnapIndex | GeoKDTree | None"
     ) -> None:
-        self.__snap_index__ = snap_index
+        # Set to None by add_coord_node, remove_coord_node and merge_with_other_geograph
+        # (merge keeps the index of the networks before the merge while it connects
+        # them); direct edits of nodes are not detected. The new `SnapIndexes` has no
+        # index of a node mode: they are rebuilt with the index.
+        self._snap_indexes = SnapIndexes(snap_index)
         # Node coordinates in radians for the native A* heuristic, rebuilt with the index
         self.__node_radians__ = None
-        # The snapping index of the nodes of each node mode that a query used, by the
-        # name of the node mode (see `_get_snap_index_of_node_mode`). They are rebuilt
-        # with the index.
-        self._node_mode_snap_indexes = {}
         if snap_index is None:
             self.__geokdtree__ = None
-
-    def _build_snap_index(
-        self, node_ids: range | array | None = None
-    ) -> "SnapIndex | _SortedSnapIndex":
-        """
-        Builds the snapping index of the nodes, or of the nodes `node_ids` alone: a
-        range, or an array of ids in rising order (see `_find_node_ids`). Nodes too
-        scattered for the index are indexed in Hilbert order, and keep their ids.
-        """
-        nodes = self.nodes
-        try:
-            if node_ids is None:
-                return (
-                    SnapIndex.from_array(nodes.points())
-                    if isinstance(nodes, network_file.NodePoints)
-                    else SnapIndex(nodes)
-                )
-            if isinstance(node_ids, range) and isinstance(
-                nodes, network_file.NodePoints
-            ):
-                # The index reads the points of the range in place, as the index of
-                # every node does
-                points = memoryview(nodes.points())
-                return _SortedSnapIndex(
-                    node_ids,
-                    SnapIndex.from_array(
-                        points[2 * node_ids.start : 2 * node_ids.stop]
-                    ),
-                )
-            return _SortedSnapIndex(
-                node_ids, SnapIndex([nodes[i] for i in node_ids])
-            )
-        except NodeOrderError:
-            # A graph built from a list, or one with many added nodes, does not keep
-            # nearby nodes together
-            points = (
-                list(nodes)
-                if node_ids is None
-                else [nodes[i] for i in node_ids]
-            )
-            order = array("q", hilbert_order(points))
-            index = SnapIndex([points[i] for i in order])
-            if node_ids is not None:
-                # A position in `points` becomes the id of its node
-                order = array("q", [node_ids[i] for i in order])
-            return _SortedSnapIndex(order, index)
-
-    def _get_node_mode_snap_index(
-        self, node_addition_modes: list[str] | None
-    ) -> "_SortedSnapIndex | _NodeModeSnapIndexes | None":
-        """
-        Returns the snapping index of the nodes that a point of a query may snap to.
-        Returns None when the point may snap to every node: `snap_index` is then the
-        index.
-
-        The geograph has one snapping index for each node mode, built at the first query
-        that needs it (`_get_snap_index_of_node_mode`). A query point snaps to the
-        closest node among the indexes of its node modes.
-
-        - `node_addition_modes` is the argument of the query: names of `node_modes`,
-          or None for the node modes of `default_node_addition_modes`
-        - With None, a point also snaps to a node without a named node mode: a node that
-          the user added. A list of names keeps only the nodes of these node modes
-        - A default node mode that no node has does not count. A geograph that read
-          only the sea lanes of a file has no node of the default node mode `road` of
-          this file: a point then snaps to every node
-        - Raises a ValueError for a list with a name that is not in `node_modes`, and
-          for a list whose node modes have no node. An empty list is such a list
-        """
-        if node_addition_modes is None:
-            snap_indexes = self._list_snap_indexes(
-                self.default_node_addition_modes or []
-            )
-            if not snap_indexes:
-                return None
-            # The nodes without a named node mode
-            snap_indexes += self._list_snap_indexes([None])
-        else:
-            node_mode_names = [mode.get("name") for mode in self.node_modes]
-            if not set(node_addition_modes) <= set(node_mode_names) - {None}:
-                raise ValueError(
-                    "node_addition_modes must be a list of node modes of this geograph, "
-                    f"which are {node_mode_names}: got {node_addition_modes!r}"
-                )
-            snap_indexes = self._list_snap_indexes(node_addition_modes)
-            if not snap_indexes:
-                raise ValueError(
-                    "node_addition_modes names no node mode that a node of this geograph "
-                    f"has: got {node_addition_modes!r}"
-                )
-        if len(snap_indexes) == 1:
-            return snap_indexes[0]
-        return _NodeModeSnapIndexes(snap_indexes, self.nodes)
-
-    def _list_snap_indexes(
-        self, node_modes: Iterable[str | None]
-    ) -> "list[_SortedSnapIndex]":
-        # The snapping index of each of these node modes that has a node. A name
-        # given twice counts once.
-        snap_indexes = [
-            self._get_snap_index_of_node_mode(node_mode)
-            for node_mode in dict.fromkeys(node_modes)
-        ]
-        return [
-            snap_index for snap_index in snap_indexes if snap_index is not None
-        ]
-
-    def _get_snap_index_of_node_mode(
-        self, node_mode: str | None
-    ) -> "_SortedSnapIndex | None":
-        """
-        Returns the snapping index of the nodes of one node mode, built at the first
-        call. Returns None for a node mode without a node.
-
-        - `node_mode` is a name of `node_modes`, or None for the nodes without a named
-          node mode
-        - The geograph keeps the index. The setter of `snap_index` removes it when
-          the nodes change
-        """
-        if node_mode not in self._node_mode_snap_indexes:
-            node_ids = self._find_node_ids(node_mode)
-            snap_index = None
-            if node_ids:
-                with log_step(
-                    logger,
-                    "build the snapping index",
-                    {"nodes": len(node_ids), "node_mode": node_mode},
-                ) as indicators:
-                    snap_index = self._build_snap_index(node_ids)
-                    indicators["sorted_for_the_index"] = (
-                        snap_index.order is not node_ids
-                    )
-            self._node_mode_snap_indexes[node_mode] = snap_index
-        return self._node_mode_snap_indexes[node_mode]
-
-    def _find_node_ids(self, node_mode: str | None) -> range | array:
-        """
-        Returns the ids of the nodes of one node mode, in rising order. `node_mode` is
-        a name of `node_modes`, or None for the nodes without a named node mode.
-
-        - The nodes of a network file are sorted by node mode. So the nodes of one node
-          mode are a range of node ids, and their index reads their points in the file
-        - A merge or an added node changes this order: the ids are then an array. A
-          merge can also give the same name to two rows of `node_modes`, and a geograph
-          may have no row for a name
-        - `add_coord_node` without `node_mode` gives the node mode without a name to
-          its node. A node appended to `nodes` directly is not in `node_mode_ids`: it
-          has no named node mode either
-        """
-        wanted_node_mode_ids = [
-            node_mode_id
-            for node_mode_id, row in enumerate(self.node_modes)
-            if row.get("name") == node_mode
-        ]
-        appended_node_ids = (
-            range(len(self.node_mode_ids), len(self.nodes))
-            if node_mode is None
-            else range(0)
-        )
-        if not wanted_node_mode_ids:
-            return appended_node_ids
-        if len(wanted_node_mode_ids) == 1 and not appended_node_ids:
-            # `bytes` searches a value in C: a search in the array costs as much as
-            # the build of the index
-            node_mode_ids = bytes(self.node_mode_ids)
-            node_mode_id = wanted_node_mode_ids[0]
-            first = node_mode_ids.find(node_mode_id)
-            last = node_mode_ids.rfind(node_mode_id)
-            if node_mode_ids.count(node_mode_id) == last - first + 1:
-                return range(first, last + 1)
-        return array(
-            "q",
-            [
-                node_id
-                for node_id, node_mode_id in enumerate(self.node_mode_ids)
-                if node_mode_id in wanted_node_mode_ids
-            ]
-            + list(appended_node_ids),
-        )
 
     @property
     def geokdtree(self) -> "GeoKDTree":
@@ -4282,50 +3996,6 @@ class GeoGraph(
             )
         return node_addition_type
 
-    def __snap_node__(
-        self,
-        node,
-        circuity,
-        node_addition_type,
-        lat_lon_bound,
-        node_mode_snap_index=None,
-    ):
-        if node_addition_type == "closest":
-            idx = (node_mode_snap_index or self.snap_index).closest_idx(
-                point=node
-            )
-            return {
-                idx: haversine(
-                    node,
-                    self.nodes[idx],
-                    circuity=circuity,
-                    units=self.geograph_units,
-                )
-            }
-        elif node_addition_type == "quadrant":
-            return {
-                idx: haversine(
-                    node,
-                    self.nodes[idx],
-                    circuity=circuity,
-                    units=self.geograph_units,
-                )
-                for idx in self.__get_quadrant_node_indices__(
-                    node, node_mode_snap_index
-                )
-            }
-        else:
-            return self.__get_node_distances__(
-                node=node,
-                circuity=circuity,
-                node_addition_type=node_addition_type,
-                lat_lon_bound=lat_lon_bound,
-                node_mode_snap_index=node_mode_snap_index,
-            )
-        raise ValueError(
-            "node_addition_type must be one of 'closest', 'quadrant', or 'all'"
-        )
-
     def get_shortest_path(
         self,
         origin_node: dict[str, float],
@@ -4622,9 +4292,7 @@ class GeoGraph(
         destination_node_addition_type = self.__get_node_addition_type__(
             destination_node_addition_type
         )
-        node_mode_snap_index = self._get_node_mode_snap_index(
-            node_addition_modes
-        )
+        snap_index = self._snap_indexes.get_index(self, node_addition_modes)
 
         # If auto lat lon bounds are needed, then calculate them.
         if "all" in [node_addition_type, destination_node_addition_type]:
@@ -4658,19 +4326,19 @@ class GeoGraph(
             )
 
             # Snap the origin and destination to their closest nodes in the graph
-            origin_id = self.__snap_node__(
+            origin_id = self.__get_node_distances__(
                 node=origin,
                 circuity=node_addition_circuity,
                 node_addition_type=node_addition_type,
                 lat_lon_bound=node_addition_lat_lon_bound,
-                node_mode_snap_index=node_mode_snap_index,
+                snap_index=snap_index,
             )
-            destination_id = self.__snap_node__(
+            destination_id = self.__get_node_distances__(
                 node=destination,
                 circuity=node_addition_circuity,
                 node_addition_type=destination_node_addition_type,
                 lat_lon_bound=node_addition_lat_lon_bound,
-                node_mode_snap_index=node_mode_snap_index,
+                snap_index=snap_index,
             )
 
             # Calculate the circuity ratio for the node addition
@@ -4969,10 +4637,7 @@ class GeoGraph(
             off_graph_weight_per_unit = self._read_metric(
                 output_metric
             ).off_graph_weight_per_km
-        snap_index = (
-            self._get_node_mode_snap_index(node_addition_modes)
-            or self.snap_index
-        )
+        snap_index = self._snap_indexes.get_index(self, node_addition_modes)
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
         entry_idx_and_distance = []

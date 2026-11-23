@@ -39,6 +39,7 @@ scgraph/
   geograph.py                    # GeoGraph + LazyGeoGraph — snapping, loaders and savers, cache management, build_geograph, metrics, edges and legs of a path
   edge_classes.py                # Internal: the class of each edge, found by the two nodes of the edge
   metrics.py                     # Internal: the record of a metric, and how its weights are computed (weights per km, weighted sum, function)
+  node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
   contraction_hierarchies.py     # CHGraph — CH preprocessing + bidirectional queries
   transit_node_routing.py        # TNRGraph — Transit Node Routing (extends CHGraph)
   grid.py                        # GridGraph — 2D grid pathfinding
@@ -71,8 +72,7 @@ scgraph/
     bindings/                    # nanobind Python/C++ interface: graph_bindings.cpp, pipelines_bindings.cpp
 test/                            # 50+ numbered files NN_module_feature_test.py; conftest.py (session fixtures), helpers.py
 utils/
-  bench.py                       # Fast benchmark runner (<30s); outputs benchmark.md
-  compare_versions.py            # Before/after of two git refs with bench.py
+  bench.py, compare_versions.py  # Fast benchmark runner (<30s), outputs benchmark.md; before/after of two git refs with bench.py
   prettify.py                    # ruff (unused imports) + black (line-length=80)
   docs.py                        # Generate pdoc HTML docs — DO NOT RUN (release only)
   draft_network_release.py       # Notes and file list of a network release (run by build_networks.yml)
