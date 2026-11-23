@@ -51,7 +51,7 @@ print(route["length"])  # the km of the route
 | Routes over roads, railways, sea lanes and flights | `world_multimodal`, or a part of the world such as `europe` | `GeoGraph.load_geograph("europe")` |
 | Routes by sea | `world_sea` | `GeoGraph.load_geograph("world_sea")` |
 | Routes by rail | `world_rail` | `GeoGraph.load_geograph("world_rail")` |
-| Routes by road only | a released network, with `node_modes`. A **node mode** says where a node is, such as `road`, `sea` or `port` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
+| Routes by road only | a released network, with `node_modes`. The **node mode** of a node is the kind of place where the node is, such as `road`, `sea` or `port` | `GeoGraph.load_geograph("europe", node_modes=["road"])` |
 | Routes by road and by sea | a released network, with `node_modes` and the ports that join them | `GeoGraph.load_geograph("europe", node_modes=["road", "sea", "port"])` |
 | Routes by time, by cost or by CO2 | a released network, with a **metric**: a weight for each edge other than its length | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
@@ -67,7 +67,7 @@ The recipes run in order, after the first route: a recipe may use a name of an e
 
 ### A Route on Several Edge Modes, with Its Legs
 
-An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`. `europe` has edges of the four edge modes. `output_legs=True` returns the **legs** of a route: a leg is a part of the route on one edge mode.
+The **edge mode** of an edge is the kind of transport of the edge: `road`, `rail`, `sea` or `air`. `europe` has edges of the four edge modes. `output_legs=True` returns the **legs** of a route: a leg is a part of the route on one edge mode.
 
 ```py
 europe = GeoGraph.load_geograph("europe")

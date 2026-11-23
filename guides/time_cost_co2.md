@@ -26,11 +26,11 @@ route["metric_totals"]  # {'hours': ...}: its hours
 ```
 
 - **Weight per km.** A **weight per km** is the weight of 1 km of an edge. Here it is in hours per km: `1 / 70` means 70 km/h. These numbers are examples. The library provides no speed, no cost and no emission factor: you give your own.
-- **Edge mode.** An **edge mode** says how an edge is travelled: `road`, `rail`, `sea` or `air`.
+- **Edge mode.** The **edge mode** of an edge is the kind of transport of the edge: `road`, `rail`, `sea` or `air`.
 - **Leg.** A **leg** is a part of a route on one edge mode. The mode of a leg is this edge mode.
 - **Off the graph.** A **query point** is the origin or the destination of a query. An **off-graph leg** is the straight line from a query point to its node. Its mode is `off_graph`. The total of a route counts its two off-graph legs. The routing guide explains [where a query point snaps](https://github.com/connor-makowski/scgraph/blob/main/guides/routing.md#where-a-query-point-snaps).
 - **Class.** Each edge of `europe` has a **class**: its category in the source, such as `motorway`, `rail_main`, `suez` or `flight`. So does each edge of the other networks that scgraph publishes. Each class has one edge mode.
-- **Hub.** A **hub** is a port, an airport or a rail terminal. A **node mode** says where a node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. The node mode of a hub is one of the last three.
+- **Hub.** A **hub** is a port, an airport or a rail terminal. The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. The node mode of a hub is one of the last three.
 
 Each of the three dicts of the call has one kind of key:
 

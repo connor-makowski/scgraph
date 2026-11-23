@@ -51,7 +51,7 @@ roads = GeoGraph.load_geograph("europe", node_modes=["road"])
 roads.get_shortest_path(origin_node=paris, destination_node=berlin)["length"]  # the km by road
 ```
 
-**Some node modes only.** Each node of a released network has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `node_modes` loads the nodes of some node modes only, as `roads` above. A **hub** is a port, an airport or a rail terminal. A route goes from a road to a sea lane only at a port, which has edges to both. So load the node mode of a hub with the node modes that it joins: `node_modes=["road", "sea", "port"]`.
+**Some node modes only.** The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `node_modes` loads the nodes of some node modes only, as `roads` above. A **hub** is a port, an airport or a rail terminal. A route goes from a road to a sea lane only at a port, which has edges to both. So load the node mode of a hub with the node modes that it joins: `node_modes=["road", "sea", "port"]`.
 
 **The shortest route in km.** Between two distant places, the shortest route in km takes a flight, because a flight is a straight line. A **metric** gives each edge another weight than its length, such as its hours. The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md) finds the fastest route or the cheapest route with a metric.
 
@@ -185,7 +185,7 @@ print(fastest["length"], fastest["metric_totals"]["travel_time"])  # its km, the
 
 The `length` of an edge is always its distance, in km. When every edge has a `travel_time`, the geograph keeps it as the metric `travel_time`, in seconds. One geograph then gives the shortest route and the fastest route. `off_graph_travel_speed` is the speed in km/h between a query point and its node.
 
-The geograph also keeps the `highway` value of each edge as its class. Each class has an **edge mode**, which says how its edges are travelled: here `road`.
+The geograph also keeps the `highway` value of each edge as its class. The **edge mode** of a class is the kind of transport of its edges: here `road`.
 
 **The default metric.** The **default metric** of a geograph is the metric of a query that names no metric. `geograph.default_metric` gives its name. `weight_key` sets it for an OSMnx geograph: `'length'`, the default, or `'travel_time'`.
 
@@ -277,7 +277,7 @@ GeoGraph.get_scgraph_info("my_network.scgraph")  # what the file holds, without 
 
 **What each format keeps.** A `.scgraph` file holds the graph, the nodes with their ids and their node modes, and the shapes of the edges. It also holds the class of each edge, the weights of each metric, the default metric (`default_metric`), and `default_node_addition_modes`. A `.graphjson` file and a GeoJSON file hold no class and no metric.
 
-**What a network file says about itself.** The header of a `.scgraph` file stores the pipeline, the sources with the time of their data, and the software of the build. `get_scgraph_info` reads it, with the credit line to cite (`attribution`) and the `content_sha256`. A geograph loaded from a file keeps this metadata (`geograph.metadata`) and the path of the file (`geograph.scgraph_file`). `save_as_scgraph` writes this metadata again unless given other `metadata`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) describes the format.
+**The metadata of a network file.** The header of a `.scgraph` file stores the pipeline, the sources with the time of their data, and the software of the build. `get_scgraph_info` reads it, with the credit line to cite (`attribution`) and the `content_sha256`. A geograph loaded from a file keeps this metadata (`geograph.metadata`) and the path of the file (`geograph.scgraph_file`). `save_as_scgraph` writes this metadata again unless given other `metadata`. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#7-network-file-format) describes the format.
 
 **Where a file may be saved.** `save_as_scgraph` and `save_as_graphjson` refuse to write under `networks/` of the cache directory. Save an edited network elsewhere.
 

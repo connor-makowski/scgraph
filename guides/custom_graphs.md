@@ -85,7 +85,7 @@ print(output)
 # Birmingham and Zaragoza are off the graph. The path joins them to London and to Madrid, their closest nodes
 ```
 
-**Classes of your own.** The **class** of an edge is its category, such as `motorway`. `edge_classes` gives the class of each edge, in the form of `graph`. An edge that is not in `edge_classes` has no class. `classes` gives each class with its **edge mode**, which says how its edges are travelled: `road`, `rail`, `sea` or `air`. A geograph holds 255 classes at most. A **metric** gives each edge a weight other than its length, under a name, such as its hours. A **weight per km** is the weight of 1 km of an edge in a metric. A metric gives a weight per km to an edge mode, and another one to a class:
+**Classes of your own.** The **class** of an edge is its category, such as `motorway`. `edge_classes` gives the class of each edge, in the form of `graph`. An edge that is not in `edge_classes` has no class. `classes` gives each class with its edge mode. The **edge mode** of a class is the kind of transport of its edges: `road`, `rail`, `sea` or `air`. A geograph holds 255 classes at most. A **metric** gives each edge a weight other than its length, under a name, such as its hours. A **weight per km** is the weight of 1 km of an edge in a metric. A metric gives a weight per km to an edge mode, and another one to a class:
 
 ```py
 # Paris (0), Dijon (1) and Lyon (2): a motorway from Paris to Lyon, and a main road through Dijon

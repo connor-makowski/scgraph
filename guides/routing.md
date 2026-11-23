@@ -41,7 +41,7 @@ The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgr
 
 A **query point** is the origin or the destination of a query. `get_shortest_path` joins each query point to a node of the network: the point **snaps** to this node. The route starts or ends at this node. An **off-graph leg** is the straight line from a query point to its node.
 
-A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. Each of its nodes has a **node mode**, which says where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph. In a released network with roads, a query point snaps to its closest road node, for every metric. A point at sea also snaps to a road node, at any distance. `node_addition_modes` lists the node modes that a query point may snap to:
+A **released network** is a network that the maintainers of scgraph build and publish, such as `oceania`. The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`, `port`, `airport` or `rail_terminal`. `geograph.node_modes` gives the node modes of a geograph. In a released network with roads, a query point snaps to its closest road node, for every metric. A point at sea also snaps to a road node, at any distance. `node_addition_modes` lists the node modes that a query point may snap to:
 
 ```py
 oceania = GeoGraph.load_geograph("oceania")

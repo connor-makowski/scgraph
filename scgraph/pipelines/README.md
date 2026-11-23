@@ -102,16 +102,16 @@ from its log. Another day gives other numbers, because the extract changes every
   pipeline and keeps the network file in the cache.
 - A **way** is a line of OpenStreetMap: a part of a road, of a railway or of a ferry route.
 - A **piece** is the part of a way between two nodes of the network.
-- The **node mode** of a node says where the node is: `road`, `rail`, `sea`, or the kind of a
-  hub (`port`, `airport`, `rail_terminal`).
+- The **node mode** of a node is the kind of place where the node is: `road`, `rail`, `sea`,
+  `port`, `airport` or `rail_terminal`.
 - A **hub** is a port, an airport or a rail terminal. A hub is one node. A route goes from one
   network to another at a hub.
 - A **connector** is the pair of edges that joins a hub to the network of the roads, of the
   railways or of the sea lanes.
 - The **class** of an edge is its category, for example `motorway`, `ferry`, `rail_main` or
   `flight`. The docstring of `scgraph.pipelines` lists the classes.
-- The **edge mode** of a class says how its edges are travelled: `road`, `rail`, `sea` or
-  `air`.
+- The **edge mode** of a class is the kind of transport of its edges: `road`, `rail`, `sea`
+  or `air`.
 - A **chain** is a row of nodes that each have only two neighbors, as along a road with no
   junction.
 
