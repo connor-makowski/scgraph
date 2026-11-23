@@ -278,7 +278,7 @@ world_sea.get_shortest_path({"latitude": 31.23, "longitude": 121.47}, {"latitude
 | Step | Values |
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `edges`, `duration_ms` |
-| `convert the published network` | `name`, `duration_ms` |
+| `convert the built-in network` | `name`, `duration_ms` |
 | `build the snapping index` | `nodes`, `node_mode` (the name of the node mode, only for the index of one node mode), `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |

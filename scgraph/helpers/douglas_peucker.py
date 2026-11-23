@@ -3,7 +3,7 @@
 import math
 from array import array
 from collections.abc import Sequence
-from scgraph._internal import is_sorted_from_zero
+from scgraph.array_checks import is_sorted_from_zero
 
 # Metres per 1e-7 degree of latitude
 _METRES = 6371000.0 * math.pi / 1.8e9

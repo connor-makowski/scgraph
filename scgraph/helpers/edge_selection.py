@@ -12,7 +12,7 @@ loop.
 from array import array
 from bisect import bisect_left
 
-from scgraph._internal import is_sorted
+from scgraph.array_checks import is_sorted
 
 # The highest value of an int32, the type of the offsets of a network file
 INT32_MAX = 2**31 - 1

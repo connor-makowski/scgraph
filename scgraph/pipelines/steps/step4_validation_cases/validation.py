@@ -92,17 +92,17 @@ def _find_path_km(
     return None if route is None else route["length"]
 
 
-def _find_closest_node(network, point, mode=None) -> tuple:
+def _find_closest_node(network, point, node_mode=None) -> tuple:
     """Return the distance in km from `point` to the closest node, and the coordinates
     of that node. The node mode of a node is the kind of place where the node is, such
-    as `road` or `port`. With `mode`, only the nodes of that node mode are candidates.
+    as `road` or `port`. With `node_mode`, only the nodes of that node mode are candidates.
     When the network does not have that node mode, all its nodes are candidates. This is
     the case of a published network and of a file with a single node mode."""
     node_mode_names = [m["name"] for m in network.node_modes or []]
-    if mode is None or mode not in node_mode_names:
+    if node_mode is None or node_mode not in node_mode_names:
         node = network.nodes[network.snap_index.closest_idx(point=list(point))]
         return haversine(point, node), tuple(node)
-    wanted = node_mode_names.index(mode)
+    wanted = node_mode_names.index(node_mode)
     return min(
         (haversine(point, node), tuple(node))
         for node, node_mode_id in zip(network.nodes, network.node_mode_ids)

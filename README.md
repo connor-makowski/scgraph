@@ -55,7 +55,7 @@ print(route["length"])  # the km of the route
 | Routes by road and by sea | a released network, with `node_modes` and the ports that join them | `GeoGraph.load_geograph("europe", node_modes=["road", "sea", "port"])` |
 | Routes by time, by cost or by CO2 | a released network, with a **metric**: a weight for each edge other than its length | `geograph.create_metric("hours", weight_per_km=...)`, then `get_shortest_path(..., metric="hours")` |
 | The same result later, on any machine | a released network, pinned | `GeoGraph.load_geograph("europe", network_release=..., content_sha256=...)` |
-| The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")` |
+| The data of today for one region | a network built on your machine (needs `pip install scgraph[osm]`) | `GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")` |
 | Your own lines | a GeoJSON or an OpenStreetMap file | `GeoGraph.load_from_geojson(file)` or `GeoGraph.load_from_osm(file)` |
 | A result of scgraph 3.6.0, unchanged | a deprecated network of 3.6.0 | `GeoGraph.load_geograph("marnet")`, with a `DeprecationWarning` |
 
@@ -119,7 +119,7 @@ The routing guide gives more detail in [Distance Matrix](https://github.com/conn
 
 ```py
 # Needs `pip install scgraph[osm]`, and downloads the extract of the region
-denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
+denmark = GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")
 
 # Your own data: a point for each node, and for each node the km to its neighbors
 nodes = [[51.5074, -0.1278], [48.8566, 2.3522], [40.4168, -3.7038]]  # London, Paris, Madrid

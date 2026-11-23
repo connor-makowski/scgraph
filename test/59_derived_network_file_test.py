@@ -214,7 +214,7 @@ def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
         parent_file,
         no_shapes_file,
         bbox=BBOX,
-        keep_shapes=False,
+        keep_intermediate_nodes=False,
         min_component_nodes=1,
     )
 
@@ -262,7 +262,7 @@ def test_a_bbox_with_its_south_above_its_north_is_refused(
 
 
 # The network of the validation test, at the ends of three cases that the
-# pipeline `geofabrik_multimodal` lists for `europe/denmark`. A road of 100 + 87 km
+# pipeline `osm_region_multimodal` lists for `europe/denmark`. A road of 100 + 87 km
 # joins Aarhus to Copenhagen. It passes through a road node north of Denmark.
 # - `aarhus_to_copenhagen_intermodal` asks for a route of 186.9 km, within
 #   10 %, between the two towns. This network passes the case.
@@ -289,7 +289,7 @@ def denmark_file(tmp_path_factory):
     ).save_as_scgraph(
         path,
         metadata=pipelines.build_metadata(
-            "geofabrik_multimodal", "europe/denmark", 1, []
+            "osm_region_multimodal", "europe/denmark", 1, []
         ),
     )
     return path

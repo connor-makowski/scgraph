@@ -36,9 +36,9 @@ scgraph/
   __init__.py                    # Exports: Graph, CHGraph, TNRGraph, GeoGraph, GridGraph, PathNotFoundError, NegativeCycleError
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
-  errors.py, files.py, columns.py  # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file; the columns of a geograph over the arrays of a network file
-  geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, validation of nodes, reduce
-  geograph_files.py, geograph_edits.py, geograph_edges.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call networks.py); edits; classes, metrics and edges; queries and legs
+  errors.py, files.py, array_views.py  # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file; list-like views of the arrays of a network file
+  geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, snapping, validation of nodes, reduce
+  geograph_io.py, geograph_modifiers.py, geograph_edges.py, geograph_metrics.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call networks.py); edits; edges and their classes; metrics; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
   node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
   contraction_hierarchies.py, transit_node_routing.py  # CHGraph — CH preprocessing and queries; TNRGraph — Transit Node Routing (extends CHGraph)
@@ -48,15 +48,15 @@ scgraph/
   networks.py                    # Internal: load, build, list and clear the networks of scgraph, and the files of the released networks in the cache
   built_in_geographs.py          # Internal: the seven networks of release 3.6.0, with their download
   graph_utils.py                 # GraphUtils (validation, path reconstruction) + GraphModifiers
-  utils.py, _internal.py         # Distance math, coordinate helpers, has_cpp, the cache directory; deprecation warnings, the log of a step
+  utils.py, deprecations.py, step_logs.py, array_checks.py  # Distance math, coordinate helpers, has_cpp, the cache directory; internal: deprecation warnings, the log of a step, the checks of a sorted array
   pipelines/                     # One module per buildable network; contract: docstring of __init__.py; guide: README.md
-    geofabrik_multimodal.py      # Roads, railways, sea lanes and flights of one Geofabrik region
+    osm_region_multimodal.py     # Roads, railways, sea lanes and flights of one region, from an OpenStreetMap extract
     osm_world_multimodal.py      # The same network for the world, from the OpenStreetMap planet
     eurostat_sea_lanes.py        # Sea lanes of Eurostat SeaRoute
     network_builder.py           # The runner: build_network_file (download, build, cache); runs with python -m
     derived_networks.py          # derive_network_file: some node modes and a bbox of another network file; runs with python -m
     data/                        # Hub tables: ports, airports, flights and rail terminals (data/README.md)
-    steps/                       # step1_osm_ways, step1_osm_planet_reader, step2_hub_connectors, step2_land_mask,
+    steps/                       # step1_osm_ways, step1_osm_range_streamer, step2_hub_connectors, step2_land_mask,
     │                            #   step3_network_assembly, step4_validation_cases, near_nodes (ARCHITECTURE.md §1)
   helpers/
     geojson.py, visvalingam.py, douglas_peucker.py  # GeoJSON parsing; line simplification (Visvalingam-Whyatt, Douglas-Peucker)
@@ -130,7 +130,7 @@ Located in `scgraph/cpp/`, compiled via scikit-build-core + nanobind:
 Tests use pytest (`uv run pytest`). Files are in `test/`, named `NN_module_feature_test.py` (zero-padded for ordered display). When adding a new feature, add a corresponding `NN_*_test.py` file. pytest discovers all `*_test.py` files in `test/` automatically.
 
 **Shared infrastructure:**
-- `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `published`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
+- `test/conftest.py` — session-scoped fixtures: `marnet`, `us_freeway`, `oak_ridge_maritime`, `north_america_rail`, `world_highways_and_marnet`, `built_in`. The tests download these networks into a temporary cache per session, never the user's. Set `SCGRAPH_CACHE_DIR` to keep the downloads between runs.
 - `test/conftest.py` also gives the fixtures `graph_class`, `ch_class` and `tnr_class`. A test of `Graph`, `CHGraph` or `TNRGraph` takes the fixture: it runs with the pure-Python class, then with the C++ class if the extension is built
 - `test/helpers.py` — `assert_result(realized, expected)` rounds `length` to 3dp before comparing; `needs_the_cpp_extension` marks a test that compares the C++ classes with the pure-Python classes, or that checks the C++ classes alone
 - `scgraph/pipelines/steps/step4_validation_cases/` — `validate_network` checks a built network against the cases of `cases/*.csv`: `python -m scgraph.pipelines.network_builder NAME --validate` (add `--local-files-only` to check a network in the cache without a download)
@@ -171,7 +171,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
 - **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. Where the two functions have the same name, arguments and results, the module that calls the kernel chooses it once, at its top: `try: from scgraph.cpp import compute_x`, then `except ImportError: from scgraph.helpers.x import compute_x`, so the caller has no branch on the build. A module that cannot use this form says why in a comment at the place.
-- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `_internal.log_step` (`guides/routing.md`, *Logging*).
+- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `step_logs.log_step` (`guides/routing.md`, *Logging*).
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
 - **Public API**: The public names are the names of the table *Public API* of the README and of the `__all__` of each module. A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
@@ -184,7 +184,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - Never commit directly to `dev` or `main`. Merge PRs with a merge commit (no squash or rebase), so that stacked PRs keep their commits, then delete the branch.
 - A PR that depends on another open PR targets that PR's branch until it is merged.
 - **Documents**: The README is the entry page, a guide of `guides/` covers one task, the docstrings are the reference, and `ARCHITECTURE.md` explains the inside: each fact has one home, and the other documents link to it. No document holds a number that a run or a network release changes. A change to the public API edits its docstring and its guide in the same PR. The docstring of `scgraph/__init__.py` includes the README, the guides and `MIGRATING.md`, so the documentation site shows them on the page of the package.
-- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. Release 4.0 made the breaking changes of `MIGRATING.md`. What 4.0 deprecates is removed in 5.0 at the earliest. `_internal.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
+- `dev` has no users. A file or a name that exists only on `dev` gets no migration code. What release 3.6.0 wrote or exposed must keep working. A parameter of 3.6.0 that loses its effect stays in the signature with the default `None`, and a call that passes it gets a `DeprecationWarning`. Release 4.0 made the breaking changes of `MIGRATING.md`. What 4.0 deprecates is removed in 5.0 at the earliest. `deprecations.warn_deprecated_parameter` gives this warning for a parameter that logging replaces.
 - A PR that changes runtime code (`scgraph/`) includes a before → after from `utils/compare_versions.py` on the sections it touches, against its target branch (`--backends cpp,python` if pure-Python code changed).
 - `Closes #N` only links and closes issues for PRs into `main`. For a PR into `dev`, also link the issue by hand (the PR's *Development* sidebar, or `gh api graphql` with the `addCloseIssueReferences` mutation): the issue then shows the PR but stays open.
 - After merging into `dev`, add the `merged in dev` label and the "Next release" milestone to the issue; it is closed when `dev` is merged into `main` (list it with `Closes #N` in that PR). Only the owner merges `dev` into `main` and releases.

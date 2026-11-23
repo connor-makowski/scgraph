@@ -42,7 +42,7 @@ from itertools import chain, starmap
 
 from scgraph import files
 from scgraph.helpers.hilbert import NODE_ORDER
-from scgraph._internal import is_sorted
+from scgraph.array_checks import is_sorted
 
 try:
     from scgraph.cpp import select_edges
@@ -707,7 +707,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
             and shapes[-1] == len(arrays["shape_points"]) // 2,
             "invalid shape offsets",
         )
-        # Mapped, each shape's offsets are checked where it is read (`scgraph.columns.EdgeShapes`)
+        # Mapped, each shape's offsets are checked where it is read (`scgraph.array_views.EdgeShapes`)
         require(
             not should_check_values or is_sorted(shapes),
             "invalid shape offsets",

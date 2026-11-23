@@ -11,7 +11,7 @@ import logging
 import os
 
 from scgraph.utils import hard_round, haversine
-from scgraph._internal import warn_deprecated_parameter
+from scgraph.deprecations import warn_deprecated_parameter
 from scgraph.helpers.douglas_peucker import douglas_peucker
 from scgraph.helpers.visvalingam import visvalingam
 from collections.abc import Callable, Sequence

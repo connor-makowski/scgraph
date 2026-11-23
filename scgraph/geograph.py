@@ -1,12 +1,14 @@
 """Geographic graphs: a `Graph` whose nodes have a latitude and a longitude.
 
-- `GeoGraphIO`, in `scgraph/geograph_files.py`, loads and saves networks (GeoJSON,
+- `GeoGraphIO`, in `scgraph/geograph_io.py`, loads and saves networks (GeoJSON,
   graphjson, `.scgraph` files, OpenStreetMap, OSMnx), and loads or builds the networks
   of scgraph.
-- `GeoGraphModifiers`, in `scgraph/geograph_edits.py`, adds and removes nodes and edges, by id
-  or by coordinates.
-- `GeoGraphEdges`, in `scgraph/geograph_edges.py`, holds the edge classes and the metrics,
-  reads the arrays of the edges, and lists the edges of the network or of a path.
+- `GeoGraphModifiers`, in `scgraph/geograph_modifiers.py`, adds and removes nodes and
+  edges, by id or by coordinates.
+- `GeoGraphEdges`, in `scgraph/geograph_edges.py`, holds the edge classes, reads the
+  arrays of the edges, and lists the edges of the network or of a path.
+- `GeoGraphMetrics`, in `scgraph/geograph_metrics.py`, creates, reads and removes the
+  metrics, and builds the graph that a search by a metric runs on.
 - `GeoGraphRouting`, `GeoGraphUtils` and `GeoGraphDistanceCalculations`, in
   `scgraph/geograph_routing.py`, answer `get_shortest_path` and `distance_matrix`, connect a
   point to nearby nodes, build the coordinates of a path, and give the haversine and
@@ -19,15 +21,16 @@ the released networks, and `scgraph/built_in_geographs.py` holds the seven netwo
 of scgraph 3.6.0.
 """
 
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric
-from scgraph import columns
-from scgraph import geograph_files
-from scgraph.geograph_files import GeoGraphIO
-from scgraph.geograph_edits import GeoGraphModifiers
+from scgraph import array_views
+from scgraph import geograph_io
+from scgraph.geograph_io import GeoGraphIO
+from scgraph.geograph_modifiers import GeoGraphModifiers
 from scgraph.geograph_edges import GeoGraphEdges
+from scgraph.geograph_metrics import GeoGraphMetrics
 from scgraph.geograph_routing import (
     GeoGraphUtils,
     GeoGraphDistanceCalculations,
@@ -36,7 +39,9 @@ from scgraph.geograph_routing import (
 import logging
 import warnings
 from array import array
+from math import inf
 from typing import TYPE_CHECKING, Literal
+from collections.abc import Sequence
 from scgraph import Graph
 
 if (
@@ -44,7 +49,7 @@ if (
 ):  # Only for annotations. A function that needs one of these modules imports it.
     from geokdtree import GeoKDTree
     from scgraph.helpers.snap_index import SnapIndex
-    from scgraph.node_snapping import SortedSnapIndex
+    from scgraph.node_snapping import NodeIdSnapIndex
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +58,7 @@ class GeoGraph(
     GeoGraphIO,
     GeoGraphModifiers,
     GeoGraphEdges,
+    GeoGraphMetrics,
     GeoGraphRouting,
     GeoGraphUtils,
     GeoGraphDistanceCalculations,
@@ -191,7 +197,7 @@ class GeoGraph(
         self.nodes = nodes
         if source_node_ids is not None and len(source_node_ids) != len(nodes):
             raise ValueError("source_node_ids must give one id per node")
-        self.source_node_ids = columns.SourceNodeIds(
+        self.source_node_ids = array_views.SourceNodeIds(
             range(len(nodes)) if source_node_ids is None else source_node_ids,
             nodes,
         )
@@ -296,6 +302,53 @@ class GeoGraph(
             return self.node_mode_ids
         return self.node_mode_ids + array("B", bytes(missing))
 
+    def get_nodes(
+        self,
+        node_mode: str | None = None,
+        bbox: Sequence[float] | None = None,
+    ) -> list[dict]:
+        """
+        Function:
+
+        - Get the nodes of the geograph, or those of one node mode or inside a bounding box
+
+        Optional Arguments:
+
+        - `node_mode`: The name of a node mode of `node_modes`: only the nodes of this node mode are returned; an unknown name raises a ValueError
+        - `bbox`: A bounding box `(south, west, north, east)` in degrees: only the nodes with `south <= latitude <= north` and `west <= longitude <= east` are returned
+
+        Returns:
+
+        - A list with one dictionary for each node, in the order of the node ids: `{"node_id", "latitude", "longitude", "node_mode"}`. `node_mode` is the name of the node mode of the node (None on a geograph without named node modes)
+        """
+        node_mode_names = [row.get("name") for row in self.node_modes]
+        if node_mode is not None and node_mode not in node_mode_names:
+            raise ValueError(
+                f"Unknown node mode {node_mode!r}: the node modes of this "
+                f"geograph are {node_mode_names}"
+            )
+        south, west, north, east = (
+            (-inf, -inf, inf, inf) if bbox is None else bbox
+        )
+        nodes = []
+        for node_id, (point, node_mode_id) in enumerate(
+            zip(self.nodes, self._read_node_mode_ids())
+        ):
+            if (
+                node_mode in (None, node_mode_names[node_mode_id])
+                and south <= point[0] <= north
+                and west <= point[1] <= east
+            ):
+                nodes.append(
+                    {
+                        "node_id": node_id,
+                        "latitude": point[0],
+                        "longitude": point[1],
+                        "node_mode": node_mode_names[node_mode_id],
+                    }
+                )
+        return nodes
+
     @property
     def graph(self) -> list[dict[int, int | float]]:
         if self._graph is None:
@@ -308,7 +361,7 @@ class GeoGraph(
         self._graph = graph
 
     @property
-    def snap_index(self) -> "SnapIndex | SortedSnapIndex | GeoKDTree":
+    def snap_index(self) -> "SnapIndex | NodeIdSnapIndex | GeoKDTree":
         """
         The index that snaps coordinates to their closest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
@@ -322,7 +375,7 @@ class GeoGraph(
 
     @snap_index.setter
     def snap_index(
-        self, snap_index: "SnapIndex | SortedSnapIndex | GeoKDTree | None"
+        self, snap_index: "SnapIndex | NodeIdSnapIndex | GeoKDTree | None"
     ) -> None:
         # Set to None by add_coord_node, remove_coord_node and merge_with_other_geograph
         # (merge keeps the index of the networks before the merge while it connects
@@ -375,11 +428,11 @@ class GeoGraph(
             return
         with log_step(
             logger, "reduce the graph", {"iterations": iterations}
-        ) as indicators:
+        ) as values:
             self.graph_object.reduce(iterations)
             is_reduced = self.graph_object.is_reduced or []
-            indicators["nodes"] = len(is_reduced)
-            indicators["kept_nodes"] = len(is_reduced) - sum(is_reduced)
+            values["nodes"] = len(is_reduced)
+            values["kept_nodes"] = len(is_reduced) - sum(is_reduced)
         self._reduce_iterations = iterations
         for metric_record in self._metrics.values():
             if metric_record.graph_object is not None:
@@ -402,7 +455,7 @@ class GeoGraph(
 
         - None
         """
-        if not (isinstance(self.nodes, (list, columns.NodePoints))):
+        if not (isinstance(self.nodes, (list, array_views.NodePoints))):
             raise ValueError("Your nodes must be a list")
         if not (all([isinstance(i, list) for i in self.nodes])):
             raise ValueError("Your nodes must be a list of lists")
@@ -519,6 +572,6 @@ class LazyGeoGraph(GeoGraph):
         return super().__dir__()
 
 
-# The methods of `GeoGraphIO` annotate their result as "GeoGraph". `geograph_files` cannot
+# The methods of `GeoGraphIO` annotate their result as "GeoGraph". `geograph_io` cannot
 # import the class at the top, so `typing.get_type_hints` finds it through this name.
-geograph_files.GeoGraph = GeoGraph
+geograph_io.GeoGraph = GeoGraph

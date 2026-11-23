@@ -112,7 +112,7 @@ from scgraph.pipelines.steps.step4_validation_cases import (
     load_validation_cases,
     validate_network,
 )
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ def derive_network_file(
     node_modes: list[str] | None = None,
     bbox: Sequence[float] | None = None,
     *,
-    keep_shapes: bool = True,
+    keep_intermediate_nodes: bool = True,
     min_component_nodes: int = 10,
 ) -> str:
     """Write a smaller network file from a network file: some of its node modes, and
@@ -193,7 +193,8 @@ def derive_network_file(
         node_modes: The names of the node modes to keep. None keeps every node mode.
         bbox: `(south, west, north, east)`, in degrees. A node of `LAND_MODES`
             outside the bbox is removed. None removes no node.
-        keep_shapes: False writes the same network without the shapes of its edges.
+        keep_intermediate_nodes: False writes the same network without the
+            intermediate nodes of its edges.
         min_component_nodes: The smallest number of nodes of a kept strongly
             connected component. The default removes a node that the cut left
             alone, and keeps the roads of a small island.
@@ -303,7 +304,7 @@ def derive_network_file(
         bytes(kept_node_mode_ids), bytes(range(len(kept_node_mode_ids)))
     )
     node_mode_ids = graph.pop("node_mode_ids").tobytes()
-    if not keep_shapes:
+    if not keep_intermediate_nodes:
         del graph["shape_offsets"], graph["shape_points"]
     kept_modes = [
         {
@@ -483,14 +484,16 @@ def derive_network_release_files(
             world_file,
             without_shapes,
             **DERIVED_NETWORKS[name],
-            keep_shapes=False,
+            keep_intermediate_nodes=False,
         )
         written += [with_shapes, without_shapes]
     if names is None:
         world_without_shapes = os.path.join(
             output_dir, "world_multimodal.no_shapes.scgraph"
         )
-        derive_network_file(world_file, world_without_shapes, keep_shapes=False)
+        derive_network_file(
+            world_file, world_without_shapes, keep_intermediate_nodes=False
+        )
         written.append(world_without_shapes)
     return written
 
@@ -499,10 +502,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m scgraph.pipelines.derived_networks",
         description="Write the derived files of a network release from the file "
-        "of world_multimodal, with no download, and print their paths.",
+        "of osm_world_multimodal, with no download, and print their paths.",
     )
     parser.add_argument(
-        "world_file", help="the network file of world_multimodal"
+        "world_file", help="the network file of osm_world_multimodal"
     )
     parser.add_argument("output_dir", help="the folder of the derived files")
     parser.add_argument(

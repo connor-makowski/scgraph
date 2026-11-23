@@ -128,17 +128,17 @@ HUB_TABLES = {
 
 
 class Hub(NamedTuple):
-    """A hub. `kind` is `port`, `airport` or `rail_terminal`. `id` is its id in its
-    source. `point` is `[latitude, longitude]`. `node_modes` lists the networks that it
-    serves. `open_roadstead` is true for a port without shelter, where ships anchor off
+    """A hub. `node_mode` is `port`, `airport` or `rail_terminal`. `id` is its id in its
+    source. `point` is `[latitude, longitude]`. `joined_node_modes` lists the networks
+    that it serves. `open_roadstead` is true for a port without shelter, where ships anchor off
     the coast. The road connector of such a port may cross up to ROADSTEAD_WATER_KM of
     water.
     """
 
-    kind: str
+    node_mode: str
     id: int
     point: list[float]
-    node_modes: tuple[str, ...]
+    joined_node_modes: tuple[str, ...]
     open_roadstead: bool = False
 
 
@@ -190,7 +190,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
     ]
 
 
-class _Layer:
+class _Network:
     """One network, such as the road network, from the network file's arrays
     (`step3_network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
     node ids and its edges, each with its class.
@@ -253,7 +253,7 @@ def join_networks_at_hubs(
             `edge_class_ids`. The arrays are emptied.
         hubs: The hubs to join.
         land_mask: Land and water around the hubs. Its raster is released.
-        node_modes: The names of the node modes table: every layer and every kind
+        node_modes: The names of the node modes: every layer and every kind
             of hub.
         flights: The two airport ids of each pair with regular flights.
         work_dir: A folder that keeps the edges in files. None keeps them in memory.
@@ -265,7 +265,7 @@ def join_networks_at_hubs(
         hub its id in its table. `edge_class_ids` gives the id of the class of each edge
         in `scgraph.pipelines.CLASSES`.
     """
-    layers = {mode: _Layer(network) for mode, network in layers.items()}
+    layers = {mode: _Network(network) for mode, network in layers.items()}
     # The class id of a connector, by the network that it reaches, and of a flight
     connector_class_id = {
         mode: CLASS_IDS[f"{mode}_connector"] for mode in layers
@@ -304,7 +304,7 @@ def join_networks_at_hubs(
     for hub in hubs:
         edges = {
             mode: connect[mode](hub)
-            for mode in hub.node_modes
+            for mode in hub.joined_node_modes
             if mode in connect
         }
         connectors.append(
@@ -312,22 +312,24 @@ def join_networks_at_hubs(
         )
     # A flight is kept when both its airports have a road connector
     reached = {
-        hub.id for hub, edges in connectors if hub.kind == "airport" and edges
+        hub.id
+        for hub, edges in connectors
+        if hub.node_mode == "airport" and edges
     }
     flights = [flight for flight in flights if set(flight) <= reached]
     flying = {a for flight in flights for a in flight}
     kinds, ids, airport = [], array("q"), {}
     for hub, edges in connectors:
-        flies = hub.kind == "airport" and hub.id in flying
+        flies = hub.node_mode == "airport" and hub.id in flying
         if (
             len(edges) + flies < 2
         ):  # the flights count as a network of an airport
             continue
         h = n + len(points)
         points.append(hub.point)
-        kinds.append(hub.kind)
+        kinds.append(hub.node_mode)
         ids.append(hub.id)
-        if hub.kind == "airport":
+        if hub.node_mode == "airport":
             airport[hub.id] = h
         for mode, (u, km, shape) in edges.items():
             u += first[mode]
@@ -364,7 +366,9 @@ def join_networks_at_hubs(
     return joined, {kind: kinds.count(kind) for kind in dict.fromkeys(kinds)}
 
 
-def _build_land_connector(layer: _Layer, land_mask: "LandMask", max_km: float):
+def _build_land_connector(
+    layer: _Network, land_mask: "LandMask", max_km: float
+):
     """`connect(hub)` -> (node of `layer`, km, shape) or None, by the rule of the module
     docstring for road and rail."""
     labels, sizes = find_strongly_connected_components(
@@ -390,7 +394,7 @@ def _build_land_connector(layer: _Layer, land_mask: "LandMask", max_km: float):
     return connect
 
 
-def _build_sea_connector(layer: _Layer, land_mask: "LandMask"):
+def _build_sea_connector(layer: _Network, land_mask: "LandMask"):
     """`connect(hub)` -> (sea node, km, path) or None: the shortest path over water
     from the hub to the cell of a sea node, then straight to that node."""
     cells = {}  # mask cell -> its first sea node

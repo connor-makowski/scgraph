@@ -78,7 +78,7 @@ The runner, `network_builder.py`, runs a pipeline. `build_network_file` download
 A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for each step:
 
 * **Read the sources (`steps.step1_osm_ways`)**:
-  * `step1_osm_ways` reads the ways of an OpenStreetMap file with `locate_ways` of `scgraph/helpers/osm.py`, from disk or by HTTP byte ranges (`step1_osm_planet_reader`).
+  * `step1_osm_ways` reads the ways of an OpenStreetMap file with `locate_ways` of `scgraph/helpers/osm.py`, from disk or by HTTP byte ranges (`step1_osm_range_streamer`).
   * `step1_osm_ways.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`step3_network_assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
 * **Join the networks (`steps.step2_hub_connectors`, `steps.step2_land_mask`)**:
   * `step2_hub_connectors.join_networks_at_hubs` joins the networks of roads, of railways and of sea lanes at hubs: ports, airports and rail terminals.
@@ -160,11 +160,12 @@ A `GeoGraph` also holds the class of each edge and the metrics of the network. I
 
 * `scgraph/edge_classes.py` holds the class of each edge, and finds it by the two nodes of the edge.
 * `scgraph/metrics.py` holds the record of a metric, and computes its weights.
-* `scgraph/geograph.py` holds the constructor, the properties and the validation of nodes.
-* `scgraph/geograph_edges.py` holds the code that reads the classes, the metrics and the edges.
+* `scgraph/geograph.py` holds the constructor, the properties, the list of the nodes and the validation of nodes.
+* `scgraph/geograph_edges.py` holds the code that reads the edges and their classes.
+* `scgraph/geograph_metrics.py` holds the code that creates and reads the metrics.
 * `scgraph/geograph_routing.py` holds the queries, their totals and their legs.
-* `scgraph/geograph_edits.py` holds the edits of the network.
-* `scgraph/geograph_files.py` holds the loaders and savers.
+* `scgraph/geograph_modifiers.py` holds the edits of the network.
+* `scgraph/geograph_io.py` holds the loaders and savers.
 
 The docstrings of `edge_classes.py` and of `metrics.py` give an example with real values.
 
