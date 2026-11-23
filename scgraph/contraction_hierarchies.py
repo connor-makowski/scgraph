@@ -81,6 +81,7 @@ rank 1 to rank 3.
 import json
 from heapq import heappush, heappop, heapify
 from collections.abc import Callable
+from scgraph.errors import PathNotFoundError
 from scgraph.graph_utils import (
     GraphUtils,
     GraphModifiers,
@@ -791,8 +792,6 @@ class CHGraphAlgorithms:
                 break
 
         if meeting_node == -1:
-            from scgraph.graph import PathNotFoundError
-
             raise PathNotFoundError(
                 "No path found between origin and destination"
             )

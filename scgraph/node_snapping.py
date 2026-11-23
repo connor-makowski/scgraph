@@ -78,7 +78,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from itertools import chain
 from typing import TYPE_CHECKING
 
-from scgraph import network_file
+from scgraph import columns
 from scgraph._internal import log_step
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.utils import haversine
@@ -307,11 +307,11 @@ def _build_snap_index(
         if node_ids is None:
             return (
                 SnapIndex.from_array(nodes.points())
-                if isinstance(nodes, network_file.NodePoints)
+                if isinstance(nodes, columns.NodePoints)
                 else SnapIndex(nodes)
             )
         if isinstance(node_ids, range) and isinstance(
-            nodes, network_file.NodePoints
+            nodes, columns.NodePoints
         ):
             # The index reads the points of the range in place, as the index of
             # every node does

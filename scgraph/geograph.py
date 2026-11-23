@@ -25,10 +25,11 @@ from scgraph.utils import (
     radians_per_degree,
 )
 from scgraph._internal import warn_deprecated_parameter, log_step
+from scgraph.files import is_offline
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
-from scgraph.edge_classes import EdgeClasses, find_edge_id
+from scgraph.edge_classes import CLASSES, EdgeClasses, find_edge_id
 from scgraph.node_snapping import EveryNodeSnapIndex, SnapIndexes
 from scgraph.metrics import (
     Metric,
@@ -39,7 +40,7 @@ from scgraph.metrics import (
     resolve_weights_per_km,
     copy_with_edge_weights,
 )
-from scgraph import built_in_geographs, network_cache, network_file
+from scgraph import built_in_geographs, columns, network_cache, network_file
 from scgraph import network_release as pinned_network_release
 import hashlib
 import json
@@ -628,7 +629,6 @@ class GeoGraphIO:
             read_osm,
             select_main_roads_with_class,
         )
-        from scgraph.pipelines import CLASSES
 
         graph, nodes, shapes, ids, edge_class_names = read_osm(
             filename,
@@ -855,9 +855,9 @@ class GeoGraphIO:
             raise ValueError(f"{filename}: {error}") from error
         geograph = GeoGraph(
             graph=graph,
-            nodes=network_file.NodePoints(arrays["node_points"]),
+            nodes=columns.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
-                network_file.EdgeShapes(arrays)
+                columns.EdgeShapes(arrays)
                 if "shape_offsets" in arrays
                 else None
             ),
@@ -1039,7 +1039,7 @@ class GeoGraphIO:
         """Load the network of `load_geograph` now. The arguments are those of
         `load_geograph`, which gives the deprecation warnings."""
         if local_files_only is None:
-            local_files_only = os.environ.get("SCGRAPH_OFFLINE") == "1"
+            local_files_only = is_offline()
         cache_path = resolve_cache_dir(cache_dir)
         # A caller that passes its own `geograph_url` hosts `.graphjson` files, and
         # one of them may have the name of a released network. That name then loads
@@ -2355,7 +2355,7 @@ class GeoGraphModifiers:
         self.nodes += deepcopy(other_geograph.nodes)[
             :original_other_graph_length
         ]
-        self.source_node_ids = network_file.SourceNodeIds(
+        self.source_node_ids = columns.SourceNodeIds(
             source_node_ids, self.nodes
         )
         # Its node modes follow this graph's, renumbered
@@ -2784,7 +2784,7 @@ class GeoGraphUtils:
         nodes = self.nodes
         coordinates = (
             nodes.take(path)
-            if isinstance(nodes, network_file.NodePoints)
+            if isinstance(nodes, columns.NodePoints)
             else [nodes[node_id] for node_id in path]
         )
         if (
@@ -2792,7 +2792,7 @@ class GeoGraphUtils:
             and self.intermediate_nodes is not None
             and path
         ):
-            if isinstance(self.intermediate_nodes, network_file.EdgeShapes):
+            if isinstance(self.intermediate_nodes, columns.EdgeShapes):
                 return self.intermediate_nodes.coordinate_path(
                     path, coordinates
                 )
@@ -3145,7 +3145,7 @@ class GeoGraph(
         self.nodes = nodes
         if source_node_ids is not None and len(source_node_ids) != len(nodes):
             raise ValueError("source_node_ids must give one id per node")
-        self.source_node_ids = network_file.SourceNodeIds(
+        self.source_node_ids = columns.SourceNodeIds(
             range(len(nodes)) if source_node_ids is None else source_node_ids,
             nodes,
         )
@@ -3977,7 +3977,7 @@ class GeoGraph(
 
         - None
         """
-        if not (isinstance(self.nodes, (list, network_file.NodePoints))):
+        if not (isinstance(self.nodes, (list, columns.NodePoints))):
             raise ValueError("Your nodes must be a list")
         if not (all([isinstance(i, list) for i in self.nodes])):
             raise ValueError("Your nodes must be a list of lists")
