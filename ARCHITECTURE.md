@@ -458,24 +458,24 @@ All multi-byte integers are **little-endian**:
 | next | 0 to 63 | Zeros, up to a multiple of 64 bytes |
 | array section | variable | The arrays, each starting at a multiple of 64 bytes |
 
-In the example, the header of 1,607 bytes ends at byte 1,654, so the arrays start at byte 1,664.
+In the example, the header of 1,607 bytes ends at byte 1,654, so the arrays start at byte 1,664. `write` stores the arrays in the order of *Stored Binary Arrays*; a reader finds an array by its name and `offset`, so this order is not a rule of the format.
 
 ### Header JSON Schema
 
-The header of the example, one line for each array and row:
+The header of the example, one line for each row:
 
 ```json
 {
   "arrays": {
-    "edge_class_ids": {"dtype": "uint8", "offset": 256, "shape": [10]},
-    "heads": {"dtype": "int32", "offset": 64, "shape": [10]},
-    "metric_hours": {"dtype": "float64", "offset": 320, "shape": [10]},
-    "metric_length": {"dtype": "float64", "offset": 128, "shape": [10]},
-    "node_points": {"dtype": "int32", "offset": 576, "shape": [6, 2]},
     "offsets": {"dtype": "int32", "offset": 0, "shape": [7]},
-    "shape_offsets": {"dtype": "int32", "offset": 512, "shape": [11]},
-    "shape_points": {"dtype": "int32", "offset": 640, "shape": [4, 2]},
-    "source_node_ids": {"dtype": "int32", "offset": 448, "shape": [6]}
+    "heads": {"dtype": "int32", "offset": 64, "shape": [10]},
+    "metric_length": {"dtype": "float64", "offset": 128, "shape": [10]},
+    "metric_hours": {"dtype": "float64", "offset": 256, "shape": [10]},
+    "edge_class_ids": {"dtype": "uint8", "offset": 384, "shape": [10]},
+    "node_points": {"dtype": "int32", "offset": 448, "shape": [6, 2]},
+    "source_node_ids": {"dtype": "int32", "offset": 512, "shape": [6]},
+    "shape_offsets": {"dtype": "int32", "offset": 576, "shape": [11]},
+    "shape_points": {"dtype": "int32", "offset": 640, "shape": [4, 2]}
   },
   "format_version": 1,
   "metadata": {
@@ -508,6 +508,8 @@ The header of the example, one line for each array and row:
 }
 ```
 
+The file sorts the keys by name; this block lists the arrays in the order of their bytes.
+
 #### Header Fields Specification
 
 | Field | Type | Description |
@@ -537,7 +539,7 @@ The header of the example, one line for each array and row:
 
 * **point**: one `[latitude, longitude]` pair, its two coordinates.
 * **node**: a vertex of the graph, from `0` to $N - 1$, at a point.
-* **edge id**: the position of an edge in `heads`, from `0` to $M - 1$. An array "by edge id" holds each edge's value at its id.
+* **edge id**: the position of an edge in `heads`, from `0` to $M - 1$.
 * **shape points**: the $K$ points of the edges between their two nodes, which the search never visits (`GeoGraph.intermediate_nodes`).
 
 The edges are stored by origin node, in Compressed Sparse Row (CSR) arrays. The edges of a node are consecutive, in the order that a search visits them.
@@ -550,16 +552,16 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 | `heads` | `int32` | $M$ | edge | Its end node. |
 | `metric_length` | `float64` | $M$ | edge | Its length, in the `unit` of `length`. |
 | `metric_<name>` *(opt)* | `float64` | $M$ | edge | Its weight in the metric `<name>`, infinity if closed, never below zero or NaN. |
+| `edge_class_ids` *(opt)* | `uint8` | $M$ | edge | Its class id: a row of `metadata.classes`, or 255 for no class. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | node | Its latitude, then its longitude. |
+| `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | node | Its id in its source, such as a 64-bit OpenStreetMap id. |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | edge, and one more | The id of its first shape point: edge $e$ has points `shape_offsets[e]` to `shape_offsets[e+1] - 1`. |
 | `shape_points` *(opt)* | as `node_points` | $K \times 2$ | shape point | Its latitude, then its longitude. |
-| `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | node | Its id in its source, such as a 64-bit OpenStreetMap id. |
-| `edge_class_ids` *(opt)* | `uint8` | $M$ | edge | Its class id: a row of `metadata.classes`, or 255 for no class. |
 
+* **Weights**: `read` refuses weights of another dtype than `float64`.
+* **`edge_class_ids`**: a program reads the name of a class from the header: a later version may give a class another position.
 * **Coordinates**: `float64` is in degrees, exact. `int32` is in $10^{-7}$ degree, as in OpenStreetMap: about 1.1 cm at the equator, in 4 bytes instead of 8.
 * **`source_node_ids`**: a node that the build adds has an id below zero. No two nodes of one node mode have the same id; `read` does not check it.
-* **Weights**: `read` refuses weights of another dtype than `float64`, with a message that names the metric and the two dtypes.
-* **`edge_class_ids`**: a program reads the name of a class from the header: a later version may give a class another position.
 
 The arrays of the example, weights rounded (count of values in parentheses):
 
@@ -568,11 +570,11 @@ offsets (7): [0, 1, 4, 5, 6, 8, 10]
 heads (10): [1, 2, 0, 5, 1, 4, 5, 3, 1, 4]
 metric_length (10): [12.3, 73.6, 12.3, 1.4, 73.6, 96.9, 17.3, 96.9, 1.4, 17.3]
 metric_hours (10): [0.15, 0.67, 0.15, 0.02, 0.67, 3.23, 0.58, 3.23, 0.02, 0.58]
+edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 node_points (12): [494190000, 2330000, 494944000, 1079000, 494431000, 10993000, 502000000, -10000000, 495500000, -1000000, 494833000, 1167000]
+source_node_ids (6): [103, 102, 101, 1, 0, 35840]
 shape_offsets (11): [0, 0, 2, 2, 2, 4, 4, 4, 4, 4, 4]
 shape_points (8): [495300000, 4500000, 495200000, 8000000, 495200000, 8000000, 495300000, 4500000]
-source_node_ids (6): [103, 102, 101, 1, 0, 35840]
-edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 ```
 
 ### Lookup Examples
@@ -615,9 +617,9 @@ A mapped read does not check the values; the C++ graph checks offsets and heads 
 
 ### Node Mode Counts and Edge Class Ids
 
-**The nodes.** The file groups the nodes by node mode, and the header gives the `node_count` of each group. The nodes of a node mode are thus one range of node ids, and the file needs no array for the node mode of a node. A read of some node modes takes the ranges from the counts, and a load builds `geograph.node_mode_ids` from them.
+**The nodes.** The header gives the `node_count` of each node mode, whose nodes are one range of ids (*The node order*). The file thus needs no array for the node mode of a node. A read of some node modes and a load take the ranges from the counts.
 
-**The edges.** A search needs the edges of a node together, so the file stores the edges by their origin node. It cannot also group them by class. The class of each edge is therefore one byte beside the edge, in `edge_class_ids`.
+**The edges.** The file stores the edges by origin node, for the search, so it cannot also group them by class. The class of each edge is one byte in `edge_class_ids`.
 
 ### Compatibility Between Versions
 
