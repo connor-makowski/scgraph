@@ -66,6 +66,16 @@ ALLOWED = [
         "`GeoGraphIO` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
+        "geograph_edits",
+        "",
+        "`GeoGraphModifiers` builds the `Graph` that the package chooses: the C++ one when it is built.",
+    ),
+    (
+        "geograph_edges",
+        "",
+        "`GeoGraphEdges` builds the `Graph` that the package chooses: the C++ one when it is built.",
+    ),
+    (
         "geograph_files",
         "built_in_geographs",
         "The default of `geograph_url` in the signatures of `load_geograph` and "
