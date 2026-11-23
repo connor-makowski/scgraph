@@ -36,9 +36,8 @@ scgraph/
   __init__.py                    # Exports: Graph, CHGraph, TNRGraph, GeoGraph, GridGraph, PathNotFoundError, NegativeCycleError
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
-  errors.py, files.py            # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file
-  columns.py                     # Internal: the columns of a geograph over the arrays of a network file (NodePoints, EdgeShapes, SourceNodeIds)
-  geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, snapping, validation of nodes, reduce
+  errors.py, files.py, columns.py  # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file; the columns of a geograph over the arrays of a network file
+  geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, validation of nodes, reduce
   geograph_files.py, geograph_edits.py, geograph_edges.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call network_cache); edits; classes, metrics and edges; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed
   node_snapping.py               # Internal: the snapping indexes of a GeoGraph (every node, each node mode), and the index that a query point snaps with
@@ -109,7 +108,7 @@ README.md, guides/, MIGRATING.md # User documents: the entry page, one guide for
 |---|---|---|
 | `Graph` | `graph.py` | A graph of node ids: the algorithms, `reduce()`, the decorator `@Graph.algorithm`, the shortest path trees |
 | `GraphReducer` | `graph_reducer.py` | Contracts chains of pass-through nodes and expands a path back to the original nodes (ARCHITECTURE.md §4) |
-| `GeoGraph`, `LazyGeoGraph` | `geograph.py` | A `Graph` (attribute `graph_object`) with a point for each node: snapping, loaders and savers, cache, network builds. It also holds the class of each edge (`edge_classes.py`) and the metrics (`metrics.py`), with one `Graph` for each metric (`get_graph_object`) |
+| `GeoGraph`, `LazyGeoGraph` | `geograph.py`, `geograph_*.py`, `node_snapping.py` | A `Graph` (attribute `graph_object`) with a point for each node: snapping, loaders and savers, cache, network builds. It also holds the class of each edge (`edge_classes.py`) and the metrics (`metrics.py`), with one `Graph` for each metric (`get_graph_object`) |
 | `CHGraph`, `TNRGraph` | `contraction_hierarchies.py`, `transit_node_routing.py` | Hierarchies built once for fast queries (ARCHITECTURE.md §2, *Trees and Hierarchies*) |
 | `GridGraph` | `grid.py` | A 2D grid with obstacles, with 4 or 8 directions |
 | `GraphUtils`, `GraphModifiers` | `graph_utils.py` | Input validation and path reconstruction; adding and removing nodes and edges |
@@ -172,7 +171,7 @@ def test_dijkstra(marnet):  # marnet is a session fixture from conftest.py
 - **Exceptions**: Raise a specific type (`ValueError`, `PathNotFoundError`…), never a bare `Exception`. A condition that raises in C++ raises the same type in pure Python.
 - **Numbers**: Coordinates stored as integers (1e-7 degree) are widened to 64 bits before any difference or product; distances are computed in `float64`.
 - **C++ fallback**: Every algorithm implemented in C++ must have a pure Python equivalent; C++ is opt-in at build time. The module that calls a kernel chooses it once, at its top: `try: from scgraph.cpp import compute_x`, then `except ImportError: from scgraph.helpers.x import compute_x`. The two functions have the same name, arguments and results, so the caller has no branch on the build.
-- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `_internal.log_step` (README, *Logging*).
+- **Messages**: Use `logging.getLogger(__name__)` for information, `warnings.warn` for what the caller can avoid, and exceptions for errors. Only a command-line entry point prints. A load or a reduction logs its counts and its duration at DEBUG with `_internal.log_step` (`guides/routing.md`, *Logging*).
 - **No new runtime dependencies**: Runtime code must only import stdlib + `geokdtree`, `bmsspy`, `requests`; an optional reader may need an optional extra (`osm`: osmium), imported only when it is called
 - **Public API**: The public names are the names of the table *Public API* of the README and of the `__all__` of each module. A name outside them can change without a deprecation. A PR that adds a public name adds it to `__all__` and to the README.
 - **No unnecessary abstractions**: Don't create shared helpers unless the same logic appears 3+ times. Remove code that nothing calls.
