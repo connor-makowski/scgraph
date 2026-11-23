@@ -1,4 +1,4 @@
-"""The columns of a geograph over the arrays of a network file.
+"""List-like views of the arrays of a network file: points, edge shapes and source ids.
 
 This module is internal. A network file stores the points of the nodes, the shapes of
 the edges and the source ids of the nodes as flat arrays, which `network_file.read`
@@ -39,9 +39,9 @@ class EdgeShapes(Sequence):
     """
 
     def __init__(self, arrays):
-        self._node_first_edge_ids, self._edge_destination_ids = (
+        self._node_first_edge_ids, self._edge_destination_node_ids = (
             arrays["node_first_edge_ids"],
-            arrays["edge_destination_ids"],
+            arrays["edge_destination_node_ids"],
         )
         self._starts, self._points = (
             arrays["edge_first_shape_point_ids"],
@@ -60,10 +60,13 @@ class EdgeShapes(Sequence):
             origin += len(self)
         if not 0 <= origin < len(self):
             raise IndexError("node index out of range")
-        edge_destination_ids, starts = self._edge_destination_ids, self._starts
+        edge_destination_node_ids, starts = (
+            self._edge_destination_node_ids,
+            self._starts,
+        )
         return MappingProxyType(
             {
-                edge_destination_ids[edge]: self._read_shape(
+                edge_destination_node_ids[edge]: self._read_shape(
                     starts[edge], starts[edge + 1]
                 )
                 for edge in range(
@@ -93,15 +96,15 @@ class EdgeShapes(Sequence):
         if _shape_path is not None:
             return _shape_path(
                 self._node_first_edge_ids,
-                self._edge_destination_ids,
+                self._edge_destination_node_ids,
                 self._starts,
                 self._points,
                 path if type(path) is list else list(path),
                 coordinates,
             )
-        node_first_edge_ids, edge_destination_ids, count = (
+        node_first_edge_ids, edge_destination_node_ids, count = (
             self._node_first_edge_ids,
-            self._edge_destination_ids,
+            self._edge_destination_node_ids,
             len(self),
         )
         starts, result = self._starts, [coordinates[0]]
@@ -112,7 +115,7 @@ class EdgeShapes(Sequence):
                 for edge in range(
                     node_first_edge_ids[origin], node_first_edge_ids[origin + 1]
                 ):
-                    if edge_destination_ids[edge] == destination:
+                    if edge_destination_node_ids[edge] == destination:
                         result += self._read_shape(
                             starts[edge], starts[edge + 1]
                         )

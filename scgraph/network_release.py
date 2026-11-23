@@ -5,7 +5,7 @@ assets of one GitHub release. Its tag names it, for example `networks-2026.11.20
 published network release is never changed.
 
 This module pins one network release. `GeoGraph.load_geograph("europe")` loads the
-file `europe` of this release, unless the caller passes another `version`. The same
+file `europe` of this release, unless the caller passes another `network_release`. The same
 version of scgraph therefore loads the same networks on every machine and at any date.
 The module also records the digest of each file, so that `load_geograph` refuses a
 download that is not the published file.

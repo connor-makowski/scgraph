@@ -22,7 +22,7 @@ from operator import add, mul
 
 def compute_weights_from_km(
     node_first_edge_ids: array | memoryview,
-    edge_destination_ids: array | memoryview,
+    edge_destination_node_ids: array | memoryview,
     lengths_km: array | memoryview,
     edge_class_ids: array | memoryview,
     node_mode_ids: array | memoryview,
@@ -39,7 +39,7 @@ def compute_weights_from_km(
             or not a number.
     """
     node_count, edge_count = len(node_first_edge_ids) - 1, len(
-        edge_destination_ids
+        edge_destination_node_ids
     )
     class_count = len(class_weights_per_km)
     if (
@@ -97,10 +97,11 @@ def compute_weights_from_km(
                         weights[edge_id] += weight
             # 3. The weight of the hub that the edge enters
             for edge_id in compress(
-                count(), map(is_hub.__getitem__, edge_destination_ids)
+                count(), map(is_hub.__getitem__, edge_destination_node_ids)
             ):
                 hub_weights_start = (
-                    node_mode_ids[edge_destination_ids[edge_id]] * class_count
+                    node_mode_ids[edge_destination_node_ids[edge_id]]
+                    * class_count
                 )
                 weight = hub_weights[
                     hub_weights_start + edge_class_ids[edge_id]
@@ -120,7 +121,7 @@ def compute_weights_from_km(
         origin_id = bisect_right(node_first_edge_ids, edge_id) - 1
         raise ValueError(
             f"The weight of the edge from node {origin_id} to node "
-            f"{edge_destination_ids[edge_id]} is below zero or not a number"
+            f"{edge_destination_node_ids[edge_id]} is below zero or not a number"
         )
     return weights
 

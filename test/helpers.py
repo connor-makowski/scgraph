@@ -45,7 +45,7 @@ def build_main_roads(files, *, work_dir=None):
     as the arrays of a network file and a node modes table.
 
     The function is the `build` of a small pipeline for the tests. For the roads
-    alone, it runs the steps that the pipeline `geofabrik_multimodal` runs for each
+    alone, it runs the steps that the pipeline `osm_region_multimodal` runs for each
     mode: read and cut the ways, store the pieces as a graph, assemble the arrays.
     Its select functions give no class.
     """

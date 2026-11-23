@@ -55,7 +55,7 @@ from scgraph.pipelines.steps.step3_network_assembly import (
     PieceArrays,
 )
 from scgraph.utils import has_cpp
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
@@ -463,7 +463,7 @@ class StreamedPbf:
         job = json.dumps({**self.about, "ranges": [[0, header], section]})
         self._pipe, write = os.pipe()
         # -P: not the modules of the current folder
-        command = [sys.executable, "-P", _PLANET_READER_SCRIPT, job]
+        command = [sys.executable, "-P", _RANGE_STREAMER_SCRIPT, job]
         self._streamer = subprocess.Popen(command, stdout=write)
         os.close(write)
         return osmium.io.File(f"/dev/fd/{self._pipe}", "pbf")
@@ -507,8 +507,8 @@ PLANET = {
 _AGENT = {"User-Agent": "scgraph"}
 # In bytes. Below this distance, the start of a section is found blob by blob.
 _SCAN = 1 << 23
-_PLANET_READER_SCRIPT = str(
-    Path(__file__).resolve().parent / "step1_osm_planet_reader.py"
+_RANGE_STREAMER_SCRIPT = str(
+    Path(__file__).resolve().parent / "step1_osm_range_streamer.py"
 )
 
 

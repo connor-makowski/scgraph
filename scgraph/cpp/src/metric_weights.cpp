@@ -5,12 +5,12 @@
 #include <string>
 
 std::vector<double> compute_weights_from_km(
-    std::span<const int32_t> node_first_edge_ids, std::span<const int32_t> edge_destination_ids, std::span<const double> lengths_km,
+    std::span<const int32_t> node_first_edge_ids, std::span<const int32_t> edge_destination_node_ids, std::span<const double> lengths_km,
     std::span<const uint8_t> edge_class_ids, std::span<const uint8_t> node_mode_ids,
     std::span<const double> class_weights_per_km, std::span<const double> hub_weights) {
     constexpr double INFINITE = std::numeric_limits<double>::infinity();
     const int64_t node_count = (int64_t)node_first_edge_ids.size() - 1;
-    const int64_t edge_count = (int64_t)edge_destination_ids.size();
+    const int64_t edge_count = (int64_t)edge_destination_node_ids.size();
     const size_t class_count = class_weights_per_km.size();
     if (node_count < 0 || (int64_t)node_mode_ids.size() != node_count ||
         (int64_t)lengths_km.size() != edge_count || (int64_t)edge_class_ids.size() != edge_count) {
@@ -33,7 +33,7 @@ std::vector<double> compute_weights_from_km(
         const double* hub_weights_of_origin = hub_weights.data() + node_mode_ids[origin_id] * class_count;
         for (int64_t edge_id = first; edge_id < last; ++edge_id) {
             const size_t class_id = edge_class_ids[edge_id];
-            const int32_t destination_id = edge_destination_ids[edge_id];
+            const int32_t destination_id = edge_destination_node_ids[edge_id];
             if (class_id >= class_count) {
                 throw std::invalid_argument("an edge has a class without a weight per km, or a node has a node mode without hub weights");
             }

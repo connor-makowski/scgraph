@@ -23,30 +23,31 @@ try:
 except ImportError:
     _cpp_strongly_connected_components = None
 
-from scgraph._internal import is_sorted_from_zero
+from scgraph.array_checks import is_sorted_from_zero
 
 
 def find_strongly_connected_components_python(
-    node_first_edge_ids: Sequence[int], edge_destination_ids: Sequence[int]
+    node_first_edge_ids: Sequence[int], edge_destination_node_ids: Sequence[int]
 ) -> tuple[array, array]:
     """Pure-Python version of `find_strongly_connected_components`."""
     n = len(node_first_edge_ids) - 1
     if (
         n < 0
-        or node_first_edge_ids[n] != len(edge_destination_ids)
+        or node_first_edge_ids[n] != len(edge_destination_node_ids)
         or not is_sorted_from_zero(node_first_edge_ids)
     ):
         raise ValueError(
             "node_first_edge_ids must rise from 0 to the number of items"
         )
-    if edge_destination_ids and not (
-        0 <= min(edge_destination_ids) and max(edge_destination_ids) < n
+    if edge_destination_node_ids and not (
+        0 <= min(edge_destination_node_ids)
+        and max(edge_destination_node_ids) < n
     ):
         raise IndexError("destination id out of range")
 
     def successors(node):
         return iter(
-            edge_destination_ids[
+            edge_destination_node_ids[
                 node_first_edge_ids[node] : node_first_edge_ids[node + 1]
             ]
         )
@@ -96,7 +97,7 @@ def find_strongly_connected_components_python(
 
 def find_strongly_connected_components(
     node_first_edge_ids: array | memoryview,
-    edge_destination_ids: array | memoryview,
+    edge_destination_node_ids: array | memoryview,
 ) -> tuple[array | memoryview, array | memoryview]:
     """Find the strongly connected components of a graph, with Kosaraju's algorithm.
 
@@ -106,7 +107,7 @@ def find_strongly_connected_components(
     Args:
         node_first_edge_ids: For each node, the id of its first edge, and one more
             value at the end: the count of the edges (int32).
-        edge_destination_ids: The destination id of each edge (int32).
+        edge_destination_node_ids: The destination id of each edge (int32).
 
     Returns:
         `(labels, sizes)`. `labels[u]` is the number of the component of node `u`. The
@@ -117,10 +118,10 @@ def find_strongly_connected_components(
         node_first_edge_ids, (array, memoryview)
     ):
         return _cpp_strongly_connected_components(
-            node_first_edge_ids, edge_destination_ids
+            node_first_edge_ids, edge_destination_node_ids
         )
     return find_strongly_connected_components_python(
-        node_first_edge_ids, edge_destination_ids
+        node_first_edge_ids, edge_destination_node_ids
     )
 
 
@@ -134,25 +135,25 @@ def build_csr_from_adjacency_list(
             destination_id.
 
     Returns:
-        `(node_first_edge_ids, edge_destination_ids, weights)`:
+        `(node_first_edge_ids, edge_destination_node_ids, weights)`:
         int32, int32 and float64. The edges of a node are sorted by destination id.
     """
-    node_first_edge_ids, edge_destination_ids, weights = (
+    node_first_edge_ids, edge_destination_node_ids, weights = (
         array("i", [0]),
         array("i"),
         array("d"),
     )
     for row in adjacency_list:
         for destination_id in sorted(row):
-            edge_destination_ids.append(destination_id)
+            edge_destination_node_ids.append(destination_id)
             weights.append(row[destination_id])
-        node_first_edge_ids.append(len(edge_destination_ids))
-    return node_first_edge_ids, edge_destination_ids, weights
+        node_first_edge_ids.append(len(edge_destination_node_ids))
+    return node_first_edge_ids, edge_destination_node_ids, weights
 
 
 def keep_strongly_connected_components(
     node_first_edge_ids: array | memoryview,
-    edge_destination_ids: array | memoryview,
+    edge_destination_node_ids: array | memoryview,
     min_component_nodes: int | None = None,
 ) -> tuple[array, array | memoryview]:
     """Choose the nodes to keep, by strongly connected component.
@@ -163,7 +164,7 @@ def keep_strongly_connected_components(
     Args:
         node_first_edge_ids: For each node, the id of its first edge, and one more
             value at the end: the count of the edges (int32).
-        edge_destination_ids: The destination id of each edge (int32).
+        edge_destination_node_ids: The destination id of each edge (int32).
         min_component_nodes: The smallest number of nodes of a kept component. None keeps
             only the largest component. Example: `osm_world_multimodal` gives 1000, so that
             an island with roads of its own stays in the network.
@@ -173,7 +174,7 @@ def keep_strongly_connected_components(
         `labels[u]` is the number of the component of node `u`, kept or not.
     """
     labels, sizes = find_strongly_connected_components(
-        node_first_edge_ids, edge_destination_ids
+        node_first_edge_ids, edge_destination_node_ids
     )
     if min_component_nodes is None:
         largest = max(range(len(sizes)), key=sizes.__getitem__, default=-1)

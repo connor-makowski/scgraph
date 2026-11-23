@@ -1,6 +1,6 @@
 # Routing on a Network
 
-This guide is for a user who routes on a network that exists, such as a network that scgraph publishes. After it, you can choose the options of a query, read its result, and make many queries fast.
+This guide shows how to query a network that you already have. It covers the options of a query, the keys of its result, and ways to make many queries fast.
 
 The guide [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md) explains how to get a network. The [API documentation](https://connor-makowski.github.io/scgraph/scgraph.html) gives every parameter of each method.
 
@@ -278,7 +278,7 @@ world_sea.get_shortest_path({"latitude": 31.23, "longitude": 121.47}, {"latitude
 | Step | Values |
 |---|---|
 | `read the network file` | `file`, `mapped`, `nodes`, `edges`, `duration_ms` |
-| `convert the published network` | `name`, `duration_ms` |
+| `convert the built-in network` | `name`, `duration_ms` |
 | `build the snapping index` | `nodes`, `node_mode` (the name of the node mode, only for the index of one node mode), `sorted_for_the_index`, `duration_ms` |
 | `reduce the graph` | `iterations`, `nodes`, `kept_nodes`, `duration_ms` |
 | `find the shortest path` | `algorithm`, `distance_units`, `origin_snap_distance`, `destination_snap_distance`, `node_scans` |

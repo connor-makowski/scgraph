@@ -12,7 +12,7 @@ loop.
 from array import array
 from bisect import bisect_left
 
-from scgraph._internal import is_sorted
+from scgraph.array_checks import is_sorted
 
 # The highest value of an int32, the type of `node_first_edge_ids` in a network file
 INT32_MAX = 2**31 - 1
@@ -20,7 +20,7 @@ INT32_MAX = 2**31 - 1
 
 def select_edges(
     node_first_edge_ids: array | memoryview,
-    edge_destination_ids: array | memoryview,
+    edge_destination_node_ids: array | memoryview,
     node_mode_ids: array | memoryview,
     is_node_mode_kept: list[bool],
     edge_first_shape_point_ids: array | memoryview | None = None,
@@ -34,7 +34,7 @@ def select_edges(
     Args:
         node_first_edge_ids: The edges of node u are at the positions node_first_edge_ids[u] to
             node_first_edge_ids[u + 1] - 1 (int32).
-        edge_destination_ids: The destination id of each edge, as the position of a node (int32).
+        edge_destination_node_ids: The destination id of each edge, as the position of a node (int32).
         node_mode_ids: The node mode of each node (uint8). The values must not decrease.
         is_node_mode_kept: For each node mode of the file, True if the selection
             keeps it.
@@ -43,7 +43,7 @@ def select_edges(
             without edge shapes.
 
     Returns:
-        A tuple (node_first_edge_ids, edge_destination_ids, edge_first_shape_point_ids, node_runs, edge_runs,
+        A tuple (node_first_edge_ids, edge_destination_node_ids, edge_first_shape_point_ids, node_runs, edge_runs,
         shape_point_runs). The first three are the arrays of the selection, where a
         position counts only the kept nodes, edges and shape points. `edge_first_shape_point_ids`
         is None without edge shapes. The last three are lists of runs: the positions
@@ -53,7 +53,7 @@ def select_edges(
         ValueError: If a value of the arrays cannot be used as a position.
     """
     node_count, edge_count = len(node_first_edge_ids) - 1, len(
-        edge_destination_ids
+        edge_destination_node_ids
     )
     mode_count = len(is_node_mode_kept)
     if node_count < 0 or len(node_mode_ids) != node_count:
@@ -81,7 +81,7 @@ def select_edges(
         if not is_node_mode_kept[mode]:
             continue
         first, last = first_node[mode], first_node[mode + 1]
-        # Step 3 uses the first edge ids of these nodes as positions in `edge_destination_ids`
+        # Step 3 uses the first edge ids of these nodes as positions in `edge_destination_node_ids`
         mode_node_first_edge_ids = node_first_edge_ids[first : last + 1]
         if (
             mode_node_first_edge_ids[0] < 0
@@ -94,9 +94,9 @@ def select_edges(
         kept_nodes += last - first
 
     # 3. Visit the edges of each kept node
-    new_node_first_edge_ids, new_edge_destination_ids = array("i", [0]), array(
-        "i"
-    )
+    new_node_first_edge_ids, new_edge_destination_node_ids = array(
+        "i", [0]
+    ), array("i")
     new_edge_first_shape_point_ids = (
         None if edge_first_shape_point_ids is None else array("i", [0])
     )
@@ -107,13 +107,15 @@ def select_edges(
             for edge in range(
                 node_first_edge_ids[node], node_first_edge_ids[node + 1]
             ):
-                destination_id = edge_destination_ids[edge]
+                destination_id = edge_destination_node_ids[edge]
                 if not 0 <= destination_id < node_count:
                     raise ValueError("edge to a missing node")
                 mode = node_mode_ids[destination_id]
                 if not is_node_mode_kept[mode]:
                     continue
-                new_edge_destination_ids.append(destination_id + shift[mode])
+                new_edge_destination_node_ids.append(
+                    destination_id + shift[mode]
+                )
                 _add_run(edge_runs, edge, edge + 1)
                 if edge_first_shape_point_ids is None:
                     continue
@@ -134,10 +136,10 @@ def select_edges(
                 if kept_shape_points > INT32_MAX:
                     raise ValueError("invalid edge_first_shape_point_ids")
                 new_edge_first_shape_point_ids.append(kept_shape_points)
-            new_node_first_edge_ids.append(len(new_edge_destination_ids))
+            new_node_first_edge_ids.append(len(new_edge_destination_node_ids))
     return (
         new_node_first_edge_ids,
-        new_edge_destination_ids,
+        new_edge_destination_node_ids,
         new_edge_first_shape_point_ids,
         node_runs,
         edge_runs,

@@ -154,16 +154,16 @@ def test_a_route_of_a_derived_file_has_its_length_in_the_parent_file(bbox_file):
 def _name_each_edge(arrays):
     """A name for each edge of the arrays of a network, in the order of the
     edges: "1-2" for the edge from node 1 to node 2."""
-    ids, node_first_edge_ids, edge_destination_ids = (
+    ids, node_first_edge_ids, edge_destination_node_ids = (
         arrays[name]
         for name in (
             "source_node_ids",
             "node_first_edge_ids",
-            "edge_destination_ids",
+            "edge_destination_node_ids",
         )
     )
     return [
-        f"{ids[u]}-{ids[edge_destination_ids[edge]]}"
+        f"{ids[u]}-{ids[edge_destination_node_ids[edge]]}"
         for u in range(len(ids))
         for edge in range(node_first_edge_ids[u], node_first_edge_ids[u + 1])
     ]
@@ -219,7 +219,7 @@ def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(
         parent_file,
         no_shapes_file,
         bbox=BBOX,
-        keep_shapes=False,
+        keep_intermediate_nodes=False,
         min_component_nodes=1,
     )
 
@@ -267,7 +267,7 @@ def test_a_bbox_with_its_south_above_its_north_is_refused(
 
 
 # The network of the validation test, at the ends of three cases that the
-# pipeline `geofabrik_multimodal` lists for `europe/denmark`. A road of 100 + 87 km
+# pipeline `osm_region_multimodal` lists for `europe/denmark`. A road of 100 + 87 km
 # joins Aarhus to Copenhagen. It passes through a road node north of Denmark.
 # - `aarhus_to_copenhagen_intermodal` asks for a route of 186.9 km, within
 #   10 %, between the two towns. This network passes the case.
@@ -294,7 +294,7 @@ def denmark_file(tmp_path_factory):
     ).save_as_scgraph(
         path,
         metadata=pipelines.build_metadata(
-            "geofabrik_multimodal", "europe/denmark", 1, []
+            "osm_region_multimodal", "europe/denmark", 1, []
         ),
     )
     return path

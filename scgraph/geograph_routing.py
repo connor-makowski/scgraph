@@ -14,8 +14,8 @@ from scgraph.utils import (
     earth_radius,
     radians_per_degree,
 )
-from scgraph._internal import warn_deprecated_parameter
-from scgraph import columns
+from scgraph.deprecations import warn_deprecated_parameter
+from scgraph import array_views
 import logging
 import warnings
 import types
@@ -290,7 +290,7 @@ class GeoGraphUtils:
         nodes = self.nodes
         coordinates = (
             nodes.take(path)
-            if isinstance(nodes, columns.NodePoints)
+            if isinstance(nodes, array_views.NodePoints)
             else [nodes[node_id] for node_id in path]
         )
         if (
@@ -298,7 +298,7 @@ class GeoGraphUtils:
             and self.intermediate_nodes is not None
             and path
         ):
-            if isinstance(self.intermediate_nodes, columns.EdgeShapes):
+            if isinstance(self.intermediate_nodes, array_views.EdgeShapes):
                 return self.intermediate_nodes.coordinate_path(
                     path, coordinates
                 )
@@ -1002,7 +1002,7 @@ class GeoGraphRouting:
                     origin_id[entry_node] + destination_id[exit_node]
                 ) * (circuity_ratio - 1.0)
         if logger.isEnabledFor(logging.DEBUG):
-            self._log_query_indicators(
+            self._log_query_values(
                 algorithm_name, origin, destination, origin_id, destination_id
             )
         if metric != "length":
@@ -1193,7 +1193,7 @@ class GeoGraphRouting:
             )
             raise
 
-    def _log_query_indicators(
+    def _log_query_values(
         self,
         algorithm_name: str,
         origin: Sequence[float],
@@ -1202,7 +1202,7 @@ class GeoGraphRouting:
         destination_entries: dict[int, int | float],
     ) -> None:
         """
-        Logs at DEBUG the indicators of a shortest-path query: what the query did, which
+        Logs at DEBUG the values of a shortest-path query: what the query did, which
         its result does not show.
 
         - `algorithm_name`: the name of the search, or "custom" for a search function
@@ -1221,7 +1221,7 @@ class GeoGraphRouting:
             destination_entries, key=destination_entries.__getitem__
         )
         step = "find the shortest path"
-        indicators = {
+        values = {
             "algorithm": algorithm_name,
             "distance_units": self.geograph_units,
             "origin_snap_distance": round(
@@ -1241,12 +1241,12 @@ class GeoGraphRouting:
         }
         node_scans = self.graph_object.get_last_node_scans()
         if node_scans is not None:
-            indicators["node_scans"] = node_scans
+            values["node_scans"] = node_scans
         logger.debug(
             "%s: %s",
             step,
-            indicators,
-            extra={"scgraph": {"step": step, **indicators}},
+            values,
+            extra={"scgraph": {"step": step, **values}},
         )
 
     def distance_matrix(

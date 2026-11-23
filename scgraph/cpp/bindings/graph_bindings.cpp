@@ -112,14 +112,14 @@ static nb::object coordinate_lists(CoordinateArray<T> node_points, nb::list ids)
 
 // `coordinates` (one per node of `path`) with the shape of each edge of the path between them
 template <typename T>
-static nb::object shape_path(Int32Array node_first_edge_ids, Int32Array edge_destination_ids, Int32Array edge_first_shape_point_ids, CoordinateArray<T> shape_points,
+static nb::object shape_path(Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, Int32Array edge_first_shape_point_ids, CoordinateArray<T> shape_points,
                              nb::list path, nb::list coordinates) {
     const int32_t* off = node_first_edge_ids.data();
-    const int32_t* destination_id = edge_destination_ids.data();
+    const int32_t* destination_id = edge_destination_node_ids.data();
     const int32_t* start = edge_first_shape_point_ids.data();
     const T* point = shape_points.data();
     const int64_t n = (int64_t)node_first_edge_ids.shape(0) - 1;
-    const int64_t m = (int64_t)edge_destination_ids.shape(0);
+    const int64_t m = (int64_t)edge_destination_node_ids.shape(0);
     const int64_t k = (int64_t)shape_points.shape(0) / 2;
     if ((int64_t)edge_first_shape_point_ids.shape(0) != m + 1)
         throw std::invalid_argument("one first shape point id per edge, plus one, expected");
@@ -187,30 +187,30 @@ static std::unique_ptr<SnapIndex> snap_index_from_array(CoordinateArray<T> node_
 
 // A Graph from edges stored by origin. With copy, the graph copies the three arrays.
 // Without it, the graph reads them in place and keeps them alive.
-static std::unique_ptr<Graph> csr_graph(Int32Array node_first_edge_ids, Int32Array edge_destination_ids, DoubleArray weights, bool copy) {
-    if (node_first_edge_ids.shape(0) < 1 || edge_destination_ids.shape(0) != weights.shape(0)) {
+static std::unique_ptr<Graph> csr_graph(Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, DoubleArray weights, bool copy) {
+    if (node_first_edge_ids.shape(0) < 1 || edge_destination_node_ids.shape(0) != weights.shape(0)) {
         throw std::invalid_argument("expected one first edge id per node plus one and one weight per edge");
     }
     std::shared_ptr<const void> owner;
     if (!copy) {
-        owner = std::make_shared<std::tuple<Int32Array, Int32Array, DoubleArray>>(node_first_edge_ids, edge_destination_ids, weights);
+        owner = std::make_shared<std::tuple<Int32Array, Int32Array, DoubleArray>>(node_first_edge_ids, edge_destination_node_ids, weights);
     }
     auto graph = std::make_unique<Graph>(std::vector<std::unordered_map<int, double>>{});
-    graph->load_csr(node_first_edge_ids.data(), edge_destination_ids.data(), weights.data(),
-                    (int)node_first_edge_ids.shape(0) - 1, (int64_t)edge_destination_ids.shape(0), owner);
+    graph->load_csr(node_first_edge_ids.data(), edge_destination_node_ids.data(), weights.data(),
+                    (int)node_first_edge_ids.shape(0) - 1, (int64_t)edge_destination_node_ids.shape(0), owner);
     return graph;
 }
 
-// The edges by origin (node_first_edge_ids, edge_destination_ids, weights), in the order searches visit them, as
+// The edges by origin (node_first_edge_ids, edge_destination_node_ids, weights), in the order searches visit them, as
 // read-only memoryviews of the graph's own arrays: the capsule's copy of the handle keeps
 // them alive after the graph is edited or deleted. With an order (order[new] = old), the
-// rows of the nodes in that order, edge_destination_ids renumbered, in one new copy
+// rows of the nodes in that order, edge_destination_node_ids renumbered, in one new copy
 static nb::tuple graph_csr(const Graph& graph, std::optional<std::vector<int32_t>> order) {
     auto* edges = new CsrGraph(graph.edges());
     nb::capsule owner(edges, [](void* edges) noexcept { delete static_cast<CsrGraph*>(edges); });
     if (order) {
         const int n = edges->size();
-        std::vector<int32_t> new_id(n, -1), node_first_edge_ids{0}, edge_destination_ids;
+        std::vector<int32_t> new_id(n, -1), node_first_edge_ids{0}, edge_destination_node_ids;
         std::vector<double> weights;
         if (order->size() != static_cast<size_t>(n)) throw nb::index_error("order must list every node once");
         for (int32_t i = 0; i < n; ++i) {
@@ -218,23 +218,23 @@ static nb::tuple graph_csr(const Graph& graph, std::optional<std::vector<int32_t
             if (old < 0 || old >= n || new_id[old] != -1) throw nb::index_error("order must list every node once");
             new_id[old] = i;
         }
-        edge_destination_ids.reserve(edges->edges());
+        edge_destination_node_ids.reserve(edges->edges());
         weights.reserve(edges->edges());
         for (int32_t old : *order) {
             for (const auto& [destination_id, weight] : (*edges)[old]) {
-                edge_destination_ids.push_back(new_id[destination_id]);
+                edge_destination_node_ids.push_back(new_id[destination_id]);
                 weights.push_back(weight);
             }
             // At most the graph's edge count, which fits in int32 (CsrGraph)
-            node_first_edge_ids.push_back(static_cast<int32_t>(edge_destination_ids.size()));
+            node_first_edge_ids.push_back(static_cast<int32_t>(edge_destination_node_ids.size()));
         }
-        *edges = CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_ids), std::move(weights));
+        *edges = CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights));
     }
     auto view = [&](auto values) {
         using Value = typename decltype(values)::element_type;
         return nb::ndarray<nb::memview, Value, nb::ndim<1>>(values.data(), {values.size()}, owner);
     };
-    return nb::make_tuple(view(edges->all_node_first_edge_ids()), view(edges->all_edge_destination_ids()), view(edges->all_weights()));
+    return nb::make_tuple(view(edges->all_node_first_edge_ids()), view(edges->all_edge_destination_node_ids()), view(edges->all_weights()));
 }
 
 // reduced_graph_connections or reduced_inverse_graph_connections as a list: None or
@@ -307,32 +307,32 @@ NB_MODULE(cpp, m) {
        "(latitude then longitude of each node, int32 in 1e-7 degree or float64 degrees) and a list of "
        "ids (negative ids count from the end); a route's coordinates for NodePoints.take");
 
-    m.def("select_edges", [](Int32Array node_first_edge_ids, Int32Array edge_destination_ids, Uint8Array node_mode_ids,
+    m.def("select_edges", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, Uint8Array node_mode_ids,
                             std::vector<bool> is_node_mode_kept, std::optional<Int32Array> edge_first_shape_point_ids) {
         EdgeSelection selection = select_edges(
-            {node_first_edge_ids.data(), node_first_edge_ids.shape(0)}, {edge_destination_ids.data(), edge_destination_ids.shape(0)},
+            {node_first_edge_ids.data(), node_first_edge_ids.shape(0)}, {edge_destination_node_ids.data(), edge_destination_node_ids.shape(0)},
             {node_mode_ids.data(), node_mode_ids.shape(0)}, is_node_mode_kept,
             edge_first_shape_point_ids ? std::span(edge_first_shape_point_ids->data(), edge_first_shape_point_ids->shape(0)) : std::span<const int32_t>());
         return nb::make_tuple(
-            owned_view(std::move(selection.node_first_edge_ids)), owned_view(std::move(selection.edge_destination_ids)),
+            owned_view(std::move(selection.node_first_edge_ids)), owned_view(std::move(selection.edge_destination_node_ids)),
             edge_first_shape_point_ids ? owned_view(std::move(selection.edge_first_shape_point_ids)) : nb::none(),
             selection.node_runs, selection.edge_runs, selection.shape_point_runs);
-    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_ids"), nb::arg("node_mode_ids"), nb::arg("is_node_mode_kept"),
+    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("node_mode_ids"), nb::arg("is_node_mode_kept"),
        nb::arg("edge_first_shape_point_ids") = nb::none(),
-       "The nodes of the kept node modes of a network file and the edges between them, as (node_first_edge_ids, edge_destination_ids, "
+       "The nodes of the kept node modes of a network file and the edges between them, as (node_first_edge_ids, edge_destination_node_ids, "
        "edge_first_shape_point_ids, node_runs, edge_runs, shape_point_runs); explained in scgraph/cpp/src/edge_selection.hpp, "
        "same result as scgraph.helpers.edge_selection.select_edges");
 
-    m.def("compute_weights_from_km", [](Int32Array node_first_edge_ids, Int32Array edge_destination_ids, DoubleArray lengths_km,
+    m.def("compute_weights_from_km", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids, DoubleArray lengths_km,
                                           Uint8Array edge_class_ids, Uint8Array node_mode_ids,
                                           DoubleArray class_weights_per_km, DoubleArray hub_weights) {
         return owned_view(compute_weights_from_km(
-            {node_first_edge_ids.data(), node_first_edge_ids.shape(0)}, {edge_destination_ids.data(), edge_destination_ids.shape(0)},
+            {node_first_edge_ids.data(), node_first_edge_ids.shape(0)}, {edge_destination_node_ids.data(), edge_destination_node_ids.shape(0)},
             {lengths_km.data(), lengths_km.shape(0)}, {edge_class_ids.data(), edge_class_ids.shape(0)},
             {node_mode_ids.data(), node_mode_ids.shape(0)},
             {class_weights_per_km.data(), class_weights_per_km.shape(0)},
             {hub_weights.data(), hub_weights.shape(0)}));
-    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_ids"), nb::arg("lengths_km"), nb::arg("edge_class_ids"),
+    }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("lengths_km"), nb::arg("edge_class_ids"),
        nb::arg("node_mode_ids"), nb::arg("class_weights_per_km"), nb::arg("hub_weights"),
        "The weight of each edge from a weight per km for each class and the weight added to it at "
        "a hub; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
@@ -347,9 +347,9 @@ NB_MODULE(cpp, m) {
        "metric; explained in scgraph/cpp/src/metric_weights.hpp, same result as "
        "scgraph.helpers.metric_weights.compute_weighted_sum");
 
-    m.def("shape_path", &shape_path<double>, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_ids"), nb::arg("edge_first_shape_point_ids"),
+    m.def("shape_path", &shape_path<double>, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("edge_first_shape_point_ids"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"));
-    m.def("shape_path", &shape_path<int32_t>, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_ids"), nb::arg("edge_first_shape_point_ids"),
+    m.def("shape_path", &shape_path<int32_t>, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("edge_first_shape_point_ids"),
           nb::arg("shape_points"), nb::arg("path"), nb::arg("coordinates"),
           "A route's coordinates with the shapes of its edges, in one C loop, from a network file's arrays "
           "(shape points int32 in 1e-7 degree or float64 degrees) and one [latitude, longitude] per path "
@@ -420,7 +420,10 @@ NB_MODULE(cpp, m) {
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
              "Same as graph")
         .def("get_edge_arrays", &graph_csr, nb::arg("order") = nb::none(),
-             "The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_ids, float64 weights, in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows in that order, edge_destination_ids renumbered (one copy). GeoGraph calls this method: it is not in the public API and may change")
+             "The graph (unreduced) as edges by origin: int32 node_first_edge_ids and edge_destination_node_ids, float64 weights, "
+             "in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows "
+             "in that order, edge_destination_node_ids renumbered (one copy). GeoGraph calls this method: it is not in the public "
+             "API and may change")
         .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
              "Get the inverse of the graph: every edge reversed")
         .def_prop_ro("search_graph", [](const Graph& self) -> std::vector<std::unordered_map<int, double>> {
@@ -653,7 +656,7 @@ NB_MODULE(cpp, m) {
            "A* with the great-circle distance as heuristic, computed natively from node latitudes and longitudes in radians")
 
         .def_static("from_edge_arrays", &csr_graph,
-           nb::arg("node_first_edge_ids"), nb::arg("edge_destination_ids"), nb::arg("weights"), nb::arg("copy") = true,
+           nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights"), nb::arg("copy") = true,
            "Create a Graph from its edges stored by origin (compressed sparse rows), as in a .scgraph network file. With copy=False, the graph reads the three arrays in place and keeps them alive")
 
         .def("bellman_ford", [](Graph& self,

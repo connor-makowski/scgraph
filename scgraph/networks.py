@@ -38,27 +38,27 @@ from scgraph import built_in_geographs
 from scgraph import network_release as pinned_network_release
 from scgraph.files import is_offline
 from scgraph.geograph import GeoGraph, LazyGeoGraph
-from scgraph.geograph_files import renumber_in_hilbert_order
+from scgraph.geograph_io import renumber_in_hilbert_order
 from scgraph.utils import resolve_cache_dir
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 logger = logging.getLogger(__name__)
-# The record of the conversion of a published network keeps the logger name that it had
+# The record of the conversion of a built-in network keeps the logger name that it had
 # in `scgraph.geograph`: the documents show this name, and a user filters on it.
 _geograph_logger = logging.getLogger("scgraph.geograph")
 
 
-def find_cached_file(pointer: Path) -> Path | None:
+def find_cached_file(cache_json_path: Path) -> Path | None:
     """Return the network file that a `cache.json` names, or None if it is not there.
 
     Args:
-        pointer: The path of a `cache.json`. It names a file of its own folder. The
+        cache_json_path: The path of a `cache.json`. It names a file of its own folder. The
             function keeps only the name, so it never returns a file of another
             folder.
     """
     try:
-        file = pointer.parent.joinpath(
-            Path(json.loads(pointer.read_text())["file"]).name
+        file = cache_json_path.parent.joinpath(
+            Path(json.loads(cache_json_path.read_text())["file"]).name
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -78,7 +78,7 @@ RELEASED_GEOGRAPHS = tuple(
 # each.
 BUILDABLE_NETWORKS = (
     "eurostat_sea_lanes",
-    "geofabrik_multimodal",
+    "osm_region_multimodal",
     "osm_world_multimodal",
 )
 _RELEASE_URL = "https://github.com/connor-makowski/scgraph/releases/download"
@@ -87,7 +87,7 @@ _RELEASE_URL = "https://github.com/connor-makowski/scgraph/releases/download"
 def fetch_released_file(
     name: str,
     tag: str | None,
-    shapes: bool,
+    load_intermediate_nodes: bool,
     content_sha256: str | None,
     cache_path: Path,
     local_files_only: bool,
@@ -95,7 +95,7 @@ def fetch_released_file(
     """Return the path, in the cache, of a network file of a network release. Download
     the file if the cache does not hold it.
 
-    Example: `name="europe"` and `shapes=False`, for the network release
+    Example: `name="europe"` and `load_intermediate_nodes=False`, for the network release
     `networks-2026.11.20`.
 
     1. The cache keeps the file as
@@ -119,7 +119,8 @@ def fetch_released_file(
     Args:
         name: The name of a network of `RELEASED_GEOGRAPHS`.
         tag: The tag of the network release, or None for `network_release.TAG`.
-        shapes: False for the file without the shapes of the edges.
+        load_intermediate_nodes: False for the file without the intermediate nodes
+            of the edges.
         content_sha256: The digest that the file must have, or None.
         cache_path: The cache directory.
         local_files_only: If True, the function never downloads.
@@ -136,7 +137,7 @@ def fetch_released_file(
             f"Invalid network_release '{tag}': a network release is named by its tag, "
             f"such as '{pinned_network_release.TAG}'"
         )
-    stem = name if shapes else f"{name}.no_shapes"
+    stem = name if load_intermediate_nodes else f"{name}.no_shapes"
     file = cache_path.joinpath("releases", tag, f"{stem}.scgraph")
     if not file.is_file():
         if local_files_only:
@@ -311,10 +312,10 @@ def clear_cache(
 
     # Only what scgraph writes there, so that a folder given as the cache keeps the
     # user's own files; then the folder itself if nothing else is left
-    for published in built_in_geographs.BUILT_IN_GEOGRAPHS:
-        if name in (None, published) and region is None:
+    for built_in in built_in_geographs.BUILT_IN_GEOGRAPHS:
+        if name in (None, built_in) and region is None:
             for suffix in (".graphjson", ".scgraph"):
-                remove(cache_path.joinpath(published + suffix))
+                remove(cache_path.joinpath(built_in + suffix))
     if name is None:
         remove(root)
         remove(cache_path.joinpath("releases"))
@@ -341,7 +342,7 @@ def get_cache_info(cache_dir: str | os.PathLike | None = None) -> list[dict]:
     cache_path = resolve_cache_dir(cache_dir)
     info = [
         {
-            "kind": "published",
+            "kind": "built-in",
             "name": name,
             "region": None,
             "file": str(file),
@@ -411,13 +412,13 @@ def list_buildable_networks(
 
     The docstring of `GeoGraph.list_buildable_geographs` gives the arguments and the result.
     """
+    from scgraph.pipelines.network_builder import find_region_url
+
     root = resolve_cache_dir(cache_dir).joinpath("networks")
     listing = []
     for name in BUILDABLE_NETWORKS:
         network = importlib.import_module(f"scgraph.pipelines.{name}")
-        needs_region = any(
-            "{region}" in source["url"] for source in network.SOURCES.values()
-        )
+        needs_region = find_region_url(network) is not None
         folder = root.joinpath(name)
         built = [m for m in folder.rglob("cache.json") if find_cached_file(m)]
         listing.append(
@@ -502,7 +503,7 @@ def _load_network(
         released_file = fetch_released_file(
             name=name,
             tag=network_release,
-            shapes=load_intermediate_nodes,
+            load_intermediate_nodes=load_intermediate_nodes,
             content_sha256=content_sha256,
             cache_path=cache_path,
             local_files_only=local_files_only,
@@ -569,7 +570,7 @@ def _load_network(
     try:
         geograph.metadata = {"sources": [source]}
         with log_step(
-            _geograph_logger, "convert the published network", {"name": name}
+            _geograph_logger, "convert the built-in network", {"name": name}
         ):
             geograph.save_as_scgraph(str(converted))
     except OSError:
@@ -590,16 +591,17 @@ def build_network(
     name: (
         Literal[
             "eurostat_sea_lanes",
-            "geofabrik_multimodal",
+            "osm_region_multimodal",
             "osm_world_multimodal",
         ]
-        | types.ModuleType
+        | None
     ),
     region: str | None,
     cache_dir: str | os.PathLike | None,
     reduce_iterations: int,
     lazy: bool,
     *,
+    pipeline: types.ModuleType | None,
     refresh: bool,
     local_files_only: bool | None,
     node_modes: list[str] | str | None,
@@ -619,6 +621,7 @@ def build_network(
                 cache_dir=cache_dir,
                 reduce_iterations=reduce_iterations,
                 lazy=False,
+                pipeline=pipeline,
                 refresh=refresh,
                 local_files_only=local_files_only,
                 node_modes=node_modes,
@@ -632,6 +635,7 @@ def build_network(
             name,
             region,
             cache_dir,
+            pipeline=pipeline,
             refresh=refresh,
             local_files_only=local_files_only,
             validate=validate,

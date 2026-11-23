@@ -112,14 +112,14 @@ from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.pipelines.steps import step2_hub_connectors
 from scgraph.pipelines.steps.step2_land_mask import LandMask
 from scgraph.pipelines.steps import step3_network_assembly
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 if TYPE_CHECKING:  # annotations only: osmium stays optional at run time
     import osmium
 
 logger = logging.getLogger(__name__)
 
-PIPELINE_VERSION = 5
+PIPELINE_VERSION = 6
 
 
 def _natural_earth(layer):

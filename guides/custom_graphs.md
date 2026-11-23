@@ -1,6 +1,6 @@
 # Your Own Graphs and Grids
 
-This guide is for a user with data of their own. After it, you can route on your own graph, give it coordinates, edit or merge geographs, and route on a grid.
+This guide shows how to route on your own data. It covers a graph without coordinates, a graph with coordinates, edits and merges of geographs, and a grid.
 
 ## Custom Graph
 

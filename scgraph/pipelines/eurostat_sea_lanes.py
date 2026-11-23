@@ -23,7 +23,7 @@ from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_IDS, CLASSES
 from scgraph.pipelines.steps import step3_network_assembly
 
-PIPELINE_VERSION = 3
+PIPELINE_VERSION = 4
 
 SOURCES = {
     "sea_lanes": {
@@ -153,21 +153,21 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         ]
         for edge in sea.get_edges()
     }
-    node_first_edge_ids, edge_destination_ids, weights = (
+    node_first_edge_ids, edge_destination_node_ids, weights = (
         step3_network_assembly.build_csr_from_adjacency_list(
             sea.graph_object.graph
         )
     )
     return {
         "node_first_edge_ids": node_first_edge_ids,
-        "edge_destination_ids": edge_destination_ids,
-        "weights_length": weights,
+        "edge_destination_node_ids": edge_destination_node_ids,
+        "metric_length": weights,
         "node_points": array(
             "i",
             (x for point in sea.nodes for x in _convert_to_e7_degrees(point)),
         ),
         "edge_first_shape_point_ids": array(
-            "i", bytes(4 * (len(edge_destination_ids) + 1))
+            "i", bytes(4 * (len(edge_destination_node_ids) + 1))
         ),
         "shape_points": array("i"),
         "source_node_ids": array("q", sea.source_node_ids),
@@ -176,7 +176,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
             (
                 class_id_of_edge[u, v]
                 for u in range(len(sea.nodes))
-                for v in edge_destination_ids[
+                for v in edge_destination_node_ids[
                     node_first_edge_ids[u] : node_first_edge_ids[u + 1]
                 ]
             ),

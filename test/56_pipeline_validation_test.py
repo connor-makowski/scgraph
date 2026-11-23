@@ -14,7 +14,7 @@ from scgraph.pipelines.steps.step4_validation_cases import (
 
 # Every pipeline lists its validation cases in `VALIDATION`. A case that a
 # pipeline lists by its id must be a row of the files of cases.
-@pytest.mark.parametrize("name", pipelines.NAMES)
+@pytest.mark.parametrize("name", pipelines.BUILDABLE_NETWORKS)
 def test_every_case_that_a_pipeline_lists_exists(name):
     pipeline = importlib.import_module(f"scgraph.pipelines.{name}")
 

@@ -1,6 +1,6 @@
 # Networks: Load, Build and Save
 
-This guide is for a user who needs a network. After it, you can load a network that scgraph publishes, build one from open data or from your own lines, and save it.
+This guide shows three ways to get a network: load one that scgraph publishes, build one from open data, or load your own data. It also shows how to save a network and load it again.
 
 A **released network** is a network that the maintainers of scgraph build and publish, such as `europe`.
 
@@ -129,7 +129,7 @@ logging.basicConfig(level=logging.INFO)  # optional: show the downloads and the 
 
 # Roads and railways of Denmark, joined to the sea lanes of the world and to flights
 # (needs: pip install scgraph[osm])
-denmark = GeoGraph.build_geograph("geofabrik_multimodal", region="europe/denmark")
+denmark = GeoGraph.build_geograph("osm_region_multimodal", region="europe/denmark")
 
 # What can be built, who to credit, and what is already in the cache
 GeoGraph.list_buildable_geographs()
@@ -142,14 +142,14 @@ Each network is built by a **pipeline**: a module of `scgraph.pipelines`, whose 
 | Pipeline | Network | Source |
 |---|---|---|
 | `eurostat_sea_lanes` | Sea lanes at 5 km resolution, lanes cut at the antimeridian joined, Arctic passages removed (unlike `marnet`) | Eurostat SeaRoute, GeoPackage at a fixed commit of its repository |
-| `geofabrik_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its node mode, and each edge has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
-| `osm_world_multimodal` | `geofabrik_multimodal` for the world (needs the C++ extension). This pipeline builds the released network `world_multimodal` | The sources of `geofabrik_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
+| `osm_region_multimodal` | Main roads, railways, sea lanes and regular flights of a region, joined at ports, airports and rail terminals; each node has its node mode, and each edge has its class | OpenStreetMap extract from [Geofabrik](https://download.geofabrik.de), Eurostat SeaRoute, Natural Earth; hubs and flights from tables kept with scgraph (NGA World Port Index, OurAirports, flights of 2021 from OpenSky, BTS T-100 and Eurostat, Wikidata) |
+| `osm_world_multimodal` | `osm_region_multimodal` for the world (needs the C++ extension). This pipeline builds the released network `world_multimodal` | The sources of `osm_region_multimodal`, with the OpenStreetMap planet in place of the extract. The planet is read by byte ranges and never stored |
 
-**The region.** The region of `geofabrik_multimodal` is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas`. Geofabrik lists [all its extracts](https://download.geofabrik.de/index-v1-nogeom.json) in a machine-readable file. A region that Geofabrik does not have raises a `ValueError`, before any large download.
+**The region.** The region of `osm_region_multimodal` is the path of a [Geofabrik extract](https://download.geofabrik.de), as in its download URL: `europe/luxembourg`, `europe/france/bretagne`, `north-america/us/texas`. Geofabrik lists [all its extracts](https://download.geofabrik.de/index-v1-nogeom.json) in a machine-readable file. A region that Geofabrik does not have raises a `ValueError`, before any large download.
 
 **The command line.** `python -m scgraph.pipelines.network_builder NAME [--region R] [--cache-dir D]` builds a network without loading it, and prints the path of its file.
 
-**Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for `geofabrik_multimodal`. The folder holds the network file, named by the SHA-256 of its content. The folder `networks/` also has a `CACHEDIR.TAG`, so that the backup tools that read this tag skip the built networks.
+**Where a built network is kept.** Each network has a folder in the cache directory: `networks/<name>/`, or `networks/<name>/<region>/` for `osm_region_multimodal`. The folder holds the network file, named by the SHA-256 of its content. The folder `networks/` also has a `CACHEDIR.TAG`, so that the backup tools that read this tag skip the built networks.
 
 A build that fails keeps its downloaded sources in a work folder, and the next build resumes from them. `refresh=True` empties this folder first. [ARCHITECTURE.md](https://github.com/connor-makowski/scgraph/blob/main/ARCHITECTURE.md#6-caches-and-invalidation) describes the cache in detail.
 
@@ -169,11 +169,11 @@ When two versions of scgraph use one cache, each version builds again a network 
 
 The network has roads, so a query point snaps to its closest road node by default. To route on some node modes only, load the file with these node modes and with their hubs: `GeoGraph.load_from_scgraph(file, node_modes=["road", "rail", "rail_terminal"])`.
 
-**Nodes along a road.** `geofabrik_multimodal` has a node at every junction, and more nodes along a long road or railway. A query point then finds a node close to it. `reduce_iterations=-1` removes the nodes that routing does not need.
+**Nodes along a road.** `osm_region_multimodal` has a node at every junction, and more nodes along a long road or railway. A query point then finds a node close to it. `reduce_iterations=-1` removes the nodes that routing does not need.
 
 The shape of each road, ferry or railway edge is simplified, and its length is measured on the full shape. The docstring of each pipeline gives its distances.
 
-**A pipeline of your own.** `build_geograph` also takes a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused.
+**A pipeline of your own.** `build_geograph(pipeline=my_module)` builds the network of a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused.
 
 The docstring of `scgraph.pipelines` states what a pipeline holds. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md#part-1-a-pipeline-builds-a-network) describes each step of one build.
 

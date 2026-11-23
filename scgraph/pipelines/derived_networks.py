@@ -32,9 +32,8 @@ HOW A RUN GOES
    An edge between two components is dropped. The chains are not contracted again: a
    junction that lost a road in step 2 stays as a node.
 4. Write the derived file. Its nodes keep the order of the parent file: by node mode,
-   then along a Hilbert curve. Its node modes table holds the kept node modes only. As
-   in every network file, a derived file with one node mode has no `node_mode_ids`. If
-   the parent file has `edge_class_ids`, each kept edge keeps its class, and the derived
+   then along a Hilbert curve. Its node modes table holds the kept node modes only,
+   each with the count of its nodes. If the parent file has `edge_class_ids`, each kept edge keeps its class, and the derived
    file holds the whole list of classes. The derived file holds the lengths of the
    edges, and no other metric of the parent file.
 
@@ -113,7 +112,7 @@ from scgraph.pipelines.steps.step4_validation_cases import (
     load_validation_cases,
     validate_network,
 )
-from scgraph._internal import log_step
+from scgraph.step_logs import log_step
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +180,7 @@ def derive_network_file(
     node_modes: list[str] | None = None,
     bbox: Sequence[float] | None = None,
     *,
-    keep_shapes: bool = True,
+    keep_intermediate_nodes: bool = True,
     min_component_nodes: int = 10,
 ) -> str:
     """Write a smaller network file from a network file: some of its node modes, and
@@ -194,7 +193,8 @@ def derive_network_file(
         node_modes: The names of the node modes to keep. None keeps every node mode.
         bbox: `(south, west, north, east)`, in degrees. A node of `LAND_MODES`
             outside the bbox is removed. None removes no node.
-        keep_shapes: False writes the same network without the shapes of its edges.
+        keep_intermediate_nodes: False writes the same network without the
+            intermediate nodes of its edges.
         min_component_nodes: The smallest number of nodes of a kept strongly
             connected component. The default removes a node that the cut left
             alone, and keeps the roads of a small island.
@@ -219,7 +219,8 @@ def derive_network_file(
         )
     parent_arrays, parent_metadata = network_file.read(parent_file, mapped=True)
     if (
-        not {"node_mode_ids", "shape_points"} <= set(parent_arrays)
+        len(parent_metadata.get("node_modes", ())) < 2
+        or "shape_points" not in parent_arrays
         or network_file.get_coordinate_dtype(parent_arrays) != "int32"
     ):
         raise ValueError(
@@ -227,6 +228,10 @@ def derive_network_file(
             "a parent file needs several node modes, edge shapes and int32 coordinates"
         )
     node_mode_names = [mode["name"] for mode in parent_metadata["node_modes"]]
+    # The graphs of the pipelines hold the node mode id of each node
+    parent_arrays["node_mode_ids"] = network_file.build_node_mode_ids(
+        parent_metadata["node_modes"]
+    )
     unknown = sorted(set(node_modes or ()) - set(node_mode_names))
     if unknown:
         raise ValueError(f"{parent_file} has no node mode named {unknown}")
@@ -278,7 +283,7 @@ def derive_network_file(
         kept_nodes, component_of_node = (
             step3_network_assembly.keep_strongly_connected_components(
                 graph["node_first_edge_ids"],
-                graph["edge_destination_ids"],
+                graph["edge_destination_node_ids"],
                 min_component_nodes,
             )
         )
@@ -296,22 +301,21 @@ def derive_network_file(
         )
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
-    if len(kept_node_mode_ids) == 1:
-        del graph["node_mode_ids"]  # a network file with one node mode has none
-    else:  # a kept node mode takes its id in the new node modes table
-        node_mode_id_translation = bytes.maketrans(
-            bytes(kept_node_mode_ids), bytes(range(len(kept_node_mode_ids)))
-        )
-        graph["node_mode_ids"] = array(
-            "B",
-            graph["node_mode_ids"]
-            .tobytes()
-            .translate(node_mode_id_translation),
-        )
-    if not keep_shapes:
+    # A kept node mode takes its id in the new node modes table
+    node_mode_id_translation = bytes.maketrans(
+        bytes(kept_node_mode_ids), bytes(range(len(kept_node_mode_ids)))
+    )
+    node_mode_ids = graph.pop("node_mode_ids").tobytes()
+    if not keep_intermediate_nodes:
         del graph["edge_first_shape_point_ids"], graph["shape_points"]
     kept_modes = [
-        parent_metadata["node_modes"][node_mode_id]
+        {
+            key: value
+            for key, value in parent_metadata["node_modes"][
+                node_mode_id
+            ].items()
+            if key != "node_count"
+        }
         for node_mode_id in kept_node_mode_ids
     ]
 
@@ -343,6 +347,7 @@ def derive_network_file(
         network_file.build_header_metadata(
             metadata,
             node_modes=kept_modes,
+            node_mode_ids=node_mode_ids.translate(node_mode_id_translation),
             # The derived file holds the lengths, and no other metric
             metrics=parent_metadata["metrics"][:1],
             classes=parent_metadata.get("classes"),
@@ -481,14 +486,16 @@ def derive_network_release_files(
             world_file,
             without_shapes,
             **DERIVED_NETWORKS[name],
-            keep_shapes=False,
+            keep_intermediate_nodes=False,
         )
         written += [with_shapes, without_shapes]
     if names is None:
         world_without_shapes = os.path.join(
             output_dir, "world_multimodal.no_shapes.scgraph"
         )
-        derive_network_file(world_file, world_without_shapes, keep_shapes=False)
+        derive_network_file(
+            world_file, world_without_shapes, keep_intermediate_nodes=False
+        )
         written.append(world_without_shapes)
     return written
 
@@ -497,10 +504,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m scgraph.pipelines.derived_networks",
         description="Write the derived files of a network release from the file "
-        "of world_multimodal, with no download, and print their paths.",
+        "of osm_world_multimodal, with no download, and print their paths.",
     )
     parser.add_argument(
-        "world_file", help="the network file of world_multimodal"
+        "world_file", help="the network file of osm_world_multimodal"
     )
     parser.add_argument("output_dir", help="the folder of the derived files")
     parser.add_argument(

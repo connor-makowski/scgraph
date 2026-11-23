@@ -18,9 +18,9 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
         }
         node_first_edge_ids[i + 1] = node_first_edge_ids[i] + (int32_t)graph_data[i].size();
     }
-    std::vector<int32_t> edge_destination_ids;
+    std::vector<int32_t> edge_destination_node_ids;
     std::vector<double> weights;
-    edge_destination_ids.reserve(node_first_edge_ids[n]);
+    edge_destination_node_ids.reserve(node_first_edge_ids[n]);
     weights.reserve(node_first_edge_ids[n]);
     for (size_t i = 0; i < graph_data.size(); ++i) {
         for (const auto& [node, weight] : graph_data[i]) {
@@ -34,23 +34,23 @@ Graph::Graph(const std::vector<std::unordered_map<int, double>>& graph_data, boo
                     "Destination id " + std::to_string(node) + " at origin " +
                     std::to_string(i) + " is not in the graph");
             }
-            edge_destination_ids.push_back(node);
+            edge_destination_node_ids.push_back(node);
             weights.push_back(weight);
         }
     }
-    this->set_graph(CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_ids), std::move(weights)));
+    this->set_graph(CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights)));
     this->reset_cache();
     if (validate) {
         this->validate();
     }
 }
 
-void Graph::load_csr(const int32_t* node_first_edge_ids, const int32_t* edge_destination_ids, const double* weights, int n, int64_t m,
+void Graph::load_csr(const int32_t* node_first_edge_ids, const int32_t* edge_destination_node_ids, const double* weights, int n, int64_t m,
                      std::shared_ptr<const void> owner) {
     if (n < 0 || node_first_edge_ids[0] != 0 || node_first_edge_ids[n] != m) {
         throw std::invalid_argument("node_first_edge_ids must start at 0 and end at the number of edges");
     }
-    // node_first_edge_ids first: edge_destination_ids are read only within [0, m)
+    // node_first_edge_ids first: edge_destination_node_ids are read only within [0, m)
     for (int u = 0; u < n; ++u) {
         if (node_first_edge_ids[u] > node_first_edge_ids[u + 1]) {
             throw std::invalid_argument("node_first_edge_ids must be non-decreasing");
@@ -58,18 +58,18 @@ void Graph::load_csr(const int32_t* node_first_edge_ids, const int32_t* edge_des
     }
     for (int u = 0; u < n; ++u) {
         for (int32_t j = node_first_edge_ids[u]; j < node_first_edge_ids[u + 1]; ++j) {
-            if (edge_destination_ids[j] < 0 || edge_destination_ids[j] >= n) {
+            if (edge_destination_node_ids[j] < 0 || edge_destination_node_ids[j] >= n) {
                 throw std::invalid_argument(
-                    "Destination id " + std::to_string(edge_destination_ids[j]) + " at origin " +
+                    "Destination id " + std::to_string(edge_destination_node_ids[j]) + " at origin " +
                     std::to_string(u) + " is not in the graph");
             }
         }
     }
     if (owner) {
-        this->set_graph(CsrGraph(std::move(owner), node_first_edge_ids, edge_destination_ids, weights, n, m));
+        this->set_graph(CsrGraph(std::move(owner), node_first_edge_ids, edge_destination_node_ids, weights, n, m));
     } else {
         this->set_graph(CsrGraph(std::vector<int32_t>(node_first_edge_ids, node_first_edge_ids + n + 1),
-                                  std::vector<int32_t>(edge_destination_ids, edge_destination_ids + m),
+                                  std::vector<int32_t>(edge_destination_node_ids, edge_destination_node_ids + m),
                                   std::vector<double>(weights, weights + m)));
     }
     this->reset_cache();

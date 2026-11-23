@@ -1,6 +1,7 @@
 """Check that the modules of `scgraph` import only from their own layer or a lower one.
 
-`LAYERS` gives the layer of each module (DEVELOPMENT.md and the rework brief, decision D1).
+`LAYERS` gives the layer of each module, and `ALLOWED` lists the imports that may go to
+a higher layer.
 The script reads every `import` of every module under `scgraph/` with `ast`, at the top
 of the file and inside functions. It prints each import that goes to a higher layer, and
 exits with 1 if one of them is not in `ALLOWED`.
@@ -18,13 +19,15 @@ ROOT = Path(__file__).resolve().parents[1] / "scgraph"
 # package (`helpers` holds every module of `scgraph/helpers/`). A module imports only
 # from its own layer or a lower one. The package `scgraph` itself is the highest layer.
 LAYERS = {
-    "_internal": 0,
+    "deprecations": 0,
+    "step_logs": 0,
+    "array_checks": 0,
     "utils": 0,
     "errors": 0,
     "files": 0,
     "helpers": 1,
     "network_file": 1,
-    "columns": 1,
+    "array_views": 1,
     "graph_utils": 2,
     "graph_reducer": 2,
     "graph": 2,
@@ -35,9 +38,10 @@ LAYERS = {
     "metrics": 3,
     "node_snapping": 3,
     "geograph": 4,
-    "geograph_files": 4,
-    "geograph_edits": 4,
+    "geograph_io": 4,
+    "geograph_modifiers": 4,
     "geograph_edges": 4,
+    "geograph_metrics": 4,
     "geograph_routing": 4,
     "network_release": 5,
     "networks": 5,
@@ -61,38 +65,40 @@ ALLOWED = [
         "`GeoGraph` builds on the `Graph` that the package chooses, and raises its errors.",
     ),
     (
-        "geograph_files",
+        "geograph_io",
         "",
         "`GeoGraphIO` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
-        "geograph_edits",
+        "geograph_modifiers",
         "",
         "`GeoGraphModifiers` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
-        "geograph_edges",
+        "geograph_metrics",
         "",
-        "`GeoGraphEdges` builds the `Graph` that the package chooses: the C++ one when it is built.",
+        "`GeoGraphMetrics` builds the `Graph` that the package chooses: the C++ one when it is built.",
     ),
     (
-        "geograph_files",
+        "geograph_io",
         "built_in_geographs",
         "The default of `geograph_url` in the signatures of `load_geograph` and "
         "`list_geographs` is `built_in_geographs.GEOGRAPH_URL`, and a default is "
         "read when the module loads.",
     ),
     (
-        "geograph_files",
+        "geograph_io",
         "networks",
         "The static methods of `GeoGraph` that release 3.6.0 exposes (`load_geograph` "
-        "and the like) import the work from a higher layer inside the function (D1).",
+        "and the like) import the work from a higher layer inside the function.",
     ),
     (
         "networks",
         "pipelines.network_builder",
-        "`build_network` runs the build of a network. The pipelines import "
-        "`networks` at the top, so this import is inside the function.",
+        "`build_network` runs the build of a network, and "
+        "`list_buildable_networks` reads which pipelines need a region. The "
+        "pipelines import `networks` at the top, so these imports are inside the "
+        "functions.",
     ),
 ]
 

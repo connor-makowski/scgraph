@@ -44,7 +44,7 @@ The seven networks of scgraph 3.6.0, such as `marnet`, were made in another way.
   bytes after the first 40, which hold this digest. Two files with the same `content_sha256`
   hold the same network.
 
-## The chain in one picture
+## From open data to a route, in one picture
 
 ```mermaid
 flowchart TD
@@ -89,7 +89,7 @@ command of a build, and the section *A network of your own* names the call of a 
 
 This part follows one build from its sources to its network file.
 
-The example runs the pipeline `geofabrik_multimodal` on the region `europe/denmark`. A region is
+The example runs the pipeline `osm_region_multimodal` on the region `europe/denmark`. A region is
 the path of an extract on Geofabrik, a server of OpenStreetMap extracts. The build ran on
 2026-11-20 on Linux, with the C++ extension, from the extract of 2026-11-18. The numbers come
 from its log. Another day gives other numbers, because the extract changes every day.
@@ -119,7 +119,7 @@ from its log. Another day gives other numbers, because the extract changes every
 
 ```
 pip install "scgraph[osm]"
-python -m scgraph.pipelines.network_builder geofabrik_multimodal --region europe/denmark --validate
+python -m scgraph.pipelines.network_builder osm_region_multimodal --region europe/denmark --validate
 ```
 
 The command prints the path of the network file. It logs each download. To see each step with
@@ -130,7 +130,7 @@ import logging
 from scgraph.pipelines.network_builder import build_network_file
 
 logging.basicConfig(level=logging.DEBUG)
-build_network_file("geofabrik_multimodal", region="europe/denmark", validate=True)
+build_network_file("osm_region_multimodal", region="europe/denmark", validate=True)
 ```
 
 ### The steps
@@ -154,7 +154,7 @@ flowchart TD
     G --> H["Step 8: validate the network, 3 cases<br/>then move the file into the cache"]
 ```
 
-#### Step 1. The runner downloads the sources
+#### 1. The runner downloads the sources
 
 `SOURCES` of the pipeline names nine sources. The runner brings each one into its work folder.
 It downloads five of them. The four others are small tables kept with scgraph, which it copies.
@@ -170,7 +170,7 @@ The extract comes last. When a small source fails, the large download has not st
 
 Where to read more: `network_builder.py`, function `build_network_file`.
 
-#### Step 2. Read and cut the ways
+#### 2. Read and cut the ways
 
 `step1_osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline
 selects. It cuts each way at its junctions. It also cuts a way where a piece would be longer
@@ -208,13 +208,13 @@ by time can then choose between the two roads.
 Where to read more: the docstrings at the top of `steps/step1_osm_ways.py` and of
 `steps/step3_network_assembly.py`.
 
-#### Step 3. Read the sea lanes
+#### 3. Read the sea lanes
 
 The sea lanes are 72,444 lines. The pipeline turns them into a graph of 42,250 nodes. These are
 the sea lanes of the whole world, not only those around Denmark: a route by sea may leave the
 region and come back.
 
-#### Step 4. Tell land from water
+#### 4. Tell land from water
 
 `LandMask.from_natural_earth` draws a raster of the land around the roads of the region. Each
 cell is land or water. The next step uses it for two checks: a connector to a road or to a
@@ -222,7 +222,7 @@ railway crosses little water, and a connector to a sea lane stays on water.
 
 Where to read more: the docstring at the top of `steps/step2_land_mask.py`.
 
-#### Step 5. Join the networks at the hubs
+#### 5. Join the networks at the hubs
 
 At this point the build holds three graphs with no edge between them: roads, railways and sea
 lanes. `step2_hub_connectors.join_networks_at_hubs` adds the hubs and their connectors.
@@ -248,7 +248,7 @@ The result is one graph of 66,146 nodes and 195,274 edges.
 
 Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 
-#### Step 6. Assemble the graph
+#### 6. Assemble the graph
 
 `step3_network_assembly.assemble_network` does three things.
 
@@ -275,7 +275,7 @@ count a few more nodes and edges.
 
 Where to read more: the docstring at the top of `steps/step3_network_assembly.py`.
 
-#### Step 7. The runner writes the network file
+#### 7. The runner writes the network file
 
 The runner writes the arrays to one file of 4.2 MB, in its work folder. The header of the file
 records the pipeline, each source with its version and its license, and the software of the
@@ -294,7 +294,7 @@ node mode `road`. So a route starts and ends on a road.
 Where to read more: the docstring of `scgraph.pipelines`, part *What the network file
 records*, and `ARCHITECTURE.md`, section 7.
 
-#### Step 8. Validate the network
+#### 8. Validate the network
 
 With `--validate`, `validate_network` checks the file against the cases of the pipeline. A case
 describes one known fact of the real world. Most cases give two points and a reference value
@@ -347,7 +347,7 @@ Each edge has a class. A two-way road gives two edges, and the table counts the 
 ### The network of the world
 
 The pipeline `osm_world_multimodal` runs the same steps on the whole planet. It builds the
-network `world_multimodal`. The pipeline differs from `geofabrik_multimodal` in three points:
+network `world_multimodal`. The pipeline differs from `osm_region_multimodal` in three points:
 
 - It reads the planet file by HTTP byte ranges, and never stores it.
 - It cuts a road or a railway every 10 km, not every 2 km. This gives about 3.4 million nodes.
@@ -438,7 +438,7 @@ git tag networks-2026.11.20 <commit of dev>
 git push origin networks-2026.11.20
 ```
 
-A tag that ends with `-dev.N` makes a development network release, to try the chain before a
+A tag that ends with `-dev.N` makes a development network release, to try the networks before a
 new version of scgraph. GitHub shows it as a pre-release. By convention, a version of scgraph
 on PyPI pins a network release without `-dev`.
 

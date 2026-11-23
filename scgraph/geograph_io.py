@@ -6,13 +6,14 @@ loads or builds the networks of scgraph. `scgraph.geograph` imports it and re-ex
 """
 
 from scgraph.utils import get_line_path, resolve_cache_dir
-from scgraph._internal import warn_deprecated_parameter, log_step
+from scgraph.deprecations import warn_deprecated_parameter
+from scgraph.step_logs import log_step
 from scgraph.helpers.geojson import parse_geojson, simplify_geojson
 from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric
-from scgraph import built_in_geographs, columns, network_file
+from scgraph import array_views, built_in_geographs, network_file
 import json
 import os
 import types
@@ -222,7 +223,7 @@ class GeoGraphIO:
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
         - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_metric` and the GeoGraph defaults are saved
-        - The nodes are written in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `source_node_ids`
+        - The nodes are written node mode by node mode, in the order of `node_modes`, and in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `source_node_ids`
         - Coordinates that are not finite numbers raise a ValueError
 
         Required Arguments:
@@ -276,14 +277,7 @@ class GeoGraphIO:
                 classes = self.classes
                 edge_value_arrays["edge_class_ids"] = edge_class_ids
             for name, metric_record in self._metrics.items():
-                edge_value_arrays[f"weights_{name}"] = metric_record.weights
-        metadata = network_file.build_header_metadata(
-            self.metadata if metadata == "auto" else metadata or {},
-            node_modes=self.node_modes,
-            metrics=self.metrics,
-            classes=classes,
-            default_metric=self.default_metric,
-        )
+                edge_value_arrays[f"metric_{name}"] = metric_record.weights
         # A cached network must stay the one its cache.json names
         built = resolve_cache_dir().joinpath("networks").resolve()
         if Path(filename).resolve().is_relative_to(built):
@@ -316,7 +310,7 @@ class GeoGraphIO:
             order = None  # already in that order: written as it is
         old = range(len(nodes)) if order is None else order
         # In the order searches visit the edges, so that the file gives the same paths
-        node_first_edge_ids, edge_destination_ids, weights = (
+        node_first_edge_ids, edge_destination_node_ids, weights = (
             self.graph_object.get_edge_arrays(order)
         )
         if order is not None and edge_value_arrays:
@@ -328,8 +322,8 @@ class GeoGraphIO:
             }
         arrays = {
             "node_first_edge_ids": node_first_edge_ids,
-            "edge_destination_ids": edge_destination_ids,
-            "weights_length": weights,
+            "edge_destination_node_ids": edge_destination_node_ids,
+            "metric_length": weights,
             **edge_value_arrays,
         }
         node_points = array("d", (value for i in old for value in nodes[i][:2]))
@@ -338,9 +332,15 @@ class GeoGraphIO:
         if source_node_ids is not None:
             arrays["source_node_ids"] = source_node_ids
         if multimodal:
-            arrays["node_mode_ids"] = array(
-                "B", (node_mode_ids[i] for i in old)
-            )
+            node_mode_ids = array("B", (node_mode_ids[i] for i in old))
+        metadata = network_file.build_header_metadata(
+            self.metadata if metadata == "auto" else metadata or {},
+            node_modes=self.node_modes,
+            node_mode_ids=node_mode_ids,
+            metrics=self.metrics,
+            classes=classes,
+            default_metric=self.default_metric,
+        )
         shapes = self.intermediate_nodes if save_intermediate_nodes else None
         if shapes is not None:
             starts, points = array("i", [0]), array("d")
@@ -350,7 +350,7 @@ class GeoGraphIO:
                 for edge in range(
                     node_first_edge_ids[new], node_first_edge_ids[new + 1]
                 ):
-                    destination_id = old[edge_destination_ids[edge]]
+                    destination_id = old[edge_destination_node_ids[edge]]
                     for latitude, longitude in row.get(destination_id, ()):
                         if not (isfinite(latitude) and isfinite(longitude)):
                             raise ValueError(
@@ -528,7 +528,7 @@ class GeoGraphIO:
         - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `source_node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
         - Each edge has the class that `select` gives to its way: `classes` holds the classes of `scgraph.pipelines.CLASSES`, and `get_edges` gives the class of each edge. With the default `select`, the class of a way is its `highway` value
-        - Not the graph of the `geofabrik_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
+        - Not the graph of the `osm_region_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
         - Memory: osmium's node and way filters take about 1.7 GB, whatever the size of the file
 
         Required Arguments:
@@ -731,7 +731,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes`, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `source_node_ids`
+        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes` with the `node_count` of each node mode, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `source_node_ids`
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
         info = network_file.get_scgraph_info(filename)
@@ -817,14 +817,14 @@ class GeoGraphIO:
             logger,
             "read the network file",
             {"file": filename, "mapped": mapped},
-        ) as indicators:
+        ) as values:
             arrays, metadata = network_file.read(filename, mapped, node_modes)
-            indicators["nodes"] = len(arrays["node_points"]) // 2
-            indicators["edges"] = len(arrays["edge_destination_ids"])
+            values["nodes"] = len(arrays["node_points"]) // 2
+            values["edges"] = len(arrays["edge_destination_node_ids"])
         edge_arrays = (
             arrays["node_first_edge_ids"],
-            arrays["edge_destination_ids"],
-            arrays["weights_length"],
+            arrays["edge_destination_node_ids"],
+            arrays["metric_length"],
         )
         try:
             graph = Graph.from_edge_arrays(*edge_arrays, copy=False)
@@ -839,22 +839,36 @@ class GeoGraphIO:
                     row["name"],
                     row.get("unit"),
                     row.get("description"),
-                    arrays[f"weights_{row['name']}"],
+                    arrays[f"metric_{row['name']}"],
                     row["off_graph_weight_per_km"],
                 )
                 for row in metadata["metrics"][1:]
             },
             graph=graph,
-            nodes=columns.NodePoints(arrays["node_points"]),
+            nodes=array_views.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
-                columns.EdgeShapes(arrays)
+                array_views.EdgeShapes(arrays)
                 if "edge_first_shape_point_ids" in arrays
                 else None
             ),
             geograph_units=metadata["metrics"][0]["unit"],
             source_node_ids=arrays.get("source_node_ids"),
-            node_mode_ids=arrays.get("node_mode_ids"),
-            node_modes=metadata.get("node_modes"),
+            node_mode_ids=(
+                network_file.build_node_mode_ids(
+                    metadata["node_modes"], node_modes
+                )
+                if "node_modes" in metadata
+                else None
+            ),
+            # A count of nodes would be wrong after an edit: the save counts them
+            node_modes=[
+                {
+                    key: value
+                    for key, value in row.items()
+                    if key != "node_count"
+                }
+                for row in metadata.get("node_modes", [{"name": None}])
+            ],
             coordinate_dtype=network_file.get_coordinate_dtype(arrays),
             classes=metadata["classes"] if "edge_class_ids" in arrays else None,
         )
@@ -1104,7 +1118,7 @@ class GeoGraphIO:
         Returns:
 
         - A list of dicts, one per file or folder:
-            - `kind`: str — `"published"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"released"` (a network file `load_geograph` downloaded from a network release), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
+            - `kind`: str — `"built-in"` (a built-in geograph `load_geograph` downloaded, `.graphjson`, or its conversion, `.scgraph`), `"released"` (a network file `load_geograph` downloaded from a network release), `"built"` (a network `build_geograph` built) or `"building"` (the work folder of a build that is running, has failed or was interrupted; `clear_geograph_cache()` removes it)
             - `name`: str | None — the network name
             - `region`: str | None — the region of a built network, if it has one
             - `file`: str — the path of the file or folder
@@ -1121,16 +1135,17 @@ class GeoGraphIO:
         name: (
             Literal[
                 "eurostat_sea_lanes",
-                "geofabrik_multimodal",
+                "osm_region_multimodal",
                 "osm_world_multimodal",
             ]
-            | types.ModuleType
-        ),
+            | None
+        ) = None,
         region: str | None = None,
         cache_dir: str | os.PathLike | None = None,
         reduce_iterations: int = 0,
         lazy: bool = False,
         *,
+        pipeline: types.ModuleType | None = None,
         refresh: bool = False,
         local_files_only: bool | None = None,
         node_modes: list[str] | str | None = None,
@@ -1143,15 +1158,17 @@ class GeoGraphIO:
         - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), nothing is downloaded: a network built with another version of its pipeline is loaded with a warning (one of another file format is refused), and one that is not in the cache raises a FileNotFoundError
         - Sources can take several GB (an OpenStreetMap extract of a country): a download above 100 MB is announced with a logging warning before it starts; `logging.basicConfig(level=logging.INFO)` shows each download and the credit to cite, and the DEBUG level shows each step of the build with its counts
         - These networks are not the files that `load_geograph` returns: their node numbers differ, and the road and rail networks have more nodes, which `reduce_iterations=-1` removes for routing
-        - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
         - The network file's header says what built it (pipeline, sources and the time their data is up to, software): `GeoGraph.get_scgraph_info(file)` reads it
+        - `GeoGraph.list_buildable_geographs()` lists the networks, who to credit and what is already in the cache
 
-        Required Arguments:
+        Required Arguments: one of `name` and `pipeline`
 
         - `name`
-            - Type: str | module
-            - What: The name of the network (see `GeoGraph.list_buildable_geographs()`), or a pipeline module with the contract of `scgraph.pipelines` (for example a copy of one, adapted)
-            - Note: A module is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a built-in pipeline; two modules with the same last name share that cache entry; `list_buildable_geographs` does not list it
+            - Type: str | None
+            - What: The name of a network of scgraph (see `GeoGraph.list_buildable_geographs()`)
+        - `pipeline`
+            - Type: module | None
+            - What: A pipeline module of your own, with the contract of `scgraph.pipelines` (for example a copy of one, adapted); it is cached under its last name (`my.cycleways` in `networks/cycleways/`), which must not be the name of a network of scgraph; two modules with the same last name share that cache entry, and `list_buildable_geographs` does not list it
 
         - The runner behind this function, `scgraph.pipelines.network_builder.build_network_file`, has one more option: keeping the work folder of a long build to resume it.
 
@@ -1159,10 +1176,8 @@ class GeoGraphIO:
 
         - `region`
             - Type: str | None
-            - What: For `geofabrik_multimodal`, the path of a Geofabrik extract, as in its download URL
+            - What: The region of a network that needs one (`needs_region` in `list_buildable_geographs()`, or a pipeline with `{region}` in a source URL); for `osm_region_multimodal`, the path of a Geofabrik extract, as in its download URL: 'europe/luxembourg', 'north-america/us/texas' (all of them: https://download.geofabrik.de/index-v1-nogeom.json)
             - Default: None
-            - Examples: 'europe/luxembourg', 'europe/france/bretagne', 'north-america/us/texas'
-            - See: https://download.geofabrik.de for the extracts and their paths (all of them, machine-readable: https://download.geofabrik.de/index-v1-nogeom.json)
         - `cache_dir`
             - Type: str | None
             - What: Path to the local cache directory
@@ -1200,7 +1215,7 @@ class GeoGraphIO:
 
         - `RuntimeError` with `validate` if the network fails a validation case
         - `ValueError` if `node_modes` names a node mode that the network does not have
-        - `ValueError` for an unknown name or a pipeline module named like a built-in one, a missing or invalid region, or a region Geofabrik does not have, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
+        - `ValueError` for not one of `name` and `pipeline`, an unknown name, a pipeline module named like a network of scgraph, a missing, refused or invalid region, or a region without a source, before any large download; with `local_files_only`, for `refresh=True` or a cached network of another file format
         - `FileNotFoundError` with `local_files_only` if the network is not in the cache
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
         - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps its downloaded sources in the work folder (`.work/` of the cache directory). The next call resumes from it. `clear_geograph_cache()` removes it
@@ -1213,6 +1228,7 @@ class GeoGraphIO:
             cache_dir,
             reduce_iterations,
             lazy,
+            pipeline=pipeline,
             refresh=refresh,
             local_files_only=local_files_only,
             node_modes=node_modes,
@@ -1243,7 +1259,7 @@ class GeoGraphIO:
             - `description`: str — what the network is and where it comes from
             - `credit`: str — who to credit with results
             - `license`: str — the licences of the sources (SPDX identifiers; `NOASSERTION` when not established)
-            - `needs_region`: bool — whether `build_geograph` needs a `region` (see https://download.geofabrik.de)
+            - `needs_region`: bool — whether `build_geograph` needs a `region`
             - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
             - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
         """
@@ -1434,9 +1450,9 @@ class GeoGraphIO:
         # weights of a metric. The attributes of each edge, by edge id:
         graph_object = Graph(graph)
         edge_arrays = graph_object.get_edge_arrays()
-        node_first_edge_ids, edge_destination_ids, _ = edge_arrays
+        node_first_edge_ids, edge_destination_node_ids, _ = edge_arrays
         edge_attributes = [
-            attributes_of_origin[edge_destination_ids[edge_id]]
+            attributes_of_origin[edge_destination_node_ids[edge_id]]
             for origin_id, attributes_of_origin in enumerate(kept_attributes)
             for edge_id in range(
                 node_first_edge_ids[origin_id],

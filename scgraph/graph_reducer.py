@@ -136,7 +136,7 @@ def algorithm(
     return decorator
 
 
-def hidden_nodes(
+def list_hidden_nodes(
     pointers: list[dict[int, int] | None], node: int, root: int, inverse: bool
 ) -> list[int]:
     """
@@ -160,7 +160,7 @@ def hidden_nodes(
     return path
 
 
-def connections(
+def build_reduced_graph_connections(
     pointers: list[dict[int, int] | None], inverse: bool
 ) -> list[dict[int, list[int]] | None]:
     """
@@ -175,7 +175,7 @@ def connections(
             None
             if roots is None
             else {
-                root: hidden_nodes(pointers, node, root, inverse)
+                root: list_hidden_nodes(pointers, node, root, inverse)
                 for root in roots
             }
         )
@@ -204,7 +204,7 @@ def _without_gc(fn):
 
 class GraphReducer:
     # The two connection lists are built on first read and kept until the next
-    # reduce(): scgraph itself reads the pointers (see hidden_nodes)
+    # reduce(): scgraph itself reads the pointers (see list_hidden_nodes)
     @property
     def reduced_graph_connections(
         self,
@@ -213,7 +213,9 @@ class GraphReducer:
             pointers = getattr(self, "__hidden_next__", None)
             if pointers is None:
                 return None
-            self.__reduced_graph_connections__ = connections(pointers, False)
+            self.__reduced_graph_connections__ = (
+                build_reduced_graph_connections(pointers, False)
+            )
         return self.__reduced_graph_connections__
 
     @reduced_graph_connections.setter
@@ -230,8 +232,8 @@ class GraphReducer:
             pointers = getattr(self, "__hidden_previous__", None)
             if pointers is None:
                 return None
-            self.__reduced_inverse_graph_connections__ = connections(
-                pointers, True
+            self.__reduced_inverse_graph_connections__ = (
+                build_reduced_graph_connections(pointers, True)
             )
         return self.__reduced_inverse_graph_connections__
 
@@ -411,7 +413,7 @@ class GraphReducer:
         # the reduced_graph edges a -> b to non-reduced nodes b, and the
         # reduced_inverse_graph edges a -> b into reduced nodes b (whose own
         # searches would cost O(L) each on a chain of L nodes). Hidden nodes are
-        # stored as pointers from these searches (see hidden_nodes).
+        # stored as pointers from these searches (see list_hidden_nodes).
         self.reduced_graph = [{} for _ in range(len(graph))]
         self.reduced_inverse_graph = [{} for _ in range(len(graph))]
         self.__hidden_previous__ = [None] * len(graph)
@@ -832,12 +834,12 @@ class GraphReducer:
             v = path[i + 1]
             append(u)
             expanded = False
-            pass_throughs = hidden_nodes(next_nodes, u, v, False)
+            pass_throughs = list_hidden_nodes(next_nodes, u, v, False)
             if pass_throughs:
                 extend(pass_throughs)
                 expanded = True
             if not expanded:
-                pass_throughs = hidden_nodes(previous_nodes, v, u, True)
+                pass_throughs = list_hidden_nodes(previous_nodes, v, u, True)
                 if pass_throughs:
                     extend(pass_throughs)
         if path:

@@ -153,17 +153,17 @@ void GraphUtils::ensure_inverse_graph() {
         node_first_edge_ids[i + 1] += node_first_edge_ids[i];
     }
     std::vector<int32_t> next(node_first_edge_ids.begin(), node_first_edge_ids.end() - 1);
-    std::vector<int32_t> edge_destination_ids(node_first_edge_ids[n]);
+    std::vector<int32_t> edge_destination_node_ids(node_first_edge_ids[n]);
     std::vector<double> weights(node_first_edge_ids[n]);
     for (int origin_id = 0; origin_id < n; ++origin_id) {
         for (const auto& [dest_id, distance] : g[origin_id]) {
             if (dest_id >= 0 && dest_id < n) {
-                edge_destination_ids[next[dest_id]] = origin_id;
+                edge_destination_node_ids[next[dest_id]] = origin_id;
                 weights[next[dest_id]++] = distance;
             }
         }
     }
-    inverse_graph = CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_ids), std::move(weights));
+    inverse_graph = CsrGraph(std::move(node_first_edge_ids), std::move(edge_destination_node_ids), std::move(weights));
     inverse_graph_computed = true;
 }
 

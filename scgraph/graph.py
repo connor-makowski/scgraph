@@ -1584,7 +1584,7 @@ class Graph(
     @staticmethod
     def from_edge_arrays(
         node_first_edge_ids: array | memoryview,
-        edge_destination_ids: array | memoryview,
+        edge_destination_node_ids: array | memoryview,
         weights: array | memoryview,
         copy: bool = True,
     ) -> "Graph":
@@ -1592,13 +1592,13 @@ class Graph(
         Function:
 
         - Create a Graph from its edges stored by origin (compressed sparse rows), as in a `.scgraph` network file
-        - The edges of node `u` go to `edge_destination_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]]`, with the same slice of `weights`
+        - The edges of node `u` go to `edge_destination_node_ids[node_first_edge_ids[u]:node_first_edge_ids[u + 1]]`, with the same slice of `weights`
 
         Required Arguments:
 
         - `node_first_edge_ids`
             - Type: sequence of ints (int32 array in the C++ backend), one per node plus one
-        - `edge_destination_ids`
+        - `edge_destination_node_ids`
             - Type: sequence of ints (int32 array in the C++ backend), one per edge
         - `weights`
             - Type: sequence of floats (float64 array in the C++ backend), one per edge
@@ -1614,19 +1614,24 @@ class Graph(
         if (
             n < 0
             or node_first_edge_ids[0] != 0
-            or node_first_edge_ids[-1] != len(edge_destination_ids)
-            or len(weights) != len(edge_destination_ids)
+            or node_first_edge_ids[-1] != len(edge_destination_node_ids)
+            or len(weights) != len(edge_destination_node_ids)
         ):
             raise ValueError(
                 "expected node_first_edge_ids from 0 to the number of edges and one weight per edge"
             )
-        if len(edge_destination_ids) and (
-            min(edge_destination_ids) < 0 or max(edge_destination_ids) >= n
+        if len(edge_destination_node_ids) and (
+            min(edge_destination_node_ids) < 0
+            or max(edge_destination_node_ids) >= n
         ):
             raise ValueError("an edge goes to a node that is not in the graph")
         return Graph(
             [
-                dict(zip(edge_destination_ids[start:end], weights[start:end]))
+                dict(
+                    zip(
+                        edge_destination_node_ids[start:end], weights[start:end]
+                    )
+                )
                 for start, end in zip(
                     node_first_edge_ids, node_first_edge_ids[1:]
                 )

@@ -1,7 +1,7 @@
 import os
 
 from scgraph.utils import has_cpp
-from scgraph import Graph, columns
+from scgraph import Graph, array_views
 
 
 def test_cpp_availability():
@@ -18,7 +18,7 @@ def test_cpp_availability():
             has_cpp()
         ), "SCGRAPH_REQUIRE_CPP=1 but the extension is unavailable"
         assert Graph.__module__ == "scgraph.cpp"
-        assert columns._coordinate_lists is not None
+        assert array_views._coordinate_lists is not None
     elif require_python:
         assert (
             not has_cpp()
