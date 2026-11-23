@@ -828,12 +828,6 @@ ROAD_AND_PORT_HEADER_WITH_A_TOLL = {
             id="a class without its edge mode",
         ),
         pytest.param(
-            ROAD_AND_PORT_HEADER_WITH_A_TOLL
-            | {"node_addition_modes": ["rail"]},
-            "names a node mode that the file does not have",
-            id="a node addition mode that the file does not have",
-        ),
-        pytest.param(
             {"units": "km", "node_modes": ROAD_AND_PORT, "classes": [MOTORWAY]},
             "build or download the network again",
             id="the header of an earlier development version",

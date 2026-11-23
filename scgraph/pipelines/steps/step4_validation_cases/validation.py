@@ -48,12 +48,27 @@ class ValidationResult:
 # ----------------------------------------------------------------------------
 
 
+def _list_snap_to_node_modes(network, case) -> list[str] | None:
+    """Return the node modes that the points of `case` snap to: the node modes of
+    its kind that the network has. A kind without node modes gives every named
+    node mode of the network. None, when the network has none of them, leaves the
+    default rule of a query."""
+    names = [mode.get("name") for mode in network.node_modes]
+    kind_modes = RULES[case["kind"]][0]
+    return [
+        name
+        for name in names
+        if name is not None and (not kind_modes or name in kind_modes)
+    ] or None
+
+
 def _find_path(
-    network, origin, destination, with_path=False, from_tree=False
+    network, case, origin, destination, with_path=False, from_tree=False
 ) -> dict | None:
     """Return the shortest route between two (latitude, longitude) points, or None
-    when no route joins them. Each point is snapped to its closest node. The
-    length includes the straight line from each point to its node.
+    when no route joins them. Each point is snapped to its closest node of the node
+    modes of `case`. The length includes the straight line from each point to its
+    node.
     With `from_tree`, the shortest path tree of the origin is computed once and
     kept. The next routes from the same origin are read from that tree."""
     options = {"algorithm_fn": "cached_shortest_path"} if from_tree else {}
@@ -62,14 +77,17 @@ def _find_path(
             {"latitude": origin[0], "longitude": origin[1]},
             {"latitude": destination[0], "longitude": destination[1]},
             length_only=not with_path,
+            snap_to_node_modes=_list_snap_to_node_modes(network, case),
             **options,
         )
     except PathNotFoundError:
         return None
 
 
-def _find_path_km(network, origin, destination, **options) -> float | None:
-    route = _find_path(network, origin, destination, **options)
+def _find_path_km(
+    network, case, origin, destination, **options
+) -> float | None:
+    route = _find_path(network, case, origin, destination, **options)
     return None if route is None else route["length"]
 
 
@@ -100,8 +118,8 @@ def _find_closest_node(network, point, mode=None) -> tuple:
 def _check_road_distance(network, case) -> str | None:
     # The reference is a driving distance in each direction. A much longer route
     # shows a missing road. Two very different directions show a one-way error.
-    there = _find_path_km(network, case["origin"], case["destination"])
-    back = _find_path_km(network, case["destination"], case["origin"])
+    there = _find_path_km(network, case, case["origin"], case["destination"])
+    back = _find_path_km(network, case, case["destination"], case["origin"])
     if there is None or back is None:
         return "no road route"
     references = (
@@ -124,7 +142,10 @@ def _check_crossing(network, case) -> str | None:
         km, _ = _find_closest_node(network, case[end])
         if km > 5.0:
             return f"the {end} is {km:.1f} km from a road"
-    if _find_path_km(network, case["origin"], case["destination"]) is None:
+    if (
+        _find_path_km(network, case, case["origin"], case["destination"])
+        is None
+    ):
         return f"no road route ({case['reference']})"
 
 
@@ -143,7 +164,7 @@ def _check_coverage(network, case) -> str | None:
         network.graph_object.reset_cache()
         network.main_city_of_the_kept_tree = main_city
     if (
-        _find_path_km(network, main_city, case["origin"], from_tree=True)
+        _find_path_km(network, case, main_city, case["origin"], from_tree=True)
         is None
     ):
         return "no road route to the main city of the landmass"
@@ -158,7 +179,7 @@ def _check_rail_corridor(network, case) -> str | None:
     )
     if max(origin_km, destination_km) > 10.0:
         return f"the track is {max(origin_km, destination_km):.1f} km away"
-    km = _find_path_km(network, origin, destination)
+    km = _find_path_km(network, case, origin, destination)
     if km is None:
         return "no rail route"
     if not -0.20 <= km / float(case["reference"]) - 1 <= 0.10:
@@ -176,7 +197,7 @@ def _check_sea_distance(network, case) -> str | None:
         if km > 5.0:
             _, node = _find_closest_node(network, case[end], "sea")
         ends.append(node)
-    km = _find_path_km(network, *ends)
+    km = _find_path_km(network, case, *ends)
     if km is None:
         return "no water route"
     # On a short route, the approach to each port is a large part of the
@@ -190,7 +211,7 @@ def _check_passage(network, case) -> str | None:
     # The case gives a box around the passage. The route is tested every 5 km,
     # because one long straight edge can cross the box between two nodes.
     route = _find_path(
-        network, case["origin"], case["destination"], with_path=True
+        network, case, case["origin"], case["destination"], with_path=True
     )
     if route is None:
         return "no sea route"
@@ -221,7 +242,7 @@ def _check_river_port(network, case) -> str | None:
     if join_km > 5.0:
         return f"the closest port node is {join_km:.1f} km away"
     _, sea = _find_closest_node(network, case["destination"], "sea")
-    km = _find_path_km(network, port, sea)
+    km = _find_path_km(network, case, port, sea)
     if km is None:
         return "no water route to the sea"
     if km > 1.8 * haversine(port, sea):
@@ -229,7 +250,7 @@ def _check_river_port(network, case) -> str | None:
 
 
 def _check_route_length(network, case) -> str | None:
-    km = _find_path_km(network, case["origin"], case["destination"])
+    km = _find_path_km(network, case, case["origin"], case["destination"])
     if km is None:
         return "no route"
     if abs(km / float(case["reference"]) - 1) > (case.get("tolerance") or 0.05):
@@ -261,6 +282,7 @@ def _check_hub(network, case) -> str | None:
                 {"latitude": hub[0], "longitude": hub[1]},
                 {"latitude": end[0], "longitude": end[1]},
                 output_path=True,
+                snap_to_node_modes=_list_snap_to_node_modes(network, case),
             )["path"]
         except PathNotFoundError:
             return f"no route to the {mode} network"
@@ -390,16 +412,13 @@ def validate_network(
     fail, they all count as passed.
 
     The points of a case snap to the nodes of the node modes of its kind: a road node
-    for a road distance, any node for a hub. The node modes that the network names for
-    its query points (`default_node_addition_modes`) do not count: a hub case starts at
-    the node of its hub, which is not a road node.
+    for a road distance, any node for a hub. The default rule of a query does not
+    count: a hub case starts at the node of its hub, which is not a road node.
 
     Args:
         network: The path of a network file, or a loaded GeoGraph. A file is read
             again for each set of node modes, one at a time, to limit the memory used.
-            The coverage rule resets the cache of trees of a loaded GeoGraph. The
-            function sets `default_node_addition_modes` of a loaded GeoGraph for
-            its queries, and sets it back before it returns.
+            The coverage rule resets the cache of trees of a loaded GeoGraph.
         cases: The cases, as `load_validation_cases` returns them.
 
     Returns:
@@ -419,23 +438,12 @@ def validate_network(
         loaded = None  # the previous network is released before the next load
         loaded = _load_on_node_modes(network, node_modes)
         failures = []
-        # The queries of the rules snap to the nodes of the node modes of the kind. No
-        # list of node modes means every node.
-        default_node_addition_modes = loaded.default_node_addition_modes
-        loaded.default_node_addition_modes = list(node_modes) or None
-        try:
-            for case in cases_on_modes:
-                reason = RULES[case["kind"]][1](loaded, case)
-                if reason:
-                    failures.append(
-                        {
-                            "id": case["id"],
-                            "kind": case["kind"],
-                            "error": reason,
-                        }
-                    )
-        finally:
-            loaded.default_node_addition_modes = default_node_addition_modes
+        for case in cases_on_modes:
+            reason = RULES[case["kind"]][1](loaded, case)
+            if reason:
+                failures.append(
+                    {"id": case["id"], "kind": case["kind"], "error": reason}
+                )
         # Coverage is judged on all its cities together
         cities = sum(case["kind"] == "coverage" for case in cases)
         cities_failed = sum(

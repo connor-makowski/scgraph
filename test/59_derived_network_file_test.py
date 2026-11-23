@@ -106,7 +106,9 @@ def _km_from_node_1_to_node_21(file):
     """The length of the shortest route of a network file from the west end
     of the road to the east end of the sea lane."""
     return GeoGraph.load_from_scgraph(file).get_shortest_path(
-        {"latitude": 0, "longitude": 0}, {"latitude": -0.1, "longitude": 50}
+        {"latitude": 0, "longitude": 0},
+        {"latitude": -0.1, "longitude": 50},
+        snap_to_node_modes=["road", "sea"],
     )["length"]
 
 
@@ -187,25 +189,20 @@ def test_a_derived_file_keeps_the_class_of_each_edge_and_the_list_of_classes(
     ] == _name_each_edge(arrays)
 
 
-def test_a_derived_file_keeps_the_modes_to_snap_to_that_it_holds(
-    parent_file, tmp_path
+def test_a_query_point_snaps_to_its_closest_node_in_a_derived_file_without_roads(
+    sea_file,
 ):
-    # The parent file again, where a query point snaps to a road or a sea node.
-    arrays, metadata = network_file.read(parent_file)
-    metadata["node_addition_modes"] = ["road", "sea"]
-    snapping_file = str(tmp_path / "snapping.scgraph")
-    network_file.write(snapping_file, arrays, metadata)
-    sea_file = str(tmp_path / "sea.scgraph")
+    sea_lanes = GeoGraph.load_from_scgraph(sea_file)
 
-    derived_networks.derive_network_file(
-        snapping_file,
-        sea_file,
-        node_modes=["sea", "port"],
-        min_component_nodes=1,
+    # The origin is 0.001 degree east of the port, node 10. In the parent file,
+    # which has roads, it snaps to the road node 3.
+    route = sea_lanes.get_shortest_path(
+        {"latitude": 0, "longitude": 0.071},
+        {"latitude": -0.1, "longitude": 50},
+        output_path=True,
     )
 
-    info = GeoGraph.get_scgraph_info(sea_file)
-    assert info["node_addition_modes"] == ["sea"]
+    assert sea_lanes.nodes[route["path"][0]] == PORT_NODES[10]
 
 
 def test_a_file_without_shapes_holds_the_network_of_the_file_with_shapes(

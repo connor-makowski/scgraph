@@ -146,7 +146,6 @@ RESERVED_METADATA_KEYS = frozenset(
         "metrics",
         "node_modes",
         "classes",
-        "node_addition_modes",
         "default_metric",
         "symmetric",
         "node_order",
@@ -169,7 +168,6 @@ def build_header_metadata(
     node_modes: list[dict],
     metrics: list[dict] | None = None,
     classes: list[dict] | None = None,
-    node_addition_modes: Sequence[str] | None = None,
     default_metric: str = "length",
 ) -> dict:
     """Return the metadata that `write` takes, for a network whose nodes are in the
@@ -189,15 +187,12 @@ def build_header_metadata(
             its node. The default, None, is the info of lengths in km.
         classes: One row for each class, for a network with `edge_class_ids`. A row
             gives the `name` of the class and the `edge_mode` of its edges.
-        node_addition_modes: The names of the node modes that a query point snaps to
-            by default. None writes no such key.
         default_metric: The name of the metric that a query without `metric`
             minimises. 'length' writes no such key.
 
     Returns:
         The keys that scgraph sets itself (`crs`, `metrics`, `node_modes`, `classes`,
-        `node_addition_modes`, `default_metric`, `node_order`), then the keys of
-        `build_metadata`.
+        `default_metric`, `node_order`), then the keys of `build_metadata`.
 
     Raises:
         ValueError: `build_metadata` sets a key that scgraph writes itself, or a node
@@ -230,11 +225,6 @@ def build_header_metadata(
             {"node_modes": node_modes} if node_modes != [{"name": None}] else {}
         ),
         **({"classes": classes} if classes is not None else {}),
-        **(
-            {"node_addition_modes": list(node_addition_modes)}
-            if node_addition_modes is not None
-            else {}
-        ),
         **(
             {"default_metric": default_metric}
             if default_metric != "length"
@@ -1004,13 +994,6 @@ def _check(filename, arrays, metadata, should_check_values=True):
         "edge_class_ids" not in arrays
         or len(metadata["classes"]) <= NO_CLASS_ID,
         f"a network file holds {NO_CLASS_ID} classes at most",
-    )
-    node_mode_names = [
-        mode["name"] for mode in metadata.get("node_modes") or [{"name": None}]
-    ]
-    require(
-        set(metadata.get("node_addition_modes", [])) <= set(node_mode_names),
-        "node_addition_modes names a node mode that the file does not have",
     )
     require(
         metadata.get("default_metric", "length")

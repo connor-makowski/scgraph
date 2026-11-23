@@ -7,8 +7,9 @@ WORDS
 
 - A "query point" is the origin or the destination of a query. It "snaps" to a
   node: the route starts or ends at this node.
-- A "node mode" says where a node is, such as `road` or `rail`. A node that
-  `add_coord_node` added without `node_mode` has the node mode None.
+- A "node mode" says where a node is, such as `road` or `rail`. A "road node" is
+  a node of the node mode `road`. A node that `add_coord_node` added without
+  `node_mode` has the node mode None.
 - A "snapping index" finds the node closest to a point, among its own nodes. Each
   snapping index of this module has `closest_idx(point)`,
   `closest_idx_per_quadrant(point)` and `list_nodes()`: each of its nodes, as
@@ -25,23 +26,31 @@ WHAT IT HOLDS
 Each index is built at its first use. When the nodes change, the geograph sets
 `snap_index` to None: a new, empty `SnapIndexes` replaces this one.
 
+THE DEFAULT RULE
+
+By default, a query point snaps to its closest road node when the geograph has
+roads, and to its closest node otherwise. A geograph has roads when one of its
+nodes is a road node. With roads, a query point also snaps to a node of the node
+mode None: a default query can start at a node that the caller added.
+
+A query can also name the node modes that its points may snap to
+(`snap_to_node_modes`). A point then snaps to its closest node of these node modes.
+
 THE IDEA: ONE INDEX FOR EACH NODE MODE
 
-A query names the node modes that its points may snap to (`node_addition_modes`).
-`get_index` gives one snapping index for these node modes:
+`get_index` gives one snapping index for the nodes that a query point may snap to:
 
 - for one node mode, the index of this node mode;
 - for several node modes, a `_NodeModeSnapIndexes`: the index of each node mode
   gives its closest node, and the answer is the closest of these nodes;
-- when a point may snap to every node, an `EveryNodeSnapIndex`.
+- for a geograph without a road node, by default, an `EveryNodeSnapIndex`.
 
 The nodes of a network file are sorted by node mode. So the nodes of one node mode
 are a range of node ids, and their `SnapIndex` reads their points in the file.
 
 EXAMPLE
 
-A geograph has four nodes on the equator, and `default_node_addition_modes` is
-`["road"]`:
+A geograph has four nodes on the equator:
 
     node id      0         1         2           3
     node mode    road      road      rail        rail
@@ -52,9 +61,15 @@ The query point `[0, 0.45]` is 50.0 km from the node 0 and 5.6 km from the node 
     get_index(geograph, None).closest_idx([0, 0.45])               gives 0
     get_index(geograph, ["road", "rail"]).closest_idx([0, 0.45])   gives 2
 
-The first index is the index of the road nodes, with `node_ids = range(0, 2)`. The
-second one asks the index of the road nodes (the node 0) and the index of the rail
-nodes (the node 2), and keeps the closest of the two.
+The geograph has roads, so the first index is the index of the road nodes, with
+`node_ids = range(0, 2)`. The second one asks the index of the road nodes (the
+node 0) and the index of the rail nodes (the node 2), and keeps the closest of the
+two.
+
+A second geograph has the two rail nodes alone. It has no road node, so the same
+point snaps to its closest node, with the ids of this geograph:
+
+    get_index(rail_geograph, None).closest_idx([0, 0.45])          gives 0
 """
 
 import logging
@@ -78,6 +93,11 @@ if TYPE_CHECKING:  # Only for an annotation
 
 # The README gives the records of the snapping indexes under this name.
 logger = logging.getLogger("scgraph.geograph")
+
+# The node mode that a query point snaps to by default. A journey of a person or of
+# goods starts and ends on a road, and the pipelines of scgraph give this name to
+# the node mode of their road nodes.
+ROAD_NODE_MODE = "road"
 
 
 class SortedSnapIndex:
@@ -204,44 +224,38 @@ class SnapIndexes:
         return self._index_of_every_node
 
     def get_index(
-        self, geograph: "GeoGraph", node_addition_modes: list[str] | None
+        self, geograph: "GeoGraph", snap_to_node_modes: list[str] | None
     ) -> QuerySnapIndex:
         """
         Return the snapping index of the nodes that a query point may snap to.
 
         Args:
             geograph: The geograph of the query.
-            node_addition_modes: The argument of the query: names of
-                `geograph.node_modes`, or None for the node modes of
-                `default_node_addition_modes`. With None, a point also snaps to a
-                node of the node mode None. A default node mode that no node has
-                does not count: a geograph that read only the sea lanes of a file
-                has no node of the default node mode `road` of this file. Without
-                any default node mode, a point snaps to every node.
+            snap_to_node_modes: The argument of the query: names of
+                `geograph.node_modes`, or None for the default rule (see the
+                module docstring).
 
         Raises:
             ValueError: A name of the list is not in `node_modes`, or no node has a
                 node mode of the list. An empty list is such a list.
         """
-        if node_addition_modes is None:
-            indexes = self._list_indexes(
-                geograph, geograph.default_node_addition_modes or []
-            )
+        if snap_to_node_modes is None:
+            indexes = self._list_indexes(geograph, [ROAD_NODE_MODE])
             if not indexes:
                 return EveryNodeSnapIndex(geograph)
             indexes += self._list_indexes(geograph, [None])
         else:
             node_mode_names = [mode.get("name") for mode in geograph.node_modes]
-            if not set(node_addition_modes) <= set(node_mode_names) - {None}:
+            if not set(snap_to_node_modes) <= set(node_mode_names) - {None}:
                 raise ValueError(
-                    "node_addition_modes must be a list of node modes of this geograph, "
-                    f"which are {node_mode_names}: got {node_addition_modes!r}"
+                    "snap_to_node_modes must be a list of node modes of this geograph, "
+                    f"which are {node_mode_names}: got {snap_to_node_modes!r}"
                 )
-            indexes = self._list_indexes(geograph, node_addition_modes)
+            indexes = self._list_indexes(geograph, snap_to_node_modes)
             if not indexes:
                 raise ValueError(
-                    "node_addition_modes names no node mode that a node of this geograph "
-                    f"has: got {node_addition_modes!r}"
+                    "snap_to_node_modes names no node mode that a node of this geograph "
+                    f"has: got {snap_to_node_modes!r}"
                 )
         if len(indexes) == 1:
             return indexes[0]

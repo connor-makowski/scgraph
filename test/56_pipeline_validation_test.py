@@ -312,19 +312,6 @@ def test_a_hub_with_a_connector_to_each_of_its_modes_passes():
     assert result.is_success, result.failures
 
 
-def test_a_hub_passes_on_a_file_whose_query_points_snap_to_roads(tmp_path):
-    # A built network file names the mode `road` for its query points. A hub
-    # case starts at the node of its hub, which is not a road node.
-    network = hub_network()
-    network.default_node_addition_modes = ["road"]
-    file = str(tmp_path / "hubs.scgraph")
-    network.save_as_scgraph(file)
-
-    result = validate_network(file, [PORT, FLIGHT])
-
-    assert result.is_success, result.failures
-
-
 def test_a_port_fails_when_its_route_to_the_railway_leaves_by_road():
     network = hub_network(without=("port", "rail node"))
 

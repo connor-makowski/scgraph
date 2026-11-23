@@ -258,7 +258,7 @@ class GeoGraphIO:
 
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
-        - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_metric`, `default_node_addition_modes` and the GeoGraph defaults are saved
+        - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_metric` and the GeoGraph defaults are saved
         - The nodes are written in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `source_node_ids`
         - Coordinates that are not finite numbers raise a ValueError
 
@@ -317,7 +317,6 @@ class GeoGraphIO:
             node_modes=self.node_modes,
             metrics=self.metrics,
             classes=classes,
-            node_addition_modes=self.default_node_addition_modes,
             default_metric=self.default_metric,
         )
         # A cached network must stay the one its cache.json names
@@ -758,7 +757,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes`, `classes`, `node_addition_modes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `source_node_ids`
+        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes`, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `source_node_ids`
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
         info = network_file.get_scgraph_info(filename)
@@ -794,11 +793,11 @@ class GeoGraphIO:
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
         - `source_node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_mode_ids` and `node_modes` give the node mode of each node
-        - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge; `default_node_addition_modes` holds the `node_addition_modes` of the file: the node modes that the points of a query snap to by default (see `get_shortest_path`)
+        - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge
         - `metrics` holds the metrics of the file, with their weights. An edit of the network removes them, as every metric other than `length` (see `add_edge`). `default_metric` holds the `default_metric` of the file: the metric that a call without `metric` uses
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
         - `scgraph_file` is the path of the file that was read: `GeoGraph.get_scgraph_info(geograph.scgraph_file)` gives its `content_sha256` and the credit line to cite (`attribution`). A later change of the geograph, such as a merge, does not change `scgraph_file`.
-        - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones. On a file with `node_addition_modes`, the first query also builds the index of the nodes of these node modes
+        - The snapping index (`snap_index`) is built while loading, so that the first query is as fast as the next ones. On a file with road nodes and other nodes, the first query also builds the index of the road nodes
 
         Required Arguments:
 
@@ -891,9 +890,6 @@ class GeoGraphIO:
                 arrays[f"weights_{row['name']}"],
                 row["off_graph_weight_per_km"],
             )
-        geograph.default_node_addition_modes = metadata.get(
-            "node_addition_modes"
-        )
         geograph.default_metric = metadata.get("default_metric", "length")
         geograph.reduce(reduce_iterations)
         # Every route snaps its points (node ids depend on how the file was sorted): the
@@ -3162,9 +3158,6 @@ class GeoGraph(
             )
         # The argument of the last `reduce`, for the graph of each metric
         self._reduce_iterations = None
-        # The node modes that a query point snaps to by default, as a network file names
-        # them. None for every node mode.
-        self.default_node_addition_modes = None
         self.node_modes = (
             [dict(mode) for mode in node_modes]
             if node_modes
@@ -4017,7 +4010,7 @@ class GeoGraph(
         length_only: bool = False,
         get_intermediate_nodes: bool | None = None,
         metric: str | None = None,
-        node_addition_modes: list[str] | None = None,
+        snap_to_node_modes: list[str] | None = None,
         output_legs: bool = False,
         **kwargs,
     ) -> dict:
@@ -4185,12 +4178,12 @@ class GeoGraph(
                 - When no route by the metric joins the two points, the PathNotFoundError names the metric: an edge that is closed in the metric cannot be taken
                 - With `algorithm_fn='a_star'`, the bound of `geograph.haversine` or of `geograph.cheap_ruler` is a length: the geograph multiplies it by the smallest weight of 1 km of an edge in the metric. Another `heuristic_fn` is used as it is: it must give a lower bound of the total of the metric between two nodes
                 - The weight of an off-graph leg is its km times the weight of 1 km in the metric (`off_graph_weight_per_km` in `metrics`), with `node_addition_circuity` during pathfinding and with `off_graph_circuity` in the reported totals
-        - `node_addition_modes`
+        - `snap_to_node_modes`
             - Type: list of str | None
             - What: The names of the node modes (see `node_modes`) that the origin and the destination may snap to: each one is connected only to nodes of these node modes, for every `node_addition_type`
-            - Default: None (the node modes of `default_node_addition_modes` that have a node in the geograph, and the nodes without a named node mode, such as a node that `add_coord_node` added without `node_mode`; every node mode if there are none)
+            - Default: None (the road nodes when the geograph has a node of the node mode `road`, and the nodes that `add_coord_node` added without `node_mode`; every node otherwise)
             - Notes:
-                - EG: `geograph.get_shortest_path(origin_node, destination_node, node_addition_modes=["road"])` starts and ends the path on a road, also when a railway or a sea lane is closer
+                - EG: `geograph.get_shortest_path(origin_node, destination_node, snap_to_node_modes=["road"])` starts and ends the path on a road, also when a railway or a sea lane is closer
                 - An empty list, a name that is not in `node_modes`, or node modes that no node has, raise a ValueError
                 - The first query that snaps to a node mode builds the snapping index of its nodes. The geograph keeps it until its nodes change
         - `output_legs`
@@ -4292,7 +4285,7 @@ class GeoGraph(
         destination_node_addition_type = self.__get_node_addition_type__(
             destination_node_addition_type
         )
-        snap_index = self._snap_indexes.get_index(self, node_addition_modes)
+        snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
 
         # If auto lat lon bounds are needed, then calculate them.
         if "all" in [node_addition_type, destination_node_addition_type]:
@@ -4477,7 +4470,7 @@ class GeoGraph(
                 raise PathNotFoundError(
                     f"No route by the metric {metric!r} joins the two points. An "
                     "edge that is closed in this metric cannot be taken: check the "
-                    "weights of the metric, and `node_addition_modes`, which names "
+                    "weights of the metric, and `snap_to_node_modes`, which names "
                     "the node modes that the points snap to."
                 ) from error
             error.add_note(
@@ -4553,7 +4546,7 @@ class GeoGraph(
         *,
         metric: str | None = None,
         output_metric: str | None = None,
-        node_addition_modes: list[str] | None = None,
+        snap_to_node_modes: list[str] | None = None,
     ) -> list[list[int | float | None]]:
         """
         Function:
@@ -4595,7 +4588,7 @@ class GeoGraph(
             - Notes:
                 - EG: `geograph.distance_matrix(nodes, metric="hours", output_metric="length")` gives the lengths of the fastest paths
                 - With an `output_metric` other than `metric`, the call is slower: it reads the path of each pair, where it otherwise reads only its total
-        - `node_addition_modes`
+        - `snap_to_node_modes`
             - Type: list of str | None
             - What: The names of the node modes (see `node_modes`) that the nodes of the matrix may snap to, as in `get_shortest_path`
             - Default: None (as in `get_shortest_path`)
@@ -4637,7 +4630,7 @@ class GeoGraph(
             off_graph_weight_per_unit = self._read_metric(
                 output_metric
             ).off_graph_weight_per_km
-        snap_index = self._snap_indexes.get_index(self, node_addition_modes)
+        snap_index = self._snap_indexes.get_index(self, snap_to_node_modes)
         # Get the entry idx for each node as well as the distance to that node given the off-graph circuity
         # [(entry_idx, distance), ...]
         entry_idx_and_distance = []

@@ -55,9 +55,6 @@ WHAT A PIPELINE MODULE HOLDS
   of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
-- `NODE_ADDITION_MODES`, optional: a tuple of names of the node modes table. A query
-  point then snaps to a node of these node modes by default. The runner writes them into
-  the header of a network that `build` returns as arrays.
 - `CLASSES`, optional: the classes table of the pipeline, in place of the table of
   this package (see *The classes*).
 

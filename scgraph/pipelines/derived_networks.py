@@ -73,8 +73,6 @@ WHAT THE HEADER OF A DERIVED FILE RECORDS
   is kept, because the header does not record what uses it. For example, the land mask
   of the connectors uses Natural Earth;
 - `software`: the software that derived the file;
-- `node_addition_modes`: those of the parent file that the derived file holds. The
-  header has no such key when none is left;
 - `derivation`: the `parent_content_sha256`, and the `node_modes`, the `bbox` and the
   `min_component_nodes` of the call.
 
@@ -337,11 +335,6 @@ def derive_network_file(
         "bbox": bbox,
         "min_component_nodes": min_component_nodes,
     }
-    node_addition_modes = [
-        name
-        for name in parent_metadata.get("node_addition_modes", [])
-        if node_modes is None or name in node_modes
-    ]
     return network_file.write(
         derived_file,
         graph,
@@ -351,8 +344,6 @@ def derive_network_file(
             # The derived file holds the lengths, and no other metric
             metrics=parent_metadata["metrics"][:1],
             classes=parent_metadata.get("classes"),
-            # Without a kept node mode among them, the derived file has no such key
-            node_addition_modes=node_addition_modes or None,
         ),
     )
 

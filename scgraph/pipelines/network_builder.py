@@ -285,7 +285,6 @@ def _write_network(
             metadata,
             node_modes=node_modes,
             classes=classes,
-            node_addition_modes=getattr(pipeline, "NODE_ADDITION_MODES", None),
         ),
     )
 
