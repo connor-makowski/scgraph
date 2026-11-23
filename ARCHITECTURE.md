@@ -457,7 +457,7 @@ All multi-byte integers are **little-endian**:
 | next | 0 to 63 | Zeros, up to a multiple of 64 bytes |
 | array section | variable | The arrays, each starting at a multiple of 64 bytes |
 
-In the example, the header of 1,624 bytes ends at byte 1,671, so the arrays start at byte 1,728.
+In the example, the header of 1,607 bytes ends at byte 1,654, so the arrays start at byte 1,664.
 
 ### Header JSON Schema
 
@@ -468,14 +468,13 @@ The header of the example, one line for each array and row:
   "arrays": {
     "edge_class_ids": {"dtype": "uint8", "offset": 256, "shape": [10]},
     "heads": {"dtype": "int32", "offset": 64, "shape": [10]},
-    "node_mode_ids": {"dtype": "uint8", "offset": 512, "shape": [6]},
-    "node_points": {"dtype": "int32", "offset": 640, "shape": [6, 2]},
+    "metric_hours": {"dtype": "float64", "offset": 320, "shape": [10]},
+    "metric_length": {"dtype": "float64", "offset": 128, "shape": [10]},
+    "node_points": {"dtype": "int32", "offset": 576, "shape": [6, 2]},
     "offsets": {"dtype": "int32", "offset": 0, "shape": [7]},
-    "shape_offsets": {"dtype": "int32", "offset": 576, "shape": [11]},
-    "shape_points": {"dtype": "int32", "offset": 704, "shape": [4, 2]},
-    "source_node_ids": {"dtype": "int32", "offset": 448, "shape": [6]},
-    "weights_hours": {"dtype": "float64", "offset": 320, "shape": [10]},
-    "weights_length": {"dtype": "float64", "offset": 128, "shape": [10]}
+    "shape_offsets": {"dtype": "int32", "offset": 512, "shape": [11]},
+    "shape_points": {"dtype": "int32", "offset": 640, "shape": [4, 2]},
+    "source_node_ids": {"dtype": "int32", "offset": 448, "shape": [6]}
   },
   "format_version": 1,
   "metadata": {
@@ -492,9 +491,9 @@ The header of the example, one line for each array and row:
       {"description": "Travel time.", "name": "hours", "off_graph_weight_per_km": 0.03333333333333333, "unit": "h"}
     ],
     "node_modes": [
-      {"name": "road", "source": "osm"},
-      {"name": "sea", "source": "sea"},
-      {"name": "port", "source": "ports"}
+      {"name": "road", "node_count": 3, "source": "osm"},
+      {"name": "sea", "node_count": 2, "source": "sea"},
+      {"name": "port", "node_count": 1, "source": "ports"}
     ],
     "node_order": "hilbert",
     "pipeline": {"name": "example", "region": "normandy", "version": 1},
@@ -518,7 +517,7 @@ The header of the example, one line for each array and row:
 | `metadata.metrics` | `list[dict]` | One row for each metric, `length` first. |
 | `metadata.symmetric` | `bool` | Whether every edge has a reverse edge of the same length. |
 | `metadata.node_order` | `str` | `"hilbert"`. |
-| `metadata.node_modes` | `list[dict]` | One row for each node mode: its `name`, and the `source` of its node ids. |
+| `metadata.node_modes` | `list[dict]` | One row for each node mode: its `name`, the `source` of its node ids, and its `node_count`. |
 | `metadata.classes` | `list[dict]` | Only with `edge_class_ids`: one row for each class, its `name` and `edge_mode`. 255 rows at most. |
 | `metadata.default_metric` | `str` | Optional. The metric that a query without `metric` minimises; `length` without this key. |
 | `metadata.pipeline` | `dict` | The pipeline that built the file: `name`, `region`, and `PIPELINE_VERSION` as `version`. |
@@ -529,9 +528,9 @@ The header of the example, one line for each array and row:
 
 **A row of `metrics`.** It has the `name` of the metric (small letters, digits and `_`, starting with a letter), and may have a free-text `unit` and `description`. The row of `length` has its `unit`: `km`, `m`, `mi` or `ft`. Each other row has `off_graph_weight_per_km`, zero or more: the weight of 1 km of an off-graph leg.
 
-**The node order.** `"hilbert"` numbers the nodes by node mode, in the order of `metadata.node_modes`, then along a 2D Hilbert curve. In the example: road nodes 0 to 2, sea nodes 3 and 4, port 5. A read of some node modes relies on this order.
+**The node order.** The nodes are sorted by node mode, in the order of the rows of `metadata.node_modes`: this sort is a rule of the format. The nodes of the first row have the ids `0` to `node_count - 1`, and the next rows follow. `"hilbert"` orders the nodes of one node mode along a 2D Hilbert curve.
 
-**One node mode.** Such a network has no `node_mode_ids`. If its node mode has no name, the file has no `node_modes`.
+**One node mode.** If the node mode of a network has no name, the file has no `node_modes`.
 
 ### Stored Binary Arrays
 
@@ -548,18 +547,17 @@ The latitude comes first, as in `EPSG:4326`; `save_as_geojson` puts the longitud
 | :--- | :--- | :--- | :--- | :--- |
 | `offsets` | `int32` | $N + 1$ | node, and one more | The id of its first edge: the edges of node $u$ are `offsets[u]` to `offsets[u+1] - 1`. |
 | `heads` | `int32` | $M$ | edge | Its end node. |
-| `weights_length` | `float64` | $M$ | edge | Its length, in the `unit` of `length`. |
-| `weights_<name>` *(opt)* | `float64` | $M$ | edge | Its weight in the metric `<name>`, infinity if closed, never below zero or NaN. |
+| `metric_length` | `float64` | $M$ | edge | Its length, in the `unit` of `length`. |
+| `metric_<name>` *(opt)* | `float64` | $M$ | edge | Its weight in the metric `<name>`, infinity if closed, never below zero or NaN. |
 | `node_points` | `int32` or `float64` | $N \times 2$ | node | Its latitude, then its longitude. |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | edge, and one more | The id of its first shape point: edge $e$ has points `shape_offsets[e]` to `shape_offsets[e+1] - 1`. |
 | `shape_points` *(opt)* | as `node_points` | $K \times 2$ | shape point | Its latitude, then its longitude. |
 | `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | node | Its id in its source, such as a 64-bit OpenStreetMap id. |
-| `node_mode_ids` *(opt)* | `uint8` | $N$ | node | Its node mode id: a row of `metadata.node_modes`. |
 | `edge_class_ids` *(opt)* | `uint8` | $M$ | edge | Its class id: a row of `metadata.classes`, or 255 for no class. |
 
 * **Coordinates**: `float64` is in degrees, exact. `int32` is in $10^{-7}$ degree, as in OpenStreetMap: about 1.1 cm at the equator, in 4 bytes instead of 8.
 * **`source_node_ids`**: a node that the build adds has an id below zero. No two nodes of one node mode have the same id; `read` does not check it.
-* **`node_mode_ids`**: a node has one node mode, so a value is a position, not a set of bits. 256 node modes at most.
+* **Weights**: `read` refuses weights of another dtype than `float64`, with a message that names the metric and the two dtypes.
 * **`edge_class_ids`**: a program reads the name of a class from the header: a later version may give a class another position.
 
 The arrays of the example, weights rounded (count of values in parentheses):
@@ -567,19 +565,18 @@ The arrays of the example, weights rounded (count of values in parentheses):
 ```
 offsets (7): [0, 1, 4, 5, 6, 8, 10]
 heads (10): [1, 2, 0, 5, 1, 4, 5, 3, 1, 4]
-weights_length (10): [12.3, 73.6, 12.3, 1.4, 73.6, 96.9, 17.3, 96.9, 1.4, 17.3]
-weights_hours (10): [0.15, 0.67, 0.15, 0.02, 0.67, 3.23, 0.58, 3.23, 0.02, 0.58]
+metric_length (10): [12.3, 73.6, 12.3, 1.4, 73.6, 96.9, 17.3, 96.9, 1.4, 17.3]
+metric_hours (10): [0.15, 0.67, 0.15, 0.02, 0.67, 3.23, 0.58, 3.23, 0.02, 0.58]
 node_points (12): [494190000, 2330000, 494944000, 1079000, 494431000, 10993000, 502000000, -10000000, 495500000, -1000000, 494833000, 1167000]
 shape_offsets (11): [0, 0, 2, 2, 2, 4, 4, 4, 4, 4, 4]
 shape_points (8): [495300000, 4500000, 495200000, 8000000, 495200000, 8000000, 495300000, 4500000]
 source_node_ids (6): [103, 102, 101, 1, 0, 35840]
-node_mode_ids (6): [0, 0, 0, 1, 1, 2]
 edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 ```
 
 ### Finding the Node Mode, the Class and the Shape
 
-**A node mode.** Node 5 has `node_mode_ids[5]` = 2, and row 2 of `node_modes` is `port`. Its point is values 10 and 11 of `node_points`: 49.4833 and 0.1167 degrees. Its source node id, 35840, is its World Port Index number; the other ids are made up.
+**A node mode.** The counts of `node_modes` put node 5 after 3 road nodes and 2 sea nodes, in row 2: `port`. Its point is values 10 and 11 of `node_points`: 49.4833 and 0.1167 degrees. Its source node id, 35840, is its World Port Index number; the other ids are made up.
 
 **A class.** The edges of node 5 are `offsets[5]` = 8 to `offsets[6] - 1` = 9. Edge 8 goes to `heads[8]` = 1, Le Havre. Its class id `edge_class_ids[8]` = 2 is the row `road_connector`, of edge mode `road`. Edge 9 goes to node 4, with class id 3 (`sea_connector`, edge mode `sea`), 17.3 km and 0.58 hour.
 
@@ -589,11 +586,11 @@ edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 
 `network_file.read` copies the arrays into memory, or maps the file with `mapped=True` on a little-endian computer. In the C++ build, `load_from_scgraph` always maps the file.
 
-**Some node modes.** With `node_modes`, `read` keeps the nodes of these node modes and the edges between them. `select_edges` finds the nodes of each node mode, then visits each edge of the kept nodes once (`scgraph/cpp/src/edge_selection.hpp`).
+**Some node modes.** With `node_modes`, `read` keeps the nodes of these node modes and the edges between them. It builds the node mode of each node from the counts of the header. `select_edges` then visits each edge of the kept nodes once (`scgraph/cpp/src/edge_selection.hpp`).
 
 `select_edges` writes new `offsets`, `heads` and `shape_offsets`. The other arrays keep their values: a kept edge keeps its class and weights. A mapped read takes them in place when they are consecutive in the file, and copies them otherwise.
 
-A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which becomes node 3. It keeps six edges, `heads` = `[1, 2, 0, 3, 1, 1]`, and drops the four sea edges. `metadata.node_modes` and `metadata.classes` stay whole: `node_mode_ids` = `[0, 0, 0, 2]`.
+A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which becomes node 3. It keeps six edges, `heads` = `[1, 2, 0, 3, 1, 1]`, and drops the four sea edges. `metadata.node_modes` keeps the counts of the whole file, and `metadata.classes` stays whole. `build_node_mode_ids` gives the kept nodes the ids `[0, 0, 0, 2]`.
 
 #### The Checks of a Read
 
@@ -601,26 +598,25 @@ A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which beco
 
 1. The file starts with `SCGRAPH1`, and its header is valid JSON inside the file.
 2. `format_version` is `1`; otherwise the message gives the version of the file.
-3. The header is not of an earlier development version, such as `units` without `metrics`.
+3. The header is not of an earlier development version (*Compatibility Between Versions*).
 4. Each name given in `node_modes` is in `metadata.node_modes`.
-5. Each known array, `weights_<name>` included, has a dtype of the table, and lies inside the file from a multiple of 64 bytes.
+5. Each known array, `metric_<name>` included, has a dtype of the table, and lies inside the file from a multiple of 64 bytes.
 6. Every array not marked *(opt)* is there, both shape arrays or neither, each with its length. `offsets` goes from `0` to $M$, `shape_offsets` from `0` to $K$.
 7. The first metric is `length`, with a `unit`. Each metric has its array of weights, and the reverse. Each other metric has `off_graph_weight_per_km`.
 8. The point arrays have one dtype, and `default_metric` names a metric of the file.
-9. `node_mode_ids` comes with a list `node_modes`, and `edge_class_ids` with a list `classes` of 255 rows at most, each with a `name` and an `edge_mode`.
-10. A read that copies the whole file checks the values: the offsets do not decrease, each head is a node, and each id is a row of its list, or 255 for a class.
+9. `metadata.node_modes` has 256 rows at most, whose `node_count` values add up to $N$.
+10. `edge_class_ids` comes with a list `classes` of 255 rows at most, each with a `name` and an `edge_mode`.
+11. A read that copies the whole file checks the values: the offsets do not decrease, each head is a node, and each class id is a row of `classes`, or 255.
 
-A mapped read does not check the values; the C++ graph checks offsets and heads when built. A read of some node modes checks each value it reads, and that `node_mode_ids` does not decrease.
+A mapped read does not check the values; the C++ graph checks offsets and heads when built. A read of some node modes checks each value that it reads.
 
 `read` does not check the weights: `create_metric` refuses a weight below zero or not a number. Nor does it check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 
-### Why an Array of Ids, and Not Groups With Offsets
+### Why Node Modes Are Counts and Classes Are an Array
 
-**The edges.** A search needs the edges of a node together, so the file stores the edges by origin node, and cannot also group them by class. The other ways are one set of edge arrays for each class, or the class of each edge beside it. With 27 classes, the first costs more than the one byte for each edge of `edge_class_ids`.
+**The nodes.** The file groups the nodes by node mode, and the header gives the `node_count` of each group. The nodes of a node mode are thus one range of node ids, and the file needs no array for the node mode of a node. A read of some node modes takes the ranges from the counts, and a load builds `geograph.node_mode_ids` from them.
 
-**The nodes.** scgraph writes the nodes sorted by node mode, so the nodes of a node mode are one range of node ids. The array `node_mode_ids` repeats what this order says. Ranges of node ids in the header would hold the same information.
-
-**The cost.** In the released network `europe` without shapes (1,056,450 nodes, 2,085,191 edges, 49.3 MB), `node_mode_ids` takes 1.06 MB (2.1 %) and `edge_class_ids` 2.09 MB (4.2 %). `weights_length` takes 16.7 MB (33.8 %), and `source_node_ids` 8.5 MB (17.1 %). The download is smaller still: with gzip, a sorted array of small ids compresses to almost nothing.
+**The edges.** A search needs the edges of a node together, so the file stores the edges by their origin node. It cannot also group them by class. The class of each edge is therefore one byte beside the edge, in `edge_class_ids`.
 
 ### Compatibility Between Versions
 
@@ -628,5 +624,11 @@ A later version can add an optional array or a metadata key and keep `format_ver
 
 - `read` ignores an array whose name it does not know.
 - `read` keeps all the keys of `metadata`, known or not. `GeoGraph.get_scgraph_info` returns them all.
+
+`read` refuses a file of an earlier development version, which has one of these signs:
+
+- `units` without `metrics`, or a metric with `off_graph_per_km`.
+- An array `node_ids`, `node_modes`, `edge_classes`, `weights_length` or `node_mode_ids`.
+- A row of `node_modes` without `node_count`, or a class with `mode` or a `null` name.
 
 `format_version` changes when an earlier version would refuse a file or read it incorrectly. Examples: a new array that the graph needs, or a new meaning for the values of an array.
