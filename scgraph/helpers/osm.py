@@ -16,7 +16,7 @@ that order) or 0 (both ways). It returns None to exclude the way. In place of th
 direction, it may return a pair: the direction and the name of the class of the way.
 
 A pipeline gives its select functions as `{node mode: {kind: select}}`. A node mode is
-the type of place where a node is, such as `road` or `rail`. The ways of one node mode
+the kind of place where a node is, such as `road` or `rail`. The ways of one node mode
 are cut and joined together: their nodes get this node mode. A node mode has one select
 function for each kind of way. `read_osm` takes one select function for all its ways.
 
