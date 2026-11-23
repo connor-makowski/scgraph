@@ -242,9 +242,7 @@ from scgraph.files import download_file
 from scgraph.networks import BUILDABLE_NETWORKS
 from scgraph.utils import has_cpp
 
-__all__ = ["CLASSES", "NAMES", "download_file"]
-
-NAMES = BUILDABLE_NETWORKS
+__all__ = ["BUILDABLE_NETWORKS", "CLASSES", "download_file"]
 
 
 def build_metadata(

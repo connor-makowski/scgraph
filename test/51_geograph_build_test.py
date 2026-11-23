@@ -999,7 +999,11 @@ def test_list_buildable_geographs_matches_the_names_build_geograph_takes(
     names = [n["name"] for n in listing]
     annotation = typing.get_type_hints(GeoGraph.build_geograph)["name"]
     literal = typing.get_args(annotation)[0]  # Literal[...] | None
-    assert names == list(pipelines.NAMES) == list(typing.get_args(literal))
+    assert (
+        names
+        == list(pipelines.BUILDABLE_NETWORKS)
+        == list(typing.get_args(literal))
+    )
 
 
 # Two roads on the two sides of a strait, and five ferries. Each node is

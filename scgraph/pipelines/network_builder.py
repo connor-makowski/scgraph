@@ -95,7 +95,7 @@ def _resolve_pipeline(
         # and each would load the network of the other. A name with other
         # characters could give a path outside the cache.
         if not re.fullmatch(r"\w+", module_name) or (
-            module_name in pipelines.NAMES
+            module_name in pipelines.BUILDABLE_NETWORKS
             and pipeline.__name__ != f"scgraph.pipelines.{module_name}"
         ):
             raise ValueError(
@@ -107,13 +107,15 @@ def _resolve_pipeline(
             "Give one of name, a network of scgraph, and pipeline, a pipeline "
             "module of your own"
         )
-    if name not in pipelines.NAMES:
+    if name not in pipelines.BUILDABLE_NETWORKS:
         # `str`: a caller may give a module as the name
-        close = difflib.get_close_matches(str(name), pipelines.NAMES, n=3)
+        close = difflib.get_close_matches(
+            str(name), pipelines.BUILDABLE_NETWORKS, n=3
+        )
         hint = f" Did you mean {', '.join(map(repr, close))}?" if close else ""
         raise ValueError(
             f"Unknown network {name!r}.{hint} Available: "
-            f"{', '.join(pipelines.NAMES)}. Pass a pipeline module of your own "
+            f"{', '.join(pipelines.BUILDABLE_NETWORKS)}. Pass a pipeline module of your own "
             "as pipeline=<module>"
         )
     return importlib.import_module(f"scgraph.pipelines.{name}"), name

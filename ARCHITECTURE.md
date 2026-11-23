@@ -55,7 +55,7 @@ The runner, `network_builder.py`, runs a pipeline. `build_network_file` download
 A build runs steps. The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for each step:
 
 * **Read the sources (`steps.step1_osm_ways`)**:
-  `step1_osm_ways` reads the ways of an OpenStreetMap file with `locate_ways` of `scgraph/helpers/osm.py`, from disk or by HTTP byte ranges (`step1_osm_planet_reader`). `step1_osm_ways.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`step3_network_assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
+  `step1_osm_ways` reads the ways of an OpenStreetMap file with `locate_ways` of `scgraph/helpers/osm.py`, from disk or by HTTP byte ranges (`step1_osm_range_streamer`). `step1_osm_ways.build_way_pieces` cuts each kept way into pieces and simplifies the shape of each piece to within 50 m (`step3_network_assembly.simplify_shapes`, with `scgraph/helpers/douglas_peucker.py`).
 * **Join the networks (`steps.step2_hub_connectors`, `steps.step2_land_mask`)**:
   `step2_hub_connectors.join_networks_at_hubs` joins the networks of roads, of railways and of sea lanes at hubs: ports, airports and rail terminals. `step2_land_mask` tells land from water on a Natural Earth raster, and finds the water path of a sea connector (`find_water_path_cells`).
 * **Assemble the graph (`steps.step3_network_assembly`)**:

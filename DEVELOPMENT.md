@@ -57,7 +57,7 @@ scgraph/
     network_builder.py           # The runner: build_network_file (download, build, cache); runs with python -m
     derived_networks.py          # derive_network_file: some node modes and a bbox of another network file; runs with python -m
     data/                        # Hub tables: ports, airports, flights and rail terminals (data/README.md)
-    steps/                       # step1_osm_ways, step1_osm_planet_reader, step2_hub_connectors, step2_land_mask,
+    steps/                       # step1_osm_ways, step1_osm_range_streamer, step2_hub_connectors, step2_land_mask,
     │                            #   step3_network_assembly, step4_validation_cases, near_nodes (ARCHITECTURE.md §1)
   helpers/
     geojson.py, visvalingam.py, douglas_peucker.py  # GeoJSON parsing; line simplification (Visvalingam-Whyatt, Douglas-Peucker)
