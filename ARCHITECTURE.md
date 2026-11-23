@@ -330,8 +330,8 @@ flowchart TD
   * `member_offsets`, `members`: the ids of the input edges that each contracted edge replaces.
 * `node_mode_ids` is optional. A chain is never contracted across two node modes.
 * `edge_class_ids` is optional: the class of each edge. The header of `step3_network_assembly.py` gives its rule.
-* `max_km_between_nodes` cuts a chain into segments of about that length (default: no cut).
-* A segment that would create a self-loop or a duplicate edge is split at its midpoint. So the node that the build put in the middle of a split edge is kept (section 1, *Assemble the graph*).
+* `max_km_between_nodes` cuts a chain into pieces of about that length (default: no cut).
+* A piece that would create a self-loop or a duplicate edge is split at its midpoint. So the node that the build put in the middle of a split edge is kept (section 1, *Assemble the graph*).
 * `build_chain_shapes` gives each contracted edge the shape points of its members.
 
 ---
