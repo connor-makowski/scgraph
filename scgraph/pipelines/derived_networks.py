@@ -4,38 +4,39 @@ WHAT IT ANSWERS
 
 The network `world_multimodal` holds the roads, the railways, the sea lanes and the
 flights of the world. `derive_network_file` takes a network file, the "parent file". It
-writes a smaller network as a new network file, the "derived file". The derived file
-holds some modes of the parent file, and its land networks inside a "bbox". A bbox
-is a rectangle of latitudes and longitudes: `(south, west, north, east)`, in degrees.
-A network release publishes `world_multimodal` and the networks derived from it.
-`DERIVED_NETWORKS` names each derived network, with its modes or its bbox.
+writes a smaller network as a new network file, the "derived file". The node mode of a
+node is the kind of place where the node is, such as `road` or `port`. The derived file
+holds some node modes of the parent file, and its land networks inside a "bbox". A bbox
+is a rectangle of latitudes and longitudes: `(south, west, north, east)`, in degrees. A
+network release publishes `world_multimodal` and the networks derived from it.
+`DERIVED_NETWORKS` names each derived network, with its node modes or its bbox.
 `derive_network_release_files` writes all the derived files of a network release.
 
 Each route of the derived file is a route of the parent file, with the same length.
 
 WHAT IT READS
 
-A pipeline with several modes built the parent file, for example `osm_world_multimodal`.
-The file holds the mode of each node and the shape of each edge. Its coordinates are
-int32 values, in units of 1e-7 degree. `derive_network_file` maps the parent file, and
-copies into memory only the nodes and the edges that it keeps.
+A pipeline with several node modes built the parent file, for example
+`osm_world_multimodal`. The file holds the node mode of each node and the shape of each
+edge. Its coordinates are int32 values, in units of 1e-7 degree. `derive_network_file`
+maps the parent file, and copies into memory only the nodes and the edges that it keeps.
 
 HOW A RUN GOES
 
-1. Select the nodes. A node is selected when its mode is one of `node_modes`. A node of
-   a land mode (`LAND_MODES`) must also be inside `bbox`. The bbox does not cut the
-   other node modes: their nodes all stay. A `node_modes` of None keeps every mode. A
-   `bbox` of None cuts nothing.
+1. Select the nodes. A node is selected when its node mode is one of `node_modes`. A
+   node of a land node mode (`LAND_MODES`) must also be inside `bbox`. The bbox does not
+   cut the other node modes: their nodes all stay. A `node_modes` of None keeps every
+   node mode. A `bbox` of None cuts nothing.
 2. Cut the graph. An edge stays when its two ends are selected.
 3. Keep each strongly connected component of at least `min_component_nodes` nodes.
    An edge between two components is dropped. The chains are not contracted again: a
    junction that lost a road in step 2 stays as a node.
-4. Write the derived file. Its nodes keep the order of the parent file: by mode, then
-   along a Hilbert curve. Its modes table holds the kept modes only. As in every
-   network file, a derived file with one mode has no `node_mode_ids`. If the parent
-   file has `edge_class_ids`, each kept edge keeps its class, and the derived file holds
-   the whole list of classes. The derived file holds the lengths of the edges, and
-   no other metric of the parent file.
+4. Write the derived file. Its nodes keep the order of the parent file: by node mode,
+   then along a Hilbert curve. Its node modes table holds the kept node modes only. As
+   in every network file, a derived file with one node mode has no `node_mode_ids`. If
+   the parent file has `edge_class_ids`, each kept edge keeps its class, and the derived
+   file holds the whole list of classes. The derived file holds the lengths of the
+   edges, and no other metric of the parent file.
 
 Example: a two-way road joins the nodes 1, 2 and 3 along the equator, with 3 km
 between two nodes. A second two-way road goes from node 2 to node 4, which is two
@@ -43,8 +44,8 @@ degrees north. Node 10 is a port, 1 km from node 3 and 11 km from the sea node 2
 sea lane of 5550 km joins node 20 to the sea node 21, at 50 degrees east. The call
 gives the bbox (-1, -1, 1, 1) and `min_component_nodes=1`.
 
-- Step 1 selects the nodes 1, 2 and 3: they are road nodes inside the bbox. It
-  selects the nodes 10, 20 and 21: the bbox does not cut their modes, and node 21 is
+- Step 1 selects the nodes 1, 2 and 3: they are road nodes inside the bbox. It selects
+  the nodes 10, 20 and 21: the bbox does not cut their node modes, and node 21 is
   outside it. Node 4 is a road node outside the bbox, so it is not selected.
 - Step 2 drops the two edges between the nodes 2 and 4.
 - Step 3 keeps the six nodes. Every edge has an edge back, so they are one component.
@@ -64,13 +65,13 @@ hold: for example an edge between two kept components, which step 3 drops.
 WHAT THE HEADER OF A DERIVED FILE RECORDS
 
 - `pipeline`: the pipeline of the parent file. The header has no `description`: the
-  description of the parent file names modes that the derived file may not hold;
-- `sources`: the sources of the parent file that serve the derived file. A mode uses
-  the source of its node ids, which the modes table names. The mode `airport` also
-  uses the source `flights`, because a flight joins two airports. A source is
-  removed when only removed modes use it. A source that no mode uses is kept,
-  because the header does not record what uses it. For example, the land mask of
-  the connectors uses Natural Earth;
+  description of the parent file names networks that the derived file may not hold;
+- `sources`: the sources of the parent file that serve the derived file. A node mode
+  uses the source of its node ids, which the node modes table names. The node mode
+  `airport` also uses the source `flights`, because a flight joins two airports. A
+  source is removed when only removed node modes use it. A source that no node mode uses
+  is kept, because the header does not record what uses it. For example, the land mask
+  of the connectors uses Natural Earth;
 - `software`: the software that derived the file;
 - `node_addition_modes`: those of the parent file that the derived file holds. The
   header has no such key when none is left;
@@ -81,9 +82,9 @@ HOW A DERIVED FILE IS VALIDATED
 
 `validate_derived_network_file` reads the validation cases of the pipeline of the parent
 file. It selects a case when two conditions hold. The two ends of the case are inside
-the bbox. The derived file holds the modes on which the kind of the case searches its
-routes (`RULES` of `step4_validation_cases`). Some kinds search on every mode: the derived
-file must then hold every mode of the parent file.
+the bbox. The derived file holds the node modes on which the kind of the case searches
+its routes (`RULES` of `step4_validation_cases`). Some kinds search on every node mode:
+the derived file must then hold every node mode of the parent file.
 
 The derived file passes when it fails no selected case that the parent file passes.
 A case that fails in both files does not show a defect of the derivation.
@@ -120,19 +121,18 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["derive_network_file"]
 
-# The modes that a bbox cuts. The nodes of the other modes (`sea`, `port`,
+# The node modes that a bbox cuts. The nodes of the other node modes (`sea`, `port`,
 # `airport`) all stay. A route can then leave the bbox by sea or by air, and reach a
 # port or an airport outside it.
 LAND_MODES = ("road", "rail", "rail_terminal")
-# The source of the edges of a mode, when it is not the source of its node ids. The
-# flights of `step2_hub_connectors` join two airports: a file without the mode
-# `airport` holds no flight.
+# The source of the edges of a node mode, when it is not the source of its node ids. A
+# flight joins two airports: a file without the node mode `airport` holds no flight.
 _EDGE_SOURCE_OF_MODE = {"airport": "flights"}
 # The bbox of a call without a bbox: every point is inside it.
 _WHOLE_GLOBE = (-90, -180, 90, 180)
 # The networks that a network release derives from the file of `world_multimodal`.
 # An entry gives the arguments of `derive_network_file` for one network. `node_modes`
-# names the modes to keep. `bbox` is the rectangle that cuts the land networks, as
+# names the node modes to keep. `bbox` is the rectangle that cuts the land networks, as
 # (south, west, north, east) in degrees.
 DERIVED_NETWORKS: dict[str, dict] = {
     "world_sea": {"node_modes": ["sea", "port"]},
@@ -146,8 +146,8 @@ DERIVED_NETWORKS: dict[str, dict] = {
     "north_asia": {"bbox": (40, 45, 78, 180)},
     "oceania": {"bbox": (-50, 110, 0, 180)},
 }
-# What a network release says of each derived network that keeps some modes of the
-# world. `describe_derived_network` writes the sentence of a network with a bbox.
+# The description of each derived network that keeps some node modes of the world.
+# `describe_derived_network` writes the sentence of a network with a bbox.
 _MODE_NETWORK_DESCRIPTIONS = {
     "world_sea": "Sea lanes and ports of the world",
     "world_rail": "Railways and rail terminals of the world",
@@ -186,14 +186,14 @@ def derive_network_file(
     keep_shapes: bool = True,
     min_component_nodes: int = 10,
 ) -> str:
-    """Write a smaller network from a network file as a new network file: some of its
-    modes, and its land networks inside a bbox. The module docstring gives the steps.
+    """Write a smaller network file from a network file: some of its node modes, and
+    its land networks inside a bbox. The module docstring gives the steps.
 
     Args:
-        parent_file: The network file to derive from. It holds several modes, the
+        parent_file: The network file to derive from. It holds several node modes, the
             shapes of its edges, and int32 coordinates.
         derived_file: The path of the network file to write.
-        node_modes: The names of the modes to keep. None keeps every mode.
+        node_modes: The names of the node modes to keep. None keeps every node mode.
         bbox: `(south, west, north, east)`, in degrees. A node of `LAND_MODES`
             outside the bbox is removed. None removes no node.
         keep_shapes: False writes the same network without the shapes of its edges.
@@ -206,9 +206,9 @@ def derive_network_file(
 
     Raises:
         ValueError: The south of the bbox is above its north, or its west is beyond
-            its east. Or the parent file has one mode only, no edge shapes, or
-            float64 coordinates. Or `node_modes` names a mode that the parent file does
-            not have. Or the derived file would hold no node.
+            its east. Or the parent file has one node mode only, no edge shapes, or
+            float64 coordinates. Or `node_modes` names a node mode that the parent file
+            does not have. Or the derived file would hold no node.
     """
     # The bbox takes the unit of the node points: 1e-7 degree
     south, west, north, east = (
@@ -297,7 +297,7 @@ def derive_network_file(
     # 4. Write the derived file. `selected` and `kept_nodes` are in rising order, so
     # two kept nodes are in the order that they have in the parent file.
     if len(kept_node_mode_ids) == 1:
-        del graph["node_mode_ids"]  # a network file with one mode has none
+        del graph["node_mode_ids"]  # a network file with one node mode has none
     else:  # a kept node mode takes its id in the new node modes table
         node_mode_id_translation = bytes.maketrans(
             bytes(kept_node_mode_ids), bytes(range(len(kept_node_mode_ids)))
@@ -351,7 +351,7 @@ def derive_network_file(
             # The derived file holds the lengths, and no other metric
             metrics=parent_metadata["metrics"][:1],
             classes=parent_metadata.get("classes"),
-            # Without a kept mode among them, the derived file has no such key
+            # Without a kept node mode among them, the derived file has no such key
             node_addition_modes=node_addition_modes or None,
         ),
     )
@@ -361,8 +361,8 @@ def validate_derived_network_file(
     derived_file: str | os.PathLike, parent_file: str | os.PathLike
 ) -> None:
     """Check that a derived file fails no validation case that its parent file
-    passes. The header of the derived file gives the pipeline, the modes and the
-    bbox. The module docstring says which cases are selected.
+    passes. The header of the derived file gives the pipeline, the node modes and the
+    bbox. The module docstring gives the rule that selects a case.
 
     Args:
         derived_file: A network file that `derive_network_file` wrote.
@@ -384,7 +384,7 @@ def validate_derived_network_file(
     south, west, north, east = derivation["bbox"] or _WHOLE_GLOBE
 
     def is_selected(case):
-        # A kind with an empty tuple of modes searches its routes on every mode
+        # A kind without node modes searches its routes on every node mode
         case_modes = RULES[case["kind"]][0]
         has_the_modes = node_modes is None or (
             bool(case_modes) and set(case_modes) <= set(node_modes)

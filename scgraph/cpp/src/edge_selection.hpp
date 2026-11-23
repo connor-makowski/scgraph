@@ -8,10 +8,10 @@
 // the edges that the load keeps, and it gives the place of each one in the smaller network.
 //
 // WHAT IT ANSWERS
-//   A network file gives a "node mode" to each node: road, rail, port, and so on. A load of
-//   some node modes keeps the nodes of these node modes, the "kept nodes". It keeps the edges
-//   whose origin and whose head are both kept nodes, the "kept edges". The kept nodes and the
-//   kept edges stay in the order of the file. They are the "selection".
+//   The "node mode" of a node is the kind of place where the node is: road, rail, port, and
+//   so on. A load of some node modes keeps the nodes of these node modes, the "kept nodes".
+//   It keeps the edges whose origin and whose head are both kept nodes, the "kept edges". The
+//   kept nodes and the kept edges stay in the order of the file. They are the "selection".
 //   The "position" of a node, of an edge or of a shape point is its rank in the arrays: the
 //   first one has the position 0. Each has a position in the file, and each kept one has a
 //   position in the selection.
@@ -28,7 +28,7 @@
 //     positions offsets[u] to offsets[u + 1] - 1, and heads[a] is the head of the edge a.
 //   - `node_mode_ids` gives the node mode of each node. Its values do not decrease: the nodes
 //     of one node mode are consecutive.
-//   - `is_node_mode_kept` says, for each node mode of the file, whether the load keeps it.
+//   - `is_node_mode_kept` is true for each node mode of the file that the load keeps.
 //   - `shape_offsets` is empty for a file without edge shapes. In a file with shapes, the
 //     shape of the edge a is the shape points at the positions shape_offsets[a] to
 //     shape_offsets[a + 1] - 1.

@@ -196,7 +196,7 @@ def test_an_edge_has_the_class_that_the_default_select_gives_to_its_way(
     }
 
 
-def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_lack(
+def test_class_weight_per_km_may_name_a_class_that_the_loaded_roads_do_not_have(
     osm_file,
 ):
     network = GeoGraph.load_from_osm(osm_file)

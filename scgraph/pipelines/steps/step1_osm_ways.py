@@ -7,11 +7,11 @@ imports `osmium` only when it reads a file.
 WHAT IT ANSWERS
 
 `scgraph.helpers.osm` reads the ways of the file: its docstring explains the select
-functions, the modes and the three passes of `locate_ways`.
-`build_way_pieces` gives the pieces of the kept ways (`step3_network_assembly.PieceArrays`), for a
-pipeline. The kinds are `ways` and `ferries`. The kind `ferries` is special:
-`build_way_pieces` does not cut a ferry by length, and attaches it to the nodes of its
-mode.
+functions and the three passes of `locate_ways`. `build_way_pieces` gives the pieces of
+the kept ways (`step3_network_assembly.PieceArrays`), for a pipeline. The kinds are
+`ways` and `ferries`. The kind `ferries` is special: `build_way_pieces` does not cut a
+ferry by length, and attaches it to the nodes of its node mode. The node mode of a node
+is the kind of place where the node is, such as `road` or `rail`.
 
 A select function may return the direction with the class of the way (docstring of
 `scgraph.pipelines`, *The classes*). Example: for a one-way trunk road,
@@ -123,25 +123,25 @@ def build_way_pieces(
 ) -> dict[str, PieceArrays]:
     """Read the ways of `source` that the select functions keep, and cut them into pieces.
 
-    `selects` gives the select functions as `{mode: {kind: select}}`, as
-    `locate_ways` takes them. One call reads the file once for all the modes. A
-    way is cut at the junctions of its mode, and at the first point where a piece
+    `selects` gives the select functions of each node mode as `{mode: {kind: select}}`,
+    as `locate_ways` takes them. One call reads the file once for all the node modes.
+    A way is cut at the junctions of its node mode, and at the first point where a piece
     reaches `max_km_between_nodes` (`cut_polylines`). A way of the kind "ferries"
     is cut at its junctions only, not by length. Each piece of a ferry joins the
     nodes closest its two ends, if both are within FERRY_END_KM
-    (`build_ferry_edges`). A ferry joins nodes of its own mode: the ends of the
-    pieces of that mode. A piece has the class that the select function gave to
+    (`build_ferry_edges`). A ferry joins nodes of its own node mode: the ends of the
+    pieces of that node mode. A piece has the class that the select function gave to
     its way, if it gave one. With `work_dir`, the positions of the nodes and the
     pieces are kept in files of that folder, and a later call with the same
     inputs reuses them. Each step logs its counts at DEBUG.
 
     Returns:
-        The pieces of each mode (`step3_network_assembly.PieceArrays`), by the name of the mode.
+        The pieces of each node mode, by name (`step3_network_assembly.PieceArrays`).
 
     Raises:
-        ValueError: The select functions of a mode keep no way, and the mode is not in
-            `optional_modes`. The message names the mode. An optional mode without a
-            way has no piece.
+        ValueError: The select functions of a node mode keep no way, and the node mode
+            is not in `optional_modes`. The message names the node mode. An optional
+            node mode without a way has no piece.
     """
     # `StreamedPbf.download` writes a layout file in place of an OSM file that is
     # read by byte ranges. A layout file is JSON, so it starts with "{". An OSM
@@ -150,7 +150,7 @@ def build_way_pieces(
         with open(source, "rb") as file:
             if file.read(1) == b"{":
                 source = StreamedPbf(source)
-    # `PieceArrays` names its files by column, so two modes cannot share a folder.
+    # `PieceArrays` names its files by column, so two node modes cannot share a folder.
     pieces_dirs = {
         mode: os.path.join(work_dir, f"pieces_{mode}") if work_dir else None
         for mode in selects
@@ -205,7 +205,7 @@ def build_way_pieces(
         pieces = {
             mode: PieceArrays(work_dir=pieces_dirs[mode]) for mode in selects
         }
-        # The ferries of each mode, by the id of their class
+        # The ferries of each node mode, by the id of their class
         ferries = {mode: defaultdict(list) for mode in selects}
         for mode, kind, direction, class_name, vertices in ways:
             # A way without a class has no row

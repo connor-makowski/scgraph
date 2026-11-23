@@ -407,7 +407,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         The keys of the metadata of the file, then `content_sha256`,
         `format_version`, `nodes`, `edges`, `coordinate_dtype`, `shapes` and
         `source_node_ids`. `nodes` and `edges` are counts. `shapes` and
-        `source_node_ids` say whether the file holds these arrays.
+        `source_node_ids` are True when the file holds these arrays.
 
     Raises:
         ValueError: The header of the file is not valid.
@@ -456,8 +456,8 @@ def check_content(filename: str | os.PathLike) -> str:
 
 def _read(filename, file, mapped, node_modes):
     """The arrays of the whole file and its metadata. With `node_modes`, the third value
-    says, for each node mode of the file, whether `node_modes` names it. This value is
-    None when the read keeps every node mode."""
+    holds one boolean for each node mode of the file: True when `node_modes` names it.
+    This value is None when the read keeps every node mode."""
     if file.read(8) != MAGIC:
         raise ValueError(f"{filename} is not a scgraph network file")
     digest = file.read(32)
@@ -473,8 +473,8 @@ def _read(filename, file, mapped, node_modes):
             f"this version of scgraph reads version {FORMAT_VERSION}"
         )
     # A file of an earlier development version has `units` and no `metrics`, or a
-    # name that this version no longer reads. Without this message, the read would
-    # only say that an array or a key is missing.
+    # name that this version no longer reads. Without this message, the error would
+    # only name the missing array or key.
     metadata = header["metadata"]
     if (
         ("units" in metadata and "metrics" not in metadata)
@@ -543,7 +543,7 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
     """The arrays of the nodes of the kept node modes, and of the edges between them.
 
     `arrays` holds the whole file, and `_check` has checked the lengths.
-    `is_node_mode_kept` says, for each node mode of the file, whether the read keeps it.
+    `is_node_mode_kept` is True for each node mode of the file that the read keeps.
     `select_edges` computes the arrays whose values change. For the other arrays, it
     gives runs: the ranges of positions of the file that the selection keeps
     (`scgraph/cpp/src/edge_selection.hpp` explains them). With `in_place`, an array

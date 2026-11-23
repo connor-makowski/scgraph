@@ -298,7 +298,7 @@ def test_get_path_edges_gives_the_edges_of_a_path_in_its_order(network):
     ]
 
 
-# A table of cases is a dict. The key of a case says what the case checks, and
+# A table of cases is a dict. The key of a case names what the case checks, and
 # is the id of the case in a test run. The value holds the inputs of the case,
 # then the result that the test expects, when the cases have different results.
 
@@ -320,7 +320,7 @@ REFUSED_READS = {
 @pytest.mark.parametrize(
     "method, argument", REFUSED_READS.values(), ids=REFUSED_READS
 )
-def test_reading_a_node_mode_a_class_a_node_or_an_edge_that_the_network_lacks_is_refused(
+def test_reading_a_node_mode_a_class_a_node_or_an_edge_that_the_network_does_not_have_is_refused(
     network, method, argument
 ):
     with pytest.raises(ValueError):
@@ -584,7 +584,7 @@ def test_weights_per_km_give_each_edge_the_weight_per_km_of_its_class_times_its_
     assert weights == MINUTES_OF_EACH_EDGE
 
 
-def test_an_edge_pays_the_weight_of_a_hub_that_it_enters_or_leaves(network):
+def test_the_hub_weight_is_added_to_an_edge_that_enters_or_leaves_it(network):
     # A train waits 15 minutes at a rail terminal.
     network.create_metric(
         "minutes", **MINUTES, weight_at_hub={"rail_terminal": {"rail": 15.0}}
@@ -922,7 +922,7 @@ def test_a_route_has_no_total_of_a_removed_metric(network_with_minutes):
     assert "metric_totals" not in route
 
 
-def test_remove_metric_refuses_a_metric_that_the_geograph_lacks(
+def test_remove_metric_refuses_a_metric_that_the_geograph_does_not_have(
     network_with_minutes,
 ):
     with pytest.raises(ValueError, match="speed"):
@@ -1187,7 +1187,7 @@ QUERIES_BY_A_METRIC = {
 @pytest.mark.parametrize(
     "method, arguments", QUERIES_BY_A_METRIC.items(), ids=QUERIES_BY_A_METRIC
 )
-def test_a_query_by_a_metric_that_the_geograph_lacks_is_refused(
+def test_a_query_by_a_metric_that_the_geograph_does_not_have_is_refused(
     network, method, arguments
 ):
     with pytest.raises(ValueError, match="speed"):

@@ -42,7 +42,7 @@ def great_circle_km(a, b):
 
 def build_main_roads(files, *, work_dir=None):
     """Build the main roads and the vehicle ferries of the OSM file `files["roads"]`,
-    as the arrays of a network file and a modes table.
+    as the arrays of a network file and a node modes table.
 
     The function is the `build` of a small pipeline for the tests. For the roads
     alone, it runs the steps that the pipeline `geofabrik_multimodal` runs for each

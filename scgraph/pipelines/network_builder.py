@@ -262,7 +262,7 @@ def _write_network(
     """Write the network that the `build` of `pipeline` returned to `filename`, with
     the metadata of the build in its header. Return the digest of the file."""
     if isinstance(network, GeoGraph):
-        # The file has the nodes of each mode in Hilbert order, so that nodes
+        # The file has the nodes of each node mode in Hilbert order, so that nodes
         # close on the globe get close ids
         return network.save_as_scgraph(str(filename), metadata=metadata)
     arrays, node_modes = (

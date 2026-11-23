@@ -39,10 +39,10 @@ WHAT A PIPELINE MODULE HOLDS
 - `build(files)`: the function that builds the network. `files` gives the path of the
   downloaded file of each source, by the name of the source. `build` returns one of:
     - a GeoGraph. `eurostat_sea_lanes` does this, and so does the example below.
-    - `(arrays, modes)`. `arrays` holds the arrays of the network file, as
+    - `(arrays, node_modes)`. `arrays` holds the arrays of the network file, as
       `network_file.write` takes them. The nodes are already in the order of the
-      file: by mode, then along a Hilbert curve (`step3_network_assembly.assemble_network` gives this
-      order). `weights_length` holds km. `node_modes` is the node modes table (see
+      file: by node mode, then along a Hilbert curve (`step3_network_assembly.assemble_network`
+      gives this order). `weights_length` holds km. `node_modes` is the node modes table (see
       below). `geofabrik_multimodal` and `osm_world_multimodal` do this. `arrays` may
       hold `edge_class_ids`, the class of each edge (see *The classes*). The runner then
       writes the rows of `CLASSES` into the header of the network file.
@@ -55,8 +55,8 @@ WHAT A PIPELINE MODULE HOLDS
   of this list. A pipeline with regions gives `{"cases": {region: [...]}}`.
 - `download`, optional: a download function for the sources that have none of their
   own. The default is `download_file`.
-- `NODE_ADDITION_MODES`, optional: a tuple of names of the modes table. A query
-  point then snaps to a node of these modes by default. The runner writes them into
+- `NODE_ADDITION_MODES`, optional: a tuple of names of the node modes table. A query
+  point then snaps to a node of these node modes by default. The runner writes them into
   the header of a network that `build` returns as arrays.
 - `CLASSES`, optional: the classes table of the pipeline, in place of the table of
   this package (see *The classes*).
@@ -80,19 +80,19 @@ When that function returns a dict, the dict must identify the source, and the ru
 does not compute `sha256` and `bytes`. `step1_osm_ways.download_streamed` gives the `bytes` and
 the `md5` that the server publishes.
 
-THE MODES TABLE
+THE NODE MODES TABLE
 
-The mode of a node says what the node is: a node of a network (`road`, `rail`, `sea`)
-or a hub (`port`, `airport`, `rail_terminal`). The modes table is a list with one
-dict per mode: its `name`, and the `source` that gives the ids of its nodes. A network
-with one mode gives `[{"name": None}]`.
+The node mode of a node is the kind of place where the node is: on a network (`road`,
+`rail`, `sea`) or at a hub (`port`, `airport`, `rail_terminal`). The node modes table is
+a list with one dict per node mode: its `name`, and the `source` that gives the ids of
+its nodes. A network with one node mode gives `[{"name": None}]`.
 
 THE CLASSES
 
 The class of an edge is its category in the source: a motorway, a vehicle ferry, a
-main railway line, a sea passage. `CLASSES` is the classes table: it gives the mode
-of the edges of each class, by the name of the class. The modes of the edges are
-`road`, `rail`, `sea` and `air`:
+main railway line, a sea passage. `CLASSES` is the classes table: it gives the edge mode
+of each class. The edge mode of a class is the kind of transport of its edges: `road`,
+`rail`, `sea` or `air`:
 
 - `road`: `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`,
   `primary_link`, `ferry`, `shuttle_train`, `road_connector`;
@@ -105,7 +105,7 @@ of the edges of each class, by the name of the class. The modes of the edges are
 
 The purpose of a class is one speed for all its edges. So the connectors of a hub have
 classes of their own: a sea connector can be 2,500 km long. No class has the name of
-a mode.
+an edge mode.
 
 A pipeline records classes when its select functions give them. A select function
 returns the direction of a way: 1, -1 or 0. It may return a pair in its place: the
@@ -136,20 +136,20 @@ step logs one line at DEBUG, with its counts and its duration (`_internal.log_st
 The functions of the steps are in `scgraph.pipelines.steps`, one or two modules for
 each step:
 
-1. Read the sources. `step1_osm_ways.build_way_pieces` reads the ways of an OpenStreetMap
-   file that the select functions keep. It takes the select functions
-   of each mode. One read of the file serves every mode. Each mode gets its own
-   junctions and its own pieces, so a road never joins a railway. The function
-   cuts each way at the junctions of its mode, and where a piece reaches
-   `max_km_between_nodes`. It simplifies the shape of each piece to within 50 m. It
-   attaches the ferries to road nodes (`step1_osm_ways.build_ferry_edges`).
-2. Join the modes. `step2_hub_connectors.join_networks_at_hubs` joins the networks of
-   several modes at hubs: ports, airports and rail terminals. `step2_land_mask.LandMask` tells land
-   from water for the connectors of a hub.
+1. Read the sources. `step1_osm_ways.build_way_pieces` reads the ways of an
+   OpenStreetMap file that the select functions keep. It takes the select functions of
+   each network, such as the road network. One read of the file serves every network.
+   Each network gets its own junctions and its own pieces, so a road never joins a
+   railway. The function cuts each way at the junctions of its network, and where a
+   piece reaches `max_km_between_nodes`. It simplifies the shape of each piece to within
+   50 m. It attaches the ferries to road nodes (`step1_osm_ways.build_ferry_edges`).
+2. Join the networks. `step2_hub_connectors.join_networks_at_hubs` joins the road, rail
+   and sea networks at hubs: ports, airports and rail terminals.
+   `step2_land_mask.LandMask` tells land from water for the connectors of a hub.
 3. Assemble the graph. `step3_network_assembly.build_graph_from_pieces` stores the pieces as
    a graph. `step3_network_assembly.assemble_network` keeps the strongly connected
    components, contracts the chains of nodes and puts the nodes in the order of the
-   file. No chain is contracted across two modes or two classes.
+   file. No chain is contracted across two node modes or two classes.
 4. Validate the network. `step4_validation_cases.validate_network` checks the built
    file against the cases of `VALIDATION`.
 
@@ -176,10 +176,10 @@ The header holds no clock time. The time of the download is in `cache.json`, in 
 cache.
 
 `scgraph.pipelines.derived_networks` derives a network file from another network file, with no
-download. The derived file holds some modes of its parent file, and its land networks
-inside a bbox. Its header has no `description`. It also records `derivation`: the
-`parent_content_sha256`, and the `node_modes`, the `bbox` and the `min_component_nodes` of
-the derivation.
+download. The derived file holds the nodes of some node modes of its parent file, and
+its land networks inside a bbox. Its header has no `description`. It also records
+`derivation`: the `parent_content_sha256`, and the `node_modes`, the `bbox` and the
+`min_component_nodes` of the derivation.
 
 Two builds give the same file, byte for byte, when they have the same pipeline, the
 same sources, the same version of scgraph, the same backend, and the same platform
@@ -252,7 +252,7 @@ NAMES = (
     "geofabrik_multimodal",
     "osm_world_multimodal",
 )
-# The mode of the edges of each class, by the name of the class (the docstring of this
+# The edge mode of each class, by the name of the class (the docstring of this
 # module, *The classes*)
 CLASSES = {
     # Roads: the `highway` value of the way, or the `route` value of a vehicle ferry

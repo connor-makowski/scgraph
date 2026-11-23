@@ -14,8 +14,8 @@ A graph is a dict of arrays, with the names of the network file. Node `u` has th
 node, in units of 1e-7 degree. The shape points of edge `a` are
 `shape_points[2 * shape_offsets[a]:2 * shape_offsets[a + 1]]`. `source_node_ids` holds
 the id of each node in its source. A node that step 1 adds has an id below zero.
-`node_mode_ids`, if the graph has several modes, holds the position of the node mode of
-each node in the node modes table.
+The node mode of a node is the kind of place where the node is, such as `port`.
+`node_mode_ids` holds the node mode id of each node, in a graph of several node modes.
 
 `edge_class_ids`, if the pieces have classes, holds the id of the class of each edge in the classes
 table (`scgraph.pipelines.CLASSES`).
@@ -46,14 +46,14 @@ HOW A RUN GOES
    replaces the chain, with the sum of its lengths. The edges that the contracted edge
    replaces are its members. The walk ends a contracted edge at the first node where
    its length reaches `max_km_between_nodes`, and starts the next edge there. A chain
-   is never contracted across two modes. In a graph with classes, a pass-through node
-   meets one more condition. All the edges that enter it or leave it have the same
+   is never contracted across two node modes. In a graph with classes, a pass-through
+   node meets one more condition. All the edges that enter it or leave it have the same
    class. So a chain is never contracted across two classes, and a contracted edge has
    the class of its members.
 4. `build_chain_shapes` gives each contracted edge the shape points of its members,
    with the removed nodes between them.
-5. `assemble_network` numbers the nodes by mode, then along a Hilbert curve. A network file
-   has this order.
+5. `assemble_network` numbers the nodes by node mode, then along a Hilbert curve. A
+   network file has this order.
 
 Example of step 1: a motorway of 3 km and a primary road of 4 km join the junctions 10
 and 20, both ways. The motorway is shorter, so its two edges are kept. The two edges of
@@ -436,8 +436,8 @@ def contract_chains(
         offsets: The CSR offsets of the graph, one more than its nodes (int32).
         heads: The head of each edge (int32).
         weights: The length of each edge in km (float64).
-        node_mode_ids: The mode of each node (uint8), or None. A chain is never
-            contracted across two modes.
+        node_mode_ids: The node mode of each node (uint8), or None. A chain is never
+            contracted across two node modes.
         max_km_between_nodes: The length in km at which a chain is cut. Along the chain,
             an edge ends at the first node where it is this long or longer. So an edge
             can be longer than this value, by less than the length of one input edge.
@@ -799,13 +799,13 @@ def assemble_network(
 
     The function runs steps 2 to 5 of the module docstring. It keeps the strongly
     connected components, contracts the chains, joins the shapes of the contracted
-    edges, and numbers the nodes by mode, then along the Hilbert curve.
+    edges, and numbers the nodes by node mode, then along the Hilbert curve.
     `GeoGraph.save_as_scgraph` uses the same order. The first two steps log their counts
     at DEBUG.
 
     Args:
         graph: The graph, as `build_graph_from_pieces` returns it, with `node_mode_ids`
-            if it has several modes. The function empties this dict, to free its memory.
+            if it has several node modes. The function empties this dict, to free it.
         max_km_between_nodes: The length in km at which `contract_chains` cuts a chain.
         min_component_nodes: The smallest number of nodes of a kept component. None keeps
             only the largest component.
@@ -865,7 +865,7 @@ def assemble_network(
     latitudes, longitudes = node_points[0::2], node_points[1::2]
     node_mode_ids = graph.get("node_mode_ids") or bytes(len(kept))
 
-    def key(u):  # mode, Hilbert key (below 4^CURVE_ORDER), index: one int
+    def key(u):  # node mode, Hilbert key (below 4^CURVE_ORDER), index: one int
         curve = hilbert_key(latitudes[u] * 1e-7, longitudes[u] * 1e-7)
         return (node_mode_ids[u] << 2 * CURVE_ORDER | curve) << 32 | u
 
