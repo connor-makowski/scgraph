@@ -66,14 +66,14 @@ DTYPES = {"int32": "i", "int64": "q", "float64": "d", "uint8": "B"}
 # node_points and shape_points are arrays of points: the latitude of a point, then its
 # longitude. Both arrays have the same dtype: float64 degrees, or int32 units of 1e-7
 # degree (see `encode_coordinates`).
-# source_node_ids (optional): the id of each node in its source.
+# external_node_ids (optional): the id of each node in its source.
 ARRAYS = {
     "offsets": ("int32",),
     "heads": ("int32",),
     "metric_length": ("float64",),
     "edge_class_ids": ("uint8",),
     "node_points": ("int32", "float64"),
-    "source_node_ids": ("int32", "int64"),
+    "external_node_ids": ("int32", "int64"),
     "shape_offsets": ("int32",),
     "shape_points": ("int32", "float64"),
 }
@@ -154,7 +154,7 @@ RESERVED_METADATA_KEYS = frozenset(
         "edges",
         "coordinate_dtype",
         "shapes",
-        "source_node_ids",
+        "external_node_ids",
         "attribution",
         "data_up_to",
     }
@@ -406,8 +406,8 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
     Returns:
         The keys of the metadata of the file, then `content_sha256`,
         `format_version`, `nodes`, `edges`, `coordinate_dtype`, `shapes` and
-        `source_node_ids`. `nodes` and `edges` are counts. `shapes` and
-        `source_node_ids` are True when the file holds these arrays.
+        `external_node_ids`. `nodes` and `edges` are counts. `shapes` and
+        `external_node_ids` are True when the file holds these arrays.
 
     Raises:
         ValueError: The header of the file is not valid.
@@ -420,7 +420,7 @@ def get_scgraph_info(filename: str | os.PathLike) -> dict:
         "edges": len(arrays["heads"]),
         "coordinate_dtype": get_coordinate_dtype(arrays),
         "shapes": "shape_points" in arrays,
-        "source_node_ids": "source_node_ids" in arrays,
+        "external_node_ids": "external_node_ids" in arrays,
     }
 
 
@@ -590,15 +590,15 @@ def _select_modes(filename, arrays, metadata, is_node_mode_kept, in_place):
         *((name, edge_runs, 1) for name in arrays if _is_weights_array(name)),
         ("edge_class_ids", edge_runs, 1),
         ("node_points", node_runs, 2),
-        ("source_node_ids", node_runs, 1),
+        ("external_node_ids", node_runs, 1),
         ("shape_points", shape_point_runs, 2),
     ):
         if name in arrays:
             selected[name] = _take_runs(arrays[name], runs, in_place, width)
-    if "source_node_ids" not in arrays:
+    if "external_node_ids" not in arrays:
         # The id of a node is its position in the file
         positions = chain.from_iterable(starmap(range, node_runs))
-        selected["source_node_ids"] = array("q", positions)
+        selected["external_node_ids"] = array("q", positions)
     if "edge_class_ids" in arrays:
         # `_check` does not read the class ids of a mapped file. `translate`
         # deletes the valid ids in one pass in C: a byte that is left is no id of a
@@ -692,7 +692,8 @@ def _check(filename, arrays, metadata, should_check_values=True):
             "invalid shape offsets",
         )
     require(
-        "source_node_ids" not in arrays or len(arrays["source_node_ids"]) == n,
+        "external_node_ids" not in arrays
+        or len(arrays["external_node_ids"]) == n,
         "one node id per node expected",
     )
     # The nodes of each node mode are a range of node ids (module docstring)

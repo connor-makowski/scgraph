@@ -85,7 +85,7 @@ private:
 };
 
 struct EdgeTable {
-    std::vector<int64_t> source_node_ids;
+    std::vector<int64_t> external_node_ids;
     // parallel_edges: the input index of each parallel edge, in rising order (the
     // Python docstring of build_csr_from_edges defines a parallel edge)
     std::vector<int32_t> offsets, heads, kept, parallel_edges;
@@ -99,7 +99,7 @@ inline EdgeTable build_csr_from_edges(const int64_t* origins, const int64_t* des
     if (edge_count > INT32_MAX) throw std::invalid_argument("at most 2**31 - 1 edges");
     // The origins, then the destinations that are not origins (few: most nodes are both)
     EdgeTable table;
-    std::vector<int64_t>& ids = table.source_node_ids;
+    std::vector<int64_t>& ids = table.external_node_ids;
     ids.reserve(edge_count);
     for (int64_t a = 0; a < edge_count; ++a) {
         if (origins[a] != destinations[a]) ids.push_back(origins[a]);

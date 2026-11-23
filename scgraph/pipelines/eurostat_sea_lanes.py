@@ -117,7 +117,7 @@ def build(files: dict[str, str]) -> GeoGraph:
     return GeoGraph(
         graph=sea.graph_object,
         nodes=sea.nodes,
-        source_node_ids=list(sea.source_node_ids),
+        external_node_ids=list(sea.external_node_ids),
         coordinate_dtype=sea.coordinate_dtype,
         classes=[
             {"name": name, "edge_mode": edge_mode}
@@ -168,7 +168,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         ),
         "shape_offsets": array("i", bytes(4 * (len(heads) + 1))),
         "shape_points": array("i"),
-        "source_node_ids": array("q", sea.source_node_ids),
+        "external_node_ids": array("q", sea.external_node_ids),
         "edge_class_ids": array(
             "B",
             (

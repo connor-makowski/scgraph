@@ -550,11 +550,11 @@ class GeoGraphModifiers:
         graph_length = len(self.nodes)
         # The other graph's nodes keep their ids, its negative ids moved below this
         # graph's (connection nodes have negative ids of this graph)
-        source_node_ids = self.source_node_ids.take(range(graph_length))
-        floor = min(0, min(source_node_ids, default=0))
-        source_node_ids.extend(
+        external_node_ids = self.external_node_ids.take(range(graph_length))
+        floor = min(0, min(external_node_ids, default=0))
+        external_node_ids.extend(
             i if i >= 0 else i + floor
-            for i in other_geograph.source_node_ids.take(
+            for i in other_geograph.external_node_ids.take(
                 range(original_other_graph_length)
             )
         )
@@ -562,8 +562,8 @@ class GeoGraphModifiers:
         self.nodes += deepcopy(other_geograph.nodes)[
             :original_other_graph_length
         ]
-        self.source_node_ids = array_views.SourceNodeIds(
-            source_node_ids, self.nodes
+        self.external_node_ids = array_views.ExternalNodeIds(
+            external_node_ids, self.nodes
         )
         # Its node modes follow this graph's, renumbered
         offset = len(self.node_modes)

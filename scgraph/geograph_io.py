@@ -223,7 +223,7 @@ class GeoGraphIO:
         - Save the current geograph as a binary network file, much faster to load than graphjson
         - The format is described in ARCHITECTURE.md, section "Network File Format", and in the header of each file
         - Only the graph, the nodes, their ids and node modes, their intermediate nodes, the classes of the edges, the metrics with their weights, `default_metric` and the GeoGraph defaults are saved
-        - The nodes are written node mode by node mode, in the order of `node_modes`, and in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `source_node_ids`
+        - The nodes are written node mode by node mode, in the order of `node_modes`, and in Hilbert order within each node mode (nodes close on the globe get close ids); the geograph itself is not renumbered, and each node keeps its id in `external_node_ids`
         - Coordinates that are not finite numbers raise a ValueError
 
         Required Arguments:
@@ -322,9 +322,9 @@ class GeoGraphIO:
         }
         node_points = array("d", (value for i in old for value in nodes[i][:2]))
         # None: each node's id is its position
-        source_node_ids = self.source_node_ids.array(order)
-        if source_node_ids is not None:
-            arrays["source_node_ids"] = source_node_ids
+        external_node_ids = self.external_node_ids.array(order)
+        if external_node_ids is not None:
+            arrays["external_node_ids"] = external_node_ids
         if multimodal:
             node_mode_ids = array("B", (node_mode_ids[i] for i in old))
         metadata = network_file.build_header_metadata(
@@ -387,7 +387,7 @@ class GeoGraphIO:
             - Rounds the coordinates to the specified precision
             - Merges lines that start and end at the same location after rounding
             - Converts the MultiLineString into a GeoGraph object
-            - Numbers the nodes along a Hilbert curve (nodes close on the globe get close ids); without `max_km_between_nodes`, `source_node_ids[i]` is node i's id before this ordering (the numbering of earlier versions)
+            - Numbers the nodes along a Hilbert curve (nodes close on the globe get close ids); without `max_km_between_nodes`, `external_node_ids[i]` is node i's id before this ordering (the numbering of earlier versions)
         - Note:
             - All edges read in will be undirected
 
@@ -517,7 +517,7 @@ class GeoGraphIO:
         - Ways meet only where they share an OSM node: roads that cross on a bridge or in a tunnel are not connected
         - Each edge has the length of its piece of way, in kilometers, so it is never shorter than the straight line between its ends
         - Nodes are the OSM nodes where kept ways meet or end; a way is also cut at the first point where the edge since the previous node reaches `max_km_between_nodes`
-        - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `source_node_ids[i]` is node i's OSM id
+        - Nodes are numbered along a Hilbert curve (nodes close on the globe get close ids), and `external_node_ids[i]` is node i's OSM id
         - With the default `select`, ways tagged `oneway=yes` or `-1`, motorways and roundabouts are one way
         - Each edge has the class that `select` gives to its way: `classes` holds the classes of `scgraph.pipelines.CLASSES`, and `get_edges` gives the class of each edge. With the default `select`, the class of a way is its `highway` value
         - Not the graph of the `osm_region_multimodal` pipeline from the same file: this loader reads one mode, and neither attaches ferries, nor contracts chains, nor simplifies shapes
@@ -629,7 +629,7 @@ class GeoGraphIO:
             graph=graph,
             nodes=nodes,
             intermediate_nodes=shapes if load_intermediate_nodes else None,
-            source_node_ids=ids,
+            external_node_ids=ids,
             coordinate_dtype="int32",  # OSM's own: 1e-7 degree
             **class_arguments,
         )
@@ -723,7 +723,7 @@ class GeoGraphIO:
 
         Returns:
 
-        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes` with the `node_count` of each node mode, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `source_node_ids`
+        - A dict: the metadata of the file (`metrics`, `sources`, `node_modes` with the `node_count` of each node mode, `classes`, `pipeline`, ...), `content_sha256`, `format_version`, the number of `nodes` and `edges`, `coordinate_dtype`, and whether the file has `shapes` and `external_node_ids`
         - With `sources`, also `attribution`, the credit line to cite with results ("credit (license); ..."), and `data_up_to`, the newest `version` of a source that is a date (None if no source has one)
         """
         info = network_file.get_scgraph_info(filename)
@@ -758,7 +758,7 @@ class GeoGraphIO:
         - In the C++ build, the file is mapped and read in place while the geograph or its `snap_index` is alive; on Windows it can't be replaced or deleted meanwhile
         - `nodes` reads the file's coordinates: `nodes[i]` is a new list each time, so replace a node with `nodes[i] = [latitude, longitude]`
         - `intermediate_nodes` reads the file's edge shapes when asked for, read-only: `intermediate_nodes[i]` is a new mapping {destination: shape} each time, so editing a shape changes nothing and assigning raises a TypeError
-        - `source_node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_mode_ids` and `node_modes` give the node mode of each node
+        - `external_node_ids` reads the file's node ids, if it has them (otherwise each node's id is its position); `node_mode_ids` and `node_modes` give the node mode of each node
         - `classes` holds the classes of the file, if it has them, and `get_edges` gives the class of each edge
         - `metrics` holds the metrics of the file, with their weights. An edit of the network removes them, as every metric other than `length` (see `add_edge`). `default_metric` holds the `default_metric` of the file: the metric that a call without `metric` uses
         - `metadata` holds what the file says about how the network was built (`sources`, `pipeline`, ...), which `save_as_scgraph` writes back by default
@@ -844,7 +844,7 @@ class GeoGraphIO:
                 else None
             ),
             geograph_units=metadata["metrics"][0]["unit"],
-            source_node_ids=arrays.get("source_node_ids"),
+            external_node_ids=arrays.get("external_node_ids"),
             node_mode_ids=(
                 network_file.build_node_mode_ids(
                     metadata["node_modes"], node_modes
@@ -927,7 +927,7 @@ class GeoGraphIO:
         - On first call for a given name, downloads the .graphjson file from GitHub into the cache directory.
         - On subsequent calls, loads directly from cache without any network requests.
         - The first load converts the .graphjson into a network file beside it (`<name>.scgraph`, much faster to load), which later loads read; the .graphjson is kept, and a damaged conversion is made again from it.
-        - The conversion orders the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the .graphjson (lengths do not; of two routes of exactly equal length, another may be returned), and `source_node_ids[i]` is node i's id in the .graphjson (its id in scgraph 3.6.0). `load_from_graphjson` on the cached .graphjson keeps its numbering.
+        - The conversion orders the nodes along a Hilbert curve, so that nodes close on the globe get close ids: node ids differ from those of the .graphjson (lengths do not; of two routes of exactly equal length, another may be returned), and `external_node_ids[i]` is node i's id in the .graphjson (its id in scgraph 3.6.0). `load_from_graphjson` on the cached .graphjson keeps its numbering.
         - With `local_files_only=True` (or the environment variable `SCGRAPH_OFFLINE=1`), never downloads: a geograph that is not in the cache raises a FileNotFoundError.
 
         Required Arguments:
@@ -1280,7 +1280,7 @@ class GeoGraphIO:
             - Rounds the coordinates to the specified precision
             - Rounds the lengths (in kilometers) and the travel times (in seconds) to the specified precision
             - This preserves directionality of edges from the OSMnx graph
-            - Numbers the nodes along a Hilbert curve (nodes close on the globe get close ids); `source_node_ids[i]` is node i's OSMnx id (its OSM id), when the ids are integers
+            - Numbers the nodes along a Hilbert curve (nodes close on the globe get close ids); `external_node_ids[i]` is node i's OSMnx id (its OSM id), when the ids are integers
             - Keeps the `highway` value of each edge as its class, of the edge mode `road` (see `classes` and `get_edges`): the first value when `highway` is a list, and no class for an edge without `highway`
             - The lengths of the geograph are always the `length` of the edges, in kilometers
             - Keeps the `travel_time` of each edge as the metric `travel_time`, in seconds, when every edge has one: `get_shortest_path(metric="travel_time")` then finds the fastest path. Its result has the kilometers of this path in `length` and its seconds in `metric_totals["travel_time"]`
@@ -1410,7 +1410,7 @@ class GeoGraphIO:
         nodes = [located[node] for node in node_list]
         # OSMnx identifies its nodes by their OSM ids (integers, numpy's included)
         try:
-            kwargs = {"source_node_ids": array("q", node_list)}
+            kwargs = {"external_node_ids": array("q", node_list)}
         except (TypeError, OverflowError):
             kwargs = {}
         if load_intermediate_nodes:
@@ -1734,7 +1734,7 @@ def renumber_in_hilbert_order(geograph):
         geograph.nodes, geograph.node_mode_ids if multimodal else None
     )
     # Each node keeps its id (its position before ordering, if it had none)
-    source_node_ids = geograph.source_node_ids.take(order)
+    external_node_ids = geograph.external_node_ids.take(order)
     new_id = [0] * len(order)
     for new, old in enumerate(order):
         new_id[old] = new
@@ -1771,10 +1771,10 @@ def renumber_in_hilbert_order(geograph):
         default_off_graph_circuity=geograph.default_off_graph_circuity,
         default_node_addition_circuity=geograph.default_node_addition_circuity,
         geograph_units=geograph.geograph_units,
-        source_node_ids=(
+        external_node_ids=(
             None
-            if source_node_ids == array("q", range(len(order)))
-            else source_node_ids
+            if external_node_ids == array("q", range(len(order)))
+            else external_node_ids
         ),
         node_mode_ids=[geograph.node_mode_ids[old] for old in order],
         node_modes=geograph.node_modes,

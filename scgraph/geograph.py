@@ -72,7 +72,7 @@ class GeoGraph(
         default_off_graph_circuity: float = 1,
         default_node_addition_circuity: float = 4,
         geograph_units: Literal["km", "m", "mi", "ft"] = "km",
-        source_node_ids: list[int] | None = None,
+        external_node_ids: list[int] | None = None,
         node_mode_ids: list[int] | None = None,
         node_modes: list[dict] | None = None,
         coordinate_dtype: Literal["float64", "int32"] = "float64",
@@ -127,11 +127,11 @@ class GeoGraph(
             - What: One dict per node, {destination: [[latitude, longitude], ...]}: the coordinates of each edge's shape, between its two nodes (not repeated), from origin to destination
             - Note: Allows for more detailed path plotting along edges without needing to increase the number of nodes in the graph
             - Default: None
-        - `source_node_ids`
+        - `external_node_ids`
             - Type: list of ints | None
-            - What: The stable id of each node, for example its id in the source the network was built from; read back as `source_node_ids`
-            - Note: Node ids in paths and graph methods stay positions; `[geograph.source_node_ids[p] for p in path]` translates a path
-            - Note: Nodes added later (`add_coord_node`, merges) get negative ids, below all the others; extend `nodes` in place (replacing it leaves `source_node_ids` counting the former list)
+            - What: The external id of each node: the id that the node has outside this network, in its data source or in the file of release 3.6.0; read back as `external_node_ids`
+            - Note: Node ids in paths and graph methods stay positions; `[geograph.external_node_ids[p] for p in path]` translates a path
+            - Note: Nodes added later (`add_coord_node`, merges) get negative ids, below all the others; extend `nodes` in place (replacing it leaves `external_node_ids` counting the former list)
             - Default: None (each node's id is its position)
         - `node_mode_ids`
             - Type: list of ints | None
@@ -195,10 +195,16 @@ class GeoGraph(
             self.graph_object = Graph(graph=graph, validate=validate)
             self.graph = graph
         self.nodes = nodes
-        if source_node_ids is not None and len(source_node_ids) != len(nodes):
-            raise ValueError("source_node_ids must give one id per node")
-        self.source_node_ids = array_views.SourceNodeIds(
-            range(len(nodes)) if source_node_ids is None else source_node_ids,
+        if external_node_ids is not None and len(external_node_ids) != len(
+            nodes
+        ):
+            raise ValueError("external_node_ids must give one id per node")
+        self.external_node_ids = array_views.ExternalNodeIds(
+            (
+                range(len(nodes))
+                if external_node_ids is None
+                else external_node_ids
+            ),
             nodes,
         )
         if coordinate_dtype not in ("float64", "int32"):

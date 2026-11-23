@@ -162,7 +162,7 @@ def keep_largest_strongly_connected_component(
     graph: list[dict[int, int | float]],
     nodes: list[list[float]],
     shapes: list[dict[int, list[list[float]]]],
-    source_node_ids: list[int],
+    external_node_ids: list[int],
     edge_class_names: list[dict[int, str]],
 ) -> tuple[
     list[dict[int, int | float]],
@@ -172,7 +172,7 @@ def keep_largest_strongly_connected_component(
     list[dict[int, str]],
 ]:
     """Keep the largest strongly connected component of a graph in the layout of a
-    GeoGraph. Return `(graph, nodes, shapes, source_node_ids, edge_class_names)` with
+    GeoGraph. Return `(graph, nodes, shapes, external_node_ids, edge_class_names)` with
     the kept nodes only.
     """
     kept, _ = keep_strongly_connected_components(
@@ -187,6 +187,6 @@ def keep_largest_strongly_connected_component(
         [row(graph[u]) for u in kept],
         [nodes[u] for u in kept],
         [row(shapes[u]) for u in kept],
-        [source_node_ids[u] for u in kept],
+        [external_node_ids[u] for u in kept],
         [row(edge_class_names[u]) for u in kept],
     )

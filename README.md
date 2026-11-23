@@ -711,7 +711,7 @@ For one of the seven networks of scgraph 3.6.0, the first load also converts the
 
 - **Node ids**: Nodes are numbered along a Hilbert curve, so that nodes close on the globe get close ids. Route lengths do not change. When two routes have exactly the same length, the other one may be returned.
 - **Coordinates**: Coordinates are stored to 1e-7 degree (about 1 cm). A few published ports have 9 decimals.
-- **Ids of scgraph 3.6.0**: `source_node_ids[i]` is the id that node `i` has in the `.graphjson`, so `[geo.source_node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps the old numbering.
+- **Ids of scgraph 3.6.0**: `external_node_ids[i]` is the id that node `i` has in the `.graphjson`, so `[geo.external_node_ids[i] for i in path]` translates a path. `load_from_graphjson` on the cached `.graphjson` keeps the old numbering.
 
 ```py
 from scgraph import GeoGraph
@@ -1446,7 +1446,7 @@ Release 4.0 changes these calls of release 3.6.
 | What changes | What to do |
 |---|---|
 | The seven networks of 3.6 (`marnet`, `us_freeway`, ...) are deprecated. They still load, with the same results and a `DeprecationWarning` | Load the released network of the table *Deprecated Networks of scgraph 3.6.0*. Its lengths differ: Shanghai to Savannah is 19072.8293 km on `marnet` and 19264.1889 km on `world_sea` |
-| A network loaded by `load_geograph` numbers its nodes in another order | `geograph.source_node_ids[i]` gives the id that node `i` had in 3.6 |
+| A network loaded by `load_geograph` numbers its nodes in another order | `geograph.external_node_ids[i]` gives the id that node `i` had in 3.6 |
 | `GeoGraph.get_shortest_path` takes its options by keyword | Write `get_shortest_path(origin, destination, output_units="mi")`, not `get_shortest_path(origin, destination, "mi")` |
 | `CHGraph`, `TNRGraph`, `create_contraction_hierarchy` and `create_tnr_hierarchy` take their options by keyword, with the same names in both builds | Write `TNRGraph(graph, num_transit_nodes=100)` |
 | `ch_graph_kwargs` and `tnr_graph_kwargs` have no effect and give a `DeprecationWarning` | Pass `settled_limit` and `heuristic_fn` |

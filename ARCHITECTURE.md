@@ -121,7 +121,7 @@ Weights:     [ 4.5, 7.2,   2.1,   7.2 ]      (length: m = total edges)
 A `GeoGraph` adds these attributes to its `Graph`:
 
 * **`nodes`**: The point of each node, as `[latitude, longitude]` in degrees.
-* **`source_node_ids`**: The id of each node in its source (for example its 64-bit OpenStreetMap id). A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node.
+* **`external_node_ids`**: The id of each node in its source (for example its 64-bit OpenStreetMap id). A node that scgraph adds gets a negative id: a node added after the load, and the node that a build puts where it splits an edge. The node mode of a node and its id together name the node.
 * **`node_mode_ids`**: A byte array that gives the node mode of each node, such as `road`, `sea` or `port`. Each node has one node mode. The value is the position of that node mode in `node_modes`, counted from 0.
 * **`intermediate_nodes`**: The shape of each edge: `intermediate_nodes[u][v] = [[lat, lon], ...]`. The shape of an edge is the list of points that draw it on a map between its two nodes.
 * **Node order**: A `.scgraph` file numbers its nodes along a 2D Hilbert curve. A network with several node modes groups its nodes by node mode first, in the order of `node_modes`, then orders each group along the curve. Two nodes that are close on the globe then have close ids. A search reads nearby parts of memory, and the snapping index is faster.
@@ -465,7 +465,7 @@ All arrays are stored as raw, contiguous C-order binary buffers aligned to 64 by
 | `node_points` | `int32` or `float64` | $N \times 2$ | The latitude then the longitude of each node. If `int32`, a value is in units of $10^{-7}$ degree: degrees = value / $10^7$ (~1 cm precision). |
 | `shape_offsets` *(opt)* | `int32` | $M + 1$ | Slice index into `shape_points` for detailed edge polylines. |
 | `shape_points` *(opt)* | `int32` or `float64` | $K \times 2$ | The latitude then the longitude of each interior edge point, in the dtype of `node_points`. |
-| `source_node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). A node that the build adds has an id below zero. No two nodes of one node mode have the same id. |
+| `external_node_ids` *(opt)* | `int32` or `int64` | $N$ | Original source identifiers (e.g. OSM 64-bit node IDs). A node that the build adds has an id below zero. No two nodes of one node mode have the same id. |
 | `edge_class_ids` *(opt)* | `uint8` | $M$ | The id of the class of each edge: the position of its class in `metadata.classes`, counted from 0. The id 255 is the id of no class: it is the value of an edge without a class. |
 
 For example, the first node modes of `osm_region_multimodal` are:
@@ -505,7 +505,7 @@ The function `network_file.read` reads a network file. It makes these checks, in
    - `offsets` has $N + 1$ values. The first value is `0`, and the last value is $M$.
    - The first row of `metadata.metrics` is `length`, with a `unit`. Each row has its array `metric_<name>`, and each such array has its row. Each of these arrays has $M$ values. Each row other than `length` has `off_graph_weight_per_km`.
    - If the file has `shape_offsets`, it has $M + 1$ values. The first value is `0`, and the last value is the number of points in `shape_points`.
-   - Each node has one point. If the file has `source_node_ids`, each node also has one id.
+   - Each node has one point. If the file has `external_node_ids`, each node also has one id.
    - If the file has `edge_class_ids`, each edge has one class id.
 
    `node_points` and `shape_points` have the same dtype. If the file has `metadata.node_modes`, it is a list of 256 rows at most, and their `node_count` values add up to $N$. If the file has `edge_class_ids`, `metadata.classes` is a list of 255 rows at most, each with a `name` and an `edge_mode`.
