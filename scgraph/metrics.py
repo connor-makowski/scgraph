@@ -91,7 +91,7 @@ class Metric:
     graph_object: "Graph | None" = None
 
     def get_row(self) -> dict:
-        """Return the row of the metric, as `GeoGraph.metrics` gives it."""
+        """Return the row of the metric: the dict that `GeoGraph.metrics` gives."""
         row = {
             "name": self.name,
             "unit": self.unit,

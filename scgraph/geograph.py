@@ -3677,11 +3677,11 @@ class GeoGraph(
     @property
     def metrics(self) -> list[dict]:
         """
-        The rows of the metrics (see `create_metric`), as a network file stores them.
-        The first row is `length`, with its unit: `geograph_units`. The row of another
-        metric has its `name`, its `unit` and its `description`, if it has them, and
-        `off_graph_weight_per_km`: the weight of 1 km of an off-graph leg, the straight
-        line between a query point and its node.
+        One row for each metric (see `create_metric`): the dict that describes the
+        metric, as a network file stores it. The first row is `length`, with its
+        unit: `geograph_units`. The row of another metric has its `name`, its `unit`
+        and `description` if it has them, and `off_graph_weight_per_km`: the weight
+        of 1 km of an off-graph leg.
         """
         return [{"name": "length", "unit": self.geograph_units}] + [
             metric_record.get_row()
