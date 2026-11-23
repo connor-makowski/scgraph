@@ -6,7 +6,7 @@ nodes and edges, by id or by coordinates, and that merges another geograph.
 
 from scgraph.utils import haversine
 from scgraph.deprecations import warn_deprecated_parameter
-from scgraph.node_snapping import EveryNodeSnapIndex
+from scgraph.node_snapping import LazyEveryNodeSnapIndex
 from scgraph import array_views
 from copy import deepcopy
 from typing import TYPE_CHECKING
@@ -342,7 +342,7 @@ class GeoGraphModifiers:
                 circuity=circuity,
                 node_addition_type=node_addition_type,
                 lat_lon_bound=lat_lon_bound,
-                snap_index=EveryNodeSnapIndex(self),
+                snap_index=LazyEveryNodeSnapIndex(self),
             )
         else:
             node_dict = {}

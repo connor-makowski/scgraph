@@ -49,7 +49,7 @@ if (
 ):  # Only for annotations. A function that needs one of these modules imports it.
     from geokdtree import GeoKDTree
     from scgraph.helpers.snap_index import SnapIndex
-    from scgraph.node_snapping import SortedSnapIndex
+    from scgraph.node_snapping import NodeIdSnapIndex
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +361,7 @@ class GeoGraph(
         self._graph = graph
 
     @property
-    def snap_index(self) -> "SnapIndex | SortedSnapIndex | GeoKDTree":
+    def snap_index(self) -> "SnapIndex | NodeIdSnapIndex | GeoKDTree":
         """
         The index that snaps coordinates to their closest nodes (`closest_idx(point)`,
         `closest_idx_per_quadrant(point)`), built when a network file is loaded or else at
@@ -375,7 +375,7 @@ class GeoGraph(
 
     @snap_index.setter
     def snap_index(
-        self, snap_index: "SnapIndex | SortedSnapIndex | GeoKDTree | None"
+        self, snap_index: "SnapIndex | NodeIdSnapIndex | GeoKDTree | None"
     ) -> None:
         # Set to None by add_coord_node, remove_coord_node and merge_with_other_geograph
         # (merge keeps the index of the networks before the merge while it connects

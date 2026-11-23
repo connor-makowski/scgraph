@@ -41,9 +41,9 @@ THE IDEA: ONE INDEX FOR EACH NODE MODE
 `get_index` gives one snapping index for the nodes that a query point may snap to:
 
 - for one node mode, the index of this node mode;
-- for several node modes, a `_NodeModeSnapIndexes`: the index of each node mode
+- for several node modes, a `_CombinedSnapIndex`: the index of each node mode
   gives its closest node, and the answer is the closest of these nodes;
-- for a geograph without a road node, by default, an `EveryNodeSnapIndex`.
+- for a geograph without a road node, by default, a `LazyEveryNodeSnapIndex`.
 
 The nodes of a network file are sorted by node mode. So the nodes of one node mode
 are a range of node ids, and their `SnapIndex` reads their points in the file.
@@ -100,12 +100,11 @@ logger = logging.getLogger("scgraph.geograph")
 ROAD_NODE_MODE = "road"
 
 
-class SortedSnapIndex:
+class NodeIdSnapIndex:
     """
-    A snapping index over nodes in an order that is not the order of their ids. It
-    answers with the ids of the nodes. The nodes are every node in Hilbert order (an
-    exact tie between two places goes to the node earlier on the curve, not to the
-    lower id), or the nodes of one node mode.
+    A snapping index that answers with node ids. It covers either every node in
+    Hilbert order (an exact tie between two places goes to the node earlier on the
+    curve, not to the lower id), or the nodes of one node mode.
     """
 
     def __init__(
@@ -134,7 +133,7 @@ class SortedSnapIndex:
         return found
 
 
-class _NodeModeSnapIndexes:
+class _CombinedSnapIndex:
     """
     The snapping indexes of several node modes, used as one index. Each index gives
     its closest node, and the answer is the closest of these nodes.
@@ -142,7 +141,7 @@ class _NodeModeSnapIndexes:
     Of two nodes at the same distance, the answer is the lowest id, as in one index.
     """
 
-    def __init__(self, indexes: list[SortedSnapIndex], nodes: Sequence):
+    def __init__(self, indexes: list[NodeIdSnapIndex], nodes: Sequence):
         # `nodes` are the nodes of the geograph: an answer of an index is a node id
         self.indexes, self.nodes = indexes, nodes
 
@@ -178,7 +177,7 @@ class _NodeModeSnapIndexes:
         }
 
 
-class EveryNodeSnapIndex:
+class LazyEveryNodeSnapIndex:
     """
     The snapping index of every node of a geograph: `GeoGraph.snap_index`, read at
     each answer. So a point that connects to all the nodes of a box builds no index.
@@ -197,7 +196,7 @@ class EveryNodeSnapIndex:
         return self.geograph.snap_index.closest_idx_per_quadrant(point)
 
 
-QuerySnapIndex = SortedSnapIndex | _NodeModeSnapIndexes | EveryNodeSnapIndex
+QuerySnapIndex = NodeIdSnapIndex | _CombinedSnapIndex | LazyEveryNodeSnapIndex
 
 
 class SnapIndexes:
@@ -208,7 +207,7 @@ class SnapIndexes:
     """
 
     def __init__(self, index_of_every_node=None):
-        # A `SnapIndex`, a `SortedSnapIndex`, or the `GeoKDTree` that the caller set
+        # A `SnapIndex`, a `NodeIdSnapIndex`, or the `GeoKDTree` that the caller set
         self._index_of_every_node = index_of_every_node
         # {name of a node mode: its index, or None for a node mode without a node}
         self._index_of_each_node_mode = {}
@@ -223,7 +222,7 @@ class SnapIndexes:
             ) as values:
                 self._index_of_every_node = _build_snap_index(geograph.nodes)
                 values["sorted_for_the_index"] = isinstance(
-                    self._index_of_every_node, SortedSnapIndex
+                    self._index_of_every_node, NodeIdSnapIndex
                 )
         return self._index_of_every_node
 
@@ -246,7 +245,7 @@ class SnapIndexes:
         if snap_to_node_modes is None:
             indexes = self._list_indexes(geograph, [ROAD_NODE_MODE])
             if not indexes:
-                return EveryNodeSnapIndex(geograph)
+                return LazyEveryNodeSnapIndex(geograph)
             indexes += self._list_indexes(geograph, [None])
         else:
             node_mode_names = [mode.get("name") for mode in geograph.node_modes]
@@ -263,11 +262,11 @@ class SnapIndexes:
                 )
         if len(indexes) == 1:
             return indexes[0]
-        return _NodeModeSnapIndexes(indexes, geograph.nodes)
+        return _CombinedSnapIndex(indexes, geograph.nodes)
 
     def _list_indexes(
         self, geograph: "GeoGraph", node_modes: Iterable[str | None]
-    ) -> list[SortedSnapIndex]:
+    ) -> list[NodeIdSnapIndex]:
         # The index of each of these node modes that has a node, built at its first
         # use. A name given twice counts once.
         indexes = []
@@ -284,7 +283,7 @@ class SnapIndexes:
 
 def _build_index_of_node_mode(
     geograph: "GeoGraph", node_mode: str | None
-) -> SortedSnapIndex | None:
+) -> NodeIdSnapIndex | None:
     # The snapping index of the nodes of one node mode, or None when no node has it
     node_ids = _find_node_ids(geograph, node_mode)
     if not node_ids:
@@ -301,7 +300,7 @@ def _build_index_of_node_mode(
 
 def _build_snap_index(
     nodes: Sequence, node_ids: range | array | None = None
-) -> SnapIndex | SortedSnapIndex:
+) -> SnapIndex | NodeIdSnapIndex:
     """
     Builds the snapping index of the nodes, or of the nodes `node_ids` alone: a
     range, or an array of ids in rising order (see `_find_node_ids`). Nodes too
@@ -320,14 +319,14 @@ def _build_snap_index(
             # The index reads the points of the range in place, as the index of
             # every node does
             points = memoryview(nodes.points())
-            return SortedSnapIndex(
+            return NodeIdSnapIndex(
                 node_ids,
                 SnapIndex.from_array(
                     points[2 * node_ids.start : 2 * node_ids.stop]
                 ),
                 nodes,
             )
-        return SortedSnapIndex(
+        return NodeIdSnapIndex(
             node_ids, SnapIndex([nodes[i] for i in node_ids]), nodes
         )
     except NodeOrderError:
@@ -341,7 +340,7 @@ def _build_snap_index(
         if node_ids is not None:
             # A position in `points` becomes the id of its node
             order = array("q", [node_ids[i] for i in order])
-        return SortedSnapIndex(order, index, nodes)
+        return NodeIdSnapIndex(order, index, nodes)
 
 
 def _find_node_ids(
