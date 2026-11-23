@@ -8,7 +8,7 @@ A **released network** is a network that the maintainers of scgraph build and pu
 |---|---|---|
 | The name of a released network | `GeoGraph.load_geograph(name)` | [Released Networks](#released-networks) |
 | A region, and the need of its data of today | `GeoGraph.build_geograph(name, region=...)` | [Building Networks from Their Sources](#building-networks-from-their-sources) |
-| A released network that is too large | `derive_network_file(parent_file, derived_file, bbox=...)` | [A Part of a Released Network](#a-part-of-a-released-network) |
+| A released network that is too large | `derive_network_file(parent_file, derived_file, bbox=...)` | [Deriving a Part of a Released Network](#deriving-a-part-of-a-released-network) |
 | An OSMnx graph | `GeoGraph.load_from_osmnx_graph(graph)` | [Loading from OSMnx](#loading-from-osmnx) |
 | An OpenStreetMap file | `GeoGraph.load_from_osm(file)` | [Loading an OpenStreetMap File](#loading-an-openstreetmap-file) |
 | Lines in a GeoJSON file, or a file that scgraph saved | `load_from_geojson`, `load_from_scgraph`, `load_from_graphjson` | [Saving and Loading Files](#saving-and-loading-files) |
@@ -69,7 +69,7 @@ In a released network with roads, a query point snaps to its closest road node, 
 - A server that refuses the download raises a `ConnectionError`.
 - A network that is not in the cache raises a `FileNotFoundError` when scgraph is offline. So does a network that its network release does not have.
 
-### The Same Network Later
+### Loading a Recorded Network Release
 
 Each version of scgraph loads one network release, so the same version loads the same network on every machine. A later version of scgraph may load a newer network release. To load exactly the same network then, record the tag of the network release and the `content_sha256` of the file. The `content_sha256` is the SHA-256 digest of the content of a network file.
 
@@ -90,7 +90,7 @@ europe = GeoGraph.load_geograph("europe", network_release=tag, content_sha256=di
 
 A result that uses a released network cites the credit line of the file, `info["attribution"]` above. The header of the file lists each source with its license (`info["sources"]`).
 
-The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
+The guide [From Open Data to a Route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md) explains how these networks are built, checked and published.
 
 ## The Cache
 
@@ -175,9 +175,9 @@ The shape of each road, ferry or railway edge is simplified, and its length is m
 
 **A pipeline of your own.** `build_geograph(pipeline=my_module)` builds the network of a pipeline module of your own, for example an adapted copy of a pipeline of scgraph under another name. Its network is cached under `networks/<last part of the module name>/`. A module that has the name of a pipeline of scgraph is refused.
 
-The docstring of `scgraph.pipelines` states what a pipeline holds. The guide [From open data to a route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md#part-1-a-pipeline-builds-a-network) describes each step of one build.
+The docstring of `scgraph.pipelines` states what a pipeline holds. The guide [From Open Data to a Route](https://github.com/connor-makowski/scgraph/blob/main/scgraph/pipelines/README.md#part-1-a-pipeline-builds-a-network) describes each step of one build.
 
-## A Part of a Released Network
+## Deriving a Part of a Released Network
 
 `derive_network_file` writes a smaller network file from a network file, and downloads nothing. It keeps the roads, the railways and the rail terminals inside a bbox: a rectangle `(south, west, north, east)` in degrees. The sea lanes, the ports and the airports of the world all stay. With `node_modes`, it keeps some node modes only.
 

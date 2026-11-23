@@ -1,4 +1,4 @@
-# From open data to a route: how scgraph makes its networks
+# From Open Data to a Route: How scgraph Makes Its Networks
 
 This guide follows a network of scgraph from its sources to its use. The network starts as
 open data on the servers of OpenStreetMap and of other publishers. It ends as a `GeoGraph` on
@@ -13,7 +13,7 @@ The guide covers the networks that scgraph publishes in network releases, such a
 The seven networks of scgraph 3.6.0, such as `marnet`, were made in another way.
 [MIGRATING.md](https://github.com/connor-makowski/scgraph/blob/main/MIGRATING.md) lists them.
 
-## The words
+## The Words
 
 - A **network** is a graph with a position for each node. An **edge** joins one node to
   another, in one direction, and has a length in km.
@@ -44,7 +44,7 @@ The seven networks of scgraph 3.6.0, such as `marnet`, were made in another way.
   bytes after the first 40, which hold this digest. Two files with the same `content_sha256`
   hold the same network.
 
-## From open data to a route, in one picture
+## From Open Data to a Route, in One Picture
 
 ```mermaid
 flowchart TD
@@ -69,7 +69,7 @@ flowchart TD
 A user can also do the work of Parts 1 and 2 on a machine of their own. Part 1 gives the
 command of a build, and the section *A network of your own* names the call of a derivation.
 
-## Four choices of the design
+## Design Choices
 
 1. **How do eleven networks stay consistent? One network is built from the sources, and every
    other network is derived from it.** A build of the world reads the whole OpenStreetMap
@@ -85,7 +85,7 @@ command of a build, and the section *A network of your own* names the call of a 
 4. **How is a wrong network stopped? A check follows the build, each derivation and each
    download.** A network that fails goes no further (Parts 1 to 4).
 
-## Part 1. A pipeline builds a network
+## Part 1. A Pipeline Builds a Network
 
 This part follows one build from its sources to its network file.
 
@@ -94,7 +94,7 @@ the path of an extract on Geofabrik, a server of OpenStreetMap extracts. The bui
 2026-11-20 on Linux, with the C++ extension, from the extract of 2026-11-18. The numbers come
 from its log. Another day gives other numbers, because the extract changes every day.
 
-### The words of a build
+### The Words of a Build
 
 - A **source** is a file that a pipeline reads, such as an OpenStreetMap extract. Most sources
   are on a server, and some are small tables kept with scgraph.
@@ -115,7 +115,7 @@ from its log. Another day gives other numbers, because the extract changes every
 - A **chain** is a row of nodes that each have only two neighbors, as along a road with no
   junction.
 
-### The command
+### The Command
 
 ```
 pip install "scgraph[osm]"
@@ -133,7 +133,7 @@ logging.basicConfig(level=logging.DEBUG)
 build_network_file("osm_region_multimodal", region="europe/denmark", validate=True)
 ```
 
-### The steps
+### The Steps
 
 The build below has eight steps. The modules of `scgraph/pipelines/steps` group them in four:
 read the sources (`step1_…`), join the networks (`step2_…`), assemble the network (`step3_…`) and
@@ -154,7 +154,7 @@ flowchart TD
     G --> H["Step 8: validate the network, 3 cases<br/>then move the file into the cache"]
 ```
 
-#### 1. The runner downloads the sources
+#### 1. The Runner Downloads the Sources
 
 `SOURCES` of the pipeline names nine sources. The runner brings each one into its work folder.
 It downloads five of them. The four others are small tables kept with scgraph, which it copies.
@@ -170,7 +170,7 @@ The extract comes last. When a small source fails, the large download has not st
 
 Where to read more: `network_builder.py`, function `build_network_file`.
 
-#### 2. Read and cut the ways
+#### 2. Read and Cut the Ways
 
 `step1_osm_ways.build_way_pieces` reads the extract and keeps the ways that the pipeline
 selects. It cuts each way at its junctions. It also cuts a way where a piece would be longer
@@ -208,13 +208,13 @@ by time can then choose between the two roads.
 Where to read more: the docstrings at the top of `steps/step1_osm_ways.py` and of
 `steps/step3_network_assembly.py`.
 
-#### 3. Read the sea lanes
+#### 3. Read the Sea Lanes
 
 The sea lanes are 72,444 lines. The pipeline turns them into a graph of 42,250 nodes. These are
 the sea lanes of the whole world, not only those around Denmark: a route by sea may leave the
 region and come back.
 
-#### 4. Tell land from water
+#### 4. Tell Land from Water
 
 `LandMask.from_natural_earth` draws a raster of the land around the roads of the region. Each
 cell is land or water. The next step uses it for two checks: a connector to a road or to a
@@ -222,7 +222,7 @@ railway crosses little water, and a connector to a sea lane stays on water.
 
 Where to read more: the docstring at the top of `steps/step2_land_mask.py`.
 
-#### 5. Join the networks at the hubs
+#### 5. Join the Networks at the Hubs
 
 At this point the build holds three graphs with no edge between them: roads, railways and sea
 lanes. `step2_hub_connectors.join_networks_at_hubs` adds the hubs and their connectors.
@@ -248,7 +248,7 @@ The result is one graph of 66,146 nodes and 195,274 edges.
 
 Where to read more: the docstring at the top of `steps/step2_hub_connectors.py`.
 
-#### 6. Assemble the graph
+#### 6. Assemble the Graph
 
 `step3_network_assembly.assemble_network` does three things.
 
@@ -275,7 +275,7 @@ count a few more nodes and edges.
 
 Where to read more: the docstring at the top of `steps/step3_network_assembly.py`.
 
-#### 7. The runner writes the network file
+#### 7. The Runner Writes the Network File
 
 The runner writes the arrays to one file of 4.2 MB, in its work folder. The header of the file
 records the pipeline, each source with its version and its license, and the software of the
@@ -294,7 +294,7 @@ node mode `road`. So a route starts and ends on a road.
 Where to read more: the docstring of `scgraph.pipelines`, part *What the network file
 records*, and `ARCHITECTURE.md`, section 7.
 
-#### 8. Validate the network
+#### 8. Validate the Network
 
 With `--validate`, `validate_network` checks the file against the cases of the pipeline. A case
 describes one known fact of the real world. Most cases give two points and a reference value
@@ -310,7 +310,7 @@ cache.
 
 Where to read more: the docstring of `steps/step4_validation_cases`.
 
-### What comes out
+### Output of a Build
 
 The file holds 50,320 nodes and 171,999 edges.
 
@@ -344,7 +344,7 @@ Each edge has a class. A two-way road gives two edges, and the table counts the 
 | `flight` | 28 | 5,050 |
 | `road_connector`, `rail_connector`, `sea_connector` | 362 | 1,238 |
 
-### The network of the world
+### The Network of the World
 
 The pipeline `osm_world_multimodal` runs the same steps on the whole planet. It builds the
 network `world_multimodal`. The pipeline differs from `osm_region_multimodal` in three points:
@@ -358,7 +358,7 @@ A shortest route counts km only, on every network. A long route therefore often 
 flight. The guide [Routes by Time, Cost and CO2](https://github.com/connor-makowski/scgraph/blob/main/guides/time_cost_co2.md)
 gives each edge mode a speed or a cost, and finds the fastest or the cheapest route.
 
-## Part 2. Derive a network from a network file
+## Part 2. Derive a Network from a Network File
 
 `derive_network_file` of `derived_networks.py` reads one network file, the parent file, and
 writes a smaller one, the derived file. It downloads nothing. The docstring of the module
@@ -415,19 +415,19 @@ The world file can therefore pass with a few failed cases. A derived network has
 so the same failed city can be more than 1 % of them. For this reason, a derived file passes
 when it fails no case that the parent file passes. Here it fails none.
 
-## Part 3. Publish a network release
+## Part 3. Publish a Network Release
 
 The workflow `.github/workflows/build_networks.yml` makes a network release. It does the work of
 Parts 1 and 2 for the world, then prepares the GitHub release.
 
-### What comes before the tag
+### Before the Tag
 
 The date of the data is in the code, not in the tag. The constant `PLANET` of
 `steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
 `networks-2026.11.23-dev.1` holds the planet of 2026-11-02.
 
-### What starts the run
+### What Starts the Run
 
 A maintainer pushes a tag `networks-YYYY.MM.DD`, by convention on a commit of the branch
 `dev`. The date is the day of the tag. Only a person with write access to the repository can
@@ -442,7 +442,7 @@ A tag that ends with `-dev.N` makes a development network release, to try the ne
 new version of scgraph. GitHub shows it as a pre-release. By convention, a version of scgraph
 on PyPI pins a network release without `-dev`.
 
-### What the run does
+### What the Run Does
 
 The run has three jobs, one after the other. Job 2 hands the world file to job 3 as a file of
 the run.
@@ -483,7 +483,7 @@ the world. A run of 2026-11-19 took the world file of the network release before
 - **Job 2 has 5 h 55 min.** GitHub stops a job at 6 hours. A job that is run again starts from
   nothing.
 
-### What a network release holds
+### What a Network Release Holds
 
 The network release `networks-2026.11.23-dev.1` holds 23 files.
 
@@ -497,7 +497,7 @@ The network release `networks-2026.11.23-dev.1` holds 23 files.
 `utils/draft_network_release.py` compresses the files, and writes the index and the notes of the
 network release. The notes show a table of the files and the credit line of each file.
 
-### From the draft to the users
+### Publishing the Draft
 
 The run ends with a draft.
 
@@ -523,7 +523,7 @@ Two checks protect a published file. Job 1 stops a run whose tag is already publ
 scgraph refuses a downloaded file whose `content_sha256` is not the one in
 `scgraph/network_release.py` (Part 4).
 
-### When something fails
+### When Something Fails
 
 - **A download fails.** A server refused a request. The maintainer runs the failed job again.
 - **A validation fails, or a source has no license.** The run stops, and no draft appears. The
@@ -537,7 +537,7 @@ scgraph refuses a downloaded file whose `content_sha256` is not the one in
 Where to read more: the comment at the top of `build_networks.yml`, and the docstring of
 `utils/draft_network_release.py`.
 
-## Part 4. Load a released network
+## Part 4. Load a Released Network
 
 `GeoGraph.load_geograph("oceania")` loads a released network. The guide
 [Networks](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#released-networks) lists the
@@ -567,10 +567,10 @@ with a flight. With `node_modes=["road"]`, the route is 3930.3 km.
 
 Where to read more: the docstring of `fetch_released_file`, in `networks.py`.
 
-## A network of your own
+## A Network of Your Own
 
 - **A part of a released network.** `derive_network_file` takes any node modes and any bbox:
-  [the call](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#a-part-of-a-released-network).
+  [the call](https://github.com/connor-makowski/scgraph/blob/main/guides/networks.md#deriving-a-part-of-a-released-network).
 - **Another pipeline.** Copy the pipeline that is closest to your need, and change its sources,
   its select functions or its constants. The docstring of `scgraph.pipelines` gives a short
   pipeline to start from, and the steps to add a network to scgraph.

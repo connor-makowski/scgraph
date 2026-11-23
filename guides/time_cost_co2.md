@@ -144,7 +144,7 @@ The network is not edited. A query by `length`, or by another metric, still take
 
 To close one edge, name it in `edge_weights`: `edge_weights={(origin_id, destination_id): None}`. An edge has one direction. Name `(destination_id, origin_id)` too to close both.
 
-## Reading the Network
+## Listing Nodes and Edges
 
 A geograph gives its node modes, its classes, its metrics, its nodes and its edges:
 

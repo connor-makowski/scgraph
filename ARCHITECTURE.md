@@ -575,7 +575,7 @@ source_node_ids (6): [103, 102, 101, 1, 0, 35840]
 edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 ```
 
-### Finding the Node Mode, the Class and the Shape
+### Lookup Examples
 
 **A node mode.** The counts of `node_modes` put node 5 after 3 road nodes and 2 sea nodes, in row 2: `port`. Its point is values 10 and 11 of `node_points`: 49.4833 and 0.1167 degrees. Its source node id, 35840, is its World Port Index number; the other ids are made up.
 
@@ -593,7 +593,7 @@ edge_class_ids (10): [1, 0, 1, 2, 0, 4, 3, 4, 2, 3]
 
 A read of `road` and `port` in the example keeps nodes 0, 1, 2 and 5, which becomes node 3. It keeps six edges, `heads` = `[1, 2, 0, 3, 1, 1]`, and drops the four sea edges. `metadata.node_modes` keeps the counts of the whole file, and `metadata.classes` stays whole. `build_node_mode_ids` gives the kept nodes the ids `[0, 0, 0, 2]`.
 
-#### What scgraph Checks When It Reads a File
+#### Validation on Read
 
 `read` raises a `ValueError` when one of these checks fails:
 
@@ -613,7 +613,7 @@ A mapped read does not check the values; the C++ graph checks offsets and heads 
 
 `read` does not check the weights: `create_metric` refuses a weight below zero or not a number. Nor does it check the digest (`content_sha256`), which names a cached file. `network_file.check_content` computes it again, to find a file cut or changed after its writing; `load_geograph` calls it after a download.
 
-### Why Node Modes Are Counts and Classes Are an Array
+### Node Mode Counts and Edge Class Ids
 
 **The nodes.** The file groups the nodes by node mode, and the header gives the `node_count` of each group. The nodes of a node mode are thus one range of node ids, and the file needs no array for the node mode of a node. A read of some node modes takes the ranges from the counts, and a load builds `geograph.node_mode_ids` from them.
 
