@@ -376,7 +376,7 @@ for download.
 The date of the data is in the code, not in the tag. The constant `PLANET` of
 `steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
-`networks-2026.11.23-dev.1` holds the planet of 2026-11-02.
+`networks-2026.11.23-dev.2` holds the planet of 2026-11-02.
 
 ### Run Triggers
 
@@ -440,7 +440,7 @@ changes the network.
 
 ### Contents of a Network Release
 
-The network release `networks-2026.11.23-dev.1` holds 23 files.
+The network release `networks-2026.11.23-dev.2` holds 23 files.
 
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
   with and without the shapes of its edges.
@@ -512,7 +512,7 @@ This part follows one load of `oceania` without its edge shapes. The **cache** i
 where scgraph keeps network files on the machine of a user.
 
 1. **Download.** The first call downloads
-   `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.23-dev.1/oceania.no_shapes.scgraph.gz`
+   `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.23-dev.2/oceania.no_shapes.scgraph.gz`
    (3.5 MB), and decompresses it (7.1 MB).
 2. **Check the content.** `network_file.check_content` computes the `content_sha256` of the
    decompressed file, and compares it with the one in the header of the file. Two files with
@@ -522,7 +522,7 @@ where scgraph keeps network files on the machine of a user.
    that `scgraph/network_release.py` records. This check finds a file that was replaced on the
    server. A file of another network release has the first check only.
 4. **Keep.** The cache keeps the decompressed file as
-   `releases/networks-2026.11.23-dev.1/oceania.no_shapes.scgraph`. A later load makes no
+   `releases/networks-2026.11.23-dev.2/oceania.no_shapes.scgraph`. A later load makes no
    request, and does not check the file again.
    - The cache is not compressed. With the C++ extension, and without `node_modes`, scgraph
      maps the file and does not copy it into memory.
