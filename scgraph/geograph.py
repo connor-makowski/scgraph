@@ -3010,6 +3010,7 @@ class GeoGraph(
         Function:
 
         - Create a GeoGraph object
+        - The attribute `graph_object` is the `Graph` of the edges. Change its edges only with `add_edge`, `remove_edge`, `add_node` and `remove_node`, of the geograph or of `graph_object`: a read of the edges or of the metrics raises a ValueError when their count changed otherwise. In the C++ build, `graph_object.graph` is a copy: a write into it changes nothing
         - The attribute `default_metric` is the name of the metric that a call without `metric` uses (`get_shortest_path`, `distance_matrix`, `get_path_weight`, `get_graph_object`). It is 'length', until a loader or the caller sets it to another name of `metrics`
         - A call fails with a ValueError while `default_metric` names a metric that the geograph does not have, for example after an edit of the network, which removes the metrics other than 'length'
 
@@ -3206,12 +3207,23 @@ class GeoGraph(
         # It then removes the metrics: a metric has the weight of each edge at the
         # id that the edge had before the edit.
         graph = self.graph_object
+        # A pure-Python graph keeps its edges in the list `__graph__`, which a
+        # caller can change without a counted edit. A C++ graph has no such list.
+        rows = getattr(graph, "__graph__", None)
         if (
             graph is not self._edge_arrays_graph
             or graph._edit_count != self._edge_arrays_edit_count
         ):
             self._remove_metrics()
             self._set_edge_arrays(graph._csr())
+        elif rows is not None and sum(map(len, rows)) != len(
+            self._edge_arrays[1]
+        ):
+            raise ValueError(
+                "The edges of graph_object changed without add_edge, "
+                "remove_edge, add_node or remove_node. Edit the edges with "
+                "these methods of the geograph or of graph_object."
+            )
         return self._edge_arrays
 
     def _set_edge_arrays(

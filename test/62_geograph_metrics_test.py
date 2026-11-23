@@ -6,6 +6,7 @@ import math
 import pytest
 
 from scgraph import GeoGraph, PathNotFoundError
+from scgraph.graph import Graph as PythonGraph
 
 # The network of these tests joins two towns on the equator, 0.7 degree of
 # longitude apart. A line of the drawing is one edge each way, with its km.
@@ -970,6 +971,24 @@ def test_an_edit_made_on_the_graph_object_removes_the_metrics_at_their_next_read
     with pytest.warns(UserWarning, match="'minutes'.*create_metric"):
         metrics = network_with_minutes.metrics
     assert metrics == [{"name": "length", "unit": "km"}]
+
+
+def test_a_query_by_a_metric_refuses_an_edge_written_into_the_graph_list():
+    # A pure-Python graph keeps its edges in a list of dicts. A write into this
+    # list adds the edge without `add_edge`. The geograph gets a pure-Python
+    # graph in both builds: a C++ graph gives a copy of this list. The primary
+    # road joins the west town and the junction.
+    network = GeoGraph(
+        graph=[{}, {}, {}], nodes=[[0.0, 0.0], [0.0, 0.35], [0.0, 0.7]]
+    )
+    network.graph_object = PythonGraph(
+        [{JUNCTION: 40.0}, {WEST_TOWN: 40.0}, {}]
+    )
+    network.create_metric("minutes", weight_per_km=1.5)
+    network.graph_object.graph[JUNCTION][EAST_TOWN] = 40.0
+
+    with pytest.raises(ValueError, match="add_edge, remove_edge"):
+        network.get_shortest_path(WEST_POINT, EAST_POINT, metric="minutes")
 
 
 def test_a_metric_created_again_after_an_edit_has_a_weight_for_the_new_edge(
