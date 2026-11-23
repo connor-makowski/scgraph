@@ -304,7 +304,7 @@ def contract_chains_python(
         or (edge_class_ids is not None and len(edge_class_ids) != len(heads))
     ):
         raise ValueError(
-            "expected one weight and one class per edge, and one mode per node"
+            "expected one weight and one class per edge, and one node mode per node"
         )
     if (
         n < 0
