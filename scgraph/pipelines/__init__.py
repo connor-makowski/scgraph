@@ -216,7 +216,7 @@ pipelines. Two modules with the same last name share one cache entry.
 HOW TO ADD A NETWORK TO SCGRAPH
 
 1. Add the module to this package, with the names above.
-2. Add its name to `BUILDABLE_NETWORKS` of `scgraph/network_cache.py` and to the
+2. Add its name to `BUILDABLE_NETWORKS` of `scgraph/networks.py` and to the
    `Literal` of `GeoGraph.build_geograph`, in alphabetical order. A test checks that the two lists are the same.
 3. Add its row to the table of *Building Networks from Their Sources*, in `README.md`
    and in the docstring of `scgraph/__init__.py`.
@@ -236,7 +236,7 @@ import sysconfig
 
 from scgraph.edge_classes import CLASS_IDS, CLASSES
 from scgraph.files import download_file
-from scgraph.network_cache import BUILDABLE_NETWORKS
+from scgraph.networks import BUILDABLE_NETWORKS
 from scgraph.utils import has_cpp
 
 __all__ = ["CLASSES", "NAMES", "download_file"]

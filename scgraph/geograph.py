@@ -14,7 +14,7 @@
 - `GeoGraph` joins these classes.
 - `LazyGeoGraph` stands for a `GeoGraph` and loads it at its first use.
 
-Users reach this module through `scgraph.GeoGraph`. `scgraph/network_cache.py` downloads
+Users reach this module through `scgraph.GeoGraph`. `scgraph/networks.py` downloads
 the released networks, and `scgraph/built_in_geographs.py` holds the seven networks
 of scgraph 3.6.0.
 """

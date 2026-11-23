@@ -1527,7 +1527,7 @@ from scgraph.grid import GridGraph
 
 # `GeoGraph.load_geograph` imports this module inside the call. It is imported here
 # too, so that the first load of a network does not pay for the import.
-from scgraph import network_cache as _network_cache  # noqa: F401
+from scgraph import networks as _networks  # noqa: F401
 
 # The public names of the package (README, *Public API*)
 __all__ = [

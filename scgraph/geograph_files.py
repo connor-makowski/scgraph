@@ -978,9 +978,9 @@ class GeoGraphIO:
         # later.
         built_in_geographs.warn_deprecated_load(name, geograph_url)
 
-        from scgraph import network_cache
+        from scgraph import networks
 
-        return network_cache.load_network(
+        return networks.load_network(
             name,
             cache_dir,
             geograph_url,
@@ -1030,10 +1030,10 @@ class GeoGraphIO:
                 - for `"released"`: `nodes`, `edges`, `download_mb` and `download_mb_without_shapes` (the size of the two downloads), and `data_up_to` (the time of the newest source data, or None when no source gives a time)
                 - for `"built-in"`: `superseded_by`, the name of the released network that covers the same need with newer data; that network may hold more node modes (load it with `node_modes`), and its results differ
         """
-        from scgraph import network_cache
+        from scgraph import networks
 
         built_in_geographs.warn_deprecated_url(geograph_url)
-        return network_cache.list_networks(
+        return networks.list_networks(
             cache_dir=cache_dir, geograph_url=geograph_url
         )
 
@@ -1070,9 +1070,9 @@ class GeoGraphIO:
             - What: With `name`, the region of the built network to remove (its sub-regions are kept)
             - Default: None: every region
         """
-        from scgraph import network_cache
+        from scgraph import networks
 
-        return network_cache.clear_cache(
+        return networks.clear_cache(
             cache_dir=cache_dir, name=name, region=region
         )
 
@@ -1104,9 +1104,9 @@ class GeoGraphIO:
             - for `"released"` only: `network_release`, the tag of the network release
             - for `"built"` only: `pipeline_version` and `scgraph`, the versions of the network's pipeline and of scgraph that built it, read from the file (None if it can't be read)
         """
-        from scgraph import network_cache
+        from scgraph import networks
 
-        return network_cache.get_cache_info(cache_dir=cache_dir)
+        return networks.get_cache_info(cache_dir=cache_dir)
 
     @staticmethod
     def build_geograph(
@@ -1197,9 +1197,9 @@ class GeoGraphIO:
         - `ImportError` for the OpenStreetMap networks if `osmium` is not installed (`pip install scgraph[osm]`), before downloading the extract
         - `requests.HTTPError` or `ConnectionError` if a source can't be downloaded; a network already cached stays there. A build that fails keeps its downloaded sources in the work folder (`.work/` of the cache directory). The next call resumes from it. `clear_geograph_cache()` removes it
         """
-        from scgraph import network_cache
+        from scgraph import networks
 
-        return network_cache.build_network(
+        return networks.build_network(
             name,
             region,
             cache_dir,
@@ -1239,9 +1239,9 @@ class GeoGraphIO:
             - `cached`: bool — whether a build is already in the cache (for a network with regions: of any region)
             - `cached_regions`: list[str] — the regions already built (empty for a network without regions)
         """
-        from scgraph import network_cache
+        from scgraph import networks
 
-        return network_cache.list_buildable_networks(cache_dir=cache_dir)
+        return networks.list_buildable_networks(cache_dir=cache_dir)
 
     @staticmethod
     def load_from_osmnx_graph(
