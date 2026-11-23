@@ -34,7 +34,8 @@ from scgraph import files, network_file, network_release
 from scgraph import built_in_geographs
 from scgraph import network_release as pinned_network_release
 from scgraph.files import is_offline
-from scgraph.geograph import GeoGraph, LazyGeoGraph, _order_by_hilbert
+from scgraph.geograph import GeoGraph, LazyGeoGraph
+from scgraph.geograph_files import _order_by_hilbert
 from scgraph.utils import resolve_cache_dir
 from scgraph._internal import log_step
 

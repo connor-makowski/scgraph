@@ -61,14 +61,19 @@ ALLOWED = [
         "`GeoGraph` builds on the `Graph` that the package chooses, and raises its errors.",
     ),
     (
-        "geograph",
+        "geograph_files",
+        "",
+        "`GeoGraphIO` builds the `Graph` that the package chooses: the C++ one when it is built.",
+    ),
+    (
+        "geograph_files",
         "built_in_geographs",
         "The default of `geograph_url` in the signatures of `load_geograph` and "
         "`list_geographs` is `built_in_geographs.GEOGRAPH_URL`, and a default is "
         "read when the module loads.",
     ),
     (
-        "geograph",
+        "geograph_files",
         "network_cache",
         "The static methods of `GeoGraph` that release 3.6.0 exposes (`load_geograph` "
         "and the like) import the work from a higher layer inside the function (D1).",
