@@ -1312,7 +1312,7 @@ class GeoGraph(
         # removes them.
         self._metrics = dict(_metrics or {})
         # The offsets, the heads and the lengths of the edges of `graph_object`
-        # (`Graph._csr`), as `_read_edge_arrays` last read them. The id of an edge
+        # (`Graph.get_edge_arrays`), as `_read_edge_arrays` last read them. The id of an edge
         # is its position in the heads. The graph and its count of edits at that
         # time show whether the graph was edited since.
         self._edge_arrays = None
@@ -1392,10 +1392,10 @@ class GeoGraph(
         rows = getattr(graph, "__graph__", None) if check_edge_count else None
         if (
             graph is not self._edge_arrays_graph
-            or graph._edit_count != self._edge_arrays_edit_count
+            or graph.edit_count != self._edge_arrays_edit_count
         ):
             self._remove_metrics()
-            self._set_edge_arrays(graph._csr())
+            self._set_edge_arrays(graph.get_edge_arrays())
         elif rows is not None and sum(map(len, rows)) != len(
             self._edge_arrays[1]
         ):
@@ -1417,7 +1417,7 @@ class GeoGraph(
         # None, `_read_edge_class_ids` computes it.
         self._edge_arrays = edge_arrays
         self._edge_arrays_graph = self.graph_object
-        self._edge_arrays_edit_count = self.graph_object._edit_count
+        self._edge_arrays_edit_count = self.graph_object.edit_count
         self._edge_class_ids = edge_class_ids
 
     def _read_edge_class_ids(self) -> array | memoryview | None:
@@ -2558,7 +2558,7 @@ class GeoGraph(
                 }
 
             if logger.isEnabledFor(logging.DEBUG):
-                self.graph_object._reset_node_scans()
+                self.graph_object.reset_node_scans()
             if is_direct:
                 output = {
                     "path": [],
@@ -2719,7 +2719,7 @@ class GeoGraph(
                 3,
             ),
         }
-        node_scans = self.graph_object._get_last_node_scans()
+        node_scans = self.graph_object.get_last_node_scans()
         if node_scans is not None:
             indicators["node_scans"] = node_scans
         logger.debug(

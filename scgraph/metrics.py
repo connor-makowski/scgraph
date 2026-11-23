@@ -10,7 +10,7 @@ WORDS
   by a metric adds these weights in place of the lengths.
 - An edge is "closed" in a metric when its weight is infinity. No route by this
   metric takes it.
-- An "edge id" is the position of an edge in the arrays of a graph (`Graph._csr`).
+- An "edge id" is the position of an edge in the arrays of a graph (`Graph.get_edge_arrays`).
   The edges of the node `u` have the ids `offsets[u]` to `offsets[u + 1] - 1`, and
   `heads[edge_id]` is the node that the edge goes to. An array "by edge id" has
   one value for each edge, at the id of the edge.

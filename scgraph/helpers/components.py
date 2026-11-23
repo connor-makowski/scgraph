@@ -22,7 +22,7 @@ try:
 except ImportError:
     _cpp_strongly_connected_components = None
 
-from scgraph.helpers.douglas_peucker import _is_monotonically_increasing
+from scgraph._internal import is_sorted_from_zero
 
 
 def find_strongly_connected_components_python(
@@ -30,11 +30,7 @@ def find_strongly_connected_components_python(
 ) -> tuple[array, array]:
     """Pure-Python version of `find_strongly_connected_components`."""
     n = len(offsets) - 1
-    if (
-        n < 0
-        or offsets[n] != len(heads)
-        or not _is_monotonically_increasing(offsets)
-    ):
+    if n < 0 or offsets[n] != len(heads) or not is_sorted_from_zero(offsets):
         raise ValueError("offsets must rise from 0 to the number of items")
     if heads and not (0 <= min(heads) and max(heads) < n):
         raise IndexError("head out of range")

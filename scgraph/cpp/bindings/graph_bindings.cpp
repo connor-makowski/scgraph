@@ -403,9 +403,9 @@ NB_MODULE(cpp, m) {
         .def("validate", &Graph::validate,
              nb::arg("check_symmetry") = true, nb::arg("check_connected") = true,
              "Validate that the graph is properly formatted")
-        .def_static("_reset_node_scans", &reset_node_scans,
+        .def_static("reset_node_scans", &reset_node_scans,
             "Forgets the number of node scans of the last search in this thread")
-        .def_static("_get_last_node_scans", &get_last_node_scans,
+        .def_static("get_last_node_scans", &get_last_node_scans,
             "Number of node scans of the last search in this thread (Dijkstra, A* and bucket searches), or None")
         .def("reset_cache", &Graph::reset_cache,
              "Reset the cached shortest path trees")
@@ -413,13 +413,13 @@ NB_MODULE(cpp, m) {
              "Get the adjacency dictionary for a specific node")
         .def("size", &Graph::size,
              "Get the number of nodes in the graph")
-        .def_prop_ro("_edit_count", &Graph::edit_count,
+        .def_prop_ro("edit_count", &Graph::edit_count,
              "The number of calls of add_node, add_edge, remove_node and remove_edge that changed the graph")
         .def_prop_ro("graph", &Graph::get_graph,
              "Get the entire graph adjacency list")
         .def_prop_ro("unreduced_graph", &Graph::get_graph,
              "Same as graph")
-        .def("_csr", &graph_csr, nb::arg("order") = nb::none(),
+        .def("get_edge_arrays", &graph_csr, nb::arg("order") = nb::none(),
              "The graph (unreduced) as edges by origin: int32 offsets and heads, float64 weights, in the order searches visit them (read-only views of the graph's arrays); with an order (order[new] = old), the rows in that order, heads renumbered (one copy)")
         .def_prop_ro("inverse_graph", &Graph::get_inverse_graph,
              "Get the inverse of the graph: every edge reversed")

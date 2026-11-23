@@ -1,5 +1,5 @@
 """Helpers that scgraph uses inside: the deprecation warnings, the log of a step, and
-the check of a sorted array.
+the checks of a sorted array.
 
 This module is internal. `scgraph.utils` holds the helpers that a user calls.
 """
@@ -7,7 +7,7 @@ This module is internal. `scgraph.utils` holds the helpers that a user calls.
 import logging
 import time
 import warnings
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from itertools import islice
 from operator import le
@@ -72,3 +72,9 @@ def is_sorted(values: Iterable) -> bool:
     """Return whether no value is smaller than the value before it."""
     # `map` and `all` run the loop in C, not in Python.
     return all(map(le, values, islice(values, 1, None)))
+
+
+def is_sorted_from_zero(values: Sequence) -> bool:
+    """Return whether the first value is 0 and no value is smaller than the value
+    before it, as in an array of offsets. `values` holds at least one value."""
+    return values[0] == 0 and is_sorted(values)

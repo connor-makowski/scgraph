@@ -1630,21 +1630,21 @@ class Graph(
         )
 
     @staticmethod
-    def _reset_node_scans() -> None:
+    def reset_node_scans() -> None:
         """
         Forgets the number of node scans of the last search in this thread.
         """
         _last_search_in_thread.node_scans = None
 
     @staticmethod
-    def _get_last_node_scans() -> int | None:
+    def get_last_node_scans() -> int | None:
         """
         Returns the number of node scans of the last search in this thread.
 
         - A node scan is one pass over the edges of one node. A bidirectional or bucket
           search can scan a node more than once
         - Dijkstra, A* and bucket searches count their node scans. Returns None if no
-          such search ran since `_reset_node_scans`
+          such search ran since `reset_node_scans`
         """
         return getattr(_last_search_in_thread, "node_scans", None)
 

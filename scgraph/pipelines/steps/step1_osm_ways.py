@@ -42,12 +42,6 @@ import requests
 from scgraph.helpers.osm import (
     MAIN_ROADS as MAIN_ROADS,
     MAX_KM_BETWEEN_NODES as MAX_KM_BETWEEN_NODES,
-    _ONE_WAY as _ONE_WAY,
-    _Junctions as _Junctions,
-    _PagedIdSet as _PagedIdSet,
-    _open_source as _open_source,
-    _select_ways as _select_ways,
-    _split_at_unlocated_nodes as _split_at_unlocated_nodes,
     get_way_direction as get_way_direction,
     locate_ways,
     read_osm as read_osm,

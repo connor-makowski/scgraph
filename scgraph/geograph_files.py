@@ -316,7 +316,7 @@ class GeoGraphIO:
             order = None  # already in that order: written as it is
         old = range(len(nodes)) if order is None else order
         # In the order searches visit the edges, so that the file gives the same paths
-        offsets, heads, weights = self.graph_object._csr(order)
+        offsets, heads, weights = self.graph_object.get_edge_arrays(order)
         if order is not None and edge_value_arrays:
             edge_value_arrays = {
                 name: _reorder_edge_values(edge_values, geograph_offsets, order)
@@ -1427,7 +1427,7 @@ class GeoGraphIO:
         # The graph is built first: the ids of its edges give the order of the
         # weights of a metric. The attributes of each edge, by edge id:
         graph_object = Graph(graph)
-        edge_arrays = graph_object._csr()
+        edge_arrays = graph_object.get_edge_arrays()
         offsets, heads, _ = edge_arrays
         edge_attributes = [
             attributes_of_origin[heads[edge_id]]
@@ -1668,7 +1668,7 @@ def _reorder_edge_values(
         edge_values: An array by edge id: one value for each edge, at its id.
         offsets: The id of the first edge of each node, before the new order.
         order: The nodes in their new order: `order[new id] = id`. A node keeps the
-            order of its edges, as `Graph._csr(order)` does.
+            order of its edges, as `Graph.get_edge_arrays(order)` does.
     """
     edge_values = memoryview(edge_values)
     reordered_edge_values = array(edge_values.format)
@@ -1727,7 +1727,9 @@ def _order_by_hilbert(geograph):
     if Graph.__module__ == "scgraph.cpp":
         # Renumbered as arrays (read as dicts, the C++ graph would be copied whole), which
         # the new graph keeps instead of copying them again
-        graph = Graph.from_csr(*geograph.graph_object._csr(order), copy=False)
+        graph = Graph.from_csr(
+            *geograph.graph_object.get_edge_arrays(order), copy=False
+        )
     else:
         # Renumbered dicts, sharing the graph's weight objects (from_csr would not)
         rows = geograph.graph_object.unreduced_graph
