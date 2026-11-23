@@ -381,8 +381,8 @@ networks, and the world file without shapes. In a network release, the workflow 
 runs the command this way, once.
 
 The numbers below come from one derivation of `oceania` on 2026-11-22, on Linux, with the C++
-extension. The parent file is the `world_multimodal` of the network release
-`networks-2026.11.22-dev.2` (335.4 MB).
+extension. The parent file is the `world_multimodal` of a development network release of
+that day (335.4 MB).
 
 | Step | Nodes | Edges |
 |---|---|---|
@@ -424,7 +424,7 @@ Parts 1 and 2 for the world, then prepares the GitHub release.
 The date of the data is in the code, not in the tag. The constant `PLANET` of
 `steps/step1_osm_ways.py` holds the URL of one planet file of OpenStreetMap, and this URL
 holds the date of the file. To take newer data, a PR changes this URL. The network release
-`networks-2026.11.22-dev.2` holds the planet of 2026-11-02.
+`networks-2026.11.22-dev.3` holds the planet of 2026-11-02.
 
 ### What starts the run
 
@@ -469,8 +469,8 @@ flowchart TD
 | 2. `world_multimodal` | 1 h 35 min | 41 s |
 | 3. Derive and draft | 4 min 25 s | 3 min 9 s |
 
-The times come from two runs. The run of `networks-2026.11.22-dev.2`, on 2026-11-22, built the
-world. A run of 2026-11-19 took the world file of the network release before it.
+The times come from two runs. The run of a development network release, on 2026-11-22, built
+the world. A run of 2026-11-19 took the world file of the network release before it.
 
 - **Job 2 reads the planet from another server.** The workflow first replaces the planet URL
   of the code by a mirror that is faster from a machine of GitHub. The header of the world
@@ -484,7 +484,7 @@ world. A run of 2026-11-19 took the world file of the network release before it.
 
 ### What a network release holds
 
-The network release `networks-2026.11.22-dev.2` holds 23 files.
+The network release `networks-2026.11.22-dev.3` holds 23 files.
 
 - 22 network files, compressed with gzip: `world_multimodal` and the ten derived networks, each
   with and without the shapes of its edges. For example `oceania.scgraph.gz` (9.2 MB) and
@@ -544,7 +544,7 @@ eleven networks, and gives the arguments of the call, the cache and the errors o
 This part follows one load of `oceania` without its edge shapes, with the numbers of a run.
 
 1. **Download.** The first call downloads
-   `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph.gz`
+   `https://github.com/connor-makowski/scgraph/releases/download/networks-2026.11.22-dev.3/oceania.no_shapes.scgraph.gz`
    (3.5 MB), and decompresses it (7.1 MB).
 2. **Check.** `network_file.check_content` computes the `content_sha256` of the decompressed
    file, and compares it with the one in the header of the file. This finds a download that
@@ -553,7 +553,7 @@ This part follows one load of `oceania` without its edge shapes, with the number
    server. A file of another network release has the first check only. A file that fails a
    check is deleted: it does not enter the cache, and the load raises a `ValueError`.
 3. **Keep.** The cache keeps the decompressed file as
-   `releases/networks-2026.11.22-dev.2/oceania.no_shapes.scgraph`. The cache is not
+   `releases/networks-2026.11.22-dev.3/oceania.no_shapes.scgraph`. The cache is not
    compressed: with the C++ extension, and without `node_modes`, scgraph maps the file and does not
    copy it into memory. A later load makes no request, and does not check the file again.
 4. **Read.** The load reads 125,904 nodes and 339,010 edges. When the caller passes a
