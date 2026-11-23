@@ -1181,6 +1181,50 @@ def test_a_star_with_a_bound_of_the_geograph_finds_the_best_route(
     assert route["path"] == RAILWAY_PATH
 
 
+def _get_no_bound(origin_id, destination_id):
+    return 0
+
+
+# Each name that `algorithm_fn` accepts. A* needs a bound: zero never exceeds
+# the real total.
+@pytest.mark.parametrize(
+    "algorithm_fn, algorithm_kwargs",
+    [
+        ("bidirectional_buckets", {}),
+        ("dijkstra", {}),
+        ("bidirectional_dijkstra", {}),
+        ("dijkstra_buckets", {}),
+        ("dijkstra_negative", {}),
+        ("a_star", {"heuristic_fn": _get_no_bound}),
+        ("bellman_ford", {}),
+        ("bmssp", {}),
+        ("cached_shortest_path", {}),
+        ("contraction_hierarchy", {}),
+    ],
+)
+def test_every_algorithm_finds_the_total_of_a_metric_that_closes_a_class(
+    network, algorithm_fn, algorithm_kwargs
+):
+    network.create_metric(
+        "minutes",
+        weight_per_km={**MINUTES_PER_KM, "rail": None},
+        class_weight_per_km=CLASS_MINUTES_PER_KM,
+    )
+
+    route = network.get_shortest_path(
+        WEST_POINT,
+        EAST_POINT,
+        metric="minutes",
+        algorithm_fn=algorithm_fn,
+        algorithm_kwargs=algorithm_kwargs,
+    )
+
+    # The railway is closed: the motorway takes 100 km at 0.5 minute per km.
+    assert route["metric_totals"]["minutes"] == pytest.approx(
+        50 + 2 * OFF_GRAPH_LEG_KM * 4.0
+    )
+
+
 def test_totals_only_gives_the_total_of_the_metric_of_the_query_alone(
     network_with_minutes,
 ):
