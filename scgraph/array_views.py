@@ -1,4 +1,4 @@
-"""The columns of a geograph over the arrays of a network file.
+"""List-like views of the arrays of a network file: points, edge shapes and source ids.
 
 This module is internal. A network file stores the points of the nodes, the shapes of
 the edges and the source ids of the nodes as flat arrays, which `network_file.read`

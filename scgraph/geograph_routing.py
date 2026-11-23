@@ -15,7 +15,7 @@ from scgraph.utils import (
     radians_per_degree,
 )
 from scgraph._internal import warn_deprecated_parameter
-from scgraph import columns
+from scgraph import array_views
 import logging
 import warnings
 import types
@@ -290,7 +290,7 @@ class GeoGraphUtils:
         nodes = self.nodes
         coordinates = (
             nodes.take(path)
-            if isinstance(nodes, columns.NodePoints)
+            if isinstance(nodes, array_views.NodePoints)
             else [nodes[node_id] for node_id in path]
         )
         if (
@@ -298,7 +298,7 @@ class GeoGraphUtils:
             and self.intermediate_nodes is not None
             and path
         ):
-            if isinstance(self.intermediate_nodes, columns.EdgeShapes):
+            if isinstance(self.intermediate_nodes, array_views.EdgeShapes):
                 return self.intermediate_nodes.coordinate_path(
                     path, coordinates
                 )

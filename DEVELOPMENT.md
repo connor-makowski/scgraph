@@ -37,7 +37,7 @@ scgraph/
   graph.py                       # Core Graph class — Dijkstra, Bidirectional Dijkstra, Bellman-Ford, A*, BMSSP, tree ops
   graph_reducer.py               # GraphReducer + @algorithm decorator (chain contraction, path expansion)
   errors.py, files.py            # Internal: PathNotFoundError and NegativeCycleError; writing, downloading and offline mode of a file
-  columns.py                     # Internal: the columns of a geograph over the arrays of a network file (NodePoints, EdgeShapes, SourceNodeIds)
+  array_views.py                 # Internal: list-like views of the arrays of a network file (NodePoints, EdgeShapes, SourceNodeIds)
   geograph.py                    # GeoGraph + LazyGeoGraph — constructor, properties, snapping, validation of nodes, reduce
   geograph_files.py, geograph_edits.py, geograph_edges.py, geograph_routing.py  # Internal: the mixins of GeoGraph: load and save (its methods for the networks of scgraph call networks.py); edits; classes, metrics and edges; queries and legs
   edge_classes.py, metrics.py    # Internal: the class of each edge; the record of a metric and how its weights are computed

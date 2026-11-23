@@ -24,7 +24,7 @@ LAYERS = {
     "files": 0,
     "helpers": 1,
     "network_file": 1,
-    "columns": 1,
+    "array_views": 1,
     "graph_utils": 2,
     "graph_reducer": 2,
     "graph": 2,

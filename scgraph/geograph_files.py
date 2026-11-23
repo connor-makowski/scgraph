@@ -12,7 +12,7 @@ from scgraph.helpers.polylines import build_graph_from_polylines
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.edge_classes import CLASSES
 from scgraph.metrics import Metric
-from scgraph import built_in_geographs, columns, network_file
+from scgraph import array_views, built_in_geographs, network_file
 import json
 import os
 import types
@@ -836,9 +836,9 @@ class GeoGraphIO:
                 for row in metadata["metrics"][1:]
             },
             graph=graph,
-            nodes=columns.NodePoints(arrays["node_points"]),
+            nodes=array_views.NodePoints(arrays["node_points"]),
             intermediate_nodes=(
-                columns.EdgeShapes(arrays)
+                array_views.EdgeShapes(arrays)
                 if "shape_offsets" in arrays
                 else None
             ),

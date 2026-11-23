@@ -23,7 +23,7 @@ from scgraph._internal import log_step
 from scgraph.edge_classes import EdgeClasses
 from scgraph.node_snapping import SnapIndexes
 from scgraph.metrics import Metric
-from scgraph import columns
+from scgraph import array_views
 from scgraph import geograph_files
 from scgraph.geograph_files import GeoGraphIO
 from scgraph.geograph_edits import GeoGraphModifiers
@@ -191,7 +191,7 @@ class GeoGraph(
         self.nodes = nodes
         if source_node_ids is not None and len(source_node_ids) != len(nodes):
             raise ValueError("source_node_ids must give one id per node")
-        self.source_node_ids = columns.SourceNodeIds(
+        self.source_node_ids = array_views.SourceNodeIds(
             range(len(nodes)) if source_node_ids is None else source_node_ids,
             nodes,
         )
@@ -402,7 +402,7 @@ class GeoGraph(
 
         - None
         """
-        if not (isinstance(self.nodes, (list, columns.NodePoints))):
+        if not (isinstance(self.nodes, (list, array_views.NodePoints))):
             raise ValueError("Your nodes must be a list")
         if not (all([isinstance(i, list) for i in self.nodes])):
             raise ValueError("Your nodes must be a list of lists")

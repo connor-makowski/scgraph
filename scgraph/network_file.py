@@ -707,7 +707,7 @@ def _check(filename, arrays, metadata, should_check_values=True):
             and shapes[-1] == len(arrays["shape_points"]) // 2,
             "invalid shape offsets",
         )
-        # Mapped, each shape's offsets are checked where it is read (`scgraph.columns.EdgeShapes`)
+        # Mapped, each shape's offsets are checked where it is read (`scgraph.array_views.EdgeShapes`)
         require(
             not should_check_values or is_sorted(shapes),
             "invalid shape offsets",
