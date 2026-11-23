@@ -90,15 +90,15 @@ class Metric:
     # The Graph that a search by this metric runs on. Built at the first query.
     graph_object: "Graph | None" = None
 
-    def get_row(self) -> dict:
-        """Return the row of the metric: the dict that `GeoGraph.metrics` gives."""
-        row = {
+    def get_info(self) -> dict:
+        """Return the info of the metric: what describes it, without its weights."""
+        info = {
             "name": self.name,
             "unit": self.unit,
             "description": self.description,
             "off_graph_weight_per_km": self.off_graph_weight_per_km,
         }
-        return {key: value for key, value in row.items() if value is not None}
+        return {key: value for key, value in info.items() if value is not None}
 
     def get_min_weight_per_length_unit(
         self, lengths: array | memoryview
