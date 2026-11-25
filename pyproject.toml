@@ -85,7 +85,7 @@ classifiers = [
 ]
 dependencies = [
     "geokdtree>=1.3.0",
-    "bmsspy>=2.2.1,<3.0.0",
+    "bmsspy>=2.4.0,<3.0.0",
     "requests>=2.32.0,<3.0.0"
 ]
 
