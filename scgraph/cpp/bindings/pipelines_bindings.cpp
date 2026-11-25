@@ -1,4 +1,4 @@
-// Bindings of the pipelines' kernels (scgraph/pipelines/steps/), a translation unit of its own:
+// Bindings of the pipelines' kernels (scgraph/network_assembly.py, scgraph/pipelines/steps/), a translation unit of its own:
 // it is compiled without fused multiply-add (CMakeLists.txt), so that the kernels round as
 // their pure-Python twins
 #include <nanobind/nanobind.h>
@@ -16,7 +16,7 @@
 namespace nb = nanobind;
 
 void bind_pipelines(nb::module_& m) {
-    // Assembly kernels (contracts in scgraph/pipelines/steps/step3_network_assembly.py)
+    // Assembly kernels (contracts in scgraph/network_assembly.py)
     auto bind_csr = [](Int64Array origins, Int64Array destinations, DoubleArray weights,
                        std::optional<Uint8Array> edge_class_ids) {
         const int64_t m = (int64_t)origins.shape(0);
@@ -41,21 +41,25 @@ void bind_pipelines(nb::module_& m) {
           nb::arg("edge_destination_node_ids"));
     m.def("contract_chains", [](Int32Array node_first_edge_ids, Int32Array edge_destination_node_ids,
                                 DoubleArray weights, std::optional<Uint8Array> node_mode_ids,
-                                double max_km_between_nodes, std::optional<Uint8Array> edge_class_ids) {
+                                double max_km_between_nodes, std::optional<Uint8Array> edge_class_ids,
+                                std::optional<Uint8Array> kept_node_flags) {
         const int64_t n = (int64_t)node_first_edge_ids.shape(0) - 1;
         if (weights.shape(0) != edge_destination_node_ids.shape(0) || (node_mode_ids && (int64_t)node_mode_ids->shape(0) != n)
+            || (kept_node_flags && (int64_t)kept_node_flags->shape(0) != n)
             || (edge_class_ids && edge_class_ids->shape(0) != edge_destination_node_ids.shape(0)))
             throw std::invalid_argument("expected one weight and one class per edge, and one node mode per node");
         auto c = assembly::contract_chains(node_first_edge_ids.data(), edge_destination_node_ids.data(), weights.data(),
                                            node_mode_ids ? node_mode_ids->data() : nullptr, n,
                                            (int64_t)edge_destination_node_ids.shape(0), max_km_between_nodes,
-                                           edge_class_ids ? edge_class_ids->data() : nullptr);
+                                           edge_class_ids ? edge_class_ids->data() : nullptr,
+                                           kept_node_flags ? kept_node_flags->data() : nullptr);
         return nb::make_tuple(owned_view(std::move(c.kept)), owned_view(std::move(c.origins)),
                               owned_view(std::move(c.edge_destination_node_ids)), owned_view(std::move(c.weights)),
                               owned_view(std::move(c.member_offsets)), owned_view(std::move(c.members)));
     }, nb::arg("node_first_edge_ids"), nb::arg("edge_destination_node_ids"), nb::arg("weights"),
        nb::arg("node_mode_ids") = nb::none(),
-       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("edge_class_ids") = nb::none());
+       nb::arg("max_km_between_nodes") = std::numeric_limits<double>::infinity(), nb::arg("edge_class_ids") = nb::none(),
+       nb::arg("kept_node_flags") = nb::none());
     m.def("simplify_shapes", [](Int32Array shape_points, Int32Array edge_first_shape_point_ids,
                                 Int32Array endpoint_coords, double tolerance_meters) {
         const int64_t shapes = (int64_t)edge_first_shape_point_ids.shape(0) - 1;

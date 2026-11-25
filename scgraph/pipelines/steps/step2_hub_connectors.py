@@ -46,8 +46,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from scgraph.pipelines import CLASS_IDS
-from scgraph.pipelines.steps.near_nodes import NearNodes
-from scgraph.pipelines.steps.step3_network_assembly import (
+from scgraph.helpers.near_nodes import NearNodes
+from scgraph.network_assembly import (
     PieceArrays,
     build_graph_from_pieces,
     find_strongly_connected_components,
@@ -192,7 +192,7 @@ def read_flights(filename: str | os.PathLike) -> list[tuple[int, int]]:
 
 class _Network:
     """One network, such as the road network, from the network file's arrays
-    (`step3_network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
+    (`network_assembly.build_graph_from_pieces`'s layout): its node points in 1e-7 degree, its
     node ids and its edges, each with its class.
     """
 

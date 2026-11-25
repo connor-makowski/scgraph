@@ -6,11 +6,11 @@ from itertools import groupby
 import pytest
 from helpers import great_circle_km, needs_the_cpp_extension
 
-from scgraph.pipelines.steps import step3_network_assembly
-from scgraph.pipelines.steps.near_nodes import NearNodes
+from scgraph import network_assembly
+from scgraph.helpers.near_nodes import NearNodes
 from scgraph.utils import has_cpp
 
-BACKENDS = {"python": step3_network_assembly.python}
+BACKENDS = {"python": network_assembly.python}
 if has_cpp():
     from scgraph import cpp
 
@@ -233,7 +233,7 @@ EDGE_DESTINATION_NODE_IDS = array("i", [1, 2, 1, 3, 2, 5, 4])
     ],
 )
 def test_components_are_kept_by_their_size(options, kept_nodes):
-    nodes, labels = step3_network_assembly.keep_strongly_connected_components(
+    nodes, labels = network_assembly.keep_strongly_connected_components(
         NODE_FIRST_EDGE_IDS, EDGE_DESTINATION_NODE_IDS, **options
     )
 
@@ -335,7 +335,7 @@ def assembled(tmp_path_factory):
     """The arrays of the network built from the four pieces. The arguments
     keep every component, even of one node, and cut no edge: no chain reaches
     100 km."""
-    pieces = step3_network_assembly.PieceArrays(
+    pieces = network_assembly.PieceArrays(
         work_dir=tmp_path_factory.mktemp("pieces")
     )
     shapes = {1: POINTS_FROM_1_TO_2, 2: POINTS_FROM_2_TO_3}
@@ -348,8 +348,8 @@ def assembled(tmp_path_factory):
             [PLACES[origin], PLACES[destination]],
             shapes.get(origin, []),
         )
-    arrays = step3_network_assembly.assemble_network(
-        step3_network_assembly.build_graph_from_pieces(pieces),
+    arrays = network_assembly.assemble_network(
+        network_assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
         min_component_nodes=1,
     )
@@ -406,13 +406,13 @@ def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
     # table.
     primary, trunk = 5, 3
     places = {1: [0, 0], 2: [0, 0.01], 3: [0, 0.02], 4: [0, 0.03]}
-    pieces = step3_network_assembly.PieceArrays(work_dir=tmp_path)
+    pieces = network_assembly.PieceArrays(work_dir=tmp_path)
     for origin, class_id in ((1, primary), (2, primary), (3, trunk)):
         ends = [places[origin], places[origin + 1]]
         pieces.append(origin, origin + 1, 1.0, 0, ends, [], class_id)
 
-    arrays = step3_network_assembly.assemble_network(
-        step3_network_assembly.build_graph_from_pieces(pieces),
+    arrays = network_assembly.assemble_network(
+        network_assembly.build_graph_from_pieces(pieces),
         max_km_between_nodes=100,
         min_component_nodes=1,
     )
@@ -430,12 +430,78 @@ def test_an_assembled_edge_has_the_class_of_its_pieces(tmp_path):
 
 
 def test_pieces_with_and_without_a_class_are_refused():
-    pieces = step3_network_assembly.PieceArrays()
+    pieces = network_assembly.PieceArrays()
     pieces.append(1, 2, 1.0, 0, [[0, 0], [0, 0.01]], [], 5)
     pieces.append(2, 3, 1.0, 0, [[0, 0.01], [0, 0.02]], [])
 
     with pytest.raises(ValueError, match="have a class and the others"):
-        step3_network_assembly.build_graph_from_pieces(pieces)
+        network_assembly.build_graph_from_pieces(pieces)
+
+
+# A one-way fork. The street from W enters the junction J, and two streets leave
+# J: to A and to B. The streets from A to B and from B to W let a route come
+# back to W. A street is (origin, destination): its ids in the source, which are
+# also its node ids in the graph. Street number i is i + 1 km long, and it has
+# one shape point. A class is given by its id in the classes table.
+W, J, A, B = range(4)
+FORK_STREETS = [(W, J), (J, A), (J, B), (A, B), (B, W)]
+FORK_PLACES = {W: [0, 0], J: [0, 0.01], A: [0.01, 0.02], B: [-0.01, 0.02]}
+FORK_CLASS_IDS = [5, 3, 5, 3, 5]
+# `scgraph.turn_restrictions` explains the node that this forbidden turn adds to
+# J. The street from W then enters the added node, and no street enters the
+# node of the junction.
+NO_TURN_FROM_W_TO_B = [W, J, B]
+
+
+def _fork_graph():
+    pieces = network_assembly.PieceArrays(tolerance_meters=None)
+    for i, (origin, destination) in enumerate(FORK_STREETS):
+        pieces.append(
+            origin,
+            destination,
+            i + 1.0,
+            1,
+            [FORK_PLACES[origin], FORK_PLACES[destination]],
+            [[0.02, 0.001 * i]],
+            FORK_CLASS_IDS[i],
+        )
+    return network_assembly.build_graph_from_pieces(pieces)
+
+
+def _length_class_and_shape(arrays):
+    return _by_external_node_ids(
+        arrays,
+        lambda edge: (
+            arrays["metric_length"][edge],
+            arrays["edge_class_ids"][edge],
+            _shape_points(arrays, edge),
+        ),
+    )
+
+
+def test_an_edge_of_an_added_node_has_the_length_the_class_and_the_shape_of_its_street():
+    fork = _fork_graph()
+
+    with_added_node = network_assembly.forbid_turns(fork, [NO_TURN_FROM_W_TO_B])
+
+    # The added node has the id of J in the source. So its edge to A, and the
+    # edge that enters it from W, are read here as the streets (J, A) and (W, J).
+    assert _length_class_and_shape(with_added_node) == _length_class_and_shape(
+        fork
+    )
+
+
+# A route may start at a junction that no route enters. So a junction with a
+# node in a kept component keeps all its nodes, with their edges.
+def test_a_kept_junction_keeps_its_node_that_no_edge_enters():
+    with_added_node = network_assembly.forbid_turns(
+        _fork_graph(), [NO_TURN_FROM_W_TO_B]
+    )
+
+    kept = network_assembly.keep_components(with_added_node, None)
+
+    # The street from J to B is an edge of the first node of the junction only.
+    assert set(_length_class_and_shape(kept)) == set(FORK_STREETS)
 
 
 # Two junctions are on the equator, at the longitudes 0 and 0.03. A primary
@@ -446,11 +512,11 @@ MOTORWAY, PRIMARY = 0, 4
 
 
 def _motorway_and_primary_road(points_of_primary_road, junctions=(10, 20)):
-    pieces = step3_network_assembly.PieceArrays(tolerance_meters=None)
+    pieces = network_assembly.PieceArrays(tolerance_meters=None)
     ends = [[0, 0], [0, 0.03]]
     pieces.append(*junctions, 3.0, -1, ends, [], MOTORWAY)
     pieces.append(*junctions, 4.0, 0, ends, points_of_primary_road, PRIMARY)
-    return step3_network_assembly.build_graph_from_pieces(pieces)
+    return network_assembly.build_graph_from_pieces(pieces)
 
 
 def test_a_longer_road_of_another_class_between_two_junctions_is_split():
@@ -514,7 +580,7 @@ def test_a_road_is_split_at_its_middle_point_and_its_halves_keep_the_others(
 def test_pieces_stored_in_two_batches_keep_their_own_points(tmp_path):
     # PieceArrays stores the pieces by batches of 10,000. Each of the 10,002
     # pieces has one point, at its own latitude: i units of 1e-7 degree.
-    pieces = step3_network_assembly.PieceArrays(
+    pieces = network_assembly.PieceArrays(
         tolerance_meters=None, work_dir=tmp_path
     )
     for i in range(10_002):
@@ -536,7 +602,7 @@ def _csr(one_way=(), two_way=()):
     # origin
     edges = [*one_way, *two_way, *((v, u, km) for u, v, km in two_way)]
     columns = (array(t, c) for t, c in zip("qqd", zip(*edges)))
-    return step3_network_assembly.python.build_csr_from_edges(*columns)[1:4]
+    return network_assembly.python.build_csr_from_edges(*columns)[1:4]
 
 
 def _two_way(*pairs):
@@ -682,6 +748,20 @@ def test_contract_chains_keeps_the_nodes_where_a_chain_ends_or_is_cut(
     assert list(kept) == kept_nodes
 
 
+@both_backends
+def test_contract_chains_keeps_a_node_that_the_caller_asks_to_keep(backend):
+    # Node 2 is between the nodes 1 and 3: it is contracted when no node is
+    # flagged in `kept_node_flags`.
+    graph, node_mode_ids, max_km, edge_class_ids = ROAD_WITH_A_DEAD_END
+    node_2_only = array("B", [0, 0, 1, 0, 0])
+
+    kept, *_ = backend.contract_chains(
+        *graph, node_mode_ids, max_km, edge_class_ids, node_2_only
+    )
+
+    assert list(kept) == [0, 1, 2, 3, 4]
+
+
 def _random_chains(seed):
     # Junctions 0-19 joined by chains of new nodes, both ways or one way (loops and
     # parallel chains among them), numbered at random, the same length both ways; a few
@@ -823,7 +903,7 @@ def test_the_cpp_kernel_contracts_random_chains_as_the_python_kernel():
             assert list(map(list, contracted)) == list(
                 map(
                     list,
-                    step3_network_assembly.python.contract_chains(*arguments),
+                    network_assembly.python.contract_chains(*arguments),
                 )
             ), f"seed {seed}"
 
@@ -967,5 +1047,5 @@ def test_the_cpp_kernel_simplifies_random_walks_as_the_python_kernel():
         ends, interior = _random_shape(seed)
 
         assert _simplify(cpp, ends, interior, 20) == _simplify(
-            step3_network_assembly.python, ends, interior, 20
+            network_assembly.python, ends, interior, 20
         ), f"seed {seed}"

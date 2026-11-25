@@ -24,11 +24,12 @@ import pytest
 import requests
 from helpers import build_main_roads, great_circle_km
 
-from scgraph import GeoGraph, network_file, pipelines
+from scgraph import GeoGraph, network_assembly, network_file, pipelines
+from scgraph.helpers import osm
 from scgraph.helpers.hilbert import hilbert_order
 from scgraph.pipelines import eurostat_sea_lanes, osm_region_multimodal
 from scgraph.pipelines import network_builder
-from scgraph.pipelines.steps import step3_network_assembly, step1_osm_ways
+from scgraph.pipelines.steps import step1_osm_ways
 from scgraph.utils import has_cpp
 
 
@@ -1162,10 +1163,10 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
         }
     }
 
-    pieces = step1_osm_ways.build_way_pieces(
+    pieces = osm.build_way_pieces(
         str(strait_file), selects, ("highway", "route"), max_km_between_nodes=2
     )
-    graph = step3_network_assembly.build_graph_from_pieces(pieces["road"])
+    graph = network_assembly.build_graph_from_pieces(pieces["road"])
 
     ids, node_first_edge_ids = (
         graph["external_node_ids"],
@@ -1185,25 +1186,26 @@ def test_a_ferry_edge_and_a_shuttle_train_edge_have_their_own_classes(tmp_path):
     assert class_names[5, 1] == "shuttle_train"
 
 
-def _build_coast_network(tmp_path):
+def _build_coast_network(tmp_path, region="roads"):
     """The network that `osm_region_multimodal` builds from the coast that the
     comment above `_FILES` describes: the road, the railways, the sea lane and
     the hubs. The local server stands for every source. The OSM file is served
     as a Geofabrik extract: a PBF whose header gives the time of its data. The
-    region "roads" is the file /roads.osm.pbf.
+    region "roads" is the file /roads.osm.pbf. Another region has the roads and
+    the railways of its own file.
     """
     pipeline = osm_region_multimodal
     paths = {**_LOCAL_SOURCES, "osm": "/{region}.osm.pbf"}
     osmium = pytest.importorskip("osmium")
-    xml, pbf = tmp_path / "roads.osm", tmp_path / "roads.osm.pbf"
-    xml.write_bytes(_FILES["/roads.osm"])
+    xml, pbf = tmp_path / f"{region}.osm", tmp_path / f"{region}.osm.pbf"
+    xml.write_bytes(_FILES[f"/{region}.osm"])
     header = osmium.io.Header()
     header.set("osmosis_replication_timestamp", "2026-11-06T20:21:43Z")
     with osmium.SimpleWriter(str(pbf), header=header) as writer:
         for entity in osmium.FileProcessor(str(xml)):
             writer.add(entity)
     with _local_server() as server, pytest.MonkeyPatch.context() as patch:
-        patch.setitem(_FILES, "/roads.osm.pbf", pbf.read_bytes())
+        patch.setitem(_FILES, f"/{region}.osm.pbf", pbf.read_bytes())
         for name, path in paths.items():
             patch.setitem(
                 pipeline.SOURCES,
@@ -1211,7 +1213,7 @@ def _build_coast_network(tmp_path):
                 {**pipeline.SOURCES[name], "url": server + path},
             )
         return GeoGraph.build_geograph(
-            "osm_region_multimodal", region="roads", cache_dir=tmp_path
+            "osm_region_multimodal", region=region, cache_dir=tmp_path
         )
 
 
@@ -1254,8 +1256,9 @@ def test_a_pipeline_whose_selects_give_no_class_builds_no_edge_classes(
 def test_nodes_are_stored_by_node_mode_and_each_node_mode_names_its_source(
     coast_network,
 ):
+    # The roads follow turn restrictions: a road junction may have several nodes
     assert coast_network.node_modes == [
-        {"name": "road", "source": "osm"},
+        {"name": "road", "source": "osm", "has_turn_restrictions": True},
         {"name": "rail", "source": "osm"},
         {"name": "sea", "source": "sea"},
         {"name": "port", "source": "ports"},
@@ -1360,6 +1363,11 @@ def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
         # in 2 pieces, the branch, the second track and the crossover.
         "read and cut the ways": {"pieces": 8},
         "attach the ferries": {"edges": 0},
+        # The coast has no turn restriction
+        "read the turn restrictions": {
+            "turn_restrictions": 0,
+            "forbidden_turns": 0,
+        },
         # The 2 ends of the sea lane
         "read the sea lanes": {"nodes": 2},
         # 5 ports, 4 airports and 1 rail terminal. 5 of them reach two networks.
@@ -1386,6 +1394,38 @@ def test_a_build_logs_the_counts_of_each_step(tmp_path, caplog):
             "kept_edges": 32,
         },
     }
+
+
+# Three roads of 1.1 km meet at node 1: way 1 comes from node 2 in the south,
+# way 2 goes to node 4 in the north, and way 3 goes to node 7 in the west. A
+# turn restriction forbids the left turn at node 1, from way 1 into way 3. The
+# hubs of the coast are around these roads, and the port "Near" has the id 1 in
+# its own table.
+_FILES["/t-junction.osm"] = b"""<osm version="0.6">
+<node id="1" version="1" lat="0" lon="0"/>
+<node id="2" version="1" lat="-0.01" lon="0"/>
+<node id="4" version="1" lat="0.01" lon="0"/>
+<node id="7" version="1" lat="0" lon="-0.01"/>
+<way id="1" version="1"><nd ref="2"/><nd ref="1"/><tag k="highway" v="primary"/></way>
+<way id="2" version="1"><nd ref="1"/><nd ref="4"/><tag k="highway" v="primary"/></way>
+<way id="3" version="1"><nd ref="1"/><nd ref="7"/><tag k="highway" v="primary"/></way>
+<relation id="1" version="1"><member type="way" ref="1" role="from"/><member type="node" ref="1" role="via"/><member type="way" ref="3" role="to"/><tag k="type" v="restriction"/><tag k="restriction" v="no_left_turn"/></relation>
+</osm>"""
+
+
+def test_a_route_makes_no_turn_that_a_turn_restriction_forbids(tmp_path):
+    network = _build_coast_network(tmp_path, "t-junction")
+
+    route = network.get_shortest_path(
+        origin_node={"latitude": -0.01, "longitude": 0},  # node 2
+        destination_node={"latitude": 0, "longitude": -0.01},  # node 7
+    )
+
+    # The route goes on to node 4, turns back there and passes node 1 again:
+    # 4 roads of 1.1 km. With the forbidden turn, it would be 2 roads long.
+    assert route["length"] == pytest.approx(
+        4 * great_circle_km([0, 0], [0.01, 0])
+    )
 
 
 def test_each_source_is_recorded_with_the_version_of_its_data(coast_network):

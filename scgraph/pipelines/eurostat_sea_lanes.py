@@ -18,10 +18,10 @@ import json
 import struct
 from array import array
 
+from scgraph import network_assembly
 from scgraph.geograph import GeoGraph
 from scgraph.helpers.geojson import format_coord_list
 from scgraph.pipelines import CLASS_IDS, CLASSES
-from scgraph.pipelines.steps import step3_network_assembly
 
 PIPELINE_VERSION = 4
 
@@ -143,7 +143,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         files: The path of the downloaded file of the source `sea_lanes`.
 
     Returns:
-        The graph as a dict of arrays, as `step3_network_assembly.build_graph_from_pieces` returns
+        The graph as a dict of arrays, as `network_assembly.build_graph_from_pieces` returns
         it, with `edge_class_ids`. The edges have no shape points.
     """
     sea = build(files)
@@ -154,9 +154,7 @@ def build_sea_lane_arrays(files: dict[str, str]) -> dict[str, array]:
         for edge in sea.get_edges()
     }
     node_first_edge_ids, edge_destination_node_ids, weights = (
-        step3_network_assembly.build_csr_from_adjacency_list(
-            sea.graph_object.graph
-        )
+        network_assembly.build_csr_from_adjacency_list(sea.graph_object.graph)
     )
     return {
         "node_first_edge_ids": node_first_edge_ids,

@@ -9,7 +9,7 @@
 
 // Functions that assemble a network file from raw edges, for a network too large for
 // Python (the roads of the planet). Read the header of
-// scgraph/pipelines/steps/step3_network_assembly.py first: it explains the algorithms,
+// scgraph/network_assembly.py first: it explains the algorithms,
 // and the docstrings of the Python functions give the inputs and the results. Each
 // function here gives the same results as its pure-Python version.
 namespace assembly {
@@ -290,9 +290,12 @@ struct Contracted {
 // The same rules, in the same order of operations, as contract_chains_python in
 // assembly.py: the two versions give the same edges and the same sums.
 // node_mode_ids and edge_class_ids may be null: the graph then has no node modes, or no classes.
+// kept_node_flags may be null. Otherwise it has one byte for each node, and a node with a byte other
+// than 0 is never removed.
 inline Contracted contract_chains(const int32_t* node_first_edge_ids, const int32_t* edge_destination_node_ids, const double* weights,
                                   const uint8_t* node_mode_ids, int64_t node_count, int64_t edge_count,
-                                  double max_km_between_nodes, const uint8_t* edge_class_ids) {
+                                  double max_km_between_nodes, const uint8_t* edge_class_ids,
+                                  const uint8_t* kept_node_flags = nullptr) {
     check_first_ids(node_first_edge_ids, node_count, edge_count);
     const int32_t n = static_cast<int32_t>(node_count);
     std::vector<int32_t> indegree(n, 0), first(n, -1), second(n, -1);
@@ -328,7 +331,7 @@ inline Contracted contract_chains(const int32_t* node_first_edge_ids, const int3
         chain[v] = (two_way || one_way) &&
                    (!node_mode_ids || (node_mode_ids[out[0]] == node_mode_ids[v] &&
                                     node_mode_ids[two_way ? out[1] : first[v]] == node_mode_ids[v])) &&
-                   (!edge_class_ids || has_one_class());
+                   (!edge_class_ids || has_one_class()) && !(kept_node_flags && kept_node_flags[v]);
         keep[v] = !chain[v];
     }
     for (auto* unused : {&indegree, &first, &second}) std::vector<int32_t>().swap(*unused);
